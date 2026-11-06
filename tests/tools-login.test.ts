@@ -31,6 +31,9 @@ import {
 import { runChild } from "./fixtures/run-child";
 
 const posix = process.platform !== "win32";
+/** The token scopes the fake gh holds now. */
+const tokenScopes = async (directory: string) =>
+  (await readFile(join(directory, "gh.scopes"), "utf8")).split(/\s+/);
 // The gh sign-in links an SSH key, which needs ssh-keygen.
 const keygen = posix && realSshKeygen !== null;
 
@@ -204,7 +207,7 @@ test.skipIf(!keygen)(
       // Exactly the documented command, the clipboard off for this run.
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls.trim()).toBe(
-        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key --clipboard=false",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key,workflow --clipboard=false",
       );
       // Another handle sees nothing.
       expect(sessions.poll("gh", "0".repeat(32))).toEqual({
@@ -218,6 +221,10 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "linked" },
       });
+      // The token can push a change of .github/workflows/ (#823).
+      expect(await tokenScopes(opened.directory)).toEqual(
+        expect.arrayContaining(["admin:public_key", "workflow"]),
+      );
       // The outcome is read once; then the session is gone.
       expect(sessions.poll("gh", started.session).kind).toBe("none");
       await assertNoChallengeStored(opened.directory);
@@ -244,8 +251,8 @@ test.skipIf(!posix)(
         .trim()
         .split("\n");
       expect(calls).toEqual([
-        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key --clipboard=false",
-        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key,workflow --clipboard=false",
+        "auth login --hostname github.com --git-protocol ssh --web --scopes admin:public_key,workflow",
       ]);
     } finally {
       await sessions.close();
@@ -884,6 +891,8 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "linked", fingerprint: state.ssh.key.fingerprint },
         identity: "person",
+        // Signed in from Settings → Tools: with workflow (#823).
+        workflow: true,
       });
     } finally {
       await sessions.close();
@@ -1077,6 +1086,107 @@ test.skipIf(!keygen)(
 );
 
 test.skipIf(!keygen)(
+  "Allow CI changes: a sign-in with the key scope but without workflow gets one refresh code, then has workflow (#823)",
+  async () => {
+    const opened = await sshHome();
+    // Signed in from Settings → Tools before #823: the key scope, no
+    // workflow.
+    await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+    await writeFile(
+      join(opened.directory, "gh.scopes"),
+      "gist read:org repo admin:public_key\n",
+    );
+    const sessions = createLoginSessions(opened.environment);
+    const probe = findTool("gh")?.signInProbe;
+    const status = {
+      name: "gh",
+      command: "gh",
+      installed: true,
+      path: join(opened.directory, ".local", "bin", "gh"),
+      updater: "none",
+      source: "https://github.com/cli/cli#installation",
+    } as const;
+    const read = async () =>
+      (
+        await toolsSignIn([{ probe, status }], {
+          path: opened.environment.path,
+          home: opened.directory,
+          run: runTool,
+        })
+      )[0];
+    try {
+      expect(await read()).toMatchObject({ workflow: false });
+      // The row's "Allow CI changes" opens the session of "Link SSH key".
+      const started = await sessions.start("gh", { sshKey: true });
+      expect(started).toMatchObject({
+        kind: "pending",
+        challenge: { kind: "device-code", code: fakeCodes.gh },
+      });
+      if (started.kind !== "pending") throw new Error("not pending");
+      const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
+      expect(calls).toContain(
+        "auth refresh --hostname github.com --scopes admin:public_key,workflow --clipboard=false",
+      );
+      await opened.approve();
+      expect(await settle(sessions, "gh", started.session)).toMatchObject({
+        kind: "signed-in",
+        account: "octocat",
+      });
+      expect(await read()).toMatchObject({ workflow: true });
+      // With workflow, the same session asks for no code again.
+      const again = await sessions.start("gh", { sshKey: true });
+      if (again.kind !== "pending") throw new Error("not pending");
+      expect(again.challenge).toBeUndefined();
+      await settle(sessions, "gh", again.session);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+);
+
+test.skipIf(!keygen)(
+  "Allow CI changes ends in success only with workflow granted: a denied or failed refresh, or one without the scope, is said as such (#823)",
+  async () => {
+    for (const [flag, reason] of [
+      // Denied on GitHub's page, or gh failing: gh exits non-zero.
+      ["gh.fail", "tool-exit"],
+      // gh completes, but the token still has no workflow.
+      ["gh.noscopes", "not-confirmed"],
+    ] as const) {
+      const opened = await sshHome();
+      // Signed in before #823: the key scope, no workflow.
+      await writeFile(join(opened.directory, "gh.state"), "octocat\n");
+      await writeFile(
+        join(opened.directory, "gh.scopes"),
+        "gist read:org repo admin:public_key\n",
+      );
+      await writeFile(join(opened.directory, flag), "");
+      const sessions = createLoginSessions(opened.environment);
+      try {
+        const started = await sessions.start("gh", { sshKey: true });
+        expect(started).toMatchObject({
+          kind: "pending",
+          challenge: { kind: "device-code", code: fakeCodes.gh },
+        });
+        if (started.kind !== "pending") throw new Error("not pending");
+        await opened.approve();
+        expect(await settle(sessions, "gh", started.session)).toEqual({
+          kind: "failed",
+          tool: "gh",
+          reason,
+        });
+        // The token still cannot push a change of CI.
+        expect(await tokenScopes(opened.directory)).not.toContain("workflow");
+      } finally {
+        await sessions.close();
+        await opened.close();
+      }
+    }
+  },
+);
+
+test.skipIf(!keygen)(
   "Link SSH key: a gh signed in by hand without the scope gets a refresh code, then the key is linked",
   async () => {
     const opened = await sshHome();
@@ -1109,6 +1219,7 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "not-linked", reason: "no-key" },
         identity: "person",
+        workflow: false,
       });
       const started = await sessions.start("gh", { sshKey: true });
       expect(started).toMatchObject({
@@ -1118,7 +1229,7 @@ test.skipIf(!keygen)(
       if (started.kind !== "pending") throw new Error("not pending");
       const calls = await readFile(join(opened.directory, "gh.calls"), "utf8");
       expect(calls).toContain(
-        "auth refresh --hostname github.com --scopes admin:public_key --clipboard=false",
+        "auth refresh --hostname github.com --scopes admin:public_key,workflow --clipboard=false",
       );
       expect(calls).not.toContain("auth login");
       await opened.approve();
@@ -1128,6 +1239,10 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "linked", key: { created: true } },
       });
+      // The refresh also adds workflow to a sign-in made by hand (#823).
+      expect(await tokenScopes(opened.directory)).toEqual(
+        expect.arrayContaining(["admin:public_key", "workflow"]),
+      );
       expect(await read()).toMatchObject({ ssh: { state: "linked" } });
       // A second link needs no code: the key is on the account already.
       const again = await sessions.start("gh", { sshKey: true });
@@ -1224,7 +1339,7 @@ test.skipIf(!keygen)(
       await writeFile(join(opened.directory, "gh.state"), "octocat\n");
       await writeFile(
         join(opened.directory, "gh.scopes"),
-        "gist read:org repo admin:public_key\n",
+        "gist read:org repo admin:public_key workflow\n",
       );
       await writeFile(join(opened.directory, `hang.${step}`), "");
       const sessions = createLoginSessions(opened.environment);
@@ -1380,7 +1495,7 @@ test.skipIf(!keygen)(
     await writeFile(join(opened.directory, "gh.state"), "octocat\n");
     await writeFile(
       join(opened.directory, "gh.scopes"),
-      "gist read:org repo admin:public_key\n",
+      "gist read:org repo admin:public_key workflow\n",
     );
     await writeFile(
       join(opened.directory, "gh.keys"),

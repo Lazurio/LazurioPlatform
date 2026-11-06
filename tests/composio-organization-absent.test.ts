@@ -241,6 +241,7 @@ test("signed in before the Organization arrived: nothing is switched, and the di
     primary: null,
     logout: true,
     linkSsh: false,
+    allowWorkflow: false,
   });
 }, 30_000);
 

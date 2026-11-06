@@ -186,7 +186,12 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
     prompt: "Task: install.",
     ...(signIn === undefined ? {} : { signIn }),
   });
-  const none = { primary: null, linkSsh: false, logout: false };
+  const none = {
+    primary: null,
+    linkSsh: false,
+    allowWorkflow: false,
+    logout: false,
+  };
   expect(
     curatedActions(
       gh({
@@ -198,7 +203,12 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
       copy,
       true,
     ),
-  ).toEqual({ primary: null, linkSsh: false, logout: true });
+  ).toEqual({
+    primary: null,
+    linkSsh: false,
+    allowWorkflow: false,
+    logout: true,
+  });
   for (const signIn of [
     undefined,
     { state: "signed-out" },
@@ -212,6 +222,7 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
   expect(curatedActions({ ...gh(), installed: false }, copy, true)).toEqual({
     primary: { mode: "install-only", label: "Install" },
     linkSsh: false,
+    allowWorkflow: false,
     logout: false,
   });
   expect(
@@ -262,6 +273,7 @@ test("the Launchpad's Team gh row offers Sign out exactly for a person's account
     primary: { mode: "login", label: copy.toolsSignInAction },
     logout: false,
     linkSsh: false,
+    allowWorkflow: false,
   });
   // One wording: the page's sentence is the rule's text.
   expect(messages("en").toolsTeamGithub).toBe(teamGithubText.en);
@@ -640,13 +652,16 @@ test.skipIf(!posix)(
       expect(await team.ghCalls()).not.toContain("auth logout");
       // The status names the kind, so the page can offer Sign out.
       const status = await call("/api/tools/status", { signIn: true });
-      expect(
-        (status.body.tools as Record<string, unknown>[])[0]?.signIn,
-      ).toMatchObject({
+      const appSignIn = (status.body.tools as Record<string, unknown>[])[0]
+        ?.signIn as Record<string, unknown> | undefined;
+      expect(appSignIn).toMatchObject({
         state: "signed-in",
         account: "lazurio-for-github[bot]",
         identity: "app",
       });
+      // An App's identity names no scopes: nothing is claimed about
+      // workflow, and no "Allow CI changes" can follow (#823).
+      expect(appSignIn?.workflow).toBeUndefined();
       await team.signIn("annavesela");
       const out = await call("/api/tools/logout", { tool: "gh" });
       expect(out.status).toBe(200);
@@ -863,7 +878,12 @@ test.skipIf(!posix)(
           messages("en"),
           true,
         ),
-      ).toEqual({ primary: null, linkSsh: false, logout: false });
+      ).toEqual({
+        primary: null,
+        linkSsh: false,
+        allowWorkflow: false,
+        logout: false,
+      });
     } finally {
       await team.close();
     }
@@ -984,6 +1004,7 @@ test.skipIf(!posix)(
       expect(curatedActions(gh as ToolOverview, messages("en"), true)).toEqual({
         primary: null,
         linkSsh: false,
+        allowWorkflow: false,
         logout: false,
       });
       expect(signInLine(gh as ToolOverview, messages("en"), true)).toBe(

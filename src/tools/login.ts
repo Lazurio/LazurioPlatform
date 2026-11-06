@@ -45,6 +45,7 @@ import {
   type ToolProcessResult,
   type ToolRunner,
   type ToolSignIn,
+  workflowScope,
 } from "./status";
 
 /** The curated sign-in of a `setup: "launchpad"` catalog tool (decision F19),
@@ -486,6 +487,13 @@ type Session = {
   pendingBytes: number;
 };
 
+/** The scopes a sign-in of gh from Settings → Tools asks for: the key
+ * scope, so that gh can register the Machine's SSH key, and `workflow`, so
+ * that GitHub accepts a push that changes `.github/workflows/` (#823). A
+ * scope refresh asks for the same scopes, so that it also adds `workflow` to
+ * an older sign-in. */
+export const ghSignInScopes = [sshKeyScope, workflowScope].join(",");
+
 export function createLoginSessions(environment: LoginEnvironment) {
   const now = environment.now ?? Date.now;
   const lifetimes = { ...defaultLifetimes, ...environment.lifetimes };
@@ -839,8 +847,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
   }
 
   async function startGh(session: Session, entry: ToolEntry, path: string) {
-    // The documented device flow with the key scope in the same code, so the
-    // operator enters one code and gh may register the Machine's key.
+    // The documented device flow with the key scope and `workflow` in the
+    // same code, so the operator enters one code, gh may register the
+    // Machine's key, and an agent may push a change of CI (#823).
     const exitCode = await ghDeviceFlow(session, [
       path,
       "auth",
@@ -851,7 +860,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       "ssh",
       "--web",
       "--scopes",
-      sshKeyScope,
+      ghSignInScopes,
     ]);
     if (exitCode === undefined || !current(session)) return;
     if (exitCode !== 0) return fail(session, "tool-exit");
@@ -870,13 +879,17 @@ export function createLoginSessions(environment: LoginEnvironment) {
 
   // "Link SSH key" for a gh that is signed in already: steps 2 to 5, after a
   // scope refresh through the same kind of device-code session when the
-  // token cannot manage the account's keys (a gh signed in by hand).
+  // token cannot manage the account's keys (a gh signed in by hand), or has
+  // no `workflow` (a sign-in from before #823). The Tools row's "Allow CI
+  // changes" opens this same session.
   async function startGhLink(session: Session, path: string) {
     const run = sessionRunner(session);
     let signedIn = await ghAccount(run, path).catch(() => undefined);
     if (!current(session)) return;
     if (signedIn === undefined) return fail(session, "not-signed-in");
-    if (!hasKeyScope(signedIn.scopes)) {
+    const lacksWorkflow =
+      signedIn.scopes !== undefined && !signedIn.scopes.includes(workflowScope);
+    if (!hasKeyScope(signedIn.scopes) || lacksWorkflow) {
       // A scope refresh changes the account's token.
       if (!(await mayProceed(session))) return;
       const exitCode = await ghDeviceFlow(session, [
@@ -886,7 +899,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         "--hostname",
         "github.com",
         "--scopes",
-        sshKeyScope,
+        ghSignInScopes,
       ]);
       if (exitCode === undefined || !current(session)) return;
       if (!(await mayProceed(session))) return;
@@ -894,6 +907,15 @@ export function createLoginSessions(environment: LoginEnvironment) {
         signedIn =
           (await ghAccount(run, path).catch(() => undefined)) ?? signedIn;
       if (!current(session)) return;
+      // A refresh asked for `workflow` ends in success only when the token
+      // has it now: a refresh that failed or was denied, or that did not
+      // grant the scope, is said as such, never as a sign-in whose CI
+      // pushes GitHub still refuses (#823, Pablo's review of #894).
+      if (lacksWorkflow) {
+        if (exitCode !== 0) return fail(session, "tool-exit");
+        if (signedIn.scopes?.includes(workflowScope) !== true)
+          return fail(session, "not-confirmed");
+      }
     }
     await linkAndFinish(session, path, signedIn);
   }
