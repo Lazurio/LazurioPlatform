@@ -10314,7 +10314,12 @@ their own Launchpad, which labels itself, named them correctly.
    could be drawn sooner. A host that hands its document over before the elements
    connect (the Launchpad's boot document) reads at once; a fork that lets the
    elements read `/.lazurio/shell.json` reads the account right after it. It is still
-   one read per page, and a host that provides the account reads nothing.
+   one read per page, and a host that provides the account reads nothing. Where the
+   elements' first read of the document ends without one (a session the gateway no
+   longer admits, an invalid answer, the retries spent), the account is read anyway,
+   without a language, as before this addendum (`documentUnavailable`): its `401` is
+   what re-enters the Environment to sign in again (F37's addendum of 2026-10-12), so
+   a page whose document never comes still recovers (Pablo's review of #847).
 3. **Apps asks in the same language.** The page shares one read
    (`pageAccountJson(language)`, the first reader's language wins). The Launchpad's
    Apps passes its boot document's `locale`, the same Folder's language as the shell
@@ -10336,7 +10341,7 @@ their own Launchpad, which labels itself, named them correctly.
 Tests: `tests/shell-account-language.test.ts` (the header, the read waiting for the
 document and asking in its language, the signed-out document, a host reading nothing,
 a remembered account in another language replaced by the fresh one, Apps sharing the
-read) and the page read's shared language in `tests/shell-account.test.ts`. Installed
+read, a page without its document reading without a language and re-entering on `401`) and the page read's shared language in `tests/shell-account.test.ts`. Installed
 consumers receive it only through a qualified Platform release.
 
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway

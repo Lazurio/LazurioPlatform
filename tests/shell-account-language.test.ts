@@ -280,3 +280,57 @@ test("Apps shares the page's one read, asked in the same language", async () => 
   expect(asked).toEqual(["cs"]);
   expect(nameOf(state.drawn(), services)).toBe("Služby serveru");
 });
+
+test("a page whose document never comes still reads the account, without a language, so a refused session re-enters the Environment", async () => {
+  // A fork's page whose gateway session expired between the page load and
+  // `/.lazurio/shell.json`: the document read is refused, and the account's
+  // own `401` is what reloads the page to sign in again.
+  const asked: (string | null)[] = [];
+  let reentered = 0;
+  const state = createShellState({
+    source: () => "origin",
+    read: (language) =>
+      readAccountJson(
+        async (_path, init) => {
+          const headers = (init.headers ?? {}) as Record<string, string>;
+          asked.push(headers["Accept-Language"] ?? null);
+          return new Response(null, { status: 401 });
+        },
+        1_000,
+        quiet,
+        null,
+        [],
+        {
+          refused: () => {
+            reentered += 1;
+            return true;
+          },
+        },
+        language,
+      ),
+    report: quiet,
+    log: quiet,
+  });
+  state.requestAccount();
+  await settled();
+  expect(asked).toEqual([]);
+  state.documentUnavailable();
+  await settled();
+  expect(asked).toEqual([null]);
+  expect(reentered).toBe(1);
+  // One read per page, whatever comes later.
+  state.documentUnavailable();
+  state.provideShell(czechWork());
+  await settled();
+  expect(asked).toEqual([null]);
+});
+
+test("a document read that fails after the page has its document reads nothing more", async () => {
+  const { asked, fetcher } = dashboard();
+  const state = stateOver(fetcher);
+  state.provideShell(czechWork());
+  state.documentUnavailable();
+  state.requestAccount();
+  await settled();
+  expect(asked).toEqual(["cs"]);
+});

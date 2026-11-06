@@ -469,8 +469,13 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `/.lazurio/account/` (404 today) everything behaves as before it:
   - The library reads `GET /.lazurio/account/environments` once per page load
     (`src/shell/account.ts`: same origin, no token, no redirect followed, given up
-    after 4 s), alongside `/.lazurio/shell.json`, on the Launchpad page too, and
-    never polls. A host page that provides the account itself reads, keeps and
+    after 4 s), on the Launchpad page too, and never polls. It waits for the
+    page's document and asks in its language (`Accept-Language`, F37's addendum of
+    2026-11-03): at once where the host hands the document over (the Launchpad's
+    boot document), after `/.lazurio/shell.json` where the elements read it. Where
+    that read ends without a document (a refused session, an invalid answer, the
+    retries spent), the account is read anyway without a language, so its `401`
+    still re-enters the Environment to sign in again. A host page that provides the account itself reads, keeps and
     reports nothing (below). Apps reads the same answer (`src/launchpad/account.ts`), so the page
     asks once. Apps takes two things of it: `preferences.openApps` and `favourites`
     keyed by the Organization slug.
