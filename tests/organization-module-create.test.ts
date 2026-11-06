@@ -5,6 +5,18 @@ import { processContentGit } from "../src/content/git";
 import type { MembershipAnswer } from "../src/content/role";
 import type { PresetName } from "../src/folder/presets";
 import {
+  adoptionPromptId,
+  builtInMarketplace,
+  type MarketplaceOffer,
+  offerById,
+} from "../src/launchpad/marketplace";
+import { messages } from "../src/launchpad/messages";
+import {
+  adoptionDocument,
+  type BoundOrganization,
+  promptOrganization,
+} from "../src/launchpad/prompts";
+import {
   type ModuleCreateHost,
   type ModuleCreateReport,
   type ModuleCreateRequest,
@@ -643,6 +655,98 @@ const changedFiles = async (checkout: string) =>
 
 const bareLog = (bare: string) =>
   git(bare, "--git-dir", bare, "log", "--format=%s", "main");
+
+describe("the Marketplace's brief (#905)", () => {
+  posixTest(
+    "plans the Organization the person chose, named by its slug, where its GitHub login is another Organization's slug",
+    async () => {
+      // Acme is bound to the GitHub login AcmeHQ, and another Organization
+      // of the Folder has the slug acmehq (catalog-selection.ts).
+      const setup = await scenario({
+        worktree: true,
+        githubTeams: { "AcmeHQ/core-builders": 501, "AcmeHQ/sales": 502 },
+        canonical: (document) => {
+          (
+            document.organization as { forge_binding: { locator: string } }
+          ).forge_binding.locator = "AcmeHQ";
+          (document.root_repository as { locator: string }).locator =
+            "AcmeHQ/Acme_GEN3";
+        },
+      });
+      const other = join(setup.folder, "organizations", "Other_GEN3");
+      await mkdir(other);
+      const canonical = canonicalDocument(
+        "acmehq",
+        "organization",
+        [{ slug: "core", display_name: "Core" }],
+        "Other",
+      );
+      const modules = {
+        organization_generation: "gen3",
+        company: "acmehq",
+        github_org: "Other",
+        module_slots: [],
+      };
+      const projection = expectedLegacyProjection(canonical, modules);
+      canonical.compatibility.legacy_projection.sha256 = projection.hash;
+      const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
+      await writeFile(
+        join(other, "lazurio.organization.json"),
+        json(canonical),
+      );
+      await writeFile(join(other, "modules.manifest.json"), json(modules));
+      await writeFile(
+        join(other, "company.gen3.json"),
+        json(projection.projection),
+      );
+      const catalog = await readFolderCatalog(setup.folder);
+      // The Organization the page offers and the prompt route serves, by
+      // its login; the brief's command, as Chat gets it.
+      const chosen = promptOrganization(catalog, "AcmeHQ") as BoundOrganization;
+      expect([chosen.organization, chosen.directory]).toEqual([
+        "acme",
+        "Acme_GEN3",
+      ]);
+      const offer = offerById(
+        builtInMarketplace,
+        "presentations",
+      ) as MarketplaceOffer;
+      const brief = adoptionDocument(
+        [builtInMarketplace],
+        adoptionPromptId(builtInMarketplace, offer, "empty"),
+        setup.folder,
+        chosen,
+        messages("en"),
+        "en",
+      );
+      const command = /`(lazurio module create [^`]+)`/.exec(
+        brief?.text ?? "",
+      )?.[1];
+      const selector = command?.split(" ")[3] as string;
+      expect(selector).toBe("acme/presentations");
+      const report = await dryRun(setup, { selector });
+      expect(report).toMatchObject({
+        status: "actionable",
+        organization: {
+          slug: "acme",
+          github: "AcmeHQ",
+          directory: "Acme_GEN3",
+        },
+        repository: { full_name: "AcmeHQ/presentations" },
+      });
+      // By the login, as the brief named it before, the command selects
+      // the other Organization (here refused, for its missing workspace).
+      const byLogin = await dryRun(setup, {
+        selector: "AcmeHQ/presentations",
+      });
+      expect(byLogin.organization).toEqual({
+        slug: "acmehq",
+        github: "Other",
+        directory: "Other_GEN3",
+      });
+    },
+  );
+});
 
 describe("the real run", () => {
   posixTest(

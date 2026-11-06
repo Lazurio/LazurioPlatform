@@ -15,6 +15,7 @@ import {
   offerIdLength,
   parseMarketplaceIndex,
   releaseUrl,
+  screenshotsFor,
   screenshotUrl,
   seedsOf,
 } from "../src/launchpad/marketplace";
@@ -32,6 +33,10 @@ import {
   routePath,
   routeTitle,
 } from "../src/launchpad/routes";
+import {
+  ModuleCreateUsageError,
+  runModuleCreateCommand,
+} from "../src/modules/module-create-cli";
 import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The Marketplace (plan DEV-6593): one section, offers read from the
@@ -289,6 +294,106 @@ test("screens come from the offered release's exact commit", () => {
   );
 });
 
+/** A screen of the index's shape, in a language or none. */
+const screen = (path: string, locale?: string) => ({
+  path,
+  alt: { cs: `Snímek ${path}`, en: `Screen ${path}` },
+  ...(locale === undefined ? {} : { locale }),
+});
+
+/** Presentations of the fixture, released, with these screens; null when
+ * the index is refused. */
+const withScreens = (screenshots: unknown[]) =>
+  parseMarketplaceIndex(
+    indexWith("presentations", {
+      screenshots,
+      releases: [releaseWith({ commit })],
+    }),
+  )?.find((entry) => entry.id === "presentations") ?? null;
+
+test("an index whose screens name no language reads as before: every screen in both languages, as the registry wrote it", () => {
+  for (const entry of [...shown, ...builtInMarketplace.offers]) {
+    for (const locale of ["cs", "en"] as const)
+      expect(screenshotsFor(entry, locale)).toEqual(entry.screenshots);
+    for (const shot of entry.screenshots)
+      expect(Object.keys(shot)).toEqual(["path", "alt"]);
+  }
+  const plain = (count: number) =>
+    Array.from({ length: count }, (_, i) => screen(`docs/${i}.webp`));
+  expect(withScreens(plain(6))?.screenshots).toHaveLength(6);
+  expect(withScreens(plain(7))).toBeNull();
+});
+
+test("screens per language: a page shows those in its language, else those without one, else any", () => {
+  const cs = [screen("docs/cs/a.webp", "cs"), screen("docs/cs/b.webp", "cs")];
+  const en = [screen("docs/en/a.webp", "en"), screen("docs/en/b.webp", "en")];
+  const plain = [screen("docs/a.webp")];
+  const offered = (screenshots: unknown[]) =>
+    withScreens(screenshots) as MarketplaceOffer;
+  const both = offered([...cs, ...en]);
+  expect<unknown>(screenshotsFor(both, "cs")).toEqual(cs);
+  expect<unknown>(screenshotsFor(both, "en")).toEqual(en);
+  const czechAndPlain = offered([...cs, ...plain]);
+  expect<unknown>(screenshotsFor(czechAndPlain, "cs")).toEqual(cs);
+  expect<unknown>(screenshotsFor(czechAndPlain, "en")).toEqual(plain);
+  expect<unknown>(screenshotsFor(offered(en), "cs")).toEqual(en);
+  // Six per language; a seventh in one, an unknown language or a language
+  // that is not a string refuses the index, as any field it cannot read.
+  const six = (locale: string) =>
+    Array.from({ length: 6 }, (_, i) =>
+      screen(`docs/${locale}/${i}.webp`, locale),
+    );
+  expect(offered([...six("cs"), ...six("en")]).screenshots).toHaveLength(12);
+  for (const screenshots of [
+    [...six("cs"), screen("docs/cs/6.webp", "cs")],
+    [screen("docs/de/a.webp", "de")],
+    [{ ...screen("docs/a.webp"), locale: null }],
+  ])
+    expect(withScreens(screenshots)).toBeNull();
+});
+
+test("an offer's name: one string names it in both languages as before, `{cs, en}` in each its own", () => {
+  const named = (title: unknown) =>
+    parseMarketplaceIndex(
+      indexWith("presentations", {
+        title,
+        releases: [releaseWith({ commit })],
+      }),
+    )?.find((entry) => entry.id === "presentations") ?? null;
+  const organization = {
+    name: "Example Company",
+    login: "Example-Org",
+    slug: "Example",
+  };
+  // Today's records: one string, the same name on a Czech and an English page.
+  const plain = named("Presentations") as MarketplaceOffer;
+  expect(plain.title).toEqual({ cs: "Presentations", en: "Presentations" });
+  for (const entry of builtInMarketplace.offers)
+    expect(entry.title.cs).toBe(entry.title.en);
+  // A bilingual template.
+  const both = named({
+    cs: "Evidence času",
+    en: "Time Tracker",
+  }) as MarketplaceOffer;
+  expect(both.title).toEqual({ cs: "Evidence času", en: "Time Tracker" });
+  expect(adoptionPrompt(both, "empty", organization, cs, "cs")).toContain(
+    "šablonu aplikace Evidence času",
+  );
+  expect(adoptionPrompt(both, "empty", organization, en, "en")).toContain(
+    "the app template Time Tracker",
+  );
+  // A name the release cannot read refuses the index.
+  for (const title of [
+    "",
+    "x".repeat(61),
+    { cs: "Evidence času" },
+    { cs: "Evidence času", en: "" },
+    { cs: "Evidence času", en: "Time Tracker", de: "Zeiterfassung" },
+    7,
+  ])
+    expect(named(title)).toBeNull();
+});
+
 test("an offer without a published release has no card, no detail and no prompt", () => {
   const catalog: MarketplaceCatalog = {
     source: "registry",
@@ -329,7 +434,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       const text = adoptionPrompt(
         released,
         seed,
-        { name: "Example Company", login: "Example-Org" },
+        { name: "Example Company", login: "Example-Org", slug: "Example" },
         copy,
         locale,
       ) as string;
@@ -339,8 +444,15 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).toContain(commit);
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
-      expect(text).toContain("`lazurio module create --stack vite-react`");
+      expect(text).toContain(
+        "`lazurio module create Example/presentations --stack vite-react --teams <team,team> --dry-run`",
+      );
+      expect(text).toContain("`--confirm <plan>`");
       expect(text).not.toContain("--data");
+      // An Organization that already has the module takes the release into
+      // it, never a second one (#906).
+      expect(text).toContain("docs/extending.md");
+      expect(text).toContain("`--allow-unrelated-histories`");
       expect(text).not.toContain("{create}");
       expect(text).toContain(
         (seed === "sample" ? released.seeds.sample : released.seeds.empty)
@@ -363,24 +475,42 @@ test("the brief names the exact release, the Organization, the start and the bou
       adoptionPrompt(
         missionControl,
         "empty",
-        { name: "A", login: "a" },
+        { name: "A", login: "a", slug: "a" },
         copy,
         locale,
       ),
-    ).toContain("`lazurio module create --stack vite-react --data`");
-  for (const [generation, command] of [
-    ["app/v1", "lazurio module create --stack vite-react"],
-    ["app/v2", "lazurio module create --stack vite-react"],
-    ["app/v3", "lazurio module create --stack vite-react --data"],
-    ["app/v4", "lazurio module create --stack vite-react --data"],
-    ["app/v10", "lazurio module create --stack vite-react --data"],
+    ).toContain(
+      "`lazurio module create a/mission-control --stack vite-react --teams <team,team> --data --dry-run`",
+    );
+  for (const [generation, data] of [
+    ["app/v1", ""],
+    ["app/v2", ""],
+    ["app/v3", " --data"],
+    ["app/v4", " --data"],
+    ["app/v10", " --data"],
   ] as const)
-    expect(createCommand({ ...released.release, generation })).toBe(command);
+    expect(
+      createCommand({ ...released.release, generation }, "Example", "slides"),
+    ).toBe(
+      `lazurio module create Example/slides --stack vite-react --teams <team,team>${data} --dry-run`,
+    );
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs, "cs"),
+    adoptionPrompt(
+      released,
+      "empty",
+      { name: "A", login: "a", slug: "a" },
+      cs,
+      "cs",
+    ),
   ).toContain("Nic nemerguj ani neaktivuj bez mého výslovného pokynu.");
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, en, "en"),
+    adoptionPrompt(
+      released,
+      "empty",
+      { name: "A", login: "a", slug: "a" },
+      en,
+      "en",
+    ),
   ).toContain("Merge or activate nothing without my explicit instruction.");
   // The document of an adoption names the catalog's release.
   expect(
@@ -393,6 +523,127 @@ test("the brief names the exact release, the Organization, the start and the bou
       "en",
     )?.text,
   ).toContain(commit);
+});
+
+test("the brief's command is the one lazurio module create runs: with the Teams chosen, the dry run and then the confirmation (#905)", async () => {
+  const missionControl = offerById(
+    catalogOf(...shown),
+    "mission-control",
+  ) as MarketplaceOffer;
+  /** The arguments of a command line after `lazurio`, as the CLI parses
+   * them: past the parser, the run asks for its host, which this test does
+   * not give (base-unknown, exit 1); a command it refuses throws its usage. */
+  const runs = async (command: string) => {
+    const args = command.split(" ");
+    expect(args.shift()).toBe("lazurio");
+    const said: string[] = [];
+    const code = await runModuleCreateCommand(
+      [...args, "--folder", "/nonexistent-lazurio-folder"],
+      { cwd: "/" } as never,
+      (line) => void said.push(line),
+      () => {
+        throw new Error("no host in this test");
+      },
+    );
+    return { code, said };
+  };
+  for (const entry of [released, missionControl]) {
+    const command = createCommand(entry.release, "Example", entry.module);
+    const chosen = command.replace("<team,team>", "core,design");
+    for (const line of [
+      chosen,
+      chosen.replace("--dry-run", `--confirm sha256:${"a".repeat(64)}`),
+    ])
+      expect(await runs(line)).toEqual({
+        code: 1,
+        said: ["No per-user install base on this platform."],
+      });
+  }
+  // The command names the Organization by its slug; the prompt route gives
+  // no brief for one without (the dialog offers none, marketplace-panel.ts).
+  const catalog = catalogOf(released);
+  const id = adoptionPromptId(catalog, released, "empty");
+  expect(
+    adoptionDocument([catalog], id, "/home/x/Lazurio", example, en, "en")?.text,
+  ).toContain("`lazurio module create Example/presentations ");
+  expect(
+    adoptionDocument(
+      [catalog],
+      id,
+      "/home/x/Lazurio",
+      { ...example, organization: null },
+      en,
+      "en",
+    ),
+  ).toBeNull();
+  // The brief's earlier command, without the Organization's module and its
+  // Teams, was refused with the usage.
+  await expect(
+    runs("lazurio module create --stack vite-react --data"),
+  ).rejects.toBeInstanceOf(ModuleCreateUsageError);
+  await expect(
+    runs(
+      createCommand(
+        missionControl.release,
+        "Example",
+        "mission-control",
+      ).replace(" --teams <team,team>", ""),
+    ),
+  ).rejects.toBeInstanceOf(ModuleCreateUsageError);
+});
+
+test("the brief is the same whether the name is free or the Organization already has the module: the agent checks it live and never creates a second one (#906)", () => {
+  const missionControl = offerById(
+    catalogOf(...shown),
+    "mission-control",
+  ) as MarketplaceOffer;
+  for (const entry of [released, missionControl]) {
+    const catalog = catalogOf(entry);
+    const id = adoptionPromptId(catalog, entry, "empty");
+    expect(id.length).toBeLessThanOrEqual(promptIdLength);
+    const having: BoundOrganization = {
+      ...example,
+      modules: [{ organization: "Example", module: entry.module }],
+    } as unknown as BoundOrganization;
+    for (const [copy, locale, never, otherwise] of [
+      [cs, "cs", "druhý nikdy nezakládej", "Jinak se mnou domluv jiný název"],
+      [
+        en,
+        "en",
+        "never create a second one",
+        "Otherwise agree another name with me",
+      ],
+    ] as const) {
+      const free = adoptionDocument(
+        [catalog],
+        id,
+        "/home/x/Lazurio",
+        example,
+        copy,
+        locale,
+      )?.text as string;
+      expect(
+        adoptionDocument([catalog], id, "/home/x/Lazurio", having, copy, locale)
+          ?.text,
+      ).toBe(free);
+      expect(free).toContain(
+        `\`${createCommand(entry.release, "Example", entry.module)}\``,
+      );
+      expect(free).toContain(never);
+      expect(free).toContain(otherwise);
+      expect(free).toContain("docs/extending.md");
+      expect(free).toContain("`--allow-unrelated-histories`");
+      expect(free.includes("--data")).toBe(entry === missionControl);
+      expect(free).not.toMatch(/\{[a-z]+\}/);
+    }
+  }
+  // The dialog says it too where the Launchpad sees the module.
+  expect(cs.marketTaken).toContain("vydání se převezme do něj");
+  expect(cs.marketTaken).toContain("jinak s vámi agent domluví jiný název");
+  expect(en.marketTaken).toContain("the release goes into it");
+  expect(en.marketTaken).toContain(
+    "otherwise the agent agrees another name with you",
+  );
 });
 
 test("an adoption's prompt id carries the offer, the seed and the catalog shown, and nothing else is one", () => {
@@ -430,7 +681,13 @@ test("an adoption's prompt id carries the offer, the seed and the catalog shown,
     adoptionOf([catalogOf(bare)], `marketplace-presentations-sample-${key}`),
   ).toBeNull();
   expect(
-    adoptionPrompt(bare, "sample", { name: "A", login: "a" }, cs, "cs"),
+    adoptionPrompt(
+      bare,
+      "sample",
+      { name: "A", login: "a", slug: "a" },
+      cs,
+      "cs",
+    ),
   ).toBeNull();
   expect(isAdoptionPromptId(`marketplace-notes-empty-${key}`)).toBe(true);
   expect(isAdoptionPromptId("marketplace-notes-sample-builtin")).toBe(true);
@@ -551,7 +808,7 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
       { view: "marketplace", offer: "presentations" },
       cs,
       undefined,
-      (offer) => offerById(catalogOf(...shown), offer)?.title,
+      (offer) => offerById(catalogOf(...shown), offer)?.title.en,
     ),
   ).toEqual({
     heading: "Presentations",
@@ -568,7 +825,7 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
         { view: "marketplace", offer },
         cs,
         undefined,
-        (id) => offerById(unreleasedBuiltIn, id)?.title,
+        (id) => offerById(unreleasedBuiltIn, id)?.title.en,
       ).heading,
     ).toBe("Marketplace");
   // An offer only the registry has is titled by the offers the page shows.

@@ -162,7 +162,7 @@ test("a registry change reaches a page that stays open, through the Launchpad's 
     }),
     answered: (read, changed) => {
       if (read !== null && changed)
-        titles.push(read.offers.map((offer) => offer.title).join());
+        titles.push(read.offers.map((offer) => offer.title.en).join());
     },
     timers: clock.timers,
   });

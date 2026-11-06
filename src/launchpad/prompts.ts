@@ -287,11 +287,17 @@ export function adoptionDocument(
   locale: MarketplaceLocale,
 ): PromptDocument | null {
   const adoption = adoptionOf(catalogs, id);
-  if (adoption === null) return null;
+  // The brief's command names the Organization by its slug, which the
+  // page's targets have too (marketplace-panel.ts); one without is no target.
+  if (adoption === null || organization.organization === null) return null;
   const text = adoptionPrompt(
     adoption.offer,
     adoption.seed,
-    { name: organizationName(organization), login: organization.forgeLogin },
+    {
+      name: organizationName(organization),
+      login: organization.forgeLogin,
+      slug: organization.organization,
+    },
     copy,
     locale,
   );
