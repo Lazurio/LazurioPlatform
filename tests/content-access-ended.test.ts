@@ -578,6 +578,26 @@ posixTest(
 );
 
 posixTest(
+  "a link above the slot leads outside the Organization: what it points to is not touched",
+  async () => {
+    world = await createWorld();
+    const fixture = await environment(world);
+    const web = fixture.at("workspace/web");
+    await writeFile(join(web, "unsaved.txt"), "work\n");
+    await fixture.run(minutes(0), webGone);
+    const elsewhere = join(dirname(fixture.folder), "elsewhere");
+    await rename(fixture.at("workspace"), elsewhere);
+    await symlink(elsewhere, fixture.at("workspace"));
+    // Ignored as a link too, so the root stays clean and the run gets there.
+    await writeFile(fixture.at(".git/info/exclude"), "workspace\n");
+    await fixture.run(minutes(60), webGone);
+    expect(await exists(join(elsewhere, "web", "unsaved.txt"))).toBe(true);
+    expect(fixture.retired).toEqual([`${login} workspace/web`]);
+  },
+  60_000,
+);
+
+posixTest(
   "only a data mount's access ended: its module's apps stop and only the mount goes",
   async () => {
     world = await createWorld();
