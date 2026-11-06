@@ -3622,7 +3622,7 @@ What changes:
 | A different sentence for each audience | Each is easier to write, and people again meet three explanations; rejected |
 | Keep Neon as an option beside Dolt | Data would leave the Organization's own servers and backups, against 0209; rejected |
 
-Template revision `base-instructions-112`. Verified by `tests/folder-skills.test.ts` and
+Template revision `base-instructions-113`. Verified by `tests/folder-skills.test.ts` and
 `tests/folder-mechanisms.test.ts`: the shared words, the generations, the Marketplace, access and
 the request per preset in both languages, and that no generated text says the product does not
 synchronize or recommends Neon. Not proven: that agents in every harness follow the text, and
