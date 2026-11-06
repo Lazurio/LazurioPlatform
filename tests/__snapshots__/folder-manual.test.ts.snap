@@ -99,7 +99,7 @@ Another Environment is reached only by a route from the section above. These lin
 - Lazurio enforces nothing about what this Environment can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.
 
 ## From this personal Remote Environment
-Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
+Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes into other Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
 Peers this Environment may reach over SSH, exactly as the handover records them:
 - \`example-laptop\` (client device, personal zone): SSH both ways with \`example-laptop.tailnet.example.invalid\`; no HTTPS.
 - \`example-workspace\` (work Remote Environment, work zone, Organization \`example\`): SSH from here to \`example-workspace.tailnet.example.invalid\` as \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
@@ -209,7 +209,7 @@ Do jiného Prostředí vede jen cesta z oddílu výše. Tyto řádky platí pro 
 - Kam tenhle Environment dosáhne, Lazurio nevynucuje: vynucuje to Headscale policy Conglomerate Hostu. Tenhle manuál jen opisuje, co zaznamenal handover; peer, který handover neuvádí, neodvozuj ze jmen ani z adres.
 
 ## Z tohohle osobního Remote Environmentu
-Do Pracovních Prostředí uživatele vedou spravované cesty z \`~/.ssh/config.d/lazurio-environments.conf\` (oddíl Cesty mezi Prostředími). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.
+Do Pracovních Prostředí uživatele vedou spravované cesty z \`~/.ssh/config.d/lazurio-environments.conf\` (oddíl Cesty do jiných Prostředí). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.
 Peers, na které odsud smíš přes SSH, přesně jak je zaznamenal handover:
 - \`example-laptop\` (klientské zařízení, osobní zóna): SSH oběma směry s \`example-laptop.tailnet.example.invalid\`; bez HTTPS.
 - \`example-workspace\` (pracovní Remote Environment, pracovní zóna, Organizace \`example\`): SSH odsud na \`example-workspace.tailnet.example.invalid\` jako \`operator\`; HTTPS \`launchpad.example-workspace.example.lazurio.io\`.
@@ -361,7 +361,7 @@ Another Environment is reached only by a route from the section above. These lin
 - Lazurio enforces nothing about what this Environment can reach: the Headscale policy of the Conglomerate Host does. This manual only repeats what the handover recorded; never infer a peer the handover does not list from names or addresses.
 
 ## From this personal Remote Environment
-Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
+Managed routes from \`~/.ssh/config.d/lazurio-environments.conf\` (section Routes into other Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.
 The handover records no other peer this Environment may reach over SSH; do not look for one beyond the managed routes, tell the user.
 - Reachability is decided by Headscale and is neither identity nor mandate: the handover does not record whose a peer is. Before you work on a peer or operate a device, confirm with the user that it is theirs or assigned to them.
 - Organization work (code, repositories, runs) belongs in a work Remote Environment assigned to the user, never in this Environment: connect over SSH and work there. A Work Environment with a managed route is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone an Organization repository into this personal Remote Environment.

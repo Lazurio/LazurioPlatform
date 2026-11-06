@@ -2522,8 +2522,8 @@ function fromPersonalVm(
     // peers (root decision 0224): they are listed and used as they are, and
     // the rules below concern every other peer (review of #826).
     t(
-      "Do Pracovních Prostředí uživatele vedou spravované cesty z `~/.ssh/config.d/lazurio-environments.conf` (oddíl Cesty mezi Prostředími). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.",
-      "Managed routes from `~/.ssh/config.d/lazurio-environments.conf` (section Routes between Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.",
+      "Do Pracovních Prostředí uživatele vedou spravované cesty z `~/.ssh/config.d/lazurio-environments.conf` (oddíl Cesty do jiných Prostředí). Služba je odvozuje z přidělení a členství, takže Prostředí se spravovanou cestou je uživateli přidělené a nepotvrzuješ ho; použij ji, i když ji handover mezi peery neuvádí. Pravidla níž platí pro ostatní peery z handoveru, například zařízení.",
+      "Managed routes from `~/.ssh/config.d/lazurio-environments.conf` (section Routes into other Environments) lead into the user's Work Environments. The service derives them from assignment and membership, so an Environment with a managed route is assigned to the user and you do not confirm it; use it even when the handover lists no such peer. The rules below concern the handover's other peers, for example devices.",
     ),
     ...(reachable.length === 0
       ? [
