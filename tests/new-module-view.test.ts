@@ -48,7 +48,8 @@ test("the first screen says what a module is, and who builds it for each person"
   const screen = newModuleScreen("what", admin, "", cs);
   expect(screen).toMatchObject({
     title: "Nový modul",
-    intro: "Modul je jedna oblast práce vaší firmy. Drží pohromadě tři věci:",
+    intro:
+      "Modul je jedna oblast práce vaší Organizace. Drží pohromadě tři věci:",
     parts: [
       {
         term: "Postup",
@@ -70,8 +71,12 @@ test("the first screen says what a module is, and who builds it for each person"
   });
   // Templates go into an Organization only: no link that leads nowhere, and
   // no video that tells of an Organization's Admin.
+  expect(newModuleScreen("what", personal, "", cs)).toMatchObject({
+    intro: "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
+  });
   expect(newModuleScreen("what", personal, "", en)).toMatchObject({
     title: "New module",
+    intro: "A module is one area of your work. It keeps three things together:",
     who: "An agent builds the module with you in Chat. You describe what it should do; it picks the technical details and shows you a plan before it builds.",
     template: false,
     video: false,

@@ -125,7 +125,8 @@ export type HomeEnvironment = Readonly<{
 // to the module's access in the Organization's Dashboard (S15). Favourites
 // are the account's (S12) when it can be read, else this browser's. Where this
 // Environment's GitHub identity is an Owner of the Organization, Workspace
-// ends with "+ Nový modul". In the personal space its holder sees, "Co
+// ends with "+ Nový modul", muted for a member, and Zkontrolovat přístupy runs
+// the Organization's synchronization now. In the personal space its holder sees, "Co
 // dalšího tu můžete dělat" follows everything else: links into Chat,
 // Automate, Integrace and Soubory (root decision 0185's addendum of
 // 2026-10-13). In Služby serveru a service repository's tile opens its

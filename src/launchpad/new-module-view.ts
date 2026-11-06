@@ -138,7 +138,10 @@ export function newModuleScreen(
       return {
         step,
         title: copy.appsNewModule,
-        intro: copy.newModuleIntro,
+        intro:
+          offer.variant === "personal"
+            ? copy.newModuleIntroPersonal
+            : copy.newModuleIntro,
         parts: [
           {
             term: copy.newModulePartProcess,

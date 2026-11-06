@@ -605,6 +605,8 @@ const en = {
   // The dialog "+ Nový modul" (decision F36's addendum of 2026-11-05).
   newModuleIntro:
     "A module is one area of your company's work. It keeps three things together:",
+  newModuleIntroPersonal:
+    "A module is one area of your work. It keeps three things together:",
   newModulePartProcess: "Process",
   newModulePartProcessText: "how the work is done. Agents follow it.",
   newModulePartData: "Data",
@@ -2866,7 +2868,9 @@ const cs: Record<MessageKey, string> = {
   appsNewModuleRequestPromptDescribed:
     "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   newModuleIntro:
-    "Modul je jedna oblast práce vaší firmy. Drží pohromadě tři věci:",
+    "Modul je jedna oblast práce vaší Organizace. Drží pohromadě tři věci:",
+  newModuleIntroPersonal:
+    "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModulePartProcess: "Postup",
   newModulePartProcessText: "jak se v ní pracuje. Podle něj pracují agenti.",
   newModulePartData: "Data",
@@ -2902,7 +2906,7 @@ const cs: Record<MessageKey, string> = {
     "Potřebujeme nový firemní web, ten současný je pět let starý a nikdo ho neumí upravit. Číst ho budou hlavně noví zákazníci, kteří nás našli přes Google, a lidé, kteří by u nás chtěli pracovat.\n\nChci, aby bylo hned na první pohled jasné, co děláme a pro koho. Pak pár příběhů zákazníků s fotkami, ceník základních služeb, stránka o týmu s tvářemi a kontaktní formulář, ze kterého nám přijde e-mail. Novinky a volná místa bychom chtěli psát sami, bez programátora, ideálně jen jako text s obrázky.\n\nTexty a fotky máme ve sdílené složce. Barvy a logo podle našeho manuálu, ať to vypadá moderně, ale přátelsky, ne jako banka. Musí se to dobře zobrazovat na mobilu, odtud chodí většina lidí.",
   newModuleExampleExpenses: "Výdaje domácnosti",
   newModuleExampleExpensesStory:
-    "Chci mít konečně přehled, kolik nás stojí domácnost. Teď to máme rozházené ve výpisech z banky, v účtenkách v šuplíku a v hlavě. Používat to budu já a manželka, nejčastěji z mobilu, třeba hned v obchodě u pokladny.\n\nChci vidět, kolik jsme tenhle měsíc utratili za jídlo, bydlení, auto, děti a zábavu, a jak to vypadá proti minulým měsícům. Když přetáhneme rozpočet na jídlo, ať mi to řekne dřív, než bude konec měsíce. Výpis z banky umím stáhnout jako CSV, tak ať si ho to umí načíst a samo roztřídit, a co neroztřídí, ať se mě zeptá. Účtenky bych rád jen vyfotil.\n\nVzhledově nic složitého: pár velkých čísel nahoře, pod tím jednoduchý graf po měsících a seznam posledních plateb. Ať je to přehledné i pro někoho, kdo tabulky nesnáší.",
+    "Chci mít konečně přehled, kolik nás stojí domácnost. Teď to máme rozházené ve výpisech z banky, v účtenkách v šuplíku a v hlavě. Používat to budu já a manželka, nejčastěji z mobilu, třeba hned v obchodě u pokladny.\n\nChci vidět, kolik jsme tento měsíc utratili za jídlo, bydlení, auto, děti a zábavu, a jak to vypadá proti minulým měsícům. Když přetáhneme rozpočet na jídlo, ať mi to řekne dřív, než bude konec měsíce. Výpis z banky umím stáhnout jako CSV, tak ať si ho to umí načíst a samo roztřídit, a co neroztřídí, ať se mě zeptá. Účtenky bych rád jen vyfotil.\n\nVzhledově nic složitého: pár velkých čísel nahoře, pod tím jednoduchý graf po měsících a seznam posledních plateb. Ať je to přehledné i pro někoho, kdo tabulky nesnáší.",
   newModuleExampleRecipes: "Rodinné recepty",
   newModuleExampleRecipesStory:
     "Chci mít na jednom místě všechny naše recepty. Babiččiny máme ofocené v telefonu, další jsou uložené odkazy na weby a půlka je jen v hlavě. Používat to budu hlavně já v kuchyni, takže ať se to dobře čte na tabletu opřeném o linku, s velkým písmem a bez zbytečného klikání.\n\nNejvíc bych chtěl hledat podle toho, co zrovna mám v lednici: napíšu brambory, smetanu a slaninu a ono mi to nabídne, co z toho uvařit. U každého receptu chci fotku, suroviny, postup krok za krokem a kolik porcí to dělá, a ať se dají porce přepočítat. Z vybraných receptů na týden ať se mi sám udělá nákupní seznam.\n\nRecepty z odkazů ať si to umí stáhnout samo, ty od babičky bych rád jen vyfotil a nechal přepsat. Barevně klidně veselé, ať se na to hezky kouká.",

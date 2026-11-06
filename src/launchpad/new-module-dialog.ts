@@ -204,6 +204,7 @@ export function createNewModuleDialog(
     const text = element("p", "", screen.text);
     const brief = element("pre", "new-module-brief", screen.brief);
     brief.tabIndex = 0;
+    brief.setAttribute("role", "group");
     brief.setAttribute("aria-labelledby", title.id);
     const copying = element("div", "buddy-act");
     copying.append(
