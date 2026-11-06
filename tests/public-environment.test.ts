@@ -369,7 +369,7 @@ for (const preset of publicPresets)
     );
     expect(
       tourStop("apps", { ...facts, audience: undefined }, apps, cs).text,
-    ).toBe("Aplikace vašich modulů.");
+    ).toBe("Postup, data a aplikace každé oblasti práce.");
     // The other stops say what they say everywhere.
     for (const step of ["automate", "settings"] as const)
       expect(tourStop(step, facts, apps, cs)).toEqual(

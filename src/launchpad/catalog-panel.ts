@@ -11,6 +11,13 @@ import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { icon } from "../shell/icons";
 import { initialsOf, type SwitchTab } from "../shell/view";
 import {
+  type AccessLine,
+  accessLine,
+  addedNames,
+  parseAccessCheck,
+  shownModules,
+} from "./access-check";
+import {
   type Account,
   type AccountFavourites,
   createAccountFavourites,
@@ -92,13 +99,6 @@ export type NewModulePrompt = PromptLink & Readonly<{ text: string }>;
  * Začínáme's AI step opened instead (root decision 0201 point 3). */
 export type NewModuleOutcome = "handed-over" | "copied" | "failed" | "needs-ai";
 
-const newModuleSay: Readonly<Record<NewModuleOutcome, MessageKey>> = {
-  "handed-over": "appsNewModuleOpened",
-  copied: "appsNewModuleCopied",
-  failed: "appsNewModuleCopyFailed",
-  "needs-ai": "appsNewModuleNeedsAi",
-};
-
 /** The current Environment as the Apps home names it under the
  * Organization: its name by what it is for and its kind's icon. */
 export type HomeEnvironment = Readonly<{
@@ -125,7 +125,8 @@ export type HomeEnvironment = Readonly<{
 // to the module's access in the Organization's Dashboard (S15). Favourites
 // are the account's (S12) when it can be read, else this browser's. Where this
 // Environment's GitHub identity is an Owner of the Organization, Workspace
-// ends with "+ Nový modul". In the personal space its holder sees, "Co
+// ends with "+ Nový modul", muted for a member, and Zkontrolovat přístupy runs
+// the Organization's synchronization now. In the personal space its holder sees, "Co
 // dalšího tu můžete dělat" follows everything else: links into Chat,
 // Automate, Integrace and Soubory (root decision 0185's addendum of
 // 2026-10-13). In Služby serveru a service repository's tile opens its
@@ -165,10 +166,12 @@ export function createCatalogPanel(
      * Organization the Folder cannot read); the shell takes this
      * Environment's own space. */
     space: (space: string | null) => void;
-    /** "+ Nový modul": hands the prepared prompt to Chat, by link where
-     * Chat takes it, otherwise through the clipboard; resolves to what
-     * happened. */
-    newModule: (prompt: NewModulePrompt) => Promise<NewModuleOutcome>;
+    /** "+ Nový modul": opens its dialog (new-module-dialog.ts) for the offer
+     * of this tile, the focus going back to `from`. */
+    newModule: (offer: NewModuleOffer, from: HTMLElement) => void;
+    /** Whether Zkontrolovat přístupy runs here: not in a Team Environment,
+     * where a synchronization clones nothing, nor on a public one. */
+    checksAccess: () => boolean;
     /** Reads the person's account once (account.ts): null when it is
      * unavailable. */
     readAccount: () => Promise<Account | null>;
@@ -218,11 +221,21 @@ export function createCatalogPanel(
   // A sentence about the last tile opened on a workstation (starting,
   // failed), shown in the status line until the next move.
   let notice: string | null = null;
+  // Zkontrolovat přístupy: the page it runs on, whether it still runs and
+  // what its line says, until the page moves on.
+  let access: Readonly<{
+    page: string;
+    busy: boolean;
+    line: AccessLine;
+  }> | null = null;
   // Whether this Environment's GitHub identity is an Owner of an
   // Organization, by its route key: read once per page, never assumed.
   // The Owner answers this page holds (owner-answer.ts); a catalog read
   // drops them all.
   const owners = createOwnerAnswers();
+  // Whether it is an active member of it and no Owner, from the same answer:
+  // the muted "+ Nový modul" (F36's addendum of 2026-11-05).
+  const members = createOwnerAnswers();
   // Whether it may maintain a module's repository (a Steward's "Přístup k
   // modulu"), by the Organization's route key and the module id: asked only
   // when the person reaches for a module's menu, never for every tile.
@@ -837,66 +850,84 @@ export function createCatalogPanel(
     return wrap;
   }
 
-  // "+ Nový modul" (2026-10-04): the last tile of Workspace, only where this
-  // Environment's GitHub identity is an Owner of the Organization; before
-  // the first module, the Owner's Workspace has only it (#376). In the
-  // personal space, the same tile for its verified holder, with the prompt
+  // "+ Nový modul" (2026-10-04): the last tile of Workspace. An Owner of the
+  // Organization gets it as it was; before the first module, the Owner's
+  // Workspace has only it (#376). A member, a Steward too, gets it muted with
+  // a lock (F36's addendum of 2026-11-05): a button, never disabled, since
+  // the dialog tells them what happens and sends the Organization Admin a request. In the
+  // personal space, the Owner's tile for its verified holder, with the prompt
   // `new-personal-module` (root decision 0185's addendum of 2026-10-13);
-  // `newModuleOffer` in apps-view.ts decides who gets which. It hands
-  // the wireframe's prompt to Chat: where Chat takes a prompt by link
-  // (Lazurio/t3code#35) it opens with the prompt in a new thread's composer,
-  // not sent; otherwise the prompt goes to the clipboard and Chat opens,
-  // where the person pastes it into a new chat (ui.ts `handOver`).
+  // `newModuleOffer` in apps-view.ts decides who gets which. The tile opens
+  // the dialog; the dialog hands the brief to Chat (ui.ts `handOver`).
   function newModuleTile(offer: NewModuleOffer): HTMLElement {
     const copy = options.copy();
-    const button = element("button", "tile tile--new is-button");
+    const member = offer.variant === "member";
+    const button = element(
+      "button",
+      `tile tile--new is-button${member ? " tile--request" : ""}`,
+    );
     button.type = "button";
+    button.setAttribute("aria-haspopup", "dialog");
     const mark = element("span", "tile-mark tile-mark--new");
-    mark.append(svg("plus"));
+    mark.append(svg(member ? "lock" : "plus"));
     const text = element("span", "tile-body");
     text.append(
       element("span", "tile-name", copy.appsNewModule),
-      element("span", "tile-desc", copy.appsNewModuleSub),
+      element(
+        "span",
+        "tile-desc",
+        member ? copy.appsNewModuleRequestSub : copy.appsNewModuleSub,
+      ),
     );
     button.append(mark, text);
     button.dataset.prompt = offer.id;
-    button.addEventListener("click", async () => {
-      const outcome = await options.newModule(offer);
-      say(options.copy()[newModuleSay[outcome]]);
-    });
+    button.dataset.guide = "apps-new-module";
+    button.addEventListener("click", () => options.newModule(offer, button));
     return button;
   }
 
-  // Whether this Environment may found modules in an Organization: GitHub's
-  // own answer through the Launchpad, fail closed, asked again once it is
-  // older than the server's cache or the bound login changed.
-  function ownerOf(value: Catalog, group: CatalogGroupEntry): boolean {
+  // This Environment's place in an Organization: GitHub's own answer through
+  // the Launchpad, fail closed, asked again once it is older than the
+  // server's cache or the bound login changed. An Owner founds modules, a
+  // member asks the Organization Admin for them.
+  function roleOf(
+    value: Catalog,
+    group: CatalogGroupEntry,
+  ): Readonly<{ owner: boolean; member: boolean }> {
+    const none = { owner: false, member: false };
     const login = group.organization.forgeLogin;
-    if (group.sections === null || login === undefined) return false;
+    if (group.sections === null || login === undefined) return none;
     const organization = catalogOrganizationKey(value, group.organization);
-    if (organization === null) return false;
+    if (organization === null) return none;
     const { owner, ask } = owners.read(organization, login);
-    if (ask !== null)
+    const { owner: member, ask: memberAsk } = members.read(organization, login);
+    const settle = (answer: { owner?: unknown; member?: unknown }) => {
+      if (ask !== null)
+        owners.settle(organization, login, ask, answer.owner === true);
+      if (memberAsk !== null)
+        members.settle(organization, login, memberAsk, answer.member === true);
+    };
+    if (ask !== null || memberAsk !== null)
       void options
         .get(`/api/organizations/${encodeURIComponent(organization)}/owner`)
         .then(({ value: answer, ok }) =>
-          owners.settle(
-            organization,
-            login,
-            ask,
-            ok &&
-              !!answer &&
-              typeof answer === "object" &&
-              (answer as { owner?: unknown }).owner === true,
+          settle(
+            ok && answer && typeof answer === "object"
+              ? (answer as { owner?: unknown; member?: unknown })
+              : {},
           ),
         )
-        .catch(() => owners.settle(organization, login, ask, false))
+        .catch(() => settle({}))
         .finally(() => {
           wakeForOwners();
           // Drawn again only when the answer changes what is shown.
-          if (owners.peek(organization, login) !== owner) render();
+          if (
+            owners.peek(organization, login) !== owner ||
+            members.peek(organization, login) !== member
+          )
+            render();
         });
-    return owner;
+    return { owner, member };
   }
 
   // Wakes the page when the earliest Owner answer expires, so that a shown
@@ -925,6 +956,12 @@ export function createCatalogPanel(
       .querySelector<HTMLButtonElement>('.workspace-tab[aria-selected="true"]')
       ?.focus();
 
+  // Where the guide's principle Moduly points at a module.
+  const markFirstModule = (grid: HTMLElement) => {
+    const first = grid.querySelector<HTMLElement>('.tile[data-kind="module"]');
+    if (first !== null) first.dataset.guide = "apps-module";
+  };
+
   function section(
     value: AppsSection,
     group: CatalogGroupEntry,
@@ -949,6 +986,7 @@ export function createCatalogPanel(
       top.append(element("span", "section-count", head.end.count));
       grid.append(...value.tiles.map((item) => tile(item, group, owner)));
       if (offer !== null) grid.append(newModuleTile(offer));
+      markFirstModule(grid);
       part.append(top, grid);
       return part;
     }
@@ -1018,6 +1056,7 @@ export function createCatalogPanel(
     grid.append(...selected.tiles.map((item) => tile(item, group, owner)));
     // "+ Nový modul" stays with the first tab, where a new module lands.
     if (offer !== null && selected === first) grid.append(newModuleTile(offer));
+    markFirstModule(grid);
     panel.append(grid);
     part.append(top, panel);
     return part;
@@ -1075,6 +1114,79 @@ export function createCatalogPanel(
     favoritesBox.replaceChildren(label, list);
   }
 
+  // --- Zkontrolovat přístupy --------------------------------------------
+
+  // A person who was just given a module sees it at once instead of within
+  // the hour (decision F36's addendum of 2026-11-05): the Organization's
+  // synchronization runs now, the catalog is read again and the line under
+  // the head says what is new, in the page's live status line.
+  const accessPage = () => JSON.stringify(options.route());
+  async function checkAccess(key: string, login: string) {
+    if (access?.busy === true) return;
+    const page = accessPage();
+    const before = shownModules(catalog, login);
+    access = {
+      page,
+      busy: true,
+      line: { text: options.copy().accessChecking, tone: "quiet" },
+    };
+    render();
+    let answer: ReturnType<typeof parseAccessCheck> = null;
+    try {
+      answer = parseAccessCheck(
+        (
+          await options.post(
+            `/api/organizations/${encodeURIComponent(key)}/sync`,
+            {},
+          )
+        ).value,
+      );
+    } catch {
+      answer = null;
+    }
+    if (answer?.state === "checked") await refresh();
+    const names =
+      answer?.state === "checked"
+        ? addedNames(answer.added, before, shownModules(catalog, login))
+        : [];
+    access = {
+      page,
+      busy: false,
+      line: accessLine(answer, names, options.copy()),
+    };
+    render();
+  }
+
+  // The button, where this Organization has it (`checksAccess`). Pressed, it
+  // stays a button that keeps the focus; a second press waits for the first.
+  function accessButton(group: CatalogGroupEntry | null): HTMLElement[] {
+    const login = group?.organization.forgeLogin;
+    if (
+      catalog === null ||
+      group === null ||
+      group.sections === null ||
+      login === undefined ||
+      !options.checksAccess()
+    )
+      return [];
+    const key = catalogOrganizationKey(catalog, group.organization);
+    if (key === null) return [];
+    const copy = options.copy();
+    const busy = access?.busy === true;
+    const button = element("button", "ghost access-check");
+    button.type = "button";
+    button.title = copy.accessHourly;
+    button.dataset.guide = "apps-access";
+    if (busy) {
+      button.setAttribute("aria-disabled", "true");
+      const spinner = element("span", "spinner");
+      spinner.setAttribute("aria-hidden", "true");
+      button.append(spinner, copy.accessChecking);
+    } else button.append(svg("refresh"), copy.accessCheck);
+    button.addEventListener("click", () => void checkAccess(key, login));
+    return [button];
+  }
+
   // --- The head: the Organization, and the Environment under it ---------
 
   function drawHead(group: CatalogGroupEntry | null) {
@@ -1094,7 +1206,12 @@ export function createCatalogPanel(
     heading.dataset.pageHeading = "";
     const where = element("div", "apps-where");
     const title = element("div", "apps-title-row");
-    title.append(heading, ...(help === null ? [] : [help]));
+    title.append(
+      heading,
+      ...(help === null ? [] : [help]),
+      // In an empty space the button stands under its sentence instead.
+      ...(emptyShown ? [] : accessButton(group)),
+    );
     where.append(title);
     const environment = options.environment();
     if (environment !== null) {
@@ -1162,9 +1279,12 @@ export function createCatalogPanel(
     return box;
   }
 
+  // Whether the Apps home shows its plain sentence of an empty space.
+  let emptyShown = false;
   function appsHome(value: Catalog, group: CatalogGroupEntry | null): Node[] {
     const copy = options.copy();
     const parts: Node[] = [];
+    emptyShown = false;
     const setup = options.setupLine();
     if (setup !== null) parts.push(setupLineNode(setup));
     if (group === null)
@@ -1177,8 +1297,8 @@ export function createCatalogPanel(
     )
       parts.push(statusLine(group.status));
     // An Owner's Workspace shows even before its first module, ending with
-    // "+ Nový modul" (#376), so the Owner answer comes first.
-    const owner = ownerOf(value, group);
+    // "+ Nový modul" (#376), so GitHub's answer comes first.
+    const { owner, member } = roleOf(value, group);
     // The rest in the order appsHomeParts gives: the plain sentence of an
     // empty space, the sections, and the personal space's starts last.
     for (const part of appsHomeParts(value, group, copy, {
@@ -1188,15 +1308,25 @@ export function createCatalogPanel(
       setup: setup !== null,
       tabs: options.tabs(),
       owner,
+      member,
     }))
       parts.push(
         part.kind === "empty"
-          ? element("p", "intro", part.text)
+          ? emptySpace(part.text, group)
           : part.kind === "section"
             ? section(part.section, group, owner, part.offer)
             : startsSection(part),
       );
     return parts;
+  }
+
+  // The sentence of an empty space, with Zkontrolovat přístupy where the
+  // person waits for a module of the Organization.
+  function emptySpace(text: string, group: CatalogGroupEntry): HTMLElement {
+    emptyShown = true;
+    const box = element("div", "apps-empty");
+    box.append(element("p", "intro", text), ...accessButton(group));
+    return box;
   }
 
   // "Co dalšího tu můžete dělat" (root decision 0185's addendum of
@@ -1696,13 +1826,20 @@ export function createCatalogPanel(
   function render(route: PageRoute = options.route()) {
     const copy = options.copy();
     openMenu?.();
+    // A finished check's line belongs to the page it ran on.
+    if (access?.busy === false && access.page !== JSON.stringify(route))
+      access = null;
     status.textContent =
       notice ??
+      access?.line.text ??
       (state === "loading"
         ? copy.catalogLoading
         : state === "failed"
           ? copy.catalogLoadFailed
           : "");
+    if (notice === null && access !== null)
+      status.dataset.tone = access.line.tone;
+    else delete status.dataset.tone;
     if (catalog === null) {
       favoritesBox.replaceChildren();
       body.replaceChildren();
@@ -1750,6 +1887,8 @@ export function createCatalogPanel(
     // keeps it.
     const tabFocused =
       document.activeElement?.classList.contains("workspace-tab") === true;
+    const accessFocused =
+      document.activeElement?.classList.contains("access-check") === true;
     if (selection.kind !== "module") lifecycle = null;
     // A module's and a service repository's page draw their own head.
     const ownPage =
@@ -1757,9 +1896,10 @@ export function createCatalogPanel(
       selection.kind === "repository" ||
       selection.kind === "guest";
     head.hidden = ownPage;
-    if (!ownPage) drawHead(scope);
-    body.replaceChildren(
-      ...(selection.kind === "ambiguous"
+    // The body first: the head's button stands where the body leaves it.
+    emptyShown = false;
+    const shown =
+      selection.kind === "ambiguous"
         ? ambiguousView(catalog, selection.candidates)
         : selection.kind === "module"
           ? moduleView(catalog, scope, selection.organization, selection.module)
@@ -1767,9 +1907,12 @@ export function createCatalogPanel(
             ? repositoryView(catalog, scope, selection.repository)
             : selection.kind === "guest"
               ? guestView(catalog, scope, selection.guest)
-              : appsHome(catalog, scope)),
-    );
+              : appsHome(catalog, scope);
+    if (!ownPage) drawHead(scope);
+    body.replaceChildren(...shown);
     if (tabFocused) focusTab();
+    if (accessFocused)
+      document.querySelector<HTMLElement>(".access-check")?.focus();
     const action = body.querySelector<HTMLButtonElement>(
       "[data-module-action]",
     );
@@ -1801,6 +1944,7 @@ export function createCatalogPanel(
    * and on a language change). */
   async function refresh() {
     owners.clear();
+    members.clear();
     maintainers.clear();
     // Only the first read shows that it is reading; a later one keeps the
     // page as it is until its answer.

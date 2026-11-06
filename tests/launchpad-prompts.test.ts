@@ -7,6 +7,7 @@ import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import {
   newModulePrompt,
+  newModuleRequestPrompt,
   newPersonalModulePrompt,
 } from "../src/launchpad/apps-view";
 import {
@@ -24,6 +25,7 @@ import {
 import type { MarketplaceRegistry } from "../src/launchpad/marketplace-registry";
 import { messages } from "../src/launchpad/messages";
 import {
+  audienceAdmits,
   type BoundOrganization,
   isOrganizationPrompt,
   isPromptId,
@@ -102,8 +104,25 @@ function organization(
   };
 }
 
-test("the prompts: new-module for the Organization's Owner, new-personal-module for the Personalspace's holder in the Folder's root", () => {
+test("the prompts: new-module for the Organization's Owner, new-module-request for its member, new-personal-module for the Personalspace's holder in the Folder's root", () => {
   expect(isPromptId("new-module")).toBe(true);
+  expect(isPromptId("new-module-request")).toBe(true);
+  expect(promptAudience("new-module-request")).toBe("organization-member");
+  expect(isOrganizationPrompt("new-module-request")).toBe(true);
+  // A role reaches exactly its own audience, and no role none.
+  for (const [audience, role, admitted] of [
+    ["organization-owner", "admin", true],
+    ["organization-owner", "member", false],
+    ["organization-owner", null, false],
+    ["organization-member", "member", true],
+    ["organization-member", "admin", false],
+    ["organization-member", null, false],
+  ] as const)
+    expect([audience, role, audienceAdmits(audience, role)]).toEqual([
+      audience,
+      role,
+      admitted,
+    ]);
   for (const id of ["other", "New-Module", "__proto__", "constructor", ""])
     expect([id, isPromptId(id)]).toEqual([id, false]);
   expect(promptAudience("new-module")).toBe("organization-owner");
@@ -307,6 +326,7 @@ async function hostedLaunchpad(
   owner: boolean,
   version: string,
   marketplace?: MarketplaceRegistry,
+  audience = false,
 ) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-prompts-")),
@@ -327,7 +347,13 @@ async function hostedLaunchpad(
     modules: [{ id: "deals" }],
   });
   const preset = "hosted-organization-personal";
-  const machine = organizationWithEntry(freePort());
+  const machine = organizationWithEntry(
+    freePort(),
+    undefined,
+    false,
+    false,
+    audience,
+  );
   const entry = machine.entry;
   if (entry === undefined) throw new Error("The fixture has an entry");
   await initializeHandoverFolder(folder, {
@@ -551,6 +577,76 @@ posixTest(
 );
 
 posixTest(
+  "hosted: a member's request for a template only for a member of that Organization; an Owner adopts it",
+  async () => {
+    const commit = "0123456789abcdef0123456789abcdef01234567";
+    const offers = parseMarketplaceIndex({
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((offer) =>
+        offer.id === "presentations"
+          ? {
+              ...offer,
+              releases: offer.releases.map((release) => ({
+                ...release,
+                commit,
+              })),
+            }
+          : offer,
+      ),
+    }) as readonly MarketplaceOffer[];
+    const catalog: MarketplaceCatalog = {
+      source: "registry",
+      commit: "f".repeat(40),
+      offers,
+    };
+    const registry: MarketplaceRegistry = {
+      current: () => catalog,
+      read: async () => catalog,
+      checking: () => false,
+      catalogs: () => [catalog],
+    };
+    const id = `request-presentations-empty-${"f".repeat(12)}`;
+    const member = await hostedLaunchpad(false, "0.0.45-lazurio.2", registry);
+    try {
+      const answer = await fetch(
+        `${member.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: member.valid },
+      );
+      expect(answer.status).toBe(200);
+      const document = (await answer.json()) as { id: string; text: string };
+      expect(document.id).toBe(id);
+      expect(document.text).toContain("`admin-request`");
+      expect(document.text).toContain(commit);
+      expect(document.text).toContain("LazurioTemplates/presentations");
+      // A catalog no longer served, or an offer that is none, as an adoption.
+      for (const other of [
+        `request-presentations-empty-${"e".repeat(12)}`,
+        `request-other-empty-${"f".repeat(12)}`,
+      ]) {
+        const refused = await fetch(
+          `${member.base}/.lazurio/prompts/${other}?org=example-org`,
+          { headers: member.valid },
+        );
+        expect([other, refused.status]).toEqual([other, 404]);
+      }
+    } finally {
+      await member.close();
+    }
+    const owner = await hostedLaunchpad(true, "0.0.45-lazurio.2", registry);
+    try {
+      const refused = await fetch(
+        `${owner.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: owner.valid },
+      );
+      expect(refused.status).toBe(404);
+    } finally {
+      await owner.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
   "hosted: the prompt for the Organization's Owner, behind the gateway's admission, never cached",
   async () => {
     const hosted = await hostedLaunchpad(true, "0.0.45-lazurio.2");
@@ -622,6 +718,258 @@ posixTest(
       ).toBe(401);
     } finally {
       await hosted.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted: a member gets the request to the Organization Admin and never the Organization Admin's prompt, an Owner the other way round",
+  async () => {
+    const promptAt = (
+      hosted: { base: string; valid: HeadersInit },
+      id: string,
+    ) =>
+      fetch(`${hosted.base}/.lazurio/prompts/${id}?org=example-org`, {
+        headers: hosted.valid,
+      });
+    const member = await hostedLaunchpad(false, "0.0.45-lazurio.2");
+    try {
+      const answer = await promptAt(member, "new-module-request");
+      expect(answer.status).toBe(200);
+      expect(await answer.json()).toEqual({
+        schema: "lazurio.prompt.v1",
+        id: "new-module-request",
+        text: newModuleRequestPrompt("Example Company", "Example-Org", cs),
+        cwd: member.folder,
+      });
+      const refused = await promptAt(member, "new-module");
+      expect([refused.status, await refused.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
+      // The page's question says the same.
+      const role = await fetch(
+        `${member.base}/api/organizations/example/owner`,
+        {
+          headers: member.valid,
+        },
+      );
+      expect(await role.json()).toEqual({
+        kind: "organization-owner",
+        owner: false,
+        member: true,
+      });
+    } finally {
+      await member.close();
+    }
+    const owner = await hostedLaunchpad(true, "0.0.45-lazurio.2");
+    try {
+      expect((await promptAt(owner, "new-module")).status).toBe(200);
+      const refused = await promptAt(owner, "new-module-request");
+      expect([refused.status, await refused.json()]).toEqual([
+        404,
+        { error: "not-found" },
+      ]);
+      const role = await fetch(
+        `${owner.base}/api/organizations/example/owner`,
+        {
+          headers: owner.valid,
+        },
+      );
+      expect(await role.json()).toEqual({
+        kind: "organization-owner",
+        owner: true,
+        member: false,
+      });
+    } finally {
+      await owner.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted: a public Environment's visitors are nobody's members, whatever its account answers",
+  async () => {
+    const open = await hostedLaunchpad(
+      false,
+      "0.0.45-lazurio.2",
+      undefined,
+      true,
+    );
+    try {
+      const role = await fetch(`${open.base}/api/organizations/example/owner`, {
+        headers: open.valid,
+      });
+      expect(await role.json()).toEqual({
+        kind: "organization-owner",
+        owner: false,
+        member: false,
+      });
+      const refused = await fetch(
+        `${open.base}/.lazurio/prompts/new-module-request?org=example-org`,
+        { headers: open.valid },
+      );
+      expect(refused.status).toBe(404);
+    } finally {
+      await open.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
+  "hosted: a description reaches Chat as a brief, kept only for whom the prompt names, the audience asked again at the read",
+  async () => {
+    const leave = (
+      hosted: Awaited<ReturnType<typeof hostedLaunchpad>>,
+      body: unknown,
+    ) =>
+      fetch(`${hosted.base}/api/prompts/brief`, {
+        method: "POST",
+        headers: {
+          ...hosted.valid,
+          origin: hosted.entry.externalOrigin,
+          "sec-fetch-site": "same-origin",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+    const description = "Chci přehled reklamací.";
+    const owner = await hostedLaunchpad(true, "0.0.45-lazurio.2");
+    try {
+      const kept = await leave(owner, {
+        id: "new-module",
+        org: "Example-Org",
+        description,
+      });
+      expect(kept.status).toBe(200);
+      const { kind, id } = (await kept.json()) as { kind: string; id: string };
+      expect(kind).toBe("prompt-brief");
+      expect(id).toMatch(/^new-module-[0-9a-f]{32}$/);
+      const read = await fetch(
+        `${owner.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: owner.valid },
+      );
+      expect(read.status).toBe(200);
+      expect(read.headers.get("cache-control")).toBe("no-store");
+      expect(await read.json()).toEqual({
+        schema: "lazurio.prompt.v1",
+        id,
+        text: newModulePrompt(
+          "Example Company",
+          "Example-Org",
+          cs,
+          description,
+        ),
+        cwd: owner.folder,
+      });
+      // A later hand-over of the same person has its own id, and the earlier
+      // Chat that comes back reads its own words.
+      const later = await leave(owner, {
+        id: "new-module",
+        org: "Example-Org",
+        description: "Chci přehled faktur.",
+      });
+      const second = ((await later.json()) as { id: string }).id;
+      expect(second).not.toBe(id);
+      const textOf = async (prompt: string) =>
+        (
+          (await (
+            await fetch(
+              `${owner.base}/.lazurio/prompts/${prompt}?org=example-org`,
+              { headers: owner.valid },
+            )
+          ).json()) as { text: string }
+        ).text;
+      expect(await textOf(second)).toContain("Chci přehled faktur.");
+      expect(await textOf(id)).toContain(description);
+      expect(await textOf(id)).not.toContain("Chci přehled faktur.");
+      // Its key names it: another login or an unknown key is the same 404,
+      // and the plain prompt stays as it was.
+      for (const path of [
+        `/.lazurio/prompts/${id}?org=other`,
+        `/.lazurio/prompts/${id}`,
+        `/.lazurio/prompts/new-module-${"0".repeat(32)}?org=example-org`,
+      ]) {
+        const refused = await fetch(`${owner.base}${path}`, {
+          headers: owner.valid,
+        });
+        expect([path, refused.status]).toEqual([path, 404]);
+      }
+      // What is not a description, and a prompt that takes none.
+      for (const body of [
+        { id: "new-module", org: "Example-Org", description: "  " },
+        { id: "new-module", org: "Example-Org", description: 1 },
+        { id: "prepare-content", org: "Example-Org", description },
+        { id: "new-module", org: 1, description },
+      ])
+        expect((await leave(owner, body)).status).toBe(400);
+      expect(
+        (
+          await leave(owner, {
+            id: "new-module",
+            org: "Example-Org",
+            description,
+            extra: 1,
+          })
+        ).status,
+      ).toBe(400);
+      // The Organization Admin's own prompt only: the member's is another's, and an
+      // unknown Organization none.
+      for (const body of [
+        { id: "new-module-request", org: "Example-Org", description },
+        { id: "new-module", org: "unknown", description },
+        { id: "new-personal-module", org: "example", description },
+      ])
+        expect((await leave(owner, body)).status).toBe(404);
+      // Behind the admission of every write.
+      const outside = await fetch(`${owner.base}/api/prompts/brief`, {
+        method: "POST",
+        headers: { host: owner.host, "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "new-module",
+          org: "Example-Org",
+          description,
+        }),
+      });
+      expect(outside.status).toBe(401);
+    } finally {
+      await owner.close();
+    }
+    const member = await hostedLaunchpad(false, "0.0.45-lazurio.2");
+    try {
+      expect(
+        (
+          await leave(member, {
+            id: "new-module",
+            org: "Example-Org",
+            description,
+          })
+        ).status,
+      ).toBe(404);
+      const kept = await leave(member, {
+        id: "new-module-request",
+        org: "Example-Org",
+        description,
+      });
+      expect(kept.status).toBe(200);
+      const { id } = (await kept.json()) as { id: string };
+      const read = await fetch(
+        `${member.base}/.lazurio/prompts/${id}?org=example-org`,
+        { headers: member.valid },
+      );
+      expect(((await read.json()) as { text: string }).text).toBe(
+        newModuleRequestPrompt(
+          "Example Company",
+          "Example-Org",
+          cs,
+          description,
+        ),
+      );
+    } finally {
+      await member.close();
     }
   },
   30_000,

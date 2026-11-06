@@ -866,8 +866,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
 
 ### Prompt hand-off to Chat
 
-"+ Nový modul" opens Chat of the same Environment with the prepared prompt in a new
-thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
+The dialog of "+ Nový modul" opens Chat of the same Environment with the prepared prompt
+in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
 
 - **The prompt.** `GET /.lazurio/prompts/<id>?org=<login>`, behind the admission of
   every read (the gateway's session hosted, where Machines proxies `/.lazurio/*` from
@@ -876,7 +876,7 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   `{"schema": "lazurio.prompt.v1", "id", "text", "cwd"}`. `text` is the prompt in the
   user's language (the Folder's profile locale), `cwd` the absolute root of the
   Lazurio Folder for every prompt, an Organization's too (root decision 0189; F36
-  addendum of 2026-10-14: the Folder's skills are found only from there). Three ids
+  addendum of 2026-10-14: the Folder's skills are found only from there). Four ids
   exist (`src/launchpad/prompts.ts`). `prepare-content` ("Vyřešit v Chatu", root
   decision 0188) is the Folder's: only where the Environment signs in as its user,
   only while the last installation the content routes report stopped, its text the
@@ -891,7 +891,13 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   Organization is the one Organization of the Folder whose manifest binds that GitHub
   login. Each prompt names who may get it: `new-module` only where this Environment's
   GitHub identity is an Owner of the Organization, the tile's live check
-  (`organization-owner.ts`), so never on a Team Environment. `new-personal-module`
+  (`organization-owner.ts`), so never on a Team Environment. `new-module-request`
+  (a member's "+ Nový modul", audience `organization-member`, [F36's addendum of
+  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once))
+  is the same Organization's prompt for an active member who is no Owner, by the same
+  answer (`audienceAdmits`), its text `newModuleRequestPrompt`: the agent prepares a
+  request with the skill `admin-request` and sends it only with the person's consent. An
+  Owner gets the same 404 for it, and a member for `new-module`. `new-personal-module`
   (the personal space's "+ Nový modul", audience `personalspace-holder`) is the
   Folder's too: only where this Environment's GitHub account holds the Folder's
   Personalspace, decided at the request as `GET /api/content` decides it (#186: its
@@ -902,6 +908,20 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   an Organization the Folder does not bind to that login, any other query and every
   failure get the same `404 {"error": "not-found"}`: the answer never says more than the
   tile already showed. Any method but GET: 405.
+- **A description is a brief.** A link names only an id, so what a person wrote reaches
+  the composer through the Launchpad (`prompt-briefs.ts`). At the click, once the tab is
+  open, the page sends `POST /api/prompts/brief` with `{id, org, description}` for
+  `new-module`, `new-module-request` or `new-personal-module`, by the rule of the prompt's
+  own route; `{"kind": "prompt-brief", "id": "<prompt>-<32 hex>"}` names the brief, and the
+  link names that id. `GET /.lazurio/prompts/<brief>?org=<login>` asks the audience again
+  and answers the text with "Moje představa:" and the brief's own id. Each hand-over has its
+  own brief, so a later one of the same person leaves an earlier one as it was, and a brief
+  can be read again by a Chat that comes back. A brief lives in this process's memory for a
+  day, 64 at most (the oldest gives way), for the login it was kept for; a description is at
+  most 4000 characters, without control characters but line
+  breaks and tabs (`newModuleDescription`). Anything else is 400, anyone else the same 404,
+  and a brief that could not be left sends the text through the clipboard, never a link
+  without the person's words.
 - **The link.** The page never puts the text in a link. It opens Chat in a new tab
   through the pairing (`POST /api/chat/pair`) and adds
   `lazurio-prompt=<id>&lazurio-org=<login>` to the pairing link's fragment, after the
@@ -932,8 +952,12 @@ thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform#153).
   version rule and the cached `t3 --version` check (every failure no), the link's shape,
   and HTTP: hosted behind the admission (401 without the session), the Owner's document
   with `no-store`, GitHub asked for the bound login, 405 for POST, the same 404 for
-  another id, Organization, query or a non-Owner, the hand-off answer from the
-  Environment's `t3`; locally only with the token, and no hand-off without a Chat origin.
+  another id, Organization, query or a non-Owner, a member's request and the Owner's
+  prompt each only for its own, a brief kept and read for whom the prompt names, the
+  hand-off answer from the Environment's `t3`; locally only with the token, and no
+  hand-off without a Chat origin. `tests/new-module-view.test.ts`: the dialog's three
+  screens, the briefs and their store. `tests/new-module-dialog.test.ts`: what the dialog
+  says of the clipboard, and that each hand-over carries its own words.
 
 ### The guide (decision F56)
 
@@ -946,7 +970,7 @@ beside it, and the layer lets every click through.
 
 - **In the shell.** `src/shell/guide.ts` decides what plays and when, over seams, so its
   rules are tested without a DOM; `guide-layer.ts` draws in `<lazurio-buddy>`'s own
-  shadow root, made only when the guide first shows; `guide-content.ts` holds the six
+  shadow root, made only when the guide first shows; `guide-content.ts` holds the
   principles in both languages and parses what a host hands over;
   `guide-placement.ts` is where a bubble at a ringed element stands, for the tour too;
   `guide-protocol.ts` is the pure protocol of Buddy's frame, with its vectors in
@@ -966,8 +990,8 @@ beside it, and the layer lets every click through.
   mark stands at the card's corner and the card where the tour's bubble would.
 - **The principles in motion** ([F56's addendum (3) of 2026-10-19](decisions.md#f56-addendum-3-of-2026-10-19-the-six-principles-in-motion)).
   `environment`, `buddy`, `reach`, `files` and `integrations` play a scene in the card,
-  one beat a step; Trezor keeps its video and has none, and so does a host's own
-  explanation. `guide-scenes.ts` is the scenes as pure data (per beat where each object
+  one beat a step; Trezor and Moduly keep their videos and have none, and neither does a
+  host's own explanation. `guide-scenes.ts` is the scenes as pure data (per beat where each object
   stands, whether it is on stage, the words of its state, when it moves; their names in
   both languages), `guide-stage.ts` builds one in the card and sets a beat, and
   `guide-scene-styles.ts` draws it: its plain rules are each beat's finished frame, and
@@ -987,7 +1011,8 @@ beside it, and the layer lets every click through.
   explanations of the page it shows with `provideGuides([...])` on every move (null to
   withdraw), marks its elements with `data-guide` and its "?" with
   `data-guide-help="<id>"`. A "?" may name a principle (`environment`, `buddy`,
-  `reach`, `files`, `integrations`, `vault`) or one of the page's explanations. An
+  `reach`, `files`, `integrations`, `vault`, `modules`) or one of the page's
+  explanations. An
   explanation may carry `docs`, an https address the card links at its last step
   ("Dokumentace", [F56's addendum of 2026-10-18](decisions.md#f56-addendum-of-2026-10-18-every-page-of-the-apps-column-has-its--and-loses-its-explaining-sentences)); the
   principle `integrations` carries the documentation of Integrace. Without that, the
@@ -1003,7 +1028,10 @@ beside it, and the layer lets every click through.
   current Environment, whether Composio is allowed as Integrace read it, the vault's
   facts as Trezor read them, what Začínáme shows here and what Nástroje can point at),
   never an Organization's name (#499):
-  - Apps home and an Organization's Apps: the principle `environment`;
+  - Apps home and an Organization's Apps (`appsHelp`, [F56's addendum (8) of
+    2026-11-05](decisions.md#f56-addendum-8-of-2026-11-05-apps-explain-the-module)): the
+    video `modules-overview` in place, in a Personal Environment the principle `modules`,
+    whose adaptation is true of it; the principle `environment` stays in the guide;
   - Soubory: the principle `files`, in a Team Environment the Launchpad's `files-team`;
   - Integrace: the principle `integrations`, where Composio is allowed the Launchpad's
     `integrations-composio` (the user's own account, one Composio organization per
@@ -1036,7 +1064,9 @@ beside it, and the layer lets every click through.
   "?" shows, which ui.ts sets on the buttons. Escape leaves Settings only while the
   guide explains nothing (`escapeLeavesSettings` in shell.ts, `guiding`): the shell's
   listener comes before the guide's. The marks are `nav-files`,
-  `nav-integrations`, `nav-vault` (the column), `browser` (the corner's toggle),
+  `nav-integrations`, `nav-vault` (the column), `apps-module`, `apps-access` and
+  `apps-new-module` (the Apps home's first module, Zkontrolovat přístupy and
+  "+ Nový modul", drawn by `catalog-panel.ts`), `browser` (the corner's toggle),
   `files-list`, `composio-apps` (the corner's Composio link), `vault-row` (the vault's
   row, and the picture of a Personal Environment's connection), `vault-open` (the row's
   actions), Settings' `start-steps`, `start-optional`, `general-language`,
@@ -1056,8 +1086,8 @@ beside it, and the layer lets every click through.
   guide whether it wants attention, hides while the guide is out, and nudges its bubble
   when a "?" asks meanwhile; the guide then draws nothing and only says "Nejdřív
   dokončete Začínáme" to assistive technology.
-- **Rules of a text** (`tests/fixtures/guide-text.ts`): at most four steps of at most
-  nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, SSH, a tailnet or a
+- **Rules of a text** (`tests/fixtures/guide-text.ts`): at most four steps (Trezor and
+  Moduly five, the lines of their videos) of at most nine words, no full stop, never Launchpad, Dashboard, Mašina or VM, SSH, a tailnet or a
   server (an MCP server is the name of a thing and passes), three kinds of
   Environment, never "jen vám/váš/vaše/pro vás", no sameness, nothing that forbids. A
   variant is chosen only by facts the page knows, never by an Organization's name
@@ -1459,11 +1489,12 @@ the first run's line shows. An Organization never has it.
   even with no module ("zatím žádné moduly"), and it ends with the tile "+ Nový modul"
   / "Vytvořit s agentem"; the empty sentence gives way to it, and the starts stay after
   it. `newModuleOffer` in `apps-view.ts` decides who gets which tile: an Organization's
-  Owner the prompt `new-module`, the personal space's holder `new-personal-module`. The
+  Owner the prompt `new-module`, its member [the muted tile](#new-module-dialog), the
+  personal space's holder `new-personal-module`. The
   holder is the `login` of the `present` personalspace item of `GET /api/content`
   (`personalHolderOf`), which the page reads once it is idle; until then, and for a
-  personal space listed with a reason, there is no tile. The click hands over
-  `{id: "new-personal-module", organization: <login>, text}` through `handOver`, by
+  personal space listed with a reason, there is no tile. The click opens [the
+  dialog](#new-module-dialog), which hands the brief over through `handOver`, by
   link where Chat takes prompts, otherwise through the clipboard (a workstation always
   copies). Both briefs (F36 addendum of 2026-10-14) are short: "Chci postavit nový
   modul do Workspace Lazuria." / "I want to build a new module in the Lazurio
@@ -1474,6 +1505,51 @@ the first run's line shows. An Organization never has it.
   Folder's skill `new-module` (F14 addendum of 2026-10-14) holds every step, including
   `lazurio module create personalspace/<slug>`; the brief carries none. The personal
   brief must not reach a release before the real run of that command (#399).
+
+<a id="new-module-dialog"></a>**The dialog "+ Nový modul" ([F36's addendum of
+2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)).**
+`#new-module`, drawn by `new-module-dialog.ts` from the pure screens of
+`new-module-view.ts`, in the frame of "Seznamte se s Buddym" with its dots. Three screens:
+what a module is (its process, data and app, who builds it, "Přehrát video" and "Nebo
+začněte šablonou"), what it should do (the person's words, what to remember, three
+examples that fill the field in through the editing command, so undo brings back what was
+there), and the whole brief, with "Kopírovat zadání" and "Otevřít v Chatu". `NewModuleOffer`
+says whom it speaks to: `admin`, `member` (the words of a request and the brief of
+`new-module-request`) or `personal` (everyday examples, no link to templates and no video,
+which tell of an Organization). What the person wrote stays in the page until it is handed
+over, for that offer; Escape and the × close the dialog, and the focus goes back to the
+tile. Handed over or copied, it closes and the short message says what happened; a failure
+keeps it open with the brief to copy. A hand-over's answer belongs to the showing that
+started it: where the person went back or changed the words meanwhile they stay and the
+dialog stays open, and a dialog opened anew hears only the short message. "Kopírovat zadání" says that the brief is in the
+clipboard only once the clipboard answered, and otherwise that it was not copied and how to
+take it by hand.
+
+A member, a Steward too, sees the tile muted with its lock, "Zakládá Admin Organizace" under it: a
+button, never disabled, which opens the same dialog. The answer is the Owner route's, which
+now says `{"owner": …, "member": …}` from the one membership read (`roleIn`). No tile on a Team
+Environment, whose identity is no person's, none on a public one, whose visitors are nobody's
+members, and none for anyone without an active membership. A member without a module keeps
+the plain sentence of an empty space and Zkontrolovat přístupy under it, and over a Workspace
+with only the muted tile, the one way to ask for a first module. An Owner's empty Workspace
+has only "+ Nový modul", with no sentence and the button beside the "?".
+
+**Zkontrolovat přístupy.** A quiet button beside the "?" of an Organization's Apps, under
+the sentence where the space is empty; not in a Team Environment, whose synchronization
+clones nothing, nor on a public one (`checksAccess`). Its `title` says that Lazurio also
+checks every hour. `POST /api/organizations/<org>/sync` with `{}`, behind the admission of
+every write, runs that Organization's synchronization (`syncCheckouts({organization})`, the
+hourly core and its content lock) and answers (`access-check.ts`)
+`{"kind": "access-check", "state": "checked", "added": [<path>, …]}`, the modules this run
+cloned, or `{"state": "failed", "reason": …}`: `busy` (the content lock is held), `github`,
+`denied`, `blocked` (the Organization's root has work in progress), `not-here` (a Team
+Environment, a Launchpad that is not installed) or `failed`. An unknown Organization and a
+public Environment answer 404. While it runs the button keeps the focus, says "Kontroluji
+přístupy…" and takes no second press. Then the page reads the catalog again, and the status
+line under the head says what is new: this run's modules by the name Apps shows, and
+whatever else shows now that did not before (`addedNames`, such as what the hourly run
+brought while the page stayed open), or that nothing is, or the reason. The line stands until
+the page moves on. Tests: `tests/launchpad-access-check.test.ts`.
 
 **Routes.** `/` is the first Organization's Apps home; `/o/<org>` one Organization's
 Apps home, its sections Workspace and Productionspace (F36, F32's final addendum);
@@ -2889,7 +2965,19 @@ focus, and the user starts it; the line under it (`vaultVideoLine`) says what th
 does not. The "?" closes it and opens it again, and then plays it (with less motion it
 waits at its poster); Escape closes it, the focus back on the "?". Closed by the user, it
 stays closed until the page moves on (`helpVideoDrawing`, per visit), and the next visit
-opens it again.
+opens it again. The Apps home's `modules-overview` ([F56's addendum (8) of
+2026-11-05](decisions.md#f56-addendum-8-of-2026-11-05-apps-explain-the-module)) stands in its
+own box `#apps-video` under the head, opened only by its "?" (`createHelpVideo`'s
+`first: false`), since the home is no page to push down on every visit; a move closes it,
+and its five titles stand in `#apps-video-line` for a screen reader. `helpVideoBoxes` in
+`guides.ts` names each video's box and `helpVideos` in `ui.ts` holds one player per box. The
+dialog "+ Nový modul" mounts `createGuideVideo` with the same video on its first screen,
+"Přehrát video". Začínáme's last optional row, "Poznejte moduly" (`optionalRows`, only where
+`carriesOrganization`: a work or Automated Environment by its preset, your computer once its
+Folder holds an Organization, never a Personal Environment), has a title and a button and no
+sentence. It opens the same video in `#start-video` under the rows, an instance of its own
+outside `helpVideos`: the rows may be drawn again while it plays, the button closes it, and so
+do Escape and a move. It is no step: no count and no line reads it.
 
 The files are `src/launchpad/videos/<name>-<cs|en>.mp4` and their posters
 `<name>-<cs|en>.webp`, embedded in the executable with `{ type: "file" }` like the shell's
@@ -2911,7 +2999,8 @@ a range of the compiled executable.
 
 To add a video: put both languages' files in `src/launchpad/videos/`, add the name to
 `guideVideoNames` and the four imports to `guideVideoFilePaths`, give the guide a slot in
-`index.html` and mount `createGuideVideo` on it in its panel.
+`index.html` and mount `createGuideVideo` on it in its panel; a video a page's "?" opens in
+place needs its box in `helpVideoBoxes` and one more entry in `helpVideos`.
 
 ## Files page
 
@@ -3245,7 +3334,8 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   not work in the organization of the Organization's name: "Dokončit" opens
   Composio's dialog at the step left in Composio, decision F42's note of 2026-10-19;
   on a Remote Environment SSH z vlastního počítače, "Nastaveno" once a device's key was added here,
-  and Codex Desktop, both leading to Settings → SSH; between them "Trezor v Bitwardenu"
+  and Codex Desktop, both leading to Settings → SSH, and last "Poznejte moduly" with its
+  [video](#guide-videos); between them "Trezor v Bitwardenu"
   where Apps → Trezor gives the steps for Bitwarden, its "Návod" opening them) and
   "Prohlídka aplikace" ("Spustit
   prohlídku" / "Spustit znovu" starts the introduction in Apps). A Team Environment's
@@ -3284,8 +3374,9 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   připojte AI", its title alone with no line under it, as Začínáme's AI step; "Připojte
   GitHub", "Ještě stáhněte <Organizace>", "Příprava se nepovedla"), Začínáme in the
   Settings column ("Všechny kroky na jednom místě."), then on Začínáme the missing step
-  itself (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps,
-  Chat, Automate and the gear ("Nastavení" · "Začínáme tu najdete kdykoli."). Every
+  itself (`data-tour` `start-ai`, `start-github`, `prepare`). Then the introduction: Apps
+  ("Moduly" · "Postup, data a aplikace každé oblasti práce."), Chat, Automate and the gear
+  ("Nastavení" · "Začínáme tu najdete kdykoli."). Every
   bubble but the last offers **"Dokončím později"**, which puts it away for the current
   view only: until the basics exist the tour is back on the next page load, and Začínáme
   never goes away. It steps aside while a dialog or the Environment browser is open and

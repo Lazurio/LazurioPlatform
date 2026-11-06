@@ -3,7 +3,7 @@ import { isExplanationId } from "./guide-protocol";
 import { inKind, type KindLocale } from "./kind-name";
 
 // What the guide says (decision F56; root decision 0180's addendum of
-// 2026-10-18): the six principles of Lazurio, which the shell owns in both
+// 2026-10-18): the principles of Lazurio, which the shell owns in both
 // languages, and the explanations of a page, which its host owns and hands
 // over with `provideGuides`, since they point at the host's own elements and
 // change with its page. A port of the Lazurio prototype's guide
@@ -11,8 +11,10 @@ import { inKind, type KindLocale } from "./kind-name";
 // principles' motion is guide-scenes.ts (F56's addendum (3)).
 //
 // Its rules, which tests/shell-guide.test.ts holds for every text: at most
-// four steps (Trezor keeps the five lines of its approved video), each at
-// most nine words and without a full stop, the brand's video titles; never
+// four steps (Trezor keeps the five lines of its approved video, Moduly the
+// five titles of its video, so that the product and the video say the same
+// thing), each at most nine words and without a full stop, the brand's video
+// titles; never
 // Launchpad, Dashboard, Mašina or VM; three kinds of Environment; never
 // "jen vám", "jen váš", "jen vaše" or "jen pro vás"; no "=" and no words of
 // sameness: a laptop is not the agents' computer, and Lazurio is a window
@@ -65,8 +67,9 @@ export const shellMarks = Object.freeze([
 /** The marks of a host's page the principles look for (a host that has
  * none of them gets the card in the middle): the Environment browser's
  * toggle, the Apps column's Soubory, Integrace and Trezor, a connected and a
- * not connected app of Integrace, and the vault's row and main button on
- * Trezor. */
+ * not connected app of Integrace, the vault's row and main button on Trezor,
+ * and on the Apps home a module's tile, Zkontrolovat přístupy and "+ Nový
+ * modul". */
 export const principleMarks = Object.freeze([
   "browser",
   "nav-files",
@@ -76,6 +79,9 @@ export const principleMarks = Object.freeze([
   "integration-connect",
   "vault-row",
   "vault-open",
+  "apps-module",
+  "apps-access",
+  "apps-new-module",
 ] as const);
 
 type Words = Readonly<Record<KindLocale, string>>;
@@ -115,9 +121,9 @@ const sharingBack: PrincipleStep = {
   at: "vault-open",
 };
 
-/** The six principles, in the order of the tour of Lazurio: from what you
- * look at to what agents may touch. Their ids are the prototype's, which
- * Buddy's frame asks for. */
+/** The principles, in the order of the tour of Lazurio: from what you look
+ * at to what agents may touch, then Moduly, which Apps plays. Their ids are
+ * the prototype's, which Buddy's frame asks for. */
 const principles: readonly Principle[] = [
   {
     id: "environment",
@@ -366,9 +372,91 @@ const principles: readonly Principle[] = [
       { ...sharingBack, at: "vault-row" },
     ],
   },
+  {
+    // The five titles of the video of modules (F56's addendum (8) of
+    // 2026-11-05), so the product and its video say the same thing. In a
+    // Personal Environment its adaptation: no Organization Admin shares a module there
+    // and a template goes into an Organization only.
+    id: "modules",
+    title: { cs: "Moduly", en: "Modules" },
+    steps: [
+      {
+        text: {
+          cs: "Modul je jedna oblast vaší práce",
+          en: "A module is one area of your work",
+        },
+        at: "apps-module",
+      },
+      {
+        text: {
+          cs: "Postup, data a aplikace v jednom balíčku",
+          en: "A process, data and an app in one package",
+        },
+        at: "apps-module",
+      },
+      {
+        text: {
+          cs: "Agenti pracují podle postupu, lidé v aplikaci",
+          en: "Agents follow the process, people work in the app",
+        },
+        at: "tab-chat",
+      },
+      {
+        text: {
+          cs: "Admin Organizace rozhodne, kdo modul dostane",
+          en: "The Organization Admin decides who gets the module",
+        },
+        at: "apps-access",
+      },
+      {
+        text: {
+          cs: "Nový postavíte s agentem, nebo ze šablony",
+          en: "Build yours with an agent or from a template",
+        },
+        at: "apps-new-module",
+      },
+    ],
+    personal: [
+      {
+        text: {
+          cs: "Modul je jedna oblast vaší práce",
+          en: "A module is one area of your work",
+        },
+        at: "apps-module",
+      },
+      {
+        text: {
+          cs: "Postup, data a aplikace v jednom balíčku",
+          en: "A process, data and an app in one package",
+        },
+        at: "apps-module",
+      },
+      {
+        text: {
+          cs: "Agenti pracují podle postupu, vy v aplikaci",
+          en: "Agents follow the process, you work in the app",
+        },
+        at: "tab-chat",
+      },
+      {
+        text: {
+          cs: "Osobní moduly zůstávají ve vašem Osobním Prostředí",
+          en: "Personal modules stay in your Personal Environment",
+        },
+        at: "rail-personal",
+      },
+      {
+        text: {
+          cs: "Nový postavíte s agentem v Chatu",
+          en: "Build a new one with an agent in Chat",
+        },
+        at: "apps-new-module",
+      },
+    ],
+  },
 ];
 
-/** The ids of the six principles, in the tour's order. */
+/** The ids of the principles, in the tour's order. */
 export const principleIds: readonly string[] = Object.freeze(
   principles.map((principle) => principle.id),
 );

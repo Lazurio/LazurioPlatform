@@ -604,7 +604,10 @@ test("the registry's offers' words say no price, no pilot, no Environment or com
 
 test("the Marketplace's words say no price, no pilot, no Environment or computer, no badge or list of what it lacks, and no install on a click", () => {
   const shown = (Object.keys(cs) as MessageKey[]).filter(
-    (key) => key.startsWith("market") && !key.startsWith("marketAdoptPrompt"),
+    (key) =>
+      key.startsWith("market") &&
+      key !== "marketAdoptPrompt" &&
+      key !== "marketRequestPrompt",
   );
   expect(shown.length).toBeGreaterThan(15);
   for (const key of shown) {

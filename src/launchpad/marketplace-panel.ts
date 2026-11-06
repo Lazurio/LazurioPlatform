@@ -6,6 +6,8 @@ import {
   type AdoptionSeed,
   adoptionPrompt,
   adoptionPromptId,
+  adoptionRequestPrompt,
+  adoptionRequestPromptId,
   builtInMarketplace,
   type MarketplaceCatalog,
   type MarketplaceLocale,
@@ -44,8 +46,14 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // changes while its dialog is open is drawn again and the dialog says so.
 // A hand-over says how it ended only in the dialog that started it: one
 // closed, opened on another offer or drawn again for a newer version of its
-// offer in the meantime keeps what it shows and says. Every value is drawn
-// with textContent.
+// offer in the meantime keeps what it shows and says. Where GitHub says the
+// person is a member of the chosen Organization and no Organization Admin, "Požádat Admina Organizace"
+// takes the place of "Pokračovat v Chatu" and hands over a request to the Organization Admin
+// (decision F36's addendum of 2026-11-05), as "+ Nový modul" does; while that
+// is not known, and where it cannot be read, the adoption stays, whose first
+// step is the person's live rights. A Folder with a personal space and no
+// Organization says that templates go into an Organization only. Every value
+// is drawn with textContent.
 export function createMarketplacePanel(
   options: Readonly<{
     copy: () => Copy;
@@ -57,6 +65,13 @@ export function createMarketplacePanel(
     changed: () => void;
     /** This Folder's catalog, or null until it is read. */
     catalog: () => Catalog | null;
+    /** Whether this is a Personal Environment, or the Folder has a personal
+     * space. */
+    personalSpace: () => boolean;
+    /** GitHub's answer of what the person is in an Organization. */
+    role: (
+      organization: CatalogOrganization,
+    ) => Promise<"admin" | "member" | null>;
     handOver: (prompt: NewModulePrompt) => Promise<NewModuleOutcome>;
   }>,
 ) {
@@ -82,6 +97,13 @@ export function createMarketplacePanel(
   let seed: AdoptionSeed = "empty";
   let said: string | null = null;
   let busy = false;
+  // What the person is in each Organization of this showing, by its login,
+  // once GitHub answered; `asked` so that it is asked once.
+  const roles = new Map<string, "admin" | "member" | null>();
+  const asked = new Set<string>();
+  // Each opening of the dialog asks anew, and only its own answers count: a
+  // late one of an earlier opening must not change what this one says.
+  let opening = 0;
   // Each showing of the dialog has its own number: a new one when it opens,
   // when it closes and when a read replaces the offer it shows with another
   // version. A hand-over's outcome belongs to the showing that started it.
@@ -357,6 +379,9 @@ export function createMarketplacePanel(
     adding = offer;
     said = null;
     showing += 1;
+    opening += 1;
+    roles.clear();
+    asked.clear();
     drawDialog(offer);
     if (!dialog.open) dialog.showModal();
     dialogTitle.focus();
@@ -378,7 +403,8 @@ export function createMarketplacePanel(
       return;
     }
     if (offer === null || chosen === null || busy) return;
-    const text = adoptionPrompt(
+    const asking = roles.get(chosen.forgeLogin) === "member";
+    const text = (asking ? adoptionRequestPrompt : adoptionPrompt)(
       offer,
       seed,
       { name: organizationName(chosen), login: chosen.forgeLogin },
@@ -391,7 +417,11 @@ export function createMarketplacePanel(
     drawDialog(offer);
     void options
       .handOver({
-        id: adoptionPromptId(offers, offer, seed),
+        id: (asking ? adoptionRequestPromptId : adoptionPromptId)(
+          offers,
+          offer,
+          seed,
+        ),
         organization: chosen.forgeLogin,
         text,
       })
@@ -432,21 +462,50 @@ export function createMarketplacePanel(
     return choices.find((entry) => entry.forgeLogin === target) ?? null;
   }
 
+  /** Asks once per showing what the person is in the chosen Organization;
+   * the dialog draws again when the answer changes what it says. */
+  function askRole(chosen: CatalogOrganization & { forgeLogin: string }) {
+    const login = chosen.forgeLogin;
+    if (asked.has(login)) return;
+    asked.add(login);
+    const mine = opening;
+    void options
+      .role(chosen)
+      .catch(() => null)
+      .then((role) => {
+        if (mine !== opening) return;
+        roles.set(login, role);
+        if (role === "member" && dialog.open && adding !== null)
+          drawDialog(adding);
+      });
+  }
+
   function drawDialog(offer: MarketplaceOffer) {
     const copy = options.copy();
+    const choices = targets();
+    const chosen = chosenTarget();
+    if (chosen !== null) askRole(chosen);
+    const asking = chosen !== null && roles.get(chosen.forgeLogin) === "member";
     dialogTitle.textContent = fill(copy.marketAddTitle, { title: offer.title });
     dialogClose.setAttribute("aria-label", copy.marketClose);
     dialogCancel.textContent = copy.marketCancel;
-    dialogOk.textContent = copy.marketHandOver;
-
-    const choices = targets();
-    const chosen = chosenTarget();
+    dialogOk.textContent = asking ? copy.marketAskAdmin : copy.marketHandOver;
 
     const field = element("div", "market-field");
     if (options.catalog() === null)
       field.append(element("p", "module-meta", copy.catalogLoading));
     else if (choices.length === 0)
-      field.append(element("p", "callout", copy.marketTargetNone));
+      field.append(
+        element(
+          "p",
+          "callout",
+          // A personal space holds no template yet; the words are not about
+          // GitHub there (decision F36's addendum of 2026-11-05).
+          options.personalSpace()
+            ? copy.marketTargetPersonal
+            : copy.marketTargetNone,
+        ),
+      );
     else {
       const label = element("label", undefined, copy.marketTarget);
       label.htmlFor = "market-target";
@@ -506,11 +565,19 @@ export function createMarketplacePanel(
     const what = element(
       "p",
       "market-what",
-      fill(copy.marketWhat, { title: offer.title, name }),
+      fill(asking ? copy.marketRequestWhat : copy.marketWhat, {
+        title: offer.title,
+        name,
+      }),
     );
-    // An offer with one start has nothing to choose.
+    // An offer with one start has nothing to choose, and without an
+    // Organization nothing follows.
     const parts: HTMLElement[] =
-      starts.length > 1 ? [field, seeds, what] : [field, what];
+      options.catalog() !== null && choices.length === 0
+        ? [field]
+        : starts.length > 1
+          ? [field, seeds, what]
+          : [field, what];
     if (chosen?.modules.some((module) => module.module === offer.module))
       parts.push(
         element(

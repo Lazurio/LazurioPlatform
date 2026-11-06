@@ -20,8 +20,14 @@ type Copy = Readonly<Record<MessageKey, string>>;
  * `src/launchpad/videos/<name>-<cs|en>.mp4` (H.264, no audio track, the index
  * first) with its poster `<name>-<cs|en>.webp`: `vault-bitwarden`, the vault
  * in the Bitwarden extension; `vault-overview`, how an Environment's vault
- * works in an Organization (DEV-6631). */
-export const guideVideoNames = ["vault-bitwarden", "vault-overview"] as const;
+ * works in an Organization (DEV-6631); `modules-overview`, what a module is
+ * (F56's addendum (8) of 2026-11-05), which Apps' "?" and the dialog "+ Nový
+ * modul" show. */
+export const guideVideoNames = [
+  "vault-bitwarden",
+  "vault-overview",
+  "modules-overview",
+] as const;
 export type GuideVideoName = (typeof guideVideoNames)[number];
 export const guideVideoLocales = ["cs", "en"] as const;
 export type GuideVideoLocale = (typeof guideVideoLocales)[number];

@@ -5,6 +5,7 @@ import type { ContentFact } from "../src/launchpad/content-view";
 import { messages } from "../src/launchpad/messages";
 import { pageRoute } from "../src/launchpad/routes";
 import {
+  carriesOrganization,
   optionalRows,
   type StartFacts,
   startCount,
@@ -631,6 +632,52 @@ test("a Team Environment has no Začínáme; the count shows only while a basic 
       }),
     ),
   ).toBeNull();
+});
+
+test("Poznejte moduly: the last optional row where the Environment carries an Organization, a button and no sentence, and it holds nothing up", () => {
+  const rows = (organization: boolean, copy = cs) =>
+    optionalRows(
+      {
+        preset: "hosted-organization-personal",
+        composio: "missing",
+        sshDevices: 0,
+        bitwarden: true,
+        organization,
+      },
+      copy,
+    );
+  expect(rows(true).at(-1)).toEqual({
+    id: "modules",
+    title: "Poznejte moduly",
+    text: null,
+    status: null,
+    action: { label: "Přehrát video", to: "modules-video" },
+  });
+  expect(rows(true, en).at(-1)).toMatchObject({
+    title: "Get to know modules",
+    action: { label: "Play video" },
+  });
+  expect(rows(false).map((row) => row.id)).not.toContain("modules");
+  // The rest stays as it was, in its order.
+  expect(rows(true).slice(0, -1)).toEqual([...rows(false)]);
+  // A work and an Automated Environment by their preset, before the
+  // Organization is here too; a computer once it holds one; never a Personal
+  // Environment, and nothing while the preset is not known.
+  for (const [preset, organizations, carries] of [
+    ["hosted-organization-personal", 0, true],
+    ["hosted-organization-personal", 1, true],
+    ["hosted-organization-steward", 0, true],
+    ["local", 0, false],
+    ["local", 1, true],
+    ["hosted-personal", 0, false],
+    ["hosted-personal", 1, false],
+    [null, 1, false],
+  ] as const)
+    expect([
+      preset,
+      organizations,
+      carriesOrganization(preset, organizations),
+    ]).toEqual([preset, organizations, carries]);
 });
 
 test("Volitelné: Composio where Tools offer it, SSH and ChatGPT Desktop on a Remote Environment", () => {

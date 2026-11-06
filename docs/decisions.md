@@ -9945,6 +9945,93 @@ route and Automate behaves as before. Verified by `tests/launchpad-mausbot.test.
 `tests/launchpad-recovery-page.test.ts`; a real gateway and a real Lazurio MausBot were
 not exercised in this change.
 
+### F36 addendum of 2026-11-05: a new module explains itself, a member asks the Organization Admin, access is checked at once
+
+**Decided by Matěj (Organization Admin) on 2026-11-05, after two meetings of that day where
+people asked what a module is, who creates one and why a module they were given does not
+show.** The model is one sentence, repeated everywhere: a module is one area of your work,
+holding together the process agents follow, the data and the app. Root decision 0179
+point 5 excluded tiles of requests; its addendum in this repository's decision register
+allows the muted tile below, with the request of root
+decision 0230.
+
+1. **"+ Nový modul" is a dialog of three screens** (`new-module-dialog.ts` over the pure
+   `new-module-view.ts`) instead of a hand-over at the click: what a module is, what it
+   should do in the person's own words (what to remember, examples that fill the field in),
+   and the whole brief, with "Kopírovat zadání" and "Otevřít v Chatu". An Owner and the
+   personal space's holder see it as before the tile's click led; "Nebo začněte šablonou"
+   leads to the Marketplace, where a template can go, so not from the personal space.
+2. **A member sees the tile muted.** Workspace ends with it for an active member, a Steward
+   too: a lock, "Zakládá Admin Organizace", a button that is never disabled and opens the same dialog in
+   the member's words. A Team and a public Environment have none, and neither has anyone
+   without an active membership. A member without a module needs the tile most, as the one
+   way to ask for a first one: the plain sentence of an empty space and Zkontrolovat přístupy
+   stay, over a Workspace of that one muted tile.
+3. **The server decides as it did.** One read of `user/memberships/orgs/<login>` gives the
+   role (`membershipRole`, `owners.role`): `new-module` only for an Owner, the new
+   `new-module-request` only for an active member who is no Owner, the same 404 to anyone
+   else, never on a Team Environment. The request asks and founds nothing: `lazurio module
+   create` refuses a member as before, and the skill `admin-request` shows the request before
+   it goes out.
+4. **A description reaches Chat as a brief** (`prompt-briefs.ts`). A link names only an id, so
+   the page leaves the description at the Launchpad once the tab is open
+   (`POST /api/prompts/brief`), by the rule of the prompt's own route, and the link names
+   `<prompt>-<key>`, a random key within Chat's grammar. The route asks the audience again
+   at the read. Every hand-over has its own brief, so a later one of the same person never
+   replaces an earlier one, and a Chat that comes back reads its own words again. In memory
+   only, for a day, 64 at most.
+5. **Zkontrolovat přístupy** beside the "?" of an Organization's Apps and under the sentence
+   of an empty space: `POST /api/organizations/<org>/sync` runs the hourly synchronization of
+   that Organization now, by [F9's amendment of
+   2026-10-24](#amendment-of-2026-10-24-the-launchpad-keeps-primary-checkouts-on-their-published-branch),
+   one more caller of its one core, content lock and record, and answers which modules it
+   cloned. A run under way is answered as such, never waited for. A Team Environment has no
+   button: its synchronization clones nothing, so the press could only explain that, which
+   is more words for a kind that is going away. A public Environment answers as absent.
+6. **Šablony follow.** Where GitHub says the person is a member of the chosen Organization,
+   the dialog's button is "Požádat Admina Organizace" and hands over
+   `request-<offer>-<seed>-<catalog>`, served only to a member, with the template and its
+   exact release. While that is not known the adoption stays, whose first step is the live
+   rights. A Personal Environment says "Šablony zatím přidáte jen do Organizace." instead of
+   a sentence about GitHub, and nothing else; the personal space as a target is not built.
+7. **The tour's stop at Apps** says "Moduly · Postup, data a aplikace každé oblasti práce.".
+   Its title no longer repeats the tab's name, as Chat's and Automate's do; the rules of the
+   tour (a dozen words, no "click here") allow it, and the module is what the stop is for.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The description in the link or in the prompt's id | A person's words in addresses and the gateway's log, against the rule that a link carries no text (Lazurio/t3code#35). Rejected |
+| A parameter of the fork for the text | A release of another repository for what an id can do. Rejected |
+| The clipboard whenever there is a description | The main path would lose the composer. Only where a brief cannot be left |
+| A disabled tile | Nobody learns why and nobody can ask. Rejected |
+| The button on a Team Environment, saying why it does nothing | A control that cannot act. Rejected |
+| Waiting for the content lock | A press could hang for as long as an update runs; the line says so at once. Rejected |
+
+**Honest limits.**
+
+- Only `lazurio module create` and GitHub keep a member out; the tile and the dialog follow an
+  answer up to five minutes old, as the Owner's tile always did.
+- Step three's sentence speaks of a new thread. Where Chat takes no prompt by link the brief
+  goes through the clipboard and the short message says so.
+- A Launchpad that restarts between the click and Chat's read loses the brief, and the fork
+  inserts nothing (the same 404 as for any unknown id).
+- The fork's read of a brief's id is not checked against a real T3 Code here: the id is within
+  `chatPromptHref`'s grammar, as the Marketplace's generated ids are.
+
+Verified by `tests/new-module-view.test.ts`, `tests/new-module-dialog.test.ts`,
+`tests/launchpad-prompts.test.ts`, `tests/apps-view.test.ts`, `tests/organization-owner.test.ts`,
+`tests/launchpad-access-check.test.ts` (real git over bare remotes: nothing new until the grant,
+then the module, once; the lock; the admission; a Team and a public Environment),
+`tests/launchpad-marketplace-panel.test.ts`, and in headless Chrome at 1440 and 700 px (root
+decision 0178): the dialog and the tile against the hosted preview as an Owner and a member in
+Czech and English and as a Steward in Czech, against the local preview as an Owner in Czech and a
+member in English, and with less motion hosted, in Czech, as an Owner; the check's states
+against the hosted preview as a member in both languages; an empty Organization as a member and
+a Steward (the sentence, the button and the muted tile) and an Organization Admin (the tile), and unchanged
+in a Team and a public Environment. Those states were answered by the
+browser automation, since a preview is no installed Launchpad; the personal space's dialog was
+drawn from a stand-in catalog, since a preview holds no Personalspace.
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
@@ -19559,6 +19646,62 @@ kept. Checked in headless Chrome only; Safari and Firefox are not. The forks' pa
 MausBot), where Buddy presents the principles his frame asks for, were not opened. This ships
 with the Platform release that carries F60's addendum of 2026-10-25, after the forks read
 `--lazurio-buddy-clearance`.
+
+### F56 addendum (8) of 2026-11-05: Apps explain the module
+
+**Decided by Matěj (Organization Admin) on 2026-11-05 with [F36's addendum of that
+day](#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once).**
+Apps' "?" played the principle
+`environment`, which says nothing of what the page shows.
+
+1. **The principle `modules`**, the seventh, says the video's five titles word for word, one
+   step each, so the product and its video say the same thing. Five steps stay an exception
+   for the reason Trezor's are: a principle is the text of a video, and cutting a title would
+   make them differ. A host's own explanation keeps at most four. Its rings are the Apps
+   home's first module, Chat, Zkontrolovat přístupy and "+ Nový modul"; a mark that is not on
+   the page leaves the card in the middle, as everywhere. It has no scene: the video is its
+   motion.
+2. **A Personal Environment hears an adaptation.** No Organization Admin shares a personal module and a
+   template goes into an Organization only (F36's addendum point 6), so two titles would not
+   be true there. The fourth step says that personal modules stay in the Personal Environment,
+   the fifth that an agent builds a new one.
+3. **Apps' "?" opens the video in place** (`modules-overview`, `appsHelp`), as Trezor's does,
+   and plays it; with less motion it waits at its poster. Unlike Trezor's it is not the first
+   thing the page shows (addendum (4)): the home is where people go every day, and a video
+   that pushes the tiles down on each visit would be in their way, so only the "?" opens it
+   and a move closes it. The principle stays known to the guide and Buddy's frame, and a
+   Personal Environment plays it. The principle `environment` stays in the guide. The first
+   screen of "+ Nový modul" offers the same video, "Přehrát video", except in the personal
+   space.
+4. **The video** is the cuts `modules` and `modules-en` of `tools/video-spot` in the design
+   system (HumanAndMachine-ai/design-system-lazurio#115): about 30 seconds, no
+   sound, a fictional bakery, as Trezor's. Matěj approved its content on 2026-11-06; a new cut
+   under the same name replaces the browser's copy by its ETag.
+5. **Začínáme** ends "Volitelné" with the row "Poznejte moduly" ("Get to know modules"): its
+   title and "Přehrát video", which opens the same video in place under the rows, with no
+   sentence under the title. Matěj asked for modules in the onboarding on 2026-11-06. It is no
+   step: Začínáme's count, its line and the tour do not read it, and it waits for nothing. It
+   stands where the Environment carries an Organization, which is what the video tells of:
+   a work or Automated Environment by its preset, also before the Organization is downloaded,
+   and your computer once its Folder holds one. A Personal Environment has none, a Team
+   Environment has no Začínáme to put it in, and a public one has its demo instead.
+6. **One mechanism.** `page-help.ts` was Trezor's alone through one instance in `ui.ts`.
+   `helpVideoBoxes` names each video's box, `helpVideos` holds a player per box, and
+   `createHelpVideo` takes an optional line and `first`. Its five titles are the box's text for
+   a screen reader (`#apps-video-line`).
+
+**Honest limit.** A variant is chosen by the Environment's kind: on your computer the personal
+space's "?" plays the video of an Organization.
+
+Verified by `tests/shell-guide.test.ts`, `tests/shell-guide-scenes.test.ts`,
+`tests/launchpad-guide.test.ts`, `tests/launchpad-guide-video.test.ts` (both languages' files:
+H.264, no audio track, their index first, sizes) and in headless Chrome against the hosted
+preview as an Owner and a member in Czech and English at 1440 and 700 px: the video opens and plays
+from its "?" in the page's language, Escape closes it with the focus on the "?", and the five
+steps ring their elements. With less motion, hosted, in Czech, as an Owner: it waits at its
+poster and nothing animates in the card. A second press and a move close it, checked once at
+1440 px. `tests/start-view.test.ts` holds Začínáme's row and where it stands; the row and its
+video were played against the hosted preview at 1440 and 700 px.
 
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 

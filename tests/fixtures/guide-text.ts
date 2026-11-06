@@ -26,7 +26,11 @@ export function guideTextFindings(item: GuideExplanation): string[] {
     if (/[.]$/.test(step.text))
       found.push(`${item.id}: a full stop: ${step.text}`);
   }
-  if (item.steps.length > (item.id === "vault" ? 5 : maxGuideSteps))
+  // Trezor and Moduly say the five lines of their videos.
+  if (
+    item.steps.length >
+    (item.id === "vault" || item.id === "modules" ? 5 : maxGuideSteps)
+  )
     found.push(`${item.id}: too many steps`);
   return found;
 }

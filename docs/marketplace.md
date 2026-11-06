@@ -75,7 +75,13 @@ does today; the rest of this document stays future direction.
   Teams chosen from the Organization's real list, the template's code run, a request
   where rights do not reach) is the agent's first step, as the brief requires. Where
   the Organization already has a module of that name the dialog says the agent agrees
-  another. Teams are not listed on the page (decision F32).
+  another. Teams are not listed on the page (decision F32). Where GitHub says the person
+  is a member of the chosen Organization and no Organization Admin, the dialog says that the Organization Admin adds
+  the template and its button is "Požádat Admina Organizace" ([F36's addendum of
+  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)).
+  In a Personal Environment, or a Folder with a personal space and no Organization to
+  choose, it says only that templates go into an Organization for now; adding one to the
+  personal space is not built.
 - **Hand-over, not installation.** "Pokračovat v Chatu" hands the brief to Chat
   exactly as "+ Nový modul" does: by link where Chat takes a prepared prompt, else
   through the clipboard, at once within the click (Chat's tab and the clipboard need
@@ -88,7 +94,13 @@ does today; the rest of this document stays future direction.
   field of every offer, so Chat gets the offer the page showed field for field, even
   when the Launchpad has read a newer catalog since: a catalog it replaced still
   answers prompts for an hour, as long as an open page may go without reading again
-  (`keptFor`), and the built-in copy always. An older page's prompt is a 404. An offer
+  (`keptFor`), and the built-in copy always. An older page's prompt is a 404. A member's
+  `request-<offer>-<empty|sample>-<catalog>`, for the same offer and start, is served
+  only to an active member of that Organization: it names the release and asks the agent
+  for a request to the Organization Admin with the skill `admin-request`. While the answer about the
+  person is not known, and where it cannot be read, the dialog hands over the adoption,
+  whose first step is the person's live rights; each opening of the dialog asks anew and
+  takes only its own answers. An offer
   that changes while its dialog is open is drawn again and the dialog says so before
   the person continues; one that is no longer listed closes the dialog and the page
   says it is not in the Marketplace. A hand-over says how it ended only in the dialog

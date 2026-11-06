@@ -5,6 +5,7 @@ import { join } from "node:path";
 import {
   createOwnerCheck,
   isOwnerMembership,
+  membershipRole,
   ownerCheck,
 } from "../src/launchpad/organization-owner";
 import type { ToolRunner } from "../src/tools/status";
@@ -55,6 +56,15 @@ test("only an active admin membership is an Owner's", () => {
   expect(isOwnerMembership('{"state":"pending","role":"admin"}')).toBe(false);
   expect(isOwnerMembership('{"state":"active","role":"member"}')).toBe(false);
   expect(isOwnerMembership("not json")).toBe(false);
+  expect(membershipRole('{"state":"active","role":"admin"}')).toBe("admin");
+  expect(membershipRole('{"state":"active","role":"member"}')).toBe("member");
+  for (const answer of [
+    '{"state":"pending","role":"member"}',
+    '{"state":"active","role":"billing_manager"}',
+    "not json",
+    "null",
+  ])
+    expect(membershipRole(answer)).toBeNull();
 });
 
 posixTest("GitHub's answer, kept a few minutes per login", async () => {

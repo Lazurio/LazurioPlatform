@@ -24,7 +24,7 @@ their separation from product update. See
 | --- | --- | --- |
 | Subject | Installed product bytes | Organization repositories declared by an Organization |
 | Contract | [Product update](update.md) | This document |
-| Entry | `lazurio update --version`, the pill; and the last part of `lazurio update` and Aktualizovat | `lazurio organization sync`, the Launchpad's hourly round and the Open of one module; and the first part of `lazurio update` and Aktualizovat |
+| Entry | `lazurio update --version`, the pill; and the last part of `lazurio update` and Aktualizovat | `lazurio organization sync`, the Launchpad's hourly round, the Open of one module and Apps' Zkontrolovat přístupy; and the first part of `lazurio update` and Aktualizovat |
 | Lock | Product activation exclusion | Per-Folder content exclusion |
 | Outcome | Selected version, or preserved previous version with a reason | Per-repository result list |
 
@@ -48,7 +48,7 @@ and then every hour (root decision 0212 point 4; one parameter, `contentSyncEver
 build sweep it already runs every 5 minutes (decision F58 point 7), which then builds
 whatever a synchronization brought. It also runs whenever a user or an authorized Task
 Agent invokes `lazurio organization sync`, and, since [F9's second amendment](decisions.md#second-amendment-of-2026-10-24-one-lazurio-update-composes-content-builds-and-lazurio-itself)
-(root decision 0212 points 3, 4 and 7), at three more callers of the same core:
+(root decision 0212 points 3, 4 and 7), at more callers of the same core:
 
 - **`lazurio update`**, which agents run before every task: every Organization the
   Environment holds, as its first part, before the builds and Lazurio itself.
@@ -62,6 +62,11 @@ Agent invokes `lazurio organization sync`, and, since [F9's second amendment](de
   whose checkout or Organization root the last round left blocked (the hourly round tries
   those again), and nowhere the Environment keeps no content (`createOpenSync` in
   `src/content/open-sync.ts`).
+- **Zkontrolovat přístupy** in Apps ([F36's addendum of
+  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)):
+  that Organization alone, now, on a person's press; a run under way holds the content lock
+  and the press answers so. Never on a Team Environment, whose synchronization clones
+  nothing, or a public one.
 
 Nothing else synchronizes: no first render, status request, health check, login,
 `lazurio update --version` or installation fetches anything. Of an absent repository,

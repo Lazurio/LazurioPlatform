@@ -6,6 +6,7 @@ import type { ComposioFact } from "./first-run";
 import type { MessageKey } from "./messages";
 import {
   type AiAction,
+  carriesOrganization,
   type DemoRow,
   type DemoStartView,
   type OptionalRow,
@@ -59,6 +60,14 @@ export function createStartPanel(
     /** Whether Nastavení → Trezor gives the steps for Bitwarden here
      * (`offersBitwarden`): the row "Trezor v Bitwardenu". */
     bitwarden: () => boolean;
+    /** How many Organizations this Folder holds, as the catalog last read:
+     * on your computer they decide "Poznejte moduly". */
+    organizations: () => number;
+    /** The video of "Poznejte moduly" under the rows (page-help.ts). */
+    modulesVideo: () => Readonly<{
+      open: boolean;
+      toggle(from: HTMLElement): void;
+    }>;
     /** Brings a part of the page just opened into view: "Návod" of
      * "Trezor v Bitwardenu" opens Nastavení → Trezor at its steps. */
     reveal: (part: "bitwarden") => void;
@@ -422,10 +431,8 @@ export function createStartPanel(
     node.dataset.optional = row.id;
     const main = element("div", "row-main");
     const copyBox = element("div", "row-copy");
-    copyBox.append(
-      element("p", "row-title", row.title),
-      element("p", "row-desc", row.text),
-    );
+    copyBox.append(element("p", "row-title", row.title));
+    if (row.text !== null) copyBox.append(element("p", "row-desc", row.text));
     if (row.status !== null)
       copyBox.append(element("p", "row-status", row.status));
     if (row.note !== undefined)
@@ -438,6 +445,25 @@ export function createStartPanel(
         const button = element("button", "", label);
         button.type = "button";
         button.addEventListener("click", () => options.signInComposio());
+        control.append(button);
+      } else if (to === "modules-video") {
+        // The video stands under the group, where a new drawing of the rows
+        // leaves it playing (page-help.ts); the button opens and closes it.
+        const copy = options.copy();
+        const video = options.modulesVideo();
+        const button = element("button", "guide-video-play");
+        button.type = "button";
+        button.append(svg("play"), label);
+        button.setAttribute(
+          "aria-label",
+          copy.guideVideoPlayNamed.replace("{title}", copy.modulesVideoTitle),
+        );
+        button.setAttribute("aria-controls", "start-video");
+        button.setAttribute("aria-expanded", String(video.open));
+        button.addEventListener("click", () => {
+          video.toggle(button);
+          button.setAttribute("aria-expanded", String(video.open));
+        });
         control.append(button);
       } else {
         const link = element("a", "button", label);
@@ -564,6 +590,10 @@ export function createStartPanel(
         sshDevices: options.sshDevices(),
         phone: options.phone?.() ?? null,
         bitwarden: options.bitwarden(),
+        organization: carriesOrganization(
+          facts.preset,
+          options.organizations(),
+        ),
       },
       copy,
     );

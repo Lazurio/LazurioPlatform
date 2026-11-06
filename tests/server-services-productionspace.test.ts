@@ -599,9 +599,7 @@ test("Apps of Služby serveru whose Organization is not installed: the Organizat
       info: "/o/Example/productionspace/CLIProxyAPI",
     });
     expect(copy.appsServiceOpen).toBe(link);
-    expect(newModuleOffer(group, copy, { owner: true, holder: null })).toBe(
-      null,
-    );
+    expect(newModuleOffer(group, { owner: true, holder: null })).toBe(null);
   }
   // The service repository's page and the service's page resolve in it.
   const selection = catalogSelection(
@@ -731,7 +729,7 @@ posixTest(
             headers,
           })
         ).json(),
-      ).toEqual({ kind: "organization-owner", owner: false });
+      ).toEqual({ kind: "organization-owner", owner: false, member: false });
       // Module start reads the Folder's own Organizations: none is Example.
       expect(
         await (

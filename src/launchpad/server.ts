@@ -159,6 +159,7 @@ import { runProcess } from "../update/self-check";
 import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
+import { accessCheckAnswer, accessCheckFailed } from "./access-check";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import { createBuddyRoutes } from "./buddy-routes";
@@ -201,7 +202,7 @@ import {
   type IntegrationsSeams,
 } from "./integrations-routes";
 import { BodyTooLarge, readJsonBody } from "./json-body";
-import { isAdoptionPromptId } from "./marketplace";
+import { isAdoptionPromptId, isAdoptionRequestId } from "./marketplace";
 import {
   createMarketplaceRegistry,
   type MarketplaceRegistry,
@@ -213,6 +214,7 @@ import {
 } from "./mausbot";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
+import { newModuleDescription } from "./new-module-view";
 import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { openTab } from "./new-tab/hub-client";
 import { runningModules } from "./new-tab/modules";
@@ -240,7 +242,14 @@ import {
   serveShell,
 } from "./page";
 import {
+  briefPromptOf,
+  createPromptBriefs,
+  isBriefPrompt,
+} from "./prompt-briefs";
+import {
   adoptionDocument,
+  adoptionRequestDocument,
+  audienceAdmits,
   isOrganizationPrompt,
   isPromptId,
   personalModuleDocument,
@@ -458,6 +467,10 @@ async function machineTailnet(): Promise<string | null> {
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
 // routes do.
 const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
+
+// Zkontrolovat přístupy (decision F36's addendum of 2026-11-05): one
+// Organization's synchronization, now. `<org>` as above.
+const organizationSyncRoute = /^\/api\/organizations\/([^/]+)\/sync$/;
 
 // Whether it may maintain one module's repository (decision 0185 S15, the
 // Steward's "Přístup k modulu"): `<org>` as above, `<module>` its id.
@@ -1087,6 +1100,16 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   const owners = createOwnerCheck(toolsEnvironment);
+  // What this Environment's identity is in an Organization, for what the page
+  // offers and the prompts it hands out. A public Environment's visitors are
+  // nobody's members, whatever its account answers: no muted "+ Nový modul"
+  // and no request there.
+  const roleIn = async (login: string | undefined) => {
+    const role = await owners.role(login, await folderPreset(folder));
+    return publicEnvironment && role === "member" ? null : role;
+  };
+  // What people wrote for "+ Nový modul", until Chat fetches it.
+  const briefs = createPromptBriefs();
   const maintainers = createMaintainerCheck(toolsEnvironment);
   const chatPrompts = createChatPromptCheck(toolsEnvironment);
   // What this Environment still lacks (root decision 0188), for the shell
@@ -1895,12 +1918,14 @@ export async function startLaunchpad(
         const login = url.searchParams.get("org");
         const keys = [...url.searchParams.keys()];
         if (keys.some((key) => key !== "org")) return notFound();
-        if (isAdoptionPromptId(id)) {
+        const adoptionRequest = isAdoptionRequestId(id);
+        if (isAdoptionPromptId(id) || adoptionRequest) {
           // A Marketplace adoption (plan DEV-6593): an offer and seed of the
           // catalog the page showed, while the Launchpad still serves it,
           // for an Organization of this Folder bound to the link's login,
           // only while its offer's release is recorded (prompts.ts
-          // `adoptionDocument`).
+          // `adoptionDocument`). A member's request for one (F36's addendum
+          // of 2026-11-05), only for an active member of that Organization.
           if (login === null || keys.length !== 1) return notFound();
           try {
             await marketplace.read();
@@ -1909,10 +1934,22 @@ export async function startLaunchpad(
               login,
             );
             if (organization === null) return notFound();
+            if (adoptionRequest) {
+              server.timeout(request, 30);
+              if (
+                !audienceAdmits(
+                  "organization-member",
+                  await roleIn(organization.forgeLogin),
+                )
+              )
+                return notFound();
+            }
             const current = await withFolderReadLock(state, () =>
               readFolderState(state),
             );
-            const document = adoptionDocument(
+            const document = (
+              adoptionRequest ? adoptionRequestDocument : adoptionDocument
+            )(
               marketplace.catalogs(),
               id,
               folder,
@@ -1925,8 +1962,19 @@ export async function startLaunchpad(
             return notFound();
           }
         }
-        if (!isPromptId(id)) return notFound();
-        if (promptAudience(id) === "personalspace-holder") {
+        // A brief names its prompt and the person's description, kept here
+        // for a few minutes (prompt-briefs.ts): gone or kept for another
+        // login, the same 404.
+        const briefPrompt = briefPromptOf(id);
+        const promptId = briefPrompt ?? id;
+        if (!isPromptId(promptId)) return notFound();
+        const description =
+          briefPrompt === null || login === null
+            ? null
+            : briefs.read(id, login);
+        if (briefPrompt !== null && description === null) return notFound();
+        const brief = description === null ? null : { id, description };
+        if (promptAudience(promptId) === "personalspace-holder") {
           // The personal space's "+ Nový modul" (`new-personal-module`):
           // only for the account that holds the Personalspace, decided now
           // as `GET /api/content` decides it (#186), and only by its own
@@ -1943,13 +1991,14 @@ export async function startLaunchpad(
               holder,
               login,
               folderMessages(current.preferences),
+              brief,
             );
             return document === null ? notFound() : response(document);
           } catch {
             return notFound();
           }
         }
-        if (!isOrganizationPrompt(id)) {
+        if (!isOrganizationPrompt(promptId)) {
           // The Folder's prompt (`prepare-content`): only on an Environment
           // with the onboarding (the Automated one's responsible user
           // included, F27's addendum of 2026-10-30), only while the last
@@ -1986,11 +2035,10 @@ export async function startLaunchpad(
           if (organization === null) return notFound();
           server.timeout(request, 30);
           if (
-            promptAudience(id) === "organization-owner" &&
-            !(await owners.owner(
-              organization.forgeLogin,
-              await folderPreset(folder),
-            ))
+            !audienceAdmits(
+              promptAudience(promptId),
+              await roleIn(organization.forgeLogin),
+            )
           )
             return notFound();
           const current = await withFolderReadLock(state, () =>
@@ -1998,10 +2046,11 @@ export async function startLaunchpad(
           );
           return response(
             promptDocument(
-              id,
+              promptId,
               folder,
               organization,
               folderMessages(current.preferences),
+              brief,
             ),
           );
         } catch {
@@ -2132,15 +2181,21 @@ export async function startLaunchpad(
             name,
           );
           server.timeout(request, 30);
-          const owner =
-            selection.kind === "found" &&
-            (await owners.owner(
-              selection.organization.forgeLogin,
-              await folderPreset(folder),
-            ));
-          return response({ kind: "organization-owner", owner });
+          const role =
+            selection.kind === "found"
+              ? await roleIn(selection.organization.forgeLogin)
+              : null;
+          return response({
+            kind: "organization-owner",
+            owner: role === "admin",
+            member: role === "member",
+          });
         } catch {
-          return response({ kind: "organization-owner", owner: false });
+          return response({
+            kind: "organization-owner",
+            owner: false,
+            member: false,
+          });
         }
       }
       const maintainRequest = maintainRoute.exec(url.pathname);
@@ -2502,6 +2557,82 @@ export async function startLaunchpad(
             { kind: "update-everything", ...updates.start() },
             202,
           );
+        }
+        if (url.pathname === "/api/prompts/brief") {
+          // A person's description for "+ Nový modul" (prompt-briefs.ts):
+          // kept for whom the prompt names, by the rule of its own route;
+          // anyone else gets the same 404.
+          const value = stateFields(input, ["id", "org", "description"]);
+          const description = newModuleDescription(value.description);
+          if (
+            typeof value.id !== "string" ||
+            !isBriefPrompt(value.id) ||
+            typeof value.org !== "string" ||
+            description === null
+          )
+            return response({ error: "invalid-request" }, 400);
+          const prompt = value.id;
+          const login = value.org;
+          server.timeout(request, 30);
+          const admitted =
+            promptAudience(prompt) === "personalspace-holder"
+              ? await (async () => {
+                  const holder = await personalspace.decide(folder);
+                  return (
+                    holder.kind === "held" &&
+                    holder.login.toLowerCase() === login.toLowerCase()
+                  );
+                })()
+              : await (async () => {
+                  const organization = promptOrganization(
+                    organizationsOnly(await catalog.read()),
+                    login,
+                  );
+                  return (
+                    organization !== null &&
+                    audienceAdmits(
+                      promptAudience(prompt),
+                      await roleIn(organization.forgeLogin),
+                    )
+                  );
+                })();
+          return admitted
+            ? response({
+                kind: "prompt-brief",
+                id: briefs.keep(prompt, login, description),
+              })
+            : response({ error: "not-found" }, 404);
+        }
+        const syncRequest = organizationSyncRoute.exec(url.pathname);
+        if (syncRequest !== null) {
+          // Zkontrolovat přístupy: the hourly synchronization of this
+          // Organization, now and under the same content lock. A public
+          // Environment's visitors do not own it, a Team Environment clones
+          // nothing, and a Launchpad that is not an installed one never
+          // synchronizes (`syncCheckouts`).
+          stateFields(input, []);
+          if (publicEnvironment) return response({ error: "not-found" }, 404);
+          const selection = selectCatalogOrganization(
+            organizationsOnly(await catalog.read()),
+            decodeURIComponent(syncRequest[1] as string),
+          );
+          if (
+            selection.kind !== "found" ||
+            selection.organization.forgeLogin === undefined
+          )
+            return response({ error: "not-found" }, 404);
+          if (
+            syncCheckouts === undefined ||
+            (await folderPreset(folder)) === "hosted-organization-team"
+          )
+            return response(accessCheckFailed("not-here"));
+          // About a minute per repository, four at a time.
+          server.timeout(request, 600);
+          const run = await syncCheckouts({
+            organization: selection.organization.forgeLogin,
+          });
+          catalog.forget();
+          return response(accessCheckAnswer(run));
         }
         if (url.pathname === "/api/update/apply") {
           if (!pill) return response({ error: "update-unavailable" }, 503);

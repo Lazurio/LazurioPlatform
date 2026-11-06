@@ -1,3 +1,4 @@
+import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
@@ -13,6 +14,7 @@ import {
   provideGuides,
   provideShell,
 } from "../shell/elements";
+import { principleIn } from "../shell/guide-content";
 import { shellMessages } from "../shell/messages";
 import { environmentName, switchTabs } from "../shell/view";
 import { type AiReading, parseAiAnswer } from "../tools/ai";
@@ -96,6 +98,8 @@ import { createMarketplacePanel } from "./marketplace-panel";
 import type { MarketplaceAnswer } from "./marketplace-refresh";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
+import { createNewModuleDialog } from "./new-module-dialog";
+import { parseBriefAnswer } from "./new-module-view";
 import { createHelpVideo } from "./page-help";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -253,8 +257,10 @@ let guideOff = false;
 /** What Settings → Nástroje's "?" can point at, as the tools panel last
  * drew it; null until the tools are read (`tools`'s `drawn`). */
 let toolTargets: ToolGuideTargets | null = null;
-/** The "?" of the page now shown when it opens a video (Trezor's). */
+/** The "?" of the page now shown when it opens a video, and that video's
+ * box (guides.ts `helpVideoBoxes`). */
 let videoHelp: HTMLButtonElement | null = null;
+let videoBox: string | null = null;
 function drawGuide(route: PageRoute) {
   const guide = pageGuide(
     route,
@@ -279,7 +285,14 @@ function drawGuide(route: PageRoute) {
   provideGuides(guideOff ? null : guide.guides);
   buddy?.setAttribute("lang", locale);
   const states = pageHelpStates(route, guide, guideOff);
+  const titles =
+    principleIn("modules", locale, kindOf(shellDocument))
+      ?.steps.map((step) => step.text)
+      .join(". ") ?? "";
+  for (const line of [appsVideoLine, startVideoLine])
+    if (line !== null) line.textContent = titles;
   videoHelp = null;
+  videoBox = null;
   for (const id of Object.keys(pageHelps) as PageHelpId[]) {
     const help = pageHelps[id];
     if (help === null) continue;
@@ -289,8 +302,12 @@ function drawGuide(route: PageRoute) {
     else delete help.dataset.guideHelp;
     if (state.controls !== null) {
       videoHelp = help;
+      videoBox = state.controls;
       help.setAttribute("aria-controls", state.controls);
-      help.setAttribute("aria-expanded", String(vaultVideo.open));
+      help.setAttribute(
+        "aria-expanded",
+        String(helpVideos[state.controls]?.open ?? false),
+      );
     } else {
       help.removeAttribute("aria-controls");
       help.removeAttribute("aria-expanded");
@@ -300,7 +317,15 @@ function drawGuide(route: PageRoute) {
   }
   // Trezor's video stands open first where its words are true (F56's
   // addendum (4) of 2026-10-19); a new page is a new visit.
-  vaultVideo.draw(videoHelp, JSON.stringify(route));
+  for (const [box, video] of Object.entries(helpVideos))
+    video.draw(box === videoBox ? videoHelp : null, JSON.stringify(route));
+  // Začínáme's stays while the page does; a move closes it.
+  startVideo.draw(
+    route.view === "settings" && route.section === "start"
+      ? startVideoBox
+      : null,
+    JSON.stringify(route),
+  );
 }
 // The documentation of the Launchpad's "Guide" (the root Launchpad's
 // `guideDocumentationUrl`), in the page's language.
@@ -443,7 +468,9 @@ const catalog = createCatalogPanel({
         element.setAttribute("space", space);
     }
   },
-  newModule: (prompt) => handOver(prompt),
+  newModule: (offer, from) => newModuleDialog.open(offer, from),
+  checksAccess: () =>
+    kindOf(shellDocument) !== "team" && !isPublicEnvironment(entry),
   // The person's account through this Environment's gateway (account.ts):
   // plain same-origin requests, never with the Launchpad's local token. The
   // page's one read, asked in the Folder's language as the boot document
@@ -814,6 +841,8 @@ const aiSignIn = createAiSignIn({
 });
 const startPanel = createStartPanel({
   copy: () => copy,
+  organizations: () => catalog.current()?.organizations.length ?? 0,
+  modulesVideo: () => startVideo,
   facts: () => {
     const facts = firstRunFacts();
     return facts === null
@@ -1415,9 +1444,13 @@ const vaultVideoBox = document.querySelector<HTMLElement>("#vault-video");
 const vaultVideoSlot = document.querySelector<HTMLElement>(
   "#vault-video-player",
 );
+const noHelpVideo: Pick<
+  ReturnType<typeof createHelpVideo>,
+  "toggle" | "draw" | "open" | "render"
+> = { toggle() {}, draw() {}, open: false, render() {} };
 const vaultVideo =
   vaultVideoBox === null || vaultVideoSlot === null
-    ? { toggle() {}, draw() {}, open: false, render() {} }
+    ? noHelpVideo
     : createHelpVideo({
         box: vaultVideoBox,
         slot: vaultVideoSlot,
@@ -1427,9 +1460,53 @@ const vaultVideo =
         copy: () => copy,
         locale: () => locale,
       });
+// The Apps home's video of modules: under the head, opened by its "?" alone.
+// Its five titles are the principle's steps, its text for a screen reader.
+const appsVideoBox = document.querySelector<HTMLElement>("#apps-video");
+const appsVideoSlot = document.querySelector<HTMLElement>("#apps-video-player");
+const appsVideoLine = document.querySelector<HTMLElement>("#apps-video-line");
+const appsVideo =
+  appsVideoBox === null || appsVideoSlot === null
+    ? noHelpVideo
+    : createHelpVideo({
+        box: appsVideoBox,
+        slot: appsVideoSlot,
+        line: "apps-video-line",
+        name: "modules-overview",
+        title: () => copy.modulesVideoTitle,
+        copy: () => copy,
+        locale: () => locale,
+        first: false,
+      });
+// Začínáme's "Poznejte moduly": the same video under its row, opened by the
+// row's button alone (F56's addendum (8) of 2026-11-05).
+const startVideoBox = document.querySelector<HTMLElement>("#start-video");
+const startVideoSlot = document.querySelector<HTMLElement>(
+  "#start-video-player",
+);
+const startVideoLine = document.querySelector<HTMLElement>("#start-video-line");
+const startVideo =
+  startVideoBox === null || startVideoSlot === null
+    ? noHelpVideo
+    : createHelpVideo({
+        box: startVideoBox,
+        slot: startVideoSlot,
+        line: "start-video-line",
+        name: "modules-overview",
+        title: () => copy.modulesVideoTitle,
+        copy: () => copy,
+        locale: () => locale,
+        first: false,
+      });
+// Every help video of the page, by its box (guides.ts `helpVideoBoxes`).
+const helpVideos: Readonly<Record<string, typeof noHelpVideo>> = {
+  "vault-video": vaultVideo,
+  "apps-video": appsVideo,
+};
 for (const help of Object.values(pageHelps))
   help?.addEventListener("click", () => {
-    if (help === videoHelp) vaultVideo.toggle(help);
+    if (help === videoHelp && videoBox !== null)
+      helpVideos[videoBox]?.toggle(help);
   });
 // Apps → Trezor: the agents' secret requests (decision F54), the section of
 // those that wait and one request's page; read when shown.
@@ -1477,6 +1554,27 @@ const browser = createBrowserPanel({
 });
 // The Marketplace (plan DEV-6593): its catalog, an offer's detail and the
 // form whose brief goes to Chat as "+ Nový modul"'s does.
+// "+ Nový modul" (decision F36's addendum of 2026-11-05): the dialog of
+// three screens, which hands its brief over as a prompt of Chat.
+const newModuleDialog = createNewModuleDialog({
+  copy: () => copy,
+  locale: () => locale,
+  handOver: (prompt) => handOver(prompt),
+  keepBrief: async (offer, description) => {
+    try {
+      const { value, ok } = await post("/api/prompts/brief", {
+        id: offer.id,
+        org: offer.organization,
+        description,
+      });
+      return ok ? parseBriefAnswer(value) : null;
+    } catch {
+      return null;
+    }
+  },
+  copyText: copyToClipboard,
+  say: (text) => catalog.say(text),
+});
 const marketplace = createMarketplacePanel({
   copy: () => copy,
   locale: () => locale,
@@ -1489,6 +1587,31 @@ const marketplace = createMarketplacePanel({
     if (framed) shell.relabel();
   },
   catalog: () => catalog.current(),
+  personalSpace: () =>
+    kindOf(shellDocument) === "personal" ||
+    catalog.current()?.personalspace !== undefined,
+  role: async (organization) => {
+    const current = catalog.current();
+    const key =
+      current === null ? null : catalogOrganizationKey(current, organization);
+    if (key === null) return null;
+    try {
+      const { value, ok } = await get(
+        `/api/organizations/${encodeURIComponent(key)}/owner`,
+      );
+      const answer = (ok ? value : null) as {
+        owner?: unknown;
+        member?: unknown;
+      } | null;
+      return answer?.owner === true
+        ? "admin"
+        : answer?.member === true
+          ? "member"
+          : null;
+    } catch {
+      return null;
+    }
+  },
   handOver: (prompt) => handOver(prompt),
 });
 // The frame: routes, the catalog and settings navigation, the breadcrumb and
@@ -1703,7 +1826,9 @@ function relabel() {
   theme.render();
   vaultPage.render();
   if (framed) marketplace.render();
-  vaultVideo.render();
+  newModuleDialog.render();
+  for (const video of [...Object.values(helpVideos), startVideo])
+    video.render();
   vaultRequests.relabel();
   files.relabel();
   integrations.relabel();
@@ -2069,8 +2194,27 @@ async function pairedHref(app: string): Promise<string | null> {
 // clipboard (written first, while the page still has the focus) and Chat
 // opens, where the person pastes it into a new chat. A workstation has no
 // Chat origin: the prompt is copied all the same.
+// A prompt with what the person wrote names a brief instead (prompt-briefs.ts,
+// `brief`): the description is left at the Launchpad once the tab is open, so
+// the click still opens it; a brief that could not be left goes through the
+// clipboard, never a link without the person's words.
+/** Writes text to the clipboard: whether it is there. A page without the
+ * clipboard, as over plain HTTP, and a refusal are both no. */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function handOver(
-  prompt: Readonly<{ id: string; organization: string | null; text: string }>,
+  prompt: Readonly<{
+    id: string;
+    organization: string | null;
+    text: string;
+    brief?: () => Promise<string | null>;
+  }>,
 ): Promise<NewModuleOutcome> {
   // No agent can take it while no AI is connected: Začínáme's AI step
   // instead of an empty Chat (root decision 0201 point 3).
@@ -2086,9 +2230,23 @@ async function handOver(
   if (current !== null && chatTakesPrompts && link !== null) {
     const tab = window.open("about:blank", "_blank");
     if (tab !== null) {
-      const next = await pairedHref("chat");
+      const [next, id] = await Promise.all([
+        pairedHref("chat"),
+        prompt.brief === undefined ? link.id : prompt.brief(),
+      ]);
+      if (id === null) {
+        const copied = await copyToClipboard(prompt.text);
+        if (next === null) tab.close();
+        else {
+          tab.opener = null;
+          tab.location.href = next;
+        }
+        return copied ? "copied" : "failed";
+      }
       const href =
-        next === null ? null : chatPromptHref(next, current.t3codeOrigin, link);
+        next === null
+          ? null
+          : chatPromptHref(next, current.t3codeOrigin, { ...link, id });
       if (href === null) {
         tab.close();
         return "failed";
@@ -2098,10 +2256,7 @@ async function handOver(
       return "handed-over";
     }
   }
-  const copying = navigator.clipboard.writeText(prompt.text).then(
-    () => true,
-    () => false,
-  );
+  const copying = copyToClipboard(prompt.text);
   const tab = current === null ? null : window.open("about:blank", "_blank");
   if (tab !== null) {
     const next = await pairedHref("chat");

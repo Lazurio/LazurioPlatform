@@ -513,9 +513,10 @@ export function repositoryAction(
  * addendum of 2026-10-13). An
  * Organization's Workspace stays, even without a module, where `owner` is
  * GitHub's live answer that this Environment's identity is the
- * Organization's Owner (false until it comes): "+ Nový modul" ends every
- * Workspace of an Owner, so before the first module it is its only tile
- * (#376), and the page tells no Owner to ask the Admin for access. */
+ * Organization's Owner (false until it comes), or a member's muted offer:
+ * "+ Nový modul" ends every Workspace of theirs, so before the first module
+ * it is its only tile (#376), and the page tells no Owner to ask the Organization Admin
+ * for access. */
 export function appsSections(
   catalog: Catalog,
   group: CatalogGroupEntry,
@@ -715,15 +716,21 @@ export function appsHomeParts(
      * Organization's Owner (false until it comes): an Owner's Workspace
      * shows even before its first module (#376). */
     owner?: boolean;
+    /** GitHub's live answer that it is an active member of the Organization
+     * and no Owner (false until it comes): its Workspace ends with the
+     * muted tile (F36's addendum of 2026-11-05). */
+    member?: boolean;
   }>,
 ): readonly AppsHomePart[] {
-  const offer = newModuleOffer(group, copy, {
+  const offer = newModuleOffer(group, {
     owner: input.owner ?? false,
+    member: input.member ?? false,
     holder: input.holder ?? null,
   });
-  // Whoever gets the offer sees the Workspace it ends, even before the
-  // first module: an Organization's Owner (#376) and the personal space's
-  // holder (root decision 0185's addendum of 2026-10-13).
+  // Whoever gets the offer sees the Workspace it ends, even before the first
+  // module: an Organization's Owner (#376), the personal space's holder (root
+  // decision 0185's addendum of 2026-10-13), and a member, for whom the muted
+  // tile is the one way to ask for a first module.
   const sections = appsSections(
     catalog,
     group,
@@ -732,6 +739,13 @@ export function appsHomeParts(
     input.favorites,
     offer !== null,
   );
+  // A member without a module keeps the plain sentence over it: how to get
+  // access stays the first thing said.
+  const waiting =
+    offer?.variant === "member" &&
+    !sections.some(
+      (section) => section.kind === "workspace" && section.tiles.length > 0,
+    );
   // A group listed with a reason says it in its status line, and the
   // catalog lists the personal space without one only where this
   // Environment's GitHub account holds it (#186).
@@ -742,7 +756,7 @@ export function appsHomeParts(
     // Plain words for an empty space (the wireframe, Matěj and Anička
     // 2026-10-04): the personal space is simply empty; in an Organization
     // the person has no module here yet and whom to ask.
-    ...(sections.length === 0 && quiet
+    ...((sections.length === 0 || waiting) && quiet
       ? [
           {
             kind: "empty" as const,
@@ -895,20 +909,54 @@ export function moduleAccessTarget(
   return moduleAccessUrl(dashboard(slug), tile.entry.module.module);
 }
 
+/** The person's description in a prompt, last and word for word: nothing in
+ * it is taken for a token or a replacement pattern. */
+const described = (text: string, description: string): string =>
+  text.replaceAll("{description}", () => description);
+
 /** The prompt "+ Nový modul" hands to Chat (the wireframe's `moduleBrief`,
  * F36 addendum of 2026-10-14): the person's own words "Chci postavit nový
- * modul do Workspace Lazuria.", the Organization it goes to, and the Folder's
- * skill `new-module`, which holds everything else: what a module is, the
- * interview about its purpose, the technical choices, the plan to confirm
- * and the steps. The brief carries no procedure of its own. */
+ * modul do Workspace Lazuria.", the Organization it goes to, what they
+ * described in the dialog ("Moje představa:", decision F36's addendum of
+ * 2026-11-05) and the Folder's skill `new-module`, which holds everything
+ * else: what a module is, the interview about its purpose, the technical
+ * choices, the plan to confirm and the steps. The brief carries no procedure
+ * of its own. */
 export const newModulePrompt = (
   name: string,
   login: string,
   copy: Copy,
+  description: string | null = null,
 ): string =>
-  copy.appsNewModulePrompt
-    .replaceAll("{name}", name)
-    .replaceAll("{login}", login);
+  described(
+    (description === null
+      ? copy.appsNewModulePrompt
+      : copy.appsNewModulePromptDescribed
+    )
+      .replaceAll("{name}", name)
+      .replaceAll("{login}", login),
+    description ?? "",
+  );
+
+/** The prompt of a member's "+ Nový modul" (decision F36's addendum of
+ * 2026-11-05): the Organization Admin founds a module, so the agent prepares a request to
+ * the Organization Admin with the Folder's skill `admin-request` and sends it only with
+ * the person's consent. */
+export const newModuleRequestPrompt = (
+  name: string,
+  login: string,
+  copy: Copy,
+  description: string | null = null,
+): string =>
+  described(
+    (description === null
+      ? copy.appsNewModuleRequestPrompt
+      : copy.appsNewModuleRequestPromptDescribed
+    )
+      .replaceAll("{name}", name)
+      .replaceAll("{login}", login),
+    description ?? "",
+  );
 
 /** The prompt "+ Nový modul" hands to Chat in the personal space (the
  * wireframe's `moduleBrief`, root decision 0185's addendum of 2026-10-13,
@@ -917,8 +965,18 @@ export const newModulePrompt = (
  * which holds the steps of `lazurio module create personalspace/<slug>`
  * (decision F52). In Czech it is the person's own words to the agent, so in
  * tykání (root decision 0199). */
-export const newPersonalModulePrompt = (login: string, copy: Copy): string =>
-  copy.appsNewPersonalModulePrompt.replaceAll("{login}", login);
+export const newPersonalModulePrompt = (
+  login: string,
+  copy: Copy,
+  description: string | null = null,
+): string =>
+  described(
+    (description === null
+      ? copy.appsNewPersonalModulePrompt
+      : copy.appsNewPersonalModulePromptDescribed
+    ).replaceAll("{login}", login),
+    description ?? "",
+  );
 
 const githubLogin = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/;
 
@@ -936,26 +994,36 @@ export function personalHolderOf(list: ContentList | null): string | null {
     : null;
 }
 
-/** What "+ Nový modul" hands to Chat (ui.ts `handOver`): the prompt's id
- * and the GitHub login its link names, and its text for the clipboard. */
+/** What "+ Nový modul" offers: the prompt's id and the GitHub login its link
+ * names, and whom it speaks to. `name` is the Organization's, null in the
+ * personal space. The dialog builds the text with the person's description
+ * (new-module-view.ts). */
 export type NewModuleOffer = Readonly<{
-  id: "new-module" | "new-personal-module";
+  id: "new-module" | "new-module-request" | "new-personal-module";
+  /** The Organization Admin founds it, a member asks the Organization Admin for it, the
+   * personal space's holder founds it there. */
+  variant: "admin" | "member" | "personal";
   organization: string;
-  text: string;
+  name: string | null;
 }>;
 
 /** Who gets "+ Nový modul" in a group, and with which prompt: in an
  * Organization bound to a GitHub login, an identity GitHub's live answer
  * says is its Owner (`owner`, F36's Organization-rail addendum, point 8),
- * the prompt `new-module`; in the personal space listed without a reason,
- * its verified holder (`holder`, the login of the `present` personalspace
- * item, #186), the prompt `new-personal-module`. Everyone else: null. The
- * prompt route decides again on every request, so a tile drawn from an
- * answer that has since changed opens nothing it should not. */
+ * the prompt `new-module`, or an active member of it (`member`, a Steward
+ * too), the muted tile and the prompt `new-module-request` (F36's addendum of
+ * 2026-11-05); in the personal space listed without a reason, its verified
+ * holder (`holder`, the login of the `present` personalspace item, #186), the
+ * prompt `new-personal-module`. Everyone else, a Team Environment among them:
+ * null. The prompt route decides again on every request, so a tile drawn
+ * from an answer that has since changed opens nothing it should not. */
 export function newModuleOffer(
   group: CatalogGroupEntry,
-  copy: Copy,
-  input: Readonly<{ owner: boolean; holder: string | null }>,
+  input: Readonly<{
+    owner: boolean;
+    member?: boolean;
+    holder: string | null;
+  }>,
 ): NewModuleOffer | null {
   if (group.sections === null)
     return group.organization.reason === undefined &&
@@ -963,16 +1031,26 @@ export function newModuleOffer(
       githubLogin.test(input.holder)
       ? {
           id: "new-personal-module",
+          variant: "personal",
           organization: input.holder,
-          text: newPersonalModulePrompt(input.holder, copy),
+          name: null,
         }
       : null;
   const login = group.organization.forgeLogin;
-  return input.owner && login !== undefined
+  if (login === undefined) return null;
+  if (input.owner)
+    return {
+      id: "new-module",
+      variant: "admin",
+      organization: login,
+      name: group.name,
+    };
+  return input.member === true
     ? {
-        id: "new-module",
+        id: "new-module-request",
+        variant: "member",
         organization: login,
-        text: newModulePrompt(group.name, login, copy),
+        name: group.name,
       }
     : null;
 }

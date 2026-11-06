@@ -37,6 +37,7 @@ import {
   toggleFavorite,
 } from "../src/launchpad/favorites";
 import { type MessageKey, messages } from "../src/launchpad/messages";
+import { newModuleBrief } from "../src/launchpad/new-module-view";
 import { shellDocument } from "../src/launchpad/shell-document";
 import type {
   Catalog,
@@ -1066,7 +1067,7 @@ test("no starts but the holder's: not for a personal space held by no one here, 
 // 2026-10-13, plan DEV-6662 M1b): for its verified holder the Workspace is
 // always there and ends with the tile, which hands over the prompt
 // `new-personal-module` with the holder's login; the starts stay after it.
-const offerView = (parts: readonly AppsHomePart[]) =>
+const offerView = (parts: readonly AppsHomePart[], copy = cs) =>
   parts.map((part) =>
     part.kind === "section"
       ? [
@@ -1076,7 +1077,11 @@ const offerView = (parts: readonly AppsHomePart[]) =>
           part.section.tiles.map((t) => t.name),
           part.offer === null
             ? null
-            : [part.offer.id, part.offer.organization, part.offer.text],
+            : [
+                part.offer.id,
+                part.offer.organization,
+                newModuleBrief(part.offer, "", copy),
+              ],
         ]
       : part.kind === "empty"
         ? [part.kind, part.text]
@@ -1121,6 +1126,7 @@ test("the holder's personal Workspace is always there and ends with + Nový modu
         ...input,
         tabs: switchOf("en", "hosted-personal", personalWithEntry()),
       }),
+      en,
     ),
   ).toEqual([
     [
@@ -1220,33 +1226,68 @@ test("the offer: an Organization's Owner gets new-module, the personal space's h
     organizations: [value],
   });
   const organizationGroup = scopeOf(one(bound));
-  expect(
-    newModuleOffer(organizationGroup, cs, { owner: true, holder: null }),
-  ).toEqual({
-    id: "new-module",
-    organization: "Example-Org",
-    text: newModulePrompt("Example Company", "Example-Org", cs),
+  const admin = newModuleOffer(organizationGroup, {
+    owner: true,
+    holder: null,
   });
+  expect(admin).toEqual({
+    id: "new-module",
+    variant: "admin",
+    organization: "Example-Org",
+    name: "Example Company",
+  });
+  if (admin === null) throw new Error("An Owner gets the offer");
+  expect(newModuleBrief(admin, "", cs)).toBe(
+    newModulePrompt("Example Company", "Example-Org", cs),
+  );
+  // A member, a Steward too, gets the muted tile: the request to the Organization Admin.
+  const member = newModuleOffer(organizationGroup, {
+    owner: false,
+    member: true,
+    holder: null,
+  });
+  expect(member).toEqual({
+    id: "new-module-request",
+    variant: "member",
+    organization: "Example-Org",
+    name: "Example Company",
+  });
+  // The Owner's answer wins, and GitHub never says both.
+  expect(
+    newModuleOffer(organizationGroup, {
+      owner: true,
+      member: true,
+      holder: null,
+    })?.id,
+  ).toBe("new-module");
+  // Neither, a Team Environment among them: no tile.
   for (const input of [
     { owner: false, holder: null },
+    { owner: false, member: false, holder: null },
     { owner: false, holder: "example" },
   ])
-    expect(newModuleOffer(organizationGroup, cs, input)).toBeNull();
+    expect(newModuleOffer(organizationGroup, input)).toBeNull();
   // An Organization the manifest binds to no login: no link to make.
-  expect(
-    newModuleOffer(scopeOf(one(unbound)), cs, { owner: true, holder: null }),
-  ).toBeNull();
+  for (const input of [
+    { owner: true, holder: null },
+    { owner: false, member: true, holder: null },
+  ])
+    expect(newModuleOffer(scopeOf(one(unbound)), input)).toBeNull();
   const held = personalspace([]);
-  expect(
-    newModuleOffer(personalGroup(held), cs, {
-      owner: false,
-      holder: "example",
-    }),
-  ).toEqual({
-    id: "new-personal-module",
-    organization: "example",
-    text: newPersonalModulePrompt("example", cs),
+  const personal = newModuleOffer(personalGroup(held), {
+    owner: false,
+    holder: "example",
   });
+  expect(personal).toEqual({
+    id: "new-personal-module",
+    variant: "personal",
+    organization: "example",
+    name: null,
+  });
+  if (personal === null) throw new Error("The holder gets the offer");
+  expect(newModuleBrief(personal, "", cs)).toBe(
+    newPersonalModulePrompt("example", cs),
+  );
   // No holder, an Owner answer, a malformed login, a blocked space: none.
   for (const input of [
     { owner: false, holder: null },
@@ -1255,17 +1296,109 @@ test("the offer: an Organization's Owner gets new-module, the personal space's h
     { owner: false, holder: "-x" },
     { owner: false, holder: "" },
   ])
-    expect(newModuleOffer(personalGroup(held), cs, input)).toBeNull();
+    expect(newModuleOffer(personalGroup(held), input)).toBeNull();
   const blocked = personalspace([], {
     executable: false,
     reason: "personalspace-foreign",
   });
   expect(
-    newModuleOffer(personalGroup(blocked), cs, {
+    newModuleOffer(personalGroup(blocked), {
       owner: false,
       holder: "example",
     }),
   ).toBeNull();
+});
+
+test("a member's Workspace ends with the muted offer; without a module a member keeps the plain sentence over a Workspace of that one tile", () => {
+  const value = (modules: readonly string[]): Catalog => ({
+    kind: "catalog",
+    organizations: [
+      organization(
+        "example",
+        modules.map((id) => module(id)),
+        { forgeLogin: "Example-Org" },
+      ),
+    ],
+  });
+  const parts = (catalog: Catalog) => {
+    const scope = appsScope(catalog, { view: "home" }, cs);
+    if (scope === null) throw new Error("The fixture has an Organization");
+    return appsHomeParts(catalog, scope, cs, {
+      entry: null,
+      favorites: [],
+      setup: false,
+      tabs: [],
+      member: true,
+    });
+  };
+  const withModule = parts(value(["deals"]));
+  expect(
+    withModule.flatMap((part) =>
+      part.kind === "section" ? [part.offer?.variant ?? null] : [],
+    ),
+  ).toEqual(["member"]);
+  // The tile is the one way to ask for a first module.
+  const empty = parts(value([]));
+  expect(empty[0]).toEqual({ kind: "empty", text: cs.catalogNoModules });
+  expect(
+    empty.flatMap((part) =>
+      part.kind === "section"
+        ? [[part.section.kind, part.section.tiles.length, part.offer?.id]]
+        : [],
+    ),
+  ).toEqual([["workspace", 0, "new-module-request"]]);
+  // The line of the first run says what is next: no sentence, the tile stays.
+  const scope = appsScope(value([]), { view: "home" }, cs);
+  if (scope === null) throw new Error("The fixture has an Organization");
+  const setup = { entry: null, favorites: [], setup: true, tabs: [] };
+  expect(
+    appsHomeParts(value([]), scope, cs, { ...setup, member: true }).map(
+      (part) => part.kind,
+    ),
+  ).toEqual(["section"]);
+  // An Owner's empty Workspace: the tile, no sentence to ask anyone.
+  const owner = appsHomeParts(value([]), scope, cs, {
+    ...setup,
+    setup: false,
+    owner: true,
+  });
+  expect(owner.map((part) => part.kind)).toEqual(["section"]);
+  expect(owner[0]?.kind === "section" && owner[0].offer?.id).toBe("new-module");
+  // Neither, a Team or a public Environment among them: only the sentence.
+  expect(
+    appsHomeParts(value([]), scope, cs, { ...setup, setup: false }).map(
+      (part) => part.kind,
+    ),
+  ).toEqual(["empty"]);
+});
+
+test("a member with only production repositories gets the sentence and the Workspace of the muted tile too", () => {
+  const repository = {
+    slug: "firmware",
+    path: "productionspace/firmware",
+    checkedOut: true,
+    url: null,
+  };
+  const value: Catalog = {
+    kind: "catalog",
+    organizations: [
+      organization("example", [], {
+        forgeLogin: "Example-Org",
+        repositories: [repository],
+      }),
+    ],
+  };
+  const scope = appsScope(value, { view: "home" }, cs);
+  if (scope === null) throw new Error("The fixture has an Organization");
+  expect(
+    appsHomeParts(value, scope, cs, {
+      entry: null,
+      favorites: [],
+      setup: false,
+      tabs: [],
+      member: true,
+    }).map((part) => (part.kind === "section" ? part.section.kind : part.kind)),
+  ).toEqual(["empty", "workspace", "productionspace"]);
 });
 
 test("the personal module's prompt is the opening, a private repository on the holder's account and the skill, in both languages, with no procedure of its own", () => {

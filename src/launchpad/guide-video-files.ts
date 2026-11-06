@@ -1,6 +1,18 @@
 import { createHash } from "node:crypto";
 import { guideVideoPath } from "./guide-video";
 import { notModified, selectRange } from "./http-conditions";
+import modulesOverviewCs from "./videos/modules-overview-cs.mp4" with {
+  type: "file",
+};
+import modulesOverviewCsPoster from "./videos/modules-overview-cs.webp" with {
+  type: "file",
+};
+import modulesOverviewEn from "./videos/modules-overview-en.mp4" with {
+  type: "file",
+};
+import modulesOverviewEnPoster from "./videos/modules-overview-en.webp" with {
+  type: "file",
+};
 import vaultBitwardenCs from "./videos/vault-bitwarden-cs.mp4" with {
   type: "file",
 };
@@ -46,6 +58,10 @@ export const guideVideoFilePaths: Readonly<Record<string, string>> = {
   "vault-overview-cs.webp": vaultOverviewCsPoster,
   "vault-overview-en.mp4": vaultOverviewEn,
   "vault-overview-en.webp": vaultOverviewEnPoster,
+  "modules-overview-cs.mp4": modulesOverviewCs,
+  "modules-overview-cs.webp": modulesOverviewCsPoster,
+  "modules-overview-en.mp4": modulesOverviewEn,
+  "modules-overview-en.webp": modulesOverviewEnPoster,
 };
 
 const contentTypes: Readonly<Record<string, string>> = {

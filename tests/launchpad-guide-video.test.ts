@@ -108,6 +108,53 @@ test("the Trezor page holds the player's slot at the top of its Bitwarden sectio
 // page-help.ts; where it is true is tests/launchpad-guide.test.ts's): at the
 // top of the page, its player first and under it the one line it does not
 // say. The page serves it hidden; it opens as the page knows it is true.
+// The Apps home's video (F56's addendum (8) of 2026-11-05): under the head,
+// served hidden, its titles for a screen reader, opened by its "?" alone.
+test("the Apps home's video: served hidden under the head, its player above the titles a screen reader hears", async () => {
+  const html = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const view = html.slice(html.indexOf('<main id="view-catalog"'));
+  const head = view.indexOf('id="catalog-head"');
+  const box = view.indexOf('<div class="vault-video" id="apps-video" hidden>');
+  const player = view.indexOf('id="apps-video-player"');
+  const line = view.indexOf('<p class="sr-only" id="apps-video-line">');
+  const body = view.indexOf('id="catalog-body"');
+  expect(head).toBeGreaterThan(-1);
+  expect([box, player, line, body].every((at) => at > head)).toBe(true);
+  expect([box, player, line, body].sort((a, b) => a - b)).toEqual([
+    box,
+    player,
+    line,
+    body,
+  ]);
+  expect(guideVideoNames).toContain("modules-overview");
+  expect([cs.modulesVideoTitle, en.modulesVideoTitle]).toEqual([
+    "Co je modul",
+    "What a module is",
+  ]);
+});
+
+// Začínáme's "Poznejte moduly" (F56's addendum (8) of 2026-11-05): the same
+// video under the optional rows, served hidden.
+test("Začínáme's video: served hidden under the optional rows, its player above the titles a screen reader hears", async () => {
+  const html = await readFile(
+    join(import.meta.dir, "..", "src", "launchpad", "index.html"),
+    "utf8",
+  );
+  const group = html.slice(html.indexOf('id="start-optional-group"'));
+  const end = group.indexOf("</section>");
+  const places = [
+    'id="start-optional"',
+    '<div class="vault-video" id="start-video" hidden>',
+    'id="start-video-player"',
+    '<p class="sr-only" id="start-video-line">',
+  ].map((part) => group.indexOf(part));
+  expect(places.every((at) => at > 0 && at < end)).toBe(true);
+  expect([...places].sort((a, b) => a - b)).toEqual(places);
+});
+
 test("Trezor's video: served hidden at the top of the page, its player above the line it does not say, in the page's language", async () => {
   const html = await readFile(
     join(import.meta.dir, "..", "src", "launchpad", "index.html"),
