@@ -352,7 +352,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
 - `tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]` runs the tool's own
   sign-in in the foreground and shows its challenge: for gh the one-time code and
   `https://github.com/login/device` (`gh auth login --hostname github.com
-  --git-protocol ssh --web --scopes admin:public_key --clipboard=false`; since gh
+  --git-protocol ssh --web --scopes admin:public_key,workflow --clipboard=false`;
+  `workflow` lets an agent push a change of `.github/workflows/`, #823; since gh
   2.101.0 the code is copied to the clipboard by default, and `--clipboard=false`
   turns that off for this run only);
   for composio the dashboard link (`composio login --no-wait --no-skill-install`, then
@@ -397,8 +398,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `host-keys-unavailable`, `host-key-mismatch`, `known-hosts-failed`, `ssh-missing`,
   `proof-failed`, `proof-other-account`. gh exits 0 only when the key is linked.
   `--ssh-key` (gh only) does these steps for a gh that is signed in already, after
-  `gh auth refresh --hostname github.com --scopes admin:public_key --clipboard=false`
-  (a device code) when the token lacks the scope; a gh that is not signed in fails as
+  `gh auth refresh --hostname github.com --scopes admin:public_key,workflow --clipboard=false`
+  (a device code) when the token lacks the key scope, which adds `workflow` too; a gh that is not signed in fails as
   `not-signed-in`.
 - **gh sets the user's Git identity where git has none** (F19 addendum 2026-10-14):
   after the SSH key step, whatever its outcome, each of `user.name` and `user.email`

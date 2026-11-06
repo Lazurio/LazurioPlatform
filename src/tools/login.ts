@@ -486,6 +486,13 @@ type Session = {
   pendingBytes: number;
 };
 
+/** The scopes a sign-in of gh from Settings → Tools asks for: the key
+ * scope, so that gh can register the Machine's SSH key, and `workflow`, so
+ * that GitHub accepts a push that changes `.github/workflows/` (#823). A
+ * scope refresh asks for the same scopes, so that it also adds `workflow` to
+ * an older sign-in. */
+export const ghSignInScopes = [sshKeyScope, "workflow"].join(",");
+
 export function createLoginSessions(environment: LoginEnvironment) {
   const now = environment.now ?? Date.now;
   const lifetimes = { ...defaultLifetimes, ...environment.lifetimes };
@@ -839,8 +846,9 @@ export function createLoginSessions(environment: LoginEnvironment) {
   }
 
   async function startGh(session: Session, entry: ToolEntry, path: string) {
-    // The documented device flow with the key scope in the same code, so the
-    // operator enters one code and gh may register the Machine's key.
+    // The documented device flow with the key scope and `workflow` in the
+    // same code, so the operator enters one code, gh may register the
+    // Machine's key, and an agent may push a change of CI (#823).
     const exitCode = await ghDeviceFlow(session, [
       path,
       "auth",
@@ -851,7 +859,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
       "ssh",
       "--web",
       "--scopes",
-      sshKeyScope,
+      ghSignInScopes,
     ]);
     if (exitCode === undefined || !current(session)) return;
     if (exitCode !== 0) return fail(session, "tool-exit");
@@ -886,7 +894,7 @@ export function createLoginSessions(environment: LoginEnvironment) {
         "--hostname",
         "github.com",
         "--scopes",
-        sshKeyScope,
+        ghSignInScopes,
       ]);
       if (exitCode === undefined || !current(session)) return;
       if (!(await mayProceed(session))) return;
