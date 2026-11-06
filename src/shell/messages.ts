@@ -190,12 +190,16 @@ const cs: ShellCopy = {
   rail: "Organizace",
   dashboard: "Přehled",
   jump: "Přejít na Prostředí",
-  personal: "Osobní",
+  personal: "Buddy",
   addOrganization: "Přidat organizaci",
   account: "Lazurio účet",
   accountSettings: "Nastavení účtu",
   signOut: "Odhlásit",
-  names: byKind((kind) => kindShort(kind, "cs")),
+  // The personal Environment is Buddy in the rail and the picker (root
+  // decision 0207 point 1); in a sentence its kind stays Osobní.
+  names: byKind((kind) =>
+    kind === "personal" ? "Buddy" : kindShort(kind, "cs"),
+  ),
   kinds: byKind((kind) => kindShort(kind, "cs")),
   kindLabels: byKind((kind) => kindLabel(kind, "cs")),
   groups: { people: "Lidé", teams: "Týmy", organization: "Organizace" },
@@ -217,10 +221,10 @@ const cs: ShellCopy = {
   close: "zavřít",
   switchLabel: "Aplikace {tohoto}",
   chat: "Chat",
-  apps: "Apps",
-  automate: "Automate",
+  apps: "Aplikace",
+  automate: "Automatizace",
   chatMissing: "Chat {v tomto} neběží",
-  automateMissing: "Automate {v tomto} neběží",
+  automateMissing: "Automatizace {v tomto} neběží",
   setupPrompt: "Dokončit nastavení ({done} ze {total})",
   publicNotice:
     "{Toto} je veřejné a sdílené a kdykoli se může smazat nebo založit znovu. Když se přihlásíte ke svému účtu, po použití se odhlaste, protože ostatní vidí, co tu necháte; ke GitHubu se tu přihlásit nejde.",

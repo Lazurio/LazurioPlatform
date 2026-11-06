@@ -123,16 +123,16 @@ test("Trezor is a page of the Apps column, an agent's secret request has its pag
   expect((settingsSections as readonly string[]).includes("vault")).toBe(false);
   // Its title is its own, never under Settings.
   expect(routeTitle({ view: "vault" }, messages("cs"))).toEqual({
-    heading: "Trezor",
-    document: "Trezor — Lazurio",
+    heading: "Správce hesel",
+    document: "Správce hesel — Lazurio",
   });
   expect(routeTitle({ view: "vault" }, messages("en"))).toEqual({
     heading: "Vault",
     document: "Vault — Lazurio Launchpad",
   });
   expect(routeTitle(request, messages("cs"))).toEqual({
-    heading: "Trezor",
-    document: "Žádost agenta · Trezor — Lazurio",
+    heading: "Správce hesel",
+    document: "Žádost agenta · Správce hesel — Lazurio",
   });
   expect(routeTitle(request, messages("en"))).toEqual({
     heading: "Vault",

@@ -21,7 +21,7 @@ import {
 } from "../src/launchpad/vault-page-view";
 import type { VaultStatus } from "../src/vault/flow";
 
-// Settings → Vault, Nastavení → Trezor (root decision 0198 point 5): the
+// Settings → Vault, Nastavení → Správce hesel (root decision 0198 point 5): the
 // page's pure part, on answers of the server's shapes. Its HTTP behaviour
 // is tests/launchpad-vault-page.test.ts.
 
@@ -343,7 +343,7 @@ test("a person whose sign-in carried no Lazurio username: the vault opens, and o
   expect(
     vaultPageView(model(connected(), { environment: "team" }), unnamed, cs)
       .hint,
-  ).toBe("Trezor tohoto Prostředí používají jen jeho agenti.");
+  ).toBe("Správce hesel tohoto Prostředí používají jen jeho agenti.");
 });
 
 test("the vault's state: the items in Czech plural, the creation, no answer, and the links kept while it does not answer", () => {
@@ -406,7 +406,7 @@ test("the vault's state: the items in Czech plural, the creation, no answer, and
     state: "revoked",
     ...facts,
   });
-  expect(gone.row?.line).toBe("Trezor byl odebrán");
+  expect(gone.row?.line).toBe("Správce hesel byl odebrán");
   expect(gone.actions).toEqual([]);
 });
 
@@ -421,7 +421,7 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
       cs,
     ),
   ).toEqual({
-    note: "Trezor na tomto počítači není.",
+    note: "Správce hesel na tomto počítači není.",
     row: null,
     actions: [],
     hint: null,
@@ -458,7 +458,7 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
     );
     expect(view.actions).toEqual([]);
     expect(view.hint).toBe(
-      "Trezor tohoto Prostředí používají jen jeho agenti.",
+      "Správce hesel tohoto Prostředí používají jen jeho agenti.",
     );
   }
   // A network whose vault does not require the Lazurio sign-in of people
@@ -470,7 +470,7 @@ test("this computer says so in one line; a 0197 pilot opens its collection; a Te
   );
   expect(ungated.actions).toEqual([]);
   expect(ungated.hint).toBe(
-    "Trezor tohoto Prostředí používají jen jeho agenti.",
+    "Správce hesel tohoto Prostředí používají jen jeho agenti.",
   );
   expect(
     parseVaultMembership({
@@ -690,7 +690,7 @@ test("after a disconnect, one line says that the vault and its passwords stay in
     cs,
   );
   expect(disconnectedLine(waiting, true, cs)).toBe(
-    "Trezor i hesla zůstaly ve vašem Bitwardenu.",
+    "Správce hesel i hesla ve vašem Bitwardenu zůstaly.",
   );
   expect(disconnectedLine(waiting, true, en)).toBe(
     "Your vault and its passwords stay in your Bitwarden.",
@@ -769,7 +769,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
   // The picture: the vault by the name it gets, and Bitwarden's screens.
   expect(connectionPictures("Osobní jana", cs)).toEqual({
     label:
-      "Trezor Osobní jana mezi vaším Bitwardenem a agenty v tomto Prostředí",
+      "Správce hesel Osobní jana mezi vaším Bitwardenem a agenty v tomto Prostředí",
     steps: [
       {
         name: "signup",
@@ -822,7 +822,7 @@ test("the connection's words: the title, the picture of the vault, one line, two
     "Váš e-mail v Bitwardenu",
     "Pozvat mě",
     "Posílá se…",
-    "Trezor i hesla v Bitwardenu zůstanou.",
+    "Správce hesel zůstane a hesla v Bitwardenu také.",
   ]);
   expect([
     en.vaultInviteTitle,
@@ -955,7 +955,7 @@ test("the connection's and the invitation's refusals say what to do next in one 
     ],
     [
       "not-connected",
-      "Trezor ještě není hotový, zkuste to za chvíli.",
+      "Správce hesel ještě není hotový, zkuste to za chvíli.",
       "The vault is not ready yet; try again in a moment.",
     ],
     [
@@ -1005,7 +1005,7 @@ test("the connection's and the invitation's refusals say what to do next in one 
   ).toBe(false);
 });
 
-test("every text of the Trezor page's markup is a message of both languages", () => {
+test("every text of the Správce hesel page's markup is a message of both languages", () => {
   const html = readFileSync(
     new URL("../src/launchpad/index.html", import.meta.url),
     "utf8",
@@ -1181,10 +1181,10 @@ test("every picture the connection's steps show is in the page once per language
 
 // Bitwarden in Codex Desktop and the person's own browser (F53's addendum of
 // 2026-10-16, plan DEV-6665): the steps under "V Codex Desktopu a ve vašem
-// prohlížeči" on Nastavení → Trezor, for an Organization's Lazurio
+// prohlížeči" on Nastavení → Správce hesel, for an Organization's Lazurio
 // Vaultwarden (root decision 0203 point 1) and a personal Environment's own
-// Bitwarden (point 7), and where there are none. Začínáme's row "Trezor v
-// Bitwardenu" follows `bitwardenTarget` (tests/start-view.test.ts).
+// Bitwarden (point 7), and where there are none. Začínáme's row "Správce hesel
+// v Bitwardenu" follows `bitwardenTarget` (tests/start-view.test.ts).
 const work = (
   status: VaultStatus = connected(),
   fields: Partial<VaultPageModel> = {},
@@ -1606,7 +1606,7 @@ test("an Environment without a vault says why: none on purpose in a public Organ
     [
       cs,
       "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
-      "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+      "Správce hesel tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
     ],
     [
       en,

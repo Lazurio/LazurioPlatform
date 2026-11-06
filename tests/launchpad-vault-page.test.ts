@@ -679,7 +679,7 @@ test.skipIf(!posix)(
         );
         expect(view.actions).toEqual([]);
         expect(view.hint).toBe(
-          "Trezor tohoto Prostředí používají jen jeho agenti.",
+          "Správce hesel tohoto Prostředí používají jen jeho agenti.",
         );
       } finally {
         await s.close();
@@ -949,7 +949,7 @@ test.skipIf(!posix)(
       );
       expect(view.actions).toEqual([]);
       expect(view.hint).toBe(
-        "Trezor tohoto Prostředí používají jen jeho agenti.",
+        "Správce hesel tohoto Prostředí používají jen jeho agenti.",
       );
     } finally {
       await s.close();
@@ -1159,7 +1159,7 @@ test.skipIf(!posix)(
         reason: "no-vault",
       });
       expect(vaultPageView(model, null, messages("cs"))).toMatchObject({
-        note: "Trezor na tomto počítači není.",
+        note: "Správce hesel na tomto počítači není.",
         row: null,
         actions: [],
       });
@@ -1239,7 +1239,7 @@ test.skipIf(!posix)(
         ],
         [
           "no-vault",
-          "Trezor tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+          "Správce hesel tohoto Prostředí není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
         ],
       ] as const) {
         reason = why;

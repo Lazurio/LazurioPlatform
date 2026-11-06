@@ -109,7 +109,7 @@ test("the routes: the tabs, an app's card under app/, and anything else opens V�
     document: "Integrations — Lazurio Launchpad",
   });
   expect(routeTitle({ view: "integrations", tab: "custom" }, cs).heading).toBe(
-    "Integrace",
+    "Napojení",
   );
 });
 

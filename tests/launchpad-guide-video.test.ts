@@ -46,7 +46,7 @@ const sha256 = (bytes: Uint8Array) =>
 
 test("the player: one button named for its video, opening the browser's own player in the page's language, nothing loaded or played before the person asks", () => {
   for (const [locale, copy, play, name] of [
-    ["cs", cs, "Přehrát video", "Přehrát video: Trezor v Bitwardenu"],
+    ["cs", cs, "Přehrát video", "Přehrát video: Správce hesel v Bitwardenu"],
     ["en", en, "Play video", "Play video: Vault in Bitwarden"],
   ] as const) {
     const player = guideVideoPlayer(

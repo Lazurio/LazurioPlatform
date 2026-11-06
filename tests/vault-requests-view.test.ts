@@ -129,10 +129,10 @@ test("a refusal says what the person can do; an answered request is read again",
   expect(refusalText("values-invalid", cs)).toBe("Vyplňte všechna pole.");
   for (const reason of ["busy", "locked", "unreachable"])
     expect(refusalText(reason, cs)).toBe(
-      "Trezor teď neodpovídá. Zkuste to prosím za chvíli.",
+      "Správce hesel teď neodpovídá. Zkuste to prosím za chvíli.",
     );
   expect(refusalText("not-connected", cs)).toBe(
-    "Trezor tohoto Prostředí zatím není připravený.",
+    "Správce hesel tohoto Prostředí zatím není připravený.",
   );
   expect(refusalText("no-vault", cs)).toBe("Toto Prostředí zatím trezor nemá.");
   // A public Organization's Environment: none, not "yet" (DEV-6631).

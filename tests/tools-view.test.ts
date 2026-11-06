@@ -1145,14 +1145,14 @@ test("in a Team Environment Nástroje names the Team's Composio account, elsewhe
   const en = messages("en");
   // The row's sentence: the reading's `sharedEnvironment` chooses it.
   expect(toolDescription(tool(), cs, true)).toBe(
-    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Aplikacích → Napojení.",
   );
   expect(toolDescription(tool(), en, true)).toBe(
     "An easy way to many apps through Composio, with the Team's Composio account. You connect the apps in Apps → Integrations.",
   );
   for (const shared of [false, undefined])
     expect(toolDescription(tool(), cs, shared)).toBe(
-      "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+      "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Aplikacích → Napojení.",
     );
   // Only Composio's sentence differs; gh's stays the same in either.
   expect(toolDescription(tool({ name: "gh" }), cs, true)).toBe(

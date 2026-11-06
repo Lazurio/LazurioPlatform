@@ -532,12 +532,22 @@ const englishOldKinds: readonly [string, RegExp][] = [
 ];
 
 test("the shell names three kinds, and your own computer has none", () => {
-  for (const [locale, words] of [
-    ["cs", ["Osobní", "Pracovní", "Týmové", "Váš počítač"]],
-    ["en", ["Personal", "Work", "Team", "Your computer"]],
+  // In Czech the personal Environment's short name is Buddy (decision F36,
+  // addendum of 2026-11-06); its kind stays Osobní.
+  for (const [locale, names, words] of [
+    [
+      "cs",
+      ["Buddy", "Pracovní", "Týmové", "Váš počítač"],
+      ["Osobní", "Pracovní", "Týmové", "Váš počítač"],
+    ],
+    [
+      "en",
+      ["Personal", "Work", "Team", "Your computer"],
+      ["Personal", "Work", "Team", "Your computer"],
+    ],
   ] as const) {
     const copy = shellMessages(locale);
-    expect(new Set(Object.values(copy.names))).toEqual(new Set(words));
+    expect(new Set(Object.values(copy.names))).toEqual(new Set(names));
     expect(new Set(Object.values(copy.kinds))).toEqual(new Set(words));
     expect(copy.names.automated).toBe(copy.names.work);
     expect(copy.kinds.automated).toBe(copy.kinds.work);

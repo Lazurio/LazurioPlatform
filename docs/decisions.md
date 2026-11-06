@@ -10096,6 +10096,36 @@ owner rule, the groups and their order, the rows, search, the jump and the widen
 the column head, the glyphs on the wire), with the switcher and identity suites updated
 to the new naming.
 
+### F36 addendum of 2026-11-06: the Czech names of the prototype
+
+**Decided by Matěj (Organization Admin) on 2026-11-06: the product takes the Czech names the
+prototype has used since Anna approved them on 2026-10-21 (`LazurioDevelopment/prototypes-lazurio`
+PR #84, "souhlas, implementuj"); Anička, owner of the design system and the shell's UX, decides
+further changes.** English keeps its names, as the prototype's does.
+
+1. **The apps.** In Czech the switch, the Launchpad's home and the tour say **Aplikace** for Apps
+   and **Automatizace** for Automate; Chat stays Chat.
+2. **The Apps column.** Integrace is **Napojení** and Trezor is **Správce hesel**: the column's
+   items, their pages' titles, the guide's steps and every Czech sentence that names the page.
+   An integration as a thing keeps its word (an app connected to the Environment, decision
+   0162); only the page is Napojení.
+3. **Buddy in the rail and the picker.** The personal space's label in the rail, the personal
+   Environment's short name in the picker and the personal space's heading in Apps are
+   **Buddy** in Czech, as root decision 0207 point 1 says (English keeps Personal for now). In a
+   sentence the kind stays **Osobní Prostředí** (0207's addendum of 2026-10-18).
+4. **What does not change.** Routes, ids, `data-message` keys, CLI output, the English copy and
+   the Folder's generated instructions and manual, which still teach agents the old words; their
+   update is a separate change. The manual's chapter that quotes the Launchpad's labels holds the
+   Czech Integrace (`heldCzechLabels` in `src/folder/manual-mechanisms.ts`), so the generated
+   Folder stays byte for byte as it was, and a phrase that names the kind (the offline guide's
+   "Osobní Prostředí") takes the kind's word, not the short name.
+
+**Honest limits.** Until the Folder's words follow, an agent may still send a person to "Apps →
+Integrace" where the page now says Aplikace → Napojení. In the picker the personal Environment
+reads Buddy alone: Buddy is the kind's short name, so no kind line repeats it (`kindLine`).
+
+Verified by unit tests (the tests that assert the Czech copy, updated to the new names).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

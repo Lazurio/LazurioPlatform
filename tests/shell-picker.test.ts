@@ -197,7 +197,7 @@ test("the picker's foot holds only Všechny Organizace; widened, the search fiel
       section.rows.length,
     ]),
   ).toEqual([
-    ["personal", "Osobní", null, 1],
+    ["personal", "Buddy", null, 1],
     ["orbit", "Orbit Example", null, 5],
     ["acme", "Acme Example", null, 1],
   ]);
@@ -225,7 +225,7 @@ test("the jump to any Environment keeps the Organization's heads, the search fie
       section.empty,
     ]),
   ).toEqual([
-    ["personal", "Osobní", null, 1, null],
+    ["personal", "Buddy", null, 1, null],
     [
       "orbit",
       null,
@@ -403,7 +403,7 @@ test("the picker names three kinds, and your own computer has none, in both lang
       section.rows.map((row) => [row.id, row.name, row.who]),
     );
   expect(rows("cs")).toEqual([
-    ["example", "Osobní", ""],
+    ["example", "Buddy", "Osobní"],
     ["laptop", "Example-MacBook", "Váš počítač"],
     ["vm-01.orbit", "Týmové", ""],
     ["vm-02.orbit", "Pracovní", ""],

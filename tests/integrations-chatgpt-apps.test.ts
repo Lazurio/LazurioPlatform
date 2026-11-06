@@ -262,6 +262,6 @@ test("the page names who decides, offers the switch only on the person's own Env
     }),
   ).toBeNull();
   expect(copy.integrationsChatgptAppsOffOrganization).toBe(
-    "Aplikace z ChatGPT jsou v tomto Osobním Prostředí vypnuté, Organizace je nepovoluje. Agenti používají jen aplikace připojené tady v Integracích.",
+    "Aplikace z ChatGPT jsou v tomto Osobním Prostředí vypnuté, Organizace je nepovoluje. Agenti používají jen aplikace připojené tady v Napojení.",
   );
 });

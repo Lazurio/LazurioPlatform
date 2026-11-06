@@ -265,7 +265,7 @@ const principles: readonly Principle[] = [
   },
   {
     id: "integrations",
-    title: { cs: "Integrace", en: "Integrations" },
+    title: { cs: "Napojení", en: "Integrations" },
     // How Integrace work, the page's "Jak to funguje" before (F56's addendum
     // of 2026-10-18): the card's documentation link.
     docs: documentation("environment-app-connections", "app-connections"),
@@ -307,7 +307,7 @@ const principles: readonly Principle[] = [
     // Personal Environment its adaptation: the person's own Bitwarden, the
     // agents' own account in it.
     id: "vault",
-    title: { cs: "Trezor", en: "Vault" },
+    title: { cs: "Správce hesel", en: "Vault" },
     steps: [
       {
         text: {

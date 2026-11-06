@@ -761,7 +761,7 @@ export function demoStartView(
     rows: [
       {
         id: "apps",
-        title: "Apps",
+        title: copy.appsTitle,
         text: copy.demoAppsText,
         status: null,
         action: { label: copy.startOpen, href: "/" },

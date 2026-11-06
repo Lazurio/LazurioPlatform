@@ -1382,9 +1382,9 @@ test("Escape on Settings while the guide explains closes the explanation, not Se
 
 // What a removed sentence said that no step of its section's "?" says stays
 // beside its choice (Pablo's review of #503): what the preset is, what the
-// optional rows Composio and Trezor v Bitwardenu give, and what the evidence
+// optional rows Composio and Správce hesel v Bitwardenu give, and what the evidence
 // of a recovery carries before a person files it to the public repository.
-test("what no step says stays beside its choice: the preset, Composio, Trezor v Bitwardenu, the evidence", () => {
+test("what no step says stays beside its choice: the preset, Composio, Správce hesel v Bitwardenu, the evidence", () => {
   const hint = byId("preset-hint");
   expect(hint.attributes.get("data-message")).toBe("presetHint");
   expect(byId("preset").attributes.get("aria-describedby")).toBe("preset-hint");
@@ -1581,7 +1581,7 @@ test("Nástroje's '?' says only what its page can show: no steps on connecting w
   );
   // The vault's own row and a tool not offered here are no targets of
   // either step (Pablo's review of #503): a Team Environment with gh and
-  // Trezor v Bitwardenu alone, and one with a switched-on tool it does not
+  // Správce hesel v Bitwardenu alone, and one with a switched-on tool it does not
   // offer (listed only so that it can be switched off), say only what the
   // page is.
   const vaultRow = tool({ name: "bitwarden", command: "bw" });
