@@ -145,8 +145,7 @@ async function removeCopy(
   at: string,
 ): Promise<RemovedCopy | null> {
   const directory = join(root, path);
-  const stat = await lstat(directory);
-  if (!stat.isDirectory()) return null;
+  // A link anywhere on the way resolves elsewhere: nothing it points to goes.
   if ((await realpath(directory)) !== join(await realpath(root), path))
     return null;
   const observed = await git.inspect(directory);

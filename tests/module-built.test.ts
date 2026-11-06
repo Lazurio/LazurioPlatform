@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
 import {
   chmod,
+  lstat,
   mkdtemp,
   readFile,
   realpath,
@@ -349,6 +350,59 @@ async function until<T>(read: () => Promise<T>, done: (value: T) => boolean) {
     await Bun.sleep(50);
   }
 }
+
+// Decision F72: before a copy leaves because access ended, nothing of it may
+// go on running or stay built, and what cannot be told keeps the copy.
+posixTest(
+  "retire stops every app of a module and removes its builds; a module it cannot find is refused",
+  async () => {
+    const home = join(root, "home-retire");
+    await mkdir(home);
+    const fixture = await staticModule("retire", home, {
+      readCatalog: async (folder) => {
+        const catalog = await readFolderCatalog(folder);
+        return {
+          ...catalog,
+          organizations: catalog.organizations.map((organization) => ({
+            ...organization,
+            forgeLogin: "Alpha",
+          })),
+        };
+      },
+    });
+    const { operations } = fixture;
+    try {
+      answer(await operations.start("alpha/site"));
+      await until(
+        () => operations.status("alpha/site"),
+        (status) => status.kind === "module" && status.healthy,
+      );
+      const builds = join(
+        fixture.host.builds?.cacheRoot as string,
+        "alpha",
+        "site",
+      );
+      expect(await lstat(builds).then(() => true)).toBe(true);
+      expect(await operations.retire("Beta", "workspace/site")).toBe(false);
+      expect(await operations.retire("alpha", "workspace/other")).toBe(false);
+      expect(answer(await operations.status("alpha/site")).healthy).toBe(true);
+      expect(await operations.retire("alpha", "workspace/site")).toBe(true);
+      expect(answer(await operations.status("alpha/site"))).toMatchObject({
+        state: "stopped",
+        healthy: false,
+      });
+      expect(
+        await lstat(builds).then(
+          () => true,
+          () => false,
+        ),
+      ).toBe(false);
+    } finally {
+      await operations.close();
+    }
+  },
+  60_000,
+);
 
 posixTest(
   "a static app starts as its build, --dev as its development script; after a pull it serves the build there is until the new one is built, then swaps; a failed build keeps it serving",

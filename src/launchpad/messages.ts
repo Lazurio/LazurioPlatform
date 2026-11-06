@@ -668,6 +668,8 @@ const en = {
   accessHourly: "Lazurio also checks every hour.",
   accessAddedOne: "New module: {names}.",
   accessAddedMany: "New modules: {names}.",
+  accessRemovedOne: "Module {names} was removed: access ended.",
+  accessRemovedMany: "Modules {names} were removed: access ended.",
   accessNothing:
     "Nothing new. The Organization Admin grants access to modules.",
   accessFailed: "Couldn't check access. {reason}",
@@ -2934,6 +2936,8 @@ const cs: Record<MessageKey, string> = {
   accessHourly: "Lazurio to kontroluje samo každou hodinu.",
   accessAddedOne: "Přibyl modul {names}.",
   accessAddedMany: "Přibyly moduly {names}.",
+  accessRemovedOne: "Odebrali jsme modul {names}, přístup k němu skončil.",
+  accessRemovedMany: "Odebrali jsme moduly {names}, přístup k nim skončil.",
   accessNothing: "Nic nového. Přístup k modulu uděluje Admin Organizace.",
   accessFailed: "Přístupy se nepodařilo zkontrolovat. {reason}",
   accessReasonBusy: "Lazurio právě stahuje změny. Zkuste to za chvíli.",
