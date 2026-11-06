@@ -9882,7 +9882,7 @@ people asked what a module is, who creates one and why a module they were given 
 show.** The model is one sentence, repeated everywhere: a module is one area of your work,
 holding together the process agents follow, the data and the app. Root decision 0179
 point 5 excluded tiles of requests; its addendum in this repository's decision register
-(branch `agent/moduly-znalosti-agentu`) allows the muted tile below, with the request of root
+allows the muted tile below, with the request of root
 decision 0230.
 
 1. **"+ Nový modul" is a dialog of three screens** (`new-module-dialog.ts` over the pure
@@ -19537,8 +19537,8 @@ The video's content still waits for his approval.** Apps' "?" played the princip
    space.
 4. **The video** is the cuts `modules` and `modules-en` of `tools/video-spot` in the design
    system (HumanAndMachine-ai/design-system-lazurio#115): about 30 seconds, no
-   sound, a fictional bakery, as Trezor's. Its content is not approved yet; a new cut under
-   the same name replaces the browser's copy by its ETag.
+   sound, a fictional bakery, as Trezor's. Matěj approved its content on 2026-11-06; a new cut
+   under the same name replaces the browser's copy by its ETag.
 5. **Začínáme** ends "Volitelné" with the row "Poznejte moduly" ("Get to know modules"): its
    title and "Přehrát video", which opens the same video in place under the rows, with no
    sentence under the title. Matěj asked for modules in the onboarding on 2026-11-06. It is no
