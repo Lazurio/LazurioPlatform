@@ -462,7 +462,9 @@ sibling runs is not asked (`src/modules/sibling-origins.ts`). The rules:
 - The call reaches the sibling directly on the Environment, without the gateway
   and without a signed-in user. When the sibling accepts writes only from its own
   origin, the caller sends `Origin` equal to the address. Who triggered the call
-  is not carried; the standard does not define it yet.
+  is not carried; the standard does not define it yet, and the sibling reads
+  `entry: "local"` ([Who came and with which role](#who-came-and-with-which-role)):
+  the caller does not forward the gateway's statement.
 - A link for people to a sibling's App is derived from the App's own
   `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` by replacing the first
   hostname label with the sibling's, following the hosted names of decision
@@ -480,6 +482,71 @@ start when absent; when that fails, the start is refused with
 `data-mount-clone-failed` (`src/modules/data-mounts.ts`). No address is passed
 for a Module of another Organization or an undeclared Module, and an App of a
 Personalspace gets none.
+
+### Who came and with which role
+
+Lazurio decides who may open a Module's App and with which application role,
+application admin or application user, and the Organization decides in the
+Module's code what each role may do ([decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)). An App learns it for
+each request from the person's existing Lazurio session, with no second
+sign-in.
+
+**Status: decided, not yet available.** It becomes available on an Environment
+once `@lazurio/module-kit` 0.3.0 is released and the Environment runs a gateway
+release that states the person and the entry (Machines). Until then a request
+through the gateway reads `unknown`, which grants no role.
+
+**How an App reads it.** Only through `@lazurio/module-kit`:
+`appAccess(request, "<listener>")` (Python: `app_access`). Its answer is the
+stable contract: every answer has the same five fields, their values never
+change meaning or disappear, and new information comes as new fields.
+
+| `entry` | `appRole` | `person` | `source` | `reason` | When |
+| --- | --- | --- | --- | --- | --- |
+| `environment` | `admin` | subject and username | `gateway` | `null` | the person has the whole Environment where the App runs |
+| `app` | `admin` or `user` | subject and username | `gateway` | `null` | the person has this App only, with the role the Organization gave them |
+| `local` | `admin` | `null` | `null` | `not-hosted`, `not-through-gateway` or `local-entry` | from inside the Environment: no external origin (a person's own computer), a request to a loopback address (a sibling, a script, an agent), or the Environment browser's local entry |
+| `unknown` | `null` | `null` | `null` | `no-identity` | through the gateway without a valid statement (for example a gateway release without this capability), or a `Host` that is neither the App's hostname nor loopback |
+
+`source` says who stated the person: `gateway`, which states it from its own
+admission answer (`/oauth2/auth`, [hosted entry](hosted-entry.md)) after
+removing every copy a client sent; an identity signed by Lazurio Auth for use
+outside the Environment will come as `auth`. Without a person `source` is
+`null` and `reason` says why. A request whose `Host` names the App's external
+hostname, in any letter case, with any port or a trailing dot, as the gateway
+matches it, counts only by the gateway's statement, and a missing, repeated or
+malformed statement is `unknown`. The headers that carry the statement are
+transport, not this contract; read them only through the module kit.
+
+The rules:
+
+- **Enforce on the server, per request.** The App checks the role for every
+  request, including APIs, downloads, WebSockets and direct URLs, never only by
+  hiding a control, and never caches it. After another account signs in, the
+  next request names the new person; an expired or missing session never
+  reaches the App, because the gateway sends the person to sign in (a
+  background request gets `401`).
+- **`unknown` is no role.** The App shows that Lazurio did not say who came and
+  refuses what needs a role. It never fills in a name or a role from the
+  browser, the operating-system account, the Environment's assignee or the
+  account that runs the Environment.
+- **The subject identifies, the username is shown.** An App that remembers a
+  person keys them by `subject`; `username` may be `null`.
+- **Finer roles are the Module's.** Approvers, technicians and the like live in
+  the Module's own data, keyed by `subject`; Lazurio keeps only the two
+  application roles.
+- **`local` is a statement of the Environment, not a proof.** The `Host` check
+  only tells a request for the App's hostname from an ordinary call to a
+  loopback address.
+  It cannot prove that a request went through the gateway: a process on the
+  Environment that reaches the App's loopback port can set `Host` and the
+  headers itself, as it can read the App's data. The Apps of one Environment
+  are one trust domain under its account (decision 0196), so the answer holds
+  against visitors who have only the App, never against the Environment's
+  operator, and is no authentication boundary inside the Environment.
+- **No key and no signature.** The answer grants no access to data, signs
+  nothing and changes no historical record. The App does not forward it to a
+  sibling or another service.
 
 ## The built version from `main`
 
