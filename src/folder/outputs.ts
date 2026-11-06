@@ -33,8 +33,8 @@ export const manualEntries = Object.freeze([
     path: "manual/roles.md",
     title: { cs: "Role", en: "Roles" },
     summary: {
-      cs: "Uživatel, Kolega, role v Organizaci, Owner, Buddy, Task Agent",
-      en: "User, Kolega, Organization roles, Owner, Buddy, Task Agent",
+      cs: "Uživatel, Kolega, úrovně přístupu, Owner, Buddy, Task Agent",
+      en: "User, Kolega, levels of access, Owner, Buddy, Task Agent",
     },
   },
   {
