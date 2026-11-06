@@ -18,11 +18,13 @@ import {
 import { mergeAccount } from "../src/shell/merge";
 import { shellMessages } from "../src/shell/messages";
 import {
+  environmentGlyph,
   environmentHref,
   environmentName,
   environmentWho,
   hereOf,
   initialsOf,
+  personalStandIn,
   railSpaces,
   spaceEnvironments,
   switcherList,
@@ -179,6 +181,94 @@ test("a workstation's document: this computer, every Organization of the Folder 
   ]);
   expect(spaces[1]?.avatar).toBe("https://github.com/alpha-forge.png?size=96");
   expect(spaces[2]?.initials).toBe("BE");
+  // Your personal space is Buddy where the document names him (root
+  // decision 0207, the prototype's rail and picker): his picture on the
+  // Organizations' square, your initials standing in; without him, your
+  // initials alone.
+  expect(spaces[0]?.avatar).toBeNull();
+  const buddy = "https://buddy.example-person.lazurio.io";
+  const withBuddy: Shell = { ...shell, buddy: { origin: buddy } };
+  const picture = `${buddy}/assets/avatar.webp`;
+  expect(
+    railSpaces(withBuddy, cs, { here: "beta", app: "apps", last: noLast })[0],
+  ).toMatchObject({ space: "personal", avatar: picture });
+  const personal = { ...current, kind: "personal" as const };
+  expect(environmentGlyph(withBuddy, personal, "personal", "Osobní")).toEqual({
+    kind: "avatar",
+    organization: "Osobní",
+    avatar: picture,
+    initials: withBuddy.operator.initials ?? "OS",
+  });
+  expect(
+    environmentGlyph(withBuddy, current, "personal", "Váš počítač").kind,
+  ).not.toBe("avatar");
+  const rows = switcherList({ ...withBuddy, environments: [personal] }, cs, {
+    kind: "picker",
+    here: "personal",
+    widened: false,
+    app: "apps",
+    query: "",
+  }).sections.flatMap((section) => section.rows);
+  expect(rows[0]?.glyph).toMatchObject({ kind: "buddy", picture });
+  // Where Buddy's picture is absent or does not load, your initials stand
+  // in, and the person icon where the document has none: never an empty mark.
+  expect(personalStandIn({ initials: "EX" })).toEqual({
+    kind: "initials",
+    text: "EX",
+  });
+  expect(personalStandIn({ initials: null })).toEqual({
+    kind: "icon",
+    icon: "user",
+  });
+  // Without your initials, the picker's glyph and its list's line carry the
+  // initials of the Environment's name, the text their mark falls back to.
+  const nameless: Shell = {
+    ...withBuddy,
+    operator: { ...withBuddy.operator, initials: null },
+    environments: [personal],
+  };
+  expect(environmentGlyph(nameless, personal, "personal", "Osobní")).toEqual({
+    kind: "avatar",
+    organization: "Osobní",
+    avatar: picture,
+    initials: initialsOf("Osobní"),
+  });
+  expect(
+    switcherList(nameless, cs, {
+      kind: "picker",
+      here: "personal",
+      widened: false,
+      app: "apps",
+      query: "",
+    }).sections.flatMap((section) => section.rows)[0]?.glyph,
+  ).toEqual({
+    kind: "buddy",
+    picture,
+    initials: initialsOf(environmentName(personal, cs)),
+  });
+  // Without Buddy and without your initials, all three draw the person icon
+  // as before.
+  const { buddy: _buddy, ...plain } = nameless;
+  expect(environmentGlyph(plain, personal, "personal", "Osobní")).toEqual({
+    kind: "icon",
+    icon: "user",
+  });
+  expect(
+    switcherList(plain, cs, {
+      kind: "picker",
+      here: "personal",
+      widened: false,
+      app: "apps",
+      query: "",
+    }).sections.flatMap((section) => section.rows)[0]?.glyph,
+  ).toEqual({ kind: "icon", icon: "user" });
+  expect(
+    railSpaces(plain, cs, { here: "personal", app: "apps", last: noLast })[0],
+  ).toMatchObject({ space: "personal", avatar: null, initials: null });
+  expect(personalStandIn({ initials: "" })).toEqual({
+    kind: "icon",
+    icon: "user",
+  });
   // The switch: Apps on this origin, the two others disabled with a reason.
   expect(
     switchTabs(shell, cs, "apps").map((tab) => [

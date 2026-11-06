@@ -58,6 +58,7 @@ import {
   identityText,
   initialsOf,
   personalSpace,
+  personalStandIn,
   type RailAccount,
   railAccount,
   railHome,
@@ -638,7 +639,9 @@ class Switcher {
     const link = this.track(this.host.link(row.href, "switcher-row"));
     if (row.current) link.setAttribute("aria-current", "page");
     const glyph = element("span", "switcher-glyph");
-    if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
+    if (row.glyph.kind === "buddy")
+      glyph.append(organizationMark(row.glyph.picture, row.glyph.initials));
+    else if (row.glyph.kind === "initials") glyph.textContent = row.glyph.text;
     else if (row.glyph.kind === "person")
       glyph.append(personMark(row.glyph.avatar, row.glyph.initials));
     else glyph.append(icon(row.glyph.icon, 16));
@@ -985,10 +988,26 @@ export class LazurioRail extends ShellElement {
       link.setAttribute("aria-label", space.title);
       if (space.active) link.setAttribute("aria-current", "true");
       if (personal) {
-        const mark = element("span", "initials");
-        if (space.initials !== null) mark.textContent = space.initials;
-        else mark.append(icon("user", 16));
-        link.append(mark);
+        // Your initials, else the person icon (`personalStandIn`): the mark
+        // without Buddy, and what replaces his picture if it does not load.
+        const standIn = () => {
+          const mark = element("span", "initials");
+          const stand = personalStandIn(space);
+          if (stand.kind === "initials") mark.textContent = stand.text;
+          else mark.append(icon(stand.icon, 16));
+          return mark;
+        };
+        if (space.avatar === null) link.append(standIn());
+        else {
+          // Buddy's picture on the Organizations' rounded square.
+          const mark = organizationMark(space.avatar, "");
+          mark
+            .querySelector("img")
+            ?.addEventListener("error", () => mark.replaceWith(standIn()), {
+              once: true,
+            });
+          link.append(mark);
+        }
       } else link.append(organizationMark(space.avatar, space.initials ?? ""));
       scroll.append(link);
     });
