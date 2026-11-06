@@ -1557,6 +1557,9 @@ const marketplace = createMarketplacePanel({
     if (framed) shell.relabel();
   },
   catalog: () => catalog.current(),
+  personalSpace: () =>
+    kindOf(shellDocument) === "personal" ||
+    catalog.current()?.personalspace !== undefined,
   role: async (organization) => {
     const current = catalog.current();
     const key =

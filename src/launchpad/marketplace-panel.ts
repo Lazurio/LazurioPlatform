@@ -65,6 +65,9 @@ export function createMarketplacePanel(
     changed: () => void;
     /** This Folder's catalog, or null until it is read. */
     catalog: () => Catalog | null;
+    /** Whether this is a Personal Environment, or the Folder has a personal
+     * space. */
+    personalSpace: () => boolean;
     /** GitHub's answer of what the person is in an Organization. */
     role: (
       organization: CatalogOrganization,
@@ -494,9 +497,9 @@ export function createMarketplacePanel(
           "callout",
           // A personal space holds no template yet; the words are not about
           // GitHub there (decision F36's addendum of 2026-11-05).
-          options.catalog()?.personalspace === undefined
-            ? copy.marketTargetNone
-            : copy.marketTargetPersonal,
+          options.personalSpace()
+            ? copy.marketTargetPersonal
+            : copy.marketTargetNone,
         ),
       );
     else {
@@ -563,9 +566,14 @@ export function createMarketplacePanel(
         name,
       }),
     );
-    // An offer with one start has nothing to choose.
+    // An offer with one start has nothing to choose, and without an
+    // Organization nothing follows.
     const parts: HTMLElement[] =
-      starts.length > 1 ? [field, seeds, what] : [field, what];
+      options.catalog() !== null && choices.length === 0
+        ? [field]
+        : starts.length > 1
+          ? [field, seeds, what]
+          : [field, what];
     if (chosen?.modules.some((module) => module.module === offer.module))
       parts.push(
         element(

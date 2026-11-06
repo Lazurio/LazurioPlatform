@@ -115,6 +115,7 @@ function page(role: "admin" | "member" | null = null) {
     load: () => new Promise((resolve) => reads.push(resolve)),
     changed: () => undefined,
     catalog: () => catalogRead,
+    personalSpace: () => catalogRead.personalspace !== undefined,
     role: async () => role,
     handOver: (prompt) =>
       new Promise((resolve) => handOvers.push({ prompt, end: resolve })),
