@@ -104,7 +104,7 @@ does today; the rest of this document stays future direction.
   of the registry commit the page shows (`builtin` for the built-in copy), is served by
   `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
   of a catalog the Launchpad still serves and an Organization of the Folder bound to
-  that login; every other case is the same 404. The registry's commit fixes every
+  that login and with a slug, as the dialog offers it; every other case is the same 404. The registry's commit fixes every
   field of every offer, so Chat gets the offer the page showed field for field, even
   when the Launchpad has read a newer catalog since: a catalog it replaced still
   answers prompts for an hour, as long as an open page may go without reading again
@@ -125,13 +125,16 @@ does today; the rest of this document stays future direction.
   rights, name collision and compatibility and show the plan; where the name is free,
   create the module with the command in the form `lazurio module create` takes for an
   Organization's module ([Module Standard](module-standard.md)),
-  `lazurio module create <login>/<module> --stack <release stack> --teams <team,team> --dry-run`,
-  with the Organization's GitHub login, the offer's module, `--data` added for a
+  `lazurio module create <Organization>/<module> --stack <release stack> --teams <team,team> --dry-run`,
+  with the Organization by its slug in this Folder (as `lazurio organization list`
+  shows it), which the command resolves first, so it plans that Organization or, where
+  two share the slug, none; never by its GitHub login, which may be another
+  Organization's slug. The command names the offer's module, adds `--data` for a
   release of generation `app/v3` or later (derived from the generation, as the
-  template's `docs/adoption.md` says) and the Teams the agent chooses with the person
-  from the Organization's real list, and run it with `--confirm <plan>`
-  only after the person confirms the plan it prints; then merge the pinned commit so it
-  stays an ancestor and prepare a PR. Where the Organization already has a module of
+  template's `docs/adoption.md` says) and takes the Teams the agent chooses with the
+  person from the Organization's real list; the agent runs it with `--confirm <plan>`
+  only after the person confirms the plan it prints, then merges the pinned commit so it
+  stays an ancestor and prepares a PR. Where the Organization already has a module of
   that name, the agent never creates a second one: when it is this template, its former
   upstream or the template's origin, it takes the release into that module by merging
   the pinned commit, as the template's `docs/adoption.md` and `docs/extending.md` say

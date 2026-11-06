@@ -334,7 +334,7 @@ test("an Organization that already has the module: the dialog says the release g
   expect(text).toContain("never create a second one");
   expect(text).toContain("`--allow-unrelated-histories`");
   expect(text).toContain(
-    "`lazurio module create Example-Org/presentations --stack vite-react --teams <team,team> --dry-run`",
+    "`lazurio module create Example/presentations --stack vite-react --teams <team,team> --dry-run`",
   );
   await view.end(0, "handed-over");
   view.leave();

@@ -546,26 +546,30 @@ export const keepsData = (release: MarketplaceRelease): boolean =>
 /** The command the brief has the agent create the module with, in the form
  * `lazurio module create` takes for an Organization's module
  * (module-create-cli.ts, docs/module-standard.md): the Organization by its
- * GitHub login, the offer's module, the release's stack, the command's own
+ * slug in this Folder, which the command resolves first and which selects
+ * that Organization or none (two with that slug are ambiguous), never by its
+ * GitHub login, which may be another Organization's slug (slug `Example`,
+ * login `ExampleCo`; slug `ExampleCo`, login `Other`); the offer's module, the release's stack, the command's own
  * placeholder for the Teams (the agent chooses them with the person from the
  * Organization's real list; the page lists none, decision F32), `--data`
  * from generation `app/v3` on, as the template's own docs/adoption.md says,
  * and the dry run whose plan the person confirms before `--confirm <plan>`. */
 export const createCommand = (
   release: MarketplaceRelease,
-  login: string,
+  organization: string,
   module: string,
 ): string =>
-  `lazurio module create ${login}/${module} --stack ${release.stack} --teams <team,team>${keepsData(release) ? " --data" : ""} --dry-run`;
+  `lazurio module create ${organization}/${module} --stack ${release.stack} --teams <team,team>${keepsData(release) ? " --data" : ""} --dry-run`;
 
 /** The brief "Přidat do Organizace" hands to the agent: the person's own
  * words (in Czech tykání, root decision 0199), the exact release and the
- * Organization, and the release's adoption guide, which holds the steps.
- * Null when the offer has no such start. */
+ * Organization (its name, its GitHub login, and its slug in this Folder for
+ * the command, `createCommand`), and the release's adoption guide, which
+ * holds the steps. Null when the offer has no such start. */
 export function adoptionPrompt(
   entry: MarketplaceOffer,
   chosen: AdoptionSeed,
-  organization: Readonly<{ name: string; login: string }>,
+  organization: Readonly<{ name: string; login: string; slug: string }>,
   copy: Copy,
   locale: MarketplaceLocale,
 ): string | null {
@@ -575,6 +579,7 @@ export function adoptionPrompt(
     chosen,
     organization,
     locale,
+    createCommand(entry.release, organization.slug, entry.module),
   );
 }
 
@@ -584,6 +589,7 @@ function filledBrief(
   chosen: AdoptionSeed,
   organization: Readonly<{ name: string; login: string }>,
   locale: MarketplaceLocale,
+  create = "",
 ): string | null {
   const start = seedOf(entry, chosen);
   if (start === null) return null;
@@ -596,10 +602,7 @@ function filledBrief(
     .replaceAll("{commit}", entry.release.commit)
     .replaceAll("{license}", entry.license)
     .replaceAll("{module}", entry.module)
-    .replaceAll(
-      "{create}",
-      createCommand(entry.release, organization.login, entry.module),
-    )
+    .replaceAll("{create}", create)
     .replaceAll("{seed}", start.brief[locale]);
 }
 

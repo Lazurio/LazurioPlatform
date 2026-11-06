@@ -360,7 +360,11 @@ test("an offer's name: one string names it in both languages as before, `{cs, en
         releases: [releaseWith({ commit })],
       }),
     )?.find((entry) => entry.id === "presentations") ?? null;
-  const organization = { name: "Example Company", login: "Example-Org" };
+  const organization = {
+    name: "Example Company",
+    login: "Example-Org",
+    slug: "Example",
+  };
   // Today's records: one string, the same name on a Czech and an English page.
   const plain = named("Presentations") as MarketplaceOffer;
   expect(plain.title).toEqual({ cs: "Presentations", en: "Presentations" });
@@ -430,7 +434,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       const text = adoptionPrompt(
         released,
         seed,
-        { name: "Example Company", login: "Example-Org" },
+        { name: "Example Company", login: "Example-Org", slug: "Example" },
         copy,
         locale,
       ) as string;
@@ -441,7 +445,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
       expect(text).toContain(
-        "`lazurio module create Example-Org/presentations --stack vite-react --teams <team,team> --dry-run`",
+        "`lazurio module create Example/presentations --stack vite-react --teams <team,team> --dry-run`",
       );
       expect(text).toContain("`--confirm <plan>`");
       expect(text).not.toContain("--data");
@@ -471,7 +475,7 @@ test("the brief names the exact release, the Organization, the start and the bou
       adoptionPrompt(
         missionControl,
         "empty",
-        { name: "A", login: "a" },
+        { name: "A", login: "a", slug: "a" },
         copy,
         locale,
       ),
@@ -486,19 +490,27 @@ test("the brief names the exact release, the Organization, the start and the bou
     ["app/v10", " --data"],
   ] as const)
     expect(
-      createCommand(
-        { ...released.release, generation },
-        "Example-Org",
-        "slides",
-      ),
+      createCommand({ ...released.release, generation }, "Example", "slides"),
     ).toBe(
-      `lazurio module create Example-Org/slides --stack vite-react --teams <team,team>${data} --dry-run`,
+      `lazurio module create Example/slides --stack vite-react --teams <team,team>${data} --dry-run`,
     );
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs, "cs"),
+    adoptionPrompt(
+      released,
+      "empty",
+      { name: "A", login: "a", slug: "a" },
+      cs,
+      "cs",
+    ),
   ).toContain("Nic nemerguj ani neaktivuj bez mého výslovného pokynu.");
   expect(
-    adoptionPrompt(released, "empty", { name: "A", login: "a" }, en, "en"),
+    adoptionPrompt(
+      released,
+      "empty",
+      { name: "A", login: "a", slug: "a" },
+      en,
+      "en",
+    ),
   ).toContain("Merge or activate nothing without my explicit instruction.");
   // The document of an adoption names the catalog's release.
   expect(
@@ -536,7 +548,7 @@ test("the brief's command is the one lazurio module create runs: with the Teams 
     return { code, said };
   };
   for (const entry of [released, missionControl]) {
-    const command = createCommand(entry.release, "Example-Org", entry.module);
+    const command = createCommand(entry.release, "Example", entry.module);
     const chosen = command.replace("<team,team>", "core,design");
     for (const line of [
       chosen,
@@ -547,6 +559,23 @@ test("the brief's command is the one lazurio module create runs: with the Teams 
         said: ["No per-user install base on this platform."],
       });
   }
+  // The command names the Organization by its slug; the prompt route gives
+  // no brief for one without (the dialog offers none, marketplace-panel.ts).
+  const catalog = catalogOf(released);
+  const id = adoptionPromptId(catalog, released, "empty");
+  expect(
+    adoptionDocument([catalog], id, "/home/x/Lazurio", example, en, "en")?.text,
+  ).toContain("`lazurio module create Example/presentations ");
+  expect(
+    adoptionDocument(
+      [catalog],
+      id,
+      "/home/x/Lazurio",
+      { ...example, organization: null },
+      en,
+      "en",
+    ),
+  ).toBeNull();
   // The brief's earlier command, without the Organization's module and its
   // Teams, was refused with the usage.
   await expect(
@@ -556,7 +585,7 @@ test("the brief's command is the one lazurio module create runs: with the Teams 
     runs(
       createCommand(
         missionControl.release,
-        "Example-Org",
+        "Example",
         "mission-control",
       ).replace(" --teams <team,team>", ""),
     ),
@@ -598,7 +627,7 @@ test("the brief is the same whether the name is free or the Organization already
           ?.text,
       ).toBe(free);
       expect(free).toContain(
-        `\`${createCommand(entry.release, "Example-Org", entry.module)}\``,
+        `\`${createCommand(entry.release, "Example", entry.module)}\``,
       );
       expect(free).toContain(never);
       expect(free).toContain(otherwise);
@@ -652,7 +681,13 @@ test("an adoption's prompt id carries the offer, the seed and the catalog shown,
     adoptionOf([catalogOf(bare)], `marketplace-presentations-sample-${key}`),
   ).toBeNull();
   expect(
-    adoptionPrompt(bare, "sample", { name: "A", login: "a" }, cs, "cs"),
+    adoptionPrompt(
+      bare,
+      "sample",
+      { name: "A", login: "a", slug: "a" },
+      cs,
+      "cs",
+    ),
   ).toBeNull();
   expect(isAdoptionPromptId(`marketplace-notes-empty-${key}`)).toBe(true);
   expect(isAdoptionPromptId("marketplace-notes-sample-builtin")).toBe(true);

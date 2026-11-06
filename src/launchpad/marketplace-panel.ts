@@ -26,6 +26,13 @@ import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
+/** An Organization an offer may go to: bound to a GitHub login, with its
+ * slug in this Folder. */
+type Target = CatalogOrganization & {
+  forgeLogin: string;
+  organization: string;
+};
+
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
 // detail: the stone and name its module will have in Apps, real screens of
@@ -209,16 +216,11 @@ export function createMarketplacePanel(
   };
 
   /** The Organizations an offer may go to: those of this Folder bound to a
-   * GitHub login, as the prompt route accepts them (prompts.ts). */
-  const targets = (): readonly (CatalogOrganization & {
-    forgeLogin: string;
-  })[] =>
+   * GitHub login, with a slug the brief's command names them by, as the
+   * prompt route accepts them (prompts.ts). */
+  const targets = (): readonly Target[] =>
     (options.catalog()?.organizations ?? []).filter(
-      (
-        organization,
-      ): organization is CatalogOrganization & {
-        forgeLogin: string;
-      } =>
+      (organization): organization is Target =>
         organization.forgeLogin !== undefined &&
         organization.organization !== null,
     );
@@ -410,7 +412,11 @@ export function createMarketplacePanel(
     const text = (asking ? adoptionRequestPrompt : adoptionPrompt)(
       offer,
       seed,
-      { name: organizationName(chosen), login: chosen.forgeLogin },
+      {
+        name: organizationName(chosen),
+        login: chosen.forgeLogin,
+        slug: chosen.organization,
+      },
       options.copy(),
       options.locale(),
     );
@@ -467,7 +473,7 @@ export function createMarketplacePanel(
 
   /** Asks once per showing what the person is in the chosen Organization;
    * the dialog draws again when the answer changes what it says. */
-  function askRole(chosen: CatalogOrganization & { forgeLogin: string }) {
+  function askRole(chosen: Target) {
     const login = chosen.forgeLogin;
     if (asked.has(login)) return;
     asked.add(login);
