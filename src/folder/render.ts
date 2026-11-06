@@ -538,14 +538,14 @@ function boundarySection(
     preset === "hosted-personal"
       ? assignedEnvironments(machine).length === 0
         ? pick({
-            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Pracovní Prostředí se spravovanou cestou v `~/.ssh/config.d/lazurio-environments.conf` je přidělené a nepotvrzuješ ho; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
-            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. A Work Environment with a managed route in `~/.ssh/config.d/lazurio-environments.conf` is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli: to s cestou, kterou zapsalo Lazurio, je přidělené, každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user: one with a route Lazurio wrote is, any other the user must confirm. Never clone Organization repositories here.",
           })
         : // The assigned ones need no confirmation (root decision 0192,
           // addendum of 2026-10-26); any other still does.
           pick({
-            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ jsou přidělená podle handoveru a každé se spravovanou cestou v `~/.ssh/config.d/lazurio-environments.conf` také; ta nepotvrzuješ, každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
-            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment are assigned by the handover, and so is every one with a managed route in `~/.ssh/config.d/lazurio-environments.conf`; you do not confirm those, any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+            cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ a ta s cestou, kterou zapsalo Lazurio, jsou přidělená; každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+            en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment and those with a route Lazurio wrote are assigned; any other the user must confirm. Never clone Organization repositories here.",
           })
       : pick({
           cs: "- Organizace: repozitáře žijí v `organizations/<org>/`; každá Organizace je vlastní access hranice a vlastní git repozitář.",
@@ -1437,9 +1437,8 @@ export function networkLine(hosted: boolean, personal = false): Text {
       ...(hosted
         ? [
             personal
-              ? "Do jiného Prostředí jen `ssh <id Prostředí> …` z `~/.ssh/config.d/lazurio-environments.conf`, který zapisuje Lazurio: ruční aliasy, `ProxyJump` (`-J`) ani přeposílání agenta (`-A`) nikdy, do Týmového Prostředí dvěma `ssh` přes vlastní Pracovní Prostředí a chybějící cestu nahlas uživateli, neobcházej ji (rozhodnutí 0224)."
-              : "Do jiného Prostředí jen `ssh <id Prostředí> …` z `~/.ssh/config.d/lazurio-environments.conf`, který zapisuje Lazurio, a to přímo cestou, kterou tam najdeš: ruční aliasy, `ProxyJump` (`-J`) ani přeposílání agenta (`-A`) nikdy a chybějící cestu nahlas uživateli, neobcházej ji (rozhodnutí 0224).",
-            "SSH na zařízení jen na jeho tailnet hostname s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu `100.64.0.x`.",
+              ? "SSH do jiného Prostředí jen `ssh <id>` po cestě, kterou zapsalo Lazurio, bez ručního aliasu, `-J` a `-A`, do Týmového dvěma kroky přes své Pracovní, chybějící cestu nahlas (0224); na zařízení jen na tailnet hostname s pinnutým host klíčem po ověření aktivního tailnetu, nikdy na holou `100.64.0.x`."
+              : "SSH do jiného Prostředí jen `ssh <id>` po cestě, kterou zapsalo Lazurio, nikdy mimo ni (0224); na zařízení jen na tailnet hostname s pinnutým host klíčem po ověření aktivního tailnetu, nikdy na holou `100.64.0.x`.",
             "Než přidáš počítač do Headscale nebo připojíš laptop (přes SSH nebo promptem pro ChatGPT Desktop), přečti v `manual/this-machine.md` Přidání počítače do tailnetu a Připojení počítače a projektu v ChatGPT Desktopu.",
           ]
         : [
@@ -1451,9 +1450,8 @@ export function networkLine(hosted: boolean, personal = false): Text {
       ...(hosted
         ? [
             personal
-              ? "Into another Environment only `ssh <environment id> …` from `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio writes: never a hand-written alias, `ProxyJump` (`-J`) or agent forwarding (`-A`); into a Team Environment two `ssh` steps through your own Work Environment; a missing route you report to the user and never work around (decision 0224)."
-              : "Into another Environment only `ssh <environment id> …` from `~/.ssh/config.d/lazurio-environments.conf`, which Lazurio writes, directly along the route you find there: never a hand-written alias, `ProxyJump` (`-J`) or agent forwarding (`-A`); a missing route you report to the user and never work around (decision 0224).",
-            "SSH to a device only by tailnet hostname, with a pinned host key and the active tailnet checked, never to a bare `100.64.0.x`.",
+              ? "SSH to another Environment only `ssh <id>` on a route Lazurio wrote, no hand alias, `-J` or `-A`, a Team one in two steps via your Work one, a missing route reported (0224); to a device by tailnet hostname, pinned key, active tailnet checked, never `100.64.0.x`."
+              : "SSH to another Environment only `ssh <id>` on a route Lazurio wrote, never around it (0224); to a device by tailnet hostname, pinned key, active tailnet checked, never `100.64.0.x`.",
             "Before adding a computer to Headscale or connecting a laptop (SSH or a ChatGPT Desktop prompt), read Adding a computer to a tailnet and Connecting a computer and a ChatGPT Desktop project in `manual/this-machine.md`.",
           ]
         : [

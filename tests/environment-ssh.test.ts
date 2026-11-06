@@ -417,12 +417,12 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
   // assigned peers, those need no confirmation and any other still does.
   const boundary = {
     plain: {
-      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Pracovní Prostředí se spravovanou cestou v `~/.ssh/config.d/lazurio-environments.conf` je přidělené a nepotvrzuješ ho; každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
-      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. A Work Environment with a managed route in `~/.ssh/config.d/lazurio-environments.conf` is assigned and you do not confirm it; any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli: to s cestou, kterou zapsalo Lazurio, je přidělené, každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user: one with a route Lazurio wrote is, any other the user must confirm. Never clone Organization repositories here.",
     },
     assigned: {
-      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ jsou přidělená podle handoveru a každé se spravovanou cestou v `~/.ssh/config.d/lazurio-environments.conf` také; ta nepotvrzuješ, každé jiné ti uživatel musí potvrdit jako přiřazené jemu. Repozitáře Organizací sem nikdy neklonuj.",
-      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment are assigned by the handover, and so is every one with a managed route in `~/.ssh/config.d/lazurio-environments.conf`; you do not confirm those, any other the user must confirm is assigned to them. Never clone Organization repositories here.",
+      cs: "- Organizace: na osobním Remote Environmentu nejsou namountovaná žádná repa Organizací. Práce v Organizaci (kód, repozitáře, běhy) probíhá přes SSH na pracovním Remote Environmentu přiděleném uživateli. Ta z oddílu „Z tohoto Osobního Prostředí“ a ta s cestou, kterou zapsalo Lazurio, jsou přidělená; každé jiné ti uživatel musí potvrdit. Repozitáře Organizací sem nikdy neklonuj.",
+      en: "- Organizations: no Organization repositories are mounted in a personal Remote Environment. Organization work (code, repositories, runs) happens over SSH in a work Remote Environment assigned to the user. Those in the section From this Personal Environment and those with a route Lazurio wrote are assigned; any other the user must confirm. Never clone Organization repositories here.",
     },
   };
   const work = {
@@ -500,8 +500,10 @@ test("only the personal Folder lists the aliases: AGENTS.md in „Z tohoto Osobn
     // only one without it still needs confirmation, in both cases.
     const confirmEvery =
       /který ti uživatel potvrdí jako přiřazený jemu|the user confirms is assigned to them/;
+    // `AGENTS.md` says it in the short form its budget allows (a route
+    // Lazurio wrote is assigned), the manual in full.
     const managedExempt =
-      /spravovanou cestou[^\n]*nepotvrzuješ|managed route[^\n]*you do not confirm/;
+      /spravovanou cestou[^\n]*nepotvrzuješ|cestou, kterou zapsalo Lazurio, (je|jsou) přidělen|managed route[^\n]*you do not confirm|route Lazurio wrote (is|are assigned)/;
     for (const text of [
       agents,
       manual,

@@ -3537,12 +3537,14 @@ key" for Environments and devices alike, which left a hand-written alias or a ho
 from the handover looking like a route; a Buddy used one on Ring 0 (#766, the follow-up
 of 2026-10-30 in F61).
 
-- **`AGENTS.md`**, the network line of a hosted Environment: another Environment only by
-  `ssh <environment id> …` from that file; never a hand-written alias, `ProxyJump` (`-J`) or
-  agent forwarding (`-A`); a Team Environment in two `ssh` steps through the person's own
-  Work Environment; a missing route reported to the user and never worked around. The
-  tailnet-hostname rule stays for devices. The tightest composition (a Steward's
-  Environment with an 8 KiB custom voice) grows to 28,320 bytes of the 32 KiB.
+- **`AGENTS.md`**, the network line of a hosted Environment, in one short sentence
+  because the generated document has only a few bytes of its 32 KiB budget left: another
+  Environment only by `ssh <id>` on a route Lazurio wrote, never around it; in a Personal
+  Environment also no hand-written alias, `-J` or `-A`, a Team Environment in two steps
+  through the person's own Work Environment, and a missing route reported. The
+  tailnet-hostname rule stays for devices in the same sentence. The full rule is in the
+  manual section below. The tightest compositions (8 KiB custom voice) come to 32,762 and
+  32,764 bytes of 32,768 (`tests/folder-template-revision.test.ts`).
 - **`manual/this-machine.md`** of every Environment with a handover: a section "Cesty do
   jiných Prostředí (rozhodnutí 0224)" before the SSH rules, which say what the routes
   are and where they come from (Pracovní přístup, Team via Work, Správcovský přístup), how

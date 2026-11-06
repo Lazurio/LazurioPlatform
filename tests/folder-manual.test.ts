@@ -2338,8 +2338,8 @@ test("threads do not coordinate, the Environment's network is never switched, an
         count(
           agents,
           locale === "cs"
-            ? "s pinnutým host klíčem a po ověření aktivního tailnetu, nikdy na holou adresu"
-            : "with a pinned host key and the active tailnet checked, never to a bare",
+            ? "s pinnutým host klíčem po ověření aktivního tailnetu, nikdy na holou"
+            : "pinned key, active tailnet checked, never",
         ),
         machine.includes(
           locale === "cs"
