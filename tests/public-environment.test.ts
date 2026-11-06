@@ -387,7 +387,7 @@ test("Začínáme of a public Environment: Apps, a module and Chat, which says A
     rows: [
       {
         id: "apps",
-        title: "Apps",
+        title: "Aplikace",
         text: "Aplikace modulů této Organizace.",
         status: null,
         action: { label: "Otevřít", href: "/" },

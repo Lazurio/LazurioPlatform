@@ -946,6 +946,21 @@ const entry: PublicEntry = {
 };
 
 describe("running Modules, Navrhované and the notes", () => {
+  test("the words that name Apps say it in the page's language: Aplikace in Czech (F36's addendum of 2026-11-06)", () => {
+    // Zastavit's title and the panel's close for a tab Apps holds name the
+    // place the switch names: Aplikace, in its cases.
+    expect(cs.stopTitle).toBe(
+      "Uvolní paměť; otevřením z Aplikací se Modul spustí znovu",
+    );
+    expect(cs.closeInLaunchpad).toBe("Zavřít v Aplikacích");
+    expect(newTabCopy("en").stopTitle).toBe(
+      "Frees memory; opening it from Apps starts the Module again",
+    );
+    // No Czech word of the page still says Apps.
+    expect(Object.values(cs).filter((text) => /\bApps\b/.test(text))).toEqual(
+      [],
+    );
+  });
   test("Spuštěné Moduly: the heaviest first, named as Apps names them from the boot catalog, else by id, with Zastavit's route", () => {
     const unit = (module: string, memory: number | null) => ({
       org: "example",

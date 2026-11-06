@@ -1023,7 +1023,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     const cases: readonly [ReturnType<typeof answer>, string, boolean][] = [
       [
         answer(409, { error: "too-many-tabs" }),
-        "Apps už mají tolik záložek, kolik unesou. Zavřete některé a zkuste to znovu.",
+        "Aplikace už mají tolik záložek, kolik unesou. Zavřete některé a zkuste to znovu.",
         true,
       ],
       [
@@ -1033,7 +1033,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
       ],
       [
         answer(503, { error: "holder-unavailable" }),
-        "Záložku se nepodařilo v Apps ponechat.",
+        "Záložku se nepodařilo v Aplikacích ponechat.",
         false,
       ],
       [
@@ -1048,7 +1048,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
       ],
       [
         answer(500, { error: "hold-failed" }),
-        "Záložku se nepodařilo v Apps ponechat.",
+        "Záložku se nepodařilo v Aplikacích ponechat.",
         true,
       ],
       [answer(0), "Lazurio teď neodpovídá, zkuste to za chvíli znovu.", true],
@@ -1076,7 +1076,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     expect(releaseText(listedTab(1), cs)).toBe("Záložka se zavře v Prostředí.");
     expect(releaseText(null, cs)).toBe("Záložka se zavře v Prostředí.");
     expect(releaseText(listedTab(1, { agents: ["codex-a1"] }), cs)).toBe(
-      "Záložka zmizela z Apps. Pracuje v ní agent, takže zůstává otevřená.",
+      "Záložka zmizela z Aplikací. Pracuje v ní agent, takže zůstává otevřená.",
     );
     expect(
       releaseText(
@@ -1091,7 +1091,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
         cs,
       ),
     ).toBe(
-      "Záložka zmizela z Apps. Dál je ve vlákně „Faktury za září“, v jiném vlákně a jinde.",
+      "Záložka zmizela z Aplikací. Dál je ve vlákně „Faktury za září“, v jiném vlákně a jinde.",
     );
     expect(
       releaseText(
@@ -1119,7 +1119,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     });
     expect(letGoUndo([entry(2, agent)], id(1), cs)).toEqual({
       tabs: [id(2)],
-      text: "Záložka zmizela z Apps. Pracuje v ní agent, takže zůstává otevřená.",
+      text: "Záložka zmizela z Aplikací. Pracuje v ní agent, takže zůstává otevřená.",
       shown: null,
       ends: false,
     });
@@ -1132,7 +1132,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     });
     expect(letGoUndo([entry(2, agent), entry(3, thread)], id(3), cs)).toEqual({
       tabs: [id(2), id(3)],
-      text: "Záložky zmizely z Apps. Zůstávají otevřené jinde nebo u agenta.",
+      text: "Záložky zmizely z Aplikací. Zůstávají otevřené jinde nebo u agenta.",
       shown: id(3),
       ends: false,
     });
@@ -1163,10 +1163,10 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
   test("what a command says when tabs could not be let go of, or held again by its Vrátit: for one tab or several, or the cause the answer names", () => {
     expect(
       releaseFailure(answer(500, { error: "release-failed" }), cs, 1),
-    ).toBe("Záložku se nepodařilo z Apps odebrat.");
+    ).toBe("Záložku se nepodařilo z Aplikací odebrat.");
     expect(
       releaseFailure(answer(500, { error: "release-failed" }), cs, 3),
-    ).toBe("Záložky se nepodařilo z Apps odebrat.");
+    ).toBe("Záložky se nepodařilo z Aplikací odebrat.");
     expect(releaseFailure(answer(0), cs, 3)).toBe(
       "Lazurio teď neodpovídá, zkuste to za chvíli znovu.",
     );
@@ -1182,7 +1182,7 @@ describe("holding and letting go (decision F47 points 4 and 9)", () => {
     expect(
       restoreFailure(answer(500, { error: "hold-failed" }), cs, 2),
     ).toEqual({
-      text: "Záložky se nepodařilo v Apps ponechat.",
+      text: "Záložky se nepodařilo v Aplikacích ponechat.",
       retry: true,
     });
     expect(

@@ -361,19 +361,19 @@ posixTest(
 // no kind, as a computer (F28's addendum of 2026-10-18).
 test("the theme's note names the kind of Environment it is in, and a computer as a computer", () => {
   expect(messages("cs", "workstation").themeNote).toBe(
-    "Barvy Chatu, Apps a Automate na tomto počítači.",
+    "Barvy Chatu, Aplikací a Automatizace na tomto počítači.",
   );
   expect(messages("en", "workstation").themeNote).toBe(
     "The colours of Chat, Apps and Automate on this computer.",
   );
   expect(messages("cs", "work").themeNote).toBe(
-    "Barvy Chatu, Apps a Automate v tomto Pracovním Prostředí.",
+    "Barvy Chatu, Aplikací a Automatizace v tomto Pracovním Prostředí.",
   );
   expect(messages("en", "team").themeNote).toBe(
     "The colours of Chat, Apps and Automate in this Team Environment.",
   );
   expect(messages("cs", null).themeNote).toBe(
-    "Barvy Chatu, Apps a Automate v tomto Prostředí.",
+    "Barvy Chatu, Aplikací a Automatizace v tomto Prostředí.",
   );
 });
 

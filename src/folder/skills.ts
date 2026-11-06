@@ -1,4 +1,5 @@
 import { messages } from "../launchpad/messages";
+import { folderCzechLabels } from "./held-labels";
 import { moduleSentence, moduleWebsiteExample } from "./manual-mechanisms";
 import type { SkillName, SkillPath } from "./outputs";
 import { skillNames, skillRoots } from "./outputs";
@@ -26,7 +27,7 @@ import { adminRequest, adminRequestDescription } from "./skill-admin-request";
 type Locale = FolderProfile["locale"];
 const t = (cs: string, en: string): Text => ({ cs, en });
 const blank = t("", "");
-const ucs = messages("cs");
+const ucs = folderCzechLabels();
 const uen = messages("en");
 
 const generated = t(

@@ -173,7 +173,7 @@ test("a workstation's document: this computer, every Organization of the Folder 
   expect(
     spaces.map((space) => [space.space, space.href, space.active, space.title]),
   ).toEqual([
-    ["personal", "/", false, "Osobní"],
+    ["personal", "/", false, "Buddy"],
     ["alpha", "/o/alpha", false, "Alpha Example"],
     ["beta", "/o/beta", true, "Beta Example"],
   ]);
@@ -190,7 +190,7 @@ test("a workstation's document: this computer, every Organization of the Folder 
   ).toEqual([
     ["chat", null, false, "Chat na tomto počítači neběží"],
     ["apps", "/", true, null],
-    ["automate", null, false, "Automate na tomto počítači neběží"],
+    ["automate", null, false, "Automatizace na tomto počítači neběží"],
   ]);
 });
 

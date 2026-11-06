@@ -73,8 +73,8 @@ test("the routes: a new server under custom/new, an existing one under custom/se
       cs,
     ),
   ).toEqual({
-    heading: "Integrace",
-    document: "Připojit vlastní MCP server · Integrace — Lazurio",
+    heading: "Napojení",
+    document: "Připojit vlastní MCP server · Napojení — Lazurio",
   });
 });
 

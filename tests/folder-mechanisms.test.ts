@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { heldCzechLabels } from "../src/folder/held-labels";
 import {
   moduleSentence,
   quotedLaunchpadLabels,
@@ -107,11 +108,13 @@ test("the chapters quote the Launchpad's labels from its own catalog and leak no
     const text = `${outputs["manual/mechanisms.md"]}\n${outputs["manual/admin.md"]}`;
     const catalog = messages(locale);
     for (const key of quotedLaunchpadLabels)
-      expect([locale, key, text.includes(catalog[key])]).toEqual([
+      expect([
         locale,
         key,
-        true,
-      ]);
+        text.includes(
+          (locale === "cs" ? heldCzechLabels[key] : undefined) ?? catalog[key],
+        ),
+      ]).toEqual([locale, key, true]);
     expect(text).not.toMatch(/\{(toto|tomto|this|tohoto|v tomto)\}/);
   }
 });

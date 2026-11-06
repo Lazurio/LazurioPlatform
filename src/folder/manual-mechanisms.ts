@@ -1,4 +1,5 @@
 import { type MessageKey, messages } from "../launchpad/messages";
+import { folderCzechLabels } from "./held-labels";
 import type { Text } from "./render";
 
 // Two chapters of the agent manual (decision F14) for the agents of people in
@@ -11,14 +12,16 @@ import type { Text } from "./render";
 // repository and skills; the product's model lives here, versioned with the
 // product, so a customer's copy cannot go stale.
 //
-// Every label of the Launchpad quoted here comes from its message catalog, so
+// Every label of the Launchpad quoted here comes from its message catalog
+// (but for the Czech labels held below), so
 // a renamed button renames the manual too (and, through the pinned digest,
 // forces a new template revision). Every decision cited is in
 // `docs/decision-register.md`; a test checks both.
 
 const t = (cs: string, en: string): Text => ({ cs, en });
 const blank = t("", "");
-const ucs = messages("cs");
+
+const ucs = folderCzechLabels();
 const uen = messages("en");
 
 /** A path through the Launchpad, in its own words: Nastavení → Připojení. */

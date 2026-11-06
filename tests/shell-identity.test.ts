@@ -195,7 +195,8 @@ describe("one identity names an Environment", () => {
     const shell = parsed(acmeDocument());
     expect(environmentIdentity(shell, "jana", cs)).toEqual({
       id: "jana",
-      name: "Osobní",
+      name: "Buddy",
+      // Buddy is the kind's short name, so no kind line repeats it.
       who: "",
       glyph: { kind: "initials", text: "JA" },
     });
@@ -328,7 +329,7 @@ describe("one identity names an Environment", () => {
     expect(identityText(identity("vm-01.acme"))).toBe(
       "jana · Pracovní Prostředí",
     );
-    expect(identityText(identity("jana"))).toBe("Osobní");
+    expect(identityText(identity("jana"))).toBe("Buddy");
     expect(identityText(identity("vm-02.acme"))).toBe(
       "Acme Works · Team Sales · Týmové Prostředí",
     );
@@ -347,7 +348,7 @@ describe("<lazurio-environment>'s attributes", () => {
     expect(elementIdentity(shell, "", null)).toEqual(own);
     expect(elementIdentity(shell, "  ", null)).toEqual(own);
     expect(elementIdentity(shell, "VM-02.Acme ", null)?.id).toBe("vm-02.acme");
-    expect(elementIdentity(shell, "jana", null)?.name).toBe("Osobní");
+    expect(elementIdentity(shell, "jana", null)?.name).toBe("Buddy");
   });
 
   test("`lang` picks the words, else the document's language", () => {

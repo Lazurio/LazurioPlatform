@@ -911,7 +911,7 @@ test("the account in another language: every Environment is named as without the
     environmentWho(entry, cs, merged.operator.login),
   ]);
   expect(names).toEqual([
-    ["ada", "Osobní", ""],
+    ["ada", "Buddy", "Osobní"],
     ["vm-01.example", "Sales", "Týmové"],
     ["vm-03.example", "Pracovní", ""],
   ]);

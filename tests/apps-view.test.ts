@@ -417,7 +417,7 @@ test("the head links the Organization's name to its Dashboard; the personal spac
       () => "https://dashboard.lazurio.ai/orgs/example",
     ).link,
   ).toBeNull();
-  // The personal space is "Osobní", never a link; without a group the
+  // The personal space is "Buddy", never a link; without a group the
   // home is the Launchpad.
   const personal = appsScopes(
     {
@@ -432,9 +432,9 @@ test("the head links the Organization's name to its Dashboard; the personal spac
   if (personal === undefined) throw new Error("The fixture has one");
   expect(
     appsHeading(personal, cs, () => "https://dashboard.lazurio.ai/home"),
-  ).toEqual({ text: "Osobní", link: null });
+  ).toEqual({ text: "Buddy", link: null });
   expect(appsHeading(null, cs, dashboard)).toEqual({
-    text: "Apps",
+    text: "Aplikace",
     link: null,
   });
 });
@@ -800,7 +800,7 @@ const switchOf = (
 const startsView = (starts: readonly PersonalStart[]) =>
   starts.map((start) => [start.key, start.name, start.text, start.target]);
 
-test("the personal space's starts: Chat and Automate lead where the switch's tabs do, or say its words where they do not run; Integrace and Soubory lead where the column does", () => {
+test("the personal space's starts: Chat and Automate lead where the switch's tabs do, or say its words where they do not run; Napojení and Soubory lead where the column does", () => {
   const chat = "https://t3code.example.lazurio.io/";
   const integrations = { kind: "route", href: "/integrations" } as const;
   const files = { kind: "route", href: "/files" } as const;
@@ -818,7 +818,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
     ],
     [
       "automate",
-      "Automate",
+      "Automatizace",
       "Nastavte, co se má dít samo",
       {
         kind: "app",
@@ -826,7 +826,7 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
         href: "https://mausbot.example.lazurio.io/",
       },
     ],
-    ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
+    ["integrations", "Napojení", "Připojte poštu a kalendář", integrations],
     ["files", "Soubory", "Nahrajte podklady pro agenty", files],
   ]);
   // Without MausBot, Automate is muted: no link, the switch's sentence.
@@ -844,8 +844,13 @@ test("the personal space's starts: Chat and Automate lead where the switch's tab
       "Zadejte agentovi první úkol",
       { kind: "app", app: "chat", href: chat },
     ],
-    ["automate", "Automate", "Automate v tomto Osobním Prostředí neběží", null],
-    ["integrations", "Integrace", "Připojte poštu a kalendář", integrations],
+    [
+      "automate",
+      "Automatizace",
+      "Automatizace v tomto Osobním Prostředí neběží",
+      null,
+    ],
+    ["integrations", "Napojení", "Připojte poštu a kalendář", integrations],
     ["files", "Soubory", "Nahrajte podklady pro agenty", files],
   ]);
   // A workstation runs neither Chat nor Automate (root decision 0185's

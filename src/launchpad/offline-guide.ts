@@ -106,7 +106,10 @@ export function offlineGuidePage(
         owner);
   return renderOfflineGuide({
     locale: shell.locale,
-    environment: environment.label ?? copy.names[environment.kind],
+    // The guide's place is a phrase ("Osobní Prostředí"), so it takes the
+    // kind's word, not the short name the rail and the picker show (in Czech
+    // Buddy for the personal one, decision F36's addendum of 2026-11-06).
+    environment: environment.label ?? copy.kinds[environment.kind],
     organization,
     tailnet: new URL(headscaleServerUrl).hostname,
     docs: offlineDocsUrl(shell.locale),

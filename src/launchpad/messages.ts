@@ -2321,7 +2321,7 @@ const cs: Record<MessageKey, string> = {
   voiceRefresh: "Načíst aktuální nastavení",
 
   themeGroup: "Téma Prostředí",
-  themeNote: "Barvy Chatu, Apps a Automate {v tomto}.",
+  themeNote: "Barvy Chatu, Aplikací a Automatizace {v tomto}.",
   themeShared: "Toto Týmové Prostředí má jedno téma pro všechny.",
   themeFailed: "Téma se nepodařilo změnit. Zkuste to znovu.",
   themeStale: "Téma se mezitím změnilo jinde. Vybrané je teď to aktuální.",
@@ -2731,11 +2731,11 @@ const cs: Record<MessageKey, string> = {
   toolsMcpTitle: "Vlastní MCP server",
   toolsMcpAction: "Přidat s agentem",
   toolsMcpPromptHint:
-    "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent se zeptá, který server chcete, a přidá ho; klíč pak zadáte v Integracích.",
+    "Zkopírujte tento prompt a vložte ho v Chatu do nového vlákna. Agent se zeptá, který server chcete, a přidá ho; klíč pak zadáte v Napojení.",
   // The Apps home and its left column (decision F36).
-  appsTitle: "Apps",
+  appsTitle: "Aplikace",
   appsAll: "Všechny moduly",
-  appsPersonal: "Osobní",
+  appsPersonal: "Buddy",
   appsOrganizationDashboard: "Přehled Organizace",
   appsModulesOne: "{count} modul",
   appsModulesFew: "{count} moduly",
@@ -2978,7 +2978,7 @@ const cs: Record<MessageKey, string> = {
   marketAdoptPrompt:
     "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `{create}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
   title: "Lazurio",
-  homeTitle: "Apps",
+  homeTitle: "Aplikace",
   catalogBreadcrumb: "Kde v Lazuriu jste",
   catalogLoading: "Načítám Organizace…",
   catalogLoadFailed:
@@ -3451,7 +3451,7 @@ const cs: Record<MessageKey, string> = {
   tourChatDemoOrganizationText:
     "Práce s agenty. Chat odpovídá přes AI této Organizace.",
   tourChatDemoConnectedText: "Práce s agenty. AI je v této ukázce připojené.",
-  tourAutomateTitle: "Automate",
+  tourAutomateTitle: "Automatizace",
   tourAutomateText: "Pravidelné úkoly a automatizace.",
   tourAutomateMissingText: "Automatizace tu neběží.",
   tourSettingsTitle: "Nastavení",
@@ -3470,7 +3470,7 @@ const cs: Record<MessageKey, string> = {
   demoAppsText: "Aplikace modulů této Organizace.",
   startDemoModuleTitle: "Modul",
   startDemoModuleText: "Vyzkoušejte modul této Organizace.",
-  startDemoModuleAny: "Otevřete kterýkoli modul v Apps.",
+  startDemoModuleAny: "Otevřete kterýkoli modul v Aplikacích.",
   startDemoChatText: "Práce s agenty.",
   startDemoNoAi: "AI v této ukázce není připojené.",
   startDemoOrganizationAi: "Chat odpovídá přes AI této Organizace.",
@@ -3544,7 +3544,7 @@ const cs: Record<MessageKey, string> = {
   startContentNone: "Obsah Prostředí",
   startContentNothing: "Tady není co stahovat.",
   startVaultGroup: "Hesla pro agenty",
-  startVaultTitle: "Trezor Prostředí",
+  startVaultTitle: "Správce hesel Prostředí",
   startOpen: "Otevřít",
   startOptional: "Volitelné",
   startComposioText: "Pošta, kalendář a další aplikace pro agenty.",
@@ -3559,12 +3559,12 @@ const cs: Record<MessageKey, string> = {
   startNotSet: "Nenastaveno",
   startGuide: "Návod",
   startCodexText: "Pracujte s {tímto} z ChatGPT Desktopu.",
-  startBitwardenTitle: "Trezor v Bitwardenu",
+  startBitwardenTitle: "Správce hesel v Bitwardenu",
   startModulesTitle: "Poznejte moduly",
   startBitwardenText:
-    "Hesla z Trezoru Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
+    "Hesla ze Správce hesel Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
   startTourGroup: "Prohlídka aplikace",
-  startTourTitle: "Apps, Chat a Automate",
+  startTourTitle: "Aplikace, Chat a Automatizace",
   startToured: "Prohlédnuto",
   startNotToured: "Ještě ne",
   startTourStart: "Spustit prohlídku",
@@ -3820,9 +3820,9 @@ const cs: Record<MessageKey, string> = {
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:
-    "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Apps → Integrace.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s vaším vlastním účtem. Aplikace připojíte v Aplikacích → Napojení.",
   toolsDescriptionComposioTeam:
-    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Apps → Integrace.",
+    "Snadná cesta k mnoha aplikacím přes Composio, s týmovým účtem Composia. Aplikace připojíte v Aplikacích → Napojení.",
   toolsDescriptionWacli:
     "Připojení na WhatsApp: agenti čtou a posílají vaše zprávy.",
   toolsDescriptionGogcli:
@@ -3836,11 +3836,11 @@ const cs: Record<MessageKey, string> = {
   vaultRowChecking: "Zjišťuji stav…",
   vaultRowConnected: "Připojeno",
   vaultRowNotSetUp: "Zatím nenastaveno",
-  vaultRowCreating: "Trezor se zakládá",
+  vaultRowCreating: "Správce hesel se zakládá",
   vaultRowNotAllowed: "Síť zatím účet trezoru nepovolila",
-  vaultRowRemoved: "Trezor byl odebrán",
+  vaultRowRemoved: "Správce hesel byl odebrán",
   vaultRowRevoked: "Přístup odebrán v trezoru",
-  vaultRowUnreachable: "Trezor neodpovídá",
+  vaultRowUnreachable: "Správce hesel neodpovídá",
   vaultRowFailed: "Nastavení se nedokončilo",
   vaultRowNoVault: "{Toto} zatím trezor nemá",
   vaultRowNeedsConnection: "Čeká na váš Bitwarden",
@@ -3854,10 +3854,10 @@ const cs: Record<MessageKey, string> = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Otevřít trezor",
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
-  vaultPageTitle: "Trezor",
-  vaultPageWorkstation: "Trezor na tomto počítači není.",
+  vaultPageTitle: "Správce hesel",
+  vaultPageWorkstation: "Správce hesel na tomto počítači není.",
   vaultPageNoVault:
-    "Trezor {tohoto} není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
+    "Správce hesel {tohoto} není nastavený. Nastaví ho Admin Organizace a pak ho najdete tady.",
   vaultPagePublic:
     "Tato Organizace je veřejná ukázka a skutečná hesla do ní nepatří, proto v ní trezor záměrně není. Všechno ostatní funguje jako ve skutečné Organizaci.",
   vaultExplainerTitle: "Jak trezor funguje",
@@ -3868,7 +3868,7 @@ const cs: Record<MessageKey, string> = {
   vaultConnectAgents: "Agenti",
   vaultConnectAgentsWhere: "{v tomto}",
   vaultConnectPicture:
-    "Trezor {name} mezi vaším Bitwardenem a agenty {v tomto}",
+    "Správce hesel {name} mezi vaším Bitwardenem a agenty {v tomto}",
   vaultConnectSignUp:
     "Založte účet pro agenty. Jako e-mail použijte třeba ten svůj s +agenti: jana+agenti@gmail.com",
   vaultConnectOpen: "Otevřít {service}",
@@ -3910,7 +3910,7 @@ const cs: Record<MessageKey, string> = {
   vaultInviteEmailInvalid: "Zadejte e-mail svého účtu v Bitwardenu.",
   vaultInviteSameAccount: "To je účet pro agenty, zadejte e-mail toho svého.",
   vaultInviteInvited: "Pozvánka už odešla na jiný e-mail.",
-  vaultInviteNotReady: "Trezor ještě není hotový, zkuste to za chvíli.",
+  vaultInviteNotReady: "Správce hesel ještě není hotový, zkuste to za chvíli.",
   vaultInviteFailed: "Pozvánka neodešla, zkuste to znovu.",
   vaultPageInvitationPending:
     "Přijměte pozvánku, kterou vám Bitwarden poslal e-mailem.",
@@ -3927,9 +3927,9 @@ const cs: Record<MessageKey, string> = {
     "Připojení Bitwardenu nejde přečíst, odpojte ho a připojte znovu.",
   vaultDisconnect: "Odpojit Bitwarden",
   vaultDisconnecting: "Odpojuje se…",
-  vaultDisconnectNote: "Trezor i hesla v Bitwardenu zůstanou.",
-  vaultDisconnected: "Trezor i hesla zůstaly ve vašem Bitwardenu.",
-  vaultPageAgentsOnly: "Trezor {tohoto} používají jen jeho agenti.",
+  vaultDisconnectNote: "Správce hesel zůstane a hesla v Bitwardenu také.",
+  vaultDisconnected: "Správce hesel i hesla ve vašem Bitwardenu zůstaly.",
+  vaultPageAgentsOnly: "Správce hesel {tohoto} používají jen jeho agenti.",
   vaultPageCreating: "Zakládání trezoru…",
   vaultPageUnreachable: "Neodpovídá",
   vaultPageItemsOne: "{count} položka",
@@ -3983,9 +3983,9 @@ const cs: Record<MessageKey, string> = {
   vaultRequestMissing: "Žádost neexistuje.",
   vaultRequestNoVault: "{Toto} zatím trezor nemá.",
   vaultRequestNone: "{Toto} trezor nemá.",
-  vaultRequestNotReady: "Trezor {tohoto} zatím není připravený.",
+  vaultRequestNotReady: "Správce hesel {tohoto} zatím není připravený.",
   vaultRequestFill: "Vyplňte všechna pole.",
-  vaultRequestBusy: "Trezor teď neodpovídá. Zkuste to prosím za chvíli.",
+  vaultRequestBusy: "Správce hesel teď neodpovídá. Zkuste to prosím za chvíli.",
   vaultRequestFailed: "Uložení se nepodařilo. Zkuste to znovu.",
   vaultRequestLoadFailed: "Žádost se nepodařilo načíst.",
   executorRowChecking: "Zjišťuji stav…",
@@ -4071,7 +4071,7 @@ const cs: Record<MessageKey, string> = {
   columnHide: "Skrýt levý panel",
   columnShow: "Zobrazit levý panel",
   columnWidth: "Šířka levého panelu",
-  integrationsTitle: "Integrace",
+  integrationsTitle: "Napojení",
   integrationsHelp: "Jak to funguje",
   integrationsSearch: "Hledat aplikace",
   integrationsRefresh: "Zkontrolovat připojení",
@@ -4082,9 +4082,9 @@ const cs: Record<MessageKey, string> = {
   integrationsAvailable: "Dostupné aplikace · {count}",
   integrationsYours: "Vaše připojení",
   integrationsResults: "Výsledky hledání",
-  integrationsLoading: "Načítám Integrace…",
+  integrationsLoading: "Načítám Napojení…",
   integrationsChecking: "Kontroluji připojení…",
-  integrationsLoadFailed: "Integrace se nepodařilo načíst.",
+  integrationsLoadFailed: "Napojení se nepodařilo načíst.",
   integrationsNoneConnected: "Zatím žádné připojené aplikace.",
   integrationsNoneVerified: "Připojené aplikace teď nelze ověřit.",
   integrationsPick: "Vybrat aplikaci",
@@ -4120,13 +4120,13 @@ const cs: Record<MessageKey, string> = {
   integrationsToolsUnreadable: "Nástroje se nepodařilo načíst.",
   integrationsRetry: "Zkusit znovu",
   integrationsChatgptAppsOffOrganization:
-    "Aplikace z ChatGPT jsou {v tomto} vypnuté, Organizace je nepovoluje. Agenti používají jen aplikace připojené tady v Integracích.",
+    "Aplikace z ChatGPT jsou {v tomto} vypnuté, Organizace je nepovoluje. Agenti používají jen aplikace připojené tady v Napojení.",
   integrationsChatgptAppsOnOrganization:
-    "Organizace {v tomto} povoluje aplikace z ChatGPT pro aplikace, které Integrace nemají.",
+    "Organizace {v tomto} povoluje aplikace z ChatGPT pro aplikace, které Napojení nemá.",
   integrationsChatgptAppsOffPerson:
-    "Aplikace z ChatGPT jsou {v tomto} vypnuté. Agenti používají jen aplikace připojené tady v Integracích.",
+    "Aplikace z ChatGPT jsou {v tomto} vypnuté. Agenti používají jen aplikace připojené tady v Napojení.",
   integrationsChatgptAppsOnPerson:
-    "Aplikace z ChatGPT jsou {v tomto} zapnuté pro aplikace, které Integrace nemají.",
+    "Aplikace z ChatGPT jsou {v tomto} zapnuté pro aplikace, které Napojení nemá.",
   integrationsChatgptAppsTurnOn: "Zapnout",
   integrationsChatgptAppsTurnOff: "Vypnout",
   integrationsChatgptAppsFailed:
@@ -4221,7 +4221,7 @@ const cs: Record<MessageKey, string> = {
   integrationsAskAdmin: "Požádat Admina",
   integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
   integrationsAskAdminText:
-    "Prosím o zpřístupnění aplikace {app} v Integracích našich Prostředí: {line}",
+    "Prosím o zpřístupnění aplikace {app} v Napojení našich Prostředí: {line}",
   integrationsSetUpInDashboard: "Nastavit v Přehledu Organizace",
   integrationsAllowComposio: "Povolit Composio",
   integrationsAdminWhere:

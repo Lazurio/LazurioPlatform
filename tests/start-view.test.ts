@@ -798,13 +798,13 @@ test("the content step waits for AI even with GitHub connected (Pablo's review o
   ).toBe("now");
 });
 
-// "Trezor v Bitwardenu" (the wireframe's row of prototypes-lazurio 1eefc3d,
+// "Správce hesel v Bitwardenu" (the wireframe's row of prototypes-lazurio 1eefc3d,
 // F53's addendum of 2026-10-16, plan DEV-6665): exactly where Apps → Trezor
 // (F53's addendum of 2026-10-18) gives the steps for Bitwarden in Codex
 // Desktop and the person's browser, its "Návod" leads there, to their
 // section. No state: the extension is on
 // the person's computer, where the Environment cannot see it.
-test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose page gives the steps, leading to them", () => {
+test("Volitelné: Správce hesel v Bitwardenu where the Environment has a vault whose page gives the steps, leading to them", () => {
   const remote = {
     preset: "hosted-organization-personal",
     composio: "none",
@@ -821,8 +821,8 @@ test("Volitelné: Trezor v Bitwardenu where the Environment has a vault whose pa
     },
     {
       id: "bitwarden",
-      title: "Trezor v Bitwardenu",
-      text: "Hesla z Trezoru Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
+      title: "Správce hesel v Bitwardenu",
+      text: "Hesla ze Správce hesel Prostředí i v ChatGPT Desktopu a ve vašem prohlížeči.",
       status: null,
       action: { label: "Návod", to: "/vault", part: "bitwarden" },
     },
