@@ -183,8 +183,8 @@ const lazurio: readonly Text[] = [
     "- **Organization**: one company = one GitHub organization = one access boundary = one git repository checked out at `organizations/<org>/`. Every Organization has its own `AGENTS.md`; load it before working inside.",
   ),
   t(
-    "- **Workspace moduly**: verzované pracovní schopnosti uvnitř Organizace, všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše); produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
-    "- **Workspace modules**: versioned working capabilities inside an Organization, all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above); production applications are `<app>.<org>.lazurio.io` (decision 0146). A workshop is not production: production is a reproducible build from a protected commit or tag.",
+    "- **Workspace moduly**: oblasti práce Organizace, každá s postupem, daty a aplikací (`manual/mechanisms.md`, oddíl Moduly), všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše); produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
+    "- **Workspace modules**: the Organization's areas of work, each with its process, data and app (`manual/mechanisms.md`, section Modules), all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above); production applications are `<app>.<org>.lazurio.io` (decision 0146). A workshop is not production: production is a reproducible build from a protected commit or tag.",
   ),
   t(
     "- **`productionspace/`**: repozitáře na úrovni Organizace mimo workspace moduly (firmware, connect, monorepo). Každý má vlastní branch model a release proces (decision 0041); bez výslovné policy Organizace je z Folderu nespouštěj ani nereleasuj.",
@@ -292,12 +292,12 @@ const lazurio: readonly Text[] = [
   ),
   blank,
   t(
-    "- **Aplikace, nástroj, přehled nebo web:** modul. Je to samostatný repozitář ve `workspace/<module>/` (v Osobním Prostředí v Personalspace). Zakládá ho jen `lazurio module create` přes skill `new-module`, spouští ho `lazurio module` a uživatel ho otevírá z Apps v Lazuriu. Existující modul proti Lazurio Module Standard kontroluje skill `module-standard` (decision 0171).",
-    "- **An app, tool, overview or website:** a module. It is a repository of its own under `workspace/<module>/` (on a Personal Environment in the Personalspace). Only `lazurio module create` founds it, through the skill `new-module`; `lazurio module` runs it, and the user opens it from Apps in Lazurio. The skill `module-standard` checks an existing module against the Lazurio Module Standard (decision 0171).",
+    "- **Aplikace, nástroj, přehled nebo web:** modul. Je to samostatný repozitář ve `workspace/<module>/` (v Osobním Prostředí v Personalspace). Zakládá ho jen `lazurio module create` přes skill `new-module`, spouští ho `lazurio module` a uživatel ho otevírá z Apps v Lazuriu. Než ho postavíš od nuly, podívej se na šablony v Marketplace (tamtéž, krok 3). Existující modul proti Lazurio Module Standard kontroluje skill `module-standard` (decision 0171).",
+    "- **An app, tool, overview or website:** a module. It is a repository of its own under `workspace/<module>/` (on a Personal Environment in the Personalspace). Only `lazurio module create` founds it, through the skill `new-module`; `lazurio module` runs it, and the user opens it from Apps in Lazurio. Before you build one from nothing, look at the Marketplace's templates (same skill, step 3). The skill `module-standard` checks an existing module against the Lazurio Module Standard (decision 0171).",
   ),
   t(
-    "- **Data modulu:** repository-db. Datový repozitář je v modulu připojený jako `db/` a uživatel změny dat publikuje v kartě konceptu v aplikaci. Databáze přijde až s opravdovým používáním (skill `new-module`, krok 3).",
-    "- **A module's data:** repository-db. A data repository is mounted in the module as `db/`, and the user publishes data changes in the app's draft card. A database comes only with real use (the skill `new-module`, step 3).",
+    "- **Data modulu:** repository-db. Datový repozitář je v modulu připojený jako `db/` a uživatel změny dat publikuje v kartě konceptu v aplikaci. Tady začíná nový modul se záznamy (`app/v3`); databáze Dolt ve Službách serveru Organizace (`app/v4`, decision 0209, zatím nenasazené) přijde až s opravdovým používáním (skill `new-module`, krok 3).",
+    "- **A module's data:** repository-db. A data repository is mounted in the module as `db/`, and the user publishes data changes in the app's draft card. A new module with records starts here (`app/v3`); a Dolt database in the Organization's Server services (`app/v4`, decision 0209, not yet deployed) comes only with real use (the skill `new-module`, step 3).",
   ),
   t(
     "- **Data nebo API jiného modulu:** deklarace v `lazurio.runtime.required_module_slots`. Pro jeho data deklaruj datový mount `workspace/<slug>/db` a čti je v `../<slug>/db/`, nikdy jeho kód ani manifesty. Pro jeho API deklaruj slot modulu `workspace/<slug>` a volej ho jen na adrese z `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` (decision 0176).",
@@ -1151,8 +1151,8 @@ const glossary: readonly Text[] = [
     "| Team | A named group inside an Organization, declared in the manifest and bound to a GitHub Team; not a directory (decisions 0021/0041). |",
   ),
   t(
-    "| Workspace Modul (Workspace module) | Verzovaná pracovní schopnost uvnitř Organizace ve `workspace/<module>/`; může obsahovat spustitelnou aplikaci. |",
-    "| Workspace module (Workspace Modul) | A versioned working capability inside an Organization at `workspace/<module>/`; may contain a runnable application. |",
+    "| Workspace Modul (Workspace module) | Jedna oblast práce Organizace ve `workspace/<module>/`, samostatný repozitář: postup pro agenty (`AGENTS.md` a skilly), data a aplikace v `app/v<N>/`, jejíž číslo říká, kde data leží; aplikace může přijít později. Osobní modul má totéž ve `workspace/` Personalspace. Co modul je a kdo ho dostane, říká `manual/mechanisms.md`, oddíl Moduly. |",
+    "| Workspace module (Workspace Modul) | One area of an Organization's work at `workspace/<module>/`, a repository of its own: the process for agents (`AGENTS.md` and skills), the data and the app in `app/v<N>/`, whose number says where the data lives; the app may come later. A personal module has the same in the Personalspace's `workspace/`. `manual/mechanisms.md`, section Modules, says what a module is and who gets it. |",
   ),
   t(
     "| productionspace | Repozitáře na úrovni Organizace mimo workspace moduly, každý s vlastními pravidly pro branche a release (decision 0041). |",
@@ -1313,22 +1313,23 @@ function updateRequest(preset: PresetName): Text {
       );
 }
 
-// Keeping the checkouts current until content synchronization exists
-// (decisions F9 and F17 addendum 2026-10-02): the agent pulls clean checkouts
-// and brings a diverged one back without losing any work. A module the
-// Organization's manifest declares but this Environment lacks is cloned into
-// its declared place, the one exception to the rule on clones, under checks
-// of access, destination and remote (decision F19 addendum 2026-10-04): the
-// Platform has no command that materializes a module. Only on presets that
-// carry Organizations.
+// The checkouts: Lazurio keeps the clean ones current and clones a declared
+// module once this identity can read it (decision F9's amendments of
+// 2026-10-24 and addendum of 2026-11-01, `src/content/sync.ts`, in releases
+// from v0.1.20); what stays the agent's is a diverged checkout, brought back
+// without losing any work (F17 addendum 2026-10-02). A module the
+// Organization's manifest declares that stays missing after a synchronization
+// is cloned into its declared place, the one exception to the rule on clones,
+// under checks of access, destination and remote (decision F19 addendum
+// 2026-10-04). Only on presets that carry Organizations.
 const checkouts: readonly Text[] = [
   t(
     "## Aktuální checkouty Organizací a modulů",
     "## Current checkouts of Organizations and modules",
   ),
   t(
-    "Synchronizaci obsahu produkt zatím neumí (decision F9), proto checkouty Organizací a modulů drž aktuální sám, hned po `lazurio update`. `productionspace/` má vlastní pravidla a do toho nesahej.",
-    "The product does not synchronize content yet (decision F9), so keep the checkouts of Organizations and modules current yourself, right after `lazurio update`. `productionspace/` has rules of its own; leave it out.",
+    "Checkouty Organizací a modulů drží aktuální Lazurio samo (decision F9): při startu Launchpadu a pak každou hodinu, jako první část `lazurio update` a na vyžádání příkazem `lazurio organization sync`. Čistý primární checkout posune na publikovanou větev a modul nebo datový repozitář z manifestu, který tu chybí, naklonuje, jakmile ho identita tohoto Environmentu smí číst. Neklonuje na Týmovém Environmentu, jehož obsah připravuje hosting, neklonuje slot s přístupem `restricted` nebo `private` ani nic pod ním, datový repozitář modulu, který tu není, a nic z Organizace, jejíž kořen skončil zablokovaný. Rozjetý checkout nechá, jak je, a nahlásí ho; ten srovnej ty, hned po `lazurio update`. `productionspace/` má vlastní pravidla a do toho nesahej.",
+    "Lazurio keeps the checkouts of Organizations and modules current by itself (decision F9): when the Launchpad starts and then every hour, as the first part of `lazurio update` and on request with `lazurio organization sync`. It moves a clean primary checkout to its published branch, and it clones a module or data repository of the manifest that is missing here once this Environment's identity may read it. It clones nothing on a Team Environment, whose content the hosting prepares, no slot with the access `restricted` or `private` or anything below one, no data repository of a module that is not here, and nothing of an Organization whose root ended blocked. It leaves a diverged checkout as it is and reports it; that one you bring back yourself, right after `lazurio update`. `productionspace/` has rules of its own; leave it out.",
   ),
   blank,
   t(
@@ -1336,8 +1337,8 @@ const checkouts: readonly Text[] = [
     "- Update a clean checkout on its default branch with `git pull --ff-only`.",
   ),
   t(
-    "- Modul deklarovaný v manifestu Organizace (`lazurio.organization.json` a manifest modulů, na který ukazuje), který tu chybí, je jedinou výjimkou z pravidla o klonech: je to namountovaný modul, ne vnořený klon. Naklonuj ho na jeho deklarované místo, jen když uživatel k jeho repozitáři živě má přístup (`gh repo view <vlastník>/<repozitář>`) a cílová složka neexistuje nebo je prázdná. Po klonu ověř, že `git remote get-url origin` je deklarovaný repozitář a checkout stojí na jeho výchozí branchi. Když něco z toho neplatí, nic neklonuj a řekni to uživateli.",
-    "- A module declared in the Organization's manifest (`lazurio.organization.json` and the modules manifest it points to) that is missing here is the one exception to the rule on clones: it is a mounted module, not a nested clone. Clone it into its declared place only when the user has live access to its repository (`gh repo view <owner>/<repository>`) and the destination does not exist or is empty. After the clone, verify that `git remote get-url origin` is the declared repository and that the checkout is on its default branch. When any of this does not hold, clone nothing and tell the user.",
+    "- Chybějící modul nech nejdřív na synchronizaci (`lazurio organization sync`). Modul deklarovaný v manifestu Organizace (`lazurio.organization.json` a manifest modulů, na který ukazuje), který tu chybí i potom, je jedinou výjimkou z pravidla o klonech: je to namountovaný modul, ne vnořený klon. Naklonuj ho na jeho deklarované místo, jen když uživatel k jeho repozitáři živě má přístup (`gh repo view <vlastník>/<repozitář>`) a cílová složka neexistuje nebo je prázdná. Po klonu ověř, že `git remote get-url origin` je deklarovaný repozitář a checkout stojí na jeho výchozí branchi. Když něco z toho neplatí, nic neklonuj a řekni to uživateli.",
+    "- Leave a missing module to the synchronization first (`lazurio organization sync`). A module declared in the Organization's manifest (`lazurio.organization.json` and the modules manifest it points to) that is still missing here after it is the one exception to the rule on clones: it is a mounted module, not a nested clone. Clone it into its declared place only when the user has live access to its repository (`gh repo view <owner>/<repository>`) and the destination does not exist or is empty. After the clone, verify that `git remote get-url origin` is the declared repository and that the checkout is on its default branch. When any of this does not hold, clone nothing and tell the user.",
   ),
   t(
     "- Rozjetý checkout srovnej tak, aby se žádná práce neztratila. Nejdřív všechnu práci zachovej:",
@@ -1621,12 +1622,12 @@ function building(preset: PresetName): readonly Text[] {
       "- A declaration authorizes nothing; live GitHub grants decide. A restricted slot (`infra`, for example) belongs to the Admin; when it is missing on a Builder's Environment, that is intended.",
     ),
     t(
-      "- Synchronizaci repozitářů Organizací produkt zatím neumí. Chybějící checkout založ ručně: nejdřív kořen Organizace do `organizations/<org>/`, pak podle jeho manifestu deklarované moduly přesně do jejich cest (`workspace/<module>/`). Obsazenou cestu nepřepisuj.",
-      "- The product does not synchronize Organization repositories yet. Create a missing checkout by hand: first the Organization root into `organizations/<org>/`, then, following its manifest, the declared modules into their exact paths (`workspace/<module>/`). Never overwrite an occupied path.",
+      "- Organizaci do Folderu instaluje `lazurio organization install <login>`: kořen do `organizations/<org>/` a podle jeho manifestu moduly přesně do jejich cest (`workspace/<module>/`), na Týmovém Environmentu to dělá hosting. Obsazenou cestu nikdy nepřepisuj.",
+      "- `lazurio organization install <login>` installs an Organization into the Folder: the root into `organizations/<org>/` and, following its manifest, the modules into their exact paths (`workspace/<module>/`); on a Team Environment the hosting does it. Never overwrite an occupied path.",
     ),
     t(
-      "- Checkouty Organizací a modulů drž aktuální: čistý aktualizuj `git pull --ff-only`, rozjetý srovnej bez ztráty práce podle `manual/troubleshooting.md`.",
-      "- Keep the checkouts of Organizations and modules current: pull a clean one with `git pull --ff-only` and bring a diverged one back without losing work, as `manual/troubleshooting.md` describes.",
+      "- Čisté checkouty pak drží aktuální synchronizace Lazuria a modul, který nově smíš číst, naklone sama. Rozjetý checkout srovnej bez ztráty práce; obojí popisuje `manual/troubleshooting.md`, oddíl Aktuální checkouty Organizací a modulů.",
+      "- The synchronization of Lazurio then keeps the clean checkouts current and clones a module you may newly read. Bring a diverged checkout back without losing work; `manual/troubleshooting.md`, section Current checkouts of Organizations and modules, describes both.",
     ),
     blank,
     t(
@@ -1642,8 +1643,8 @@ function building(preset: PresetName): readonly Text[] {
       "- A workspace module is a repository of its own at `workspace/<module>/` with its own `AGENTS.md`; Organization-level applications (Mission Control, the design system) are modules too. One module = one worktree = one PR.",
     ),
     t(
-      "- Nový modul, jeho slot a granty Teamů zakládá ten, komu to GitHub dovolí, typicky Admin. Agent uživatele s těmito právy to udělá na jeho výslovný pokyn: repozitář modulu, slot v manifestu Organizace (PR do jejího kořene) a granty Teamů. Změnu přístupů a mazání předem potvrď s uživatelem jako přesnou operaci. Hosting (Lazurio Machines) z Environmentu Organizace nespouštěj; změnu Environmentu navrhni jako PR nebo issue do repozitáře `infra` Organizace.",
-      "- A new module, its slot and the Teams' grants are created by whoever GitHub allows, typically an Admin. The agent of a user with those rights does it on their explicit instruction: the module's repository, its slot in the Organization manifest (a PR to the Organization root) and the Teams' grants. Confirm an access change or a deletion with the user beforehand, as the exact operation. Never run the hosting (Lazurio Machines) from an Organization's Environment; propose a change of the Environment as a PR or an issue in the Organization's `infra` repository.",
+      "- Nový modul, jeho slot a granty Teamů zakládá ten, komu to GitHub dovolí, typicky Admin; kdo tato práva nemá, připraví s tebou žádost skillem `admin-request`. Agent uživatele s těmito právy to udělá na jeho výslovný pokyn: repozitář modulu, slot v manifestu Organizace (PR do jejího kořene) a granty Teamů. Změnu přístupů a mazání předem potvrď s uživatelem jako přesnou operaci. Hosting (Lazurio Machines) z Environmentu Organizace nespouštěj; změnu Environmentu navrhni jako PR nebo issue do repozitáře `infra` Organizace.",
+      "- A new module, its slot and the Teams' grants are created by whoever GitHub allows, typically an Admin; whoever lacks those rights prepares a request with you through the skill `admin-request`. The agent of a user with those rights does it on their explicit instruction: the module's repository, its slot in the Organization manifest (a PR to the Organization root) and the Teams' grants. Confirm an access change or a deletion with the user beforehand, as the exact operation. Never run the hosting (Lazurio Machines) from an Organization's Environment; propose a change of the Environment as a PR or an issue in the Organization's `infra` repository.",
     ),
     // A Python service is the stack `python-uv` of `lazurio module create`
     // (src/modules/scaffold.ts; decision 0171): same `package.json`, uv in

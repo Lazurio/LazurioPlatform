@@ -22,7 +22,8 @@ does today; the rest of this document stays future direction.
   in Czech and English (one line, up to four features, the dialog's starts) and its
   releases, newest first. A release names `version`, tag `v<version>`, what it is
   built on (the app generation `app/v<N>`, which names the data layer: v1 and v2 no
-  data of their own, v3 repository-db, v4 Dolt; the
+  data layer of their own, v1 with its content in the app and v2 beside it in
+  `data/v2/`, v3 repository-db, v4 Dolt; the
   [stack profile](stack-profiles.md) release such as `app-data@2026.11`, one release
   `YYYY.MM` for all four profiles; the scaffold's stack and the exact Bun, because a
   generation transition or a release of the stack profile changes them; decided

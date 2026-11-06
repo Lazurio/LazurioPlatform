@@ -23,14 +23,16 @@ resolved by changing the standard.
 | Profile | For | App generations | `lazurio module create --stack` |
 | --- | --- | --- | --- |
 | [`content`](#content) | Websites, design systems, documentation, knowledge bases | `app/v1`, `app/v2`; `app/v3` with data | `astro`, `astro-starlight` (with `--data` in `app/v3`) |
-| [`app`](#app) | Applications and services without data of their own | `app/v1`, `app/v2` | `vite-react`, `bun-service` |
+| [`app`](#app) | Applications and services without a data layer of their own | `app/v1`, `app/v2` | `vite-react`, `bun-service` |
 | [`app-data`](#app-data) | Applications with their records in repository-db | `app/v3` | `vite-react --data`, `bun-service --data` |
 | [`app-database`](#app-database) | Applications with their records in a Dolt database | `app/v4` | none yet |
 
 In every Module, a template or one `lazurio module create` generates, the App
 generation names its data layer, not its quality (Matěj, 2026-11-03; F69,
-point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
-records in repository-db, and `app/v4` in Dolt. A Dolt database outside the
+point 8): `app/v1` and `app/v2` have no data layer of their own (in `app/v1` the
+content is part of the App, in `app/v2` it lies beside it in `data/v2/` with a
+declared structure), `app/v3` keeps its records in repository-db, and `app/v4` in
+Dolt ([Module Standard](module-standard.md#app-generations)). A Dolt database outside the
 server (for an Organization with several servers) is a different connection
 setting of `app/v4`, not a generation `app/v5`: the code, the schemas and the
 migrations are the same.

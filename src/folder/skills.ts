@@ -1,3 +1,5 @@
+import { messages } from "../launchpad/messages";
+import { moduleSentence, moduleWebsiteExample } from "./manual-mechanisms";
 import type { SkillName, SkillPath } from "./outputs";
 import { skillNames, skillRoots } from "./outputs";
 import { type PresetName, workspacePreset } from "./presets";
@@ -24,6 +26,8 @@ import { adminRequest, adminRequestDescription } from "./skill-admin-request";
 type Locale = FolderProfile["locale"];
 const t = (cs: string, en: string): Text => ({ cs, en });
 const blank = t("", "");
+const ucs = messages("cs");
+const uen = messages("en");
 
 const generated = t(
   "generováno Lazuriem, needituj: upravený soubor zablokuje každé nové vykreslení Folderu, dokud se nevrátí do původní podoby",
@@ -58,18 +62,21 @@ export function skillDocument(
 
 // `new-module` (the F14 and F36 addenda of 2026-10-14): what an agent does
 // when the person wants a new module, which the Launchpad's "+ Nový modul"
-// brief names. What a module is and why; an interview about the purpose
-// first, one question at a time; the technical choices are the agent's, with
-// the data in repository-db first and a database only for a module used in
-// earnest (root decision 0196 point 8); the plan confirmed before anything is
-// created; then the steps this Environment has. Where the module can go
+// brief names. What a module is and why, in the one sentence the person hears
+// everywhere (F14 addendum of 2026-11-05); an interview about the purpose
+// first, one question at a time; a template before building from nothing; the
+// technical choices are the agent's, with the data on the lowest rung of the
+// generations (F69 point 8) and a database only for a module used in earnest
+// (root decisions 0196 point 8 and 0209); the plan confirmed before anything
+// is created; then the steps this Environment has, or, without the Admin's
+// role, the request to the Admin (root decision 0230). Where the module can go
 // follows the preset: a Personalspace exists only on a workstation and a
 // personal Remote Environment, Organizations only where the preset holds
 // them. Both forms of `lazurio module create` found the module, and
 // `--data` its data repository (F52 addenda of 2026-10-14).
 const newModuleDescription = t(
-  "Použij, kdykoli chce uživatel postavit nový modul, aplikaci, nástroj, přehled nebo web, i když přijde ze zadání „+ Nový modul“ v Launchpadu („Chci postavit nový modul“). Vysvětlí, co je modul a proč, vede rozhovor o účelu (nikdy o technice), technické volby dělá agent, data začínají v repository-db a databáze přijde až s opravdovým používáním, plán se ukáže k potvrzení a modul vznikne příkazem lazurio module create, v osobním prostoru i v Organizaci, nikdy ručně.",
-  "Use whenever the user wants to build a new module, app, tool, overview or website, also when they come from the Launchpad's “+ Nový modul” brief (“Chci postavit nový modul”). Explains what a module is and why, runs an interview about its purpose (never about technology), leaves the technical choices to the agent, starts the data in repository-db with a database only once the module is used in earnest, shows the plan for confirmation and founds the module with lazurio module create, in the personal space and in an Organization, never by hand.",
+  "Použij, kdykoli chce uživatel postavit nový modul, aplikaci, nástroj, přehled nebo web, i když přijde ze zadání „+ Nový modul“ v Launchpadu („Chci postavit nový modul“). Vysvětlí, co je modul a proč, vede rozhovor o účelu (nikdy o technice), nabídne šablonu, když se hodí, technické volby dělá agent, data začínají co nejníž, záznamy v repository-db, a databáze přijde až s opravdovým používáním, plán se ukáže k potvrzení a modul vznikne příkazem lazurio module create, v osobním prostoru i v Organizaci, nikdy ručně. Kdo modul Organizace založit nesmí, připraví s agentem žádost Adminovi.",
+  "Use whenever the user wants to build a new module, app, tool, overview or website, also when they come from the Launchpad's “+ Nový modul” brief (“Chci postavit nový modul”). Explains what a module is and why, runs an interview about its purpose (never about technology), offers a template when one fits, leaves the technical choices to the agent, starts the data as low as it can, records in repository-db, with a database only once the module is used in earnest, shows the plan for confirmation and founds the module with lazurio module create, in the personal space and in an Organization, never by hand. Whoever may not create an Organization's module prepares a request to the Admin with the agent.",
 );
 
 function newModule(preset: PresetName): readonly Text[] {
@@ -105,8 +112,31 @@ function newModule(preset: PresetName): readonly Text[] {
     ),
     blank,
     t(
+      `**Jak to říct uživateli.** Modul vysvětli jeho prací, ne technikou, a těmito slovy: „${moduleSentence.cs}“ Postup je třetí role výše, data druhá a aplikace první; modul může začít i bez aplikace a tu mu doplníš později.`,
+      `**How to say it to the user.** Explain a module by their work, not by technology, and in these words: “${moduleSentence.en}” The process is the third role above, the data the second and the app the first; a module may start without an app, and you add one later.`,
+    ),
+    moduleWebsiteExample,
+    t(
+      "Pod modulem je repozitář na GitHubu, takže změny v něm mají historii a jdou vrátit. U záznamů v databázi (`app/v4`) a u toho, co agent poslal ven (e-mail, zápis do cizí aplikace), to samo neplatí. Řekni mu to: „Nebojte se zkoušet: co je v historii modulu, jde vrátit.“",
+      "Under the module is a repository on GitHub, so changes in it have a history and can be undone. That alone does not hold for records in a database (`app/v4`) or for what an agent sent out (an e-mail, a write to another application). Tell them so: “Do not be afraid to try things: what is in the module's history can be undone.”",
+    ),
+    ...(personal
+      ? [
+          t(
+            "U osobního modulu vezmi příklady blíž k němu: výdaje domácnosti, rodinné recepty, plánovač cesty.",
+            "For a personal module take examples closer to them: household expenses, family recipes, a trip planner.",
+          ),
+        ]
+      : []),
+    blank,
+    t(
       "Technicky je modul **samostatný Git repozitář** s aplikací v TypeScriptu podle Lazurio Module Standard (decision 0171). Nikdy ho nezakládej ručně ani kopií jiného modulu; vzniká scaffoldem (krok 5).",
       "Technically a module is **a Git repository of its own** with a TypeScript app under the Lazurio Module Standard (decision 0171). Never create it by hand or as a copy of another module; the scaffold creates it (step 5).",
+    ),
+    blank,
+    t(
+      `**Soubory, nebo modul.** Co má sdílet tým nebo přežít Prostředí, patří do modulu: má historii na GitHubu. ${ucs.filesTitle} Prostředí (\`~/Documents/\`) jsou pracovní stůl agentů: s dalšími Prostředími se nesdílí a nezálohují se.`,
+      `**Files or a module.** What a team should share or what must outlive the Environment belongs in a module, which has its history on GitHub. The Environment's ${uen.filesTitle} (\`~/Documents/\`) are the agents' desk: they are not shared with other Environments and are not backed up.`,
     ),
     blank,
     t("## 1. Rozhovor o účelu", "## 1. The interview about the purpose"),
@@ -122,6 +152,14 @@ function newModule(preset: PresetName): readonly Text[] {
       "- kdo ho bude používat a kde: jen on, nebo i další uživatelé, u počítače, na telefonu, v terénu;",
       "- who will use it and where: only them or other users too, at a computer, on a phone, out in the field;",
     ),
+    ...(organizations
+      ? [
+          t(
+            "- jde-li modul do Organizace, kdo k němu má mít přístup: kteří kolegové a které Teamy na něm budou pracovat (krok 4);",
+            "- when the module goes into an Organization, who should have access to it: which colleagues and which Teams will work on it (step 4);",
+          ),
+        ]
+      : []),
     t(
       "- co v něm chce vidět a co v něm chce dělat;",
       "- what they want to see in it and what they want to do in it;",
@@ -156,6 +194,8 @@ function newModule(preset: PresetName): readonly Text[] {
     ...newModulePlace(personal, organizations),
     blank,
     t("## 3. Technické volby děláš ty", "## 3. You make the technical choices"),
+    ...newModuleTemplates(personal, organizations),
+    blank,
     t(
       "Stack, úložiště dat i port vybereš sám podle rozhovoru a každou volbu uživateli vysvětlíš jednou větou obyčejnými slovy. Na nic z toho se ho neptej; když se zeptá sám nebo chce něco jinak, vyhov mu.",
       "You choose the stack, the data storage and the port yourself from the interview and explain each choice to the user in one sentence of plain words. Ask them about none of it; when they ask themselves or want something else, go along with them.",
@@ -186,12 +226,28 @@ function newModule(preset: PresetName): readonly Text[] {
     ),
     blank,
     t(
-      "- **Data začínají v repository-db.** Modul, který drží data, je má v datovém repozitáři `<slug>-data`, připojeném v modulu jako `db/` a obsluhovaném knihovnou repository-db (`github:Lazurio/repository-db#v3.x.y`, vždy vydaná verze). Pro začátek je to nejlepší volba: nic se nezakládá ani neplatí, data jsou čitelné soubory YAML, jejichž strukturu s uživatelem snadno ladíš, každá změna má historii a jde vrátit a změny dat potvrzuje uživatel Publikací. Tady se struktura dat vyladí. Modul bez dat (web ke čtení, dokumentace) datový repozitář nemá.",
-      "- **The data starts in repository-db.** A module that holds data keeps it in a data repository `<slug>-data`, mounted in the module as `db/` and served by the repository-db library (`github:Lazurio/repository-db#v3.x.y`, always a released version). That is the best choice to start with: nothing to set up or pay for, the data is readable YAML whose structure you tune with the user easily, every change has a history and can be undone, and the user confirms data changes by Publication. This is where the data's structure settles. A module without data (a site for reading, documentation) has no data repository.",
+      "- **Kde leží data, říká generace aplikace.** Číslo v `app/v<N>/` neříká kvalitu ani stáří, ale kde leží data (oddíl App generations v `docs/module-standard.md` v `Lazurio/LazurioPlatform`). Uživateli ho neříkej, řekni mu obyčejnými slovy, kde data budou. Vyber nejnižší generaci, která modulu stačí:",
+      "- **The app's generation says where the data lives.** The number in `app/v<N>/` says neither quality nor age but where the data lives (section App generations of `docs/module-standard.md` in `Lazurio/LazurioPlatform`). Do not tell the user the number; tell them in plain words where the data will be. Choose the lowest generation the module can do with:",
     ),
     t(
-      "- **Databáze až pro modul, který uživatelé opravdu používají.** Databázi modul potřebuje, když se přístup k datům má lišit mezi Environmenty uvnitř jedné datové sady, když se osobní údaje musí dát smazat (historie Gitu se nepřepisuje), když zapisuje služba zvenku nebo jde o hodně zápisů, nebo když na stejných datech současně pracují uživatelé z různých Environmentů (decision 0196, bod 8). Pak uživateli tyhle kompromisy vysvětli a doporuč převod; doporučujeme **Neon**. Schéma databáze vychází z kolekcí v repository-db: kolekce a jejich typy jsou předlohou tabulek a data se převedou jednou migrací. Převod je samostatná práce, kterou s uživatelem domluvíš, až přijde čas. **U nového modulu databázi nikdy nezakládej.**",
-      "- **A database only for a module users use in earnest.** A module needs a database when access to the data must differ between Environments within one data set, when personal data must be deletable (Git history is not rewritten), when an outside service writes or there are many writes, or when users from different Environments work on the same data at once (decision 0196, point 8). Then explain these trade-offs to the user and recommend the move; we recommend **Neon**. The database's schema comes from the repository-db collections: the collections and their types are the model for the tables, and the data moves in one migration. The move is a separate piece of work that you agree with the user when the time comes. **Never create a database for a new module.**",
+      "  - `app/v1`, obsah je součástí aplikace: modul bez vlastních záznamů, třeba web ke čtení, rozcestník nebo prezentace. Datový repozitář nemá. Tady začíná modul bez `--data`.",
+      "  - `app/v1`, the content is part of the app: a module without records of its own, such as a site for reading, a signpost page or presentations. It has no data repository. A module without `--data` starts here.",
+    ),
+    t(
+      "  - `app/v2`, obsah leží vedle aplikace ve stejném repozitáři, v `data/v2/`, s pevnou strukturou: hodně obsahu, který se mění občas a upravují ho agenti, třeba dokumentace. Scaffold ho nezakládá; vzniká přechodem, když obsahu přibude.",
+      "  - `app/v2`, the content lies beside the app in the same repository, in `data/v2/`, with a fixed structure: much content that changes now and then and that agents edit, such as documentation. The scaffold does not create it; it comes by a transition once the content grows.",
+    ),
+    t(
+      "  - `app/v3`, záznamy leží ve vlastním datovém repozitáři `<slug>-data`, připojeném v modulu jako `db/` a obsluhovaném knihovnou repository-db (`github:Lazurio/repository-db#v3.x.y`, vždy vydaná verze). **Výchozí volba pro nový modul s daty** (`--data`): nic se nezakládá ani neplatí, data jsou čitelné soubory YAML, jejichž strukturu s uživatelem snadno ladíš, každá změna má historii a jde vrátit a změny dat potvrzuje uživatel Publikací. Tady se struktura dat vyladí.",
+      "  - `app/v3`, the records lie in a data repository of their own, `<slug>-data`, mounted in the module as `db/` and served by the repository-db library (`github:Lazurio/repository-db#v3.x.y`, always a released version). **The default for a new module with data** (`--data`): nothing to set up or pay for, the data is readable YAML whose structure you tune with the user easily, every change has a history and can be undone, and the user confirms data changes by Publication. This is where the data's structure settles.",
+    ),
+    t(
+      "  - `app/v4`, záznamy leží v databázi Dolt ve Službách serveru Organizace; na GitHubu je aplikace, postup a schéma, řádky ne. Jen pro modul Organizace, který ji opravdu potřebuje: když se přístup k datům má lišit mezi Environmenty uvnitř jedné datové sady, když se osobní údaje musí dát smazat (historie Gitu se nepřepisuje), když zapisuje služba zvenku nebo jde o hodně zápisů, nebo když na stejných datech současně pracují uživatelé z různých Environmentů (decision 0196, bod 8). Organizace s více servery používá tentýž `app/v4` s jiným nastavením připojení; `app/v5` není. Tahle cesta je rozhodnutá (decision 0209), ale zatím nenasazená: jak modul dostane připojení, je otevřené (Lazurio/LazurioPlatform#818), a Dolt drží historii jako Git, takže mazání osobních údajů z ní taky ještě není vyřešené. Uživateli ji neslibuj jako hotovou.",
+      "  - `app/v4`, the records lie in a Dolt database in the Organization's Server services; on GitHub are the app, the process and the schema, not the rows. Only for an Organization's module that really needs it: when access to the data must differ between Environments within one data set, when personal data must be deletable (Git history is not rewritten), when an outside service writes or there are many writes, or when users from different Environments work on the same data at once (decision 0196, point 8). An Organization with several servers uses the same `app/v4` with another connection setting; there is no `app/v5`. This path is decided (decision 0209) but not yet deployed: how a module gets its connection is open (Lazurio/LazurioPlatform#818), and Dolt keeps history as Git does, so deleting personal data from it is not settled either. Do not promise it to the user as ready.",
+    ),
+    t(
+      "- **Začni co nejníž; přechod je řízená změna.** Výš modul přejde, až to opravdové používání potřebuje. Je to samostatná práce, kterou s uživatelem domluvíš, až přijde čas: nová `app/v<N+1>/` vedle staré, převod dat a přepnutí `default_app`. Schéma databáze vychází z kolekcí v repository-db: kolekce a jejich typy jsou předlohou tabulek a data se převedou jednou migrací. **U nového modulu databázi nikdy nezakládej.** Neon ani jinou databázi mimo Organizaci nedoporučuj.",
+      "- **Start as low as you can; a transition is a controlled change.** A module moves up once its real use needs it. That is a separate piece of work you agree with the user when the time comes: a new `app/v<N+1>/` beside the old one, the data moved and `default_app` switched. The database's schema comes from the repository-db collections: the collections and their types are the model for the tables, and the data moves in one migration. **Never create a database for a new module.** Do not recommend Neon or any other database outside the Organization.",
     ),
     t(
       "- **Co Lazurio už má, nestav.** Než volbu uděláš, projdi oddíl Co už Lazurio má v `manual/lazurio.md`. Na Remote Environmentu přihlášení zajišťuje brána, klíče dává trezor a data jiného modulu se čtou přes deklaraci. Co se má podle rozhovoru dít samo (souhrn, import, připomínka), navrhni v plánu jako automatizaci v Automate na Remote Environmentu, ne jako plánovač v modulu.",
@@ -233,8 +289,8 @@ function newModule(preset: PresetName): readonly Text[] {
     ...(organizations
       ? [
           t(
-            "- `organization-owner-required`, `team-environment`: modul Organizace smí založit jen její aktivní Owner, nikdy týmový Environment; řekni to uživateli a navrhni, ať ho založí Owner.",
-            "- `organization-owner-required`, `team-environment`: only an active Owner of the Organization creates its module, never a Team Environment; tell the user and suggest an Owner creates it.",
+            "- `organization-owner-required`, `team-environment`: modul Organizace zakládá jen její Admin, dnes aktivní Owner na GitHubu, nikdy Týmové Prostředí. Neobcházej to: dokonči s uživatelem popis, nech si ho potvrdit a připrav žádost Adminovi skillem `admin-request`.",
+            "- `organization-owner-required`, `team-environment`: only the Organization's Admin creates its module, today an active Owner on GitHub, never a Team Environment. Do not work around it: finish the description with the user, have it confirmed and prepare a request to the Admin with the skill `admin-request`.",
           ),
           t(
             "- `teams-required`, `team-not-on-github`, `unknown_team`: modul Organizace potřebuje aspoň jeden Team z `lazurio.organization.json`, který je i na GitHubu; zeptej se uživatele na jiný, nový Team zakládá Admin.",
@@ -257,6 +313,32 @@ function newModule(preset: PresetName): readonly Text[] {
     t(
       "- `data-repository-exists`: datový repozitář `<slug>-data` už existuje a nikdy se nepřebírá; navrhni uživateli jiný slug.",
       "- `data-repository-exists`: the data repository `<slug>-data` exists already and is never taken over; propose another slug to the user.",
+    ),
+  ];
+}
+
+// Step 3 starts with the Marketplace (F14 addendum of 2026-11-05): its offers
+// go only into an Organization (`targets` in the Launchpad's marketplace
+// panel), and only an offer with a released commit is shown. The registry is
+// public, so the agent reads it as the Launchpad does, and the adoption follows
+// the release's own `docs/adoption.md`.
+function newModuleTemplates(
+  personal: boolean,
+  organizations: boolean,
+): readonly Text[] {
+  if (!organizations)
+    return [
+      t(
+        `Šablony z ${ucs.appsMarketplace} (v Lazuriu ${ucs.marketAppTemplates}) jdou zatím jen do Organizace, takže osobní modul stavíš od začátku.`,
+        `Templates of the ${uen.appsMarketplace} (in Lazurio ${uen.marketAppTemplates}) go only into an Organization for now, so you build a personal module from the start.`,
+      ),
+    ];
+  const released = (locale: "cs" | "en") =>
+    `\`gh api -H 'Accept: application/vnd.github.raw+json' repos/Lazurio/marketplace/contents/index.json --jq '.offers[] | select(any(.releases[]; .commit != null)) | [.id, .title, .summary.${locale}] | @tsv'\``;
+  return [
+    t(
+      `**Nejdřív šablona.** Než začneš stavět od nuly, zkontroluj ${ucs.appsMarketplace} (v Lazuriu ${ucs.marketAppTemplates}, registr \`Lazurio/marketplace\`). Vydané šablony vypíše ${released("cs")}. Když některá pokrývá potvrzené shrnutí, nabídni ji uživateli jednou větou: šablona se přidá jako soukromá kopie, takže to bude vlastní modul Organizace. Když ji chce, nejdřív živě ověř roli (\`manual/mechanisms.md\`): šablonu přebírá Admin Organizace, nikdy Týmové Prostředí. Bez role a na Týmovém Prostředí nepokračuj podle šablony: nech si potvrdit shrnutí jako popis modulu a Teamy, které ho mají dostat, a připrav žádost Adminovi skillem \`admin-request\` se jménem šablony a vydáním. Admin pokračuje podle \`docs/adoption.md\` šablony přesně z commitu vydání, který registr uvádí, ne kroky níže; v Lazuriu ti přesné zadání předá „${ucs.marketAdd}“.${personal ? " Do osobního prostoru šablony zatím nejdou, takže osobní modul stavíš od začátku." : ""}`,
+      `**A template first.** Before you build from nothing, check the ${uen.appsMarketplace} (in Lazurio ${uen.marketAppTemplates}, the registry \`Lazurio/marketplace\`). ${released("en")} lists the released templates. When one covers the confirmed summary, offer it to the user in one sentence: a template is added as a private copy, so it will be the Organization's own module. When they want it, first check the role live (\`manual/mechanisms.md\`): the Organization's Admin takes a template over, never a Team Environment. Without the role and on a Team Environment do not go on by the template: have the summary confirmed as the module's description together with the Teams that should get it, and prepare a request to the Admin with the skill \`admin-request\`, naming the template and its release. The Admin goes on by the template's \`docs/adoption.md\` from exactly the release's commit the registry names, not by the steps below; in Lazurio “${uen.marketAdd}” hands you the exact brief.${personal ? " Templates do not go into a personal space yet, so you build a personal module from the start." : ""}`,
     ),
   ];
 }
@@ -342,16 +424,16 @@ const personalModulePlan: readonly Text[] = [
 // Organization root, with the same dry run and confirmed plan.
 const organizationModuleRoute: readonly Text[] = [
   t(
-    "**Modul Organizace.** Založíš ho stejně jako osobní modul, jen s Organizací a jejími Teamy. Smí to jen aktivní Owner Organizace (podle živé odpovědi GitHubu) a nikdy týmový Environment; jinak běh odmítne s `organization-owner-required` nebo `team-environment` a ty to uživateli řekneš.",
-    "**An Organization's module.** You found it as a personal module, only with the Organization and its Teams. Only an active Owner of the Organization may (by GitHub's live answer), never a Team Environment; otherwise the run refuses with `organization-owner-required` or `team-environment`, and you tell the user.",
+    "**Modul Organizace.** Založíš ho stejně jako osobní modul, jen s Organizací a jejími Teamy. Zakládá ho její Admin, dnes aktivní Owner na GitHubu podle živé odpovědi GitHubu (jak roli ověřit, říká `manual/mechanisms.md`), nikdy Týmové Prostředí; jinak běh odmítne s `organization-owner-required` nebo `team-environment`. Roli ověř hned, jak víš, že modul patří do Organizace. Uživatel bez ní ani Týmové Prostředí modul nezaloží: rozhovor dokonči, nech si potvrdit shrnutí jako popis modulu a Teamy, které ho mají dostat, a připrav žádost Adminovi skillem `admin-request`. Další body platí pro Admina.",
+    "**An Organization's module.** You found it as a personal module, only with the Organization and its Teams. Its Admin creates it, today an active Owner on GitHub by GitHub's live answer (`manual/mechanisms.md` says how to check the role), never a Team Environment; otherwise the run refuses with `organization-owner-required` or `team-environment`. Check the role as soon as you know the module goes into an Organization. A user without it and a Team Environment create no module: finish the interview, have the summary confirmed as the module's description together with the Teams that should get it, and prepare a request to the Admin with the skill `admin-request`. The points below are for the Admin.",
   ),
   t(
     '1. Vytvoř task worktree rootu Organizace v jeho `.worktrees/root/`: `git -C organizations/<org> worktree add -b <branch> "$PWD/organizations/<org>/.worktrees/root/<task>" main`.',
     '1. Create a task worktree of the Organization root in its `.worktrees/root/`: `git -C organizations/<org> worktree add -b <branch> "$PWD/organizations/<org>/.worktrees/root/<task>" main`.',
   ),
   t(
-    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create <Organizace>/<slug> --stack <stack> --teams <team,team> --name '<název>' --dry-run --json`, a má-li modul data, s `--data`. Organizaci jmenuj jejím slugem nebo GitHub loginem; Teamy jsou Teamy z `lazurio.organization.json`, které na modulu budou pracovat (dostanou na repozitář Write).",
-    "2. In the task worktree run the plan, which writes nothing: `lazurio module create <Organization>/<slug> --stack <stack> --teams <team,team> --name '<name>' --dry-run --json`, with `--data` when the module has data. Name the Organization by its slug or its GitHub login; the Teams are the Teams of `lazurio.organization.json` that will work on the module (they get Write on its repository).",
+    "2. V task worktree spusť plán, který nic nezapíše: `lazurio module create <Organizace>/<slug> --stack <stack> --teams <team,team> --name '<název>' --dry-run --json`, a má-li modul data, s `--data`. Organizaci jmenuj jejím slugem nebo GitHub loginem; Teamy jsou `slug` z pole `teams` v `lazurio.organization.json`, a to ty, které podle rozhovoru na modulu budou pracovat (dostanou na repozitář Write).",
+    "2. In the task worktree run the plan, which writes nothing: `lazurio module create <Organization>/<slug> --stack <stack> --teams <team,team> --name '<name>' --dry-run --json`, with `--data` when the module has data. Name the Organization by its slug or its GitHub login; the Teams are the `slug` values of `teams` in `lazurio.organization.json`, those the interview says will work on the module (they get Write on its repository).",
   ),
   t(
     "3. Plán uživateli ukaž obyčejnými slovy: soukromý repozitář `<login Organizace>/<slug>`, datový repozitář `<login Organizace>/<slug>-data`, má-li modul data, Teamy a jejich přístup, název, co stack znamená a port. Počkej, až ho potvrdí; když něco změní, spusť dry run znovu.",
@@ -485,6 +567,10 @@ const organizationModuleBar: readonly Text[] = [
   t(
     "- Teprve pak modul spusť: `lazurio module start <Organizace>/<slug> --json` (na macOS v Launchpadu; `python-uv` a `none` se takhle nespouštějí), otevři `result.runtime.url` v prohlížeči, ověř, že se stránka vykreslila, a dej uživateli odkaz.",
     "- Only then start the module: `lazurio module start <Organization>/<slug> --json` (on macOS in the Launchpad; `python-uv` and `none` are not started this way), open `result.runtime.url` in the browser, check that the page rendered and give the user the link.",
+  ),
+  t(
+    `- **Řekni uživateli, kdo modul dostane.** Teamy z \`--teams\` ho mají od založení. Ostatní přístupy určuje Admin Organizace v Přehledu Organizace → Moduly → Přístup: je to živý grant na GitHubu (decision 0186). Kolegům s přístupem Lazurio modul doručí samo synchronizací, kterou spouští při startu Launchpadu a pak každou hodinu, takže ho v ${ucs.appsTitle} uvidí obvykle do hodiny po merge slotu; zablokovaný root nebo neúspěšná operace doručení zastaví. Kdo přístup nikdy neměl, modul v ${ucs.appsTitle} nemá a agent ho nepřečte; jméno z manifestu Organizace vidět může. Odebrání přístupu ale nesmaže kopii, kterou Prostředí už má: agent ji dál přečte, jen se přestane aktualizovat. Týmové Prostředí ho takhle nedostane, jeho obsah připravuje hosting.`,
+    `- **Tell the user who gets the module.** The Teams of \`--teams\` have it from the start. The Organization's Admin decides the rest in the Organization's Dashboard → Modules → Access: that is the live grant on GitHub (decision 0186). Lazurio delivers the module to colleagues with access by itself, by the synchronization it runs when the Launchpad starts and then every hour, so they usually see it in ${uen.appsTitle} within an hour of the slot's merge; a blocked root or a failed operation stops the delivery. Whoever never had access does not have the module in ${uen.appsTitle} and the agent cannot read it; its name may still show in the Organization's manifest. Revoking access does not delete a copy the Environment already has: the agent can still read it, it only stops updating. A Team Environment does not get it this way; the hosting prepares its content.`,
   ),
 ];
 
@@ -834,8 +920,8 @@ const moduleStandard: readonly Text[] = [
     "- **Manifest.** `lazurio.module.json` at the root: an `id` equal to the slot in the Organization's manifest, a port lease from the Organization's pool, `apps` and `default_app`.",
   ),
   t(
-    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome. Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`, vedle `package.json` ještě `pyproject.toml` se shodnou tabulkou `[tool.lazurio]`, commitnutý `uv.lock` místo `bun.lock` a ruff a strict pyright místo TypeScriptu a Biome; tahle Platforma ji zatím nespouští.",
-    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome. A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`, and has beside `package.json` a `pyproject.toml` with the same `[tool.lazurio]` table, a committed `uv.lock` in place of `bun.lock`, and ruff and strict pyright in place of TypeScript and Biome; this Platform does not start it yet.",
+    "- **Aplikace** v `app/v<N>/`, nejvýš dvě generace (výchozí a jedna předchozí nebo kandidátní). `N` neříká kvalitu, ale kde leží data: `app/v1` obsah je součástí aplikace, `app/v2` leží vedle ní v `data/v2/`, `app/v3` záznamy jsou v repository-db, `app/v4` v databázi Dolt; přesně to popisuje oddíl App generations v `docs/module-standard.md`. Její `package.json` má přesný `packageManager` (Bun), commitnutý `bun.lock`, skripty `dev`, `check` a `test`, deklaraci běhu `lazurio.runtime` (listenery a health) a případně přípravu `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict a Biome. Služba v Pythonu (stack `python-uv`) má v `lazurio.preparation` navíc `runtime: uv` a `uv_version`, vedle `package.json` ještě `pyproject.toml` se shodnou tabulkou `[tool.lazurio]`, commitnutý `uv.lock` místo `bun.lock` a ruff a strict pyright místo TypeScriptu a Biome; tahle Platforma ji zatím nespouští.",
+    "- **The app** in `app/v<N>/`, at most two generations (the default and one earlier or candidate). `N` says not quality but where the data lives: in `app/v1` the content is part of the app, in `app/v2` it lies beside it in `data/v2/`, in `app/v3` the records are in repository-db, in `app/v4` in a Dolt database; the section App generations of `docs/module-standard.md` says it exactly. Its `package.json` has an exact `packageManager` (Bun), a committed `bun.lock`, the scripts `dev`, `check` and `test`, the run declaration `lazurio.runtime` (listeners and health) and, where needed, the preparation `lazurio.preparation` (`owner_package`, `prepare_script`, `check_script`). TypeScript strict and Biome. A Python service (the stack `python-uv`) adds `runtime: uv` and `uv_version` to `lazurio.preparation`, and has beside `package.json` a `pyproject.toml` with the same `[tool.lazurio]` table, a committed `uv.lock` in place of `bun.lock`, and ruff and strict pyright in place of TypeScript and Biome; this Platform does not start it yet.",
   ),
   t(
     "- **Jeden proces.** `dev` spustí jeden dlouhoběžící server a nic jiného. Build, data a migrace patří do `prepare_script` (nikdy do npm lifecycle jmen jako `prepare`, která `bun install` spouští sám), jen čtecí kontrola do `check_script`. Na start cestě žádné `concurrently`, `&&`, `npx` ani `VAR=…`.",

@@ -10,7 +10,7 @@ import {
   rm,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { runContentCommand } from "../src/content/cli";
+import { contentHelp, runContentCommand } from "../src/content/cli";
 import { processContentGit } from "../src/content/git";
 import type { ContentHost } from "../src/content/host";
 import { tryContentLock } from "../src/content/lock";
@@ -1430,3 +1430,9 @@ posixTest(
   },
   60_000,
 );
+
+test("the help of organization sync says that a synchronization clones what this identity can read", () => {
+  expect(contentHelp).toContain("materialized");
+  expect(contentHelp).toContain("repository-denied");
+  expect(contentHelp).not.toContain("never cloned here");
+});

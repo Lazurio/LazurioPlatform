@@ -787,12 +787,32 @@ without it simply finds no tools.
 - The generation number names the App's data layer, not its quality, in every
   generation created from now on (decision
   [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release),
-  point 8): `app/v1` and `app/v2` have no data of their own, `app/v3` keeps its
-  records in repository-db, `app/v4` in a Dolt database (a Dolt outside the
-  server is a connection setting of `app/v4`; there is no `app/v5`). A new
-  Module starts in `app/v1`, or in `app/v3` with `--data`; moving to the next
-  data layer is a new generation beside the old one
-  ([stack profiles](stack-profiles.md#how-a-profile-changes)).
+  point 8):
+  - `app/v1` has no data layer of its own: its content is part of the App. It
+    ships and changes with the App, inside `app/v1/` or beside it, and no
+    contract of its own describes it. The templates `LazurioTemplates/design-system`
+    (`content/`) and `LazurioTemplates/presentations` (`data/v1/decks/`) are `app/v1`.
+  - `app/v2` has no data layer of its own either, but its content lies beside
+    the App in the same repository, in `data/v2/`, with a declared structure the
+    App checks: much content that changes now and then and that agents edit. The
+    public documentation is laid out this way (`Lazurio/documentation`: `app/v2/`
+    and `data/v2/`, a website without a Module manifest).
+  - `app/v3` keeps its records in repository-db: a data repository of their own,
+    `<slug>-data`, mounted as `db/`. It is the default for a new Module with data.
+  - `app/v4` keeps its records in a Dolt database in the Server services of the
+    Organization's server (root decision 0209, decided, not yet deployed): on GitHub
+    are the App, the process and the schema, not the rows. A Dolt outside the server
+    is a connection setting of `app/v4`; there is no `app/v5`.
+
+  "No data of their own" in F69 means no data layer of their own: `app/v1` and
+  `app/v2` have content in the Module's repository, under its history, and no
+  records behind a store. A new Module starts in `app/v1`, or in `app/v3` with
+  `--data`; `app/v2` comes by a transition. A Module starts as low as it can, and
+  moving to the next data layer is a new generation beside the old one, the data
+  moved and `default_app` switched
+  ([stack profiles](stack-profiles.md#how-a-profile-changes)). What this means for
+  people is the [module explanation](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)
+  of F14's second addendum of 2026-11-05.
 - An existing Module whose App with data lives in `app/v1` or `app/v2`
   (created before this rule, for example by F52's addendum of 2026-10-14)
   conforms as it is and is not renamed: a rename would move its code outside a

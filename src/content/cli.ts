@@ -108,7 +108,7 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   does first (before the builds and Lazurio itself): the root first, then, from the
   root's declaration as it is after that, its workspace modules, root-level
   applications and their declared data mounts (on the mount's declared
-  branch) that are in the Folder. Per repository one ls-remote of its branch,
+  branch). Per repository one ls-remote of its branch,
   and only when it differs a fetch, then a fast-forward to exactly the
   fetched commit, never a merge, stash, switch, reset or hook, and never
   interactive (no prompt, SSH in batch mode, about a minute per repository).
@@ -117,15 +117,20 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   under way; otherwise it is blocked with its reason (dirty, wrong-branch,
   detached, ahead, diverged, operation-in-progress, unexpected-checkout) and
   left exactly as it is. A blocked or unreadable root stops its Organization.
-  Each repository answers fast-forwarded (from and to), current, blocked,
-  absent (declared, not in the Folder: never cloned here, that is
-  organization install), denied, unavailable or failed. Production Space
+  Each repository answers fast-forwarded (from and to), current, materialized
+  (a declared module or data mount that was not here, cloned now that this
+  Environment's identity can read it), blocked, absent (declared, not in the
+  Folder and not cloned: this identity cannot read it, repository-denied; the
+  slot is restricted or private, or below such a slot; a data mount's module
+  is not here; or this is a Team Environment, whose content the hosting
+  prepares), denied, unavailable or failed. Production Space
   repositories, infra, worktrees and the Personalspace are never touched. The
   identity is this Environment's: gh's sign-in (gh as the HTTPS helper), a
   Team Environment's configured helper, or on a public Environment anonymous
   HTTPS. The answers are recorded for the doctor and the Launchpad. With
   --json one line {kind: "content-sync", at, organizations, entries}.
-  Exit status: 0 every repository current, fast-forwarded or absent; 1 any
+  Exit status: 0 every repository current, fast-forwarded, materialized or
+  absent; 1 any
   other answer, another content operation (content-busy) or no such
   Organization here; 2 usage or not on this Environment.`;
 
