@@ -10,9 +10,11 @@ import { FakeNode } from "./fixtures/fake-dialog-dom";
 // and that each hand-over carries the words of its own offer. How it looks
 // and takes the focus is checked in a browser (root decision 0178).
 
+const hadDocument = "document" in globalThis;
 const original = globalThis.document;
 afterEach(() => {
-  globalThis.document = original;
+  if (hadDocument) globalThis.document = original;
+  else Reflect.deleteProperty(globalThis, "document");
 });
 
 const cs = messages("cs");
