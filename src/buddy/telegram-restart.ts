@@ -420,9 +420,14 @@ export function createTelegramRestart(
       return barrier;
     },
 
-    /** The attempt the last change asked for has ended (tests, and the
-     * Launchpad's own settling); null where none was asked. */
-    settled: (): Promise<TelegramRestartOutcome | null> => asked,
+    /** Waits until the attempt for the last change is complete. If an
+     * attempt starts after it (for example, a retry from a timer), this also
+     * waits for that attempt. The tests use this function. The result is null
+     * if there is no attempt. */
+    async settled(): Promise<TelegramRestartOutcome | null> {
+      const outcome = await asked;
+      return running ?? outcome;
+    },
 
     /** The Launchpad starts: a restart owed by a change before it is made
      * once Buddy is idle, without anyone opening a page. Where no change
