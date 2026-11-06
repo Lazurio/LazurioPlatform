@@ -672,6 +672,49 @@ handler, `onShutdown()` for `SIGTERM`, the development server options and
 `viteShutdownPlugin()`, which closes Vite's open connections on `SIGTERM` so that
 it exits 0. It does not grow into a framework.
 
+## Tools for agents (WebMCP)
+
+People and agents work in the same Apps. An agent opens an App in the
+Environment browser and could click through it like a person, which is slow
+and breaks when the page changes. So an App with an interface for people
+offers its main actions as WebMCP tools: the page registers them, and an agent
+lists and calls them with `agent-browser webmcp list` and `webmcp invoke`
+([Environment browser](environment-browser.md); Matěj 2026-11-05, amendment of
+[0171](decision-register.md#0171--lazurio-module-standard)).
+
+- **Which Apps.** Every App with an interface where people do something:
+  create, edit, search, assign, prepare, approve. A website or a knowledge base
+  that people only read (`astro`, `astro-starlight`) needs none; a service
+  without an interface (`bun-service`) has its API instead.
+- **Which actions.** The ones a person does most and the ones an agent is asked
+  to do: find a record, open it, fill or change it, prepare a document. A tool
+  names one action (`snake_case`, verb first, in English: `find_revision`,
+  `update_measurement`); its description, in the Organization's language, says
+  what it does and what it returns; its input is a JSON Schema.
+- **The same path as the interface.** A tool calls the same server API the
+  interface calls, with the page's own session, so the server checks it on every
+  request like a click ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key)).
+  It never offers more than the interface offers the current person and never
+  takes a shortcut around a check the interface has.
+- **Publication stays with the person.** A tool may prepare a publication,
+  sending, signature or deletion, but never completes it on its own: the last
+  step stays a button the person presses, or a confirmation the page asks the
+  person for. An agent's own rules say the same (Publication only on the
+  person's word); the App holds it as well.
+- **Without WebMCP nothing changes.** The App looks up the API
+  (`document.modelContext` in Chrome 156, `navigator.modelContext` in the
+  proposed standard) and registers its tools only when it is there; the page
+  works the same without it. A tool's answer is text or JSON for the agent; a
+  refusal is an answer with the reason, never a thrown page error.
+- **Tested like the interface.** The App's tests check the names and input
+  schemas of its tools and that each tool goes through the same API call as
+  its button.
+
+Modules that exist converge in a pull request of their own; `lazurio module
+create` writes no tools yet. The Environment browser has WebMCP on from the
+release that turns on its features (Lazurio/LazurioPlatform#883); a browser
+without it simply finds no tools.
+
 ## App generations
 
 - The generation number names the App's data layer, not its quality, in every
@@ -815,7 +858,7 @@ of the Platform is an issue in this repository, without Organization content.
   `module-nonconformant` for after the cutover, which has no date; this repository
   has no such check.
 
-## Requirements MS-01 to MS-14
+## Requirements MS-01 to MS-15
 
 | ID | Requirement | Enforced in this repository |
 | --- | --- | --- |
@@ -833,11 +876,13 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
+| `MS-15` | An App with an interface for people registers its main actions as WebMCP tools that go through the same server API as the interface and never complete a publication, sending, signature or deletion on their own ([Tools for agents](#tools-for-agents-webmcp)) | Rule only |
 
 ## GEN3
 
 In GEN3 the Lazurio Root runs Modules with its own Launchpad and measures `MS-01`
-to `MS-14` with its own command `lazurio module setup`; where it differs from the
+to `MS-14` with its own command `lazurio module setup` (`MS-15` is a rule of this
+page only); where it differs from the
 Platform, this page describes the Platform.
 
 ## Decisions
