@@ -66,8 +66,8 @@ export const quotedLaunchpadLabels: readonly MessageKey[] = Object.freeze([
 // wherever an agent explains it. It is quoted as what the agent says, so in
 // the person's address.
 export const moduleSentence: Text = t(
-  "Modul je jedna oblast práce vaší firmy, třeba zakázky, web nebo receptury. Drží pohromadě postup, podle kterého agenti pracují, data, se kterými se pracuje, a aplikaci, ve které je vidíte a měníte.",
-  "A module is one area of your company's work, such as orders, the website or recipes. It keeps together the process agents follow, the data the work is about, and the app in which you see and change it.",
+  "Modul je jedna oblast vaší práce, třeba zakázky, web nebo receptury. Drží pohromadě postup, podle kterého agenti pracují, data, se kterými se pracuje, a aplikaci, ve které je vidíte a měníte.",
+  "A module is one area of your work, such as orders, the website or recipes. It keeps together the process agents follow, the data the work is about, and the app in which you see and change it.",
 );
 export const moduleWebsiteExample: Text = t(
   "Příklad, který má každá firma, je web: postup říká, jak se píšou texty a jaké jsou barvy, data jsou stránky, texty a obrázky a aplikace je web sám a jeho náhled. Proto stačí agentovi poslat snímek obrazovky a napsat „oprav tuhle větu“: modul webu mu řekne, kde text leží a jak změnu publikovat.",

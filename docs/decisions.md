@@ -3573,13 +3573,13 @@ amendments of 2026-10-24 and addendum of 2026-11-01 ended (in releases from v0.1
 What changes:
 
 - **One explanation, in the skill and the manual.** `moduleSentence` holds it in both languages:
-  "A module is one area of your company's work, such as orders, the website or recipes. It keeps
-  together the process agents follow, the data the work is about, and the app in which you see
-  and change it." Its three parts are the process (the module's `AGENTS.md` and skills, for
+  "A module is one area of your work, such as orders, the website or recipes. It keeps together
+  the process agents follow, the data the work is about, and the app in which you see and change
+  it." Its three parts are the process (the module's `AGENTS.md` and skills, for
   agents), the data (records and content, for people and agents) and the app (the screen, for
   people, which may come later). Under them is a repository on GitHub, so every change has a
   history and can be undone. The example is the company's website. In the personal space the
-  agent says "your work or household" and takes examples of that kind.
+  sentence stays and the agent takes examples of that kind.
 - **The ladder of generations (F69 point 8).**
 
   | Generation | Where the data lives | When |

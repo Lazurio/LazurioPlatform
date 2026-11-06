@@ -123,8 +123,8 @@ function newModule(preset: PresetName): readonly Text[] {
     ...(personal
       ? [
           t(
-            "U osobního modulu místo „vaší firmy“ řekni „vaší práce nebo domácnosti“ a příklady vezmi blíž k němu: výdaje domácnosti, rodinné recepty, plánovač cesty.",
-            "For a personal module say “your work or household” instead of “your company” and take examples closer to them: household expenses, family recipes, a trip planner.",
+            "U osobního modulu vezmi příklady blíž k němu: výdaje domácnosti, rodinné recepty, plánovač cesty.",
+            "For a personal module take examples closer to them: household expenses, family recipes, a trip planner.",
           ),
         ]
       : []),
