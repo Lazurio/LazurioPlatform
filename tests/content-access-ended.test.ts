@@ -573,6 +573,7 @@ posixTest(
     await fixture.run(minutes(60), webGone);
     expect((await lstat(web)).isSymbolicLink()).toBe(true);
     expect(await exists(join(elsewhere, "unsaved.txt"))).toBe(true);
+    expect(fixture.retired).toEqual([]);
   },
   60_000,
 );
@@ -592,7 +593,7 @@ posixTest(
     await writeFile(fixture.at(".git/info/exclude"), "workspace\n");
     await fixture.run(minutes(60), webGone);
     expect(await exists(join(elsewhere, "web", "unsaved.txt"))).toBe(true);
-    expect(fixture.retired).toEqual([`${login} workspace/web`]);
+    expect(fixture.retired).toEqual([]);
   },
   60_000,
 );

@@ -1,12 +1,5 @@
 import { randomBytes } from "node:crypto";
-import {
-  lstat,
-  readdir,
-  readFile,
-  realpath,
-  rename,
-  rm,
-} from "node:fs/promises";
+import { lstat, readdir, readFile, rename, rm } from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
 import { assignedPerson, type MachineBinding } from "../folder/machine-binding";
 import { githubIdentity, type PresetName } from "../folder/presets";
@@ -134,7 +127,7 @@ async function linkedWorktrees(commonDir: string): Promise<readonly string[]> {
 }
 
 /** The copy at `directory`, proved once more as the primary checkout of
- * exactly this repository and as a real directory at its declared place, gone
+ * exactly this repository (`inspect` refuses a link anywhere on the way), gone
  * with everything below it: a rename, so nothing half-deleted ever looks like
  * a checkout, then the deletion. Null: it was not, and nothing changed. */
 async function removeCopy(
@@ -145,9 +138,6 @@ async function removeCopy(
   at: string,
 ): Promise<RemovedCopy | null> {
   const directory = join(root, path);
-  // A link anywhere on the way resolves elsewhere: nothing it points to goes.
-  const real = await realpath(directory);
-  if (real !== join(await realpath(root), path)) return null;
   const observed = await git.inspect(directory);
   if (
     observed.kind !== "checkout" ||
@@ -158,7 +148,9 @@ async function removeCopy(
   if (tree === null || tree.gitDir !== tree.commonDir) return null;
   const changes = await git.changes(directory, tree.gitDir);
   const linked = await linkedWorktrees(tree.commonDir);
-  const inside = linked.filter((entry) => entry.startsWith(`${real}${sep}`));
+  const inside = linked.filter((entry) =>
+    entry.startsWith(`${directory}${sep}`),
+  );
   const moved = join(
     dirname(directory),
     `.${basename(directory)}.removing-${randomBytes(6).toString("hex")}`,
