@@ -3367,6 +3367,13 @@ Changed:
 - **The assistant's name.** A line of the own instructions, no separate field. The manual
   tells agents of a Work Environment that they are the person's assistant, while the
   Organization's persona (Henry) is the Organization's worker with its own Environment.
+- **Whose they are, before the first save.** On `hosted-organization-personal` the own
+  instructions ship with their notice, never after it: the field says that they belong to the
+  Organization with the Environment, that its Admins may read them and that private matters
+  belong to a Personal Environment, before the person saves anything. The agent's path is
+  held to the same: `lazurio folder instructions add` on a Work Environment states it in its
+  answer, and the manual's "zapamatuj si" rule tells the agent to say it to the person before
+  the first saved line. The local Personalspace (below) extends the same notice to itself.
 - **Presets.** Own instructions on `local`, `hosted-personal` and
   `hosted-organization-personal`. None, and no field, on `hosted-organization-team`,
   `hosted-organization-steward` and a public Environment.
@@ -3404,9 +3411,8 @@ top level stay where they are.
   holder, no installation, no „Připravit“, no personal modules and no module creation in it
   (#186, #383). A tool the person needs on a Work Environment is a module of the Organization.
 - **What the person sees.** Next to the own instructions Settings says where the
-  Personalspace is, that it belongs to the Organization with the Environment, that the
-  Organization's Admins may read both, and that private matters belong to a Personal
-  Environment.
+  Personalspace is and that it belongs to the Organization with the Environment. The notice
+  about the own instructions comes earlier, with them (below).
 - **The manual.** On `hosted-organization-personal`, `AGENTS.md` and `this-machine.md`
   replace "Personalspace tu nikdy není" with the local Personalspace and its rules, and the
   glossary gives Personalspace its two meanings by kind. A Personal Environment and the
@@ -3450,7 +3456,8 @@ top level stay where they are.
 #### Delivery, in this order
 
 1. Room in `AGENTS.md` (#758) and the budget test (#755).
-2. The own instructions as above, with a new template revision.
+2. The own instructions as above, with their notice on a Work Environment in Settings and
+   through the agent's command, and a new template revision.
 3. The local Personalspace with its skills: preset, Folder, catalog, the line in Settings,
    the manual.
 4. The narrower report of top-level entries.
@@ -3459,7 +3466,8 @@ top level stay where they are.
 
 Tests on the real consumers: the own instructions render after the voice in both locales with
 the precedence sentence; a change is a rendering and never `drift`; a save above the bound is
-refused; the budget test; on `hosted-organization-personal` `folder-init` creates
+refused; on a Work Environment the field and `lazurio folder instructions add` state whose the
+instructions are before the first save; the budget test; on `hosted-organization-personal` `folder-init` creates
 `personalspace/`, a Git checkout there is refused and a skill in it reaches both harnesses'
 skill lists; a collision is refused by name; the doctor names a top-level `CLAUDE.md` and not a
 `notes.txt`; the Team and Steward presets get neither. Not proven: that agents follow the own
