@@ -3,7 +3,9 @@
 Status: decision 0192 of the [decision register](decision-register.md), in force as
 the target model; the transition is not complete. Its amendments of 2026-10-26 and
 2026-11-01, decision 0202 and the access edges of decision 0224 are decided, not yet
-deployed; decision 0213 is decided and partly deployed; decision 0196 is in force.
+deployed; decision 0213 is decided and partly deployed; decision 0196 is in force;
+decision 0231 (application roles and what a Module receives) is decided, not yet
+deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
 `manual/environment-access-model.md` stays as the GEN3 record and is no authority
 for this repository. This document refines F11/F16/F33/F37 and
@@ -205,9 +207,10 @@ repository has no code for it.
 
 ## Module data: the Environment's ceiling (decision 0196)
 
-In force. Lazurio controls entry to a Module (no access, `user` or `admin`, decision
-0192) and passes it a verified identity; what each person may do inside is the
-Organization's own rules in its code and data.
+In force. Lazurio controls entry to a Module's application (application admin,
+application user or no entry, [decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)) and passes it who came and with
+which application role; what each person may do inside is the Organization's own
+rules in its code and data.
 
 - **The Environment reaches the data, not a person.** The Organization's Admin gives
   the Environment its data access through the vault: that is the Environment's
@@ -230,8 +233,10 @@ Organization's own rules in its code and data.
   a visitor the whole ceiling. Where narrowing must hold against the operator, the data
   is served by an app the Organization runs or by a store that verifies the identity
   itself.
-- **The identity is not a key.** Lazurio Auth signs it, never the Environment; it is
-  short-lived and valid for one exact Environment and app. A shared app carries no
+- **The identity is not a key.** Inside the Environment the statement comes from the
+  Environment's gateway and holds as far as the Environment does (0231). An identity
+  for use outside the Environment is signed by Lazurio Auth, never by the Environment;
+  it is short-lived and valid for one exact Environment and app. A shared app carries no
   rights to the visitor's data, so a Module with restricted rights always has a server
   part, and the browser never gets access to its store. Whoever is to see data with
   their own rights opens the Module in their own Environment or in an app the
@@ -240,6 +245,45 @@ Organization's own rules in its code and data.
   its architect's choice under the Module Standard; a person with restricted rights
   sees only the changes of the repository-db draft to records they can access, and
   only someone who sees the whole draft may publish it.
+
+## Applications and application roles (decision 0231): decided, not yet deployed
+
+[Decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users) names three levels of access and never lets admin or user
+stand alone: the Organization (Owner, Organization Admin, member), the Module
+(module access to its source code, maintainer) and the application (application
+admin, application user).
+
+- **An application** is the running stable version of a Module, built from `main` of
+  the primary checkout on an Environment (decision 0195). A worktree's development
+  server is not one.
+- **Roles hold across Environments.** An application role holds for the Module on
+  every Environment of the Organization. Application admins without any setting are
+  the members with module access, the Organization Admin and whoever has the whole
+  Environment where the application runs. Members with module access and the Admin
+  give application admin or application user to people, a Team or the whole
+  Organization; the higher role holds, and the Admin may remove any.
+- **Availability.** The person on whose Environment the application runs makes it
+  available to the Organization. Members with a role see it in Apps of their
+  Launchpad, or on their Lazurio account without an Environment, and the gateway
+  admits them to that application only (see app-only entry below). A Work
+  Environment is the first home; the target is an application the Organization runs
+  at its own address behind its own gateway (decision 0146).
+- **What a Module receives.** Only the module kit's answer is the contract, with
+  the same five fields in every case: the kind of entry (`environment`, `app`,
+  `local`, `unknown`), the application role (`admin`, `user`, none with
+  `unknown`), the person (Lazurio subject and username, or none), the source of
+  the statement (`gateway`, later `auth`; none without a person) and, without a
+  person, the reason. The gateway sets it from its own
+  admission answer after removing every client copy; a missing statement grants no
+  role, and a request from inside the Environment is an application admin without a
+  name. Its fields and values never change meaning; new information comes as new
+  fields.
+- **Meaning.** What the two roles allow is the Organization's rule in the Module's
+  code, enforced on the server for every request. Finer roles live in the Module's
+  own data, keyed by the subject.
+- **Not yet.** An agent of a colleague cannot enter an application made available
+  from another Environment, because the Environment's browser never holds a Lazurio
+  session.
 
 ## Sharing and remote operations
 
@@ -254,8 +298,10 @@ a matching assignee across Organizations is not a cross-Organization grant.
 Both full and application shares are bound to the originating assignment:
 they end when that assignment is lost or reassigned, when the sharer or the
 recipient loses membership, or when the target is rebound, and a later
-restoration does not revive them. An application share grants at most basic
-`user` entry.
+restoration does not revive them. An application made available from an
+Environment admits people by their application role, application admin or
+application user ([Applications and application roles](#applications-and-application-roles-decision-0231-decided-not-yet-deployed)),
+not by a per-person grant of at most basic `user` entry.
 
 Full entry exposes Chat, automation, Launchpad and the runtime's available
 files, credentials and integrations. It is not per-visitor runtime isolation
