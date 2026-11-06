@@ -3554,6 +3554,22 @@ On `main` of the 23 Organization roots this account can read, 10 and the GEN3 Ro
 link left in `AGENTS.md`. A behavioural check in Codex then read the end of the file and opened the
 linked manual for a task it governs.
 
+#### What a size check can and cannot show
+
+- **Codex's 32 KiB is a shared, configurable budget.** `project_doc_max_bytes` covers the whole
+  project-instruction chain from the project root to the working directory (see [agent
+  voice](agent-voice.md)), not each file separately. Nested `AGENTS.md` files in that chain use the
+  same budget, and the effective value can be lower or higher: one Organization's own
+  `.codex/config.toml` sets 65,536 bytes. The measurements above used the default and an
+  Organization root with no other instructions in the chain.
+- **The tool-output cut is in tokens and depends on the tool.** The only measurement is the
+  11,262-token example above. A byte budget makes a single read below the cut more likely for Czech
+  text of this kind (24 KiB was about 7k tokens in this sample), but it guarantees nothing; a
+  different tokenizer, tool or request can cut earlier.
+- **So a file-size guard is a heuristic that catches growth, not proof of delivery.** Proof that a
+  harness received a file is the entrypoint check: the session record (Codex) or the loaded memory
+  (Claude Code) at the real entrypoint, as [agent voice](agent-voice.md) already requires.
+
 #### What is already fixed
 
 - **0112:** instructions are a constitution; mechanics live in scripts, skills and doctors.
@@ -3569,26 +3585,30 @@ linked manual for a task it governs.
 #### Options
 
 1. **The rule in the Organization contract, checked where it is made and where it is used
-   (recommended).** The contract states the harness limit (32 KiB, Codex's default
-   `project_doc_max_bytes`) as a hard limit and 24 KiB as the working budget, so a file read with a
-   tool also stays below the output cut. The Organization template's own doctor fails a pull request
-   over the hard limit and warns over the budget in `bun run ci` of every Organization after its
-   template synchronization. `lazurio doctor` reports each mounted Organization against the same
-   numbers and against the Environment's effective `project_doc_max_bytes`. One truth (the
-   contract), one owner (this repository), two readers like every other contract rule.
+   (recommended).** The contract states a file-size guard for the Organization root's
+   `AGENTS.md`: a hard limit at Codex's default `project_doc_max_bytes` (32 KiB) and a recommended
+   working budget of 24 KiB, which leaves room for other instructions sharing the budget and makes a
+   single tool read below the observed output cut more likely. Both are heuristics with the limits
+   named above. The Organization template's own doctor fails a pull request over the hard limit and
+   warns over the budget in `bun run ci` of every Organization after its template synchronization.
+   `lazurio doctor` reports each mounted Organization against the same numbers and against the
+   Environment's effective `project_doc_max_bytes`, counting the other instruction files of the
+   chain where it can see them. Neither reader claims complete loading. One truth (the contract),
+   one owner (this repository), two readers like every other contract rule.
 2. **Only the Organization's doctor.** A gate on every pull request, owned by the template. It is
    simple, but the harness facts it depends on live outside the repository that qualifies harnesses,
    and an Organization not yet synchronized keeps growing.
 3. **Only `lazurio doctor`.** Visible on every Environment, but growth is found after the merge.
 4. **The GEN3 Root's `bun run doctor`.** Hosted Environments have no Root; rejected.
-5. **A larger `project_doc_max_bytes`.** A standard capability, but it changes a global harness
-   setting, does not help a file read with a tool or a person's own computer, and hides growth;
-   not recommended as the fix.
+5. **A larger `project_doc_max_bytes`.** A standard capability, set globally or in a project's
+   `.codex/config.toml`, but it does not help a file read with a tool, another harness or a person's
+   own computer without that configuration, and it hides growth; not recommended as the fix.
 
 #### What Matěj decides
 
 - the option (recommended: 1);
-- the numbers (recommended: 32 KiB hard, 24 KiB budget for the Organization root's `AGENTS.md`);
+- the numbers of the file-size guard (recommended: 32 KiB hard limit, 24 KiB recommended budget for
+  the Organization root's `AGENTS.md`), knowing they are heuristics and not proof of loading;
 - whether the Organization-root gap in Codex (no Folder rules in such a thread) gets its own fix, for
   example a sentence in the Organization template's `AGENTS.md` that sends the agent to the Folder's
   instructions first.
