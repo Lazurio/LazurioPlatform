@@ -3561,7 +3561,7 @@ follow-up of 2026-10-30) already says the same and has no room left under Hermes
 characters in English; the personal Folder's list of assigned peers (F10's amendment of
 2026-10-28). `base-instructions-111`.
 
-**Addendum 2026-11-05 (second), proposed (to be decided by Matěj): what agents know about
+**Addendum 2026-11-05 (second), decided by Matěj 2026-11-06: what agents know about
 modules.** People see a module as a tile, agents as a repository and Admins as an access
 boundary, and each explanation shows one face. The skill `new-module` recommended Neon for a
 database although root decision 0209 (amended 2026-11-03) and F69 put a module's database in
@@ -3622,7 +3622,7 @@ What changes:
 | A different sentence for each audience | Each is easier to write, and people again meet three explanations; rejected |
 | Keep Neon as an option beside Dolt | Data would leave the Organization's own servers and backups, against 0209; rejected |
 
-Template revision `base-instructions-111`. Verified by `tests/folder-skills.test.ts` and
+Template revision `base-instructions-112`. Verified by `tests/folder-skills.test.ts` and
 `tests/folder-mechanisms.test.ts`: the shared words, the generations, the Marketplace, access and
 the request per preset in both languages, and that no generated text says the product does not
 synchronize or recommends Neon. Not proven: that agents in every harness follow the text, and
