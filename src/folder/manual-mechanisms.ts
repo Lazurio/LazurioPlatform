@@ -229,8 +229,8 @@ export const mechanisms: readonly Text[] = [
     "### Who gets a module and how it arrives",
   ),
   t(
-    `Kdo dosáhne na modul Organizace, rozhoduje živý grant Teamu na GitHubu (rozhodnutí 0186). Teamy z \`lazurio module create --teams\` ho dostanou při založení, ostatní určuje Admin v Přehledu Organizace → Moduly → Přístup; Steward o změnu žádá. Kdo přístup nemá, modul v ${ucs.appsTitle} nevidí a jeho agent o něm neví. Osobní modul patří jen do osobního prostoru a do Organizace nejde.`,
-    `The Team's live grant on GitHub decides who reaches an Organization's module (decision 0186). The Teams of \`lazurio module create --teams\` get it when it is created; the Admin decides the rest in the Organization's Dashboard → Modules → Access, and a Steward asks for a change. Whoever has no access does not see the module in ${uen.appsTitle}, and their agent does not know of it. A personal module belongs only in the personal space and never goes into an Organization.`,
+    `Kdo dosáhne na modul Organizace, rozhoduje živý grant Teamu na GitHubu (rozhodnutí 0186). Teamy z \`lazurio module create --teams\` ho dostanou při založení, ostatní určuje Admin v Přehledu Organizace → Moduly → Přístup; Steward o změnu žádá. Bez přístupu modul v ${ucs.appsTitle} není a agent ho nepřečte; jméno z manifestu Organizace vidět může. Osobní modul patří jen do osobního prostoru a do Organizace nejde.`,
+    `The Team's live grant on GitHub decides who reaches an Organization's module (decision 0186). The Teams of \`lazurio module create --teams\` get it when it is created; the Admin decides the rest in the Organization's Dashboard → Modules → Access, and a Steward asks for a change. Without access the module is not in ${uen.appsTitle} and the agent cannot read it; its name may still show in the Organization's manifest. A personal module belongs only in the personal space and never goes into an Organization.`,
   ),
   blank,
   t(

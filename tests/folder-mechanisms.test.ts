@@ -172,6 +172,10 @@ test("the chapter explains modules, and no generated text says the product does 
           ? "Přehledu Organizace → Moduly → Přístup"
           : "Dashboard → Modules → Access",
         "`~/Documents/`",
+        // The manifest names every module, so only reading is out of reach.
+        cs
+          ? "agent ho nepřečte; jméno z manifestu Organizace vidět může"
+          : "the agent cannot read it; its name may still show in the Organization's manifest",
       ])
         expect([phrase, chapter.includes(phrase)]).toEqual([phrase, true]);
       const all = Object.values(outputs).join("\n");

@@ -379,6 +379,7 @@ test("the skill new-module explains a module in the shared words on every preset
             "`admin-request`",
             "`manual/mechanisms.md`",
             "zhruba do hodiny po merge slotu",
+            "agent ho nepřečte; jméno z manifestu Organizace vidět může",
           ]
         : [
             "which colleagues and which Teams will work on it",
@@ -387,6 +388,7 @@ test("the skill new-module explains a module in the shared words on every preset
             "`admin-request`",
             "`manual/mechanisms.md`",
             "within about an hour of the slot's merge",
+            "the agent cannot read it; its name may still show in the Organization's manifest",
           ])
         expect([phrase, text.includes(phrase)]).toEqual([
           phrase,
