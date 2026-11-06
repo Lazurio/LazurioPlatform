@@ -95,6 +95,11 @@ import {
 } from "./organizations/cli";
 import { inspectOrganizationConversion } from "./organizations/inspect-conversion";
 import { readOrganizationApplications } from "./organizations/read-applications";
+import {
+  RoleUsageError,
+  roleHelp,
+  runOrganizationRoleCommand,
+} from "./organizations/role-cli";
 import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runThemeCommand, themeHelp } from "./theme/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
@@ -510,6 +515,20 @@ async function runOtherCommand(args: string[]): Promise<number> {
       return 2;
     }
   }
+  if (args[0] === "organization" && args[1] === "role") {
+    try {
+      const { code, text } = await runOrganizationRoleCommand(
+        args,
+        processContext(),
+      );
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof RoleUsageError)) throw error;
+      console.error(`${error.message}\n${roleHelp}`);
+      return 2;
+    }
+  }
   if (args[0] === "organization" || args[0] === "module") {
     try {
       const { code, text } = await runCatalogCommand(args, processContext());
@@ -680,6 +699,7 @@ No files, locks, provider requests or applications are created. Output may conta
 private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(catalogHelp);
+    console.log(roleHelp);
     console.log(contentHelp);
     console.log(moduleHelp);
     console.log(updateHelp);
