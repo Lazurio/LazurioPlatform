@@ -114,9 +114,13 @@ are never Environments and appear neither in the rail nor in the picker; they be
 the Organization Settings (Owner only).
 
 **Column head: the Environment picker.** Above Chat · Apps · Automate the picker names
-the Environment: its name, below it whom it serves, and the Organization's avatar as its
-glyph. Its dropdown lists the Environments of the current space, one line each: a small
-glyph, the name and, quieter beside it, whom it serves. It never leads to the
+the Environment: its name, below it its kind ("Pracovní Prostředí"), and the
+Organization's avatar as its glyph; a work Environment assigned to a person shows that
+person's photo and name instead (F36's addendum of 2026-11-03). Its dropdown lists the
+Environments of the current space under the headings Lidé, Týmy and Organizace, one
+line each: a glyph, the main word (the person for a person's work Environment, their
+whole `@login` under it; a Team's or the Organization's own Environment by its name)
+and, quieter under it, its kind or whom it serves. It never leads to the
 Organization's Dashboard, which is never one more row beside the Environments: the
 Organization's name in the page's head opens it (in Apps), as do ⌘⇧E and the personal
 Dashboard's Organizations (prototypes-lazurio #17). "This computer", a workstation that
@@ -496,11 +500,14 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     `contract.ts` reads `lazurio.account.v1` with the same entry parsers as
     `lazurio.shell.v1` (https only, `isEnvironmentId` and the base-host identity, unknown
     members dropped, an invalid document refused as a whole), plus the optional `name`,
-    `who` and `offline` of an Environment (both documents) and the account-only
+    `who`, `offline` and `assigneeName` of an Environment (both documents;
+    `assigneeName`, the assigned person's name since F36's addendum of 2026-11-03, is
+    left out rather than refused when it is not display text) and the account-only
     `last`, `lastBySpace`, `favourites` and `preferences.openApps`; an account
     Environment's Apps address is always absolute. `mergeAccount` keeps this
     Environment's own entry, `current` and apps, and drops the account's entry of
-    the same id, taking only its `name`, `who` and `offline`. It adds the account's
+    the same id, taking only its `name`, `who`, `offline` and, for the same assignee,
+    `assigneeName`. It adds the account's
     other Environments and its spaces in the account's order. An Organization is
     matched by its Dashboard slug (`dashboardSlug`), the local entry winning in
     the account's place, and local ones the account lacks follow. A Dashboard slug

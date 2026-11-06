@@ -464,9 +464,10 @@ test("the picker's list on an Organization's Dashboard lists its Environments, n
   const [section] = picker.sections;
   expect(picker.sections).toHaveLength(1);
   expect(section?.head).toBeNull();
+  // People first, then Teams (F36's addendum of 2026-11-03).
   expect(section?.rows.map((row) => [row.id, row.current, row.href])).toEqual([
-    ["vm-01.example", false, "https://launchpad.vm-01.example.lazurio.io/"],
     ["vm-03.example", false, "https://launchpad.vm-03.example.lazurio.io/"],
+    ["vm-01.example", false, "https://launchpad.vm-01.example.lazurio.io/"],
   ]);
   // Nothing current: the cursor starts on the first Environment.
   expect(picker.start).toBe(0);

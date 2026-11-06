@@ -26,7 +26,7 @@ import {
   shellSchema,
   workstationId,
 } from "../shell/contract";
-import { initialsOf } from "../shell/view";
+import { githubPhoto, initialsOf } from "../shell/view";
 import { messages } from "./messages";
 import { isPublicEnvironment } from "./public-environment";
 
@@ -186,8 +186,6 @@ export function shellName(name: string | null, slug: string): string {
 }
 
 const origin = (value: string) => `${value}/`;
-const githubPhoto = (login: string) =>
-  `https://github.com/${encodeURIComponent(login)}.png?size=96`;
 
 /** The name of a Team-bound Environment: a Team Environment is its Team's
  * ("Team Sales"), an Automated Environment its persona's Team ("Steward"),

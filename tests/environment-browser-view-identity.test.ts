@@ -136,13 +136,15 @@ posixTest(
         shell.current,
         shellMessages(shell.locale),
       );
+      // A work Environment assigned to a person is named by them (F36's
+      // addendum of 2026-11-03): the handover's assignee, here `example`.
       expect(switcher).toMatchObject({
         id: "workspace.example",
-        name: "Pracovní",
-        who: "",
+        name: "example",
+        who: "Pracovní Prostředí",
         glyph: {
-          kind: "avatar",
-          organization: "Example",
+          kind: "person",
+          name: "example",
           avatar: "https://github.com/example.png?size=96",
         },
       });

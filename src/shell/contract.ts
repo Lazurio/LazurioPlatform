@@ -67,6 +67,11 @@ export type ShellEnvironment = Readonly<{
   /** The GitHub login of the one person a work Environment is assigned to,
    * for its "who" line; null otherwise. */
   assignee: string | null;
+  /** The name of that person as their profile gives it (F36's addendum of
+   * 2026-11-03, additive in v1): the switcher names a person's Environment
+   * by them. Only beside an `assignee`; absent, the elements show the
+   * login. */
+  assigneeName?: string;
   apps: ShellApps;
   /** The Dashboard's display name, when the account names it (F37's
    * addendum of 2026-10-04): the purpose name, with an order number for a
@@ -410,6 +415,7 @@ function environment(value: unknown): ShellEnvironment | null {
   if (!isRecord(value)) return null;
   const { id, label, kind, organizations, assignee, name, who, offline } =
     value;
+  const assigneeName = value.assigneeName;
   const own = apps(value.apps);
   if (
     !isEnvironmentId(id) ||
@@ -439,6 +445,11 @@ function environment(value: unknown): ShellEnvironment | null {
     ...(typeof name === "string" ? { name } : {}),
     ...(typeof who === "string" ? { who } : {}),
     ...(offline === true ? { offline } : {}),
+    // The person's name (F36's addendum of 2026-11-03): only beside an
+    // assignee and only as display text; any other value is left out
+    // rather than refusing the Environment, so a producer's slip never
+    // costs the person their list.
+    ...(assignee !== null && text(assigneeName, 128) ? { assigneeName } : {}),
   });
 }
 

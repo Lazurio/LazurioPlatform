@@ -41,7 +41,24 @@ export function organizationMark(
   avatar: string | null,
   initials: string,
 ): HTMLSpanElement {
-  const mark = span("org-mark");
+  return pictureMark("org-mark", avatar, initials);
+}
+
+/** A person's GitHub photo, round, or their initials when it does not load
+ * (F36's addendum of 2026-11-03). */
+export function personMark(
+  avatar: string | null,
+  initials: string,
+): HTMLSpanElement {
+  return pictureMark("org-mark person-mark", avatar, initials);
+}
+
+function pictureMark(
+  className: string,
+  avatar: string | null,
+  initials: string,
+): HTMLSpanElement {
+  const mark = span(className);
   const fallback = () => mark.replaceChildren(initials);
   if (avatar === null) fallback();
   else {
@@ -65,6 +82,8 @@ export function drawIdentity(
   const mark = look.glyph;
   if (mark.kind === "avatar")
     glyph.append(organizationMark(mark.avatar, mark.initials));
+  else if (mark.kind === "person")
+    glyph.append(personMark(mark.avatar, mark.initials));
   else if (mark.kind === "initials") glyph.append(span("initials", mark.text));
   else glyph.append(icon(mark.icon, 18));
   const text = span("identity-text");

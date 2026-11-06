@@ -132,11 +132,17 @@ test("the picker lists the space's Environments one line each, without the Organ
   expect(
     section?.rows.map((row) => [row.name, row.who, row.glyph, row.current]),
   ).toEqual([
-    ["Team Orbit", "Týmové", { kind: "icon", icon: "users" }, false],
-    ["Pracovní 2", "", { kind: "icon", icon: "user" }, false],
-    ["Pracovní 3", "", { kind: "icon", icon: "user" }, true],
-    ["Pracovní 4", "", { kind: "icon", icon: "user" }, false],
-    ["Pracovní 5", "", { kind: "icon", icon: "user" }, false],
+    ["Team Orbit", "Týmové Prostředí", { kind: "icon", icon: "users" }, false],
+    // Work that belongs to no person is the Organization's (F36's addendum
+    // of 2026-11-03).
+    ["Pracovní 2", "", { kind: "icon", icon: "building" }, false],
+    ["Pracovní 3", "", { kind: "icon", icon: "building" }, true],
+    ["Pracovní 4", "", { kind: "icon", icon: "building" }, false],
+    ["Pracovní 5", "", { kind: "icon", icon: "building" }, false],
+  ]);
+  expect(section?.groups.map((group) => [group.kind, group.title])).toEqual([
+    ["teams", "Týmy"],
+    ["organization", "Organizace"],
   ]);
   // No Environment and no line leads to the Organization's Dashboard.
   expect(

@@ -19,7 +19,9 @@ import {
 // - This Environment is the local document's: `current`, its entry and its
 //   apps. An account entry with the id of a local one is not added; the local
 //   entry stands in its place and takes only the account's display name,
-//   its "who" line and `offline`, which the local document never carries.
+//   its "who" line, `offline` and the assigned person's name
+//   (`assigneeName`, where the account names the same assignee), which the
+//   local document never carries.
 // - The account adds the other Environments and spaces, in its order (the
 //   same in every Environment the person opens); local Environments the
 //   account does not list come first.
@@ -43,7 +45,8 @@ import {
 //   language, a read asked without the language, or a profile whose language
 //   changed while the page was open. In another language every Environment
 //   is named as without the account (its label or kind, in the local
-//   language); ids, apps, spaces, `offline` and the last Environments stay.
+//   language); ids, apps, spaces, `offline`, the assigned person's name (a
+//   name, in no language) and the last Environments stay.
 // - The operator is the account's: the person signed in at the browser,
 //   whom a Team or another person's work Environment does not know.
 // - The locale and the Dashboard's addresses stay the local document's.
@@ -191,7 +194,10 @@ export function mergeAccount(
 }
 
 /** A local entry with the account's words for it: its display name, its
- * "who" line and whether it is off, where the local entry has none. */
+ * "who" line, whether it is off and the name of the person it is assigned
+ * to, where the local entry has none. The person's name only where the
+ * account names the same assignee (F36's addendum of 2026-11-03): the local
+ * document says who it is assigned to. */
 function described(
   own: ShellEnvironment,
   account: ShellEnvironment,
@@ -199,11 +205,23 @@ function described(
   const name = own.name ?? account.name;
   const who = own.who ?? account.who;
   const offline = own.offline ?? account.offline;
-  if (name === own.name && who === own.who && offline === own.offline)
+  const assigneeName =
+    own.assigneeName ??
+    (own.assignee !== null &&
+    account.assignee?.toLowerCase() === own.assignee.toLowerCase()
+      ? account.assigneeName
+      : undefined);
+  if (
+    name === own.name &&
+    who === own.who &&
+    offline === own.offline &&
+    assigneeName === own.assigneeName
+  )
     return own;
   return Object.freeze({
     ...own,
     ...(name === undefined ? {} : { name }),
+    ...(assigneeName === undefined ? {} : { assigneeName }),
     ...(who === undefined ? {} : { who }),
     ...(offline === undefined ? {} : { offline }),
   });

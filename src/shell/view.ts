@@ -35,6 +35,14 @@ import { fillShell, type ShellCopy, shellMessages } from "./messages";
 // head's picker, `<lazurio-environment>` in an app, and the bar of the
 // Environment browser's view, which takes it from the app around it or from
 // its own server. Its glyph, name and who line are the picker's.
+//
+// Whose an Environment is leads (F36's addendum of 2026-11-03, approved by
+// the Owner): a work Environment assigned to a person is named by that
+// person (`environmentOwner`), with their GitHub photo, and the switcher
+// lists an Organization's Environments under the headings People, Teams and
+// Organization (`environmentGroup`), so the heading carries the kind and
+// the row says whose it is. The column head says what the Environment is
+// under its name (`kindLabels`).
 
 /** A space of the rail: your personal space or one Organization. */
 export const personalSpace = "personal";
@@ -70,7 +78,12 @@ export const environmentName = (
 
 /** The quieter line beside an Environment's name, the same rule as the
  * Dashboard's (root decision 0170 addendum 2026-10-15; the brand voice,
- * "Druh Prostředí stačí"): the account's line exactly as the Dashboard words
+ * "Druh Prostředí stačí"). Since F36's addendum of 2026-11-03 the switcher
+ * uses it only for the Organization's own Environments and your personal
+ * space: a person's work Environment is named by the person, a Team's says
+ * its kind as a label, the headings carry the kind, and the column head says
+ * the kind (`kindLine`); the root rule awaits a matching addendum. The
+ * account's line exactly as the Dashboard words
  * it where it gives one (empty: nothing to add); otherwise its kind, left out
  * where the name already says it, "assigned to @login" for a work
  * Environment of someone other than `viewer`, and "offline" when it is known
@@ -432,7 +445,19 @@ export type EnvironmentGlyph =
       initials: string;
     }>
   | Readonly<{ kind: "initials"; text: string }>
-  | Readonly<{ kind: "icon"; icon: "laptop" | "user" | "users" | "bot" }>;
+  | Readonly<{
+      kind: "icon";
+      icon: "laptop" | "user" | "users" | "bot" | "building";
+    }>
+  /** The person a work Environment is assigned to (F36's addendum of
+   * 2026-11-03): their GitHub photo, round, and their initials where it
+   * does not load; their name for the words. */
+  | Readonly<{
+      kind: "person";
+      name: string;
+      avatar: string | null;
+      initials: string;
+    }>;
 
 /** An Organization's mark: its avatar, its initials and its name. */
 export const organizationGlyph = (
@@ -453,14 +478,127 @@ const kindIcons = {
   workstation: "laptop",
 } as const;
 
-/** What the picker shows of an Environment in a space: your initials for a
- * personal one, the space's Organization's mark where the space is one, the
- * kind's icon otherwise. */
+/** A GitHub account's photo, as the shell document gives the operator's. */
+export const githubPhoto = (login: string): string =>
+  `https://github.com/${encodeURIComponent(login)}.png?size=96`;
+
+/** Text compared by its letters and digits only, without case or accents,
+ * so "Pracovní", "pracovni" and "PRACOVNÍ" are one. */
+const folded = (text: string): string =>
+  text
+    .normalize("NFKD")
+    .replace(/\p{M}+/gu, "")
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, "");
+
+// A work Environment's default names, in both languages: the Dashboard's
+// name of a work Environment without a name of its own.
+const defaultWorkNames = new Set(
+  (["cs", "en"] as const).map((locale) =>
+    folded(shellMessages(locale).names.work),
+  ),
+);
+
+/** Whom a work Environment is assigned to, as the switcher names it (F36's
+ * addendum of 2026-11-03): its login, the person's name where the document
+ * gives it (`assigneeName`), and the name of its own an Admin or the person
+ * gave it (`name`, the Dashboard's), where that is no default kind name and
+ * does not just restate the login or the person's name. Null for any other
+ * Environment: a Team's, the Organization's own (server services, an
+ * Automated one), a personal one, your computer. */
+export type EnvironmentOwner = Readonly<{
+  login: string;
+  name: string | null;
+  ownName: string | null;
+}>;
+
+export function environmentOwner(
+  environment: ShellEnvironment,
+): EnvironmentOwner | null {
+  if (environment.kind !== "work" || environment.assignee === null) return null;
+  const login = environment.assignee;
+  const name = environment.assigneeName ?? null;
+  const own = environment.name ?? null;
+  const restates =
+    own === null ||
+    defaultWorkNames.has(folded(own)) ||
+    folded(own) === folded(login) ||
+    (name !== null && folded(own) === folded(name));
+  return Object.freeze({ login, name, ownName: restates ? null : own });
+}
+
+/** The word a person's Environment is named by: the name of its own where
+ * it has one (an Admin's or the person's), else the person's name, else
+ * their login. */
+const ownerTitle = (owner: EnvironmentOwner): string =>
+  owner.ownName ?? owner.name ?? owner.login;
+
+/** The quieter line of a row in the switcher (F36's addendum of
+ * 2026-11-03): under a person their whole `@login`, and their name where
+ * the row shows the Environment's own name; under a Team its kind as a label
+ * ("Týmové Prostředí"); under any other the line `environmentWho` says (the
+ * Dashboard's line of whom it is for, else its kind). "offline" where it is
+ * known not to run. Never "assigned to @login" under the person's name. */
+function rowWho(
+  environment: ShellEnvironment,
+  owner: EnvironmentOwner | null,
+  copy: ShellCopy,
+  viewer: string | null,
+): string {
+  if (owner === null)
+    return environment.kind === "team"
+      ? kindLine(environment, environmentName(environment, copy), copy)
+      : environmentWho(environment, copy, viewer);
+  return [
+    owner.ownName === null ? null : owner.name,
+    ownerTitle(owner) === owner.login ? null : `@${owner.login}`,
+    environment.offline === true ? copy.offline : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+}
+
+/** A person's mark: their photo, their initials where it does not load. */
+const ownerGlyph = (owner: EnvironmentOwner): EnvironmentGlyph =>
+  Object.freeze({
+    kind: "person",
+    name: owner.name ?? owner.login,
+    avatar: githubPhoto(owner.login),
+    initials: initialsOf(owner.name ?? owner.login).slice(0, 2),
+  });
+
+/** The kind under an Environment's name in its head (F36's addendum of
+ * 2026-11-03: "Pracovní Prostředí", "Týmové Prostředí"), and "offline" when
+ * it is known not to run; the kind is left out where the name is the kind's
+ * own word. */
+function kindLine(
+  environment: ShellEnvironment,
+  name: string,
+  copy: ShellCopy,
+) {
+  const kind = copy.kindLabels[environment.kind];
+  const plain = folded(name);
+  return [
+    plain === folded(copy.names[environment.kind]) || plain === folded(kind)
+      ? null
+      : kind,
+    environment.offline === true ? copy.offline : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+}
+
+/** What the picker shows of an Environment in a space: the photo of the
+ * person a work Environment is assigned to (F36's addendum of 2026-11-03),
+ * your initials for a personal one, the space's Organization's mark where
+ * the space is one, the kind's icon otherwise. */
 export function environmentGlyph(
   shell: Shell,
   environment: ShellEnvironment,
   space: string,
 ): EnvironmentGlyph {
+  const owner = environmentOwner(environment);
+  if (owner !== null) return ownerGlyph(owner);
   if (environment.kind === "personal" && shell.operator.initials !== null)
     return { kind: "initials", text: shell.operator.initials };
   const organization =
@@ -487,16 +625,23 @@ export type EnvironmentIdentity = IdentityLook &
     id: string;
   }>;
 
+/** One Environment's identity (F36's addendum of 2026-11-03): a person's
+ * work Environment by that person (`environmentOwner`), every other by its
+ * name, and under it what it is, its kind as a label (`kindLine`), never
+ * whom else it is assigned to: the name or the photo says that. */
 function identityOf(
   shell: Shell,
   environment: ShellEnvironment,
   copy: ShellCopy,
   space: string,
 ): EnvironmentIdentity {
+  const owner = environmentOwner(environment);
+  const name =
+    owner === null ? environmentName(environment, copy) : ownerTitle(owner);
   return Object.freeze({
     id: environment.id,
-    name: environmentName(environment, copy),
-    who: environmentWho(environment, copy, shell.operator.login),
+    name,
+    who: kindLine(environment, name, copy),
     glyph: environmentGlyph(shell, environment, space),
   });
 }
@@ -604,18 +749,57 @@ export function titleWithIdentity(
 }
 
 /** One line of the list: an Environment's glyph, its name and, quieter
- * beside it, who it is for; the current one is marked. */
+ * under it, who it is for; the current one is marked. A person's work
+ * Environment (F36's addendum of 2026-11-03) is named by the person, with
+ * their whole `@login` under it; a Team's by its name over "Týmové
+ * Prostředí"; the Organization's own by its name over the Dashboard's line
+ * of whom it is for. */
 export type SwitcherRow = Readonly<{
   id: string;
   name: string;
   who: string;
   href: string;
   current: boolean;
-  /** A row's glyph: your initials for a personal Environment, otherwise its
-   * kind's icon, never a tile (the space is the picker's own, a title or a
-   * head above). */
+  /** A row's glyph: the person's photo for a person's work Environment,
+   * your initials for a personal Environment, otherwise its kind's icon,
+   * never a tile (the space is the picker's own, a title or a head
+   * above). */
   glyph: Exclude<EnvironmentGlyph, { kind: "avatar" }>;
 }>;
+
+/** The headings an Organization's Environments are listed under (F36's
+ * addendum of 2026-11-03): the people they are assigned to, the Teams, and
+ * the Organization's own. */
+export type SwitcherGroupKind = "people" | "teams" | "organization";
+
+/** Rows under one heading. Your personal space has one group without a
+ * heading (`kind` and `title` null). */
+export type SwitcherGroup = Readonly<{
+  kind: SwitcherGroupKind | null;
+  title: string | null;
+  rows: readonly SwitcherRow[];
+}>;
+
+/** The heading an Environment of an Organization is listed under (F36's
+ * addendum of 2026-11-03): People for a work Environment assigned to a
+ * person and for your computer, which is yours; Teams for a Team's; the
+ * Organization for the rest, which belong to no person (server services, an
+ * Automated Environment). */
+export function environmentGroup(
+  environment: ShellEnvironment,
+): SwitcherGroupKind {
+  if (environment.kind === "team") return "teams";
+  return environmentOwner(environment) !== null ||
+    environment.kind === "workstation"
+    ? "people"
+    : "organization";
+}
+
+const groupOrder: readonly SwitcherGroupKind[] = [
+  "people",
+  "teams",
+  "organization",
+];
 
 export type SwitcherSection = Readonly<{
   space: string;
@@ -633,7 +817,11 @@ export type SwitcherSection = Readonly<{
     href: string;
     current: boolean;
   }> | null;
+  /** Every row of the section, in the order of its groups. */
   rows: readonly SwitcherRow[];
+  /** The rows under their headings: an Organization's in People, Teams and
+   * Organization, none of them empty; your personal space's under none. */
+  groups: readonly SwitcherGroup[];
   /** The line under an Organization without an Environment while nothing is
    * searched ("Tady nemáš žádný Environment."); null otherwise. */
   empty: string | null;
@@ -674,7 +862,11 @@ const pickerWithoutSearch = 7;
 /** The list of the picker (`picker`: the space you are in, `widened` every
  * space) and of the jump (`jump`: every space): your personal Environments,
  * then each Organization's, one line each, the current one marked, filtered
- * by `query` against the space, the name and who it is for. Only the jump
+ * by `query` against the space, the name, who it is for, the person's login
+ * and name and the heading. An Organization's Environments stand under
+ * their headings (F36's addendum of 2026-11-03, `environmentGroup`) in all
+ * three lists, since a row no longer says its kind: People (yours first),
+ * Teams, Organization, each in the document's order. Only the jump
  * has an Organization's head, which leads to its Dashboard and stays while
  * it matches; under the picker an Organization's Dashboard is its name in
  * the page's head (the Launchpad's Apps). A space stays listed empty only
@@ -699,20 +891,42 @@ export function switcherList(
   const words = options.query.trim().toLocaleLowerCase();
   const matches = (...parts: string[]) =>
     words === "" || parts.join(" ").toLocaleLowerCase().includes(words);
+  const viewer = shell.operator.login?.toLowerCase() ?? null;
   const row = (environment: ShellEnvironment, space: string): SwitcherRow => {
+    const owner = environmentOwner(environment);
     const glyph: SwitcherRow["glyph"] =
-      environment.kind === "personal" && shell.operator.initials !== null
-        ? { kind: "initials", text: shell.operator.initials }
-        : { kind: "icon", icon: kindIcons[environment.kind] };
+      owner !== null
+        ? (ownerGlyph(owner) as SwitcherRow["glyph"])
+        : environment.kind === "personal" && shell.operator.initials !== null
+          ? { kind: "initials", text: shell.operator.initials }
+          : {
+              kind: "icon",
+              // Work that belongs to no person is the Organization's.
+              icon:
+                environment.kind === "work"
+                  ? "building"
+                  : kindIcons[environment.kind],
+            };
     return Object.freeze({
       id: environment.id,
-      name: environmentName(environment, copy),
-      who: environmentWho(environment, copy, shell.operator.login),
+      name:
+        owner === null ? environmentName(environment, copy) : ownerTitle(owner),
+      who: rowWho(environment, owner, copy, shell.operator.login),
       href: environmentHref(environment, space, options.app),
       current: environment.id === shell.current && options.here === space,
       glyph,
     });
   };
+  /** What a search finds a row by besides its words: the person's login
+   * and name. */
+  const terms = (environment: ShellEnvironment): string[] => {
+    const owner = environmentOwner(environment);
+    return owner === null ? [] : [owner.login, owner.name ?? ""];
+  };
+  /** Yours first among the people, each group in the document's order. */
+  const yours = (environment: ShellEnvironment): boolean =>
+    environment.kind === "workstation" ||
+    (viewer !== null && environment.assignee?.toLowerCase() === viewer);
   const nameOf = (space: string) =>
     (space === personalSpace ? undefined : organizationOf(shell, space))
       ?.name ?? copy.personal;
@@ -724,9 +938,53 @@ export function switcherList(
     const organization =
       space === personalSpace ? undefined : organizationOf(shell, space);
     const name = nameOf(space);
-    const rows = spaceEnvironments(shell, space)
-      .map((environment) => row(environment, space))
-      .filter((entry) => matches(name, entry.name, entry.who));
+    const listed = spaceEnvironments(shell, space);
+    const groups: SwitcherGroup[] =
+      organization === undefined
+        ? [
+            {
+              kind: null,
+              title: null,
+              rows: listed
+                .map((environment) => row(environment, space))
+                .filter((entry) => matches(name, entry.name, entry.who)),
+            },
+          ]
+        : groupOrder.map((kind) => {
+            const title = copy.groups[kind];
+            const members = listed.filter(
+              (environment) => environmentGroup(environment) === kind,
+            );
+            const ordered =
+              kind === "people"
+                ? [
+                    ...members.filter(yours),
+                    ...members.filter((environment) => !yours(environment)),
+                  ]
+                : members;
+            return {
+              kind,
+              title,
+              rows: ordered.flatMap((environment) => {
+                const entry = row(environment, space);
+                return matches(
+                  name,
+                  entry.name,
+                  entry.who,
+                  title,
+                  ...terms(environment),
+                )
+                  ? [entry]
+                  : [];
+              }),
+            };
+          });
+    const shown = groups
+      .filter((group) => group.rows.length > 0)
+      .map((group) =>
+        Object.freeze({ ...group, rows: Object.freeze(group.rows) }),
+      );
+    const rows = shown.flatMap((group) => group.rows);
     const head =
       jump &&
       organization !== undefined &&
@@ -744,6 +1002,7 @@ export function switcherList(
         title: head === null && all ? name : null,
         head,
         rows: Object.freeze(rows),
+        groups: Object.freeze(shown),
         empty:
           organization !== undefined && rows.length === 0 && words === ""
             ? copy.noEnvironment
