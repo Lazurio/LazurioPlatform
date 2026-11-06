@@ -19994,9 +19994,10 @@ Apps' "?" played the principle
    screen of "+ Nový modul" offers the same video, "Přehrát video", except in the personal
    space.
 4. **The video** is the cuts `modules` and `modules-en` of `tools/video-spot` in the design
-   system (HumanAndMachine-ai/design-system-lazurio#115): about 30 seconds, no
+   system (HumanAndMachine-ai/design-system-lazurio#115, #116 and #118): about 30 seconds, no
    sound, a fictional bakery, as Trezor's. Matěj approved its content on 2026-11-06; a new cut
-   under the same name replaces the browser's copy by its ETag.
+   under the same name replaces the browser's copy by its ETag. Its Czech cut names the page
+   Aplikace, as the Czech product does since this decision's addendum of 2026-11-06 (#891).
 5. **Začínáme** ends "Volitelné" with the row "Poznejte moduly" ("Get to know modules"): its
    title and "Přehrát video", which opens the same video in place under the rows, with no
    sentence under the title. Matěj asked for modules in the onboarding on 2026-11-06. It is no
