@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
+import { access, rm, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { sleepTimes } from "../browser/people/sleep";
 import {
@@ -60,6 +60,7 @@ import {
   buildKeyOf,
   buildLockFile,
   listBuildStates,
+  moduleBuildDirectory,
   openBuildStore,
   staticServerFiles,
   staticServerServes,
@@ -2165,6 +2166,40 @@ export function createModuleOperations(input: {
   //   and prepares when the check fails (decisions F25, F34).
   // - P9 `--source worktree:<name>` selects another checkout; until then every
   //   verb runs the module's own checkout.
+  // Stop one app; stopping one that does not run is `not-managed`.
+  async function stop(
+    name: string,
+    options: ModuleOptions = {},
+  ): Promise<ModuleAnswer | ModuleBlocked> {
+    const prepared = await prepare("stop", name, options);
+    if ("kind" in prepared) return prepared;
+    const { target, runner: kind, selection } = prepared;
+    return operate("stop", kind, target, async (lifecycle) => {
+      const stopped = await lifecycle.stop(selection);
+      if (stopped.kind !== "group-stopped" && stopped.kind !== "not-managed")
+        return blocked("stop", stopped.kind, {
+          organization: target.organization,
+          module: target.module,
+          app: target.app,
+        });
+      inUse.delete(useKey(target));
+      return Object.freeze({
+        kind: "module" as const,
+        operation: "stop" as const,
+        organization: target.organization,
+        module: target.module,
+        app: target.app,
+        runner: kind,
+        survivesLaunchpadRestart: kind === "systemd-user",
+        outcome: stopped.kind,
+        state: "stopped" as const,
+        healthy: false,
+        service: null,
+        runtime: null,
+      });
+    });
+  }
+
   return Object.freeze({
     /** Start the module's app (its default, or `app`) unless it runs. */
     async start(
@@ -2572,37 +2607,46 @@ export function createModuleOperations(input: {
       return latest;
     },
     /** Stop the app; stopping one that does not run is `not-managed`. */
-    async stop(
-      name: string,
-      options: ModuleOptions = {},
-    ): Promise<ModuleAnswer | ModuleBlocked> {
-      const prepared = await prepare("stop", name, options);
-      if ("kind" in prepared) return prepared;
-      const { target, runner: kind, selection } = prepared;
-      return operate("stop", kind, target, async (lifecycle) => {
-        const stopped = await lifecycle.stop(selection);
-        if (stopped.kind !== "group-stopped" && stopped.kind !== "not-managed")
-          return blocked("stop", stopped.kind, {
-            organization: target.organization,
-            module: target.module,
-            app: target.app,
-          });
-        inUse.delete(useKey(target));
-        return Object.freeze({
-          kind: "module" as const,
-          operation: "stop" as const,
-          organization: target.organization,
-          module: target.module,
-          app: target.app,
-          runner: kind,
-          survivesLaunchpadRestart: kind === "systemd-user",
-          outcome: stopped.kind,
-          state: "stopped" as const,
-          healthy: false,
-          service: null,
-          runtime: null,
-        });
-      });
+    stop,
+    /** Before a module's copy leaves because access ended (decision F72):
+     * every app it declares stopped and its builds gone, which hold its
+     * content too. False: it is not one module here, or an app could not be
+     * stopped, and the copy stays. */
+    async retire(login: string, path: string): Promise<boolean> {
+      let catalog: Catalog;
+      try {
+        catalog = await readCatalog(folder, false);
+      } catch {
+        return false;
+      }
+      const organization = catalog.organizations.find(
+        (entry) => entry.forgeLogin?.toLowerCase() === login.toLowerCase(),
+      );
+      const module = organization?.modules.find((entry) => entry.path === path);
+      if (
+        organization === undefined ||
+        organization.organization === null ||
+        module === undefined
+      )
+        return false;
+      const name = `${organization.organization}/${module.module}`;
+      for (const app of module.apps)
+        if ((await stop(name, { app: app.package })).kind !== "module")
+          return false;
+      if (host.builds === undefined) return true;
+      try {
+        await rm(
+          moduleBuildDirectory(
+            host.builds.cacheRoot,
+            organization.organization,
+            module.module,
+          ),
+          { recursive: true, force: true },
+        );
+        return true;
+      } catch {
+        return false;
+      }
     },
     /** The owner's view: state, health, the service identity and the link. */
     async status(

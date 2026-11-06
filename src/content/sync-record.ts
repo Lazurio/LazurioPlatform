@@ -32,6 +32,32 @@ export type SyncResult =
   | "unavailable"
   | "failed";
 
+/** GitHub's first proof that this identity can no longer reach a repository
+ * (decision F72, `access-ended.ts`). It stands only while every later run of
+ * this repository proves the same; any other answer drops it. */
+export type RemovalMark = Readonly<{
+  /** When the first proof was given (ISO 8601). */
+  since: string;
+  /** The GitHub id of the proved identity. */
+  viewer: number;
+  repository: string;
+}>;
+
+/** The trace of a copy that left because access ended (decision F72). */
+export type RemovedCopy = Readonly<{
+  /** When it was removed (ISO 8601). */
+  at: string;
+  repository: string;
+  /** The commit its checkout stood on. */
+  commit: string;
+  /** Whether it held changes nothing had saved. */
+  unsaved: boolean;
+  /** Its linked worktrees removed with it, and those outside its slot,
+   * which nothing touches. */
+  worktrees: number;
+  worktreesOutside: number;
+}>;
+
 /** One repository's answer, as recorded and printed. */
 export type SyncEntry = Readonly<{
   /** The Organization's GitHub login. */
@@ -62,6 +88,10 @@ export type SyncEntry = Readonly<{
    * for every answer but `current`, `fast-forwarded`, `materialized` and
    * an `absent` without a reason. */
   since?: string;
+  /** GitHub's first proof that access ended; the copy is still here. */
+  removal?: RemovalMark;
+  /** The copy left because access ended; stays while the slot is absent. */
+  removed?: RemovedCopy;
 }>;
 
 // ---- The record -------------------------------------------------------------
@@ -72,7 +102,9 @@ export type SyncEntry = Readonly<{
 // the content lock, by the run that answered. A run for one Organization
 // replaces that Organization's entries only, a run for one repository that
 // repository's, a run for all of them the record. Coordination and
-// visibility only: nothing decides on it.
+// visibility, with one exception: a first proof (`removal`) that access ended
+// is read back by the next run (decision F72). A lost record only makes the
+// count start again.
 
 const recordSchema = "lazurio.content-sync.v1";
 
@@ -100,6 +132,27 @@ const results: readonly SyncResult[] = [
   "failed",
 ];
 const text = (value: unknown) => typeof value === "string";
+const count = (value: unknown) =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+const validMark = (value: unknown) => {
+  if (value === null || typeof value !== "object") return false;
+  const mark = value as Record<string, unknown>;
+  return text(mark.since) && count(mark.viewer) && text(mark.repository);
+};
+
+const validRemoved = (value: unknown) => {
+  if (value === null || typeof value !== "object") return false;
+  const copy = value as Record<string, unknown>;
+  return (
+    text(copy.at) &&
+    text(copy.repository) &&
+    text(copy.commit) &&
+    typeof copy.unsaved === "boolean" &&
+    count(copy.worktrees) &&
+    count(copy.worktreesOutside)
+  );
+};
 
 const validEntry = (value: unknown): value is SyncEntry => {
   if (value === null || typeof value !== "object") return false;
@@ -114,7 +167,9 @@ const validEntry = (value: unknown): value is SyncEntry => {
     text(entry.at) &&
     (entry.reason === undefined || text(entry.reason)) &&
     (entry.unreadable === undefined || entry.unreadable === true) &&
-    (entry.since === undefined || text(entry.since))
+    (entry.since === undefined || text(entry.since)) &&
+    (entry.removal === undefined || validMark(entry.removal)) &&
+    (entry.removed === undefined || validRemoved(entry.removed))
   );
 };
 
@@ -141,8 +196,11 @@ export async function readSyncRecord(
   }
 }
 
-const keyOf = (entry: SyncEntry) =>
-  `${entry.organization.toLowerCase()}\0${entry.root}\0${entry.path}`;
+/** One repository of the record, whatever the case of the login. */
+export const entryKey = (
+  entry: Readonly<{ organization: string; root: string; path: string }>,
+) => `${entry.organization.toLowerCase()}\0${entry.root}\0${entry.path}`;
+const keyOf = entryKey;
 // A quiet `absent` with a reason (no access yet) keeps its `since` too, so
 // one can tell how long a declared repository has stayed unreadable.
 const lasting = (entry: SyncEntry) =>
@@ -187,13 +245,20 @@ export async function recordSync(
     const last = before.get(keyOf(raw));
     // A refusal stands until a run reads the remote again (F67's addendum
     // of 2026-11-01): an answer that never asked it carries it on.
-    const entry: SyncEntry =
+    const refused: SyncEntry =
       raw.result !== "denied" &&
       !readTheRemote(raw) &&
       last !== undefined &&
       refusedLast(last)
         ? Object.freeze({ ...raw, unreadable: true as const })
         : raw;
+    // The trace stays while the slot stays absent; a clone ends it.
+    const entry: SyncEntry =
+      refused.result === "absent" &&
+      refused.removed === undefined &&
+      last?.removed !== undefined
+        ? Object.freeze({ ...refused, removed: last.removed })
+        : refused;
     if (!lasting(entry)) return entry;
     const since =
       last !== undefined &&
@@ -223,17 +288,27 @@ export async function recordSync(
       )
       .map((entry) => `${entry.organization.toLowerCase()}\0${entry.root}`),
   );
-  const kept = previous.filter(
-    (entry) =>
-      (scope.replace === "all"
-        ? false
-        : organizations !== null
-          ? !organizations.has(entry.organization.toLowerCase())
-          : !answeredKeys.has(keyOf(entry))) ||
-      (refusedLast(entry) &&
-        !answeredKeys.has(keyOf(entry)) &&
-        stopped.has(`${entry.organization.toLowerCase()}\0${entry.root}`)),
-  );
+  const stoppedRoot = (entry: SyncEntry) =>
+    stopped.has(`${entry.organization.toLowerCase()}\0${entry.root}`);
+  const kept = previous
+    .filter(
+      (entry) =>
+        (scope.replace === "all"
+          ? false
+          : organizations !== null
+            ? !organizations.has(entry.organization.toLowerCase())
+            : !answeredKeys.has(keyOf(entry))) ||
+        (refusedLast(entry) &&
+          !answeredKeys.has(keyOf(entry)) &&
+          stoppedRoot(entry)),
+    )
+    // A first proof needs the next run's proof: a run that stopped at the
+    // root gave none (decision F72).
+    .map((entry) => {
+      if (entry.removal === undefined || !stoppedRoot(entry)) return entry;
+      const { removal: _, ...unmarked } = entry;
+      return Object.freeze(unmarked);
+    });
   const file = syncRecordFile(lockDirectory, folder);
   const temporary = `${file}.${randomBytes(6).toString("hex")}.tmp`;
   await writeFile(
