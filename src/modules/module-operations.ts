@@ -31,6 +31,7 @@ import {
   resolvePersonalspaceApplication,
   unverifiedPersonalspace,
 } from "../organizations/personalspace";
+import { observeModuleDirectory } from "../organizations/read-applications";
 import { checkoutRefusal } from "../providers/checkout-custody";
 import { toolsEnvironmentOf } from "../tools/overview";
 import { resolveOnPath, runTool } from "../tools/status";
@@ -2610,11 +2611,20 @@ export function createModuleOperations(input: {
     stop,
     /** Before a module's copy leaves because access ended (decision F72):
      * every app it declares stopped and its builds gone, which hold its
-     * content too. False: it is not one module here, or an app could not be
-     * stopped, and the copy stays. */
+     * content too. False, and the copy stays, whenever it is not certain that
+     * nothing of the module runs: it is not one module here, its declaration
+     * cannot be read (the catalog then lists no apps, which is not knowing
+     * none), an app could not be stopped, the service manager does not say
+     * what runs, or something runs that no module of the Organization
+     * declares, such as an app started before its declaration changed. */
     async retire(login: string, path: string): Promise<boolean> {
+      if (closing) return false;
+      let kind: RunnerKind;
       let catalog: Catalog;
       try {
+        // Only the service manager says what runs, whoever started it.
+        kind = await host.runnerKind();
+        if (kind !== "systemd-user") return false;
         catalog = await readCatalog(folder, false);
       } catch {
         return false;
@@ -2629,10 +2639,51 @@ export function createModuleOperations(input: {
         module === undefined
       )
         return false;
-      const name = `${organization.organization}/${module.module}`;
-      for (const app of module.apps)
-        if ((await stop(name, { app: app.package })).kind !== "module")
+      const slug = organization.organization;
+      const root = join(folder, "organizations", organization.directory);
+      const observed = await observeModuleDirectory(
+        join(root, path),
+        (declared) =>
+          declared.company === slug && declared.id === module.module,
+      ).catch(() => null);
+      if (observed?.kind !== "module-observed") return false;
+      const name = `${slug}/${module.module}`;
+      for (const app of observed.apps)
+        if (
+          app.kind === "runtime-declared" &&
+          (await stop(name, { app: app.package })).kind !== "module"
+        )
           return false;
+      // What the service manager still runs must be another module's.
+      let others: ReadonlySet<string>;
+      let listed: Awaited<ReturnType<ApplicationRunner["list"]>>;
+      try {
+        const runner = host.createRunner(kind, root);
+        others = new Set(
+          organization.modules
+            .filter((entry) => entry.path !== path)
+            .flatMap((entry) =>
+              entry.apps.map((app) =>
+                runner.identify({
+                  company: slug,
+                  module: entry.module,
+                  package: app.package,
+                }),
+              ),
+            ),
+        );
+        listed = await runner.list();
+      } catch {
+        return false;
+      }
+      if (
+        listed.kind !== "listed" ||
+        listed.applications.some(
+          (application) =>
+            application.state === "running" && !others.has(application.id),
+        )
+      )
+        return false;
       if (host.builds === undefined) return true;
       try {
         await rm(

@@ -312,7 +312,8 @@ answer for each repository as it happens. The Open of one module uses the first;
 
 ## Access ended — decided 2026-11-06
 
-Matěj's decision of 2026-11-06 ([F72](decisions.md#f72--a-module-whose-access-proved-to-have-ended-leaves-the-environment)):
+Matěj's decision of 2026-11-06 ([root decision 0232](decision-register.md#0232--access-to-a-module-has-levels-an-organization-admin-locks-a-module-and-a-lost-grant-removes-the-environments-copy),
+[F72](decisions.md#f72--a-module-whose-access-proved-to-have-ended-leaves-the-environment)):
 when access to a module has ended, its copy leaves the Environment, always, with its
 unsaved work. "Always" means no exception for unsaved work, never a removal on a doubt:
 deleting cannot be undone, so a copy goes only on proof. `src/content/access-ended.ts`.
@@ -322,18 +323,23 @@ deleting cannot be undone, so a copy goes only on proof. `src/content/access-end
 
 1. The identity: `gh`'s viewer is the person the handover names, by their immutable
    GitHub id.
-2. The control: that identity reads the Organization's root repository through GitHub's
-   API, in the same run. Without it, a token that lost its scope or an expired single
-   sign-on would look like one module's refusal, because GitHub answers 404 for what a
-   token may not see.
-3. The answer: GitHub's API answers 404 for the repository, in GitHub's own error body.
+2. The token: GitHub names the scope `repo` for it (`X-OAuth-Scopes` of `GET /user`), which
+   reaches every repository the person may read. A fine-grained token or a GitHub App's
+   user token may be limited to chosen repositories: it names the person, reads the root
+   and answers 404 for a module the person may read, and it has no such header, so it
+   never proves anything and the copy stays.
+3. The control: that identity reads the Organization's root repository through GitHub's
+   API, in the same run. Without it, an expired single sign-on or another refusal of the
+   whole Organization would look like one module's refusal, because GitHub answers 404
+   for what a token may not see.
+4. The answer: GitHub's API answers 404 for the repository, in GitHub's own error body.
    `git ls-remote` is no proof: its refusal may be a key or a helper.
 
 The first proof is recorded on the repository's entry (`removal`: when, the identity, the
 repository). A later proof within the 30 minutes keeps it and removes nothing, so a press
 of Zkontrolovat přístupy is no second proof. Every other answer in between clears it and
 the count starts over: no network, 5xx, a rate limit (403 or 429), an invalid or missing
-token (401), a signed-out `gh`, another viewer, a root that does not answer or answers
+token (401), a signed-out `gh`, another viewer, a token without `repo`, a root that does not answer or answers
 as another owner's, a repository that answers at all, an unreadable answer, a run stopped at
 its root. An unreadable record is no proof either. With the hourly round, a copy goes about
 an hour after access ended.
@@ -353,11 +359,17 @@ or `infra`, and never on the person's own computer (`local`).
 
 **The removal.** Under the content lock, the module's apps stop first through `retire`
 (for a data mount, those of its module) and its builds in the account's cache go, since
-they hold its content; what cannot be stopped keeps its copy, and the proof, for a later run.
-The checkout is proved once more as the primary checkout of exactly this repository at
-its declared place, with no link on the way, then renamed beside itself and deleted, so
-nothing half-deleted looks like a checkout; a later run clears what an interrupted
-deletion left, by its exact name. Its linked worktrees below the slot go with it. One
+they hold its content. `retire` answers yes only when it is certain that nothing of the
+module runs: the module's declaration was read (an unreadable one lists no apps in the
+catalog, which is not knowing none), each app stopped, the service manager listed what runs
+and everything it listed is another module's. Anything else keeps the copy, and the proof,
+for a later run. Every step from the Folder down to the slot must be a real directory, and
+the checkout is proved once more as the primary checkout of exactly this repository. Then
+the exact operation goes into a journal file beside the record, the checkout is renamed
+beside itself, so nothing half-deleted looks like a checkout, and deleted. A later run
+finishes only what a journal entry names, of this Folder, with its exact name and with
+no link above it; a directory that only looks like a removal is never touched, and a
+journal that does not hold stays with nothing deleted. Its linked worktrees below the slot go with it. One
 registered outside the slot is never touched and is counted in the trace. A module's
 data mount below it goes with it.
 

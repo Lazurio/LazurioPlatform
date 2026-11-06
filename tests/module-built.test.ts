@@ -19,7 +19,10 @@ import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
 import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
-import type { ApplicationRunner } from "../src/modules/application-runner";
+import type {
+  ApplicationRunner,
+  RunnerKind,
+} from "../src/modules/application-runner";
 import { gitCheckoutReader } from "../src/modules/built/checkout";
 import {
   type BunInstaller,
@@ -353,55 +356,163 @@ async function until<T>(read: () => Promise<T>, done: (value: T) => boolean) {
 
 // Decision F72: before a copy leaves because access ended, nothing of it may
 // go on running or stay built, and what cannot be told keeps the copy.
-posixTest(
-  "retire stops every app of a module and removes its builds; a module it cannot find is refused",
-  async () => {
-    const home = join(root, "home-retire");
-    await mkdir(home);
-    const fixture = await staticModule("retire", home, {
-      readCatalog: async (folder) => {
-        const catalog = await readFolderCatalog(folder);
-        return {
-          ...catalog,
-          organizations: catalog.organizations.map((organization) => ({
-            ...organization,
-            forgeLogin: "Alpha",
-          })),
-        };
-      },
+async function retiring(name: string, list?: ApplicationRunner["list"]) {
+  const home = join(root, `home-${name}`);
+  await mkdir(home);
+  const runner = createSessionRunner(binary);
+  const fixture = await staticModule(name, home, { runner });
+  const readCatalog = async (folder: string) => {
+    const catalog = await readFolderCatalog(folder);
+    return {
+      ...catalog,
+      organizations: catalog.organizations.map((organization) => ({
+        ...organization,
+        forgeLogin: "Alpha",
+      })),
+    };
+  };
+  // Started by this test's session runner; a retirement answers as on a
+  // Remote Environment, whose service manager is the only one it trusts.
+  let kind: RunnerKind = "session";
+  const operations = createModuleOperations({
+    folder: fixture.folder,
+    owner: "launchpad",
+    readCatalog,
+    host: {
+      ...fixture.host,
+      runnerKind: async () => kind,
+      createRunner: () =>
+        list === undefined ? runner : Object.freeze({ ...runner, list }),
+    },
+  });
+  await fixture.operations.close();
+  const started = async () => {
+    answer(await operations.start("alpha/site"));
+    await until(
+      () => operations.status("alpha/site"),
+      (status) => status.kind === "module" && status.healthy,
+    );
+  };
+  const retire = (path: string, login = "alpha") => {
+    kind = "systemd-user";
+    return operations.retire(login, path).finally(() => {
+      kind = "session";
     });
-    const { operations } = fixture;
+  };
+  return { fixture, operations, started, retire };
+}
+
+const isThere = (path: string) =>
+  lstat(path).then(
+    () => true,
+    () => false,
+  );
+
+posixTest(
+  "retire stops every app of a module, leaves another module's and removes its builds; a module it cannot find is refused",
+  async () => {
+    const { fixture, operations, started, retire } = await retiring("retire");
     try {
-      answer(await operations.start("alpha/site"));
-      await until(
-        () => operations.status("alpha/site"),
-        (status) => status.kind === "module" && status.healthy,
-      );
+      await started();
+      answer(await operations.start("alpha/plain"));
       const builds = join(
         fixture.host.builds?.cacheRoot as string,
         "alpha",
         "site",
       );
-      expect(await lstat(builds).then(() => true)).toBe(true);
-      expect(await operations.retire("Beta", "workspace/site")).toBe(false);
-      expect(await operations.retire("alpha", "workspace/other")).toBe(false);
+      expect(await isThere(builds)).toBe(true);
+      expect(await retire("workspace/site", "Beta")).toBe(false);
+      expect(await retire("workspace/other")).toBe(false);
       expect(answer(await operations.status("alpha/site")).healthy).toBe(true);
-      expect(await operations.retire("alpha", "workspace/site")).toBe(true);
+      // A session runner is no service manager: nothing it says is trusted.
+      expect(await operations.retire("alpha", "workspace/site")).toBe(false);
+      expect(answer(await operations.status("alpha/site")).healthy).toBe(true);
+      expect(await retire("workspace/site")).toBe(true);
       expect(answer(await operations.status("alpha/site"))).toMatchObject({
         state: "stopped",
         healthy: false,
       });
-      expect(
-        await lstat(builds).then(
-          () => true,
-          () => false,
-        ),
-      ).toBe(false);
+      expect(answer(await operations.status("alpha/plain")).state).toBe(
+        "running",
+      );
+      expect(await isThere(builds)).toBe(false);
     } finally {
       await operations.close();
     }
   },
   60_000,
+);
+
+posixTest(
+  "retire refuses a module whose declaration cannot be read: the catalog lists no apps for it, which is not knowing none, and its running app stays",
+  async () => {
+    const { fixture, operations, started, retire } =
+      await retiring("retire-unread");
+    try {
+      await started();
+      const manifest = join(
+        fixture.folder,
+        "organizations",
+        "alpha",
+        "workspace",
+        "site",
+        "lazurio.module.json",
+      );
+      expect(await isThere(manifest)).toBe(true);
+      await writeFile(manifest, "not a manifest\n");
+      // The catalog still lists the module, with no apps.
+      const catalog = await readFolderCatalog(fixture.folder);
+      expect(
+        catalog.organizations[0]?.modules.find(
+          (module) => module.path === "workspace/site",
+        )?.apps,
+      ).toEqual([]);
+      expect(await retire("workspace/site")).toBe(false);
+      expect((await fixture.page()).status).toBe(200);
+    } finally {
+      await operations.close();
+    }
+  },
+  60_000,
+);
+
+posixTest(
+  "retire refuses while something runs that no module declares, and when the service manager does not say what runs",
+  async () => {
+    for (const [name, list] of [
+      [
+        "retire-earlier",
+        async () => ({
+          kind: "listed" as const,
+          applications: [{ id: "earlier.service", state: "running" as const }],
+        }),
+      ],
+      ["retire-unknown", async () => ({ kind: "unavailable" as const })],
+    ] as const) {
+      const { operations, started, retire } = await retiring(name, list);
+      try {
+        await started();
+        expect(await retire("workspace/site")).toBe(false);
+      } finally {
+        await operations.close();
+      }
+    }
+    // A unit that ended is no running app.
+    const { operations, started, retire } = await retiring(
+      "retire-ended",
+      async () => ({
+        kind: "listed" as const,
+        applications: [{ id: "ended.service", state: "ended" as const }],
+      }),
+    );
+    try {
+      await started();
+      expect(await retire("workspace/site")).toBe(true);
+    } finally {
+      await operations.close();
+    }
+  },
+  90_000,
 );
 
 posixTest(

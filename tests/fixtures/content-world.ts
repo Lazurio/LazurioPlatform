@@ -322,6 +322,7 @@ export function stubGitHub(
       await options.gate;
       return viewer;
     },
+    tokenScopes: async () => ["repo"],
     async repository(owner, name) {
       calls.push({ kind: "repository", args: [owner, name] });
       const entry = known.get(`${owner}/${name}`.toLowerCase());

@@ -3,6 +3,7 @@ import {
   chmod,
   lstat,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rename,
@@ -14,6 +15,7 @@ import { dirname, join } from "node:path";
 import {
   removalConfirmAfterMs,
   removalIdentity,
+  removalJournalPrefix,
   removalStep,
 } from "../src/content/access-ended";
 import { contentHelp } from "../src/content/cli";
@@ -21,6 +23,7 @@ import { processContentGit } from "../src/content/git";
 import {
   type ContentGitHub,
   ghContentGitHub,
+  parseTokenScopes,
   type RepositoryAnswer,
   type ViewerAnswer,
 } from "../src/content/github";
@@ -105,6 +108,8 @@ const slot = (path: string, repository: string): Slot => ({
 
 type Answers = Readonly<{
   viewer?: ViewerAnswer;
+  /** The scopes GitHub names for the token; null: it names none. */
+  scopes?: readonly string[] | null;
   /** By full name; a repository not named answers 404. */
   repositories?: Readonly<Record<string, RepositoryAnswer>>;
 }>;
@@ -142,6 +147,8 @@ function github(current: World, answers: Answers = {}): ContentGitHub {
   return {
     ...stubGitHub(current).github,
     viewer: async () => answers.viewer ?? signedIn(),
+    tokenScopes: async () =>
+      answers.scopes === undefined ? ["repo"] : answers.scopes,
     repository: async (owner: string, name: string) =>
       repositories[`${owner}/${name}`] ?? { kind: "missing" },
   };
@@ -413,6 +420,16 @@ const noProof: readonly (readonly [string, Answers])[] = [
   ],
   ["the token is invalid or missing", { viewer: { kind: "unavailable" } }],
   ["gh is signed out", { viewer: { kind: "signed-out" } }],
+  // A fine-grained token limited to chosen repositories names the person and
+  // reads the root, and answers 404 for a module the person may read.
+  ["the token names no scopes, as a fine-grained one", { scopes: null }],
+  [
+    "the token has no full `repo` scope",
+    {
+      scopes: ["read:org", "public_repo", "repo:status"],
+    },
+  ],
+  ["GitHub says nothing of the token's scopes", { scopes: [] }],
   ["another identity is signed in", { viewer: signedIn(operator + 1) }],
   // A token that lost its scope, or a single sign-on that expired, refuses
   // the root as well: everything 404, nothing proved about one module.
@@ -654,22 +671,156 @@ posixTest(
   60_000,
 );
 
-posixTest(
-  "what an interrupted removal left beside the slot goes at the next run, and only that",
+/** The journal of the removal this fixture's run left, by its file name. */
+const journals = async (current: World, folder: string) =>
+  (await readdir(current.lockDirectory)).filter((name) =>
+    name.startsWith(removalJournalPrefix(current.lockDirectory, folder)),
+  );
+
+/** A second proof whose deletion is cut short: a directory the run cannot
+ * empty stays in the renamed copy, with the journal of the removal. */
+async function interrupted(current: World, fixture: Fixture) {
+  const locked = join(fixture.at("workspace/web"), "locked");
+  await mkdir(locked);
+  await writeFile(join(locked, "file.txt"), "x\n");
+  await fixture.run(minutes(0), webGone);
+  await chmod(locked, 0o555);
+  const second = await fixture.run(minutes(60), webGone);
+  expect(entryOf(second, "workspace/web")).toMatchObject({
+    result: "absent",
+    reason: "access-ended",
+  });
+  const [journal, ...more] = await journals(current, fixture.folder);
+  expect(more).toEqual([]);
+  const id = (journal as string).split(".removing-").at(-1) as string;
+  const moved = fixture.at(`workspace/.web.removing-${id}`);
+  expect(await exists(moved)).toBe(true);
+  return { moved, locked: join(moved, "locked") };
+}
+
+const asRoot = process.getuid?.() === 0;
+
+test.skipIf(asRoot || !["darwin", "linux"].includes(process.platform))(
+  "a deletion cut short is finished by a later run, exactly as its journal names it",
   async () => {
     world = await createWorld();
-    const fixture = await environment(world);
-    await fixture.run(minutes(0), webGone);
+    const current = world;
+    const fixture = await environment(current);
+    const { moved, locked } = await interrupted(current, fixture);
+    await chmod(locked, 0o755);
+    await fixture.run(minutes(120), webGone);
+    expect(await exists(moved)).toBe(false);
+    expect(await journals(current, fixture.folder)).toEqual([]);
+  },
+  60_000,
+);
+
+test.skipIf(asRoot || !["darwin", "linux"].includes(process.platform))(
+  "a link above an absent slot stops the finishing: nothing it points to goes, and the journal stays",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await environment(current);
+    const { moved, locked } = await interrupted(current, fixture);
+    await chmod(locked, 0o755);
+    const leftover = moved.split("/").at(-1) as string;
+    // The workspace now leads to a directory of someone else's, which holds
+    // a directory of exactly the journal's name.
+    const elsewhere = join(dirname(fixture.folder), "elsewhere");
+    await rename(fixture.at("workspace"), elsewhere);
+    await symlink(elsewhere, fixture.at("workspace"));
+    await writeFile(fixture.at(".git/info/exclude"), "workspace\n");
+    await fixture.run(minutes(120), webGone);
+    expect(await exists(join(elsewhere, leftover))).toBe(true);
+    expect(await journals(current, fixture.folder)).toHaveLength(1);
+  },
+  60_000,
+);
+
+posixTest(
+  "a directory that only looks like an interrupted removal is never touched, here or through a link",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await environment(current);
     await writeFile(join(fixture.at("workspace/web"), "unsaved.txt"), "w\n");
     await fixture.run(minutes(0), webGone);
     await fixture.run(minutes(60), webGone);
-    const left = fixture.at("workspace/.web.removing-abcdef012345");
-    const other = fixture.at("workspace/.web.removing-other");
-    await mkdir(left);
-    await mkdir(other);
+    expect(await exists(fixture.at("workspace/web"))).toBe(false);
+    expect(await journals(current, fixture.folder)).toEqual([]);
+    const lookalike = fixture.at("workspace/.web.removing-abcdef012345");
+    await mkdir(lookalike);
+    await writeFile(join(lookalike, "keep.txt"), "mine\n");
     await fixture.run(minutes(120), webGone);
-    expect(await exists(left)).toBe(false);
-    expect(await exists(other)).toBe(true);
+    expect(await exists(join(lookalike, "keep.txt"))).toBe(true);
+    // The same directory outside the Organization, by a link above the slot.
+    const elsewhere = join(dirname(fixture.folder), "elsewhere");
+    await rename(fixture.at("workspace"), elsewhere);
+    await symlink(elsewhere, fixture.at("workspace"));
+    await writeFile(fixture.at(".git/info/exclude"), "workspace\n");
+    await fixture.run(minutes(180), webGone);
+    expect(
+      await exists(join(elsewhere, ".web.removing-abcdef012345", "keep.txt")),
+    ).toBe(true);
+  },
+  60_000,
+);
+
+posixTest(
+  "a journal that does not hold deletes nothing",
+  async () => {
+    world = await createWorld();
+    const current = world;
+    const fixture = await environment(current);
+    const prefix = removalJournalPrefix(current.lockDirectory, fixture.folder);
+    const outside = join(dirname(fixture.folder), "outside");
+    await mkdir(outside);
+    await writeFile(join(outside, "keep.txt"), "mine\n");
+    // What a journal leading out of the Folder would name.
+    const named = join(outside, ".web.removing-abcdef012345");
+    await mkdir(named);
+    await writeFile(join(named, "keep.txt"), "mine\n");
+    const id = "abcdef012345";
+    // The lock directory exists from the first run on.
+    await fixture.run(minutes(0), webGone);
+    const base = {
+      schema: "lazurio.access-ended.removal.v1",
+      folder: fixture.folder,
+    };
+    for (const [name, value] of [
+      [
+        "abcdef012345",
+        { ...base, path: "../outside/web", moved: `.web.removing-${id}` },
+      ],
+      [
+        "not-an-id",
+        {
+          ...base,
+          path: "organizations/x/web",
+          moved: ".web.removing-not-an-id",
+        },
+      ],
+      [
+        "abcdef012346",
+        { ...base, path: "organizations/x/web", moved: "../../outside" },
+      ],
+      [
+        "abcdef012347",
+        {
+          ...base,
+          folder: "/elsewhere",
+          path: "a/web",
+          moved: ".web.removing-abcdef012347",
+        },
+      ],
+    ] as const)
+      await writeFile(
+        join(current.lockDirectory, `${prefix}${name}`),
+        JSON.stringify(value),
+      );
+    await fixture.run(minutes(1), webGone);
+    expect(await exists(join(outside, "keep.txt"))).toBe(true);
+    expect(await exists(join(named, "keep.txt"))).toBe(true);
   },
   60_000,
 );
@@ -838,6 +989,49 @@ posixTest(
       await rm(parent, { recursive: true, force: true });
       parent = "";
     }
+  },
+);
+
+test("only GitHub's own header in a 200 names a token's scopes", () => {
+  const answer = (head: string) => `${head}\r\n\r\n{"login":"x"}`;
+  expect(
+    parseTokenScopes(
+      answer("HTTP/2.0 200 OK\r\nX-Oauth-Scopes: gist, read:org, repo"),
+    ),
+  ).toEqual(["gist", "read:org", "repo"]);
+  expect(
+    parseTokenScopes(answer("HTTP/2.0 200 OK\r\nx-oauth-scopes: repo")),
+  ).toEqual(["repo"]);
+  // A fine-grained token: no header, or an empty one.
+  expect(parseTokenScopes(answer("HTTP/2.0 200 OK\r\nDate: today"))).toBeNull();
+  expect(
+    parseTokenScopes(answer("HTTP/2.0 200 OK\r\nX-Oauth-Scopes: ")),
+  ).toEqual([]);
+  expect(
+    parseTokenScopes(
+      answer("HTTP/2.0 401 Unauthorized\r\nX-Oauth-Scopes: repo"),
+    ),
+  ).toBeNull();
+  // Only the headers count, never a body that says the same.
+  expect(
+    parseTokenScopes("HTTP/2.0 200 OK\r\n\r\nX-Oauth-Scopes: repo"),
+  ).toBeNull();
+  expect(parseTokenScopes("not an answer")).toBeNull();
+});
+
+posixTest(
+  "gh answers the scopes of its token, and nothing when it fails",
+  async () => {
+    const scoped = await ghAnswering(
+      "printf 'HTTP/2.0 200 OK\\r\\nX-Oauth-Scopes: read:org, repo\\r\\n\\r\\n{}'",
+    );
+    expect(await scoped.tokenScopes()).toEqual(["read:org", "repo"]);
+    await rm(parent, { recursive: true, force: true });
+    parent = "";
+    const failing = await ghAnswering(
+      fails('{"message":"Bad credentials","status":"401"}'),
+    );
+    expect(await failing.tokenScopes()).toBeNull();
   },
 );
 

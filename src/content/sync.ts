@@ -233,12 +233,15 @@ export async function syncContent(
     // the first proofs are the last run's.
     const ended = accessEnd({
       identity: removalIdentity(preset, machine),
+      folder,
+      lockDirectory: host.lockDirectory,
       github: host.github,
       git: host.git,
       retire: host.retire,
       record: await readSyncRecord(host.lockDirectory, folder),
       now,
     });
+    await ended?.resume().catch(() => {});
     const entries: SyncEntry[] = [];
     // A repository filter: that module and the data mounts below it.
     const wanted = (path: string) =>
@@ -329,7 +332,6 @@ export async function syncContent(
                     ? outcome
                     : { ...outcome, removal: verdict.removal };
               }
-              await access?.sweep(child.path);
               if (child.parent !== undefined && !verified.has(child.parent))
                 return { result: "absent" };
               const cloned = await cloneAbsent(context, directory, child, () =>

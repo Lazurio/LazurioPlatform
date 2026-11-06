@@ -1,5 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { lstat, readdir, readFile, rename, rm } from "node:fs/promises";
+import {
+  lstat,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { basename, dirname, join, sep } from "node:path";
 import { assignedPerson, type MachineBinding } from "../folder/machine-binding";
 import { githubIdentity, type PresetName } from "../folder/presets";
@@ -11,26 +19,33 @@ import {
   type RemovalMark,
   type RemovedCopy,
   type SyncEntry,
+  syncRecordFile,
 } from "./sync-record";
 
-// When access to a module has ended, its copy leaves the Environment (decision
-// F72, Matěj 2026-11-06), with whatever unsaved work it holds. Deleting cannot
+// When access to a module has ended, its copy leaves the Environment (root
+// decision 0232, decision F72), with whatever unsaved work it holds. Deleting cannot
 // be undone, so "always" means without an exception for unsaved work, never
 // on a doubt. A copy goes only when all of this holds, in two synchronizations
 // in a row at least `removalConfirmAfterMs` apart:
 //
 // - the Environment's identity is proved live: `gh`'s viewer is the person the
 //   handover names, by their immutable GitHub id (`removalIdentity`);
+// - GitHub names the scope `repo` for its token, which reaches every
+//   repository the person may read. A fine-grained token or an App's user
+//   token may be limited to chosen repositories, can read the root and name
+//   the person, and answers 404 for a module the person may read: no such
+//   token proves anything;
 // - the same identity still reads the Organization's root repository through
-//   the same API, so a token that lost its scope, an expired single sign-on
-//   or any other refusal of everything cannot look like one module's refusal;
+//   the same API, so an expired single sign-on or any other refusal of the
+//   whole Organization cannot look like one module's refusal;
 // - GitHub answers 404 for the repository, itself an answer of its API and
 //   not of `git ls-remote`, whose refusal may be a key or a helper
 //   (`repository` says `missing` only for a 404 in GitHub's own error body).
 //
 // Everything else (no network, 5xx, a rate limit, an invalid or missing token,
-// a signed-out gh, another viewer, an answer that cannot be read) proves
-// nothing and clears the first proof, so the count starts again.
+// a signed-out gh, another viewer, a token without `repo`, an answer that
+// cannot be read) proves nothing and clears the first proof, so the count
+// starts again.
 
 /** The least time between the two proofs. A person's press of Zkontrolovat
  * přístupy right after the hourly run must not make a second proof: an Admin
@@ -91,22 +106,88 @@ const asksGitHub = (outcome: Readonly<{ result: string; reason?: string }>) =>
       outcome.reason ?? "",
     ));
 
-const removingName = (name: string) =>
-  new RegExp(
-    `^\\.${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\.removing-[0-9a-f]{12}$`,
-  );
+/** Every step from the Folder down to `path` is a real directory: a link
+ * anywhere leads outside what this may touch. Asked before anything is
+ * deleted, of the path as it is on disk. */
+async function linkFree(folder: string, path: string): Promise<boolean> {
+  if ((await realpath(folder).catch(() => null)) !== folder) return false;
+  let at = folder;
+  for (const segment of path.split("/")) {
+    at = join(at, segment);
+    const stat = await lstat(at).catch(() => null);
+    if (stat === null || !stat.isDirectory()) return false;
+  }
+  return true;
+}
 
-/** What is left of an interrupted removal of `directory`: its renamed copy
- * beside it, by its exact name and only as a real directory. */
-async function sweepRemoved(directory: string): Promise<void> {
-  const parent = dirname(directory);
-  const pattern = removingName(basename(directory));
-  const names = await readdir(parent).catch(() => [] as string[]);
-  for (const name of names.filter((entry) => pattern.test(entry))) {
-    const leftover = join(parent, name);
-    const stat = await lstat(leftover).catch(() => null);
-    if (stat?.isDirectory() === true)
-      await rm(leftover, { recursive: true, force: true }).catch(() => {});
+// A removal in progress, written before the rename and deleted after the
+// deletion: one file per removal beside the Folder's record, so a later run
+// finishes exactly that removal and no directory that only looks like one.
+const journalSchema = "lazurio.access-ended.removal.v1";
+const journalId = /^[0-9a-f]{12}$/;
+
+type JournalEntry = Readonly<{
+  schema: typeof journalSchema;
+  folder: string;
+  /** The slot, relative to the Folder. */
+  path: string;
+  /** Its renamed copy's name, beside the slot. */
+  moved: string;
+}>;
+
+const movedName = (path: string, id: string) =>
+  `.${basename(path)}.removing-${id}`;
+
+/** The journal files of one Folder start with this. */
+export const removalJournalPrefix = (lockDirectory: string, folder: string) =>
+  `${basename(syncRecordFile(lockDirectory, folder))}.removing-`;
+
+/** A journal file's entry, when it is exactly what a removal of this Folder
+ * wrote under that name; anything else is left alone. */
+async function readJournal(
+  file: string,
+  id: string,
+  folder: string,
+): Promise<JournalEntry | null> {
+  if (!journalId.test(id)) return null;
+  try {
+    const value = JSON.parse(await readFile(file, "utf8")) as JournalEntry;
+    return value.schema === journalSchema &&
+      value.folder === folder &&
+      typeof value.path === "string" &&
+      value.path
+        .split("/")
+        .every((part) => part !== "" && part !== "." && part !== "..") &&
+      value.moved === movedName(value.path, id)
+      ? value
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Finishes the removals an earlier run left, each exactly as its journal
+ * names it and only below a boundary without links. A journal that does not
+ * hold, or a path that does not, stays as it is: nothing is deleted on it. */
+async function resumeRemovals(
+  lockDirectory: string,
+  folder: string,
+): Promise<void> {
+  const prefix = removalJournalPrefix(lockDirectory, folder);
+  const names = await readdir(lockDirectory).catch(() => [] as string[]);
+  for (const name of names.filter((entry) => entry.startsWith(prefix))) {
+    const file = join(lockDirectory, name);
+    const entry = await readJournal(file, name.slice(prefix.length), folder);
+    if (entry === null) continue;
+    const parent = dirname(entry.path);
+    if (!(await linkFree(folder, parent))) continue;
+    const moved = join(folder, parent, entry.moved);
+    const stat = await lstat(moved).catch(() => null);
+    if (stat !== null && !stat.isDirectory()) continue;
+    try {
+      if (stat !== null) await rm(moved, { recursive: true, force: true });
+      await rm(file, { force: true });
+    } catch {}
   }
 }
 
@@ -126,18 +207,25 @@ async function linkedWorktrees(commonDir: string): Promise<readonly string[]> {
   return paths.filter((path) => path !== null);
 }
 
-/** The copy at `directory`, proved once more as the primary checkout of
- * exactly this repository (`inspect` refuses a link anywhere on the way), gone
- * with everything below it: a rename, so nothing half-deleted ever looks like
- * a checkout, then the deletion. Null: it was not, and nothing changed. */
+/** The copy at its slot, proved once more as the primary checkout of exactly
+ * this repository below a boundary without links, gone with everything below
+ * it: a journal entry, a rename, so nothing half-deleted ever looks like a
+ * checkout, then the deletion. A deletion cut short leaves the journal entry
+ * for the next run. Null: it was not that copy, and nothing changed. */
 async function removeCopy(
-  git: ContentGit,
-  root: string,
-  path: string,
-  repository: string,
-  at: string,
+  input: Readonly<{
+    git: ContentGit;
+    folder: string;
+    lockDirectory: string;
+    /** The slot, relative to the Folder. */
+    path: string;
+    repository: string;
+    at: string;
+  }>,
 ): Promise<RemovedCopy | null> {
-  const directory = join(root, path);
+  const { git, folder, lockDirectory, path, repository, at } = input;
+  if (!(await linkFree(folder, path))) return null;
+  const directory = join(folder, path);
   const observed = await git.inspect(directory);
   if (
     observed.kind !== "checkout" ||
@@ -151,12 +239,32 @@ async function removeCopy(
   const inside = linked.filter((entry) =>
     entry.startsWith(`${directory}${sep}`),
   );
-  const moved = join(
-    dirname(directory),
-    `.${basename(directory)}.removing-${randomBytes(6).toString("hex")}`,
+  const id = randomBytes(6).toString("hex");
+  const name = movedName(path, id);
+  const journal = join(
+    lockDirectory,
+    `${removalJournalPrefix(lockDirectory, folder)}${id}`,
   );
-  await rename(directory, moved);
-  await rm(moved, { recursive: true, force: true });
+  const entry: JournalEntry = {
+    schema: journalSchema,
+    folder,
+    path,
+    moved: name,
+  };
+  await writeFile(journal, `${JSON.stringify(entry)}\n`, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  const moved = join(dirname(directory), name);
+  try {
+    await rename(directory, moved);
+  } catch {
+    await rm(journal, { force: true });
+    return null;
+  }
+  await rm(moved, { recursive: true, force: true })
+    .then(() => rm(journal, { force: true }))
+    .catch(() => {});
   return Object.freeze({
     at,
     repository,
@@ -182,7 +290,10 @@ type Slot = Readonly<{
 }>;
 
 export type AccessEnd = Readonly<{
-  /** One Organization of this run, by its login and root directory. */
+  /** Finishes what an earlier run's removals left; under the content lock. */
+  resume(): Promise<void>;
+  /** One Organization of this run, by its login, its root directory and that
+   * directory relative to the Folder. */
   of(
     login: string,
     root: string,
@@ -192,7 +303,6 @@ export type AccessEnd = Readonly<{
       slot: Slot,
       outcome: Readonly<{ result: string; reason?: string }>,
     ): Promise<AccessVerdict>;
-    sweep(path: string): Promise<void>;
   }>;
 }>;
 
@@ -201,6 +311,8 @@ export type AccessEnd = Readonly<{
 export function accessEnd(
   input: Readonly<{
     identity: number | null;
+    folder: string;
+    lockDirectory: string;
     github: ContentGitHub;
     git: ContentGit;
     retire: ((login: string, path: string) => Promise<boolean>) | undefined;
@@ -209,7 +321,7 @@ export function accessEnd(
     now: () => Date;
   }>,
 ): AccessEnd | null {
-  const { identity, github, git, retire, now } = input;
+  const { identity, folder, lockDirectory, github, git, retire, now } = input;
   if (identity === null || retire === undefined) return null;
   const marks = new Map(
     (input.record ?? []).flatMap((entry) =>
@@ -225,6 +337,7 @@ export function accessEnd(
       .catch(() => ({ kind: "unavailable" }) as const);
   };
   return Object.freeze({
+    resume: () => resumeRemovals(lockDirectory, folder),
     of(login, root, rootPath) {
       let proved: Promise<number | null> | undefined;
       // Asked once per Organization, only when a repository needs it.
@@ -237,6 +350,10 @@ export function accessEnd(
           answer.viewer.databaseId !== identity
         )
           return null;
+        // Only a token that reaches everything the person may read proves
+        // anything by a 404.
+        const scopes = await github.tokenScopes().catch(() => null);
+        if (scopes === null || !scopes.includes("repo")) return null;
         const observed = await git.inspect(root);
         if (observed.kind !== "checkout") return null;
         const control = await reachable(observed.repository);
@@ -247,7 +364,6 @@ export function accessEnd(
           : null;
       };
       return Object.freeze({
-        sweep: (path) => sweepRemoved(join(root, path)),
         async judge(slot, outcome) {
           // Only a repository of this Organization: the root's answer proves
           // nothing about another owner, so a guest Module stays (F67).
@@ -280,13 +396,14 @@ export function accessEnd(
             () => false,
           );
           if (!stopped) return { kind: "kept", removal: previous };
-          const removed = await removeCopy(
+          const removed = await removeCopy({
             git,
-            root,
-            slot.path,
-            slot.repository,
-            at.toISOString(),
-          ).catch(() => null);
+            folder,
+            lockDirectory,
+            path: join(rootPath, slot.path),
+            repository: slot.repository,
+            at: at.toISOString(),
+          }).catch(() => null);
           return removed === null
             ? { kind: "kept", removal: previous }
             : { kind: "removed", removed };
