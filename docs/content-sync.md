@@ -328,10 +328,11 @@ deleting cannot be undone, so a copy goes only on proof. `src/content/access-end
    user token may be limited to chosen repositories: it names the person, reads the root
    and answers 404 for a module the person may read, and it has no such header, so it
    never proves anything and the copy stays.
-3. The control: that identity reads the Organization's root repository through GitHub's
-   API, in the same run. Without it, an expired single sign-on or another refusal of the
-   whole Organization would look like one module's refusal, because GitHub answers 404
-   for what a token may not see.
+3. The control: in the same run that identity reads the Organization's root repository
+   through GitHub's API, and a private repository of the same owner: the root when it is
+   private, else another repository the root declares. A public root proves nothing: a
+   token whose single sign-on for the Organization is missing or expired reads it and
+   answers 404 for every private repository. No such repository answers: no proof.
 4. The answer: GitHub's API answers 404 for the repository, in GitHub's own error body.
    `git ls-remote` is no proof: its refusal may be a key or a helper.
 
@@ -339,7 +340,7 @@ The first proof is recorded on the repository's entry (`removal`: when, the iden
 repository). A later proof within the 30 minutes keeps it and removes nothing, so a press
 of Zkontrolovat přístupy is no second proof. Every other answer in between clears it and
 the count starts over: no network, 5xx, a rate limit (403 or 429), an invalid or missing
-token (401), a signed-out `gh`, another viewer, a token without `repo`, a root that does not answer or answers
+token (401), a signed-out `gh`, another viewer, a token without `repo`, a public root with no private repository that answers, a root that does not answer or answers
 as another owner's, a repository that answers at all, an unreadable answer, a run stopped at
 its root. An unreadable record is no proof either. With the hourly round, a copy goes about
 an hour after access ended.
@@ -383,7 +384,8 @@ a first proof.
 **Known limits.** GitHub does not tell a deleted repository from a refused one: a
 repository deleted on GitHub counts as access ended. A person who left the Organization no
 longer reads its root, so nothing proves anything and their copies stay until the Admin
-reassigns the Environment. An agent working in the copy at that moment loses its
+reassigns the Environment. The same holds where the root is public and the last private
+repository this identity could read is the one that went. An agent working in the copy at that moment loses its
 directory.
 
 ## Installation — implemented 2026-10-04

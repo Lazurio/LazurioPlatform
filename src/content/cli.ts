@@ -128,8 +128,9 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   is removed with everything below it, unsaved work included: absent
   access-ended, after its app stopped, once two synchronizations in a row at
   least 30 minutes apart proved it (the signed-in identity is the person's,
-  its token has the full repo scope, it still reads the Organization's root
-  through GitHub's API, and GitHub answers 404 for the repository);
+  its token has the full repo scope, it reads the Organization's root and a
+  private repository of it through GitHub's API, and GitHub answers 404 for
+  the repository);
   removal-pending marks the first proof, and
   any other answer starts over. Production Space
   repositories, infra, worktrees and the Personalspace are never touched. The

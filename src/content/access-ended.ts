@@ -12,7 +12,7 @@ import { basename, dirname, join, sep } from "node:path";
 import { assignedPerson, type MachineBinding } from "../folder/machine-binding";
 import { githubIdentity, type PresetName } from "../folder/presets";
 import type { ContentGit } from "./git";
-import type { ContentGitHub } from "./github";
+import type { ContentGitHub, RepositoryAnswer } from "./github";
 import { sameRepository } from "./model";
 import {
   entryKey,
@@ -35,9 +35,11 @@ import {
 //   token may be limited to chosen repositories, can read the root and name
 //   the person, and answers 404 for a module the person may read: no such
 //   token proves anything;
-// - the same identity still reads the Organization's root repository through
-//   the same API, so an expired single sign-on or any other refusal of the
-//   whole Organization cannot look like one module's refusal;
+// - the same token reads a private repository of this Organization through
+//   the same API, in this run: its root when that is private, else another
+//   repository the root declares. A public root proves nothing: a token whose
+//   single sign-on for the Organization is missing or expired reads it and
+//   answers 404 for every private repository;
 // - GitHub answers 404 for the repository, itself an answer of its API and
 //   not of `git ls-remote`, whose refusal may be a key or a helper
 //   (`repository` says `missing` only for a 404 in GitHub's own error body).
@@ -292,12 +294,14 @@ type Slot = Readonly<{
 export type AccessEnd = Readonly<{
   /** Finishes what an earlier run's removals left; under the content lock. */
   resume(): Promise<void>;
-  /** One Organization of this run, by its login, its root directory and that
-   * directory relative to the Folder. */
+  /** One Organization of this run, by its login, its root directory, that
+   * directory relative to the Folder and every repository its root declares
+   * now, the candidates for the proof that this token reads private ones. */
   of(
     login: string,
     root: string,
     rootPath: string,
+    declared: readonly string[],
   ): Readonly<{
     judge(
       slot: Slot,
@@ -338,8 +342,14 @@ export function accessEnd(
   };
   return Object.freeze({
     resume: () => resumeRemovals(lockDirectory, folder),
-    of(login, root, rootPath) {
+    of(login, root, rootPath, declared) {
       let proved: Promise<number | null> | undefined;
+      const isOurs = (
+        answer: RepositoryAnswer | Readonly<{ kind: "unavailable" }>,
+      ): answer is Extract<RepositoryAnswer, { kind: "observed" }> =>
+        answer.kind === "observed" &&
+        answer.repository.readable &&
+        answer.repository.owner.login.toLowerCase() === login.toLowerCase();
       // Asked once per Organization, only when a repository needs it.
       const provedViewer = async () => {
         const answer = await github
@@ -357,11 +367,16 @@ export function accessEnd(
         const observed = await git.inspect(root);
         if (observed.kind !== "checkout") return null;
         const control = await reachable(observed.repository);
-        return control.kind === "observed" &&
-          control.repository.readable &&
-          control.repository.owner.login.toLowerCase() === login.toLowerCase()
-          ? answer.viewer.databaseId
-          : null;
+        if (!isOurs(control)) return null;
+        if (control.repository.private) return answer.viewer.databaseId;
+        // A public root: another repository must show that this token reads
+        // the Organization's private ones.
+        for (const repository of declared) {
+          const candidate = await reachable(repository);
+          if (isOurs(candidate) && candidate.repository.private)
+            return answer.viewer.databaseId;
+        }
+        return null;
       };
       return Object.freeze({
         async judge(slot, outcome) {

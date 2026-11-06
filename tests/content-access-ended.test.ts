@@ -116,7 +116,11 @@ type Answers = Readonly<{
 
 const observed = (
   fullName: string,
-  fields: Readonly<{ readable?: boolean; owner?: string }> = {},
+  fields: Readonly<{
+    readable?: boolean;
+    owner?: string;
+    private?: boolean;
+  }> = {},
 ): RepositoryAnswer => ({
   kind: "observed",
   repository: {
@@ -126,7 +130,7 @@ const observed = (
       databaseId: 1,
       kind: "Organization",
     },
-    private: true,
+    private: fields.private ?? true,
     archived: false,
     readable: fields.readable ?? true,
     permission: "read",
@@ -433,6 +437,51 @@ const noProof: readonly (readonly [string, Answers])[] = [
   ["another identity is signed in", { viewer: signedIn(operator + 1) }],
   // A token that lost its scope, or a single sign-on that expired, refuses
   // the root as well: everything 404, nothing proved about one module.
+  // A public root: a token whose single sign-on for the Organization is
+  // missing or expired reads it and answers 404 for every private repository,
+  // and another owner's private repository says nothing about this one.
+  [
+    "the root is public and the single sign-on is missing or expired",
+    {
+      repositories: {
+        [rootRepository]: observed(rootRepository, { private: false }),
+        [`${login}/plans`]: { kind: "missing" },
+        [`${login}/plans-data`]: { kind: "missing" },
+      },
+    },
+  ],
+  [
+    "the root is public and the other repositories are public too",
+    {
+      repositories: {
+        [rootRepository]: observed(rootRepository, { private: false }),
+        [`${login}/plans`]: observed(`${login}/plans`, { private: false }),
+        [`${login}/plans-data`]: observed(`${login}/plans-data`, {
+          private: false,
+        }),
+      },
+    },
+  ],
+  [
+    "the root is public and GitHub does not answer for the others",
+    {
+      repositories: {
+        [rootRepository]: observed(rootRepository, { private: false }),
+        [`${login}/plans`]: { kind: "unavailable" },
+        [`${login}/plans-data`]: { kind: "unavailable" },
+      },
+    },
+  ],
+  [
+    "the root is public and a private repository cannot be read",
+    {
+      repositories: {
+        [rootRepository]: observed(rootRepository, { private: false }),
+        [`${login}/plans`]: observed(`${login}/plans`, { readable: false }),
+        [`${login}/plans-data`]: { kind: "missing" },
+      },
+    },
+  ],
   [
     "the identity no longer reads the root",
     {
@@ -499,6 +548,40 @@ for (const [name, answers] of noProof)
     },
     60_000,
   );
+
+posixTest(
+  "a public root needs a private repository of the Organization that answers: with one the copy goes, without one not even a first proof is recorded",
+  async () => {
+    world = await createWorld();
+    const fixture = await environment(world);
+    const web = fixture.at("workspace/web");
+    await writeFile(join(web, "unsaved.txt"), "work\n");
+    const publicRoot = {
+      [rootRepository]: observed(rootRepository, { private: false }),
+    };
+    // A single sign-on that was never authorized: nothing is even marked.
+    const unauthorized: Answers = {
+      repositories: {
+        ...publicRoot,
+        "Other/shared": observed("Other/shared"),
+      },
+    };
+    expect(
+      entryOf(await fixture.run(minutes(0), unauthorized), "workspace/web")
+        ?.removal,
+    ).toBeUndefined();
+    const authorized: Answers = {
+      repositories: { ...webGone.repositories, ...publicRoot },
+    };
+    expect(
+      entryOf(await fixture.run(minutes(10), authorized), "workspace/web")
+        ?.removal?.since,
+    ).toBe(minutes(10).toISOString());
+    await fixture.run(minutes(70), authorized);
+    expect(await exists(web)).toBe(false);
+  },
+  60_000,
+);
 
 posixTest(
   "without a live identity not even a first proof is recorded",

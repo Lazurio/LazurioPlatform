@@ -299,10 +299,14 @@ export async function syncContent(
         rootEntry.result !== "fast-forwarded"
       )
         continue;
-      const children = (await childrenOf(directory)).filter((child) =>
-        wanted(child.path),
+      const declared = await childrenOf(directory);
+      const children = declared.filter((child) => wanted(child.path));
+      const access = ended?.of(
+        login,
+        directory,
+        root,
+        declared.map((child) => child.repository),
       );
-      const access = ended?.of(login, directory, root);
       // Modules first, then the data mounts: a data mount is cloned only
       // below its declared module whose primary checkout this run verified
       // (an answer that got past the identity and worktree checks).
