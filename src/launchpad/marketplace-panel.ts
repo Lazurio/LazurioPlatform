@@ -131,7 +131,9 @@ export function createMarketplacePanel(
         if (now !== null && JSON.stringify(now) !== JSON.stringify(adding)) {
           showing += 1;
           if (dialog.open)
-            said = fill(options.copy().marketChanged, { title: now.title });
+            said = fill(options.copy().marketChanged, {
+              title: now.title[options.locale()],
+            });
         }
         adding = now ?? adding;
       }
@@ -277,7 +279,7 @@ export function createMarketplacePanel(
     const text = element("span", "market-card-body");
     const words = element("span", "tile-body");
     words.append(
-      element("span", "tile-name", offer.title),
+      element("span", "tile-name", offer.title[options.locale()]),
       element("span", "tile-desc", offer.summary[options.locale()]),
     );
     text.append(stone(offer, 44), words);
@@ -311,7 +313,7 @@ export function createMarketplacePanel(
     const head = element("header", "market-detail-head");
     const title = element("div", "market-detail-title");
     title.append(
-      heading(offer.title),
+      heading(offer.title[locale]),
       element("p", "market-summary", offer.summary[locale]),
     );
     const add = element("button", "primary market-add", copy.marketAdd);
@@ -445,7 +447,7 @@ export function createMarketplacePanel(
               failed: now.marketCopyFailed,
               "needs-ai": now.appsNewModuleNeedsAi,
             }[outcome],
-            { title: offer.title },
+            { title: offer.title[options.locale()] },
           );
         }
         if (dialog.open && adding !== null) drawDialog(adding);
@@ -487,7 +489,9 @@ export function createMarketplacePanel(
     const chosen = chosenTarget();
     if (chosen !== null) askRole(chosen);
     const asking = chosen !== null && roles.get(chosen.forgeLogin) === "member";
-    dialogTitle.textContent = fill(copy.marketAddTitle, { title: offer.title });
+    dialogTitle.textContent = fill(copy.marketAddTitle, {
+      title: offer.title[options.locale()],
+    });
     dialogClose.setAttribute("aria-label", copy.marketClose);
     dialogCancel.textContent = copy.marketCancel;
     dialogOk.textContent = asking ? copy.marketAskAdmin : copy.marketHandOver;
@@ -567,7 +571,7 @@ export function createMarketplacePanel(
       "p",
       "market-what",
       fill(asking ? copy.marketRequestWhat : copy.marketWhat, {
-        title: offer.title,
+        title: offer.title[options.locale()],
         name,
       }),
     );
@@ -595,7 +599,8 @@ export function createMarketplacePanel(
 
   return {
     render,
-    /** An offer's title in the offers shown, by its id. */
-    title: (id: string) => offerById(offers, id)?.title,
+    /** An offer's title in the offers shown, by its id, in the page's
+     * language. */
+    title: (id: string) => offerById(offers, id)?.title[options.locale()],
   };
 }

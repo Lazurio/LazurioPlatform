@@ -352,6 +352,44 @@ test("screens per language: a page shows those in its language, else those witho
     expect(withScreens(screenshots)).toBeNull();
 });
 
+test("an offer's name: one string names it in both languages as before, `{cs, en}` in each its own", () => {
+  const named = (title: unknown) =>
+    parseMarketplaceIndex(
+      indexWith("presentations", {
+        title,
+        releases: [releaseWith({ commit })],
+      }),
+    )?.find((entry) => entry.id === "presentations") ?? null;
+  const organization = { name: "Example Company", login: "Example-Org" };
+  // Today's records: one string, the same name on a Czech and an English page.
+  const plain = named("Presentations") as MarketplaceOffer;
+  expect(plain.title).toEqual({ cs: "Presentations", en: "Presentations" });
+  for (const entry of builtInMarketplace.offers)
+    expect(entry.title.cs).toBe(entry.title.en);
+  // A bilingual template.
+  const both = named({
+    cs: "Evidence času",
+    en: "Time Tracker",
+  }) as MarketplaceOffer;
+  expect(both.title).toEqual({ cs: "Evidence času", en: "Time Tracker" });
+  expect(adoptionPrompt(both, "empty", organization, cs, "cs")).toContain(
+    "šablonu aplikace Evidence času",
+  );
+  expect(adoptionPrompt(both, "empty", organization, en, "en")).toContain(
+    "the app template Time Tracker",
+  );
+  // A name the release cannot read refuses the index.
+  for (const title of [
+    "",
+    "x".repeat(61),
+    { cs: "Evidence času" },
+    { cs: "Evidence času", en: "" },
+    { cs: "Evidence času", en: "Time Tracker", de: "Zeiterfassung" },
+    7,
+  ])
+    expect(named(title)).toBeNull();
+});
+
 test("an offer without a published release has no card, no detail and no prompt", () => {
   const catalog: MarketplaceCatalog = {
     source: "registry",
@@ -735,7 +773,7 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
       { view: "marketplace", offer: "presentations" },
       cs,
       undefined,
-      (offer) => offerById(catalogOf(...shown), offer)?.title,
+      (offer) => offerById(catalogOf(...shown), offer)?.title.en,
     ),
   ).toEqual({
     heading: "Presentations",
@@ -752,7 +790,7 @@ test("the Marketplace's routes: its catalog and an offer's detail, one frame", (
         { view: "marketplace", offer },
         cs,
         undefined,
-        (id) => offerById(unreleasedBuiltIn, id)?.title,
+        (id) => offerById(unreleasedBuiltIn, id)?.title.en,
       ).heading,
     ).toBe("Marketplace");
   // An offer only the registry has is titled by the offers the page shows.

@@ -398,8 +398,10 @@ export function routeTitle(
   route: PageRoute,
   copy: Readonly<Record<MessageKey, string>>,
   displayName: (organization: string) => string | undefined = () => undefined,
+  // The page names an offer in its own language (marketplace-panel.ts,
+  // ui.ts); without it, the built-in copy's English name.
   offerTitle: (offer: string) => string | undefined = (offer) =>
-    offerById(builtInMarketplace, offer)?.title,
+    offerById(builtInMarketplace, offer)?.title.en,
 ): Readonly<{ heading: string; document: string }> {
   if (route.view === "home")
     return { heading: copy.homeTitle, document: copy.title };

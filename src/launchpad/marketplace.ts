@@ -76,7 +76,10 @@ export type MarketplaceSeed = Readonly<{ label: Localized; brief: Localized }>;
 export type MarketplaceOffer = Readonly<{
   id: string;
   section: MarketplaceSection;
-  title: string;
+  /** The template's name in Czech and English, shown in the page's
+   * language: a registry record with one name gives it to both, one with
+   * `{cs, en}` (a bilingual template, decided 2026-11-06) its own in each. */
+  title: Localized;
   /** The module slug an adoption proposes; the agent confirms it against
    * the Organization's own modules. */
   module: string;
@@ -269,12 +272,18 @@ function offer(value: unknown): ReadOffer | null {
     fields.pricing !== "free"
   )
     return null;
-  const { id, title, module, publisher, license, stone } = fields;
+  const { id, module, publisher, license, stone } = fields;
+  const title =
+    typeof fields.title === "string"
+      ? text(fields.title, 60)
+        ? Object.freeze({ cs: fields.title, en: fields.title })
+        : null
+      : localized(fields.title, 60);
   const source = fields.repository;
   if (
     typeof id !== "string" ||
     !offerId.test(id) ||
-    !text(title, 60) ||
+    title === null ||
     typeof module !== "string" ||
     !slug.test(module) ||
     typeof source !== "string" ||
@@ -579,7 +588,7 @@ function filledBrief(
   const start = seedOf(entry, chosen);
   if (start === null) return null;
   return text
-    .replaceAll("{title}", entry.title)
+    .replaceAll("{title}", entry.title[locale])
     .replaceAll("{name}", organization.name)
     .replaceAll("{login}", organization.login)
     .replaceAll("{repository}", entry.repository)

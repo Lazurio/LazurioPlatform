@@ -167,6 +167,9 @@ function page(role: Role | (() => Promise<Role>) = null) {
       await settled();
     },
     open: () => dialog.open,
+    /** What the page's body says, each drawn text. */
+    body: () =>
+      [...node("#market-body").walk()].map((child) => child.textContent),
     /** The addresses of the screens the page shows. */
     shots: () =>
       [...node("#market-body").walk()]
@@ -183,7 +186,7 @@ function page(role: Role | (() => Promise<Role>) = null) {
 }
 
 const titled = (catalog: MarketplaceCatalog, id: string) =>
-  en.marketAddTitle.replace("{title}", offer(catalog, id).title);
+  en.marketAddTitle.replace("{title}", offer(catalog, id).title.en);
 
 test("a hand-over that ends in the dialog that started it says its outcome there", async () => {
   const view = page();
@@ -222,7 +225,7 @@ test("a member of the Organization asks the Organization Admin: the request's pr
   });
   const text = view.handOvers[0]?.prompt.text ?? "";
   expect(text).toContain("`admin-request`");
-  expect(text).toContain(shown.title);
+  expect(text).toContain(shown.title.en);
   expect(text).toContain(shown.release.commit);
   await view.end(0, "handed-over");
   view.leave();
@@ -374,6 +377,40 @@ test("a bilingual template's detail shows the screens in the page's language", a
   view.leave();
 });
 
+test("a bilingual template is named in the page's language: card, detail, dialog and the brief", async () => {
+  const bilingual = at(
+    "c",
+    parseMarketplaceIndex({
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((entry) => ({
+        ...entry,
+        ...(entry.id === "presentations"
+          ? { title: { cs: "Prezentace", en: "Slide Decks" } }
+          : {}),
+        releases: entry.releases.map((release, i) =>
+          i === 0 ? { ...release, commit } : release,
+        ),
+      })),
+    }) as readonly MarketplaceOffer[],
+  );
+  const view = page();
+  view.detail("presentations");
+  await view.answer(bilingual);
+  expect(view.body()).toContain("Slide Decks");
+  expect(view.body()).not.toContain("Prezentace");
+  view.add();
+  await settled();
+  expect(view.title()).toBe(
+    en.marketAddTitle.replace("{title}", "Slide Decks"),
+  );
+  view.ok.click();
+  expect(view.handOvers[0]?.prompt.text).toContain(
+    "the app template Slide Decks",
+  );
+  await view.end(0, "handed-over");
+  view.leave();
+});
+
 test("a personal space without an Organization says that templates go into one", async () => {
   const none = { kind: "catalog", organizations: [] } as unknown as Catalog;
   for (const [catalog, words] of [
@@ -408,7 +445,7 @@ test("a read that changes the offer while Chat is awaited keeps its warning, and
   const before = offer(first, "presentations");
   const changed: MarketplaceOffer = {
     ...before,
-    title: "Slides",
+    title: { cs: "Slajdy", en: "Slides" },
     summary: { cs: "Jiné slajdy", en: "Other slides" },
   };
   const second = at(

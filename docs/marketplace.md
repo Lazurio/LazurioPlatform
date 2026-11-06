@@ -51,7 +51,14 @@ does today; the rest of this document stays future direction.
   template, updates by merging a newer tag), which tests adoption for real.
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
-  screen of the app, the stone, the name and one line, as a tile in Apps.
+  screen of the app, the stone, the name and one line, as a tile in Apps. The name is
+  one string for both languages, or a bilingual template's `{cs, en}` (such as
+  "Evidence času" and "Time Tracker"), shown in the page's language on the card, the
+  detail, the dialog and in the brief. Like a screen's `locale`, a release older than
+  this one refuses an index with a `{cs, en}` name and shows its built-in copy, so
+  the registry takes such records only once this release is final. A stone key this
+  release does not know shows the plain app stone; a new stone is a new drawing of
+  the design system first, vendored here byte for byte (`src/shell/vendor/README.md`).
 - **Detail.** `/marketplace/<offer>` shows the stone, the name and its one line with
   "Přidat do Organizace"; the app's real screens, one large and the others as
   thumbnails that show it instead; and what it does in three short items (Knihovna,
