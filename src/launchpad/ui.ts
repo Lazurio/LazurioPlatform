@@ -445,8 +445,12 @@ const catalog = createCatalogPanel({
   },
   newModule: (prompt) => handOver(prompt),
   // The person's account through this Environment's gateway (account.ts):
-  // plain same-origin requests, never with the Launchpad's local token.
-  readAccount: () => readAccount(),
+  // plain same-origin requests, never with the Launchpad's local token. The
+  // page's one read, asked in the Folder's language as the boot document
+  // says it (the shell document's `locale`), as the shell's elements ask
+  // (F37's addendum of 2026-11-03); a workstation's page, which has no
+  // boot document and no relay, asks without it.
+  readAccount: () => readAccount(() => pageAccountJson(boot?.locale ?? null)),
   writeAccount: accountWriter(),
   dashboard: (slug) =>
     shellDocument?.organizations.find(

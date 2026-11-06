@@ -35,11 +35,15 @@ import {
 //   they are, and the account's Organization, its Environments and its last
 //   Environment are left out. Never a guess, never two spaces of one slug.
 // - The account's words (`name`, `who`) are shown only when the account
-//   speaks the local document's language: the Dashboard words them by the
-//   browser's `Accept-Language`, the elements by the profile's locale. In
-//   another language every Environment is named as without the account (its
-//   label or kind, in the local language); ids, apps, spaces, `offline` and
-//   the last Environments stay.
+//   speaks the local document's language. The Dashboard words them by the
+//   request's `Accept-Language`, the elements speak the profile's locale, and
+//   the page's read asks in that locale (account.ts, F37's addendum of
+//   2026-11-03), so a fresh answer speaks it. This rule stays as the guard
+//   for every other answer: an account this origin remembered in another
+//   language, a read asked without the language, or a profile whose language
+//   changed while the page was open. In another language every Environment
+//   is named as without the account (its label or kind, in the local
+//   language); ids, apps, spaces, `offline` and the last Environments stay.
 // - The operator is the account's: the person signed in at the browser,
 //   whom a Team or another person's work Environment does not know.
 // - The locale and the Dashboard's addresses stay the local document's.

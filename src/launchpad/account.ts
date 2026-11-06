@@ -81,7 +81,10 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
  * shell library's `pageAccountJson`, which the rail merges too, so the page
  * shares one bounded recovery cycle), or null when it is unavailable (no
  * gateway relay yet, a refusal, a sign-in redirect, a slow answer, anything else than
- * `lazurio.account.v1`). Never throws. */
+ * `lazurio.account.v1`). Never throws. Apps uses no word of the answer, but
+ * the read is shared: the page passes `read` asking in the Environment's
+ * language, as the rail does (F37's addendum of 2026-11-03), so whichever
+ * reader asks first, the rail's names come in its language. */
 export async function readAccount(
   read: () => Promise<unknown> = pageAccountJson,
 ): Promise<Account | null> {

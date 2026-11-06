@@ -298,6 +298,9 @@ function requestDocument(): void {
 // during a read is one more read after it, never lost.
 const documentReads = createDocumentReads(async () => {
   const shell = parseShell(await readShellDocumentJson());
+  // A page without its document still reads the account, whose `401`
+  // re-enters the Environment to sign in again (state.ts).
+  if (shell === null) state.documentUnavailable();
   // Drawn again only when it says something else.
   if (shell !== null && JSON.stringify(shell) !== JSON.stringify(state.local()))
     provideShell(shell);
