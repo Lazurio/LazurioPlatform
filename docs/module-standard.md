@@ -498,22 +498,25 @@ through the gateway reads `unknown`, which grants no role.
 
 **How an App reads it.** Only through `@lazurio/module-kit`:
 `appAccess(request, "<listener>")` (Python: `app_access`). Its answer is the
-stable contract: its fields and values never change meaning or disappear, and
-new information comes as new fields.
+stable contract: every answer has the same five fields, their values never
+change meaning or disappear, and new information comes as new fields.
 
-| `entry` | `appRole` | `person` | When |
-| --- | --- | --- | --- |
-| `environment` | `admin` | subject and username | the person has the whole Environment where the App runs |
-| `app` | `admin` or `user` | subject and username | the person has this App only, with the role the Organization gave them |
-| `local` | `admin` | `null` | not through the gateway: a person's own computer (`reason: "not-hosted"`), a request whose `Host` is not the listener's external origin (`not-through-gateway`), or the Environment browser's local entry (`local-entry`) |
-| `unknown` | `null` | `null` | through the gateway without a valid statement (`no-identity`), for example a gateway release without this capability |
+| `entry` | `appRole` | `person` | `source` | `reason` | When |
+| --- | --- | --- | --- | --- | --- |
+| `environment` | `admin` | subject and username | `gateway` | `null` | the person has the whole Environment where the App runs |
+| `app` | `admin` or `user` | subject and username | `gateway` | `null` | the person has this App only, with the role the Organization gave them |
+| `local` | `admin` | `null` | `null` | `not-hosted`, `not-through-gateway` or `local-entry` | from inside the Environment: no external origin (a person's own computer), a request to a loopback address (a sibling, a script, an agent), or the Environment browser's local entry |
+| `unknown` | `null` | `null` | `null` | `no-identity` | through the gateway without a valid statement (for example a gateway release without this capability), or a `Host` that is neither the App's hostname nor loopback |
 
-`source` is `gateway`: the Environment's gateway states it from its own
+`source` says who stated the person: `gateway`, which states it from its own
 admission answer (`/oauth2/auth`, [hosted entry](hosted-entry.md)) after
-removing every copy a client sent. An identity signed by Lazurio Auth for use
-outside the Environment will come as `source: "auth"`. The headers that carry
-the statement are transport, not this contract; read them only through the
-module kit.
+removing every copy a client sent; an identity signed by Lazurio Auth for use
+outside the Environment will come as `auth`. Without a person `source` is
+`null` and `reason` says why. A request whose `Host` names the App's external
+hostname, in any letter case, with any port or a trailing dot, as the gateway
+matches it, counts only by the gateway's statement, and a missing, repeated or
+malformed statement is `unknown`. The headers that carry the statement are
+transport, not this contract; read them only through the module kit.
 
 The rules:
 
@@ -533,7 +536,8 @@ The rules:
   the Module's own data, keyed by `subject`; Lazurio keeps only the two
   application roles.
 - **`local` is a statement of the Environment, not a proof.** The `Host` check
-  only tells a request through the gateway from an ordinary call on loopback.
+  only tells a request for the App's hostname from an ordinary call to a
+  loopback address.
   It cannot prove that a request went through the gateway: a process on the
   Environment that reaches the App's loopback port can set `Host` and the
   headers itself, as it can read the App's data. The Apps of one Environment
