@@ -9949,9 +9949,11 @@ Verified by `tests/new-module-view.test.ts`, `tests/launchpad-prompts.test.ts`,
 `tests/apps-view.test.ts`, `tests/organization-owner.test.ts`,
 `tests/launchpad-access-check.test.ts` (real git over bare remotes: nothing new until the grant,
 then the module, once; the lock; the admission; a Team and a public Environment),
-`tests/launchpad-marketplace-panel.test.ts`, and in headless Chrome against the local, hosted and
-personal previews (root decision 0178) as an Owner, a Steward and a member, in Czech and English,
-at 1440 and 700 px, with and without less motion. The check's states were answered by the
+`tests/launchpad-marketplace-panel.test.ts`, and in headless Chrome at 1440 and 700 px (root
+decision 0178): the dialog and the tile against the hosted preview as an Owner and a member in
+Czech and English and as a Steward in Czech, against the local preview as an Owner in Czech and a
+member in English, and with less motion hosted, in Czech, as an Owner; the check's states
+against the hosted preview as a member in both languages. Those states were answered by the
 browser automation, since a preview is no installed Launchpad; the personal space's dialog was
 drawn from a stand-in catalog, since a preview holds no Personalspace.
 
@@ -19547,10 +19549,12 @@ space's "?" plays the video of an Organization.
 
 Verified by `tests/shell-guide.test.ts`, `tests/shell-guide-scenes.test.ts`,
 `tests/launchpad-guide.test.ts`, `tests/launchpad-guide-video.test.ts` (both languages' files:
-H.264, no audio track, their index first, sizes) and in headless Chrome against the hosted and
-local previews at 1440 and 700 px: the video opens and plays from its "?" in the page's language,
-Escape closes it with the focus on the "?", with less motion it waits at its poster, the five
-steps ring their elements, and nothing animates in the card with less motion.
+H.264, no audio track, their index first, sizes) and in headless Chrome against the hosted
+preview as an Owner and a member in Czech and English at 1440 and 700 px: the video opens and plays
+from its "?" in the page's language, Escape closes it with the focus on the "?", and the five
+steps ring their elements. With less motion, hosted, in Czech, as an Owner: it waits at its
+poster and nothing animates in the card. A second press and a move close it, checked once at
+1440 px.
 
 ## F57 — Sleeping tabs: a tab nobody uses closes its window and keeps its place, under its id
 
