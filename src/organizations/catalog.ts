@@ -9,7 +9,9 @@ import { readFolderState } from "../folder/read-state";
 import {
   type MachineContext,
   type MachineContextSource,
+  type MachineService,
   type OrganizationWorkspaceContext,
+  type PersonalMachineContext,
   productionMachineContextSource,
   readMachineContext,
 } from "../machine/context";
@@ -212,8 +214,9 @@ export type CatalogRepository = Readonly<{
    * otherwise. Nothing is fetched. */
   url: string | null;
   /** The services of this Environment that run from it, in the handover's
-   * order: only in Služby serveru (root decision 0209 point 6), never empty
-   * where present. */
+   * order: only in Služby serveru (root decision 0209 point 6) and in the
+   * Personalspace group of a Personal Environment with its own AI pool (root
+   * decision 0181, addendum of 2026-11-05), never empty where present. */
   services?: readonly CatalogService[];
 }>;
 
@@ -274,7 +277,9 @@ export type CatalogOrganization = Readonly<{
   /** Its declared productionspace repositories, read-only, in declaration
    * order, and in Služby serveru after them the repositories only its
    * services name (root decision 0209 point 6); empty for an Organization
-   * that could not be read and for the Personalspace group. */
+   * that could not be read. The Personalspace group has none but the
+   * repository of a Personal Environment's own AI pool (root decision 0181,
+   * addendum of 2026-11-05). */
   repositories: readonly CatalogRepository[];
   /** Its declared guest Modules, read-only, in declaration order; present
    * only when it declares one. */
@@ -582,9 +587,11 @@ export function repositoryPage(remote: unknown): string | null {
  * lists them (root decision 0209 point 6, Machines docs/server-services.md
  * §2.1), and the owning Organization as the handover names it: its GitHub
  * login (`owner.organization`) and its own slug (`owner.organization_key`),
- * where it gives one. */
+ * where it gives one. On a Personal Environment with an AI pool of its own
+ * (root decision 0181, addendum of 2026-11-05) `owner` is null: the pool is
+ * the person's, and the catalog lists it in the Personalspace group. */
 export type ServerServices = Readonly<{
-  owner: Readonly<{ login: string; key: string | null }>;
+  owner: Readonly<{ login: string; key: string | null }> | null;
   services: readonly Readonly<
     CatalogService & {
       /** Its repository's GitHub page, as a declared slot's `url` reads. */
@@ -593,14 +600,26 @@ export type ServerServices = Readonly<{
   >[];
 }>;
 
-/** What a handover gives the catalog: only on an Organization's work VM
- * whose assignment is `services`, Služby serveru, since only there is a
- * page's port this Environment's own loopback; only the services that name
- * a repository GitHub can have, in the handover's order. Null anywhere
- * else, so every other Environment's catalog stays as it was. */
+/** What a handover gives the catalog: on an Organization's work VM whose
+ * assignment is `services`, Služby serveru, and on a Personal Environment
+ * whose handover names its own AI pool (root decision 0181, addendum of
+ * 2026-11-05), since only there is a page's port this Environment's own
+ * loopback; only the services that name a repository GitHub can have, in
+ * the handover's order. Null anywhere else, and on a Personal Environment
+ * whose handover names no `services`, so every other Environment's catalog
+ * stays as it was. */
 export function serverServicesOf(
   context: MachineContext,
 ): ServerServices | null {
+  if (context.machine.kind === "personal-vm") {
+    const personal = context as PersonalMachineContext;
+    return personal.services === undefined
+      ? null
+      : Object.freeze({
+          owner: null,
+          services: catalogServices(personal.services),
+        });
+  }
   if (
     context.machine.kind !== "workspace-vm" ||
     context.owner.kind !== "organization" ||
@@ -613,30 +632,42 @@ export function serverServicesOf(
       login: work.owner.organization,
       key: work.owner.organization_key ?? null,
     }),
-    services: Object.freeze(
-      (work.services ?? []).flatMap((service) => {
-        const url =
-          service.repository === undefined
-            ? null
-            : repositoryPage(`https://github.com/${service.repository}`);
-        return url === null
-          ? []
-          : [
-              Object.freeze({
-                id: service.id,
-                kind: service.kind,
-                page: servicePage(service),
-                url,
-              }),
-            ];
-      }),
-    ),
+    services: catalogServices(work.services ?? []),
   });
 }
 
+// The services of a handover that name a repository GitHub can have, in its
+// order, each with its page and its repository's GitHub page.
+function catalogServices(
+  services: readonly Pick<
+    MachineService,
+    "id" | "kind" | "repository" | "page_port"
+  >[],
+): ServerServices["services"] {
+  return Object.freeze(
+    services.flatMap((service) => {
+      const url =
+        service.repository === undefined
+          ? null
+          : repositoryPage(`https://github.com/${service.repository}`);
+      return url === null
+        ? []
+        : [
+            Object.freeze({
+              id: service.id,
+              kind: service.kind,
+              page: servicePage(service),
+              url,
+            }),
+          ];
+    }),
+  );
+}
+
 /** This Environment's services from its root-custodied handover; none where
- * there is no readable handover (a workstation) or it is not Služby
- * serveru's. Never throws. */
+ * there is no readable handover (a workstation) or it is neither Služby
+ * serveru's nor a Personal Environment's with its own AI pool. Never
+ * throws. */
 export async function handoverServerServices(
   source: MachineContextSource = productionMachineContextSource,
 ): Promise<ServerServices | null> {
@@ -701,17 +732,20 @@ export function withServiceRepositories(
  * theirs (`Catalog.serverServices`): in the shape of an Organization named
  * as the handover names its owner, its own slug where it gives one (as the
  * shell document names the owner it does not hold), with no root here. */
-function serverServicesGroup(served: ServerServices): CatalogOrganization {
+function serverServicesGroup(
+  owner: NonNullable<ServerServices["owner"]>,
+  services: ServerServices["services"],
+): CatalogOrganization {
   return Object.freeze({
     directory: "",
-    organization: served.owner.key ?? served.owner.login,
+    organization: owner.key ?? owner.login,
     displayName: null,
     state: null,
     issues: Object.freeze([]),
     executable: false,
     teams: Object.freeze([]),
     modules: Object.freeze([]),
-    repositories: withServiceRepositories([], served.services),
+    repositories: withServiceRepositories([], services),
   });
 }
 
@@ -721,7 +755,8 @@ function serverServicesGroup(served: ServerServices): CatalogOrganization {
 // its Productionspace where the Folder holds it; in a group of their own
 // where it holds none, as on a services Environment whose Organization was
 // not installed (`serverServices`); and where two or more candidates answer,
-// nowhere, since which one is the owner is never guessed.
+// nowhere, since which one is the owner is never guessed. A Personal
+// Environment's own pool (no owner) is never an Organization's.
 function withServerServices(
   organizations: readonly CatalogOrganization[],
   served: ServerServices | null,
@@ -729,14 +764,18 @@ function withServerServices(
   organizations: readonly CatalogOrganization[];
   serverServices?: CatalogOrganization;
 }> {
-  if (served === null || served.services.length === 0) return { organizations };
+  if (served === null || served.owner === null || served.services.length === 0)
+    return { organizations };
   const owner = selectOwnerOrganization(
     { kind: "catalog", organizations },
     served.owner.login,
   );
   if (owner.kind === "ambiguous") return { organizations };
   if (owner.kind === "missing")
-    return { organizations, serverServices: serverServicesGroup(served) };
+    return {
+      organizations,
+      serverServices: serverServicesGroup(served.owner, served.services),
+    };
   return {
     organizations: organizations.map((entry) =>
       entry === owner.organization
@@ -750,6 +789,29 @@ function withServerServices(
         : entry,
     ),
   };
+}
+
+// A Personal Environment's own AI pool (root decision 0181, addendum of
+// 2026-11-05; decision F32's addendum of 2026-11-05) in the Personalspace
+// group, as Služby serveru's services are in their Organization's
+// Productionspace: one read-only repository entry carrying its services,
+// without a path. The pool runs on this Environment whatever the
+// Personalspace's state, so a group listed with a reason carries it too; a
+// Folder without a Personalspace group lists it nowhere, since the pool is
+// the person's and no Organization's. Services with an owner are not here.
+function withPersonalServices(
+  personalspace: CatalogOrganization,
+  served: ServerServices | null,
+): CatalogOrganization {
+  if (served === null || served.owner !== null || served.services.length === 0)
+    return personalspace;
+  return Object.freeze({
+    ...personalspace,
+    repositories: withServiceRepositories(
+      personalspace.repositories,
+      served.services,
+    ),
+  });
 }
 
 // The declared remote of a slot, as the legacy projection reads it.
@@ -1104,7 +1166,9 @@ async function readCatalogPersonalspace(
  * also lists the services `services` reads from the handover (root decision
  * 0209 point 6): in the Productionspace of the Organization that owns this
  * Machine, or in a group of their own where the Folder holds none
- * (`serverServices`). The Launchpad and `lazurio organization list` name
+ * (`serverServices`). On a Personal Environment with an AI pool of its own
+ * the Personalspace group lists it (root decision 0181, addendum of
+ * 2026-11-05). The Launchpad and `lazurio organization list` name
  * `handoverServerServices`, so both answer the same; every other reader
  * lists none. */
 export async function readFolderCatalog(
@@ -1127,7 +1191,9 @@ export async function readFolderCatalog(
     services().catch(() => null),
   ]);
   const withPersonalspace =
-    personalspace === undefined ? {} : { personalspace };
+    personalspace === undefined
+      ? {}
+      : { personalspace: withPersonalServices(personalspace, served) };
   // The Organizations with this Environment's services where they run: in
   // the owning Organization, or beside the Organizations in a group of
   // their own.

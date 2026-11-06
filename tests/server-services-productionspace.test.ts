@@ -197,6 +197,8 @@ test("only Služby serveru's handover gives services, those that name a reposito
   });
   // Any other Environment gives none, even a handover that lists services
   // under another assignment: a page's port is Služby serveru's loopback.
+  // A Personal Environment gives only its own AI pool, with no owner (root
+  // decision 0181, addendum of 2026-11-05, tests/personal-ai-pool.test.ts).
   const parsed = (value: unknown) =>
     parseMachineContext(Buffer.from(JSON.stringify(value)));
   for (const other of [
@@ -209,6 +211,19 @@ test("only Služby serveru's handover gives services, those that name a reposito
     },
   ])
     expect(serverServicesOf(parsed(other))).toBeNull();
+  expect(
+    serverServicesOf(
+      parsed({
+        ...personalContext,
+        services: [{ ...exampleServices[3], id: "ai-pool" }],
+      }),
+    ),
+  ).toEqual({
+    owner: null,
+    services: [
+      { id: "ai-pool", kind: "ai-pool", page: members, url: cliProxy },
+    ],
+  });
   // Služby serveru without a service with a repository list none.
   expect(
     serverServicesOf(

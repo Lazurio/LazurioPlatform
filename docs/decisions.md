@@ -7505,6 +7505,32 @@ is a separate finding, and point 2 changes no install behaviour.
 | The owner by its login, slug or `organization_key`, as the shell document finds it for the rail | A third rule for the same fact; replaced by `selectOwnerOrganization`, the one rule Organization settings and Composio already read |
 | The services in the owning Organization's Productionspace, or in a group of their own where it is not installed, their page opened through Nová karta's open (selected) | One core for the CLI and the page; no new interface; one tab per service by the hub's own rule; nothing that acts on an installed Organization sees the group |
 
+**Addendum 2026-11-05, plan LZD-0001 (root decision 0181, its amendment of
+2026-11-05, Lazurio/LazurioPlatform#859; Machines #1099): a Personal Environment's
+own AI pool is shown like Služby serveru's.** The amendment lets a person switch on
+an AI pool of their own in their Personal Environment, on its loopback only, and
+the Launchpad shows it "like a services Environment's pool, as the fork's read-only
+repository that opens its page on localhost in the Environment's browser". Machines
+names it in the personal branch's optional `services`: at most one `ai-pool` from
+`Lazurio/CLIProxyAPI` with its `page_port`, written only for a Platform release
+that reads it.
+
+1. **Where.** `serverServicesOf` gives a personal handover's `services` with no
+   owner; the catalog merges them into the Personalspace group's repositories by the
+   same rule (`withServiceRepositories`), also where the group carries a reason,
+   since the pool runs here whatever the Personalspace's state. No Organization and
+   no `serverServices` group ever gets it. A Folder without a Personalspace group
+   lists it nowhere: the pool is the person's, and placing it elsewhere would invent
+   a group for one tile.
+2. **What Apps shows.** The personal Workspace section has the pool's repository
+   tile after the modules (favourites first, as before), with the same tile, menu,
+   read-only page, "Otevřít stránku služby" and `/service/ai-pool` as point 5 to 7.
+   The section shows for the tile even without a module. Its kind reads "Váš AI
+   pool" / "Your AI pool" wherever the service is listed in the Personalspace group;
+   an Organization's stays "AI pool Organizace".
+3. **Unchanged.** A personal handover without `services`, every other Environment
+   and Služby serveru answer as before; the member is recorded nowhere in the Folder.
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
