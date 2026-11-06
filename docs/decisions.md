@@ -24199,3 +24199,56 @@ points above:
    name the reason.
 5. The API is experimental. A Codex update can change it, so the Platform checks the
    methods at runtime and qualifies each new Codex release on one Environment first.
+
+## F72 — A module whose access proved to have ended leaves the Environment
+
+**Decided by Matěj on 2026-11-06 (relayed in the plan of the modules work); the rule of the
+proof proposed by the implementing agent. Implemented.** Until now a synchronization left a
+copy in place when access ended (`repository-denied`): it stopped updating, and the agent
+could go on reading it, so taking a Team off a module did not take the module away. The
+decision: after access is removed, Lazurio always deletes the copy, unsaved work included.
+This amends F9 ("Denied, revoked or unavailable access … preserves local content") for this
+one case. The contract is [content synchronization](content-sync.md#access-ended--decided-2026-11-06).
+
+1. **"Always" is about unsaved work, never about doubt.** Deleting cannot be undone. A copy
+   goes only on proof: two synchronizations in a row at least 30 minutes apart, each with the
+   identity proved live against the person the handover names, that identity reading the
+   Organization's root through GitHub's API, and GitHub's API answering 404 for the repository.
+   Any other answer clears the first proof.
+2. **Why two proofs and half an hour.** One 404 can be a passing fault, and an Admin may switch
+   the wrong Team off and back. Two proofs in a row catch both, and the time keeps a second
+   press of Zkontrolovat přístupy from counting. It needs no new timer: the hourly round is
+   the second proof, so a copy goes about an hour after access ended.
+3. **Why the root as a control.** GitHub answers 404 for whatever a token may not see, so a
+   token that lost its scope, or an expired single sign-on, looks exactly like a revoked module.
+   The root is a repository of the same owner that every member reads: where it answers, the
+   404 is about the module. For the same reason only repositories of that owner go, and a
+   guest Module (F67) stays hidden as before.
+4. **Why GitHub's API and not `git ls-remote`.** A refusal of git may be a key or a helper, and
+   a checkout with unsaved work is blocked before git asks at all. The API's 404 is read for
+   every proved checkout that git could not answer for, dirty or not.
+5. **Where.** A Work Environment that names its person, because only there the identity can be
+   proved. Not on the person's computer, a Team Environment (the hosting's content, a broker's
+   answers), a Henry Environment or Server services (no recorded identity), a public
+   Environment, and never for the Organization's root, the Personalspace or what no slot
+   declares.
+6. **Before the deletion** the module's apps stop (`retire` of the module operations) and its
+   builds go; what cannot be stopped keeps its copy for a later run. The slot stays declared and
+   `absent`, the record keeps the trace, and Zkontrolovat přístupy says what left ("Odebrali jsme
+   modul {names}, přístup k němu skončil." / "Module {names} was removed: access ended.").
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Delete at the first refusal | Simplest, but one passing fault or a misclick loses work for good; rejected |
+| Two proofs without a time between them | Two presses of a button in a row would decide; rejected |
+| A grace of days | Keeps a module a person lost access to readable for days, against the decision; rejected |
+| Move the copy aside instead of deleting | Keeps what the decision wants gone; rejected |
+| Ask the person first | The person who lost access is the one asked; the decision says always; rejected |
+| Trust `git ls-remote` | Cannot tell a key from a grant, and never asks for a dirty checkout; rejected |
+
+**Verification.** `tests/content-access-ended.test.ts`, with real git and a real deletion: the two
+proofs, unsaved work, worktrees, the trace, access given back, a data mount alone, a link at the
+slot, an interrupted deletion, each answer that is no proof as the second run, a run stopped
+at the root, a computer and an unnamed Environment, an unreadable record; gh's answers
+through a fake gh; `tests/launchpad-access-check.test.ts` and `tests/module-built.test.ts` the
+words and `retire`. Not proven: a real revocation on GitHub. Known limits are in the contract.

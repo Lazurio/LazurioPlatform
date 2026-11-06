@@ -178,7 +178,18 @@ test("the chapter explains modules, and no generated text says the product does 
           : "the agent cannot read it; its name may still show in the Organization's manifest",
       ])
         expect([phrase, chapter.includes(phrase)]).toEqual([phrase, true]);
+      // A copy goes on proof (decision F72): the chapter says when and where.
+      expect(chapter).toContain(
+        cs
+          ? "smaže i s neuloženou prací a worktrees"
+          : "unsaved work and worktrees included",
+      );
       const all = Object.values(outputs).join("\n");
+      expect(all).not.toContain(
+        cs
+          ? "Odebrání přístupu ale nesmaže kopii"
+          : "Revoking access does not delete a copy",
+      );
       for (const claim of [
         "Synchronizaci obsahu produkt zatím neumí",
         "The product does not synchronize",
@@ -187,7 +198,6 @@ test("the chapter explains modules, and no generated text says the product does 
         "we recommend **Neon**",
       ])
         expect([claim, all.includes(claim)]).toEqual([claim, false]);
-      expect(all).not.toContain(cs ? "Zkontrolovat přístupy" : "Check access");
       const holdsOrganizations = environment.preset !== "hosted-personal";
       expect(
         (outputs["manual/troubleshooting.md"] ?? "").includes(
