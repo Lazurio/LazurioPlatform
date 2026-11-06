@@ -9893,9 +9893,10 @@ decision 0230.
    leads to the Marketplace, where a template can go, so not from the personal space.
 2. **A member sees the tile muted.** Workspace ends with it for an active member, a Steward
    too: a lock, "Zakládá Admin", a button that is never disabled and opens the same dialog in
-   the member's words. A Team Environment has none, and neither has anyone without an active
-   membership. A member without a module keeps the plain sentence of an empty space: access
-   is what they need first, and a Workspace of one muted tile would hide how to get it.
+   the member's words. A Team and a public Environment have none, and neither has anyone
+   without an active membership. A member without a module needs the tile most, as the one
+   way to ask for a first one: the plain sentence of an empty space and Zkontrolovat přístupy
+   stay, over a Workspace of that one muted tile.
 3. **The server decides as it did.** One read of `user/memberships/orgs/<login>` gives the
    role (`membershipRole`, `owners.role`): `new-module` only for an Owner, the new
    `new-module-request` only for an active member who is no Owner, the same 404 to anyone
@@ -9906,7 +9907,9 @@ decision 0230.
    the page leaves the description at the Launchpad once the tab is open
    (`POST /api/prompts/brief`), by the rule of the prompt's own route, and the link names
    `<prompt>-<key>`, a random key within Chat's grammar. The route asks the audience again
-   at the read. In memory only, 15 minutes, 32 at most.
+   at the read. Every hand-over has its own brief, so a later one of the same person never
+   replaces an earlier one, and a Chat that comes back reads its own words again. In memory
+   only, for a day, 64 at most.
 5. **Zkontrolovat přístupy** beside the "?" of an Organization's Apps and under the sentence
    of an empty space: `POST /api/organizations/<org>/sync` runs the hourly synchronization of
    that Organization now, by [F9's amendment of
@@ -9945,15 +9948,17 @@ decision 0230.
 - The fork's read of a brief's id is not checked against a real T3 Code here: the id is within
   `chatPromptHref`'s grammar, as the Marketplace's generated ids are.
 
-Verified by `tests/new-module-view.test.ts`, `tests/launchpad-prompts.test.ts`,
-`tests/apps-view.test.ts`, `tests/organization-owner.test.ts`,
+Verified by `tests/new-module-view.test.ts`, `tests/new-module-dialog.test.ts`,
+`tests/launchpad-prompts.test.ts`, `tests/apps-view.test.ts`, `tests/organization-owner.test.ts`,
 `tests/launchpad-access-check.test.ts` (real git over bare remotes: nothing new until the grant,
 then the module, once; the lock; the admission; a Team and a public Environment),
 `tests/launchpad-marketplace-panel.test.ts`, and in headless Chrome at 1440 and 700 px (root
 decision 0178): the dialog and the tile against the hosted preview as an Owner and a member in
 Czech and English and as a Steward in Czech, against the local preview as an Owner in Czech and a
 member in English, and with less motion hosted, in Czech, as an Owner; the check's states
-against the hosted preview as a member in both languages. Those states were answered by the
+against the hosted preview as a member in both languages; an empty Organization as a member and
+a Steward (the sentence, the button and the muted tile) and an Admin (the tile), and unchanged
+in a Team and a public Environment. Those states were answered by the
 browser automation, since a preview is no installed Launchpad; the personal space's dialog was
 drawn from a stand-in catalog, since a preview holds no Personalspace.
 
@@ -19512,8 +19517,8 @@ with the Platform release that carries F60's addendum of 2026-10-25, after the f
 ### F56 addendum (8) of 2026-11-05: Apps explain the module
 
 **Decided by Matěj (Organization Admin) on 2026-11-05 with [F36's addendum of that
-day](#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once).
-The video's content still waits for his approval.** Apps' "?" played the principle
+day](#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once).**
+Apps' "?" played the principle
 `environment`, which says nothing of what the page shows.
 
 1. **The principle `modules`**, the seventh, says the video's five titles word for word, one

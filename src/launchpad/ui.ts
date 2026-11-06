@@ -1568,11 +1568,7 @@ const newModuleDialog = createNewModuleDialog({
       return null;
     }
   },
-  copyText: (text) =>
-    navigator.clipboard.writeText(text).then(
-      () => true,
-      () => false,
-    ),
+  copyText: copyToClipboard,
   say: (text) => catalog.say(text),
 });
 const marketplace = createMarketplacePanel({
@@ -2198,6 +2194,16 @@ async function pairedHref(app: string): Promise<string | null> {
 // `brief`): the description is left at the Launchpad once the tab is open, so
 // the click still opens it; a brief that could not be left goes through the
 // clipboard, never a link without the person's words.
+/** Writes text to the clipboard: whether it is there. A page without the
+ * clipboard, as over plain HTTP, and a refusal are both no. */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
 async function handOver(
   prompt: Readonly<{
     id: string;
@@ -2225,10 +2231,7 @@ async function handOver(
         prompt.brief === undefined ? link.id : prompt.brief(),
       ]);
       if (id === null) {
-        const copied = await navigator.clipboard.writeText(prompt.text).then(
-          () => true,
-          () => false,
-        );
+        const copied = await copyToClipboard(prompt.text);
         if (next === null) tab.close();
         else {
           tab.opener = null;
@@ -2249,10 +2252,7 @@ async function handOver(
       return "handed-over";
     }
   }
-  const copying = navigator.clipboard.writeText(prompt.text).then(
-    () => true,
-    () => false,
-  );
+  const copying = copyToClipboard(prompt.text);
   const tab = current === null ? null : window.open("about:blank", "_blank");
   if (tab !== null) {
     const next = await pairedHref("chat");

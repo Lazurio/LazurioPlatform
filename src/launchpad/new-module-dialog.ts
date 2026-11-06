@@ -99,8 +99,10 @@ export function createNewModuleDialog(
     return node;
   };
 
-  const say = (text: string) => {
+  const say = (text: string, warning = false) => {
     status.textContent = text;
+    if (warning) status.dataset.tone = "warning";
+    else delete status.dataset.tone;
   };
 
   // A video that stays open must not play on behind the next screen.
@@ -193,7 +195,7 @@ export function createNewModuleDialog(
           field.setSelectionRange(0, 0);
           field.scrollTop = 0;
         });
-        chip.classList.add("new-module-example");
+        chip.className = "new-module-example";
         return chip;
       }),
     );
@@ -209,10 +211,18 @@ export function createNewModuleDialog(
     const copying = element("div", "buddy-act");
     copying.append(
       button(options.copy().newModuleCopy, () => {
-        void options.copyText(screen.brief).then((done) => {
-          const now = options.copy();
-          say(done ? now.newModuleCopied : now.appsNewModuleCopyFailed);
-        });
+        // Said only once the clipboard answered, and only in this showing.
+        const mine = showing;
+        say("");
+        void options
+          .copyText(screen.brief)
+          .catch(() => false)
+          .then((done) => {
+            if (mine !== showing) return;
+            const now = options.copy();
+            if (done) say(now.newModuleCopied);
+            else say(now.newModuleCopyFailed, true);
+          });
       }),
     );
     return [text, brief, copying];
@@ -221,8 +231,9 @@ export function createNewModuleDialog(
   async function handOver() {
     if (offer === null || busy) return;
     const current = offer;
+    const sent = description;
     const copy = options.copy();
-    const told = newModuleDescription(description);
+    const told = newModuleDescription(sent);
     busy = true;
     drawNav();
     const mine = showing;
@@ -230,25 +241,43 @@ export function createNewModuleDialog(
       .handOver({
         id: current.id,
         organization: current.organization,
-        text: newModuleBrief(current, description, copy),
+        text: newModuleBrief(current, sent, copy),
         ...(told === null
           ? {}
           : { brief: () => options.keepBrief(current, told) }),
       })
       .catch((): NewModuleOutcome => "failed");
-    busy = false;
     const now = options.copy();
+    // Chat can take a while. The answer belongs to the showing that started
+    // it: one opened since has its own words and its own hand-over, and it
+    // only hears the short message.
+    const here = mine === showing;
+    if (here) busy = false;
     // Nothing went out: the dialog stays, with the brief to copy.
     if (outcome === "failed") {
-      if (mine === showing) {
-        say(now[said.failed]);
+      if (here) {
+        say(now[said.failed], true);
         drawNav();
-      }
+      } else options.say(now[said.failed]);
       return;
     }
-    if (outcome !== "needs-ai") description = "";
-    hide();
     options.say(now[said[outcome]]);
+    const delivered = outcome !== "needs-ai";
+    if (here && step === "brief" && description === sent) {
+      if (delivered) description = "";
+      hide();
+      return;
+    }
+    // The person moved on meanwhile: what they wrote since stays.
+    if (here) drawNav();
+    else if (
+      delivered &&
+      !dialog.open &&
+      description === sent &&
+      offer.id === current.id &&
+      offer.organization === current.organization
+    )
+      description = "";
   }
 
   function drawNav() {

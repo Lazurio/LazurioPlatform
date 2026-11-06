@@ -101,6 +101,9 @@ export function createMarketplacePanel(
   // once GitHub answered; `asked` so that it is asked once.
   const roles = new Map<string, "admin" | "member" | null>();
   const asked = new Set<string>();
+  // Each opening of the dialog asks anew, and only its own answers count: a
+  // late one of an earlier opening must not change what this one says.
+  let opening = 0;
   // Each showing of the dialog has its own number: a new one when it opens,
   // when it closes and when a read replaces the offer it shows with another
   // version. A hand-over's outcome belongs to the showing that started it.
@@ -376,6 +379,7 @@ export function createMarketplacePanel(
     adding = offer;
     said = null;
     showing += 1;
+    opening += 1;
     roles.clear();
     asked.clear();
     drawDialog(offer);
@@ -464,12 +468,12 @@ export function createMarketplacePanel(
     const login = chosen.forgeLogin;
     if (asked.has(login)) return;
     asked.add(login);
+    const mine = opening;
     void options
       .role(chosen)
       .catch(() => null)
       .then((role) => {
-        // Opened anew meanwhile: that showing asks for itself.
-        if (!asked.has(login)) return;
+        if (mine !== opening) return;
         roles.set(login, role);
         if (role === "member" && dialog.open && adding !== null)
           drawDialog(adding);

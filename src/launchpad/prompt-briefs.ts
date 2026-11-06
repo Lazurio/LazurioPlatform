@@ -6,10 +6,13 @@ import type { NewModuleOffer } from "./apps-view";
 // (prompts.ts), and Chat's fork takes nothing else, so what a person wrote
 // reaches the composer through this Launchpad: the page leaves the
 // description here at the click, gets the id of a brief made of the prompt's
-// own id and a random key, and the link names that id. A brief lives in this
-// process's memory only, for a few minutes, a bounded number at a time; it
-// says nothing without its key, and the route asks who may get the prompt
-// again on every read.
+// own id and a random key, and the link names that id. Each hand-over has its
+// own brief: a later one of the same person, for the same prompt or another,
+// changes nothing of an earlier one, and a brief can be read again, so a Chat
+// opened earlier that comes back still gets its own words. A brief lives in
+// this process's memory only, for a day, a bounded number at a time; it says
+// nothing without its key, and the route asks who may get the prompt again on
+// every read.
 
 export type BriefPromptId = NewModuleOffer["id"];
 
@@ -24,8 +27,8 @@ export const isBriefPrompt = (id: string): id is BriefPromptId =>
   briefPrompts.includes(id);
 
 /** How long a brief waits for Chat, and how many wait at once. */
-export const briefKeptMs = 15 * 60_000;
-export const briefsKept = 32;
+export const briefKeptMs = 24 * 60 * 60_000;
+export const briefsKept = 64;
 
 const briefId =
   /^(new-module|new-module-request|new-personal-module)-([0-9a-f]{32})$/;

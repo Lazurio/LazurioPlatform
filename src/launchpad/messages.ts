@@ -658,6 +658,8 @@ const en = {
     "Your agent turns the description into a request to the Organization's Admin and shows it to you before sending.",
   newModuleCopy: "Copy the brief",
   newModuleCopied: "The brief is in your clipboard.",
+  newModuleCopyFailed:
+    "The brief could not be copied. Select the text above and copy it yourself.",
   newModuleOpen: "Open in Chat",
   modulesVideoTitle: "What a module is",
   // Zkontrolovat přístupy (decision F36's addendum of 2026-11-05).
@@ -2923,6 +2925,8 @@ const cs: Record<MessageKey, string> = {
     "Váš agent z popisu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
   newModuleCopy: "Kopírovat zadání",
   newModuleCopied: "Zadání je ve schránce.",
+  newModuleCopyFailed:
+    "Zadání se nepodařilo zkopírovat. Označte text výše a zkopírujte ho ručně.",
   newModuleOpen: "Otevřít v Chatu",
   modulesVideoTitle: "Co je modul",
   accessCheck: "Zkontrolovat přístupy",

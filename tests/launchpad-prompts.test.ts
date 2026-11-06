@@ -326,6 +326,7 @@ async function hostedLaunchpad(
   owner: boolean,
   version: string,
   marketplace?: MarketplaceRegistry,
+  audience = false,
 ) {
   const parent = await realpath(
     await mkdtemp(join(tmpdir(), "launchpad-prompts-")),
@@ -346,7 +347,13 @@ async function hostedLaunchpad(
     modules: [{ id: "deals" }],
   });
   const preset = "hosted-organization-personal";
-  const machine = organizationWithEntry(freePort());
+  const machine = organizationWithEntry(
+    freePort(),
+    undefined,
+    false,
+    false,
+    audience,
+  );
   const entry = machine.entry;
   if (entry === undefined) throw new Error("The fixture has an entry");
   await initializeHandoverFolder(folder, {
@@ -783,6 +790,36 @@ posixTest(
 );
 
 posixTest(
+  "hosted: a public Environment's visitors are nobody's members, whatever its account answers",
+  async () => {
+    const open = await hostedLaunchpad(
+      false,
+      "0.0.45-lazurio.2",
+      undefined,
+      true,
+    );
+    try {
+      const role = await fetch(`${open.base}/api/organizations/example/owner`, {
+        headers: open.valid,
+      });
+      expect(await role.json()).toEqual({
+        kind: "organization-owner",
+        owner: false,
+        member: false,
+      });
+      const refused = await fetch(
+        `${open.base}/.lazurio/prompts/new-module-request?org=example-org`,
+        { headers: open.valid },
+      );
+      expect(refused.status).toBe(404);
+    } finally {
+      await open.close();
+    }
+  },
+  30_000,
+);
+
+posixTest(
   "hosted: a description reaches Chat as a brief, kept only for whom the prompt names, the audience asked again at the read",
   async () => {
     const leave = (
@@ -828,6 +865,27 @@ posixTest(
         ),
         cwd: owner.folder,
       });
+      // A later hand-over of the same person has its own id, and the earlier
+      // Chat that comes back reads its own words.
+      const later = await leave(owner, {
+        id: "new-module",
+        org: "Example-Org",
+        description: "Chci přehled faktur.",
+      });
+      const second = ((await later.json()) as { id: string }).id;
+      expect(second).not.toBe(id);
+      const textOf = async (prompt: string) =>
+        (
+          (await (
+            await fetch(
+              `${owner.base}/.lazurio/prompts/${prompt}?org=example-org`,
+              { headers: owner.valid },
+            )
+          ).json()) as { text: string }
+        ).text;
+      expect(await textOf(second)).toContain("Chci přehled faktur.");
+      expect(await textOf(id)).toContain(description);
+      expect(await textOf(id)).not.toContain("Chci přehled faktur.");
       // Its key names it: another login or an unknown key is the same 404,
       // and the plain prompt stays as it was.
       for (const path of [

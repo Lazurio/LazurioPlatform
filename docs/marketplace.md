@@ -98,7 +98,8 @@ does today; the rest of this document stays future direction.
   only to an active member of that Organization: it names the release and asks the agent
   for a request to the Admin with the skill `admin-request`. While the answer about the
   person is not known, and where it cannot be read, the dialog hands over the adoption,
-  whose first step is the person's live rights. An offer
+  whose first step is the person's live rights; each opening of the dialog asks anew and
+  takes only its own answers. An offer
   that changes while its dialog is open is drawn again and the dialog says so before
   the person continues; one that is no longer listed closes the dialog and the page
   says it is not in the Marketplace. A hand-over says how it ended only in the dialog

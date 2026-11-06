@@ -82,7 +82,9 @@ const settled = () => Bun.sleep(1);
 
 /** The Marketplace page on the stand-in, its reads and hand-overs answered
  * by the test. */
-function page(role: "admin" | "member" | null = null) {
+type Role = "admin" | "member" | null;
+
+function page(role: Role | (() => Promise<Role>) = null) {
   const byId = new Map<string, FakeNode>();
   const node = (selector: string) => {
     let found = byId.get(selector);
@@ -116,7 +118,7 @@ function page(role: "admin" | "member" | null = null) {
     changed: () => undefined,
     catalog: () => catalogRead,
     personalSpace: () => catalogRead.personalspace !== undefined,
-    role: async () => role,
+    role: typeof role === "function" ? role : async () => role,
     handOver: (prompt) =>
       new Promise((resolve) => handOvers.push({ prompt, end: resolve })),
   });
@@ -215,6 +217,61 @@ test("a member of the Organization asks its Admin: the request's prompt and word
   expect(text).toContain("`admin-request`");
   expect(text).toContain(shown.title);
   expect(text).toContain(shown.release.commit);
+  await view.end(0, "handed-over");
+  view.leave();
+});
+
+test("a late answer of an earlier opening changes nothing: the button and the prompt stay the newer answer's", async () => {
+  const answers: ((role: Role) => void)[] = [];
+  const view = page(
+    () =>
+      new Promise((resolve) => {
+        answers.push(resolve);
+      }),
+  );
+  view.detail("presentations");
+  await view.answer(first);
+  view.add();
+  view.cancel();
+  view.add();
+  expect(answers).toHaveLength(2);
+  // The answers come in the opposite order, the older one a failure.
+  answers[1]?.("member");
+  await settled();
+  expect(view.ok.textContent).toBe(en.marketAskAdmin);
+  answers[0]?.(null);
+  await settled();
+  expect(view.ok.textContent).toBe(en.marketAskAdmin);
+  view.ok.click();
+  expect(view.handOvers[0]?.prompt.id).toBe(
+    adoptionRequestPromptId(first, offer(first, "presentations"), "empty"),
+  );
+  await view.end(0, "handed-over");
+  view.leave();
+});
+
+test("an earlier opening's member answer gives no request to a newer opening that read another role", async () => {
+  const answers: ((role: Role) => void)[] = [];
+  const view = page(
+    () =>
+      new Promise((resolve) => {
+        answers.push(resolve);
+      }),
+  );
+  view.detail("presentations");
+  await view.answer(first);
+  view.add();
+  view.cancel();
+  view.add();
+  answers[1]?.("admin");
+  await settled();
+  answers[0]?.("member");
+  await settled();
+  expect(view.ok.textContent).toBe(en.marketHandOver);
+  view.ok.click();
+  expect(view.handOvers[0]?.prompt.id).toBe(
+    adoptionPromptId(first, offer(first, "presentations"), "empty"),
+  );
   await view.end(0, "handed-over");
   view.leave();
 });

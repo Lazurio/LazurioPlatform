@@ -1309,7 +1309,7 @@ test("the offer: an Organization's Owner gets new-module, the personal space's h
   ).toBeNull();
 });
 
-test("a member's Workspace ends with the muted offer; without a module a member keeps the plain sentence and no Workspace", () => {
+test("a member's Workspace ends with the muted offer; without a module a member keeps the plain sentence over a Workspace of that one tile", () => {
   const value = (modules: readonly string[]): Catalog => ({
     kind: "catalog",
     organizations: [
@@ -1337,7 +1337,68 @@ test("a member's Workspace ends with the muted offer; without a module a member 
       part.kind === "section" ? [part.offer?.variant ?? null] : [],
     ),
   ).toEqual(["member"]);
-  expect(parts(value([])).map((part) => part.kind)).toEqual(["empty"]);
+  // The tile is the one way to ask for a first module.
+  const empty = parts(value([]));
+  expect(empty[0]).toEqual({ kind: "empty", text: cs.catalogNoModules });
+  expect(
+    empty.flatMap((part) =>
+      part.kind === "section"
+        ? [[part.section.kind, part.section.tiles.length, part.offer?.id]]
+        : [],
+    ),
+  ).toEqual([["workspace", 0, "new-module-request"]]);
+  // The line of the first run says what is next: no sentence, the tile stays.
+  const scope = appsScope(value([]), { view: "home" }, cs);
+  if (scope === null) throw new Error("The fixture has an Organization");
+  const setup = { entry: null, favorites: [], setup: true, tabs: [] };
+  expect(
+    appsHomeParts(value([]), scope, cs, { ...setup, member: true }).map(
+      (part) => part.kind,
+    ),
+  ).toEqual(["section"]);
+  // An Owner's empty Workspace: the tile, no sentence to ask anyone.
+  const owner = appsHomeParts(value([]), scope, cs, {
+    ...setup,
+    setup: false,
+    owner: true,
+  });
+  expect(owner.map((part) => part.kind)).toEqual(["section"]);
+  expect(owner[0]?.kind === "section" && owner[0].offer?.id).toBe("new-module");
+  // Neither, a Team or a public Environment among them: only the sentence.
+  expect(
+    appsHomeParts(value([]), scope, cs, { ...setup, setup: false }).map(
+      (part) => part.kind,
+    ),
+  ).toEqual(["empty"]);
+});
+
+test("a member with only production repositories gets the sentence and the Workspace of the muted tile too", () => {
+  const repository = {
+    slug: "firmware",
+    path: "productionspace/firmware",
+    checkedOut: true,
+    url: null,
+  };
+  const value: Catalog = {
+    kind: "catalog",
+    organizations: [
+      organization("example", [], {
+        forgeLogin: "Example-Org",
+        repositories: [repository],
+      }),
+    ],
+  };
+  const scope = appsScope(value, { view: "home" }, cs);
+  if (scope === null) throw new Error("The fixture has an Organization");
+  expect(
+    appsHomeParts(value, scope, cs, {
+      entry: null,
+      favorites: [],
+      setup: false,
+      tabs: [],
+      member: true,
+    }).map((part) => (part.kind === "section" ? part.section.kind : part.kind)),
+  ).toEqual(["empty", "workspace", "productionspace"]);
 });
 
 test("the personal module's prompt is the opening, a private repository on the holder's account and the skill, in both languages, with no procedure of its own", () => {

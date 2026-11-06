@@ -906,9 +906,11 @@ in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform
   `new-module`, `new-module-request` or `new-personal-module`, by the rule of the prompt's
   own route; `{"kind": "prompt-brief", "id": "<prompt>-<32 hex>"}` names the brief, and the
   link names that id. `GET /.lazurio/prompts/<brief>?org=<login>` asks the audience again
-  and answers the text with "Moje představa:" and the brief's own id. A brief lives in this
-  process's memory for 15 minutes, 32 at most (the oldest gives way), for the login it was
-  kept for; a description is at most 4000 characters, without control characters but line
+  and answers the text with "Moje představa:" and the brief's own id. Each hand-over has its
+  own brief, so a later one of the same person leaves an earlier one as it was, and a brief
+  can be read again by a Chat that comes back. A brief lives in this process's memory for a
+  day, 64 at most (the oldest gives way), for the login it was kept for; a description is at
+  most 4000 characters, without control characters but line
   breaks and tabs (`newModuleDescription`). Anything else is 400, anyone else the same 404,
   and a brief that could not be left sends the text through the clipboard, never a link
   without the person's words.
@@ -946,7 +948,8 @@ in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform
   prompt each only for its own, a brief kept and read for whom the prompt names, the
   hand-off answer from the Environment's `t3`; locally only with the token, and no
   hand-off without a Chat origin. `tests/new-module-view.test.ts`: the dialog's three
-  screens, the briefs and their store.
+  screens, the briefs and their store. `tests/new-module-dialog.test.ts`: what the dialog
+  says of the clipboard, and that each hand-over carries its own words.
 
 ### The guide (decision F56)
 
@@ -1508,14 +1511,20 @@ says whom it speaks to: `admin`, `member` (the words of a request and the brief 
 which tell of an Organization). What the person wrote stays in the page until it is handed
 over, for that offer; Escape and the × close the dialog, and the focus goes back to the
 tile. Handed over or copied, it closes and the short message says what happened; a failure
-keeps it open with the brief to copy.
+keeps it open with the brief to copy. A hand-over's answer belongs to the showing that
+started it: where the person went back or changed the words meanwhile they stay and the
+dialog stays open, and a dialog opened anew hears only the short message. "Kopírovat zadání" says that the brief is in the
+clipboard only once the clipboard answered, and otherwise that it was not copied and how to
+take it by hand.
 
 A member, a Steward too, sees the tile muted with its lock, "Zakládá Admin" under it: a
 button, never disabled, which opens the same dialog. The answer is the Owner route's, which
-now says `{"owner": …, "member": …}` from the one membership read (`owners.role`). No tile on
-a Team Environment, whose identity is no person's, and none for anyone without an active
-membership. A member without a module keeps the plain sentence of an empty space, with no
-Workspace: access is what they need first.
+now says `{"owner": …, "member": …}` from the one membership read (`roleIn`). No tile on a Team
+Environment, whose identity is no person's, none on a public one, whose visitors are nobody's
+members, and none for anyone without an active membership. A member without a module keeps
+the plain sentence of an empty space and Zkontrolovat přístupy under it, and over a Workspace
+with only the muted tile, the one way to ask for a first module. An Owner's empty Workspace
+has only "+ Nový modul", with no sentence and the button beside the "?".
 
 **Zkontrolovat přístupy.** A quiet button beside the "?" of an Organization's Apps, under
 the sentence where the space is empty; not in a Team Environment, whose synchronization

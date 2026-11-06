@@ -513,9 +513,10 @@ export function repositoryAction(
  * addendum of 2026-10-13). An
  * Organization's Workspace stays, even without a module, where `owner` is
  * GitHub's live answer that this Environment's identity is the
- * Organization's Owner (false until it comes): "+ Nový modul" ends every
- * Workspace of an Owner, so before the first module it is its only tile
- * (#376), and the page tells no Owner to ask the Admin for access. */
+ * Organization's Owner (false until it comes), or a member's muted offer:
+ * "+ Nový modul" ends every Workspace of theirs, so before the first module
+ * it is its only tile (#376), and the page tells no Owner to ask the Admin
+ * for access. */
 export function appsSections(
   catalog: Catalog,
   group: CatalogGroupEntry,
@@ -726,18 +727,25 @@ export function appsHomeParts(
     member: input.member ?? false,
     holder: input.holder ?? null,
   });
-  // Whoever may found a module sees the Workspace it ends, even before the
-  // first module: an Organization's Owner (#376) and the personal space's
-  // holder (root decision 0185's addendum of 2026-10-13). A member without a
-  // module keeps the plain sentence: access is what they need first.
+  // Whoever gets the offer sees the Workspace it ends, even before the first
+  // module: an Organization's Owner (#376), the personal space's holder (root
+  // decision 0185's addendum of 2026-10-13), and a member, for whom the muted
+  // tile is the one way to ask for a first module.
   const sections = appsSections(
     catalog,
     group,
     copy,
     input.entry,
     input.favorites,
-    offer !== null && offer.variant !== "member",
+    offer !== null,
   );
+  // A member without a module keeps the plain sentence over it: how to get
+  // access stays the first thing said.
+  const waiting =
+    offer?.variant === "member" &&
+    !sections.some(
+      (section) => section.kind === "workspace" && section.tiles.length > 0,
+    );
   // A group listed with a reason says it in its status line, and the
   // catalog lists the personal space without one only where this
   // Environment's GitHub account holds it (#186).
@@ -748,7 +756,7 @@ export function appsHomeParts(
     // Plain words for an empty space (the wireframe, Matěj and Anička
     // 2026-10-04): the personal space is simply empty; in an Organization
     // the person has no module here yet and whom to ask.
-    ...(sections.length === 0 && quiet
+    ...((sections.length === 0 || waiting) && quiet
       ? [
           {
             kind: "empty" as const,

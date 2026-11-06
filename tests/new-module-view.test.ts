@@ -193,6 +193,20 @@ test("a brief: kept a while for its prompt and login, its id within Chat's gramm
   expect(briefs.read(first, "a")).toBe("1");
   briefs.keep("new-module", "a", "last");
   expect(briefs.read(first, "a")).toBeNull();
+  // A later hand-over of the same person leaves an earlier one as it was,
+  // for the same prompt or another, and a brief reads again as often as a
+  // Chat comes back.
+  const flows = createPromptBriefs();
+  const request = flows.keep("new-module-request", "a", "žádost");
+  const built = flows.keep("new-module", "a", "nový modul");
+  const again = flows.keep("new-module-request", "a", "druhá žádost");
+  for (let read = 0; read < 2; read++)
+    expect([
+      flows.read(request, "a"),
+      flows.read(built, "a"),
+      flows.read(again, "a"),
+    ]).toEqual(["žádost", "nový modul", "druhá žádost"]);
+  expect(new Set([request, built, again]).size).toBe(3);
   // Real keys are random and differ.
   const real = createPromptBriefs();
   expect(real.keep("new-module", "a", "x")).not.toBe(

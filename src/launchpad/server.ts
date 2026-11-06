@@ -1100,6 +1100,14 @@ export async function startLaunchpad(
   });
   const installing = new Set<string>();
   const owners = createOwnerCheck(toolsEnvironment);
+  // What this Environment's identity is in an Organization, for what the page
+  // offers and the prompts it hands out. A public Environment's visitors are
+  // nobody's members, whatever its account answers: no muted "+ Nový modul"
+  // and no request there.
+  const roleIn = async (login: string | undefined) => {
+    const role = await owners.role(login, await folderPreset(folder));
+    return publicEnvironment && role === "member" ? null : role;
+  };
   // What people wrote for "+ Nový modul", until Chat fetches it.
   const briefs = createPromptBriefs();
   const maintainers = createMaintainerCheck(toolsEnvironment);
@@ -1928,11 +1936,12 @@ export async function startLaunchpad(
             if (organization === null) return notFound();
             if (adoptionRequest) {
               server.timeout(request, 30);
-              const role = await owners.role(
-                organization.forgeLogin,
-                await folderPreset(folder),
-              );
-              if (!audienceAdmits("organization-member", role))
+              if (
+                !audienceAdmits(
+                  "organization-member",
+                  await roleIn(organization.forgeLogin),
+                )
+              )
                 return notFound();
             }
             const current = await withFolderReadLock(state, () =>
@@ -2028,10 +2037,7 @@ export async function startLaunchpad(
           if (
             !audienceAdmits(
               promptAudience(promptId),
-              await owners.role(
-                organization.forgeLogin,
-                await folderPreset(folder),
-              ),
+              await roleIn(organization.forgeLogin),
             )
           )
             return notFound();
@@ -2177,10 +2183,7 @@ export async function startLaunchpad(
           server.timeout(request, 30);
           const role =
             selection.kind === "found"
-              ? await owners.role(
-                  selection.organization.forgeLogin,
-                  await folderPreset(folder),
-                )
+              ? await roleIn(selection.organization.forgeLogin)
               : null;
           return response({
             kind: "organization-owner",
@@ -2589,10 +2592,7 @@ export async function startLaunchpad(
                     organization !== null &&
                     audienceAdmits(
                       promptAudience(prompt),
-                      await owners.role(
-                        organization.forgeLogin,
-                        await folderPreset(folder),
-                      ),
+                      await roleIn(organization.forgeLogin),
                     )
                   );
                 })();
