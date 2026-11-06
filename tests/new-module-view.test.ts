@@ -48,8 +48,7 @@ test("the first screen says what a module is, and who builds it for each person"
   const screen = newModuleScreen("what", admin, "", cs);
   expect(screen).toMatchObject({
     title: "Nový modul",
-    intro:
-      "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
+    intro: "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
     parts: [
       {
         term: "Postup",

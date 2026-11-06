@@ -2867,8 +2867,7 @@ const cs: Record<MessageKey, string> = {
     "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nNejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   appsNewModuleRequestPromptDescribed:
     "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
-  newModuleIntro:
-    "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
+  newModuleIntro: "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModuleIntroPersonal:
     "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModulePartProcess: "Postup",
