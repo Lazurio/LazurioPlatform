@@ -21,6 +21,20 @@ type Copy = Readonly<Record<MessageKey, string>>;
 /** The language of the offers' words: the registry carries both. */
 export type MarketplaceLocale = "cs" | "en";
 export type Localized = Readonly<Record<MarketplaceLocale, string>>;
+const marketplaceLocales: readonly string[] = ["cs", "en"];
+
+/** A screen of the offered release: its path in the template's repository,
+ * its words and, where the template has screens per language (a bilingual
+ * template, decided 2026-11-06), the language of the screen's words. A
+ * registry entry without a language is a screen for both. */
+export type MarketplaceScreenshot = Readonly<{
+  path: string;
+  alt: Localized;
+  locale?: MarketplaceLocale;
+}>;
+
+/** Screens of one language, or of none, at most: the registry's rule. */
+const screensPerLocale = 6;
 
 /** The section of the pilot. */
 export const marketplaceSections = ["app-templates"] as const;
@@ -78,8 +92,9 @@ export type MarketplaceOffer = Readonly<{
   summary: Localized;
   features: readonly Readonly<{ title: Localized; text: Localized }>[];
   seeds: Readonly<{ empty: MarketplaceSeed; sample: MarketplaceSeed | null }>;
-  /** Screens of the offered release, paths in its repository. */
-  screenshots: readonly Readonly<{ path: string; alt: Localized }>[];
+  /** Screens of the offered release, paths in its repository; a page
+   * shows those of its language (`screenshotsFor`). */
+  screenshots: readonly MarketplaceScreenshot[];
   /** Every release, newest first. */
   releases: readonly MarketplaceRelease[];
   /** The release offered: the newest whose commit is recorded. */
@@ -297,16 +312,28 @@ function offer(value: unknown): ReadOffer | null {
     seedFields?.sample === undefined ? null : seed(seedFields.sample);
   const screenshots = list(
     fields.screenshots,
-    (item) => {
-      const shot = exact(item, ["path", "alt"]);
+    (item): MarketplaceScreenshot | null => {
+      const shot = exact(item, ["path", "alt"], ["locale"]);
       const alt = localized(shot?.alt, 160);
-      return typeof shot?.path === "string" &&
-        screenshotPath.test(shot.path) &&
-        alt !== null
-        ? Object.freeze({ path: shot.path, alt })
+      const language = shot?.locale;
+      if (
+        typeof shot?.path !== "string" ||
+        !screenshotPath.test(shot.path) ||
+        alt === null
+      )
+        return null;
+      if (language === undefined)
+        return Object.freeze({ path: shot.path, alt });
+      return typeof language === "string" &&
+        marketplaceLocales.includes(language)
+        ? Object.freeze({
+            path: shot.path,
+            alt,
+            locale: language as MarketplaceLocale,
+          })
         : null;
     },
-    6,
+    2 * screensPerLocale,
   );
   const releases = list(fields.releases, release, 100);
   if (
@@ -316,6 +343,11 @@ function offer(value: unknown): ReadOffer | null {
     empty === null ||
     (seedFields?.sample !== undefined && sample === null) ||
     screenshots === null ||
+    [undefined, ...marketplaceLocales].some(
+      (language) =>
+        screenshots.filter((shot) => shot.locale === language).length >
+        screensPerLocale,
+    ) ||
     releases === null ||
     releases.length === 0
   )
@@ -393,6 +425,19 @@ export const sourceUrl = (entry: MarketplaceOffer): string =>
 
 export const releaseUrl = (entry: MarketplaceOffer): string =>
   `${sourceUrl(entry)}/releases/tag/${entry.release.tag}`;
+
+/** The screens a page in `locale` shows: those in its language, else those
+ * that name none, else whichever the offer has. An index without languages
+ * shows every screen in both, as before. */
+export function screenshotsFor(
+  entry: MarketplaceOffer,
+  locale: MarketplaceLocale,
+): readonly MarketplaceScreenshot[] {
+  const own = entry.screenshots.filter((shot) => shot.locale === locale);
+  if (own.length > 0) return own;
+  const neutral = entry.screenshots.filter((shot) => shot.locale === undefined);
+  return neutral.length > 0 ? neutral : entry.screenshots;
+}
 
 /** Where a screen of the offered release is: the template's repository at
  * its exact commit. */

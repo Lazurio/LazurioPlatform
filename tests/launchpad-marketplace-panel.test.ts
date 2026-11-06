@@ -167,6 +167,11 @@ function page(role: Role | (() => Promise<Role>) = null) {
       await settled();
     },
     open: () => dialog.open,
+    /** The addresses of the screens the page shows. */
+    shots: () =>
+      [...node("#market-body").walk()]
+        .filter((child) => child.className.split(" ").includes("market-shot"))
+        .map((child) => (child as unknown as { src: string }).src),
     title: () => node("#market-dialog-title").textContent,
     status: () => node("#market-dialog-status").textContent,
     /** Leaves the page, so that it reads nothing more. */
@@ -329,6 +334,43 @@ test("an Organization that already has the module: the dialog says the release g
     "`lazurio module create Example-Org/presentations --stack vite-react --teams <team,team> --dry-run`",
   );
   await view.end(0, "handed-over");
+  view.leave();
+});
+
+test("a bilingual template's detail shows the screens in the page's language", async () => {
+  const screen = (locale: string, name: string) => ({
+    path: `docs/${locale}/${name}.webp`,
+    alt: { cs: name, en: name },
+    locale,
+  });
+  const bilingual = at(
+    "b",
+    parseMarketplaceIndex({
+      ...unreleasedIndex,
+      offers: unreleasedIndex.offers.map((entry) => ({
+        ...entry,
+        ...(entry.id === "presentations"
+          ? {
+              screenshots: [
+                screen("cs", "library"),
+                screen("cs", "detail"),
+                screen("en", "library"),
+                screen("en", "detail"),
+              ],
+            }
+          : {}),
+        releases: entry.releases.map((release, i) =>
+          i === 0 ? { ...release, commit } : release,
+        ),
+      })),
+    }) as readonly MarketplaceOffer[],
+  );
+  const view = page();
+  view.detail("presentations");
+  await view.answer(bilingual);
+  const shots = view.shots();
+  expect(shots.length).toBeGreaterThan(0);
+  for (const src of shots) expect(src).toContain(`/${commit}/docs/en/`);
   view.leave();
 });
 

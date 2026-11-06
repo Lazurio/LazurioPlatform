@@ -15,6 +15,7 @@ import {
   offerIdLength,
   parseMarketplaceIndex,
   releaseUrl,
+  screenshotsFor,
   screenshotUrl,
   seedsOf,
 } from "../src/launchpad/marketplace";
@@ -291,6 +292,64 @@ test("screens come from the offered release's exact commit", () => {
   expect(screenshotUrl(released, "docs/a.webp")).toBe(
     `https://raw.githubusercontent.com/LazurioTemplates/presentations/${commit}/docs/a.webp`,
   );
+});
+
+/** A screen of the index's shape, in a language or none. */
+const screen = (path: string, locale?: string) => ({
+  path,
+  alt: { cs: `Snímek ${path}`, en: `Screen ${path}` },
+  ...(locale === undefined ? {} : { locale }),
+});
+
+/** Presentations of the fixture, released, with these screens; null when
+ * the index is refused. */
+const withScreens = (screenshots: unknown[]) =>
+  parseMarketplaceIndex(
+    indexWith("presentations", {
+      screenshots,
+      releases: [releaseWith({ commit })],
+    }),
+  )?.find((entry) => entry.id === "presentations") ?? null;
+
+test("an index whose screens name no language reads as before: every screen in both languages, as the registry wrote it", () => {
+  for (const entry of [...shown, ...builtInMarketplace.offers]) {
+    for (const locale of ["cs", "en"] as const)
+      expect(screenshotsFor(entry, locale)).toEqual(entry.screenshots);
+    for (const shot of entry.screenshots)
+      expect(Object.keys(shot)).toEqual(["path", "alt"]);
+  }
+  const plain = (count: number) =>
+    Array.from({ length: count }, (_, i) => screen(`docs/${i}.webp`));
+  expect(withScreens(plain(6))?.screenshots).toHaveLength(6);
+  expect(withScreens(plain(7))).toBeNull();
+});
+
+test("screens per language: a page shows those in its language, else those without one, else any", () => {
+  const cs = [screen("docs/cs/a.webp", "cs"), screen("docs/cs/b.webp", "cs")];
+  const en = [screen("docs/en/a.webp", "en"), screen("docs/en/b.webp", "en")];
+  const plain = [screen("docs/a.webp")];
+  const offered = (screenshots: unknown[]) =>
+    withScreens(screenshots) as MarketplaceOffer;
+  const both = offered([...cs, ...en]);
+  expect<unknown>(screenshotsFor(both, "cs")).toEqual(cs);
+  expect<unknown>(screenshotsFor(both, "en")).toEqual(en);
+  const czechAndPlain = offered([...cs, ...plain]);
+  expect<unknown>(screenshotsFor(czechAndPlain, "cs")).toEqual(cs);
+  expect<unknown>(screenshotsFor(czechAndPlain, "en")).toEqual(plain);
+  expect<unknown>(screenshotsFor(offered(en), "cs")).toEqual(en);
+  // Six per language; a seventh in one, an unknown language or a language
+  // that is not a string refuses the index, as any field it cannot read.
+  const six = (locale: string) =>
+    Array.from({ length: 6 }, (_, i) =>
+      screen(`docs/${locale}/${i}.webp`, locale),
+    );
+  expect(offered([...six("cs"), ...six("en")]).screenshots).toHaveLength(12);
+  for (const screenshots of [
+    [...six("cs"), screen("docs/cs/6.webp", "cs")],
+    [screen("docs/de/a.webp", "de")],
+    [{ ...screen("docs/a.webp"), locale: null }],
+  ])
+    expect(withScreens(screenshots)).toBeNull();
 });
 
 test("an offer without a published release has no card, no detail and no prompt", () => {

@@ -64,8 +64,13 @@ does today; the rest of this document stays future direction.
 - **Screens.** The registry lists screens of the offered release: WebP files 1600 px
   wide in the template's repository, with invented content only, shown from
   `raw.githubusercontent.com/<repository>/<commit>/<path>`, so they are exactly the
-  release's. Lazurio bundles no screens of its own. An offer without screens shows
-  its stone and words only.
+  release's. A bilingual template may name each screen's language (`locale`, `cs` or
+  `en`, at most six screens per language): the page shows the screens in its language,
+  else those without one, else whichever the offer has; an index without `locale`
+  shows every screen in both languages as before. A Lazurio release older than this
+  one refuses an index with `locale` and shows its built-in copy, so the registry
+  takes such records only once this release is final. Lazurio bundles no screens of
+  its own. An offer without screens shows its stone and words only.
 - **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
   target's authority), and how the module starts (empty, or with the release's

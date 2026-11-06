@@ -13,6 +13,7 @@ import {
   type MarketplaceLocale,
   type MarketplaceOffer,
   offerById,
+  screenshotsFor,
   screenshotUrl,
   seedsOf,
 } from "./marketplace";
@@ -179,7 +180,7 @@ export function createMarketplacePanel(
    * offered release, from its exact commit. */
   const shotsOf = (offer: MarketplaceOffer) => {
     const locale = options.locale();
-    return offer.screenshots.map((shot) => {
+    return screenshotsFor(offer, locale).map((shot) => {
       const url = screenshotUrl(offer, shot.path);
       return {
         key: shot.path,
