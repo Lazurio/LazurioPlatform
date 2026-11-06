@@ -174,7 +174,7 @@ test("Moduly says the five titles of its video; in a Personal Environment what i
   expect(
     principleIn("modules", "cs", "work")?.steps.map((step) => step.text),
   ).toEqual([
-    "Modul je jedna oblast práce vaší firmy",
+    "Modul je jedna oblast vaší práce",
     "Postup, data a aplikace v jednom balíčku",
     "Agenti pracují podle postupu, lidé v aplikaci",
     "Admin rozhodne, kdo modul dostane",
@@ -183,7 +183,7 @@ test("Moduly says the five titles of its video; in a Personal Environment what i
   expect(
     principleIn("modules", "en", "team")?.steps.map((step) => step.text),
   ).toEqual([
-    "A module is one area of your company's work",
+    "A module is one area of your work",
     "A process, data and an app in one package",
     "Agents follow the process, people work in the app",
     "The Admin decides who gets the module",

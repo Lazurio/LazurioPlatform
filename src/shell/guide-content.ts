@@ -382,8 +382,8 @@ const principles: readonly Principle[] = [
     steps: [
       {
         text: {
-          cs: "Modul je jedna oblast práce vaší firmy",
-          en: "A module is one area of your company's work",
+          cs: "Modul je jedna oblast vaší práce",
+          en: "A module is one area of your work",
         },
         at: "apps-module",
       },

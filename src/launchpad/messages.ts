@@ -604,7 +604,7 @@ const en = {
     "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`.\n\nWhat I have in mind:\n{description}\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
   // The dialog "+ Nový modul" (decision F36's addendum of 2026-11-05).
   newModuleIntro:
-    "A module is one area of your company's work. It keeps three things together:",
+    "A module is one area of your work. It keeps three things together:",
   newModuleIntroPersonal:
     "A module is one area of your work. It keeps three things together:",
   newModulePartProcess: "Process",
@@ -2868,7 +2868,7 @@ const cs: Record<MessageKey, string> = {
   appsNewModuleRequestPromptDescribed:
     "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   newModuleIntro:
-    "Modul je jedna oblast práce vaší Organizace. Drží pohromadě tři věci:",
+    "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModuleIntroPersonal:
     "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModulePartProcess: "Postup",

@@ -49,7 +49,7 @@ test("the first screen says what a module is, and who builds it for each person"
   expect(screen).toMatchObject({
     title: "Nový modul",
     intro:
-      "Modul je jedna oblast práce vaší Organizace. Drží pohromadě tři věci:",
+      "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
     parts: [
       {
         term: "Postup",
