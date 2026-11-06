@@ -32,6 +32,10 @@ import {
   routePath,
   routeTitle,
 } from "../src/launchpad/routes";
+import {
+  ModuleCreateUsageError,
+  runModuleCreateCommand,
+} from "../src/modules/module-create-cli";
 import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
 // The Marketplace (plan DEV-6593): one section, offers read from the
@@ -339,8 +343,15 @@ test("the brief names the exact release, the Organization, the start and the bou
       expect(text).toContain(commit);
       expect(text).toContain("MIT");
       expect(text).toContain("docs/adoption.md");
-      expect(text).toContain("`lazurio module create --stack vite-react`");
+      expect(text).toContain(
+        "`lazurio module create Example-Org/presentations --stack vite-react --teams <team,team> --dry-run`",
+      );
+      expect(text).toContain("`--confirm <plan>`");
       expect(text).not.toContain("--data");
+      // An Organization that already has the module takes the release into
+      // it, never a second one (#906).
+      expect(text).toContain("docs/extending.md");
+      expect(text).toContain("`--allow-unrelated-histories`");
       expect(text).not.toContain("{create}");
       expect(text).toContain(
         (seed === "sample" ? released.seeds.sample : released.seeds.empty)
@@ -367,15 +378,25 @@ test("the brief names the exact release, the Organization, the start and the bou
         copy,
         locale,
       ),
-    ).toContain("`lazurio module create --stack vite-react --data`");
-  for (const [generation, command] of [
-    ["app/v1", "lazurio module create --stack vite-react"],
-    ["app/v2", "lazurio module create --stack vite-react"],
-    ["app/v3", "lazurio module create --stack vite-react --data"],
-    ["app/v4", "lazurio module create --stack vite-react --data"],
-    ["app/v10", "lazurio module create --stack vite-react --data"],
+    ).toContain(
+      "`lazurio module create a/mission-control --stack vite-react --teams <team,team> --data --dry-run`",
+    );
+  for (const [generation, data] of [
+    ["app/v1", ""],
+    ["app/v2", ""],
+    ["app/v3", " --data"],
+    ["app/v4", " --data"],
+    ["app/v10", " --data"],
   ] as const)
-    expect(createCommand({ ...released.release, generation })).toBe(command);
+    expect(
+      createCommand(
+        { ...released.release, generation },
+        "Example-Org",
+        "slides",
+      ),
+    ).toBe(
+      `lazurio module create Example-Org/slides --stack vite-react --teams <team,team>${data} --dry-run`,
+    );
   expect(
     adoptionPrompt(released, "empty", { name: "A", login: "a" }, cs, "cs"),
   ).toContain("Nic nemerguj ani neaktivuj bez mého výslovného pokynu.");
@@ -393,6 +414,110 @@ test("the brief names the exact release, the Organization, the start and the bou
       "en",
     )?.text,
   ).toContain(commit);
+});
+
+test("the brief's command is the one lazurio module create runs: with the Teams chosen, the dry run and then the confirmation (#905)", async () => {
+  const missionControl = offerById(
+    catalogOf(...shown),
+    "mission-control",
+  ) as MarketplaceOffer;
+  /** The arguments of a command line after `lazurio`, as the CLI parses
+   * them: past the parser, the run asks for its host, which this test does
+   * not give (base-unknown, exit 1); a command it refuses throws its usage. */
+  const runs = async (command: string) => {
+    const args = command.split(" ");
+    expect(args.shift()).toBe("lazurio");
+    const said: string[] = [];
+    const code = await runModuleCreateCommand(
+      [...args, "--folder", "/nonexistent-lazurio-folder"],
+      { cwd: "/" } as never,
+      (line) => void said.push(line),
+      () => {
+        throw new Error("no host in this test");
+      },
+    );
+    return { code, said };
+  };
+  for (const entry of [released, missionControl]) {
+    const command = createCommand(entry.release, "Example-Org", entry.module);
+    const chosen = command.replace("<team,team>", "core,design");
+    for (const line of [
+      chosen,
+      chosen.replace("--dry-run", `--confirm sha256:${"a".repeat(64)}`),
+    ])
+      expect(await runs(line)).toEqual({
+        code: 1,
+        said: ["No per-user install base on this platform."],
+      });
+  }
+  // The brief's earlier command, without the Organization's module and its
+  // Teams, was refused with the usage.
+  await expect(
+    runs("lazurio module create --stack vite-react --data"),
+  ).rejects.toBeInstanceOf(ModuleCreateUsageError);
+  await expect(
+    runs(
+      createCommand(
+        missionControl.release,
+        "Example-Org",
+        "mission-control",
+      ).replace(" --teams <team,team>", ""),
+    ),
+  ).rejects.toBeInstanceOf(ModuleCreateUsageError);
+});
+
+test("the brief is the same whether the name is free or the Organization already has the module: the agent checks it live and never creates a second one (#906)", () => {
+  const missionControl = offerById(
+    catalogOf(...shown),
+    "mission-control",
+  ) as MarketplaceOffer;
+  for (const entry of [released, missionControl]) {
+    const catalog = catalogOf(entry);
+    const id = adoptionPromptId(catalog, entry, "empty");
+    expect(id.length).toBeLessThanOrEqual(promptIdLength);
+    const having: BoundOrganization = {
+      ...example,
+      modules: [{ organization: "Example", module: entry.module }],
+    } as unknown as BoundOrganization;
+    for (const [copy, locale, never, otherwise] of [
+      [cs, "cs", "druhý nikdy nezakládej", "Jinak se mnou domluv jiný název"],
+      [
+        en,
+        "en",
+        "never create a second one",
+        "Otherwise agree another name with me",
+      ],
+    ] as const) {
+      const free = adoptionDocument(
+        [catalog],
+        id,
+        "/home/x/Lazurio",
+        example,
+        copy,
+        locale,
+      )?.text as string;
+      expect(
+        adoptionDocument([catalog], id, "/home/x/Lazurio", having, copy, locale)
+          ?.text,
+      ).toBe(free);
+      expect(free).toContain(
+        `\`${createCommand(entry.release, "Example-Org", entry.module)}\``,
+      );
+      expect(free).toContain(never);
+      expect(free).toContain(otherwise);
+      expect(free).toContain("docs/extending.md");
+      expect(free).toContain("`--allow-unrelated-histories`");
+      expect(free.includes("--data")).toBe(entry === missionControl);
+      expect(free).not.toMatch(/\{[a-z]+\}/);
+    }
+  }
+  // The dialog says it too where the Launchpad sees the module.
+  expect(cs.marketTaken).toContain("vydání se převezme do něj");
+  expect(cs.marketTaken).toContain("jinak s vámi agent domluví jiný název");
+  expect(en.marketTaken).toContain("the release goes into it");
+  expect(en.marketTaken).toContain(
+    "otherwise the agent agrees another name with you",
+  );
 });
 
 test("an adoption's prompt id carries the offer, the seed and the catalog shown, and nothing else is one", () => {

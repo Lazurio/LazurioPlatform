@@ -74,8 +74,10 @@ does today; the rest of this document stays future direction.
   before anything there changes. The plan itself (exact release, private repository,
   Teams chosen from the Organization's real list, the template's code run, a request
   where rights do not reach) is the agent's first step, as the brief requires. Where
-  the Organization already has a module of that name the dialog says the agent agrees
-  another. Teams are not listed on the page (decision F32). Where GitHub says the person
+  the Organization already has a module of that name the dialog says that the release
+  goes into it when it comes from this template or the template came from it, and that
+  otherwise the agent agrees another name; a second module of that name is never
+  created. Teams are not listed on the page (decision F32). Where GitHub says the person
   is a member of the chosen Organization and no Organization Admin, the dialog says that the Organization Admin adds
   the template and its button is "Požádat Admina Organizace" ([F36's addendum of
   2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)).
@@ -108,13 +110,25 @@ does today; the rest of this document stays future direction.
   version in the meantime keeps what it shows and says, so the next click hands over
   the offer it shows. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
-  rights, name collision and compatibility, show the plan, create the module with
-  `lazurio module create --stack <release stack>`, adding `--data` for a release of
-  generation `app/v3` or later (derived from the generation, as the template's
-  `docs/adoption.md` says), merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
-  where rights do not reach, merge or activate nothing without the person's explicit
-  instruction. The dialog then says Chat opened with the brief ready, unsent. It never
-  claims installation on a click.
+  rights, name collision and compatibility and show the plan; where the name is free,
+  create the module with the command in the form `lazurio module create` takes for an
+  Organization's module ([Module Standard](module-standard.md)),
+  `lazurio module create <login>/<module> --stack <release stack> --teams <team,team> --dry-run`,
+  with the Organization's GitHub login, the offer's module, `--data` added for a
+  release of generation `app/v3` or later (derived from the generation, as the
+  template's `docs/adoption.md` says) and the Teams the agent chooses with the person
+  from the Organization's real list, and run it with `--confirm <plan>`
+  only after the person confirms the plan it prints; then merge the pinned commit so it
+  stays an ancestor and prepare a PR. Where the Organization already has a module of
+  that name, the agent never creates a second one: when it is this template, its former
+  upstream or the template's origin, it takes the release into that module by merging
+  the pinned commit, as the template's `docs/adoption.md` and `docs/extending.md` say
+  (a module whose history the release does not share, such as the origin the template
+  was published from with a fresh history, in one merge with
+  `--allow-unrelated-histories`); otherwise it agrees another name with the person
+  (#906). Where rights do not reach it prepares a request, and it merges or activates
+  nothing without the person's explicit instruction. The dialog then says Chat opened
+  with the brief ready, unsent. It never claims installation on a click.
 - **Listing a release.** Recording the commit (and the digest) after the release is
   published is a reviewed pull request of the registry; its merge puts the offer in
   every installed Launchpad within an hour of its next Marketplace read, without a

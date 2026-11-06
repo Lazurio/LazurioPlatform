@@ -489,11 +489,20 @@ export const isAdoptionRequestId = (id: string): boolean =>
 export const keepsData = (release: MarketplaceRelease): boolean =>
   Number(release.generation.slice("app/v".length)) >= 3;
 
-/** The command the brief has the agent create the module with: the
- * release's stack, and `--data` from generation `app/v3` on, as the
- * template's own docs/adoption.md says. */
-export const createCommand = (release: MarketplaceRelease): string =>
-  `lazurio module create --stack ${release.stack}${keepsData(release) ? " --data" : ""}`;
+/** The command the brief has the agent create the module with, in the form
+ * `lazurio module create` takes for an Organization's module
+ * (module-create-cli.ts, docs/module-standard.md): the Organization by its
+ * GitHub login, the offer's module, the release's stack, the command's own
+ * placeholder for the Teams (the agent chooses them with the person from the
+ * Organization's real list; the page lists none, decision F32), `--data`
+ * from generation `app/v3` on, as the template's own docs/adoption.md says,
+ * and the dry run whose plan the person confirms before `--confirm <plan>`. */
+export const createCommand = (
+  release: MarketplaceRelease,
+  login: string,
+  module: string,
+): string =>
+  `lazurio module create ${login}/${module} --stack ${release.stack} --teams <team,team>${keepsData(release) ? " --data" : ""} --dry-run`;
 
 /** The brief "Přidat do Organizace" hands to the agent: the person's own
  * words (in Czech tykání, root decision 0199), the exact release and the
@@ -533,7 +542,10 @@ function filledBrief(
     .replaceAll("{commit}", entry.release.commit)
     .replaceAll("{license}", entry.license)
     .replaceAll("{module}", entry.module)
-    .replaceAll("{create}", createCommand(entry.release))
+    .replaceAll(
+      "{create}",
+      createCommand(entry.release, organization.login, entry.module),
+    )
     .replaceAll("{seed}", start.brief[locale]);
 }
 

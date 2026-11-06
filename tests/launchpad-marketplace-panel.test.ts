@@ -295,6 +295,43 @@ test("an Organization Admin, and a role that cannot be read, keep the adoption, 
   }
 });
 
+test("an Organization that already has the module: the dialog says the release goes into it or another name is agreed, and the brief never creates a second one (#906)", async () => {
+  const taken = en.marketTaken
+    .replace("{name}", "Example Company")
+    .replace("{module}", "presentations");
+  const view = page();
+  view.detail("presentations");
+  await view.answer(first);
+  view.add();
+  await settled();
+  expect(view.says()).not.toContain(taken);
+  view.cancel();
+  const [organization] = (
+    folder as unknown as { organizations: Record<string, unknown>[] }
+  ).organizations;
+  view.folder({
+    kind: "catalog",
+    organizations: [
+      {
+        ...organization,
+        modules: [{ organization: "Example", module: "presentations" }],
+      },
+    ],
+  } as unknown as Catalog);
+  view.add();
+  await settled();
+  expect(view.says()).toContain(taken);
+  view.ok.click();
+  const text = view.handOvers[0]?.prompt.text ?? "";
+  expect(text).toContain("never create a second one");
+  expect(text).toContain("`--allow-unrelated-histories`");
+  expect(text).toContain(
+    "`lazurio module create Example-Org/presentations --stack vite-react --teams <team,team> --dry-run`",
+  );
+  await view.end(0, "handed-over");
+  view.leave();
+});
+
 test("a personal space without an Organization says that templates go into one", async () => {
   const none = { kind: "catalog", organizations: [] } as unknown as Catalog;
   for (const [catalog, words] of [
