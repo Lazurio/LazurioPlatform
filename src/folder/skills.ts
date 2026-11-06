@@ -866,8 +866,8 @@ const henryReview: readonly Text[] = [
     "4. **Hand over the completion** only on the user's instruction: add the persona as assignee, remove yourself and write the state, the verification and the next step in a comment. Only someone with live write access to the repository may hand over. An assignment adds no rights: where only an Owner may merge (in `infra`, say), the persona hands the completion to an Owner after its review.",
   ),
   t(
-    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a požádej o verdikt na nezměněném headu.",
-    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request and ask for a verdict on the unchanged head.",
+    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a pak požádej o verdikt na nezměněném headu formálně, `gh pr edit <n> --add-reviewer <login>`: komentář ani @zmínka se za žádost nepočítá a persona na ně nereaguje.",
+    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request, then ask for a verdict on the unchanged head formally with `gh pr edit <n> --add-reviewer <login>`: a comment or an @mention does not count as a request and the persona does not act on it.",
   ),
   blank,
   t(

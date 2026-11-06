@@ -815,8 +815,8 @@ function workingHere(
       "- **Fix a real defect at once.** A real defect is wrong behavior, a contradiction between texts, a claim without proof or a leak of sensitive content.",
     ),
     t(
-      "- **Ostatní nálezy nepřijímej mlčky.** Nález, který je drobnost bez dopadu, spekulace o budoucí změně nebo rozšiřuje záběr PR o nový mechanismus, neřeš dalším kolem oprav. Odpověz přímo v PR věcnou námitkou: co je účelem PR, proč nález nechrání před skutečnou škodou a co už je doložené. Pak požádej o verdikt na nezměněném headu.",
-      "- **Do not accept other findings silently.** A finding that is trivia without impact, speculation about a future change or widens the PR's scope with a new mechanism is not answered with another round of fixes. Reply on the PR with a factual objection: what the PR is for, why the finding protects against no real harm and what is already proven. Then ask for a verdict on the unchanged head.",
+      "- **Ostatní nálezy nepřijímej mlčky.** Nález, který je drobnost bez dopadu, spekulace o budoucí změně nebo rozšiřuje záběr PR o nový mechanismus, neřeš dalším kolem oprav. Odpověz přímo v PR věcnou námitkou: co je účelem PR, proč nález nechrání před skutečnou škodou a co už je doložené. Pak požádej o verdikt na nezměněném headu formálně, `gh pr edit <n> --add-reviewer <login>`: komentář ani @zmínka se za žádost nepočítá.",
+      "- **Do not accept other findings silently.** A finding that is trivia without impact, speculation about a future change or widens the PR's scope with a new mechanism is not answered with another round of fixes. Reply on the PR with a factual objection: what the PR is for, why the finding protects against no real harm and what is already proven. Then ask for a verdict on the unchanged head formally with `gh pr edit <n> --add-reviewer <login>`: a comment or an @mention does not count as a request.",
     ),
     t(
       "- **Trvá-li reviewer na svém,** nepokračuj dalším kolem a předlož obě stanoviska uživateli. Review ani branch rules nikdy neobcházej.",
