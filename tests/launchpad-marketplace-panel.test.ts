@@ -26,9 +26,11 @@ import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 // keeps what the dialog shows and says, and its next hand-over is the offer
 // it shows. The panel runs on the small stand-in for the page's DOM.
 
+const hadDocument = "document" in globalThis;
 const original = globalThis.document;
 afterEach(() => {
-  globalThis.document = original;
+  if (hadDocument) globalThis.document = original;
+  else Reflect.deleteProperty(globalThis, "document");
 });
 
 const en = messages("en");

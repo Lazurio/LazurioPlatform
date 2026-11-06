@@ -18,9 +18,11 @@ import { FakeNode } from "./fixtures/fake-dialog-dom";
 // code's time and no spinner; Připojeno stands alone. The dialog runs on the
 // small stand-in for the page's DOM.
 
+const hadDocument = "document" in globalThis;
 const original = globalThis.document;
 afterEach(() => {
-  globalThis.document = original;
+  if (hadDocument) globalThis.document = original;
+  else Reflect.deleteProperty(globalThis, "document");
 });
 
 const cs = messages("cs");
