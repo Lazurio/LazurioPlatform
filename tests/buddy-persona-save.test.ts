@@ -429,8 +429,7 @@ posix(
       // answers.
       expect(calls).toBe(1);
       finish({ kind: "buddy-persona", state: "applied", restart: "done" });
-      await tick();
-      expect((await save.read())?.pending).toBe(false);
+      await until(async () => (await save.read())?.pending === false);
       save.close();
     });
   },
@@ -453,8 +452,7 @@ posix(
       expect(fake.calls()).toBe(0);
       await owePromptRefresh(home);
       expect((await save.read())?.pending).toBe(true);
-      await tick();
-      expect(fake.calls()).toBe(1);
+      await until(() => fake.calls() === 1);
       // Nothing could be applied: no retry, and a reading right after asks
       // nothing again.
       expect(hand.set()).toEqual([]);
@@ -463,8 +461,7 @@ posix(
       expect(fake.calls()).toBe(1);
       await hand.pass(personaRetryMs);
       await save.read();
-      await tick();
-      expect(fake.calls()).toBe(2);
+      await until(() => fake.calls() === 2);
       await settlePromptRefresh(home);
       expect((await save.read())?.pending).toBe(false);
       save.close();
@@ -492,8 +489,7 @@ posix(
       const recorded = await readFile(promptInputsPath(home), "utf8");
       await writeFile(rulesOf(folder), "Buddy's rules of the next release\n");
       expect((await save.read())?.pending).toBe(true);
-      await tick();
-      expect(fake.calls()).toBe(1);
+      await until(() => fake.calls() === 1);
       // F64's apply is the one writer: the reading left both records alone.
       expect(await readFile(promptInputsPath(home), "utf8")).toBe(recorded);
       expect(await promptRefreshMarked(home)).toBe(false);
@@ -506,8 +502,7 @@ posix(
       // No record, as on a Buddy before this release: owed as well.
       await rm(promptInputsPath(home));
       expect((await save.read())?.pending).toBe(true);
-      await tick();
-      expect(fake.calls()).toBe(2);
+      await until(() => fake.calls() === 2);
       save.close();
     });
   },
@@ -544,8 +539,7 @@ posix(
       const start = save.start().then(() => {
         started = true;
       });
-      await tick();
-      expect(calls).toBe(1);
+      await until(() => calls === 1);
       // The start waits for the apply it began.
       expect(started).toBe(false);
       finish({ kind: "buddy-persona", state: "applied", restart: "done" });
@@ -565,10 +559,11 @@ posix(
   },
 );
 
-/** Waits until `ready`, at most a second. */
-async function until(ready: () => boolean) {
-  for (let round = 0; round < 200 && !ready(); round += 1) await tick();
-  expect(ready()).toBe(true);
+/** Waits until `ready`, at most 200 ticks: the condition, not a fixed time,
+ * so a loaded runner only waits longer (#671). */
+async function until(ready: () => boolean | Promise<boolean>) {
+  for (let round = 0; round < 200 && !(await ready()); round += 1) await tick();
+  expect(await ready()).toBe(true);
 }
 
 posix(
