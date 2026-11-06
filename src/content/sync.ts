@@ -5,6 +5,7 @@ import type { PresetName } from "../folder/presets";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationDocuments } from "../organizations/read-documents";
+import { accessEnd, removalIdentity } from "./access-ended";
 import type { ContentGit, RemoteAnswer, SyncRemote } from "./git";
 import { type ContentHost, readFolderKind } from "./host";
 import { declaredChildren } from "./install";
@@ -12,6 +13,9 @@ import { tryContentLock } from "./lock";
 import { contentScope, sameRepository } from "./model";
 import { type ProvideOutcome, provideRepository } from "./provide";
 import {
+  type RemovalMark,
+  type RemovedCopy,
+  readSyncRecord,
   recordSync,
   type SyncBlockedReason,
   type SyncEntry,
@@ -20,6 +24,8 @@ import {
 
 export {
   contentSyncEveryMs,
+  type RemovalMark,
+  type RemovedCopy,
   readSyncRecord,
   type SyncBlockedReason,
   type SyncEntry,
@@ -42,7 +48,9 @@ export {
 // a switch, a reset, a merge, a hook or a preparation. The one clone is of a
 // declared module or data mount that is not here yet and that this identity
 // can now read, by installation's own `provideRepository` (`cloneAbsent`,
-// decision F9's addendum of 2026-11-01). Worktrees,
+// decision F9's addendum of 2026-11-01). The one removal is of a module or
+// data mount whose access proved to have ended (`access-ended.ts`, decision
+// F72). Worktrees,
 // Production Space repositories, `infra` and the Personalspace are never
 // touched. The Launchpad runs it at its start and then every hour
 // (`contentSyncEveryMs`) within its build sweep
@@ -71,7 +79,14 @@ export type SyncRun =
 export type SyncHost = Pick<
   ContentHost,
   "github" | "git" | "lockDirectory" | "readCatalog"
->;
+> &
+  Readonly<{
+    /** Stops every app of a module and removes its builds, before its copy
+     * goes because access ended (decision F72): the Organization's login and
+     * the module's path; false when something could not be stopped. Without
+     * it no copy is ever removed. */
+    retire?: (login: string, path: string) => Promise<boolean>;
+  }>;
 
 /** One repository's progress, as it happens: `checking` (its local state
  * and its remote's branch), `fetching` (the remote has a commit this
@@ -158,10 +173,12 @@ export async function syncContent(
 ): Promise<SyncRun> {
   let scope: Scope;
   let preset: PresetName;
+  let machine: MachineBinding | null;
   try {
     const kind = await readFolderKind(folder);
     scope = syncScope(kind.preset, kind.machine);
     preset = kind.preset;
+    machine = kind.machine;
   } catch {
     return { kind: "not-allowed", reason: "folder-unreadable" };
   }
@@ -212,6 +229,19 @@ export async function syncContent(
         }));
       },
     };
+    // The copies whose access ended (decision F72); read under the lock, so
+    // the first proofs are the last run's.
+    const ended = accessEnd({
+      identity: removalIdentity(preset, machine),
+      folder,
+      lockDirectory: host.lockDirectory,
+      github: host.github,
+      git: host.git,
+      retire: host.retire,
+      record: await readSyncRecord(host.lockDirectory, folder),
+      now,
+    });
+    await ended?.resume().catch(() => {});
     const entries: SyncEntry[] = [];
     // A repository filter: that module and the data mounts below it.
     const wanted = (path: string) =>
@@ -269,8 +299,13 @@ export async function syncContent(
         rootEntry.result !== "fast-forwarded"
       )
         continue;
-      const children = (await childrenOf(directory)).filter((child) =>
-        wanted(child.path),
+      const declared = await childrenOf(directory);
+      const children = declared.filter((child) => wanted(child.path));
+      const access = ended?.of(
+        login,
+        directory,
+        root,
+        declared.map((child) => child.repository),
       );
       // Modules first, then the data mounts: a data mount is cloned only
       // below its declared module whose primary checkout this run verified
@@ -289,7 +324,18 @@ export async function syncContent(
                 child.branch,
                 progress,
               );
-              if (outcome.result !== "absent") return outcome;
+              if (outcome.result !== "absent") {
+                const verdict = await access?.judge(child, outcome);
+                return verdict?.kind === "removed"
+                  ? {
+                      result: "absent",
+                      reason: "access-ended",
+                      removed: verdict.removed,
+                    }
+                  : verdict?.removal === undefined
+                    ? outcome
+                    : { ...outcome, removal: verdict.removal };
+              }
               if (child.parent !== undefined && !verified.has(child.parent))
                 return { result: "absent" };
               const cloned = await cloneAbsent(context, directory, child, () =>
@@ -354,6 +400,8 @@ type Outcome = Readonly<{
   reason?: string;
   from?: string;
   to?: string;
+  removal?: RemovalMark;
+  removed?: RemovedCopy;
 }>;
 
 type SyncChild = Readonly<{

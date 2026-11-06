@@ -1049,7 +1049,7 @@ const exists = (path: string) =>
   );
 
 posixTest(
-  "a declared module becomes present at the next synchronization once it is readable; without access it stays quietly absent, and losing access never removes it",
+  "a declared module becomes present at the next synchronization once it is readable; without access it stays quietly absent, and on a computer losing access never removes it",
   async () => {
     world = await createWorld();
     const current = world;
@@ -1106,8 +1106,9 @@ posixTest(
       "current",
     );
 
-    // Access lost (the remote no longer answers this identity): the
-    // checkout stays exactly as it is.
+    // Access lost (the remote no longer answers this identity): on a
+    // computer the checkout stays exactly as it is; a Work Environment
+    // removes it on proof (decision F72, tests/content-access-ended.test.ts).
     const before = await head(fixture.at("workspace/later"));
     await rm(later, { recursive: true, force: true });
     const lost = await ran(fixture);

@@ -123,7 +123,16 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   Folder and not cloned: this identity cannot read it, repository-denied; the
   slot is restricted or private, or below such a slot; a data mount's module
   is not here; or this is a Team Environment, whose content the hosting
-  prepares), denied, unavailable or failed. Production Space
+  prepares), denied, unavailable or failed. On a Work Environment that names
+  its person, a module or data mount of the Organization whose access ended
+  is removed with everything below it, unsaved work included: absent
+  access-ended, after its app stopped, once two synchronizations in a row at
+  least 30 minutes apart proved it (the signed-in identity is the person's,
+  its token has the full repo scope, it reads the Organization's root and a
+  private repository of it through GitHub's API, and GitHub answers 404 for
+  the repository);
+  removal-pending marks the first proof, and
+  any other answer starts over. Production Space
   repositories, infra, worktrees and the Personalspace are never touched. The
   identity is this Environment's: gh's sign-in (gh as the HTTPS helper), a
   Team Environment's configured helper, or on a public Environment anonymous
@@ -157,7 +166,9 @@ function humanSync(entry: SyncEntry): string {
     entry.from === undefined || entry.to === undefined
       ? ""
       : ` ${entry.from.slice(0, 12)}..${entry.to.slice(0, 12)}`;
-  return `${shown(where)} (${entry.branch})  ${entry.result}${reason}${moved}`;
+  // A first proof that access ended: the copy goes at the next proof.
+  const pending = entry.removal === undefined ? "" : " removal-pending";
+  return `${shown(where)} (${entry.branch})  ${entry.result}${reason}${moved}${pending}`;
 }
 
 /** `lazurio organization sync`: the explicit form of the Launchpad's
@@ -173,6 +184,7 @@ async function runSyncCommand(
   const print = (result: Record<string, unknown>, text: string) =>
     write(json ? JSON.stringify(result) : text);
   let host: SyncHost;
+  let closing = async () => {};
   if (hostFor !== undefined) host = hostFor(folder);
   else {
     let base: string;
@@ -185,14 +197,23 @@ async function runSyncCommand(
       );
       return 1;
     }
+    const modules = createModuleOperations({
+      folder,
+      owner: "cli",
+      host: processModuleHost(),
+    });
+    closing = async () => {
+      await modules.close();
+    };
     host = {
       ...processGitHubHost({ env: context.env, platform: context.platform }),
       lockDirectory: contentLockDirectory(base),
+      retire: (organization, path) => modules.retire(organization, path),
     };
   }
   const run = await syncContent(folder, host, {
     ...(login === undefined ? {} : { organization: login }),
-  });
+  }).finally(closing);
   if (run.kind === "not-allowed") {
     print(
       { kind: "blocked", reason: run.reason },

@@ -15,6 +15,7 @@ import {
   accessLine,
   addedNames,
   parseAccessCheck,
+  removedNames,
   shownModules,
 } from "./access-check";
 import {
@@ -1149,10 +1150,14 @@ export function createCatalogPanel(
       answer?.state === "checked"
         ? addedNames(answer.added, before, shownModules(catalog, login))
         : [];
+    const removed =
+      answer?.state === "checked"
+        ? removedNames(answer.removed, catalog, login)
+        : [];
     access = {
       page,
       busy: false,
-      line: accessLine(answer, names, options.copy()),
+      line: accessLine(answer, names, options.copy(), removed),
     };
     render();
   }

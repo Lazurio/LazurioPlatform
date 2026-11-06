@@ -24,18 +24,24 @@ export type AccessCheckReason =
   | "failed";
 
 /** The answer of `POST /api/organizations/<org>/sync`. `added`: the modules
- * this run cloned, by their path in the Organization. */
+ * this run cloned, by their path in the Organization; `removed`: those whose
+ * copy left lately because access ended (decision F72). */
 export type AccessCheckAnswer =
   | Readonly<{
       kind: "access-check";
       state: "checked";
       added: readonly string[];
+      removed: readonly string[];
     }>
   | Readonly<{
       kind: "access-check";
       state: "failed";
       reason: AccessCheckReason;
     }>;
+
+/** How long a check still says that a copy left: the hourly round usually
+ * removed it, and the person looks later. */
+export const removalToldForMs = 7 * 24 * 60 * 60 * 1000;
 
 export const accessCheckFailed = (
   reason: AccessCheckReason,
@@ -66,10 +72,19 @@ export function accessCheckAnswer(run: SyncRun): AccessCheckAnswer {
     .filter((entry) => entry.kind === "module")
     .filter((entry) => entry.result === "materialized")
     .map((entry) => entry.path);
+  const removed = run.entries
+    .filter((entry) => entry.kind === "module")
+    .filter(
+      ({ removed }) =>
+        removed !== undefined &&
+        Date.parse(run.at) - Date.parse(removed.at) < removalToldForMs,
+    )
+    .map((entry) => entry.path);
   return added.length === 0 &&
+    removed.length === 0 &&
     run.entries.some((entry) => entry.result === "unavailable")
     ? accessCheckFailed("github")
-    : { kind: "access-check", state: "checked", added };
+    : { kind: "access-check", state: "checked", added, removed };
 }
 
 const reasons: readonly AccessCheckReason[] = [
@@ -88,6 +103,7 @@ export function parseAccessCheck(value: unknown): AccessCheckAnswer | null {
     kind?: unknown;
     state?: unknown;
     added?: unknown;
+    removed?: unknown;
     reason?: unknown;
   };
   if (answer.kind !== "access-check") return null;
@@ -95,10 +111,17 @@ export function parseAccessCheck(value: unknown): AccessCheckAnswer | null {
     return reasons.includes(answer.reason as AccessCheckReason)
       ? accessCheckFailed(answer.reason as AccessCheckReason)
       : null;
+  const paths = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((path) => typeof path === "string");
   return answer.state === "checked" &&
-    Array.isArray(answer.added) &&
-    answer.added.every((path) => typeof path === "string")
-    ? { kind: "access-check", state: "checked", added: answer.added }
+    paths(answer.added) &&
+    paths(answer.removed)
+    ? {
+        kind: "access-check",
+        state: "checked",
+        added: answer.added,
+        removed: answer.removed,
+      }
     : null;
 }
 
@@ -142,6 +165,26 @@ export function addedNames(
   return [...names.values()];
 }
 
+/** The names of the modules whose copy left: the slot stays declared, so the
+ * catalog still names them. */
+export function removedNames(
+  removed: readonly string[],
+  catalog: Catalog | null,
+  login: string,
+): readonly string[] {
+  const key = login.toLowerCase();
+  const modules =
+    catalog?.organizations.find(
+      (entry) => entry.forgeLogin?.toLowerCase() === key,
+    )?.modules ?? [];
+  return removed.map((path) => {
+    const module = modules.find((entry) => entry.path === path);
+    return module === undefined
+      ? (path.split("/").at(-1) as string)
+      : moduleName(module);
+  });
+}
+
 /** The line under the head, in its tone. */
 export type AccessLine = Readonly<{
   text: string;
@@ -162,6 +205,7 @@ export function accessLine(
   answer: AccessCheckAnswer | null,
   names: readonly string[],
   copy: Copy,
+  removed: readonly string[] = [],
 ): AccessLine {
   if (answer === null || answer.state === "failed")
     return {
@@ -171,12 +215,21 @@ export function accessLine(
       ),
       tone: "warning",
     };
-  if (names.length === 0) return { text: copy.accessNothing, tone: "quiet" };
+  const said = (one: string, many: string, list: readonly string[]) =>
+    (list.length === 1 ? one : many).replace("{names}", () => list.join(", "));
+  const gone =
+    removed.length === 0
+      ? []
+      : [said(copy.accessRemovedOne, copy.accessRemovedMany, removed)];
+  if (names.length === 0)
+    return gone.length === 0
+      ? { text: copy.accessNothing, tone: "quiet" }
+      : { text: gone.join(" "), tone: "warning" };
   return {
-    text: (names.length === 1
-      ? copy.accessAddedOne
-      : copy.accessAddedMany
-    ).replace("{names}", () => names.join(", ")),
-    tone: "success",
+    text: [
+      said(copy.accessAddedOne, copy.accessAddedMany, names),
+      ...gone,
+    ].join(" "),
+    tone: gone.length === 0 ? "success" : "warning",
   };
 }

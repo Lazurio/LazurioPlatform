@@ -162,6 +162,17 @@ export type AppIdentity = Readonly<{
   applicationDirectory: string;
 }>;
 
+/** The directory of every build of one module. */
+export function moduleBuildDirectory(
+  root: string,
+  organization: string,
+  module: string,
+) {
+  for (const part of [organization, module])
+    if (!segment.test(part)) throw new Error("Invalid build directory name");
+  return join(root, organization, module);
+}
+
 /** The directory of one app's builds. */
 export function appBuildDirectory(root: string, identity: AppIdentity) {
   for (const part of [

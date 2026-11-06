@@ -20,6 +20,7 @@ import {
   accessLine,
   addedNames,
   parseAccessCheck,
+  removedNames,
   shownModules,
 } from "../src/launchpad/access-check";
 import type { AuthFetcher } from "../src/launchpad/hosted-trust";
@@ -88,6 +89,99 @@ const module = (path: string, result: SyncEntry["result"], reason?: string) =>
     ...(reason === undefined ? {} : { reason }),
   });
 
+test("a check says which modules left because access ended, for a week, in both languages", () => {
+  const trace = (at: string) => ({
+    at,
+    repository: "Alpha/web",
+    commit: "a".repeat(40),
+    unsaved: true,
+    worktrees: 0,
+    worktreesOutside: 0,
+  });
+  const gone = (path: string, at: string) =>
+    entry({
+      path,
+      kind: "module",
+      result: "absent",
+      reason: "repository-denied",
+      removed: trace(at),
+    });
+  expect(
+    accessCheckAnswer(
+      run(
+        entry({}),
+        gone("workspace/web", "2026-11-05T11:00:00.000Z"),
+        gone("workspace/old", "2026-10-20T11:00:00.000Z"),
+        // A data mount's removal is no module's.
+        entry({
+          path: "workspace/plans/db",
+          kind: "data",
+          result: "absent",
+          removed: trace("2026-11-05T11:00:00.000Z"),
+        }),
+      ),
+    ),
+  ).toEqual({
+    kind: "access-check",
+    state: "checked",
+    added: [],
+    removed: ["workspace/web"],
+  });
+  // GitHub not answering elsewhere does not hide what left.
+  expect(
+    accessCheckAnswer(
+      run(
+        entry({}),
+        gone("workspace/web", "2026-11-05T11:00:00.000Z"),
+        module("workspace/later", "unavailable"),
+      ),
+    ),
+  ).toMatchObject({ state: "checked", removed: ["workspace/web"] });
+  const checked = {
+    kind: "access-check",
+    state: "checked",
+    added: [],
+    removed: ["workspace/web"],
+  } as const;
+  const cs = messages("cs");
+  const en = messages("en");
+  expect(accessLine(checked, [], cs, ["Web"])).toEqual({
+    text: "Odebrali jsme modul Web, přístup k němu skončil.",
+    tone: "warning",
+  });
+  expect(accessLine(checked, [], en, ["Web"]).text).toBe(
+    "Module Web was removed: access ended.",
+  );
+  expect(accessLine(checked, [], cs, ["Web", "Sklad"]).text).toBe(
+    "Odebrali jsme moduly Web, Sklad, přístup k nim skončil.",
+  );
+  expect(accessLine(checked, [], en, ["Web", "Stock"]).text).toBe(
+    "Modules Web, Stock were removed: access ended.",
+  );
+  expect(accessLine(checked, ["Zakázky"], cs, ["Web"])).toEqual({
+    text: "Přibyl modul Zakázky. Odebrali jsme modul Web, přístup k němu skončil.",
+    tone: "warning",
+  });
+  expect(parseAccessCheck({ ...checked, removed: [1] })).toBeNull();
+  expect(parseAccessCheck(checked)).toEqual(checked);
+  // The slot stays declared, so the catalog still names the module.
+  const catalog = {
+    organizations: [
+      {
+        forgeLogin: "Alpha",
+        modules: [
+          {
+            path: "workspace/web",
+            module: "web",
+            display: { name: "Web firmy" },
+          },
+        ],
+      },
+    ],
+  } as unknown as Parameters<typeof removedNames>[1];
+  expect(removedNames(["workspace/gone"], catalog, "alpha")).toEqual(["gone"]);
+});
+
 test("the answer of a run: the modules it cloned, nothing new without access, why it did not finish", () => {
   expect(
     accessCheckAnswer(
@@ -107,6 +201,7 @@ test("the answer of a run: the modules it cloned, nothing new without access, wh
     kind: "access-check",
     state: "checked",
     added: ["workspace/later"],
+    removed: [],
   });
   // Without access a module stays quietly absent; a checkout with its own
   // work says nothing about access.
@@ -118,7 +213,7 @@ test("the answer of a run: the modules it cloned, nothing new without access, wh
         module("workspace/web", "blocked", "dirty"),
       ),
     ),
-  ).toEqual({ kind: "access-check", state: "checked", added: [] });
+  ).toEqual({ kind: "access-check", state: "checked", added: [], removed: [] });
   expect(accessCheckAnswer({ kind: "busy" })).toEqual(
     accessCheckFailed("busy"),
   );
@@ -150,7 +245,12 @@ test("the answer of a run: the modules it cloned, nothing new without access, wh
         module("workspace/b", "materialized"),
       ),
     ),
-  ).toEqual({ kind: "access-check", state: "checked", added: ["workspace/b"] });
+  ).toEqual({
+    kind: "access-check",
+    state: "checked",
+    added: ["workspace/b"],
+    removed: [],
+  });
 });
 
 test("the page reads only the route's answer", () => {
@@ -158,6 +258,7 @@ test("the page reads only the route's answer", () => {
     kind: "access-check",
     state: "checked",
     added: ["workspace/a"],
+    removed: [],
   };
   expect(parseAccessCheck(checked)).toEqual(checked as never);
   expect(parseAccessCheck(accessCheckFailed("busy"))).toEqual(
@@ -218,6 +319,7 @@ test("the line says the concept's words in both languages, with the reason", () 
     kind: "access-check",
     state: "checked",
     added: [],
+    removed: [],
   } as const;
   expect(accessLine(checked, ["Zakázky"], cs)).toEqual({
     text: "Přibyl modul Zakázky.",
@@ -383,6 +485,7 @@ posixTest(
       kind: "access-check",
       state: "checked",
       added: [],
+      removed: [],
     });
     expect(await exists(launchpad.at("workspace/later"))).toBe(false);
     launchpad.grant();
@@ -390,12 +493,14 @@ posixTest(
       kind: "access-check",
       state: "checked",
       added: ["workspace/later"],
+      removed: [],
     });
     expect(await exists(launchpad.at("workspace/later/.git"))).toBe(true);
     expect(await checked()).toEqual({
       kind: "access-check",
       state: "checked",
       added: [],
+      removed: [],
     });
   },
   30_000,

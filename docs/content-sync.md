@@ -14,7 +14,10 @@ Declared data mounts are included when clean. `lazurio organization install`,
 absent repositories as described in [Installation](#installation--implemented-2026-10-04);
 since [F9's addendum of 2026-11-01](decisions.md#addendum-of-2026-11-01-a-synchronization-clones-a-declared-module-once-it-is-readable)
 synchronization also clones a declared module or data mount that is absent once this
-Environment's identity can read it ([Synchronization](#synchronization--implemented-2026-10-24)). This document is the contract for both operations and for
+Environment's identity can read it ([Synchronization](#synchronization--implemented-2026-10-24)), and since
+[F72](decisions.md#f72--a-module-whose-access-proved-to-have-ended-leaves-the-environment)
+it removes a module or data mount whose access proved to have ended on a Work Environment
+with an assigned person ([Access ended](#access-ended--decided-2026-11-06)). This document is the contract for both operations and for
 their separation from product update. See
 [decision F9](decisions.md#f9--update-lazurio-and-synchronize-content-are-separate-operations).
 
@@ -112,7 +115,9 @@ fast-forward relation. Implemented on 2026-10-24: [Synchronization](#synchroniza
 
 **Dirty or wrong-branch checkouts block by default.** Synchronization reports the
 exact repository and reason and changes nothing in it. It does not create a recovery
-stash, does not switch branches and does not reset.
+stash, does not switch branches and does not reset. The one exception is a copy whose
+access proved to have ended ([Access ended](#access-ended--decided-2026-11-06)): unsaved
+work does not keep it.
 
 This is a deliberate change from the legacy engine, which stores dirty work in a
 recovery stash and returns the checkout to `main`. Preserved bytes in a stash still
@@ -167,7 +172,8 @@ meant to use, as selected by its [workspace preset](workspace-presets.md):
   (B7 amendment of 2026-10-18, #488).
 
 Denied, revoked or unavailable access stops that repository's operation and preserves
-local content. Synchronization never substitutes another identity, reuses a peer's
+local content, unless the access proved to have ended on an Environment where a copy
+goes ([Access ended](#access-ended--decided-2026-11-06)). Synchronization never substitutes another identity, reuses a peer's
 credential or treats a present checkout as proof of access. GitHub stays the authority.
 
 ## After content changes
@@ -197,7 +203,7 @@ Each repository returns exactly one of `materialized`, `fast-forwarded`, `curren
 destination), `denied`, `unavailable` or `failed`, with locale-neutral reason codes.
 Synchronization adds `absent` (declared, not in the Folder and not cloned by it: this
 identity cannot read it, `repository-denied`, or it is restricted, below a module that is
-not here, or on a Team Environment) and
+not here, or on a Team Environment; `access-ended` in the run that removed its copy) and
 answers `blocked` with `dirty`, `wrong-branch`, `ahead`, `diverged`, `detached`,
 `operation-in-progress` or `unexpected-checkout`.
 CLI and Launchpad invoke the same use case and return equivalent results.
@@ -303,6 +309,84 @@ replaced) and an `onProgress` listener that hears `checking`, `fetching` and
 `fast-forwarding` (each with `to`, the commit the remote names) and `done` with the
 answer for each repository as it happens. The Open of one module uses the first;
 `lazurio update` and Aktualizovat the second ([When it runs](#when-it-runs)).
+
+## Access ended — decided 2026-11-06
+
+Matěj's decision of 2026-11-06 ([root decision 0232](decision-register.md#0232--access-to-a-module-has-levels-an-organization-admin-locks-a-module-and-a-lost-grant-removes-the-environments-copy),
+[F72](decisions.md#f72--a-module-whose-access-proved-to-have-ended-leaves-the-environment)):
+when access to a module has ended, its copy leaves the Environment, always, with its
+unsaved work. "Always" means no exception for unsaved work, never a removal on a doubt:
+deleting cannot be undone, so a copy goes only on proof. `src/content/access-ended.ts`.
+
+**The rule.** A copy goes when two synchronizations in a row, at least 30 minutes apart
+(`removalConfirmAfterMs`), each proved all of this:
+
+1. The identity: `gh`'s viewer is the person the handover names, by their immutable
+   GitHub id.
+2. The token: GitHub names the scope `repo` for it (`X-OAuth-Scopes` of `GET /user`), which
+   reaches every repository the person may read. A fine-grained token or a GitHub App's
+   user token may be limited to chosen repositories: it names the person, reads the root
+   and answers 404 for a module the person may read, and it has no such header, so it
+   never proves anything and the copy stays.
+3. The control: in the same run that identity reads the Organization's root repository
+   through GitHub's API, and a private repository of the same owner: the root when it is
+   private, else another repository the root declares. A public root proves nothing: a
+   token whose single sign-on for the Organization is missing or expired reads it and
+   answers 404 for every private repository. No such repository answers: no proof.
+4. The answer: GitHub's API answers 404 for the repository, in GitHub's own error body.
+   `git ls-remote` is no proof: its refusal may be a key or a helper.
+
+The first proof is recorded on the repository's entry (`removal`: when, the identity, the
+repository). A later proof within the 30 minutes keeps it and removes nothing, so a press
+of Zkontrolovat přístupy is no second proof. Every other answer in between clears it and
+the count starts over: no network, 5xx, a rate limit (403 or 429), an invalid or missing
+token (401), a signed-out `gh`, another viewer, a token without `repo`, a public root with no private repository that answers, a root that does not answer or answers
+as another owner's, a repository that answers at all, an unreadable answer, a run stopped at
+its root. An unreadable record is no proof either. With the hourly round, a copy goes about
+an hour after access ended.
+
+**Where.** Only a repository the Organization itself owns, a module or a data mount of a
+declared slot, on a Work Environment that names its person
+(`hosted-organization-personal` with an `operator` assignment that has a GitHub id). Never
+the Organization's root, the Personalspace, anything no slot declares, `productionspace/`
+or `infra`, and never on the person's own computer (`local`).
+
+| Not removed | Why |
+| --- | --- |
+| A guest Module of another Organization (F67) | The root's answer proves nothing about another owner's repository, so a refusal cannot be told from a token that lost that Organization. It stays hidden in Apps and is never run |
+| A Team Environment | Its content is the hosting's, and its answers come from a broker, not from GitHub |
+| A Henry Environment, Server services | gh signs in as the persona or the Organization's app, and the handover records no id to prove it against |
+| A public Environment | It has no identity |
+
+**The removal.** Under the content lock, the module's apps stop first through `retire`
+(for a data mount, those of its module) and its builds in the account's cache go, since
+they hold its content. `retire` answers yes only when it is certain that nothing of the
+module runs: the module's declaration was read (an unreadable one lists no apps in the
+catalog, which is not knowing none), each app stopped, the service manager listed what runs
+and everything it listed is another module's. Anything else keeps the copy, and the proof,
+for a later run. Every step from the Folder down to the slot must be a real directory, and
+the checkout is proved once more as the primary checkout of exactly this repository. Then
+the exact operation goes into a journal file beside the record, the checkout is renamed
+beside itself, so nothing half-deleted looks like a checkout, and deleted. A later run
+finishes only what a journal entry names, of this Folder, with its exact name and with
+no link above it; a directory that only looks like a removal is never touched, and a
+journal that does not hold stays with nothing deleted. Its linked worktrees below the slot go with it. One
+registered outside the slot is never touched and is counted in the trace. A module's
+data mount below it goes with it.
+
+**After it.** The slot stays declared and is `absent` (`access-ended` in that run,
+`repository-denied` after). The entry keeps `removed` (when, the repository, the commit,
+whether its primary checkout held uncommitted changes, its worktrees) while the slot stays absent, and a later
+clone ends it. Access given back clones the module afresh. Zkontrolovat přístupy says
+for a week which modules left, and `lazurio organization sync` prints `removal-pending` at
+a first proof.
+
+**Known limits.** GitHub does not tell a deleted repository from a refused one: a
+repository deleted on GitHub counts as access ended. A person who left the Organization no
+longer reads its root, so nothing proves anything and their copies stay until the Admin
+reassigns the Environment. The same holds where the root is public and the last private
+repository this identity could read is the one that went. An agent working in the copy at that moment loses its
+directory.
 
 ## Installation — implemented 2026-10-04
 

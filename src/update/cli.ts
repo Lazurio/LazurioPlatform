@@ -959,7 +959,12 @@ function folderParts(
         ? contentNotRun("not-installed")
         : syncContent(
             folder,
-            { ...content, lockDirectory: contentLockDirectory(base) },
+            {
+              ...content,
+              lockDirectory: contentLockDirectory(base),
+              retire: (organization, path) =>
+                operations.retire(organization, path),
+            },
             { onProgress },
           ),
     tools: {

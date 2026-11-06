@@ -871,6 +871,8 @@ export async function startLaunchpad(
             tools: toolsEnvironment,
           }),
           lockDirectory: contentLockDirectory(installed.base),
+          retire: (organization: string, path: string) =>
+            modules.retire(organization, path),
         });
   const syncCheckouts =
     syncHost === undefined

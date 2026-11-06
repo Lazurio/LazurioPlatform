@@ -78,6 +78,8 @@ export type DeclarationAnswer =
 export type ContentGitHub = Readonly<{
   /** Who gh works as on this Environment. */
   viewer(): Promise<ViewerAnswer>;
+  /** The OAuth scopes of this sign-in's token (`parseTokenScopes`). */
+  tokenScopes(): Promise<readonly string[] | null>;
   repository(owner: string, name: string): Promise<RepositoryAnswer>;
   /** The viewer's membership in an Organization (an Owner is an active
    * `admin` membership). */
@@ -296,6 +298,25 @@ export function parseMembership(stdout: string): MembershipAnswer {
   }
 }
 
+/** The OAuth scopes GitHub names for the token of this answer (`gh api
+ * --include`: the status line and the headers, a blank line, the body), or
+ * null when it names none: a fine-grained token or a GitHub App's user token
+ * has no such header, and an answer other than 200 says nothing. */
+export function parseTokenScopes(stdout: string): readonly string[] | null {
+  const [head] = stdout.split(/\r?\n\r?\n/, 1);
+  const lines = (head ?? "").split(/\r?\n/);
+  if (!/^HTTP\/[0-9.]+ 200\b/.test(lines[0] ?? "")) return null;
+  const header = lines.find((line) => /^x-oauth-scopes:/i.test(line));
+  if (header === undefined) return null;
+  return Object.freeze(
+    header
+      .slice(header.indexOf(":") + 1)
+      .split(",")
+      .map((scope) => scope.trim())
+      .filter((scope) => scope !== ""),
+  );
+}
+
 export function parseRepository(stdout: string): GitHubRepository | null {
   try {
     const value = record(JSON.parse(stdout));
@@ -489,6 +510,10 @@ export function ghContentGitHub(
       )
         return { kind: "signed-out" };
       return { kind: "unavailable" };
+    },
+    async tokenScopes() {
+      const answer = await run(["api", "--include", "user"]);
+      return answer.kind === "ok" ? parseTokenScopes(answer.stdout) : null;
     },
     async repository(owner, name): Promise<RepositoryAnswer> {
       // The repository named to gh, as the brokered gh needs it (a person's
