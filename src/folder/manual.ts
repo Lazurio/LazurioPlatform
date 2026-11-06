@@ -2893,6 +2893,10 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
       '- **Práce v okně.** `agent-browser --cdp 9222 --session <sezení> <příkaz>`: například `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 "text"`, `screenshot <soubor>`, `get url`. Vždy s `--cdp 9222` a svým `--session`: bez `--cdp` by agent-browser spustil vlastní prohlížeč bez přihlášení Environmentu a uživatel by ho neviděl. Nepoužívej `window new` (otevře izolované okno bez přihlášení), `--profile`, `--headed`, `set device` ani `set viewport`: velikost stránky určuje pohled uživatele.',
       "- **Working in the window.** `agent-browser --cdp 9222 --session <session> <command>`: for example `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 \"text\"`, `screenshot <file>`, `get url`. Always with `--cdp 9222` and your `--session`: without `--cdp` agent-browser starts a browser of its own, without the Environment's sign-ins and invisible to the user. Do not use `window new` (it opens an isolated window without sign-ins), `--profile`, `--headed`, `set device` or `set viewport`: the user's view sets the page size.",
     ),
+    t(
+      "- **Nástroje stránky (WebMCP).** Když `open` ohlásí, že stránka má WebMCP nástroje, vypiš je `webmcp list` a zavolej `webmcp invoke <nástroj> --params '<json>'`, obojí s `--cdp 9222 --session <sezení>`. Nástroj běží ve stránce s jejím přihlášením: je rychlejší než klikání, ale nesmí víc než stránka sama. Výsledek ověř na stránce stejně jako po kliknutí.",
+      "- **Page tools (WebMCP).** When `open` reports that the page has WebMCP tools, list them with `webmcp list` and call one with `webmcp invoke <tool> --params '<json>'`, both with `--cdp 9222 --session <session>`. A tool runs in the page with its sign-in: faster than clicking, but it may do no more than the page itself. Check the result on the page as you would after a click.",
+    ),
     ...(personal
       ? [
           t(

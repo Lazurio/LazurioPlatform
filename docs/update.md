@@ -626,7 +626,9 @@ Codex unit:
   under `~/.agent-browser/browsers/` (the path Machines' AppArmor profile admits),
   `exec`'d by `/bin/sh` so Chrome is the unit's main process, headed on `DISPLAY=:1`,
   profile `~/.local/share/lazurio-browser/profile`, DevTools on loopback port 9222,
-  `--deny-permission-prompts` and the Lazurio extension
+  `--deny-permission-prompts`, WebMCP
+  (`--enable-features=WebMCPTesting,DevToolsWebMCPSupport`: pages register tools
+  that agents list and call with `agent-browser webmcp`) and the Lazurio extension
   (`--load-extension=~/.local/share/lazurio-browser/extension`, [F39](decisions.md#f39--the-peoples-view-of-the-environment-browser-one-tab-of-a-person-is-one-remote-tab)
   point 7) with `LAZURIO_BROWSER_EXTENSION=<its digest>` in the unit's environment;
   `BindsTo=`/`After=` the display, `Restart=always`, and `RestartPreventExitStatus=78`

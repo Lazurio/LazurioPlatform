@@ -256,7 +256,13 @@ const browserMemoryBudget = Object.freeze([
  * - the first window at a thread window's size;
  * - permission prompts are denied, never shown where nobody sees them;
  * - the Lazurio extension (a window per tab, passkeys declined), with the
- *   feature that turns `--load-extension` off in branded builds disabled. */
+ *   feature that turns `--load-extension` off in branded builds disabled;
+ * - WebMCP: a page may register its tools (`document.modelContext` in Chrome
+ *   156) and an agent lists and calls them over DevTools (`agent-browser
+ *   webmcp list|invoke`). Chrome for Testing has both only behind these two
+ *   features, which agent-browser turns on only for a Chrome it starts
+ *   itself, never for this one on port 9222. A tool runs in its page with
+ *   that page's session, so it gives an agent speed, not rights. */
 export const browserFlags = Object.freeze([
   "--user-data-dir=%h/.local/share/lazurio-browser/profile",
   `--remote-debugging-port=${browserCdpPort}`,
@@ -273,6 +279,7 @@ export const browserFlags = Object.freeze([
   "--deny-permission-prompts",
   "--load-extension=%h/.local/share/lazurio-browser/extension",
   "--disable-features=DisableLoadExtensionCommandLineSwitch",
+  "--enable-features=WebMCPTesting,DevToolsWebMCPSupport",
 ]);
 
 /** The screen: Xvfb on `:1`, no TCP. `Type=simple` and a start that waits
