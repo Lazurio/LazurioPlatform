@@ -330,6 +330,7 @@ posixTest(
       expect(await answered.json()).toEqual({
         kind: "organization-owner",
         owner: false,
+        member: false,
       });
       // The Steward's question of "Přístup k modulu" (S15): the same.
       const maintain = `${base}/api/organizations/example/modules/deals/maintain`;
