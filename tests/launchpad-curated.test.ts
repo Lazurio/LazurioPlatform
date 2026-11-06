@@ -297,6 +297,8 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "linked", fingerprint },
         identity: "person",
+        // The sign-in from Settings → Tools asks for workflow (#823).
+        workflow: true,
       });
       // "Link SSH key" of a signed-in gh: no code, the same key.
       const link = await opened.json("/api/tools/login/start", {
@@ -365,11 +367,12 @@ test.skipIf(!keygen)(
   async () => {
     const opened = await session(["gh"]);
     try {
-      // Signed in as octocat, without an SSH key here.
+      // Signed in as octocat from Settings → Tools (its scopes since #823),
+      // without an SSH key here.
       await writeFile(join(opened.home, "gh.state"), "octocat\n");
       await writeFile(
         join(opened.home, "gh.scopes"),
-        "gist read:org repo admin:public_key\n",
+        "gist read:org repo admin:public_key workflow\n",
       );
       const read = async (body: Json) => {
         const answer = (await opened.json("/api/tools/status", body)).body;

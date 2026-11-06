@@ -141,6 +141,8 @@ test.skipIf(!keygen)(
         account: "octocat",
         ssh: { state: "linked", fingerprint: linked.fingerprint },
         identity: "person",
+        // Its token names its scopes, without workflow (#823).
+        workflow: false,
       });
       // The proof is the sign-in's: GitHub's published keys and ssh -T with
       // BatchMode and StrictHostKeyChecking=yes, which never adds the keys the

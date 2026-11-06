@@ -93,6 +93,74 @@ const catalog = [
   tool({ name: "neon", command: "neon", tier: "optional", setup: "agent" }),
 ];
 
+test("gh's workflow scope (#823): the page reads it, and Allow CI changes shows only where it adds it", () => {
+  const copy = messages("en");
+  // The reading travels only as a boolean.
+  const reading = (workflow: unknown) =>
+    overview([
+      tool({
+        name: "gh",
+        command: "gh",
+        installed: true,
+        signIn: {
+          state: "signed-in",
+          account: "octo",
+          identity: "person",
+          workflow,
+        } as never,
+      }),
+    ]);
+  for (const workflow of [true, false])
+    expect(
+      parseToolsOverview(JSON.parse(JSON.stringify(reading(workflow)))),
+    ).toEqual(reading(workflow));
+  for (const broken of ["no", 1, null])
+    expect(parseToolsOverview(reading(broken))).toBeNull();
+  // A signed-in gh whose SSH key is linked: the button only without
+  // workflow, never where the scopes were not read.
+  const gh = (signIn: object) =>
+    tool({
+      name: "gh",
+      command: "gh",
+      installed: true,
+      signIn: {
+        state: "signed-in",
+        account: "octo",
+        identity: "person",
+        ssh: { state: "linked" },
+        ...signIn,
+      } as never,
+    });
+  expect(curatedActions(gh({ workflow: false }), copy)).toEqual({
+    primary: null,
+    logout: true,
+    linkSsh: false,
+    allowWorkflow: true,
+  });
+  expect(curatedActions(gh({ workflow: true }), copy).allowWorkflow).toBe(
+    false,
+  );
+  expect(curatedActions(gh({}), copy).allowWorkflow).toBe(false);
+  // SSH not linked: "Link SSH key" alone, which adds workflow too.
+  expect(
+    curatedActions(gh({ workflow: false, ssh: { state: "not-linked" } }), copy),
+  ).toMatchObject({ linkSsh: true, allowWorkflow: false });
+  // A Team Environment's gh offers no personal sign-in action.
+  expect(
+    curatedActions(gh({ workflow: false }), copy, true).allowWorkflow,
+  ).toBe(false);
+  // Another tool never.
+  expect(
+    curatedActions(
+      tool({
+        installed: true,
+        signIn: { state: "signed-in", workflow: false } as never,
+      }),
+      copy,
+    ).allowWorkflow,
+  ).toBe(false);
+});
+
 test("the page accepts the server's answer only in its exact form", () => {
   const valid = overview(catalog);
   expect(parseToolsOverview(JSON.parse(JSON.stringify(valid)))).toEqual(valid);
@@ -776,6 +844,7 @@ test("the sign-in line and the curated action follow what the probe said", () =>
       primary: { mode: "install", label: copy.toolsInstallAction },
       logout: false,
       linkSsh: false,
+      allowWorkflow: false,
     });
     for (const signIn of [
       undefined,
@@ -791,13 +860,19 @@ test("the sign-in line and the curated action follow what the probe said", () =>
         primary: { mode: "login", label: copy.toolsSignInAction },
         logout: false,
         linkSsh: false,
+        allowWorkflow: false,
       });
     expect(
       curatedActions(
         { ...installed, signIn: { state: "signed-in", account: "octo" } },
         copy,
       ),
-    ).toEqual({ primary: null, logout: true, linkSsh: false });
+    ).toEqual({
+      primary: null,
+      logout: true,
+      linkSsh: false,
+      allowWorkflow: false,
+    });
     // gh signed in: "· SSH key linked" or "· not linked" with "Link SSH key".
     const gh = tool({ name: "gh", command: "gh", installed: true });
     const withSsh = (state: "linked" | "not-linked" | "unknown") => ({
@@ -830,6 +905,7 @@ test("the sign-in line and the curated action follow what the probe said", () =>
         primary: null,
         logout: false,
         linkSsh: false,
+        allowWorkflow: false,
       });
   }
 });

@@ -312,6 +312,13 @@ which `gh auth logout` cannot remove) or `unknown`. The account label keeps a `[
 suffix. On a Team Environment the gh line says "uses Lazurio for GitHub" instead of the
 state of an SSH key, and the Organization's App identity reads "works as
 lazurio-for-github[bot]" instead of "signed in as" ([below](#gh-on-a-team-environment)).
+A `person` sign-in whose token names its scopes also carries `workflow`: whether the
+token has the `workflow` scope, without which GitHub refuses a push that changes
+`.github/workflows/` (#823). Where it is `false` and the SSH key is linked, the gh row
+offers "Allow CI changes", which opens the session of "Link SSH key": that session
+refreshes the sign-in with `admin:public_key,workflow` (one device code) whenever the
+token lacks either scope. An App's identity, a fine-grained token or an older gh names
+no scopes, and nothing is said about `workflow` there.
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section).

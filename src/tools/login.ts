@@ -45,6 +45,7 @@ import {
   type ToolProcessResult,
   type ToolRunner,
   type ToolSignIn,
+  workflowScope,
 } from "./status";
 
 /** The curated sign-in of a `setup: "launchpad"` catalog tool (decision F19),
@@ -491,7 +492,7 @@ type Session = {
  * that GitHub accepts a push that changes `.github/workflows/` (#823). A
  * scope refresh asks for the same scopes, so that it also adds `workflow` to
  * an older sign-in. */
-export const ghSignInScopes = [sshKeyScope, "workflow"].join(",");
+export const ghSignInScopes = [sshKeyScope, workflowScope].join(",");
 
 export function createLoginSessions(environment: LoginEnvironment) {
   const now = environment.now ?? Date.now;
@@ -878,13 +879,17 @@ export function createLoginSessions(environment: LoginEnvironment) {
 
   // "Link SSH key" for a gh that is signed in already: steps 2 to 5, after a
   // scope refresh through the same kind of device-code session when the
-  // token cannot manage the account's keys (a gh signed in by hand).
+  // token cannot manage the account's keys (a gh signed in by hand), or has
+  // no `workflow` (a sign-in from before #823). The Tools row's "Allow CI
+  // changes" opens this same session.
   async function startGhLink(session: Session, path: string) {
     const run = sessionRunner(session);
     let signedIn = await ghAccount(run, path).catch(() => undefined);
     if (!current(session)) return;
     if (signedIn === undefined) return fail(session, "not-signed-in");
-    if (!hasKeyScope(signedIn.scopes)) {
+    const lacksWorkflow =
+      signedIn.scopes !== undefined && !signedIn.scopes.includes(workflowScope);
+    if (!hasKeyScope(signedIn.scopes) || lacksWorkflow) {
       // A scope refresh changes the account's token.
       if (!(await mayProceed(session))) return;
       const exitCode = await ghDeviceFlow(session, [

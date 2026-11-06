@@ -1590,7 +1590,12 @@ export function createToolsPanel(
     const curated =
       vaultRow === null && tool.offered
         ? curatedActions(tool, copy, team)
-        : { primary: null, logout: false, linkSsh: false };
+        : {
+            primary: null,
+            logout: false,
+            linkSsh: false,
+            allowWorkflow: false,
+          };
     const primary = curated.primary;
     if (vaultRow !== null) controls.append(...vaultRow.controls);
     if (primary !== null) {
@@ -1639,6 +1644,20 @@ export function createToolsPanel(
       );
       link.className = "primary";
       controls.append(link);
+    }
+    // A person's gh signed in before #823, its token without `workflow`:
+    // "Allow CI changes" opens the same session as "Link SSH key", which
+    // refreshes the sign-in with that scope (one device code).
+    if (curated.allowWorkflow) {
+      const allow = button(
+        copy.toolsAllowWorkflowAction,
+        tool.name,
+        "allow-workflow",
+        () => openLogin(tool, "ssh"),
+        fill(copy.toolsAllowWorkflowNamed, { name: tool.name }),
+      );
+      allow.className = "primary";
+      controls.append(allow);
     }
     if (curated.logout) {
       const signOut = button(
