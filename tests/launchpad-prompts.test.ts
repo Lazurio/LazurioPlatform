@@ -724,7 +724,7 @@ posixTest(
 );
 
 posixTest(
-  "hosted: a member gets the request to the Admin and never the Admin's prompt, an Owner the other way round",
+  "hosted: a member gets the request to the Organization Admin and never the Organization Admin's prompt, an Owner the other way round",
   async () => {
     const promptAt = (
       hosted: { base: string; valid: HeadersInit },
@@ -916,7 +916,7 @@ posixTest(
           })
         ).status,
       ).toBe(400);
-      // The Admin's own prompt only: the member's is another's, and an
+      // The Organization Admin's own prompt only: the member's is another's, and an
       // unknown Organization none.
       for (const body of [
         { id: "new-module-request", org: "Example-Org", description },

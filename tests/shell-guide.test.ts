@@ -177,7 +177,7 @@ test("Moduly says the five titles of its video; in a Personal Environment what i
     "Modul je jedna oblast vaší práce",
     "Postup, data a aplikace v jednom balíčku",
     "Agenti pracují podle postupu, lidé v aplikaci",
-    "Admin rozhodne, kdo modul dostane",
+    "Admin Organizace rozhodne, kdo modul dostane",
     "Nový postavíte s agentem, nebo ze šablony",
   ]);
   expect(
@@ -186,12 +186,12 @@ test("Moduly says the five titles of its video; in a Personal Environment what i
     "A module is one area of your work",
     "A process, data and an app in one package",
     "Agents follow the process, people work in the app",
-    "The Admin decides who gets the module",
+    "The Organization Admin decides who gets the module",
     "Build yours with an agent or from a template",
   ]);
   const personal = principleIn("modules", "cs", "personal")?.steps ?? [];
   expect(personal).toHaveLength(5);
-  // No Admin shares a personal module, and a template goes into an
+  // No Organization Admin shares a personal module, and a template goes into an
   // Organization only.
   expect(personal.map((step) => step.text).join(" ")).not.toMatch(
     /Admin|šablon/,

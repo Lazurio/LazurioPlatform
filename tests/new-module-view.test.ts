@@ -19,7 +19,7 @@ import {
 } from "../src/launchpad/prompt-briefs";
 
 // The dialog "+ Nový modul" (decision F36's addendum of 2026-11-05): its three
-// screens for the Admin, a member and the personal space's holder, the brief
+// screens for the Organization Admin, a member and the personal space's holder, the brief
 // it hands over, and the description the Launchpad keeps for Chat. How it
 // moves and takes the focus is checked in a browser (root decision 0178).
 
@@ -62,14 +62,14 @@ test("the first screen says what a module is, and who builds it for each person"
     video: true,
   });
   expect(newModuleScreen("what", member, "", cs)).toMatchObject({
-    who: "Nový modul v Organizaci zakládá Admin: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
+    who: "Nový modul zakládá Admin Organizace: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
     template: true,
   });
   expect(newModuleScreen("what", member, "", en)).toMatchObject({
-    who: "The Organization's Admin creates new modules and decides who gets access. You send them a description.",
+    who: "The Organization Admin creates new modules and decides who gets access. You send them a description.",
   });
   // Templates go into an Organization only: no link that leads nowhere, and
-  // no video that tells of an Organization's Admin.
+  // no video that tells of an Organization Admin.
   expect(newModuleScreen("what", personal, "", cs)).toMatchObject({
     intro: "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   });
@@ -116,7 +116,7 @@ test("the second screen has six things to remember and the space's examples, eac
       }
 });
 
-test("the third screen shows the whole brief: the Admin's for the agent, the member's a request to the Admin", () => {
+test("the third screen shows the whole brief: the Organization Admin's for the agent, the member's a request to the Organization Admin", () => {
   const description = "Chci přehled reklamací.";
   expect(newModuleScreen("brief", admin, description, cs)).toEqual({
     step: "brief",
@@ -127,10 +127,10 @@ test("the third screen shows the whole brief: the Admin's for the agent, the mem
   });
   expect(newModuleScreen("brief", member, description, cs)).toEqual({
     step: "brief",
-    title: "Žádost pro Admina",
+    title: "Žádost pro Admina Organizace",
     text: "Váš agent z popisu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
     brief:
-      "Chci v Organizaci Example Company (GitHub Example-Org) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\nChci přehled reklamací.\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+      "Chci v Organizaci Example Company (GitHub Example-Org) nový modul. Nový modul zakládá Admin Organizace, proto mi připrav žádost pro Admina Organizace skillem `admin-request`.\n\nMoje představa:\nChci přehled reklamací.\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   });
   expect(newModuleBrief(personal, description, cs)).toBe(
     "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu example.\n\nMoje představa:\nChci přehled reklamací.\n\nPoužij skill `new-module`. Vyptej se mě jen na to, co z mé představy nevyplývá, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",

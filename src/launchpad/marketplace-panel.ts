@@ -47,8 +47,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // A hand-over says how it ended only in the dialog that started it: one
 // closed, opened on another offer or drawn again for a newer version of its
 // offer in the meantime keeps what it shows and says. Where GitHub says the
-// person is a member of the chosen Organization and no Admin, "Požádat Admina"
-// takes the place of "Pokračovat v Chatu" and hands over a request to the Admin
+// person is a member of the chosen Organization and no Organization Admin, "Požádat Admina Organizace"
+// takes the place of "Pokračovat v Chatu" and hands over a request to the Organization Admin
 // (decision F36's addendum of 2026-11-05), as "+ Nový modul" does; while that
 // is not known, and where it cannot be read, the adoption stays, whose first
 // step is the person's live rights. A Folder with a personal space and no

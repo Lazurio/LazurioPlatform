@@ -1240,7 +1240,7 @@ test("the offer: an Organization's Owner gets new-module, the personal space's h
   expect(newModuleBrief(admin, "", cs)).toBe(
     newModulePrompt("Example Company", "Example-Org", cs),
   );
-  // A member, a Steward too, gets the muted tile: the request to the Admin.
+  // A member, a Steward too, gets the muted tile: the request to the Organization Admin.
   const member = newModuleOffer(organizationGroup, {
     owner: false,
     member: true,

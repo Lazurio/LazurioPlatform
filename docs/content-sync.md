@@ -63,7 +63,7 @@ Agent invokes `lazurio organization sync`, and, since [F9's second amendment](de
   those again), and nowhere the Environment keeps no content (`createOpenSync` in
   `src/content/open-sync.ts`).
 - **Zkontrolovat přístupy** in Apps ([F36's addendum of
-  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once)):
+  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)):
   that Organization alone, now, on a person's press; a run under way holds the content lock
   and the press answers so. Never on a Team Environment, whose synchronization clones
   nothing, or a public one.

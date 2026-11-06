@@ -7,9 +7,9 @@ import { ownerAnswerMs } from "./owner-answer";
 // addendum of 2026-10-04 and addendum of 2026-11-05): GitHub's own, live
 // answer, read with the Environment's `gh` (`gh api
 // user/memberships/orgs/<login>`): the role of an active membership, `admin`
-// (an Owner, the Organization's Admin) or `member`. It decides only what the
-// Apps home offers as "+ Nový modul": the Admin founds a module, a member asks
-// the Admin; it grants nothing, and no local rule stands in for it. A Team
+// (an Owner, the Organization Admin) or `member`. It decides only what the
+// Apps home offers as "+ Nový modul": the Organization Admin founds a module, a member asks
+// the Organization Admin; it grants nothing, and no local rule stands in for it. A Team
 // Environment acts under the Team's brokered identity and never founds
 // modules for a person nor asks for them, and an Organization without a bound
 // GitHub login has none to ask: both are no role, without a call. Every

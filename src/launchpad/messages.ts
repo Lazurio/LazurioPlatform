@@ -576,7 +576,7 @@ const en = {
   appsNewModule: "New module",
   appsNewModuleSub: "Create with an agent",
   // The muted tile of a member (decision F36's addendum of 2026-11-05).
-  appsNewModuleRequestSub: "The Admin creates it",
+  appsNewModuleRequestSub: "The Organization Admin creates it",
   appsNewModuleOpened:
     "Chat opens in a new tab with the new module's brief in the composer, not sent.",
   appsNewModuleCopied:
@@ -597,11 +597,11 @@ const en = {
     "I want to build a new module in the Lazurio Workspace.\nIt will be in the Organization {name} (GitHub {login}).\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   appsNewPersonalModulePromptDescribed:
     "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
-  // A member's request to the Admin (the skill `admin-request`).
+  // A member's request to the Organization Admin (the skill `admin-request`).
   appsNewModuleRequestPrompt:
-    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`.\n\nFirst ask me what the module is for and what it should solve for me, then show me the request and send it only with my consent.",
+    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Organization Admin, so prepare a request to the Organization Admin for me with the skill `admin-request`.\n\nFirst ask me what the module is for and what it should solve for me, then show me the request and send it only with my consent.",
   appsNewModuleRequestPromptDescribed:
-    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`.\n\nWhat I have in mind:\n{description}\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
+    "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Organization Admin, so prepare a request to the Organization Admin for me with the skill `admin-request`.\n\nWhat I have in mind:\n{description}\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
   // The dialog "+ Nový modul" (decision F36's addendum of 2026-11-05).
   newModuleIntro:
     "A module is one area of your work. It keeps three things together:",
@@ -616,7 +616,7 @@ const en = {
   newModuleByAgent:
     "An agent builds the module with you in Chat. You describe what it should do; it picks the technical details and shows you a plan before it builds.",
   newModuleByAdmin:
-    "The Organization's Admin creates new modules and decides who gets access. You send them a description.",
+    "The Organization Admin creates new modules and decides who gets access. You send them a description.",
   newModuleContinue: "Continue",
   newModuleBack: "Back",
   newModuleTemplate: "Or start from a template",
@@ -653,9 +653,9 @@ const en = {
   newModuleBriefTitle: "Brief for the agent",
   newModuleBriefText:
     "It opens in Chat in a new thread, unsent. Check it and send it. The agent asks about the rest, shows a plan and creates the module only once you agree.",
-  newModuleRequestTitle: "Request to the Admin",
+  newModuleRequestTitle: "Request to the Organization Admin",
   newModuleRequestText:
-    "Your agent turns the description into a request to the Organization's Admin and shows it to you before sending.",
+    "Your agent turns the description into a request to the Organization Admin and shows it to you before sending.",
   newModuleCopy: "Copy the brief",
   newModuleCopied: "The brief is in your clipboard.",
   newModuleCopyFailed:
@@ -669,7 +669,7 @@ const en = {
   accessAddedOne: "New module: {names}.",
   accessAddedMany: "New modules: {names}.",
   accessNothing:
-    "Nothing new. The Organization's Admin grants access to modules.",
+    "Nothing new. The Organization Admin grants access to modules.",
   accessFailed: "Couldn't check access. {reason}",
   accessReasonBusy:
     "Lazurio is downloading changes now. Try again in a moment.",
@@ -696,13 +696,13 @@ const en = {
     "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
   marketTaken:
     "{name} already has a module named {module}. The agent agrees another name with you.",
-  // A member of the Organization asks its Admin (decision F36's addendum of
+  // A member of the Organization asks the Organization Admin (decision F36's addendum of
   // 2026-11-05).
   marketRequestWhat:
-    "The Admin adds a template to {name}. In Chat, the agent prepares a request to the Admin with you and shows it to you before sending.",
-  marketAskAdmin: "Ask the Admin",
+    "The Organization Admin adds a template to {name}. In Chat, the agent prepares a request to the Organization Admin with you and shows it to you before sending.",
+  marketAskAdmin: "Ask the Organization Admin",
   marketRequestPrompt:
-    "I want the app template {title} from the Lazurio Marketplace in the Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nNew modules are created by the Admin, so prepare a request to the Admin for me with the skill `admin-request`: the Admin adds the template as the private module {module} by docs/adoption.md of exactly that commit.\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
+    "I want the app template {title} from the Lazurio Marketplace in the Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nNew modules are created by the Organization Admin, so prepare a request to the Organization Admin for me with the skill `admin-request`: the Organization Admin adds the template as the private module {module} by docs/adoption.md of exactly that commit.\n\nFirst ask me about what does not follow from it, then show me the request and send it only with my consent.",
   marketHandOver: "Continue in Chat",
   marketCancel: "Cancel",
   marketClose: "Close",
@@ -2848,7 +2848,7 @@ const cs: Record<MessageKey, string> = {
   serviceKindDns01: "Certifikáty",
   appsNewModule: "Nový modul",
   appsNewModuleSub: "Vytvořit s agentem",
-  appsNewModuleRequestSub: "Zakládá Admin",
+  appsNewModuleRequestSub: "Zakládá Admin Organizace",
   appsNewModuleOpened:
     "Chat se otevírá v nové záložce se zadáním nového modulu v poli zprávy, neodeslaným.",
   appsNewModuleCopied:
@@ -2869,9 +2869,9 @@ const cs: Record<MessageKey, string> = {
   appsNewPersonalModulePromptDescribed:
     "Chci postavit nový modul do Workspace Lazuria.\nBude v mém osobním prostoru, jako soukromý repozitář na mém GitHub účtu {login}.\n\nMoje představa:\n{description}\n\nPoužij skill `new-module`. Vyptej se mě jen na to, co z mé představy nevyplývá, technické věci zvol sám a než začneš stavět, ukaž mi plán k potvrzení.",
   appsNewModuleRequestPrompt:
-    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nNejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin Organizace, proto mi připrav žádost pro Admina Organizace skillem `admin-request`.\n\nNejdřív se mě vyptej, k čemu modul bude a co mi má vyřešit, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   appsNewModuleRequestPromptDescribed:
-    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+    "Chci v Organizaci {name} (GitHub {login}) nový modul. Nový modul zakládá Admin Organizace, proto mi připrav žádost pro Admina Organizace skillem `admin-request`.\n\nMoje představa:\n{description}\n\nNejdřív se mě doptej na to, co z představy nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   newModuleIntro: "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
   newModuleIntroPersonal:
     "Modul je jedna oblast vaší práce. Drží pohromadě tři věci:",
@@ -2884,7 +2884,7 @@ const cs: Record<MessageKey, string> = {
   newModuleByAgent:
     "Modul vám postaví agent v Chatu. Popíšete mu, co má řešit, technické věci zvolí sám a před stavbou vám ukáže plán.",
   newModuleByAdmin:
-    "Nový modul v Organizaci zakládá Admin: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
+    "Nový modul zakládá Admin Organizace: založí ho a určí, kdo k němu bude mít přístup. Vy mu pošlete popis.",
   newModuleContinue: "Pokračovat",
   newModuleBack: "Zpět",
   newModuleTemplate: "Nebo začněte šablonou",
@@ -2920,7 +2920,7 @@ const cs: Record<MessageKey, string> = {
   newModuleBriefTitle: "Zadání pro agenta",
   newModuleBriefText:
     "Otevře se v Chatu v novém vlákně, neodeslané. Zkontrolujte ho a odešlete. Agent se doptá na zbytek, ukáže plán a modul založí až po vašem souhlasu.",
-  newModuleRequestTitle: "Žádost pro Admina",
+  newModuleRequestTitle: "Žádost pro Admina Organizace",
   newModuleRequestText:
     "Váš agent z popisu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
   newModuleCopy: "Kopírovat zadání",
@@ -2959,11 +2959,11 @@ const cs: Record<MessageKey, string> = {
   marketTaken:
     "Organizace {name} už modul {module} má. Agent s vámi domluví jiný název.",
   marketRequestWhat:
-    "Šablonu do Organizace {name} přidává Admin. Agent s vámi v Chatu připraví žádost pro Admina a před odesláním vám ji ukáže.",
-  marketAskAdmin: "Požádat Admina",
+    "Šablonu do Organizace {name} přidává Admin Organizace. Agent s vámi v Chatu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
+  marketAskAdmin: "Požádat Admina Organizace",
   // In Czech the person's own words to the agent, so tykání (0199).
   marketRequestPrompt:
-    "Chci v Organizaci {name} (GitHub {login}) šablonu aplikace {title} z Marketplace Lazuria.\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začít s {seed}.\n\nNový modul zakládá Admin, proto mi připrav žádost pro Admina skillem `admin-request`: Admin šablonu přidá jako soukromý modul {module} podle docs/adoption.md přesně z tohoto commitu.\n\nNejdřív se mě doptej na to, co z toho nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
+    "Chci v Organizaci {name} (GitHub {login}) šablonu aplikace {title} z Marketplace Lazuria.\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začít s {seed}.\n\nNový modul zakládá Admin Organizace, proto mi připrav žádost pro Admina Organizace skillem `admin-request`: Admin Organizace šablonu přidá jako soukromý modul {module} podle docs/adoption.md přesně z tohoto commitu.\n\nNejdřív se mě doptej na to, co z toho nevyplývá, pak mi žádost ukaž a pošli ji až s mým souhlasem.",
   marketHandOver: "Pokračovat v Chatu",
   marketCancel: "Zrušit",
   marketClose: "Zavřít",

@@ -854,7 +854,7 @@ export function createCatalogPanel(
   // Organization gets it as it was; before the first module, the Owner's
   // Workspace has only it (#376). A member, a Steward too, gets it muted with
   // a lock (F36's addendum of 2026-11-05): a button, never disabled, since
-  // the dialog tells them what happens and sends the Admin a request. In the
+  // the dialog tells them what happens and sends the Organization Admin a request. In the
   // personal space, the Owner's tile for its verified holder, with the prompt
   // `new-personal-module` (root decision 0185's addendum of 2026-10-13);
   // `newModuleOffer` in apps-view.ts decides who gets which. The tile opens
@@ -889,7 +889,7 @@ export function createCatalogPanel(
   // This Environment's place in an Organization: GitHub's own answer through
   // the Launchpad, fail closed, asked again once it is older than the
   // server's cache or the bound login changed. An Owner founds modules, a
-  // member asks the Admin for them.
+  // member asks the Organization Admin for them.
   function roleOf(
     value: Catalog,
     group: CatalogGroupEntry,

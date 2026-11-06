@@ -515,7 +515,7 @@ export function repositoryAction(
  * GitHub's live answer that this Environment's identity is the
  * Organization's Owner (false until it comes), or a member's muted offer:
  * "+ Nový modul" ends every Workspace of theirs, so before the first module
- * it is its only tile (#376), and the page tells no Owner to ask the Admin
+ * it is its only tile (#376), and the page tells no Owner to ask the Organization Admin
  * for access. */
 export function appsSections(
   catalog: Catalog,
@@ -939,8 +939,8 @@ export const newModulePrompt = (
   );
 
 /** The prompt of a member's "+ Nový modul" (decision F36's addendum of
- * 2026-11-05): the Admin founds a module, so the agent prepares a request to
- * the Admin with the Folder's skill `admin-request` and sends it only with
+ * 2026-11-05): the Organization Admin founds a module, so the agent prepares a request to
+ * the Organization Admin with the Folder's skill `admin-request` and sends it only with
  * the person's consent. */
 export const newModuleRequestPrompt = (
   name: string,
@@ -1000,7 +1000,7 @@ export function personalHolderOf(list: ContentList | null): string | null {
  * (new-module-view.ts). */
 export type NewModuleOffer = Readonly<{
   id: "new-module" | "new-module-request" | "new-personal-module";
-  /** The Organization's Admin founds it, a member asks the Admin for it, the
+  /** The Organization Admin founds it, a member asks the Organization Admin for it, the
    * personal space's holder founds it there. */
   variant: "admin" | "member" | "personal";
   organization: string;

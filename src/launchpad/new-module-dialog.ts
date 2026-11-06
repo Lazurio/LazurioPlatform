@@ -20,8 +20,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // do, in the person's own words with what to remember and examples that fill
 // the field in, and the whole brief, which the person can copy or open in
 // Chat through the page's hand-over (ui.ts `handOver`). A member gets the
-// same dialog with their words: the Admin founds the module, and the brief
-// asks the agent for a request to the Admin. The description stays in the
+// same dialog with their words: the Organization Admin founds the module, and the brief
+// asks the agent for a request to the Organization Admin. The description stays in the
 // page until it is handed over, so closing the dialog by mistake loses
 // nothing; it reaches Chat through the Launchpad at the click (prompt-briefs.ts),
 // and where that fails through the clipboard. Every value is drawn with

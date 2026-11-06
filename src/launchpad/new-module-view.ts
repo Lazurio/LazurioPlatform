@@ -11,7 +11,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Pure presentation of the dialog "+ Nový modul" (decision F36's addendum of
 // 2026-11-05): three screens, what a module is, what it should do, and the
 // whole brief before it goes to Chat. The same dialog speaks to an
-// Organization's Admin, to a member, who asks the Admin instead (the Steward
+// Organization Admin, to a member, who asks the Organization Admin instead (the Steward
 // too), and to the holder of the personal space, who founds a module there.
 // new-module-dialog.ts draws it. Nothing here decides who may do what: the
 // prompt route asks GitHub again.
@@ -106,13 +106,13 @@ export type NewModuleScreen =
       title: string;
       intro: string;
       parts: readonly Readonly<{ term: string; text: string }>[];
-      /** Who builds it: the agent, or the Admin the person asks. */
+      /** Who builds it: the agent, or the Organization Admin the person asks. */
       who: string;
       /** Whether "Nebo začněte šablonou" leads anywhere: templates go into an
        * Organization only, so the personal space has no such link. */
       template: boolean;
       /** Whether "Přehrát video" stands here: the video of modules tells of
-       * an Organization, with its Admin and its templates. */
+       * an Organization, with the Organization Admin and its templates. */
       video: boolean;
     }>
   | Readonly<{

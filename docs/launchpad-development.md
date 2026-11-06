@@ -885,7 +885,7 @@ in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform
   GitHub identity is an Owner of the Organization, the tile's live check
   (`organization-owner.ts`), so never on a Team Environment. `new-module-request`
   (a member's "+ Nový modul", audience `organization-member`, [F36's addendum of
-  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once))
+  2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once))
   is the same Organization's prompt for an active member who is no Owner, by the same
   answer (`audienceAdmits`), its text `newModuleRequestPrompt`: the agent prepares a
   request with the skill `admin-request` and sends it only with the person's consent. An
@@ -1499,7 +1499,7 @@ the first run's line shows. An Organization never has it.
   brief must not reach a release before the real run of that command (#399).
 
 <a id="new-module-dialog"></a>**The dialog "+ Nový modul" ([F36's addendum of
-2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once)).**
+2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)).**
 `#new-module`, drawn by `new-module-dialog.ts` from the pure screens of
 `new-module-view.ts`, in the frame of "Seznamte se s Buddym" with its dots. Three screens:
 what a module is (its process, data and app, who builds it, "Přehrát video" and "Nebo
@@ -1517,7 +1517,7 @@ dialog stays open, and a dialog opened anew hears only the short message. "Kopí
 clipboard only once the clipboard answered, and otherwise that it was not copied and how to
 take it by hand.
 
-A member, a Steward too, sees the tile muted with its lock, "Zakládá Admin" under it: a
+A member, a Steward too, sees the tile muted with its lock, "Zakládá Admin Organizace" under it: a
 button, never disabled, which opens the same dialog. The answer is the Owner route's, which
 now says `{"owner": …, "member": …}` from the one membership read (`roleIn`). No tile on a Team
 Environment, whose identity is no person's, none on a public one, whose visitors are nobody's

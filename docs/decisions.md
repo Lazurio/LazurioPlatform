@@ -9875,7 +9875,7 @@ route and Automate behaves as before. Verified by `tests/launchpad-mausbot.test.
 `tests/launchpad-recovery-page.test.ts`; a real gateway and a real Lazurio MausBot were
 not exercised in this change.
 
-### F36 addendum of 2026-11-05: a new module explains itself, a member asks the Admin, access is checked at once
+### F36 addendum of 2026-11-05: a new module explains itself, a member asks the Organization Admin, access is checked at once
 
 **Decided by Matěj (Organization Admin) on 2026-11-05, after two meetings of that day where
 people asked what a module is, who creates one and why a module they were given does not
@@ -9892,7 +9892,7 @@ decision 0230.
    personal space's holder see it as before the tile's click led; "Nebo začněte šablonou"
    leads to the Marketplace, where a template can go, so not from the personal space.
 2. **A member sees the tile muted.** Workspace ends with it for an active member, a Steward
-   too: a lock, "Zakládá Admin", a button that is never disabled and opens the same dialog in
+   too: a lock, "Zakládá Admin Organizace", a button that is never disabled and opens the same dialog in
    the member's words. A Team and a public Environment have none, and neither has anyone
    without an active membership. A member without a module needs the tile most, as the one
    way to ask for a first one: the plain sentence of an empty space and Zkontrolovat přístupy
@@ -9919,7 +9919,7 @@ decision 0230.
    button: its synchronization clones nothing, so the press could only explain that, which
    is more words for a kind that is going away. A public Environment answers as absent.
 6. **Šablony follow.** Where GitHub says the person is a member of the chosen Organization,
-   the dialog's button is "Požádat Admina" and hands over
+   the dialog's button is "Požádat Admina Organizace" and hands over
    `request-<offer>-<seed>-<catalog>`, served only to a member, with the template and its
    exact release. While that is not known the adoption stays, whose first step is the live
    rights. A Personal Environment says "Šablony zatím přidáte jen do Organizace." instead of
@@ -9957,7 +9957,7 @@ decision 0178): the dialog and the tile against the hosted preview as an Owner a
 Czech and English and as a Steward in Czech, against the local preview as an Owner in Czech and a
 member in English, and with less motion hosted, in Czech, as an Owner; the check's states
 against the hosted preview as a member in both languages; an empty Organization as a member and
-a Steward (the sentence, the button and the muted tile) and an Admin (the tile), and unchanged
+a Steward (the sentence, the button and the muted tile) and an Organization Admin (the tile), and unchanged
 in a Team and a public Environment. Those states were answered by the
 browser automation, since a preview is no installed Launchpad; the personal space's dialog was
 drawn from a stand-in catalog, since a preview holds no Personalspace.
@@ -19517,7 +19517,7 @@ with the Platform release that carries F60's addendum of 2026-10-25, after the f
 ### F56 addendum (8) of 2026-11-05: Apps explain the module
 
 **Decided by Matěj (Organization Admin) on 2026-11-05 with [F36's addendum of that
-day](#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-admin-access-is-checked-at-once).**
+day](#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once).**
 Apps' "?" played the principle
 `environment`, which says nothing of what the page shows.
 
@@ -19528,7 +19528,7 @@ Apps' "?" played the principle
    home's first module, Chat, Zkontrolovat přístupy and "+ Nový modul"; a mark that is not on
    the page leaves the card in the middle, as everywhere. It has no scene: the video is its
    motion.
-2. **A Personal Environment hears an adaptation.** No Admin shares a personal module and a
+2. **A Personal Environment hears an adaptation.** No Organization Admin shares a personal module and a
    template goes into an Organization only (F36's addendum point 6), so two titles would not
    be true there. The fourth step says that personal modules stay in the Personal Environment,
    the fifth that an agent builds a new one.

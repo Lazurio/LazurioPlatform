@@ -235,7 +235,7 @@ test("the line says the concept's words in both languages, with the reason", () 
     tone: "quiet",
   });
   expect(accessLine(checked, [], en).text).toBe(
-    "Nothing new. The Organization's Admin grants access to modules.",
+    "Nothing new. The Organization Admin grants access to modules.",
   );
   expect(accessLine(accessCheckFailed("github"), [], cs)).toEqual({
     text: "Přístupy se nepodařilo zkontrolovat. GitHub teď neodpovídá.",

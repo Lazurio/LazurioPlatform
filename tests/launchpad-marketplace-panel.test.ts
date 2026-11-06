@@ -197,7 +197,7 @@ test("a hand-over that ends in the dialog that started it says its outcome there
   view.leave();
 });
 
-test("a member of the Organization asks its Admin: the request's prompt and words take the adoption's place", async () => {
+test("a member of the Organization asks the Organization Admin: the request's prompt and words take the adoption's place", async () => {
   const view = page("member");
   view.detail("presentations");
   await view.answer(first);
@@ -276,7 +276,7 @@ test("an earlier opening's member answer gives no request to a newer opening tha
   view.leave();
 });
 
-test("an Admin, and a role that cannot be read, keep the adoption, whose first step is the live rights", async () => {
+test("an Organization Admin, and a role that cannot be read, keep the adoption, whose first step is the live rights", async () => {
   for (const role of ["admin", null] as const) {
     const view = page(role);
     view.detail("presentations");

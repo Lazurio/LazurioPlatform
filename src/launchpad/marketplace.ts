@@ -537,9 +537,9 @@ function filledBrief(
     .replaceAll("{seed}", start.brief[locale]);
 }
 
-/** The brief "Požádat Admina" hands to the agent where the person is a member
+/** The brief "Požádat Admina Organizace" hands to the agent where the person is a member
  * of the Organization (decision F36's addendum of 2026-11-05): the same
- * release, and the request the Admin acts on through the skill
+ * release, and the request the Organization Admin acts on through the skill
  * `admin-request`. Null when the offer has no such start. */
 export function adoptionRequestPrompt(
   entry: MarketplaceOffer,

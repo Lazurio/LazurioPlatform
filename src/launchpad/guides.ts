@@ -526,7 +526,7 @@ const plays = (
 /** What Apps' "?" plays: the video of modules in place, as Trezor has it, its
  * five titles the steps of the shell's principle `modules`. A Personal
  * Environment hears the principle's adaptation: the video tells of an
- * Organization, with its Admin and its templates. */
+ * Organization, with the Organization Admin and its templates. */
 export const appsHelp = (kind: ShellEnvironmentKind | null): PageGuide =>
   kind === "personal"
     ? plays("modules")

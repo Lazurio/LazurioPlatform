@@ -375,7 +375,7 @@ const principles: readonly Principle[] = [
   {
     // The five titles of the video of modules (F56's addendum (8) of
     // 2026-11-05), so the product and its video say the same thing. In a
-    // Personal Environment its adaptation: no Admin shares a module there
+    // Personal Environment its adaptation: no Organization Admin shares a module there
     // and a template goes into an Organization only.
     id: "modules",
     title: { cs: "Moduly", en: "Modules" },
@@ -403,8 +403,8 @@ const principles: readonly Principle[] = [
       },
       {
         text: {
-          cs: "Admin rozhodne, kdo modul dostane",
-          en: "The Admin decides who gets the module",
+          cs: "Admin Organizace rozhodne, kdo modul dostane",
+          en: "The Organization Admin decides who gets the module",
         },
         at: "apps-access",
       },

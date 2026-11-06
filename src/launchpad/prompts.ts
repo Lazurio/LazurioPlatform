@@ -74,7 +74,7 @@ const prompts = {
   // "+ Nový modul" (decision F36 addendum of 2026-10-04): the wireframe's
   // brief for founding a module with an agent.
   "new-module": { who: "organization-owner", scope: "organization" },
-  // A member's "+ Nový modul" (F36 addendum of 2026-11-05): the Admin founds
+  // A member's "+ Nový modul" (F36 addendum of 2026-11-05): the Organization Admin founds
   // the module, so the agent prepares a request with the skill
   // `admin-request`. It asks; it founds nothing.
   "new-module-request": { who: "organization-member", scope: "organization" },
@@ -243,7 +243,7 @@ export function personalModuleDocument(
 
 /** The document of a member's request for a Marketplace adoption
  * (`request-<offer>-<seed>-<catalog>`, decision F36's addendum of 2026-11-05):
- * the offer as `adoptionDocument` finds it, asked of the Admin. Whether the
+ * the offer as `adoptionDocument` finds it, asked of the Organization Admin. Whether the
  * person is a member of the Organization is the caller's to check first. */
 export function adoptionRequestDocument(
   catalogs: readonly MarketplaceCatalog[],
