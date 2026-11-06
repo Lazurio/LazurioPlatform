@@ -338,8 +338,8 @@ test("the skill new-module explains a module in the shared words on every preset
         moduleSentence[locale],
         moduleWebsiteExample[locale],
         cs
-          ? "změny v modulu jdou vrátit"
-          : "changes in the module can be undone",
+          ? "co je v historii modulu, jde vrátit"
+          : "what is in the module's history can be undone",
         cs ? "**Soubory, nebo modul.**" : "**Files or a module.**",
       ]) {
         expect([phrase, text.indexOf(phrase) > 0]).toEqual([phrase, true]);
@@ -378,7 +378,7 @@ test("the skill new-module explains a module in the shared words on every preset
             "decision 0186",
             "`admin-request`",
             "`manual/mechanisms.md`",
-            "zhruba do hodiny po merge slotu",
+            "obvykle do hodiny po merge slotu",
             "agent ho nepřečte; jméno z manifestu Organizace vidět může",
           ]
         : [
@@ -387,7 +387,7 @@ test("the skill new-module explains a module in the shared words on every preset
             "decision 0186",
             "`admin-request`",
             "`manual/mechanisms.md`",
-            "within about an hour of the slot's merge",
+            "within an hour of the slot's merge",
             "the agent cannot read it; its name may still show in the Organization's manifest",
           ])
         expect([phrase, text.includes(phrase)]).toEqual([
