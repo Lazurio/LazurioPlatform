@@ -697,7 +697,7 @@ const en = {
   marketWhat:
     "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
   marketTaken:
-    "{name} already has a module named {module}. The agent agrees another name with you.",
+    "{name} already has a module named {module}. If it comes from this template, or the template came from it, the release goes into it; otherwise the agent agrees another name with you.",
   // A member of the Organization asks the Organization Admin (decision F36's addendum of
   // 2026-11-05).
   marketRequestWhat:
@@ -716,7 +716,7 @@ const en = {
   marketCopyFailed:
     "The brief could not be handed over. Open Chat and ask the agent to add {title} from the Marketplace.",
   marketAdoptPrompt:
-    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. Create the module with `{create}` as a private repository, merge the pinned commit so it stays an ancestor and prepare everything as a pull request. Choose the Teams with me from the Organization's real list. Where my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
+    "I want to add the app template {title} from the Lazurio Marketplace to my Organization {name} (GitHub {login}).\nRelease: {repository} {tag}, commit {commit}, license {license}. Start with {seed}.\n\nFollow docs/adoption.md of exactly that commit. First check my live rights in the Organization, whether the name {module} is free and the compatibility, and show me the plan to confirm. If the name is free, create the module as a private repository with `{create}`; for `--teams`, give the Teams you choose with me from the Organization's real list. Show me the plan it prints, and only after I confirm it run the command with `--confirm <plan>` instead of `--dry-run`. Then merge the pinned commit into the module so it stays an ancestor and prepare everything as a pull request.\n\nIf the Organization already has the module {module}, never create a second one. If it is this template, its former upstream or the template's origin, take the release into it by merging the pinned commit as the template's docs/adoption.md and docs/extending.md say; where it has another history, in one merge with `--allow-unrelated-histories`. Otherwise agree another name with me and create the module under it the same way.\n\nWhere my rights do not reach, prepare an exact request for whoever has them and work around nothing. Merge or activate nothing without my explicit instruction.",
   title: "Lazurio Launchpad",
   homeTitle: "Launchpad",
   catalogBreadcrumb: "Where you are in the Launchpad",
@@ -2961,7 +2961,7 @@ const cs: Record<MessageKey, string> = {
   marketWhat:
     "Agent s vámi v Chatu připraví soukromý modul {title} pro Organizaci {name}. Než se v ní cokoli změní, ukáže vám plán ke schválení.",
   marketTaken:
-    "Organizace {name} už modul {module} má. Agent s vámi domluví jiný název.",
+    "Organizace {name} už modul {module} má. Pokud vychází z této šablony nebo šablona vznikla z něj, vydání se převezme do něj; jinak s vámi agent domluví jiný název.",
   marketRequestWhat:
     "Šablonu do Organizace {name} přidává Admin Organizace. Agent s vámi v Chatu připraví žádost pro Admina Organizace a před odesláním vám ji ukáže.",
   marketAskAdmin: "Požádat Admina Organizace",
@@ -2980,7 +2980,7 @@ const cs: Record<MessageKey, string> = {
     "Zadání se nepodařilo předat. Otevřete Chat a požádejte agenta, ať přidá {title} z Marketplace.",
   // In Czech the person's own words to the agent, so tykání (0199).
   marketAdoptPrompt:
-    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Modul založ příkazem `{create}` jako soukromý repozitář, připnutý commit slouč tak, aby zůstal předkem, a všechno připrav jako pull request. Teamy se mnou vyber ze skutečného seznamu Organizace. Kde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
+    "Chci přidat šablonu aplikace {title} z Marketplace Lazuria do své Organizace {name} (GitHub {login}).\nVydání: {repository} {tag}, commit {commit}, licence {license}. Začni s {seed}.\n\nPostupuj podle docs/adoption.md přesně z tohoto commitu. Nejdřív živě ověř moje práva v Organizaci, jestli je název {module} volný a kompatibilitu, a ukaž mi plán k potvrzení. Je-li název volný, založ modul jako soukromý repozitář příkazem `{create}`; za `--teams` dej Teamy, které se mnou vybereš ze skutečného seznamu Organizace. Plán, který příkaz vypíše, mi ukaž a teprve po mém potvrzení příkaz spusť s `--confirm <plan>` místo `--dry-run`. Pak do modulu slouč připnutý commit tak, aby zůstal předkem, a všechno připrav jako pull request.\n\nKdyž Organizace modul {module} už má, druhý nikdy nezakládej. Je-li to tato šablona, její dřívější upstream nebo původ šablony, převezmi do něj vydání sloučením připnutého commitu podle docs/adoption.md a docs/extending.md šablony; má-li jinou historii, jedním sloučením s `--allow-unrelated-histories`. Jinak se mnou domluv jiný název a modul pod ním založ stejným postupem.\n\nKde moje práva nestačí, připrav přesnou žádost pro toho, kdo je má, a nic neobcházej. Nic nemerguj ani neaktivuj bez mého výslovného pokynu.",
   title: "Lazurio",
   homeTitle: "Aplikace",
   catalogBreadcrumb: "Kde v Lazuriu jste",

@@ -51,7 +51,14 @@ does today; the rest of this document stays future direction.
   template, updates by merging a newer tag), which tests adoption for real.
 - **It looks like the module it becomes.** An offer carries the stone its module
   shows in Apps (`presentation`, `shell/stones.ts`). The catalog's card is a real
-  screen of the app, the stone, the name and one line, as a tile in Apps.
+  screen of the app, the stone, the name and one line, as a tile in Apps. The name is
+  one string for both languages, or a bilingual template's `{cs, en}` (such as
+  "Evidence času" and "Time Tracker"), shown in the page's language on the card, the
+  detail, the dialog and in the brief. Like a screen's `locale`, a release older than
+  this one refuses an index with a `{cs, en}` name and shows its built-in copy, so
+  the registry takes such records only once this release is final. A stone key this
+  release does not know shows the plain app stone; a new stone is a new drawing of
+  the design system first, vendored here byte for byte (`src/shell/vendor/README.md`).
 - **Detail.** `/marketplace/<offer>` shows the stone, the name and its one line with
   "Přidat do Organizace"; the app's real screens, one large and the others as
   thumbnails that show it instead; and what it does in three short items (Knihovna,
@@ -64,8 +71,13 @@ does today; the rest of this document stays future direction.
 - **Screens.** The registry lists screens of the offered release: WebP files 1600 px
   wide in the template's repository, with invented content only, shown from
   `raw.githubusercontent.com/<repository>/<commit>/<path>`, so they are exactly the
-  release's. Lazurio bundles no screens of its own. An offer without screens shows
-  its stone and words only.
+  release's. A bilingual template may name each screen's language (`locale`, `cs` or
+  `en`, at most six screens per language): the page shows the screens in its language,
+  else those without one, else whichever the offer has; an index without `locale`
+  shows every screen in both languages as before. A Lazurio release older than this
+  one refuses an index with `locale` and shows its built-in copy, so the registry
+  takes such records only once this release is final. Lazurio bundles no screens of
+  its own. An offer without screens shows its stone and words only.
 - **Přidat do Organizace.** A dialog names the target Organization, chosen only among
   this Folder's Organizations bound to a GitHub login (the address is never the
   target's authority), and how the module starts (empty, or with the release's
@@ -74,8 +86,10 @@ does today; the rest of this document stays future direction.
   before anything there changes. The plan itself (exact release, private repository,
   Teams chosen from the Organization's real list, the template's code run, a request
   where rights do not reach) is the agent's first step, as the brief requires. Where
-  the Organization already has a module of that name the dialog says the agent agrees
-  another. Teams are not listed on the page (decision F32). Where GitHub says the person
+  the Organization already has a module of that name the dialog says that the release
+  goes into it when it comes from this template or the template came from it, and that
+  otherwise the agent agrees another name; a second module of that name is never
+  created. Teams are not listed on the page (decision F32). Where GitHub says the person
   is a member of the chosen Organization and no Organization Admin, the dialog says that the Organization Admin adds
   the template and its button is "Požádat Admina Organizace" ([F36's addendum of
   2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once)).
@@ -90,7 +104,7 @@ does today; the rest of this document stays future direction.
   of the registry commit the page shows (`builtin` for the built-in copy), is served by
   `GET /.lazurio/prompts/<id>?org=<login>` to anyone admitted, for an offer and start
   of a catalog the Launchpad still serves and an Organization of the Folder bound to
-  that login; every other case is the same 404. The registry's commit fixes every
+  that login and with a slug, as the dialog offers it; every other case is the same 404. The registry's commit fixes every
   field of every offer, so Chat gets the offer the page showed field for field, even
   when the Launchpad has read a newer catalog since: a catalog it replaced still
   answers prompts for an hour, as long as an open page may go without reading again
@@ -108,13 +122,28 @@ does today; the rest of this document stays future direction.
   version in the meantime keeps what it shows and says, so the next click hands over
   the offer it shows. The brief names the exact release, the Organization and
   the start, and tells the agent to follow the release's `docs/adoption.md`: check live
-  rights, name collision and compatibility, show the plan, create the module with
-  `lazurio module create --stack <release stack>`, adding `--data` for a release of
-  generation `app/v3` or later (derived from the generation, as the template's
-  `docs/adoption.md` says), merge the pinned commit so it stays an ancestor, prepare a PR, prepare a request
-  where rights do not reach, merge or activate nothing without the person's explicit
-  instruction. The dialog then says Chat opened with the brief ready, unsent. It never
-  claims installation on a click.
+  rights, name collision and compatibility and show the plan; where the name is free,
+  create the module with the command in the form `lazurio module create` takes for an
+  Organization's module ([Module Standard](module-standard.md)),
+  `lazurio module create <Organization>/<module> --stack <release stack> --teams <team,team> --dry-run`,
+  with the Organization by its slug in this Folder (as `lazurio organization list`
+  shows it), which the command resolves first, so it plans that Organization or, where
+  two share the slug, none; never by its GitHub login, which may be another
+  Organization's slug. The command names the offer's module, adds `--data` for a
+  release of generation `app/v3` or later (derived from the generation, as the
+  template's `docs/adoption.md` says) and takes the Teams the agent chooses with the
+  person from the Organization's real list; the agent runs it with `--confirm <plan>`
+  only after the person confirms the plan it prints, then merges the pinned commit so it
+  stays an ancestor and prepares a PR. Where the Organization already has a module of
+  that name, the agent never creates a second one: when it is this template, its former
+  upstream or the template's origin, it takes the release into that module by merging
+  the pinned commit, as the template's `docs/adoption.md` and `docs/extending.md` say
+  (a module whose history the release does not share, such as the origin the template
+  was published from with a fresh history, in one merge with
+  `--allow-unrelated-histories`); otherwise it agrees another name with the person
+  (#906). Where rights do not reach it prepares a request, and it merges or activates
+  nothing without the person's explicit instruction. The dialog then says Chat opened
+  with the brief ready, unsent. It never claims installation on a click.
 - **Listing a release.** Recording the commit (and the digest) after the release is
   published is a reviewed pull request of the registry; its merge puts the offer in
   every installed Launchpad within an hour of its next Marketplace read, without a

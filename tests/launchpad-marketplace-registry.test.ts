@@ -124,7 +124,7 @@ test("the registry is read at main's commit, kept, and read again only when main
     const restarted = await offline.read();
     expect(restarted.commit).toBe(next);
     expect(
-      restarted.offers.find((offer) => offer.id === "presentations")?.title,
+      restarted.offers.find((offer) => offer.id === "presentations")?.title.en,
     ).toBe("Slides");
   });
 });

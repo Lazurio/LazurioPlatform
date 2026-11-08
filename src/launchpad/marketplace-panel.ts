@@ -13,6 +13,7 @@ import {
   type MarketplaceLocale,
   type MarketplaceOffer,
   offerById,
+  screenshotsFor,
   screenshotUrl,
   seedsOf,
 } from "./marketplace";
@@ -24,6 +25,13 @@ import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
+
+/** An Organization an offer may go to: bound to a GitHub login, with its
+ * slug in this Folder. */
+type Target = CatalogOrganization & {
+  forgeLogin: string;
+  organization: string;
+};
 
 // The Marketplace page (plan DEV-6593, marketplace.ts): `/marketplace` is
 // Šablony aplikací with the card of each offer, `/marketplace/<offer>` its
@@ -130,7 +138,9 @@ export function createMarketplacePanel(
         if (now !== null && JSON.stringify(now) !== JSON.stringify(adding)) {
           showing += 1;
           if (dialog.open)
-            said = fill(options.copy().marketChanged, { title: now.title });
+            said = fill(options.copy().marketChanged, {
+              title: now.title[options.locale()],
+            });
         }
         adding = now ?? adding;
       }
@@ -179,7 +189,7 @@ export function createMarketplacePanel(
    * offered release, from its exact commit. */
   const shotsOf = (offer: MarketplaceOffer) => {
     const locale = options.locale();
-    return offer.screenshots.map((shot) => {
+    return screenshotsFor(offer, locale).map((shot) => {
       const url = screenshotUrl(offer, shot.path);
       return {
         key: shot.path,
@@ -206,16 +216,11 @@ export function createMarketplacePanel(
   };
 
   /** The Organizations an offer may go to: those of this Folder bound to a
-   * GitHub login, as the prompt route accepts them (prompts.ts). */
-  const targets = (): readonly (CatalogOrganization & {
-    forgeLogin: string;
-  })[] =>
+   * GitHub login, with a slug the brief's command names them by, as the
+   * prompt route accepts them (prompts.ts). */
+  const targets = (): readonly Target[] =>
     (options.catalog()?.organizations ?? []).filter(
-      (
-        organization,
-      ): organization is CatalogOrganization & {
-        forgeLogin: string;
-      } =>
+      (organization): organization is Target =>
         organization.forgeLogin !== undefined &&
         organization.organization !== null,
     );
@@ -276,7 +281,7 @@ export function createMarketplacePanel(
     const text = element("span", "market-card-body");
     const words = element("span", "tile-body");
     words.append(
-      element("span", "tile-name", offer.title),
+      element("span", "tile-name", offer.title[options.locale()]),
       element("span", "tile-desc", offer.summary[options.locale()]),
     );
     text.append(stone(offer, 44), words);
@@ -310,7 +315,7 @@ export function createMarketplacePanel(
     const head = element("header", "market-detail-head");
     const title = element("div", "market-detail-title");
     title.append(
-      heading(offer.title),
+      heading(offer.title[locale]),
       element("p", "market-summary", offer.summary[locale]),
     );
     const add = element("button", "primary market-add", copy.marketAdd);
@@ -407,7 +412,11 @@ export function createMarketplacePanel(
     const text = (asking ? adoptionRequestPrompt : adoptionPrompt)(
       offer,
       seed,
-      { name: organizationName(chosen), login: chosen.forgeLogin },
+      {
+        name: organizationName(chosen),
+        login: chosen.forgeLogin,
+        slug: chosen.organization,
+      },
       options.copy(),
       options.locale(),
     );
@@ -444,7 +453,7 @@ export function createMarketplacePanel(
               failed: now.marketCopyFailed,
               "needs-ai": now.appsNewModuleNeedsAi,
             }[outcome],
-            { title: offer.title },
+            { title: offer.title[options.locale()] },
           );
         }
         if (dialog.open && adding !== null) drawDialog(adding);
@@ -464,7 +473,7 @@ export function createMarketplacePanel(
 
   /** Asks once per showing what the person is in the chosen Organization;
    * the dialog draws again when the answer changes what it says. */
-  function askRole(chosen: CatalogOrganization & { forgeLogin: string }) {
+  function askRole(chosen: Target) {
     const login = chosen.forgeLogin;
     if (asked.has(login)) return;
     asked.add(login);
@@ -486,7 +495,9 @@ export function createMarketplacePanel(
     const chosen = chosenTarget();
     if (chosen !== null) askRole(chosen);
     const asking = chosen !== null && roles.get(chosen.forgeLogin) === "member";
-    dialogTitle.textContent = fill(copy.marketAddTitle, { title: offer.title });
+    dialogTitle.textContent = fill(copy.marketAddTitle, {
+      title: offer.title[options.locale()],
+    });
     dialogClose.setAttribute("aria-label", copy.marketClose);
     dialogCancel.textContent = copy.marketCancel;
     dialogOk.textContent = asking ? copy.marketAskAdmin : copy.marketHandOver;
@@ -566,7 +577,7 @@ export function createMarketplacePanel(
       "p",
       "market-what",
       fill(asking ? copy.marketRequestWhat : copy.marketWhat, {
-        title: offer.title,
+        title: offer.title[options.locale()],
         name,
       }),
     );
@@ -594,7 +605,8 @@ export function createMarketplacePanel(
 
   return {
     render,
-    /** An offer's title in the offers shown, by its id. */
-    title: (id: string) => offerById(offers, id)?.title,
+    /** An offer's title in the offers shown, by its id, in the page's
+     * language. */
+    title: (id: string) => offerById(offers, id)?.title[options.locale()],
   };
 }

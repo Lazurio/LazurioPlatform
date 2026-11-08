@@ -21,6 +21,20 @@ type Copy = Readonly<Record<MessageKey, string>>;
 /** The language of the offers' words: the registry carries both. */
 export type MarketplaceLocale = "cs" | "en";
 export type Localized = Readonly<Record<MarketplaceLocale, string>>;
+const marketplaceLocales: readonly string[] = ["cs", "en"];
+
+/** A screen of the offered release: its path in the template's repository,
+ * its words and, where the template has screens per language (a bilingual
+ * template, decided 2026-11-06), the language of the screen's words. A
+ * registry entry without a language is a screen for both. */
+export type MarketplaceScreenshot = Readonly<{
+  path: string;
+  alt: Localized;
+  locale?: MarketplaceLocale;
+}>;
+
+/** Screens of one language, or of none, at most: the registry's rule. */
+const screensPerLocale = 6;
 
 /** The section of the pilot. */
 export const marketplaceSections = ["app-templates"] as const;
@@ -62,7 +76,10 @@ export type MarketplaceSeed = Readonly<{ label: Localized; brief: Localized }>;
 export type MarketplaceOffer = Readonly<{
   id: string;
   section: MarketplaceSection;
-  title: string;
+  /** The template's name in Czech and English, shown in the page's
+   * language: a registry record with one name gives it to both, one with
+   * `{cs, en}` (a bilingual template, decided 2026-11-06) its own in each. */
+  title: Localized;
   /** The module slug an adoption proposes; the agent confirms it against
    * the Organization's own modules. */
   module: string;
@@ -78,8 +95,9 @@ export type MarketplaceOffer = Readonly<{
   summary: Localized;
   features: readonly Readonly<{ title: Localized; text: Localized }>[];
   seeds: Readonly<{ empty: MarketplaceSeed; sample: MarketplaceSeed | null }>;
-  /** Screens of the offered release, paths in its repository. */
-  screenshots: readonly Readonly<{ path: string; alt: Localized }>[];
+  /** Screens of the offered release, paths in its repository; a page
+   * shows those of its language (`screenshotsFor`). */
+  screenshots: readonly MarketplaceScreenshot[];
   /** Every release, newest first. */
   releases: readonly MarketplaceRelease[];
   /** The release offered: the newest whose commit is recorded. */
@@ -254,12 +272,18 @@ function offer(value: unknown): ReadOffer | null {
     fields.pricing !== "free"
   )
     return null;
-  const { id, title, module, publisher, license, stone } = fields;
+  const { id, module, publisher, license, stone } = fields;
+  const title =
+    typeof fields.title === "string"
+      ? text(fields.title, 60)
+        ? Object.freeze({ cs: fields.title, en: fields.title })
+        : null
+      : localized(fields.title, 60);
   const source = fields.repository;
   if (
     typeof id !== "string" ||
     !offerId.test(id) ||
-    !text(title, 60) ||
+    title === null ||
     typeof module !== "string" ||
     !slug.test(module) ||
     typeof source !== "string" ||
@@ -297,16 +321,28 @@ function offer(value: unknown): ReadOffer | null {
     seedFields?.sample === undefined ? null : seed(seedFields.sample);
   const screenshots = list(
     fields.screenshots,
-    (item) => {
-      const shot = exact(item, ["path", "alt"]);
+    (item): MarketplaceScreenshot | null => {
+      const shot = exact(item, ["path", "alt"], ["locale"]);
       const alt = localized(shot?.alt, 160);
-      return typeof shot?.path === "string" &&
-        screenshotPath.test(shot.path) &&
-        alt !== null
-        ? Object.freeze({ path: shot.path, alt })
+      const language = shot?.locale;
+      if (
+        typeof shot?.path !== "string" ||
+        !screenshotPath.test(shot.path) ||
+        alt === null
+      )
+        return null;
+      if (language === undefined)
+        return Object.freeze({ path: shot.path, alt });
+      return typeof language === "string" &&
+        marketplaceLocales.includes(language)
+        ? Object.freeze({
+            path: shot.path,
+            alt,
+            locale: language as MarketplaceLocale,
+          })
         : null;
     },
-    6,
+    2 * screensPerLocale,
   );
   const releases = list(fields.releases, release, 100);
   if (
@@ -316,6 +352,11 @@ function offer(value: unknown): ReadOffer | null {
     empty === null ||
     (seedFields?.sample !== undefined && sample === null) ||
     screenshots === null ||
+    [undefined, ...marketplaceLocales].some(
+      (language) =>
+        screenshots.filter((shot) => shot.locale === language).length >
+        screensPerLocale,
+    ) ||
     releases === null ||
     releases.length === 0
   )
@@ -393,6 +434,19 @@ export const sourceUrl = (entry: MarketplaceOffer): string =>
 
 export const releaseUrl = (entry: MarketplaceOffer): string =>
   `${sourceUrl(entry)}/releases/tag/${entry.release.tag}`;
+
+/** The screens a page in `locale` shows: those in its language, else those
+ * that name none, else whichever the offer has. An index without languages
+ * shows every screen in both, as before. */
+export function screenshotsFor(
+  entry: MarketplaceOffer,
+  locale: MarketplaceLocale,
+): readonly MarketplaceScreenshot[] {
+  const own = entry.screenshots.filter((shot) => shot.locale === locale);
+  if (own.length > 0) return own;
+  const neutral = entry.screenshots.filter((shot) => shot.locale === undefined);
+  return neutral.length > 0 ? neutral : entry.screenshots;
+}
 
 /** Where a screen of the offered release is: the template's repository at
  * its exact commit. */
@@ -489,20 +543,33 @@ export const isAdoptionRequestId = (id: string): boolean =>
 export const keepsData = (release: MarketplaceRelease): boolean =>
   Number(release.generation.slice("app/v".length)) >= 3;
 
-/** The command the brief has the agent create the module with: the
- * release's stack, and `--data` from generation `app/v3` on, as the
- * template's own docs/adoption.md says. */
-export const createCommand = (release: MarketplaceRelease): string =>
-  `lazurio module create --stack ${release.stack}${keepsData(release) ? " --data" : ""}`;
+/** The command the brief has the agent create the module with, in the form
+ * `lazurio module create` takes for an Organization's module
+ * (module-create-cli.ts, docs/module-standard.md): the Organization by its
+ * slug in this Folder, which the command resolves first and which selects
+ * that Organization or none (two with that slug are ambiguous), never by its
+ * GitHub login, which may be another Organization's slug (slug `Example`,
+ * login `ExampleCo`; slug `ExampleCo`, login `Other`); the offer's module, the release's stack, the command's own
+ * placeholder for the Teams (the agent chooses them with the person from the
+ * Organization's real list; the page lists none, decision F32), `--data`
+ * from generation `app/v3` on, as the template's own docs/adoption.md says,
+ * and the dry run whose plan the person confirms before `--confirm <plan>`. */
+export const createCommand = (
+  release: MarketplaceRelease,
+  organization: string,
+  module: string,
+): string =>
+  `lazurio module create ${organization}/${module} --stack ${release.stack} --teams <team,team>${keepsData(release) ? " --data" : ""} --dry-run`;
 
 /** The brief "Přidat do Organizace" hands to the agent: the person's own
  * words (in Czech tykání, root decision 0199), the exact release and the
- * Organization, and the release's adoption guide, which holds the steps.
- * Null when the offer has no such start. */
+ * Organization (its name, its GitHub login, and its slug in this Folder for
+ * the command, `createCommand`), and the release's adoption guide, which
+ * holds the steps. Null when the offer has no such start. */
 export function adoptionPrompt(
   entry: MarketplaceOffer,
   chosen: AdoptionSeed,
-  organization: Readonly<{ name: string; login: string }>,
+  organization: Readonly<{ name: string; login: string; slug: string }>,
   copy: Copy,
   locale: MarketplaceLocale,
 ): string | null {
@@ -512,6 +579,7 @@ export function adoptionPrompt(
     chosen,
     organization,
     locale,
+    createCommand(entry.release, organization.slug, entry.module),
   );
 }
 
@@ -521,11 +589,12 @@ function filledBrief(
   chosen: AdoptionSeed,
   organization: Readonly<{ name: string; login: string }>,
   locale: MarketplaceLocale,
+  create = "",
 ): string | null {
   const start = seedOf(entry, chosen);
   if (start === null) return null;
   return text
-    .replaceAll("{title}", entry.title)
+    .replaceAll("{title}", entry.title[locale])
     .replaceAll("{name}", organization.name)
     .replaceAll("{login}", organization.login)
     .replaceAll("{repository}", entry.repository)
@@ -533,7 +602,7 @@ function filledBrief(
     .replaceAll("{commit}", entry.release.commit)
     .replaceAll("{license}", entry.license)
     .replaceAll("{module}", entry.module)
-    .replaceAll("{create}", createCommand(entry.release))
+    .replaceAll("{create}", create)
     .replaceAll("{seed}", start.brief[locale]);
 }
 
