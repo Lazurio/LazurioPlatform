@@ -24,11 +24,12 @@ import { ownDataValue, stateFields } from "./state-fields";
 // Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
 // Organization presets differ on. `automation` is the Henry Environment
 // of decision 0169: the work VM of an Organization persona, with the one
-// responsible operator (an Owner or Admin of the Organization) named exactly
+// responsible operator (an Organization Owner or Organization Admin) named exactly
 // like `operator`; the handover carries it since Machines #277. `services` is
 // the services Environment of a Proxmox server, Služby serveru (root decision
 // 0209, Machines docs/server-services.md §2): a work Environment of the
-// Organization that only its Owners and Admins enter and that, like `team`,
+// Organization that only its Organization Admins enter (root decision 0228)
+// and that, like `team`,
 // names nobody. Any other kind fails closed. A free work Environment's
 // operator (root decision 0216) is named by their Lazurio account
 // (`MachineAccount`), which needs no GitHub account (root decision 0192).

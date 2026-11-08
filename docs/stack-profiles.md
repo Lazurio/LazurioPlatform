@@ -288,7 +288,7 @@ Exactly two kinds of change move a Module's tools.
 1. **A generation transition** changes the data layer (`app/v3` → `app/v4`). The
    new `app/v<N+1>` is created beside the old one on the current release of its
    profile, a script moves the data, and `default_app` switches on the decision
-   of the Organization's Steward or the user
+   of the Module Maintainer or the user
    ([App generations](module-standard.md#app-generations)). The old generation
    stays as the way back.
 2. **A profile release** changes the tools within a generation (a new major or

@@ -1,6 +1,6 @@
 # Lazurio Platform architecture
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Status: implementation contract aligned with decision 0144, updated 2026-09-19. Product direction is supplied
 by Matěj; this document does not claim that the target is deployed. Decision
@@ -375,7 +375,8 @@ user; a self-hoster may supply their own qualified gateway configuration
 ([hosted entry](docs/hosted-entry.md)). GitHub is the authority for source permissions
 and publication (repository grants, Team capabilities, branch rules). Target entry into
 Environments follows decision 0192 ([Environment access](docs/environment-access.md)):
-a Lazurio account, active membership, an Admin-approved device and an Auth entry grant.
+a Lazurio account, active membership, a device approved by the Organization Admin and an
+Auth entry grant.
 Until Auth grants are deployed, the existing GitHub Team gates are the marked migration
 implementation; no second access list is created.
 An external implementer may help a customer deploy Lazurio for that customer's own
@@ -423,8 +424,9 @@ or promise every possible combination. It does not grant access to private Perso
 
 Validate supported combinations from the release manifest. Unknown combinations
 fail before mutation. Keep legacy machine enums as migration input, not guessed
-aliases. Roles such as Steward/Admin/Builder remain per Organization and provider-
-verified. They are not Machine kinds or independent distributions.
+aliases. Roles such as Organization Admin, Module Maintainer or Module Contributor
+([decision 0234](docs/decision-register.md#0234--the-names-of-access-roles-one-vocabulary-for-every-text-screen-and-agent))
+remain per Organization and provider-verified. They are not Machine kinds or independent distributions.
 
 A hosted human environment is one of two first-class kinds (decision F2, upstream
 decisions 0147–0149). A **private hosted workspace** is dedicated to one named

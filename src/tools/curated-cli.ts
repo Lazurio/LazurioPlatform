@@ -509,7 +509,7 @@ function loginLines(
           `  2. Enter the code  ${challenge.code}`,
           ...(chatgpt
             ? [
-                "The code is valid for 15 minutes. If ChatGPT's page refuses it, turn sign-in with a code on in your ChatGPT security settings (for a work account, its admin allows it) and enter it again.",
+                "The code is valid for 15 minutes. If ChatGPT's page refuses it, turn sign-in with a code on in your ChatGPT security settings (for a work account, the admin of its ChatGPT workspace allows it) and enter it again.",
                 "Waiting for you to enter the code. Ctrl-C cancels.",
               ]
             : ["Waiting for you to finish in the browser. Ctrl-C cancels."]),

@@ -49,11 +49,11 @@ type Copy = Readonly<Record<MessageKey, string>>;
 export const promptSchema = "lazurio.prompt.v1";
 
 /** Who may get a prompt. `organization-owner`: only where this Environment's
- * GitHub identity is an Owner of the Organization, GitHub's own live answer
+ * GitHub identity is an Organization Owner, GitHub's own live answer
  * (organization-owner.ts), the same rule as the "+ Nový modul" tile; a Team
  * Environment never is. `organization-member`: only where it is an active
- * member of the Organization and no Owner, by the same answer, the rule of
- * the muted tile; an Owner founds the module, and a Team Environment is
+ * Organization Member and no Organization Owner, by the same answer, the
+ * rule of the muted tile; an Organization Owner founds the module, and a Team Environment is
  * neither. `environment-operator`: the person behind this
  * Environment's admission, only where its preset has the onboarding
  * (first-run.ts `hasOnboarding`): the person a personal or work Environment
@@ -74,7 +74,7 @@ const prompts = {
   // "+ Nový modul" (decision F36 addendum of 2026-10-04): the wireframe's
   // brief for founding a module with an agent.
   "new-module": { who: "organization-owner", scope: "organization" },
-  // A member's "+ Nový modul" (F36 addendum of 2026-11-05): the Organization Admin founds
+  // An Organization Member's "+ Nový modul" (F36 addendum of 2026-11-05): the Organization Admin founds
   // the module, so the agent prepares a request with the skill
   // `admin-request`. It asks; it founds nothing.
   "new-module-request": { who: "organization-member", scope: "organization" },

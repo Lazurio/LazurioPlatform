@@ -439,7 +439,7 @@ export function t3Version(stdout: string): string | null {
 
 /** Whether this Environment's Chat takes a prepared prompt by link, from
  * `t3 --version` of the launcher on this process's PATH (the one the pairing
- * runs). Kept as long as an Owner answer; one call at a time. */
+ * runs). Kept as long as an Organization Owner answer; one call at a time. */
 export function createChatPromptCheck(
   environment: ToolsEnvironment,
   now: () => number = Date.now,

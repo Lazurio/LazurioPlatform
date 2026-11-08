@@ -130,7 +130,8 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
     botTeam: null,
   }),
   // Decision 0169: the Henry Environment of an Organization persona. An
-  // Organization work VM with one responsible operator (an Owner or Admin)
+  // Organization work VM with one responsible operator (an Organization Owner
+  // or Organization Admin)
   // whose GitHub identity is the persona's own account; Lazurio MausBot runs
   // the persona's bot team as a service next to the Launchpad and T3 Code.
   // `purpose` stays `human`: a person answers for every Machine (0169), and
@@ -191,7 +192,7 @@ export function workspacePreset(name: PresetName): WorkspacePreset {
 // never chosen and never passed as `--preset`. One switch selects it: the
 // handover's `entry.audience: "public"`, which Machines writes from the
 // gateway's `public-account` admission (F55 point 1). The same kind of
-// nullable record as the Steward preset's `botTeam`.
+// nullable record as the `hosted-organization-steward` preset's `botTeam`.
 export type VisitorPreset = Readonly<{
   /** Its name in documents, never a `PresetName`. */
   name: "try";
@@ -378,7 +379,7 @@ export function allowedPresets(
 // What a NEW choice may take (issue #107). When the handover states
 // `owner.assignment`, the assignment decides the preset and nothing else is
 // offered: a Team Environment works in GitHub only through the Organization
-// bot (decision 0168), so an explicit Work or Steward preset there would
+// bot (decision 0168), so an explicit Work or Automated (`hosted-organization-steward`) preset there would
 // re-open a user-account sign-in, and likewise for the other two. Without a
 // stated assignment the choice stays the allow-list. `recorded`, the preset a
 // Folder already has, stays selectable when the allow-list admits it:

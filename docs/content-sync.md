@@ -383,8 +383,8 @@ a first proof.
 
 **Known limits.** GitHub does not tell a deleted repository from a refused one: a
 repository deleted on GitHub counts as access ended. A person who left the Organization no
-longer reads its root, so nothing proves anything and their copies stay until the Admin
-reassigns the Environment. The same holds where the root is public and the last private
+longer reads its root, so nothing proves anything and their copies stay until the
+Organization Admin reassigns the Environment. The same holds where the root is public and the last private
 repository this identity could read is the one that went. An agent working in the copy at that moment loses its
 directory.
 
@@ -408,12 +408,12 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 | Personal Remote Environment | `hosted-personal` | Only the user's Personalspace, never an Organization repository; gh must work as the handover's owner (`github-identity-mismatch`) |
 | Work Environment of one user, Automated Environment | `hosted-organization-personal`, `hosted-organization-steward` | Only the Organization of its handover (`owner.organization`), never a Personalspace |
 | Team Environment | `hosted-organization-team` | Prepared by the hosting (Machines); the operation answers `prepared-by-hosting` and does nothing |
-| Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
+| Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a Module Reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
 
 The Automated Environment uses the ordinary explicit installation under its
 signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
 working arrangement and responsible user; it does not require a hosting archive,
-prove a Steward role, or grant repository access. Its repositories are ordinary
+prove a Module Maintainer role, or grant repository access. Its repositories are ordinary
 Git clones, including tracked internal symlinks. CLI and Settings → This Environment
 use this same core; the content response owns UI availability. Since [F27's addendum
 of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
@@ -436,25 +436,56 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    for it through that account: it must exist, be readable and belong to the login.
    Then the user's **live role** in the Organization (review of root decision 0188,
    as the resident `lazurio organization install --role builder|steward` scopes it,
-   and the Reader of decision F9's addendum of 2026-10-05),
-   which GitHub must confirm through the same account before anything is cloned:
-   **Admin** by an active Owner membership (`GET /user/memberships/orgs/<org>`, role
-   `admin`, as `organization-owner.ts` reads it), **Steward** by `maintain` on the root
-   repository (the Steward's grant, as `module-maintainer.ts` reads it), **Builder** by
-   `write` on it (the resident's Builder gate reads WRITE), **Reader** by `read` or
-   `triage` on it together with an active membership (any role, not pending): a public
-   root answers `read` to every account, so the permission alone names no one of the
-   Organization, and an outside collaborator who only reads is not a Reader. The CLI
-   matches the resident and adds the Reader: `lazurio organization install <login>` is
-   the Admin installation (the full one) and runs only for a verified Admin;
-   `lazurio organization install <login> --role builder|steward|reader` is the
-   role-scoped one (anyone may choose a narrower role GitHub confirms); `--role admin`
-   does not exist. The resident CLI knows no `--role reader`. The Launchpad picks the
-   form from the live role, in the order Admin, Steward, Builder, Reader. A role GitHub
-   does not confirm, the bare form for anyone but a verified Admin (its failure names
-   the `--role` forms), or a live resolution that finds none of the four fails closed
-   with `role-unverified`. The role decides scope only, never access, and nothing is
-   recorded. A Reader's clones are ordinary clones: they are read-only because GitHub
+   and the Module Reader of decision F9's addendum of 2026-10-05),
+   which GitHub must confirm through the same account before anything is cloned. The
+   roles carry the names and identifiers of root decision 0234. Below the Organization
+   Admin they are the Module role on the Organization's root repository, the one
+   repository the scope is read from; a Module's own repository may give the same person
+   another Module role. They map to GitHub's answers as root decision 0232 maps a
+   repository's permission:
+
+   | Role | Identifier | GitHub confirms it by |
+   | --- | --- | --- |
+   | Organization Admin | `organization-admin` | an active Organization Owner membership (`GET /user/memberships/orgs/<org>`, GitHub's organization role `admin`, as `organization-owner.ts` reads it); until the Organization Admin role in Lazurio Auth is deployed, an active Organization Owner counts as the Organization Admin (root decision 0228) |
+   | Module Maintainer | `module-maintainer` | `maintain` on the root repository (the grant `module-maintainer.ts` reads), or `write` on it where it cannot have branch rules |
+   | Module Contributor | `module-contributor` | `write` on it where it can have branch rules, or where GitHub does not say (the resident's `builder` gate reads WRITE) |
+   | Module Reader | `module-reader` | `read` or `triage` on it together with an active membership (any role, not pending) |
+
+   Whether the root can have branch rules is its own answer, asked only where the role
+   depends on it (for `write`, and for `write` or more when `--role module-contributor`
+   is asked): a public repository always can; for a private one `GET repos/<owner>/<name>/rulesets`
+   answering at all is yes, GitHub's 403 that the plan does not allow it ("Upgrade to
+   GitHub Pro or make this repository public") is no, and anything else is unknown. An
+   unknown answer names `write` by the lower role, the Module Contributor, so
+   `--role module-maintainer` with `write` fails closed there; `--role module-contributor`
+   with `write` or more where the root cannot have branch rules is confirmed as the Module
+   Maintainer, because the Module Contributor does not exist there. The install scope is
+   the same for every Module role.
+
+   A public root answers `read` to every account, so the permission alone names no one
+   of the Organization, and an outside collaborator who only reads is not a Module
+   Reader. The CLI matches the resident and adds the Module Reader:
+   `lazurio organization install <login>` is the Organization Admin's installation (the
+   full one) and runs only for a verified Organization Admin;
+   `lazurio organization install <login> --role module-contributor|module-maintainer|module-reader`
+   is the role-scoped one (anyone may choose a narrower role GitHub confirms);
+   `--role admin` and `--role organization-admin` do not exist. The former values
+   `builder`, `steward` and `reader` are deprecated aliases of `module-contributor`,
+   `module-maintainer` and `module-reader` until the option's migration (root decision
+   0234): each still installs exactly as its replacement and prints one line on stderr,
+   `lazurio: --role builder is deprecated; use --role module-contributor (decision 0234)`,
+   so that `--json` output on stdout stays the result only. Any other value is a usage
+   error. The resident CLI knows no `--role reader`. The Launchpad picks the form from
+   the live role, in the order Organization Admin, Module Maintainer, Module Contributor,
+   Module Reader. A role GitHub does not confirm, the bare form for anyone but a
+   verified Organization Admin (its failure names the `--role` forms), or a live
+   resolution that finds none of the four fails closed with `role-unverified`. The
+   confirmed role is the item's `role` in the result and appears in the `access` step's
+   detail (`as <login> (module-contributor, restricted slots excluded)`);
+   `lazurio organization role <Organization>` prints the same identifiers from the same
+   core, and the Organization Admins as GitHub lists its active Organization Owners
+   (JSON key `admins`). The role decides scope only, never access, and nothing is
+   recorded. A Module Reader's clones are ordinary clones: they are read-only because GitHub
    refuses the account's pushes, and nothing in installation, the product update or
    the doctor asks for write on a repository (pulling a clean checkout with
    `git pull --ff-only` needs read only).
@@ -483,9 +514,10 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    with this Environment's identity; a repository it cannot read is `denied` for that
    slot alone. A guest is never prepared. A present checkout is reported as for any child (`present`, or
    `blocked` for another repository) and never changed. `infra` and a database slot
-   declared otherwise are left out (`excluded`). The role scope comes first: a restricted (Admin-only,
-   `default_access` `restricted` or `private`) slot and every slot below it are in
-   scope only for a verified Admin; for a Steward, Builder or Reader they are
+   declared otherwise are left out (`excluded`). The role scope comes first: a restricted
+   (Organization Admin only, `default_access` `restricted` or `private`) slot and every
+   slot below it are in scope only for a verified Organization Admin; for a Module
+   Maintainer, Module Contributor or Module Reader they are
    `excluded_by_role_scope` without any provider operation. A slot whose access
    declaration (its own or one above it) is malformed (`classifySlotAccess` →
    `unknown`) is `blocked` (`access-classification-unknown`) for every role, also
@@ -494,10 +526,10 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    not answer), materialized like the root, or reported `present` (a checkout of the
    same repository) or `blocked` (anything else there). One child's result never
    stops its siblings; unreachable children are reported, not failures of the run.
-   Unlike the resident's role gate, a Builder's or Steward's missing WRITE on one
-   child repository does not block the whole install: the role is confirmed on the
-   root, and each child is cloned when it can be read. A Reader gets the same children
-   as a Builder, cloned with read.
+   Unlike the resident's role gate, a Module Contributor's or Module Maintainer's
+   missing WRITE on one child repository does not block the whole install: the role is
+   confirmed on the root, and each child is cloned when it can be read. A Module Reader
+   gets the same children as a Module Contributor, cloned with read.
 4. **preparation** — the declared preparation (`lazurio.preparation`, decision F34)
    of each module this run cloned, through the module core's `prepare` (the same as
    `lazurio module prepare`). Production Space repositories are never prepared. A
@@ -519,9 +551,10 @@ member is no longer `prepared-by-hosting`. The same five steps run, with these
 differences only (`scope.github` `anonymous` in `src/content/model.ts`):
 
 - **access** asks GitHub nothing: no gh account, no repository, membership or
-  declaration read. The role is the Reader's (restricted slots and what is below them
-  `excluded_by_role_scope`); only the Reader's role may be asked for, any other one
-  fails closed (`role-unverified`), the CLI's bare Admin form included. The root is the
+  declaration read. The role is the Module Reader's (`module-reader`; restricted slots
+  and what is below them `excluded_by_role_scope`); only `module-reader` (or its
+  deprecated alias `reader`) may be asked for, any other role fails closed
+  (`role-unverified`), the CLI's bare Organization Admin form included. The root is the
   one the Folder holds, the named `--root`, or the name candidate `<login>/<login>_GEN3`;
   there is no scan, which would read the Organization's listing and one declaration
   per repository through GitHub's unauthenticated API (60 requests an hour per
@@ -647,9 +680,10 @@ read (status, catalog) removes anything.
 
 ### Surfaces
 
-- `lazurio organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
+- `lazurio organization install <github-login> [--role module-contributor|module-maintainer|module-reader] [--root <owner>/<repository>] [--folder <Folder>] [--json]`
   (`--root` is the explicit source of [the root](#where-the-root-repository-is), verified
-  the same way)
+  the same way; `builder`, `steward` and `reader` are deprecated aliases of `--role`
+  with a notice on stderr)
   and `lazurio personalspace install [--folder <Folder>] [--json]`: one line per step
   event (`{"kind":"content-step","item":…,"key":…,"state":…,"detail"?,"code"?}` with
   `--json`), then the result (`{"kind":"content-install","state":…,"items":[…],"failure"?}`).
@@ -670,8 +704,8 @@ read (status, catalog) removes anything.
   2026-10-15](decisions.md#f36-addendum-of-2026-10-15-začínáme-the-basics-from-live-facts-ai-first-root-decision-0201)):
   the content never starts before an agent could help with it.
 - `GET /api/content/root-access?org=<login>`: `{ kind: "root-access", write }`, whether
-  this Environment's GitHub identity can prepare that Organization's root (an active Owner,
-  or `write` on `<login>/<login>_GEN3`). Only for the Organization whose newest installation
+  this Environment's GitHub identity can prepare that Organization's root (an active
+  Organization Owner, or `write` on `<login>/<login>_GEN3`). Only for the Organization whose newest installation
   stopped at `root-not-found` or `organization-unreadable`; for any other the same
   `write: false` without asking GitHub.
 - `GET /api/content/jobs/<id>`: `{ id, state: running|succeeded|failed, steps, failure? }`;

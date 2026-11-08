@@ -10,6 +10,8 @@ import {
 import type { ContentStep } from "../src/content/model";
 import {
   classifySlotAccess,
+  type OrganizationRole,
+  rootBranchRules,
   verifyOrganizationRole,
 } from "../src/content/role";
 import { contentStatus } from "../src/content/status";
@@ -143,13 +145,13 @@ posixTest(
       "workspace/docs": "denied",
       "workspace/odd": "blocked",
       "workspace/planned": "no-repository",
-      // A verified Admin (the stub's default membership) installs the
+      // A verified Organization Admin (the stub's default membership) installs the
       // restricted slot too.
       "workspace/secret": "materialized",
       "workspace/secret/db": "excluded",
       "workspace/web": "materialized",
     });
-    expect(outcome?.role).toBe("admin");
+    expect(outcome?.role).toBe("organization-admin");
     for (const path of [
       "workspace/web",
       "mission-control",
@@ -234,7 +236,7 @@ test("the role GitHub confirms, and the scope it gives", () => {
   const member = { kind: "member", state: "active", role: "member" } as const;
   const none = { kind: "none" } as const;
   const verify = (
-    requested: "admin" | "steward" | "builder" | "reader" | null,
+    requested: OrganizationRole | null,
     membership: Parameters<typeof verifyOrganizationRole>[0]["membership"],
     rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
   ) => {
@@ -247,13 +249,13 @@ test("the role GitHub confirms, and the scope it gives", () => {
       ? `${answer.role}:${answer.restricted}`
       : "unverified";
   };
-  expect(verify(null, owner, "admin")).toBe("admin:include");
-  expect(verify(null, member, "admin")).toBe("steward:exclude");
-  expect(verify(null, member, "maintain")).toBe("steward:exclude");
-  expect(verify(null, member, "write")).toBe("builder:exclude");
-  // A Reader: read or triage on the root, and an active member.
-  expect(verify(null, member, "triage")).toBe("reader:exclude");
-  expect(verify(null, member, "read")).toBe("reader:exclude");
+  expect(verify(null, owner, "admin")).toBe("organization-admin:include");
+  expect(verify(null, member, "admin")).toBe("module-maintainer:exclude");
+  expect(verify(null, member, "maintain")).toBe("module-maintainer:exclude");
+  expect(verify(null, member, "write")).toBe("module-contributor:exclude");
+  // A Module Reader: read or triage on the root, and an active member.
+  expect(verify(null, member, "triage")).toBe("module-reader:exclude");
+  expect(verify(null, member, "read")).toBe("module-reader:exclude");
   // Read alone names no one: a public root answers read to every account.
   expect(verify(null, none, "read")).toBe("unverified");
   expect(verify(null, none, "triage")).toBe("unverified");
@@ -262,28 +264,44 @@ test("the role GitHub confirms, and the scope it gives", () => {
   ).toBe("unverified");
   expect(verify(null, { kind: "unavailable" }, "read")).toBe("unverified");
   expect(verify(null, member, null)).toBe("unverified");
-  // Write needs no membership (as before): an outside collaborator Builder.
-  expect(verify(null, none, "write")).toBe("builder:exclude");
+  // Write needs no membership (as before): an outside collaborator Module Contributor.
+  expect(verify(null, none, "write")).toBe("module-contributor:exclude");
   expect(verify(null, none, null)).toBe("unverified");
-  expect(verify("admin", owner, null)).toBe("admin:include");
-  expect(verify("admin", member, "admin")).toBe("unverified");
+  expect(verify("organization-admin", owner, null)).toBe(
+    "organization-admin:include",
+  );
+  expect(verify("organization-admin", member, "admin")).toBe("unverified");
   expect(
-    verify("admin", { kind: "member", state: "pending", role: "admin" }, null),
+    verify(
+      "organization-admin",
+      { kind: "member", state: "pending", role: "admin" },
+      null,
+    ),
   ).toBe("unverified");
-  expect(verify("steward", none, "maintain")).toBe("steward:exclude");
-  expect(verify("steward", owner, "write")).toBe("unverified");
-  expect(verify("builder", owner, "admin")).toBe("builder:exclude");
-  expect(verify("builder", none, "read")).toBe("unverified");
-  expect(verify("builder", member, "triage")).toBe("unverified");
-  expect(verify("reader", member, "read")).toBe("reader:exclude");
-  expect(verify("reader", member, "triage")).toBe("reader:exclude");
+  expect(verify("module-maintainer", none, "maintain")).toBe(
+    "module-maintainer:exclude",
+  );
+  expect(verify("module-maintainer", owner, "write")).toBe("unverified");
+  expect(verify("module-contributor", owner, "admin")).toBe(
+    "module-contributor:exclude",
+  );
+  expect(verify("module-contributor", none, "read")).toBe("unverified");
+  expect(verify("module-contributor", member, "triage")).toBe("unverified");
+  expect(verify("module-reader", member, "read")).toBe("module-reader:exclude");
+  expect(verify("module-reader", member, "triage")).toBe(
+    "module-reader:exclude",
+  );
   // Anyone may choose the narrowest scope GitHub confirms.
-  expect(verify("reader", member, "write")).toBe("reader:exclude");
-  expect(verify("reader", owner, "admin")).toBe("reader:exclude");
-  expect(verify("reader", none, "read")).toBe("unverified");
-  expect(verify("reader", none, "admin")).toBe("unverified");
-  expect(verify("reader", { kind: "unavailable" }, "read")).toBe("unverified");
-  expect(verify("reader", member, null)).toBe("unverified");
+  expect(verify("module-reader", member, "write")).toBe(
+    "module-reader:exclude",
+  );
+  expect(verify("module-reader", owner, "admin")).toBe("module-reader:exclude");
+  expect(verify("module-reader", none, "read")).toBe("unverified");
+  expect(verify("module-reader", none, "admin")).toBe("unverified");
+  expect(verify("module-reader", { kind: "unavailable" }, "read")).toBe(
+    "unverified",
+  );
+  expect(verify("module-reader", member, null)).toBe("unverified");
   expect(classifySlotAccess({ default_access: "private" })).toBe("restricted");
   expect(classifySlotAccess({ default_access: "role_based" })).toBe("ordinary");
   expect(classifySlotAccess({})).toBe("ordinary");
@@ -291,10 +309,115 @@ test("the role GitHub confirms, and the scope it gives", () => {
   expect(classifySlotAccess({ required_roles: "builder" })).toBe("unknown");
 });
 
+// The capability is asked where the role depends on it: for write, and for
+// write or more when the Module Contributor is asked for; a public root
+// always can have branch rules.
+test("the root's branch rules are asked only where the Module role depends on them", async () => {
+  const asked: string[] = [];
+  const ask = async (owner: string, name: string) => {
+    asked.push(`${owner}/${name}`);
+    return "unavailable" as const;
+  };
+  const root = { fullName: "Alpha/alpha_GEN3", private: true };
+  const rules = (
+    permission: "admin" | "maintain" | "write" | "read" | null,
+    requested: OrganizationRole | null,
+    repository = root,
+  ) => rootBranchRules(repository, permission, ask, requested);
+  expect(await rules("write", null)).toBe("unavailable");
+  expect(await rules("maintain", "module-contributor")).toBe("unavailable");
+  expect(await rules("admin", "module-contributor")).toBe("unavailable");
+  expect(asked).toHaveLength(3);
+  expect(await rules("maintain", null)).toBe("unknown");
+  expect(await rules("maintain", "module-maintainer")).toBe("unknown");
+  expect(await rules("read", "module-contributor")).toBe("unknown");
+  expect(await rules(null, "module-contributor")).toBe("unknown");
+  expect(asked).toHaveLength(3);
+  expect(
+    await rules("write", null, {
+      fullName: "Alpha/alpha_GEN3",
+      private: false,
+    }),
+  ).toBe("available");
+  expect(asked).toHaveLength(3);
+  expect(await rootBranchRules(root, "write", undefined)).toBe("unknown");
+});
+
+// Root decision 0232: `write` is the Module Contributor where the repository
+// can have branch rules and the Module Maintainer where it cannot; an
+// unknown answer never makes anyone a Module Maintainer.
+test("write on the root is the Module role its branch-rule capability makes it", () => {
+  const member = { kind: "member", state: "active", role: "member" } as const;
+  const verify = (
+    requested: OrganizationRole | null,
+    rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
+    rootBranchRules: "available" | "unavailable" | "unknown" | undefined,
+  ) => {
+    const answer = verifyOrganizationRole({
+      requested,
+      membership: member,
+      rootPermission,
+      rootBranchRules,
+    });
+    return answer.kind === "verified" ? answer.role : answer.detail;
+  };
+  // Live resolution.
+  expect(verify(null, "write", "available")).toBe("module-contributor");
+  expect(verify(null, "write", "unavailable")).toBe("module-maintainer");
+  expect(verify(null, "write", "unknown")).toBe("module-contributor");
+  expect(verify(null, "write", undefined)).toBe("module-contributor");
+  for (const rules of ["available", "unavailable", "unknown"] as const) {
+    expect(verify(null, "maintain", rules)).toBe("module-maintainer");
+    expect(verify(null, "admin", rules)).toBe("module-maintainer");
+    expect(verify(null, "read", rules)).toBe("module-reader");
+  }
+  // --role module-maintainer: maintain anywhere, write only where the root
+  // cannot have branch rules.
+  expect(verify("module-maintainer", "maintain", "available")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-maintainer", "write", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-maintainer", "write", "available")).toContain(
+    "which can have branch rules",
+  );
+  expect(verify("module-maintainer", "write", "unknown")).toContain(
+    "GitHub did not say whether the repository can have branch rules",
+  );
+  expect(verify("module-maintainer", "read", "unavailable")).toContain(
+    "no maintain permission",
+  );
+  // --role module-contributor: write or more; where the root cannot have
+  // branch rules there is no Module Contributor, and write is the Module
+  // Maintainer.
+  expect(verify("module-contributor", "write", "available")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "write", "unknown")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "write", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-contributor", "maintain", "available")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "maintain", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-contributor", "admin", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-contributor", "read", "available")).toContain(
+    "no write permission",
+  );
+});
+
 async function installAlpha(
   github: ReturnType<typeof stubGitHub>["github"],
   folder: string,
-  roles?: Record<string, "admin" | "steward" | "builder" | "reader">,
+  roles?: Record<string, OrganizationRole>,
 ) {
   const steps: ContentStep[] = [];
   const result = await installContent(
@@ -323,26 +446,31 @@ const results = (
     : {};
 
 posixTest(
-  "a Builder, Steward or Reader never gets the restricted slots, and GitHub is not asked for them",
+  "a Module Contributor, Module Maintainer or Module Reader never gets the restricted slots, and GitHub is not asked for them",
   async () => {
     world = await createWorld();
     await alphaRemotes(world);
     for (const [role, permission, roles] of [
-      // Resolved live: not an Owner, write on the root.
-      ["builder", "write", undefined],
+      // Resolved live: not an Organization Owner, write on the root.
+      ["module-contributor", "write", undefined],
       // Asserted: maintain on the root.
-      ["steward", "maintain", { alpha: "steward" } as const],
-      // An Admin may choose the narrower Builder scope.
-      ["builder", "admin", { alpha: "builder" } as const],
+      [
+        "module-maintainer",
+        "maintain",
+        { alpha: "module-maintainer" } as const,
+      ],
+      // An Organization Admin may choose the narrower Module Contributor
+      // scope.
+      ["module-contributor", "admin", { alpha: "module-contributor" } as const],
       // Resolved live: an active member who only reads the root.
-      ["reader", "read", undefined],
+      ["module-reader", "read", undefined],
       // Asserted: triage on the root, an active member.
-      ["reader", "triage", { alpha: "reader" } as const],
+      ["module-reader", "triage", { alpha: "module-reader" } as const],
     ] as const) {
       const folder = await presetFolder(world, "local");
-      // A Reader reads every repository it gets and writes none of them:
-      // read is all the install asks of a repository.
-      const readOnly = role === "reader";
+      // A Module Reader reads every repository it gets and writes none of
+      // them: read is all the install asks of a repository.
+      const readOnly = role === "module-reader";
       const { github, calls } = stubGitHub(world, {
         repositories: {
           ...Object.fromEntries(
@@ -390,10 +518,11 @@ posixTest(
             call.args.join("/").toLowerCase().startsWith("alpha/secret"),
         ),
       ).toBe(false);
-      // An asserted Steward or Builder is confirmed by the repository
-      // permission alone; the membership is not asked. A Reader's is.
+      // An asserted Module Maintainer or Module Contributor is confirmed by
+      // the repository permission alone; the membership is not asked. A
+      // Module Reader's is.
       expect(calls.some((call) => call.kind === "membership")).toBe(
-        roles === undefined || role === "reader",
+        roles === undefined || role === "module-reader",
       );
     }
   },
@@ -469,33 +598,35 @@ posixTest(
     world = await createWorld();
     await alphaRemotes(world);
     for (const [membership, permission, roles] of [
-      // The Admin form (the CLI without --role), but only a member.
+      // The Organization Admin's form (the CLI without --role), but only a
+      // member.
       [
         { kind: "member", state: "active", role: "member" },
         "admin",
-        { alpha: "admin" },
+        { alpha: "organization-admin" },
       ],
-      // A pending Owner invitation is not an Owner.
+      // A pending Organization Owner invitation is not an Organization
+      // Owner.
       [
         { kind: "member", state: "pending", role: "admin" },
         "read",
-        { alpha: "admin" },
+        { alpha: "organization-admin" },
       ],
-      // Asserted Steward with write only.
-      [{ kind: "none" }, "write", { alpha: "steward" }],
-      // Asserted Builder with read only.
-      [{ kind: "none" }, "read", { alpha: "builder" }],
+      // Asserted Module Maintainer with write only.
+      [{ kind: "none" }, "write", { alpha: "module-maintainer" }],
+      // Asserted Module Contributor with read only.
+      [{ kind: "none" }, "read", { alpha: "module-contributor" }],
       // Resolved live (the Launchpad): read, but not a member (a public
       // root answers read to every account).
       [{ kind: "none" }, "read", undefined],
       // Resolved live while GitHub does not answer the membership.
       [{ kind: "unavailable" }, "read", undefined],
-      // Asserted Reader: not a member, or a pending invitation.
-      [{ kind: "none" }, "read", { alpha: "reader" }],
+      // Asserted Module Reader: not a member, or a pending invitation.
+      [{ kind: "none" }, "read", { alpha: "module-reader" }],
       [
         { kind: "member", state: "pending", role: "member" },
         "triage",
-        { alpha: "reader" },
+        { alpha: "module-reader" },
       ],
     ] as const) {
       const folder = await presetFolder(world, "local");
@@ -575,7 +706,7 @@ posixTest(
     const { steps, result } = await resolveAlpha(github, folder);
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
     expect(accessDetail(steps)?.detail).toBe(
-      "as example (admin); root Alpha/alpha_GEN3 (by name)",
+      "as example (organization-admin); root Alpha/alpha_GEN3 (by name)",
     );
     // Its declaration was read before anything was cloned; no scan.
     // (GitHub compares names case-insensitively; the login is as named.)
@@ -614,7 +745,7 @@ posixTest(
     const { steps, result } = await resolveAlpha(github, folder);
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
     expect(accessDetail(steps)?.detail).toBe(
-      "as example (admin); root Alpha/home (by scan)",
+      "as example (organization-admin); root Alpha/home (by scan)",
     );
     expect(calls.some((call) => call.kind === "organizationRepositories")).toBe(
       true,
@@ -732,7 +863,7 @@ posixTest(
       "Alpha/home",
     );
     expect(accessDetail(accepted.steps)?.detail).toBe(
-      "as example (admin); root Alpha/home (named)",
+      "as example (organization-admin); root Alpha/home (named)",
     );
     // `other` declares `home` its root, not itself: refused, and no other
     // source is tried.
@@ -1563,7 +1694,7 @@ posixTest(
 );
 
 posixTest(
-  "an Automated Environment installs ordinary Git content as its signed-in account, without a Steward grant",
+  "an Automated Environment installs ordinary Git content as its signed-in account, without a Module Maintainer grant",
   async () => {
     world = await createWorld();
     if (bindings.automated.owner.kind !== "organization")
@@ -1604,7 +1735,7 @@ posixTest(
     const result = await installContent(folder, {}, () => {}, host);
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
     expect(result.kind === "content-install" && result.items[0]?.role).toBe(
-      "builder",
+      "module-contributor",
     );
     const root = join(folder, "organizations", "alpha_GEN3");
     expect(await exists(join(root, "workspace", "web", ".git"))).toBe(true);

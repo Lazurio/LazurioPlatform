@@ -3,7 +3,11 @@ import { ghStatus } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 import { githubLoginPattern, repositoryPattern } from "./model";
-import type { MembershipAnswer, RepositoryPermission } from "./role";
+import type {
+  BranchRules,
+  MembershipAnswer,
+  RepositoryPermission,
+} from "./role";
 
 // The GitHub side of content installation, through this Environment's own
 // GitHub sign-in: gh's (decision F19), found on the operator's PATH and run
@@ -81,6 +85,12 @@ export type ContentGitHub = Readonly<{
   /** The OAuth scopes of this sign-in's token (`parseTokenScopes`). */
   tokenScopes(): Promise<readonly string[] | null>;
   repository(owner: string, name: string): Promise<RepositoryAnswer>;
+  /** Whether the repository can have branch rules, by its own answer (root
+   * decision 0232): its rulesets answer at all (`available`), or GitHub
+   * refuses them because the plan does not allow them for a private
+   * repository (`unavailable`); anything else is `unknown`. Only the Module
+   * role of `write` on an Organization's root depends on it. */
+  branchRules?(owner: string, name: string): Promise<BranchRules>;
   /** The viewer's membership in an Organization (an Owner is an active
    * `admin` membership). */
   membership(organization: string): Promise<MembershipAnswer>;
@@ -546,6 +556,25 @@ export function ghContentGitHub(
       )
         return { kind: "missing" };
       return { kind: "unavailable" };
+    },
+    async branchRules(owner, name): Promise<BranchRules> {
+      const answer = await run(
+        ["api", `${repositoryPath(owner, name)}/rulesets`],
+        { GH_REPO: `${owner}/${name}` },
+      );
+      if (answer.kind === "ok") return "available";
+      // GitHub's refusal for a private repository on a plan without branch
+      // rules: 403 "Upgrade to GitHub Pro or make this repository public to
+      // enable this feature."
+      if (
+        answer.kind === "error" &&
+        answer.status === "403" &&
+        /upgrade to github pro|make this repository public/i.test(
+          `${answer.stdout}\n${answer.stderr}`,
+        )
+      )
+        return "unavailable";
+      return "unknown";
     },
     async membership(organization): Promise<MembershipAnswer> {
       if (!githubLoginPattern.test(organization))

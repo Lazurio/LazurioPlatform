@@ -439,7 +439,7 @@ test("the head links the Organization's name to its Dashboard; the personal spac
   });
 });
 
-test("Přístup k modulu: the module in its Organization's Dashboard, for its Owners and Stewards only", () => {
+test("Přístup k modulu: the module in its Organization's Dashboard, for its Organization Owners and Module Maintainers only", () => {
   const bound = organization("example", [...example.modules], {
     forgeLogin: "Example-Org",
     repositories: example.repositories,
@@ -1207,7 +1207,8 @@ test("no personal tile but the holder's: not before the holder is known, not for
       }),
     ).toEqual([]);
   }
-  // An Organization: its own offer only for its Owner; a holder's login
+  // An Organization: its own offer only for its Organization Owner; a
+  // holder's login
   // changes nothing there.
   const group = appsScope(catalog, { view: "home" }, cs);
   if (group === null) throw new Error("The fixture has an Organization");

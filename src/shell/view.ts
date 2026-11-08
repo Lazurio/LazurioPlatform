@@ -38,8 +38,8 @@ import { fillShell, type ShellCopy, shellMessages } from "./messages";
 // its own server. Its glyph, name and who line are the picker's.
 //
 // Whose an Environment is leads (F36's addendum of 2026-11-03, approved by
-// the Owner): a work Environment assigned to a person is named by that
-// person (`environmentOwner`), with their GitHub photo, and the switcher
+// the Organization Owner): a work Environment assigned to a person is named
+// by that person (`environmentOwner`), with their GitHub photo, and the switcher
 // lists an Organization's Environments under the headings People, Teams and
 // Organization (`environmentGroup`), so the heading carries the kind and
 // the row says whose it is. The column head says what the Environment is
@@ -516,8 +516,8 @@ const defaultWorkNames = new Set(
 
 /** Whom a work Environment is assigned to, as the switcher names it (F36's
  * addendum of 2026-11-03): its login, the person's name where the document
- * gives it (`assigneeName`), and the name of its own an Admin or the person
- * gave it (`name`, the Dashboard's), where that is no default kind name and
+ * gives it (`assigneeName`), and the name of its own an Organization Admin
+ * or the person gave it (`name`, the Dashboard's), where that is no default kind name and
  * does not just restate the login or the person's name. Null for any other
  * Environment: a Team's, the Organization's own (server services, an
  * Automated one), a personal one, your computer. */
@@ -543,7 +543,7 @@ export function environmentOwner(
 }
 
 /** The word a person's Environment is named by: the name of its own where
- * it has one (an Admin's or the person's), else the person's name, else
+ * it has one (an Organization Admin's or the person's), else the person's name, else
  * their login. */
 const ownerTitle = (owner: EnvironmentOwner): string =>
   owner.ownName ?? owner.name ?? owner.login;

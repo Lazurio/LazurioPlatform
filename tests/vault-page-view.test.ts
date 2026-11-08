@@ -1582,11 +1582,11 @@ test("no step asks the person to compose their address, whatever the answer", ()
 // An Environment without a vault (DEV-6631, F53's addendum of 2026-10-17):
 // one line says why it has none, in place of the vault. A public
 // Organization's Environment has none on purpose (`no-tailnet`); any other's
-// is not set up yet and its Organization's Admin sets it up (`no-vault`).
+// is not set up yet and an Organization Admin sets it up (`no-vault`).
 // How a vault works in an Organization is the approved video the page's "?"
 // plays in place (decision F56's addendum of 2026-10-18,
 // tests/launchpad-guide.test.ts), no longer a section of the page.
-test("an Environment without a vault says why: none on purpose in a public Organization, set up by the Organization's Admin anywhere else", () => {
+test("an Environment without a vault says why: none on purpose in a public Organization, set up by an Organization Admin anywhere else", () => {
   const unsupported = (
     reason: Extract<VaultStatus, { state: "unsupported" }>["reason"],
   ) =>
@@ -1611,7 +1611,7 @@ test("an Environment without a vault says why: none on purpose in a public Organ
     [
       en,
       "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
-      "This Environment's vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
+      "This Environment's vault is not set up. An Organization Admin sets it up, and then you will find it here.",
     ],
   ] as const) {
     expect(vaultPageView(unsupported("no-tailnet"), null, copy)).toEqual({

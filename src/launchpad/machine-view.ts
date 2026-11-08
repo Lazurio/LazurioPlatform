@@ -270,8 +270,8 @@ export function environmentFacts(
 
 /** Who works in an Organization's Environment, by its assignment: the
  * assigned operator, an automation and its responsible operator, the Team
- * (also where the handover states no assignment), or the Organization's
- * Owners and Admins in Služby serveru. */
+ * (also where the handover states no assignment), or the Organization
+ * Admins in Služby serveru. */
 function worksText(
   assignment: AssignmentView | undefined,
   teamName: string | null,

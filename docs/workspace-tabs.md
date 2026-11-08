@@ -17,7 +17,7 @@ first within a tab and pinned in the column. Without an arrangement, or with
 fewer than two tabs that have something on this Environment, Workspace looks
 as before.
 
-The Organization's Owner also sees "Upravit karty" right after the switch and
+The Organization Owner also sees "Upravit karty" right after the switch and
 "Přesunout do karty" in each module's menu. Both lead to the Organization's
 modules in its Dashboard. Nobody else sees an editing action.
 
@@ -51,7 +51,7 @@ arrangement.
 | --- | --- | --- | --- | --- |
 | Same for every member | yes | yes | yes | no |
 | One truth, versioned and reviewable | yes, Git | yes, Git | no (0194 rejects it) | no |
-| Writer | the Dashboard with the Owner's rights (0194 point 2); agents by pull request | pull request only | the Dashboard | each browser |
+| Writer | the Dashboard with the Organization Owner's rights (0194 point 2); agents by pull request | pull request only | the Dashboard | each browser |
 | Older releases | treat the settings section as invalid and keep the last applied settings | copy the field into the legacy projection | unaffected | unaffected |
 | Local Folders, Team Environments | read from the root like every Organization file | same | need the relay | per browser |
 
@@ -61,10 +61,10 @@ was made for this kind of Organization-wide choice and fails safe.
 
 ## How a change travels
 
-1. The Owner clicks "Přesunout do karty" or "Upravit karty" and arranges the
+1. The Organization Owner clicks "Přesunout do karty" or "Upravit karty" and arranges the
    tabs in the Dashboard (Nastavení Organizace → Moduly).
-2. The Dashboard plans the exact change of `settings.workspace`, the Owner
-   approves it, and the Dashboard writes it to `main` with the Owner's own
+2. The Dashboard plans the exact change of `settings.workspace`, the Organization
+   Owner approves it, and the Dashboard writes it to `main` with the Organization Owner's own
    GitHub rights, with the blob's sha so a concurrent change is refused, then
    reads it back (the existing settings editor, `docs/organization-settings.md`
    §7 in the Dashboard).
@@ -78,8 +78,8 @@ was made for this kind of Organization-wide choice and fails safe.
 | --- | --- |
 | The section breaks the contract (duplicate name, a module in two tabs, a 41-character name) | No tabs; the Workspace is one list, every module still there |
 | A tab names modules that are not on this Environment | No tile for them; a tab left without any tile is not shown |
-| A new module | Lands in the first tab until the Owner places it |
-| The Owner's GitHub answer is late or fails | No editing actions (fail closed); everyone still sees the tabs |
+| A new module | Lands in the first tab until the Organization Owner places it |
+| The Organization Owner's GitHub answer is late or fails | No editing actions (fail closed); everyone still sees the tabs |
 | The Organization has no Dashboard page in the shell document | No editing actions |
 | An older Dashboard or Environment meets `workspace.tabs` | The whole section is invalid to it; it keeps the settings it applied last. Rollout order below avoids it |
 
@@ -98,11 +98,11 @@ was made for this kind of Organization-wide choice and fails safe.
 
 ## Open questions
 
-- Does the Owner arrange the tabs in the Dashboard (recommended, one writer),
+- Does the Organization Owner arrange the tabs in the Dashboard (recommended, one writer),
   or directly in Apps? Moving in Apps would need either an Apps draft that
   the Dashboard publishes, or an amendment of root decision 0194 point 2.
-- The first tab's suggested name when an Owner starts arranging: "Hlavní".
-- Who besides the Owner may arrange: Stewards, as with "Přístup k modulu"?
+- The first tab's suggested name when an Organization Owner starts arranging: "Hlavní".
+- Who besides the Organization Owner may arrange: Module Maintainers, as with "Přístup k modulu"?
 - #428 (hiding auxiliary modules) is served by a tab such as "Správa"; a
   separate "hidden" state is not part of this.
 - The wireframe's note (Matěj, 2026-10-17) gives the personal Workspace the

@@ -581,7 +581,7 @@ test("Apps of Služby serveru whose Organization is not installed: the Organizat
       holder: null,
       setup: false,
       tabs: [],
-      // An Owner or Admin is who enters Služby serveru.
+      // An Organization Admin is who enters Služby serveru.
       owner: true,
     });
     expect(parts.map((part) => part.kind)).toEqual(["section"]);

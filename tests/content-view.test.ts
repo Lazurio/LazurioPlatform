@@ -375,14 +375,14 @@ test("a stop says where it leads: Chat, the AI step, or the Admin of an unprepar
       .rows[0]?.failure,
   ).toMatchObject({
     sentence:
-      "Organizace ještě není připravená pro tuto verzi Lazuria. Organizaci připravuje Admin.",
+      "Organizace ještě není připravená pro tuto verzi Lazuria. Organizaci připravuje Admin Organizace.",
     resolve: "admin",
   });
   expect(
     contentView(work, unprepared, en, { github: "connected", resolve: "admin" })
       .rows[0]?.failure?.sentence,
   ).toBe(
-    "The Organization is not prepared for this version of Lazurio yet. The Organization's Admin prepares it.",
+    "The Organization is not prepared for this version of Lazurio yet. An Organization Admin prepares it.",
   );
   // Whoever can write the root gets the same sentence and Chat.
   expect(

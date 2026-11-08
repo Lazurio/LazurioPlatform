@@ -4,8 +4,8 @@ Status: decision 0192 of the [decision register](decision-register.md), in force
 the target model; the transition is not complete. Its amendments of 2026-10-26 and
 2026-11-01, decision 0202 and the access edges of decision 0224 are decided, not yet
 deployed; decision 0213 is decided and partly deployed; decision 0196 is in force;
-decision 0231 (application roles and what a Module receives) is decided, not yet
-deployed.
+decision 0231 (application roles and what a Module receives) and decision 0234 (the
+names of access roles) are decided, not yet deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
 `manual/environment-access-model.md` stays as the GEN3 record and is no authority
 for this repository. This document refines F11/F16/F33/F37 and
@@ -22,8 +22,8 @@ transfer of **all capabilities available inside** to a trusted user:
 files, processes, agents, browser sessions, passwords/passkeys, personal
 working logins, integrations and existing remote access. The sharing user
 accepts this risk. Do not require sign-out, profile wiping, credential
-replacement, conversion to a Team/broker mode or another Admin approval as
-a prerequisite. Active same-Organization membership and Admin approval of
+replacement, conversion to a Team/broker mode or another approval of the Organization Admin as
+a prerequisite. Active same-Organization membership and the Organization Admin's approval of
 the recipient's exact device remain mandatory, except in an Organization in
 public-DNS mode, which has no device approval (decision 0213, below); friends
 or family are not exceptions. Personalspace is outside this work-sharing
@@ -32,7 +32,7 @@ feature.
 Explain this scope at the normal sharing action, with a clearly labelled
 full-access choice and a separate app-only choice; do not add an approval
 workflow or a new user role. For collaboration without this personal trust,
-use a separate Team Environment. A full grant does not add an Admin role
+use a separate Team Environment. A full grant does not add the Organization Admin role
 to the recipient's Lazurio account, but a privileged identity already
 signed in inside the runtime can technically be used. The product must
 not claim per-user isolation or exclusive attribution to one user for that
@@ -41,7 +41,7 @@ publication remain a process obligation inside this trusted shared runtime.
 
 **Environment holding several Organizations.** When an individual work
 Environment holds repositories, data or sign-ins of several Organizations,
-its assignee may share it fully only with a user who is an active member
+its Assigned User may share it fully only with a user who is an active member
 of each of them (Matěj's decision of 2026-10-06). Sharing checks the
 Organizations connected to the Environment; that a personal sign-in such as
 GitHub can reach further Organizations is explained in the sharing text and
@@ -73,7 +73,7 @@ no live grants or credentials.
 
 An organizational Environment and its apps require all three:
 
-1. Tailscale against the correct Headscale, with Admin approval of the exact
+1. Tailscale against the correct Headscale, with the Organization Admin's approval of the exact
    device before protected reachability. OIDC or another approved device is
    not that approval. There is no public alternative to protected work URLs,
    except the public-DNS mode an Organization may choose (decision 0213,
@@ -84,13 +84,13 @@ An organizational Environment and its apps require all three:
 
 **Device approval.** An approval binds one concrete device, its owner's
 account and one target Organization. On a tailnet that serves several
-Organizations, each Organization's Admin approves entry into that
+Organizations, the Organization Admin of each Organization approves entry into that
 Organization; an approval for one Organization never opens another, and one
 device may carry approvals for several Organizations. Decided, not yet
-deployed (0192's amendment of 2026-11-01, with 0183 and 0205): the Admin
+deployed (0192's amendment of 2026-11-01, with 0183 and 0205): the Organization Admin
 approves or removes a device in the Dashboard through a service on the
 Conglomerate Host, which applies it within tens of seconds; a person may
-remove their own lost device at once, and only an Admin approves. Every action
+remove their own lost device at once, and only an Organization Admin approves. Every action
 is audited, and the service records each approval into the host owner's
 Deployment Repository automatically as an audit entry without review, a record
 and not an input. The rules (who may approve, and where an approved device
@@ -101,7 +101,7 @@ Dashboard never rewrites approvals by writing to Headscale directly. Moving the
 record to Auth is a separate migration with no period of two writers.
 
 **Reach derived from one truth.** Reach between people, devices and
-Environments derives from assignments, approved devices and live Admin roles
+Environments derives from assignments, approved devices and live Organization Admin roles
 (0192 with its amendment of 2026-10-07; the amendments of 2026-10-26 and
 2026-11-01 are decided, not yet deployed).
 
@@ -113,7 +113,7 @@ Environments derives from assignments, approved devices and live Admin roles
 - A Personal Environment, which is not a device, always reaches the Work
   Environments assigned to its owner in the same tailnet over SSH, without a
   device approval.
-- An Admin's Work Environment is the Organization's administrative station
+- An Organization Admin's Work Environment is the Organization's administrative station
   (decision 0202).
 - No edge runs in the opposite direction of another. Every access between
   Environments is listed in [Access edges in a Conglomerate](#access-edges-in-a-conglomerate-decision-0224-decided-not-yet-deployed)
@@ -165,7 +165,7 @@ Team scopes the Environment's repository capability through the existing
 Organization broker, not the personal identity of every visitor. A GitHub
 link alone grants no repository right.
 
-An Admin manages who may enter a Team Environment. Until Auth grants replace
+An Organization Admin manages who may enter a Team Environment. Until Auth grants replace
 it, membership of the Environment's GitHub Team decides entry as the marked
 migration implementation.
 
@@ -177,7 +177,7 @@ gateways and the server's public entry that carry this mode belong to Machines; 
 repository has no code for it.
 
 - **The switch.** The mode is one setting in the Organization's Deployment Repository,
-  the server's public entry on each server concerned. The Organization's Admin turns
+  the server's public entry on each server concerned. The Organization Admin turns
   it on by a reviewed pull request that cites the Organization's own decision; it
   requires mandatory two-factor authentication in the GitHub Organization and a DNS
   zone delegated to the Organization. Admitting any Lazurio account stays reserved to
@@ -185,7 +185,7 @@ repository has no code for it.
 - **Entry.** The server's entry reads only the server name from TLS without opening
   the connection, passes only declared Environment names to their gateways and closes
   any other name. A Lazurio account with active membership and a specific grant
-  replaces the Admin-approved device: condition 1 above and device approval do not
+  replaces the device approved by the Organization Admin: condition 1 above and device approval do not
   apply to people. From the internet only the entry into Environment gateways is
   reachable, and every path behind it needs a Lazurio session.
 - **Revocation.** Every gateway refreshes the session at least every two minutes, so a
@@ -201,18 +201,18 @@ repository has no code for it.
   the vault over the tailnet, and the servers are managed through the Organization's
   own Conglomerate Host. The services Environment that carries the public entry stays
   outside the tailnet.
-- **Accepted risks.** A stolen session works from anywhere until it is ended, the Admin
+- **Accepted risks.** A stolen session works from anywhere until it is ended, the Organization Admin
   has no device list, and the gateways are visible on the internet. The tailnet stays
   the backbone of security; public DNS is an Organization's choice, not the standard.
 
 ## Module data: the Environment's ceiling (decision 0196)
 
-In force. Lazurio controls entry to a Module's application (application admin,
-application user or no entry, [decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)) and passes it who came and with
+In force. Lazurio controls entry to a Module's application (Application Admin,
+Application User or no entry, [decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)) and passes it who came and with
 which application role; what each person may do inside is the Organization's own
 rules in its code and data.
 
-- **The Environment reaches the data, not a person.** The Organization's Admin gives
+- **The Environment reaches the data, not a person.** The Organization Admin gives
   the Environment its data access through the vault: that is the Environment's
   ceiling. The Launchpad hands a Module only the secrets it declares, by name, read from
   the Environment's own vault before every start and passed to the Module's own process
@@ -249,33 +249,39 @@ rules in its code and data.
 ## Applications and application roles (decision 0231): decided, not yet deployed
 
 [Decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users) names three levels of access and never lets admin or user
-stand alone: the Organization (Owner, Organization Admin, member), the Module
-(module access to its source code, maintainer) and the application (application
-admin, application user).
+stand alone; [decision 0234](decision-register.md#0234--the-names-of-access-roles-one-vocabulary-for-every-text-screen-and-agent) gives each role its name and identifier.
+The Organization has the Organization Owner, the Organization Admin and the
+Organization Member; a Module has the Module Reader, the Module Contributor and the
+Module Maintainer (module access is the name of the setting that holds a person's or
+a Team's Module role, never a role); an application has the Application Admin and the
+Application User (the module kit's `appRole` `admin` and `user`).
 
 - **An application** is the running stable version of a Module, built from `main` of
   the primary checkout on an Environment (decision 0195). A worktree's development
   server is not one.
 - **Roles hold across Environments.** An application role holds for the Module on
-  every Environment of the Organization. Application admins without any setting are
-  the members with module access, the Organization Admin and whoever has the whole
-  Environment where the application runs. Members with module access and the Admin
-  give application admin or application user to people, a Team or the whole
-  Organization; the higher role holds, and the Admin may remove any.
+  every Environment of the Organization. Application Admins without any setting are
+  the Module Contributors, the Module Maintainers, the Organization Admin and whoever
+  has the whole Environment where the application runs; the Module Reader role by
+  itself gives no application role. Module Contributors, Module Maintainers and the
+  Organization Admin give the role of Application Admin or Application User to people,
+  a Team or the whole Organization; the higher role holds, and the Organization Admin
+  may remove any.
 - **Availability.** The person on whose Environment the application runs makes it
-  available to the Organization. Members with a role see it in Apps of their
+  available to the Organization. People with an active membership of the Organization
+  and a role see it in Apps of their
   Launchpad, or on their Lazurio account without an Environment, and the gateway
   admits them to that application only (see app-only entry below). A Work
   Environment is the first home; the target is an application the Organization runs
   at its own address behind its own gateway (decision 0146).
 - **What a Module receives.** Only the module kit's answer is the contract, with
   the same five fields in every case: the kind of entry (`environment`, `app`,
-  `local`, `unknown`), the application role (`admin`, `user`, none with
-  `unknown`), the person (Lazurio subject and username, or none), the source of
+  `local`, `unknown`), the application role (`admin` for the Application Admin, `user` for the
+  Application User, none with `unknown`), the person (Lazurio subject and username, or none), the source of
   the statement (`gateway`, later `auth`; none without a person) and, without a
   person, the reason. The gateway sets it from its own
   admission answer after removing every client copy; a missing statement grants no
-  role, and a request from inside the Environment is an application admin without a
+  role, and a request from inside the Environment is an Application Admin without a
   name. Its fields and values never change meaning; new information comes as new
   fields.
 - **Meaning.** What the two roles allow is the Organization's rule in the Module's
@@ -287,20 +293,20 @@ admin, application user).
 
 ## Sharing and remote operations
 
-An Admin manages membership, initial assignments, device admission and
-cross-user links within their scope. An assignee may share their work
-Environment or selected apps with existing active members of the same
-Organization without another Admin click. This cannot invite outsiders,
+An Organization Admin manages membership, initial assignments, device admission and
+cross-user links within their scope. An Assigned User may share their work
+Environment or selected apps with people who have an active membership of the same
+Organization without another click of the Organization Admin. This cannot invite outsiders,
 approve devices, create membership or assign someone else's Environment.
 A user may link two Environments assigned to them in that Organization;
-a matching assignee across Organizations is not a cross-Organization grant.
+a matching Assigned User across Organizations is not a cross-Organization grant.
 
 Both full and application shares are bound to the originating assignment:
 they end when that assignment is lost or reassigned, when the sharer or the
 recipient loses membership, or when the target is rebound, and a later
 restoration does not revive them. An application made available from an
-Environment admits people by their application role, application admin or
-application user ([Applications and application roles](#applications-and-application-roles-decision-0231-decided-not-yet-deployed)),
+Environment admits people by their application role, Application Admin or
+Application User ([Applications and application roles](#applications-and-application-roles-decision-0231-decided-not-yet-deployed)),
 not by a per-person grant of at most basic `user` entry.
 
 Full entry exposes Chat, automation, Launchpad and the runtime's available
@@ -343,22 +349,22 @@ by default.
 
 | Access | From → to | Derived from | How |
 | --- | --- | --- | --- |
-| Work access | A Personal Environment → the Work Environments assigned to its Owner in every Organization of its Conglomerate | The assignment and live membership | Automatically, SSH, this direction only |
+| Work access | A Personal Environment → the Work Environments assigned to its owner in every Organization of its Conglomerate | The assignment and live membership | Automatically, SSH, this direction only |
 | Team Environments through a Work Environment | A person's Work Environment → the Team Environments of that person's Teams in the same Organization | Team membership | Automatically, SSH with the Work Environment's key. From the Personal Environment in two `ssh` steps through the person's own Work Environment, never directly and without forwarding its key |
-| Administration (decision 0202) | An Admin's Work Environment → every other Environment of the Organization: members' Work and Team Environments, other Admins' Work Environments, Henry and the server services | The live Admin role | Automatically, SSH with the station's one key. From the Admin's Personal Environment in two steps through that Work Environment |
-| From a device | A person's approved device → that person's Environments | The Admin's approval of the device (0192) | Automatically after the approval: 443 and 22, a phone 443 |
-| To a device | An Environment → one specific computer | The consent of the device's Owner: a person for their own computer, the Organization's Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable, SSH |
+| Administration (decision 0202) | An Organization Admin's Work Environment → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services | The live Organization Admin role | Automatically, SSH with the station's one key. From the Organization Admin's Personal Environment in two steps through that Work Environment |
+| From a device | A person's approved device → that person's Environments | The Organization Admin's approval of the device (0192) | Automatically after the approval: 443 and 22, a phone 443 |
+| To a device | An Environment → one specific computer | The consent of the device's owner: a person for their own computer, the Organization Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable, SSH |
 | Exceptions | Anything else | A reviewed pull request to the Deployment Repository with its reason and owner | Exceptionally |
 
 - **No reverse edges.** No edge exists as the reverse of another: neither Work →
   Personal nor Team → Work, and the target of administration does not reach the
-  Admin's Environments by it. Two Admins of one Organization reach each other's Work
+  Organization Admin's Environments by it. Two Organization Admins of one Organization reach each other's Work
   Environments, each from their own role. The source Environment's key is never
   forwarded: the step from a Work Environment into a Team Environment is a second
   `ssh` run in the Work Environment with its own key.
-- **Who grants it.** The Organization's Admin, through their decisions: assigning an
-  Environment, putting a person into a Team, naming an Admin, approving a device. A
-  device's Owner switches on access to that device. No separate SSH grant is created.
+- **Who grants it.** The Organization Admin, through their decisions: assigning an
+  Environment, putting a person into a Team, approving a device; the Organization
+  Owner, by naming an Organization Admin. A device's owner switches on access to that device. No separate SSH grant is created.
 - **How it is applied.** The service on the Conglomerate Host that approves devices
   derives the edges from these facts: it delivers the source Environment's key to the
   target account, accepted only from the source's address and never forwarded, and
@@ -386,7 +392,7 @@ Environment's Launchpad Settings → SSH from your devices
 The key goes into the Environment account's `authorized_keys` and nowhere
 else; the host key reaches the computer over the signed-in page and is pinned.
 This is entry to the account, not to the network: reaching the Environment on
-TCP/22 from that device remains a separate grant the Organization's Admin
+TCP/22 from that device remains a separate grant the Organization Admin
 approves and Headscale enforces, and the Launchpad neither checks nor opens
 it. Under 0192's amendment of 2026-11-01 that grant comes with the approval of a
 computer; a phone has none (decided, not yet deployed). Removing a web grant or
@@ -409,7 +415,7 @@ remove device keys; whether that needs a narrower rule is open.
 - Revoking device, membership or grant covers cached admission, refresh,
   existing WebSockets and remote connections with a measured convergence
   bound. Reassignment must not transfer prior working credentials/sessions.
-- Onboarding separates account login, pending Admin device approval and
+- Onboarding separates account login, pending device approval by the Organization Admin and
   optional working integrations. A GitHub requirement belongs to the exact
   GitHub operation; absence of GitHub is not a universal first-run blocker.
 - Existing Machine binding/entry, immutable origins, unknown-host denial,

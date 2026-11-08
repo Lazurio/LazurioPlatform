@@ -515,7 +515,7 @@ test("the line in Apps: AI first, then GitHub, then the content, a run, a stop",
   expect(line({ ...stopped, resolve: "admin" })).toEqual({
     tone: "failed",
     icon: "warning",
-    text: "Example Company ještě není připravená. Připravuje ji Admin.",
+    text: "Example Company ještě není připravená. Připravuje ji Admin Organizace.",
     actions: [{ action: "install-content", label: "Zkusit znovu" }],
   });
   // An Organization without a display name is named by its login.

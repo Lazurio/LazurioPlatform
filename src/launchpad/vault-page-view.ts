@@ -373,7 +373,7 @@ function rowLine(
  * - an Environment without a vault: why, in place of the vault (how a vault
  *   works in an Organization is the "?"'s video). A public Organization's
  *   Environment (`no-tailnet`) has none on purpose; any other's (`no-vault`)
- *   is not set up yet, and its Organization's Admin sets it up;
+ *   is not set up yet, and an Organization Admin sets it up;
  * - otherwise the vault's row: its name and the item count,
  *   "Zakládání trezoru…" while a setup runs, "Neodpovídá" when the vault
  *   does not answer;

@@ -48,7 +48,7 @@ type Copy = Readonly<Record<MessageKey, string>>;
  * every one whose GitHub is signed in on the Environment itself. A personal
  * Remote Environment, an Organization's work Environment of one person and a
  * workstation sign in as their person. The Automated Environment (the
- * Steward preset, decision F27) is a work Environment of the Organization
+ * preset `hosted-organization-steward`, decision F27) is a work Environment of the Organization
  * that its responsible user sets up, signed in as its persona's own account,
  * and has the same onboarding (F27's addendum of 2026-10-30, root decision
  * 0188's addendum of that day). A Team Environment acts through the
@@ -66,8 +66,8 @@ export function hasOnboarding(preset: string | null | undefined): boolean {
 }
 
 /** Whether the Environment's GitHub is its persona's own account, not the
- * person's (the preset's provider identity `persona-account`: the Steward
- * preset of the Automated Environment, decisions 0169 and F27). Začínáme's
+ * person's (the preset's provider identity `persona-account`: the preset
+ * `hosted-organization-steward` of the Automated Environment, decisions 0169 and F27). Začínáme's
  * GitHub step, its tour stops and the line in Apps say so. */
 export function personaGithub(preset: string | null | undefined): boolean {
   return (
@@ -89,8 +89,8 @@ type AssignedMachine = Readonly<{
 /** The login whose own account does not belong in gh here: on an
  * Environment whose GitHub is its persona's, its responsible user's, as the
  * handover's `owner.assignment` `{kind: "automation"}` names them (decision
- * 0169). Null everywhere else, and where the binding names nobody (a Steward
- * preset chosen explicitly on a work VM without a stated assignment). */
+ * 0169). Null everywhere else, and where the binding names nobody (the preset
+ * `hosted-organization-steward` chosen explicitly on a work VM without a stated assignment). */
 export function responsibleLogin(
   preset: string | null | undefined,
   machine: AssignedMachine | null | undefined,
@@ -863,7 +863,7 @@ export function startDecision(
  * connected; and for an Organization that is not prepared for this version
  * (`unpreparedCodes`), to someone who cannot write its root repository
  * (`rootAccess` not confirmed, which includes not known yet), only the
- * sentence that its Admin prepares it. An AI not known yet is not claimed
+ * sentence that an Organization Admin prepares it. An AI not known yet is not claimed
  * missing. On a public Environment, whose visitors connect no AI and fix
  * nothing of the Organization, it is always that sentence (decision F55). */
 export function resolveOf(

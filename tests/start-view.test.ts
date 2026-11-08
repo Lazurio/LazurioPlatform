@@ -29,7 +29,7 @@ const en = messages("en");
 // The line beneath "Přihlásit kódem" (root decision 0201 point 10, wording
 // of 2026-10-22): the setting only for a code ChatGPT's page refuses.
 const byCodeHint =
-  "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.";
+  "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje admin jeho pracovního prostoru v ChatGPT.";
 
 const organization: ContentItem = {
   kind: "organization",
@@ -442,7 +442,7 @@ test("Přihlásit kódem (root decision 0201 point 10): ChatGPT's quieter sign-i
   // Beneath the choice, with the setting for a code ChatGPT's page refuses,
   // in both languages.
   expect(en.startAiByCodeSetting).toBe(
-    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, its admin allows it.",
+    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, the admin of its ChatGPT workspace allows it.",
   );
   for (const copy of [cs, en])
     for (const aiPlace of ["panel", "own"] as const)

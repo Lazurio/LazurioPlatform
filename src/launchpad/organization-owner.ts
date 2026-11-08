@@ -7,9 +7,11 @@ import { ownerAnswerMs } from "./owner-answer";
 // addendum of 2026-10-04 and addendum of 2026-11-05): GitHub's own, live
 // answer, read with the Environment's `gh` (`gh api
 // user/memberships/orgs/<login>`): the role of an active membership, `admin`
-// (an Owner, the Organization Admin) or `member`. It decides only what the
-// Apps home offers as "+ Nový modul": the Organization Admin founds a module, a member asks
-// the Organization Admin; it grants nothing, and no local rule stands in for it. A Team
+// (an Organization Owner, who counts as the Organization Admin until the
+// role in Lazurio Auth is deployed) or `member` (an Organization Member).
+// It decides only what the Apps home offers as "+ Nový modul": the
+// Organization Admin founds a module, an Organization Member asks the
+// Organization Admin; it grants nothing, and no local rule stands in for it. A Team
 // Environment acts under the Team's brokered identity and never founds
 // modules for a person nor asks for them, and an Organization without a bound
 // GitHub login has none to ask: both are no role, without a call. Every
@@ -39,14 +41,16 @@ export function membershipRole(stdout: string): OrganizationRole | null {
   }
 }
 
-/** Whether a membership answer of the GitHub API is an active Owner's. */
+/** Whether a membership answer of the GitHub API is an active Organization
+ * Owner's. */
 export const isOwnerMembership = (stdout: string): boolean =>
   membershipRole(stdout) === "admin";
 
 /** One read of the GitHub API with this Environment's `gh` (`gh api
  * <path>`), bounded by the check's timeout: its output, or null on any
- * failure (no `gh`, no home, a refusal, a timeout). Shared by the Owner
- * check and the Steward's `maintain` read (module-maintainer.ts), so both
+ * failure (no `gh`, no home, a refusal, a timeout). Shared by the Organization
+ * Owner check and the Module Maintainer's `maintain` read
+ * (module-maintainer.ts), so both
  * ask GitHub the same way. */
 export async function askGitHub(
   environment: ToolsEnvironment,
@@ -107,7 +111,7 @@ export function createOwnerCheck(
   return {
     /** The role for a bound GitHub login on this Folder's preset. */
     role,
-    /** Whether that role is the Owner's. */
+    /** Whether that role is the Organization Owner's. */
     async owner(
       organization: string | undefined,
       preset: PresetName,

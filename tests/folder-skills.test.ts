@@ -375,7 +375,7 @@ test("the skill new-module explains a module in the shared words on every preset
         ? [
             "kteří kolegové a které Teamy na něm budou pracovat",
             "Přehledu Organizace → Moduly → Přístup",
-            "decision 0186",
+            "decisions 0186, 0232",
             "`admin-request`",
             "`manual/mechanisms.md`",
             "obvykle do hodiny po merge slotu",
@@ -384,7 +384,7 @@ test("the skill new-module explains a module in the shared words on every preset
         : [
             "which colleagues and which Teams will work on it",
             "the Organization's Dashboard → Modules → Access",
-            "decision 0186",
+            "decisions 0186, 0232",
             "`admin-request`",
             "`manual/mechanisms.md`",
             "within an hour of the slot's merge",
@@ -402,7 +402,7 @@ test("the skill new-module explains a module in the shared words on every preset
     }
 });
 
-test("the skill module-standard says what the N of app/vN means and the skill admin-request names a new module and access to a module", () => {
+test("the skill module-standard says what the N of app/vN means and the skill admin-request names a new module and a Module role", () => {
   for (const journey of journeys)
     for (const locale of ["cs", "en"] as const) {
       const outputs = rendered(journey, locale);
@@ -417,8 +417,8 @@ test("the skill module-standard says what the N of app/vN means and the skill ad
         outputs[".agents/skills/admin-request/SKILL.md"] ?? "",
       );
       for (const phrase of cs
-        ? ["nový modul (s potvrzeným popisem)", "přístup k modulu"]
-        : ["a new module (with a confirmed description)", "access to a module"])
+        ? ["nový modul (s potvrzeným popisem)", "roli modulu"]
+        : ["a new module (with a confirmed description)", "a Module role"])
         expect([phrase, description.includes(phrase)]).toEqual([phrase, true]);
     }
 });

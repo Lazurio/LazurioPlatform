@@ -409,7 +409,7 @@ type SyncChild = Readonly<{
   repository: string;
   kind: "module" | "data";
   branch: string;
-  /** Restricted (Admin-only), itself or below such a slot: kept current
+  /** Restricted (Organization Admin only), itself or below such a slot: kept current
    * when present, never cloned by a synchronization. */
   restricted: boolean;
   /** A data mount's module. */

@@ -187,8 +187,8 @@ const principles: readonly Principle[] = [
       },
       {
         text: {
-          cs: "Admin ani nikdo cizí do něj nevidí",
-          en: "No Admin or stranger can see into it",
+          cs: "Admin Organizace ani nikdo cizí do něj nevidí",
+          en: "No Organization Admin or stranger can see into it",
         },
         at: "rail-personal",
       },
@@ -200,7 +200,10 @@ const principles: readonly Principle[] = [
         at: "rail-organizations",
       },
       {
-        text: { cs: "Její Admin do něj smí", en: "Its Admin may enter it" },
+        text: {
+          cs: "Admin Organizace do něj smí",
+          en: "The Organization Admin may enter it",
+        },
         at: "rail-organizations",
       },
     ],

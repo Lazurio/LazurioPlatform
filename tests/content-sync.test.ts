@@ -1032,7 +1032,9 @@ posixTest(
     // An Organization this Folder does not hold.
     expect((await command("Other")).code).toBe(1);
     // Usage.
-    await expect(command("Alpha", "--role", "builder")).rejects.toThrow();
+    await expect(
+      command("Alpha", "--role", "module-contributor"),
+    ).rejects.toThrow();
   },
   60_000,
 );

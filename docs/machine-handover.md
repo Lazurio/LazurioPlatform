@@ -1,6 +1,6 @@
 # Machines handover consumer — limited Linux pilot
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Machines owns provisioning, networking, firewall, SSH and the infrastructure
 gateway. Platform owns the environment inside the delivered Machine. This boundary
@@ -435,11 +435,12 @@ ordinary preview → apply flow.
 
 Every Proxmox server of an Organization has one services Environment `services-NN`,
 to users **Služby serveru** ("Server services"): a work Environment of the
-Organization that only its Owners and Admins enter (Machines
+Organization that only its Organization Admins enter (decision 0228; Machines
 `docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
 `{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
-grants scope its brokered identity. Admission (the Owner role of the Organization)
-is the gateway's and is not in the handover; the Platform derives nothing from it.
+grants scope its brokered identity. Admission is the gateway's and is not in the handover: until the Organization Admin
+role in Lazurio Auth is deployed, it admits the Organization's `Owner` role in Lazurio Auth,
+which today's Organization Owners and Organization Admins hold; the Platform derives nothing from it.
 Machines writes the assignment, together with `services`, only for a pinned Platform
 that reads them; until then it writes neither and the guest keeps the resident
 Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
@@ -456,11 +457,12 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   `work`, label "Služby serveru" or "Server services", no `assignee` and no
   `operator.login` (`environmentKind` and `environmentLabel` in
   `src/launchpad/shell-document.ts`).
-  Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Owneři a
-  Admini Organizace" working there and "Služby serveru" as the assignment for
+  Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Admini
+  Organizace" working there and "Služby serveru" as the assignment for
   support; Obecné names the Team preset it has the same way. The generated Folder
-  states the assignment (only Owners and Admins enter, the Team's rules hold, the
-  name users know it by) and that the user is the connected Owner or Admin.
+  states the assignment (only Organization Admins enter, the
+  Team's rules hold, the name users know it by) and that the user is the connected
+  Organization Admin.
 - **Services.** The member `services` (each service's id, kind, productionspace
   repository and loopback page port) is accepted exactly as the schema writes it,
   recorded nowhere in the Folder, and read only by the catalog, only where the
@@ -487,7 +489,7 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
 ## Assigned peers (root decision 0192, addendum of 2026-10-26)
 
 The addendum makes SSH from an Osobní Prostředí into every Pracovní Prostředí
-assigned to its Owner in the same tailnet always on. The Osobní Prostředí knows each
+assigned to its owner in the same tailnet always on. The Osobní Prostředí knows each
 target's host key from the records of the Organization that owns it, never from a
 first connection (point (d)), and Lazurio writes these Environments' names into it
 for agents, Buddy and Delegace (point (e)). Machines #948 (released in v0.12.211, see
@@ -841,8 +843,8 @@ on no other handover.
 
 The person is in the receipt the Environment's assignment finisher writes beside the
 handover, under the same root custody: the neutral Machine id, the state and
-generation, the first assignee (`first`: Lazurio subject and the GitHub id linked
-then), the current assignee, and, written once at the first binding, the frozen
+generation, the first Assigned User (`first`: Lazurio subject and the GitHub id linked
+then), the current Assigned User, and, written once at the first binding, the frozen
 username `dns_slug`, the person's Linux `account` and its hostname. The Platform
 reads it only for an auth-sourced handover and refuses it whole when it is not this
 Machine's (its Machine id and, on a work Environment, its Organization) or not the
@@ -854,7 +856,7 @@ GitHub login: it can be a chosen name, or survive a GitHub rename, relink or unl
 
 | Handover | Resolved context |
 | --- | --- |
-| personal `owner: {kind: assignment}` | `{kind: account, username: <dns_slug>, subject: <first.subject>, github}`: the first assignee, for good. `github` is `{login, id}` only when the current generation links the GitHub id the first binding linked (`first.github_id`), with that generation's login (lowercase); otherwise, after a relink to another account or an unlink, `null` |
+| personal `owner: {kind: assignment}` | `{kind: account, username: <dns_slug>, subject: <first.subject>, github}`: the first Assigned User, for good. `github` is `{login, id}` only when the current generation links the GitHub id the first binding linked (`first.github_id`), with that generation's login (lowercase); otherwise, after a relink to another account or an unlink, `null` |
 | personal `machine.name` (neutral) | `<dns_slug>`; `machine.id` stays neutral |
 | work `owner.assignment: {kind: operator, source: auth}` | `{kind: operator, account: {username: <dns_slug>, subject: <first.subject>, github}}`: the operator kind, so the Organization presets derive `hosted-organization-personal` as always, and the person by their Lazurio account. `github` is the current generation's linked GitHub account (`{login, id}`, lowercase), or `null`: a work Environment's assignee needs no GitHub account (root decision 0192, Machines `docs/free-environments.md` §3, §5.1) |
 | `operator` (operational account) | the receipt's `account`: `/home/<account>`, `/home/<account>/Lazurio` |
@@ -884,11 +886,11 @@ unlink never turns the adopted Folder into another Machine's. The binding's dige
 stays the handover's.
 
 What people and agents see of such a person, the personal owner or the work
-assignee: the Folder's `AGENTS.md` and manual name them as "the user with Lazurio
+Environment's Assigned User: the Folder's `AGENTS.md` and manual name them as "the user with Lazurio
 username `<username>`", followed by "(GitHub login `<login>`, id `<id>`)" or "(no
 verified GitHub account)"; the Launchpad's "This Environment" names the username, with
 the GitHub account in its details only when verified; the shell's operator (and a work
-Environment's assignee) is the username, with a GitHub photo only of a verified login;
+Environment's Assigned User) is the username, with a GitHub photo only of a verified login;
 the personal vault is "Osobní <username>"; the Personalspace's GitHub holder must be
 the verified GitHub id, and without one no GitHub account holds or installs a personal
 owner's Personalspace (`github-identity-mismatch`); the GitHub sign-in pilot

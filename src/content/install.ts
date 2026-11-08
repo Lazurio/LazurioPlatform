@@ -48,10 +48,12 @@ import {
 } from "./personalspace-bootstrap";
 import { dataMountOf, provideRepository } from "./provide";
 import {
+  type BranchRules,
   classifySlotAccess,
   type OrganizationRole,
   type RepositoryPermission,
   type RoleVerification,
+  rootBranchRules,
   verifyOrganizationRole,
 } from "./role";
 import {
@@ -71,7 +73,7 @@ import {
 // operation (docs/content-sync.md). On a public Environment (the scope's
 // `github` anonymous, decision F55's addendum of 2026-10-17) the same steps
 // run without any GitHub identity: no gh account, no read of GitHub's API,
-// the reader's scope, and every clone over anonymous HTTPS with no
+// the Module Reader's scope, and every clone over anonymous HTTPS with no
 // credential helper, in an isolated git (`anonymousGitEnvironment`); nothing
 // is created, granted or pushed there.
 
@@ -83,9 +85,10 @@ export type InstallRequest = Readonly<{
    * `--root`). */
   roots?: Readonly<Record<string, string>> | undefined;
   /** The role the caller asks for in an Organization, by lowercase GitHub
-   * login: `admin` for the CLI's bare form, `builder`, `steward` or
-   * `reader` for its `--role`; absent (the Launchpad), the role is resolved
-   * live. Either way GitHub must confirm it. */
+   * login: `organization-admin` for the CLI's bare form,
+   * `module-contributor`, `module-maintainer` or `module-reader` for its
+   * `--role`; absent (the Launchpad), the role is resolved live. Either way
+   * GitHub must confirm it. */
   roles?: Readonly<Record<string, OrganizationRole>> | undefined;
 }>;
 
@@ -479,8 +482,9 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
 // the same install. `infra` and a database slot declared
 // otherwise are left out. The role scope comes first, as the resident applies it
 // (`R:lazurio/runtime/lazurio-update-lib.mjs`, restricted slot policy): a
-// restricted (Admin-only) slot and every slot below one are in scope only for
-// a verified Admin, and are otherwise `excluded_by_role_scope`; a slot whose
+// restricted (Organization Admin only) slot and every slot below one are in
+// scope only for a verified Organization Admin, and are otherwise
+// `excluded_by_role_scope`; a slot whose
 // access declaration (its own or one above it) is malformed is never
 // materialized, for any role. Neither asks GitHub anything.
 export function declaredChildren(
@@ -665,8 +669,8 @@ const foundBy = (resolution: Access["resolution"]) =>
 /** The access of a public Environment (root decision 0204 point 5, decision
  * F55's addendum of 2026-10-17): no GitHub identity, so no account, no read
  * of GitHub's API and no role GitHub confirms. The Organization is read
- * anonymously as a reader: restricted slots are excluded as for every
- * Reader. Only the reader's role is asked for; any other one cannot be
+ * anonymously as a Module Reader: restricted slots are excluded as for every
+ * Module Reader. Only `module-reader` is asked for; any other role cannot be
  * confirmed here and fails closed. */
 async function anonymousAccess(
   login: string,
@@ -675,11 +679,11 @@ async function anonymousAccess(
 ): Promise<Access | ItemOutcome> {
   const { folder, host } = context;
   const requested = context.roles[login.toLowerCase()] ?? null;
-  if (requested !== null && requested !== "reader")
+  if (requested !== null && requested !== "module-reader")
     return steps.fail(
       "access",
       "role-unverified",
-      `the role ${requested} in ${login} could not be verified: this public Environment has no GitHub identity and installs only as a reader${requested === "admin" ? "; name it with --role reader" : ""}`,
+      `the role ${requested} in ${login} could not be verified: this public Environment has no GitHub identity and installs only as a Module Reader${requested === "organization-admin" ? "; name it with --role module-reader" : ""}`,
     );
   const resolution = await resolveAnonymousRoot({
     folder,
@@ -693,12 +697,12 @@ async function anonymousAccess(
   const rootRepository = resolution.repository;
   steps.done(
     "access",
-    `anonymously (reader, restricted slots excluded); root ${rootRepository ?? "present in this Folder"}${foundBy(resolution)}`,
+    `anonymously (module-reader, restricted slots excluded); root ${rootRepository ?? "present in this Folder"}${foundBy(resolution)}`,
   );
   return {
     resolution,
     rootRepository,
-    role: { kind: "verified", role: "reader", restricted: "exclude" },
+    role: { kind: "verified", role: "module-reader", restricted: "exclude" },
   };
 }
 
@@ -724,6 +728,7 @@ async function accountAccess(
     return unusableRoot(login, resolution, steps);
   let rootRepository = resolution.repository;
   let rootPermission: RepositoryPermission | null = null;
+  let branchRules: BranchRules = "unknown";
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
     const access = await host.github.repository(owner, name);
@@ -747,28 +752,36 @@ async function accountAccess(
       );
     rootRepository = access.repository.fullName;
     rootPermission = access.repository.permission;
+    branchRules = await rootBranchRules(
+      access.repository,
+      rootPermission,
+      host.github.branchRules?.bind(host.github),
+      context.roles[login.toLowerCase()] ?? null,
+    );
   }
   // The person's live role decides the scope; nothing starts without one.
-  // A Steward or Builder is confirmed by the root's permission alone; an
-  // Admin, a Reader and a live resolution also need the membership.
+  // A Module Maintainer or Module Contributor is confirmed by the root's
+  // permission alone; an Organization Admin, a Module Reader and a live
+  // resolution also need the membership.
   const requested = context.roles[login.toLowerCase()] ?? null;
   const membership =
-    requested === "steward" || requested === "builder"
+    requested === "module-maintainer" || requested === "module-contributor"
       ? ({ kind: "none" } as const)
       : await host.github.membership(login);
   const role = verifyOrganizationRole({
     requested,
     membership,
     rootPermission,
+    rootBranchRules: branchRules,
   });
-  // Only the CLI's bare form asks for `admin`; its agent learns there that
-  // the narrower roles are named with --role (the Launchpad's prompt for
-  // Chat names the bare command).
+  // Only the CLI's bare form asks for `organization-admin`; its agent learns
+  // there that the narrower roles are named with --role (the Launchpad's
+  // prompt for Chat names the bare command).
   if (role.kind === "unverified")
     return steps.fail(
       "access",
       "role-unverified",
-      `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}${requested === "admin" ? "; without --role this is the Admin installation: name the role GitHub confirms with --role steward, --role builder or --role reader" : ""}`,
+      `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}${requested === "organization-admin" ? "; without --role this is the Organization Admin's installation: name the role GitHub confirms with --role module-maintainer, --role module-contributor or --role module-reader" : ""}`,
     );
   steps.done(
     "access",

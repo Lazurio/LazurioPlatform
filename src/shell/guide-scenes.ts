@@ -298,9 +298,11 @@ const scenes: Readonly<Record<string, Scene>> = {
             ),
           ],
   },
-  /** 2: the Osobní Prostředí: Admin and strangers stop at its blue border;
-   * beside it a Pracovní Prostředí, which belongs to the Organization, and
-   * its Admin walks in. */
+  /** 2: the Osobní Prostředí: the Organization Admin and strangers stop at
+   * its blue border; beside it a Pracovní Prostředí, which belongs to the
+   * Organization, and the Organization Admin walks in. The figure's tag
+   * (`words.admin`) still reads a bare "Admin": the level does not fit the
+   * 320 px stage at the figure's positions (a follow-up of decision 0234). */
   buddy: {
     beats: 4,
     draw: ({ o, say, locale }) => [

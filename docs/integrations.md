@@ -71,7 +71,7 @@ the sign-in is the user's consent, so they send the link to its card.
 4. Through Composio where it is allowed (`composioPolicyOf`, below), after
    signing the user's Composio account in where it is not signed in yet.
 5. Without either: an Organization's company app
-   first (its Admin sets it up in the Dashboard, anyone else asks the Admin), then
+   first (its Organization Admin sets it up in the Dashboard, anyone else asks the Organization Admin), then
    Composio not allowed (whoever decides allows it, anyone else asks), then the
    app's own tool, else nothing.
 
@@ -103,8 +103,8 @@ records (`composioPolicyOf(preset, settings)`, decision F45): on an Organization
 Environment whose Organization says `integrations.composio.allowed: false` it is
 `{allowed: false, source: "organization"}`, so no app goes through Composio, its
 accounts are not asked for, and an app only Composio connects says the company has
-it off (its Admin: "Povolit Composio", which opens the Organization in the
-Dashboard; anyone else: "Požádat Admina"). Where the Organization says `true` it is
+it off (its Organization Admin: "Povolit Composio", which opens the Organization in the
+Dashboard; anyone else: "Požádat Admina Organizace"). Where the Organization says `true` it is
 `{allowed: true, source: "organization"}`; where it says nothing, and on a personal
 Environment or the user's own computer, `{allowed: true, source: "environment"}`,
 as since F18. The page, the rule and the reading read only this; a test may give
@@ -809,7 +809,7 @@ Lazurio's side by itself.
 - **Where the user signs in.** Where `callbacks` lists this Launchpad's own
   callback, the sign-in returns to it in a window of the user's own browser.
   Otherwise it returns to Executor's callback on localhost
-  (`http://localhost:4789/api/oauth/callback`; the Admin registers
+  (`http://localhost:4789/api/oauth/callback`; the tenant's admin registers
   `http://localhost/api/oauth/callback` once, Entra ignores a localhost address's
   port but matches its path) in the [Environment browser](environment-browser.md). That browser is the
   agents' too, so once such a sign-in ends (connected or not) the Launchpad clears
@@ -836,7 +836,7 @@ Lazurio's side by itself.
   revoke its sessions, disable the app or remove its consent).
 - **IT consent.** The tenant's admin consents once, for everyone. A sign-in that
   says administrator approval is required (`AADSTS65001`, `AADSTS90094`) means the
-  tenant lacks consent to a scope this release asks for; the Organization's Admin
+  tenant lacks consent to a scope this release asks for; the tenant's admin
   adds it, and the user connects again.
 
 ## ChatGPT apps ("Aplikace z ChatGPT")
@@ -847,7 +847,7 @@ way to an app beside the Integrace, so they are off unless someone allowed them:
 
 | Environment | Who decides | Where | Absent |
 | --- | --- | --- | --- |
-| An Organization's (work, Team, Automated) | the Organization's Admin | `settings.integrations.chatgpt_apps.allowed` in the Organization's manifest, edited in the Dashboard, delivered and recorded in the Folder by F45 | off |
+| An Organization's (work, Team, Automated) | the Organization Admin | `settings.integrations.chatgpt_apps.allowed` in the Organization's manifest, edited in the Dashboard, delivered and recorded in the Folder by F45 | off |
 | Personal, and the person's own computer | the person | `chatgptAppsAllowed` in `.lazurio/preferences.json`, the switch at the foot of Apps → Integrace → Vše, `lazurio integrations chatgpt-apps allow\|disallow` | off |
 
 Where they are not allowed, Lazurio writes `[apps._default] enabled = false` and

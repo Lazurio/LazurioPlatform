@@ -22,7 +22,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // sentence, the technical detail under "Podrobnosti" and where it leads:
 // "Vyřešit v Chatu" when an agent can work, "Připojit AI" while no AI is
 // connected, and for an Organization not prepared for this version, to
-// someone who cannot write its root, only that its Admin prepares it.
+// someone who cannot write its root, only that an Organization Admin
+// prepares it.
 // The content core decides availability, including the persona's own GitHub
 // account on an Automated Environment. A Team's brokered content stays with
 // its hosting. Every value from the server is drawn with textContent.

@@ -134,7 +134,8 @@ tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]
   https://auth.openai.com/codex/device, valid 15 minutes, which you enter on
   any device; it needs no Environment browser. If OpenAI's page refuses the
   code, turn sign-in with a code on in your ChatGPT security settings (for a
-  work account, its admin allows it) and enter the same code again; the
+  work account, the admin of its ChatGPT workspace allows it) and enter the
+  same code again; the
   command waits until it expires. Claude has no sign-in with a code. Where the
   Organization provides AI (Codex's provider needs no sign-in) codex is not
   signed in (blocked, organization-provided). A code of Claude's code page

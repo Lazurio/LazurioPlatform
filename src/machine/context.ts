@@ -63,7 +63,8 @@ export type MachineRelationships<Zone extends MachineZone = MachineZone> =
 // Environment with the operator's shape, never the persona. `services` (root
 // decision 0209, Machines docs/server-services.md §2) is the services
 // Environment of a Proxmox server, "Služby serveru": a work Environment of the
-// Organization that only its Owners and Admins enter; like `team` it names
+// Organization that only its Organization Admins enter (root decision 0228);
+// like `team` it names
 // nobody.
 // `{kind: operator, account}` only as the Platform resolves a free work
 // Environment's assignee from its receipt (root decision 0216): their

@@ -156,7 +156,7 @@ const en = {
   toolsOrganizationLockedNamed: "Set by the Organization: {name}",
   toolsOrganizationDetails: "Organization settings",
   toolsOrganizationHow:
-    "Only the Organization's Admin can change it, in the Organization's settings.",
+    "Only an Organization Admin can change it, in the Organization's settings.",
   toolsOrganizationFromDashboard:
     "{This} asks the Dashboard for them every two minutes.",
   toolsOrganizationFromRepository:
@@ -170,7 +170,7 @@ const en = {
   toolsOrganizationIdentity:
     "{This} cannot identify itself to the Dashboard right now; the settings applied last stay.",
   toolsOrganizationInvalid:
-    "The Organization's settings are invalid right now and its Admin needs to fix them; the settings applied last stay.",
+    "The Organization's settings are invalid right now and an Organization Admin needs to fix them; the settings applied last stay.",
   toolsOrganizationRepository:
     "The Organization's repository here could not be read; the settings applied last stay.",
   toolsOrganizationState:
@@ -432,7 +432,7 @@ const en = {
   toolsComposioOrgUnverified:
     "The name of {this}'s Organization cannot be read, so nothing connects through Composio now; ask the agent in Chat to check it.",
   toolsComposioHeld:
-    "Composio connects here in the Composio organization that belongs to your Organization, and the Organization is not in {this} yet. Download it in Getting started first; if that does not work, ask its Owner to add you to the Organization's Team on GitHub. Then Composio can be connected.",
+    "Composio connects here in the Composio organization that belongs to your Organization, and the Organization is not in {this} yet. Download it in Getting started first; if that does not work, ask an Organization Admin to add you to the Organization's Team on GitHub. Then Composio can be connected.",
   toolsComposioCreateTitle: "One more step in Composio",
   toolsComposioCreateText: "Create an organization with this name in Composio.",
   toolsComposioCreateName: "Organization name",
@@ -466,7 +466,7 @@ const en = {
   appsModulesOne: "{count} module",
   appsModulesFew: "{count} modules",
   appsModulesMany: "{count} modules",
-  // An Owner's Workspace before its first module (#376).
+  // An Organization Admin's Workspace before its first module (#376).
   appsModulesNone: "no modules yet",
   appsRepositoriesOne: "{count} repository",
   appsRepositoriesFew: "{count} repositories",
@@ -529,9 +529,9 @@ const en = {
   appsGuestState: "State",
   appsGuestCloned: "Cloned here; agents in {this} read it as context.",
   appsGuestRevoked:
-    "GitHub no longer lets {this} read it. The checkout stays but is not kept up to date; ask an Admin of {home} for access.",
+    "GitHub no longer lets {this} read it. The checkout stays but is not kept up to date; ask an Organization Admin of {home} for access.",
   appsGuestAbsent:
-    "Not here yet. Once {this} can read it on GitHub, Lazurio clones it at the next synchronization; ask an Admin of {home} for access.",
+    "Not here yet. Once {this} can read it on GitHub, Lazurio clones it at the next synchronization; ask an Organization Admin of {home} for access.",
   appsGuestHome: "Home Organization",
   appsGuestApp: "Not started here. Open its app in its home Organization.",
   appsGuestBadge: "guest",
@@ -575,7 +575,8 @@ const en = {
   serviceKindDns01: "Certificates",
   appsNewModule: "New module",
   appsNewModuleSub: "Create with an agent",
-  // The muted tile of a member (decision F36's addendum of 2026-11-05).
+  // The muted tile of an Organization Member (decision F36's addendum of
+  // 2026-11-05).
   appsNewModuleRequestSub: "The Organization Admin creates it",
   appsNewModuleOpened:
     "Chat opens in a new tab with the new module's brief in the composer, not sent.",
@@ -597,7 +598,8 @@ const en = {
     "I want to build a new module in the Lazurio Workspace.\nIt will be in the Organization {name} (GitHub {login}).\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
   appsNewPersonalModulePromptDescribed:
     "I want to build a new module in the Lazurio Workspace.\nIt will be in my personal space, as a private repository on my GitHub account {login}.\n\nWhat I have in mind:\n{description}\n\nUse the skill `new-module`. Ask me only about what does not follow from what I have in mind, choose the technical details yourself, and before you start building, show me the plan to confirm.",
-  // A member's request to the Organization Admin (the skill `admin-request`).
+  // An Organization Member's request to the Organization Admin (the skill
+  // `admin-request`).
   appsNewModuleRequestPrompt:
     "I want a new module in the Organization {name} (GitHub {login}). New modules are created by the Organization Admin, so prepare a request to the Organization Admin for me with the skill `admin-request`.\n\nFirst ask me what the module is for and what it should solve for me, then show me the request and send it only with my consent.",
   appsNewModuleRequestPromptDescribed:
@@ -698,8 +700,8 @@ const en = {
     "In Chat, the agent prepares a private {title} module for {name} with you. Before anything there changes, it shows you the plan to approve.",
   marketTaken:
     "{name} already has a module named {module}. If it comes from this template, or the template came from it, the release goes into it; otherwise the agent agrees another name with you.",
-  // A member of the Organization asks the Organization Admin (decision F36's addendum of
-  // 2026-11-05).
+  // An Organization Member asks the Organization Admin (decision F36's
+  // addendum of 2026-11-05).
   marketRequestWhat:
     "The Organization Admin adds a template to {name}. In Chat, the agent prepares a request to the Organization Admin with you and shows it to you before sending.",
   marketAskAdmin: "Ask the Organization Admin",
@@ -730,7 +732,7 @@ const en = {
   mausbot: "Lazurio MausBot",
   catalogModules: "Modules",
   catalogNoModules:
-    "You have no modules here yet. Ask the Organization's Admin for access.",
+    "You have no modules here yet. Ask an Organization Admin for access.",
   catalogPersonalspaceEmpty: "Your personal space is empty for now.",
   catalogSectionWorkspace: "Workspace",
   catalogSectionProductionspace: "Productionspace",
@@ -842,17 +844,17 @@ const en = {
   moduleReasonRequiredSlotMissing:
     "The app requires {file}, which is not {in this} beside it, so it was not started. Synchronize the Organization, or ask for access to that module, and start again.",
   moduleReasonDataMountDenied:
-    "The app was not started: its data ({file}) are in a repository your GitHub account cannot read. Ask the Organization's Admin for access and start it again.",
+    "The app was not started: its data ({file}) are in a repository your GitHub account cannot read. Ask an Organization Admin for access and start it again.",
   // A Team Environment has no person's account: it reads GitHub as the
   // Team, through Lazurio for GitHub (#488).
   moduleReasonDataMountDeniedTeam:
-    "The app was not started: its data ({file}) are in a repository this Team Environment cannot reach. Ask the Organization's Admin to give the Team access to it on GitHub and start it again.",
+    "The app was not started: its data ({file}) are in a repository this Team Environment cannot reach. Ask an Organization Admin to give the Team access to it on GitHub and start it again.",
   moduleReasonDataMountOccupied:
     "The app was not started: the place for its data ({file}) holds something else, and Lazurio does not touch it. Ask an agent in Chat to look at it.",
   moduleReasonDataMountUnavailable:
     "The app was not started: its data ({file}) could not be downloaded, because GitHub did not answer or another download is running. Start it again in a moment.",
   moduleReasonDataMountCloneFailed:
-    "The app was not started: its data ({file}) could not be downloaded. The data repository may be empty or lack its branch; Lazurio does not create it. Ask the Organization's Admin to check the data repository.",
+    "The app was not started: its data ({file}) could not be downloaded. The data repository may be empty or lack its branch; Lazurio does not create it. Ask an Organization Admin to check the data repository.",
   moduleReasonRuntimeSecretUnavailable:
     "The app was not started: it needs secrets that {this}'s vault did not give it. {secrets}. Values are never shown; add or fix the item named exactly like the secret in {this}'s vault and start again.",
   moduleSecretsNotProvided:
@@ -1183,7 +1185,8 @@ const en = {
   setupDownload: "Download",
   setupPrepare: "Prepare",
   setupFailed: "The preparation stopped.",
-  setupUnready: "{name} is not prepared yet. Its Admin prepares it.",
+  setupUnready:
+    "{name} is not prepared yet. An Organization Admin prepares it.",
   setupResolve: "Solve in Chat",
   setupRetry: "Try again",
   setupBuddy: "Buddy is waiting for you.",
@@ -1285,7 +1288,7 @@ const en = {
   // ChatGPT's sign-in by code (root decision 0201 point 10).
   startAiByCode: "Sign in with a code",
   startAiByCodeSetting:
-    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, its admin allows it.",
+    "If the ChatGPT page refuses the code, turn on sign-in with a code in your ChatGPT security settings. For a work account, the admin of its ChatGPT workspace allows it.",
   startAiByCodeWaiting:
     "Open the ChatGPT page in any browser, even on your phone, and enter the code. It is valid for 15 minutes.",
   startAiByCodeOpen: "Open ChatGPT",
@@ -1367,7 +1370,7 @@ const en = {
   buddyRefused: "ChatGPT did not accept a sign-in by code.",
   buddyRefusedHelpLabel: "What to do",
   buddyRefusedHelp:
-    "A ChatGPT account allows a sign-in by code in the security settings of ChatGPT. A work account's administrator allows it for the account. Then ask for a new code.",
+    "A ChatGPT account allows a sign-in by code in the security settings of ChatGPT. For a work account, the admin of its ChatGPT workspace allows it. Then ask for a new code.",
   buddyLost: "This code no longer works.",
   buddyNoSubscription:
     "This ChatGPT account has no subscription, and Buddy needs one. Sign him in with an account that has a ChatGPT subscription.",
@@ -1578,7 +1581,7 @@ const en = {
   contentLost: "The progress of the preparation could not be read.",
   contentAgentFixes: "An agent in Chat will fix it.",
   contentAgentAfterAi: "An agent in Chat will help once you connect AI.",
-  contentAdminPrepares: "The Organization's Admin prepares it.",
+  contentAdminPrepares: "An Organization Admin prepares it.",
   contentFailedUnready:
     "The Organization is not prepared for this version of Lazurio yet.",
   contentDetails: "Details",
@@ -1670,7 +1673,7 @@ const en = {
   // its accessible name, and the line under it, which the video does not
   // say.
   vaultPageNoVault:
-    "{This}'s vault is not set up. The Organization's Admin sets it up, and then you will find it here.",
+    "{This}'s vault is not set up. An Organization Admin sets it up, and then you will find it here.",
   vaultPagePublic:
     "This Organization is a public demo and real passwords do not belong in it, so it has no vault on purpose. Everything else works as in a real Organization.",
   vaultExplainerTitle: "How the vault works",
@@ -1881,7 +1884,7 @@ const en = {
   // the shell and in its assignment, who enters it, and its kind, a work
   // Environment set apart as `kindDetail` sets apart an automated one.
   serverServicesName: "Server services",
-  machineWorksServices: "Owners and Admins of the Organization",
+  machineWorksServices: "Organization Admins",
   machineKindServices: `${kindDetail("work", "en")} with the server's services`,
   // A public Environment (the Try overlay preset, decision F55's addendum
   // of 2026-10-20): a Team Environment set apart by its words, never a
@@ -2061,8 +2064,9 @@ const en = {
   integrationsComposioOffHere: "Composio is off here.",
   integrationsComposioOff:
     "Composio is connected, but agents don't use it: “Used by agents” is off in Tools.",
-  integrationsAskAdmin: "Ask the Admin",
-  integrationsAskAdminCopied: "A message for the Admin is in your clipboard.",
+  integrationsAskAdmin: "Ask an Organization Admin",
+  integrationsAskAdminCopied:
+    "A message for an Organization Admin is in your clipboard.",
   integrationsAskAdminText:
     "Please make {app} available in the Integrations of our Environments: {line}",
   integrationsSetUpInDashboard: "Set up in the Dashboard",
@@ -2456,7 +2460,7 @@ const cs: Record<MessageKey, string> = {
   toolsOrganizationIdentity:
     "{Toto} se teď Přehledu Organizace nemůže prokázat; platí naposledy použité nastavení.",
   toolsOrganizationInvalid:
-    "Nastavení Organizace je teď neplatné a musí ho opravit její Admin; platí naposledy použité nastavení.",
+    "Nastavení Organizace je teď neplatné a musí ho opravit Admin Organizace; platí naposledy použité nastavení.",
   toolsOrganizationRepository:
     "Repozitář Organizace se tu nepodařilo přečíst; platí naposledy použité nastavení.",
   toolsOrganizationState:
@@ -2708,7 +2712,7 @@ const cs: Record<MessageKey, string> = {
   toolsComposioOrgUnverified:
     "Jméno Organizace {tohoto} nejde přečíst, takže přes Composio teď nic nepřipojíte; požádejte o kontrolu agenta v Chatu.",
   toolsComposioHeld:
-    "Composio se tu připojuje do organizace v Composiu, která patří vaší Organizaci, a Organizace v {tomto} ještě není. Nejdřív ji stáhněte v Začínáme; když to nejde, požádejte jejího Ownera, ať vás přidá do Teamu Organizace na GitHubu. Pak bude Composio možné připojit.",
+    "Composio se tu připojuje do organizace v Composiu, která patří vaší Organizaci, a Organizace v {tomto} ještě není. Nejdřív ji stáhněte v Začínáme; když to nejde, požádejte Admina Organizace, ať vás přidá do Teamu Organizace na GitHubu. Pak bude Composio možné připojit.",
   toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
   toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
   toolsComposioCreateName: "Jméno organizace",
@@ -2742,7 +2746,7 @@ const cs: Record<MessageKey, string> = {
   appsModulesOne: "{count} modul",
   appsModulesFew: "{count} moduly",
   appsModulesMany: "{count} modulů",
-  // An Owner's Workspace before its first module (#376).
+  // An Organization Admin's Workspace before its first module (#376).
   appsModulesNone: "zatím žádné moduly",
   appsRepositoriesOne: "{count} repozitář",
   appsRepositoriesFew: "{count} repozitáře",
@@ -3417,7 +3421,7 @@ const cs: Record<MessageKey, string> = {
   setupDownload: "Stáhnout",
   setupPrepare: "Připravit",
   setupFailed: "Příprava se zastavila.",
-  setupUnready: "{name} ještě není připravená. Připravuje ji Admin.",
+  setupUnready: "{name} ještě není připravená. Připravuje ji Admin Organizace.",
   setupResolve: "Vyřešit v Chatu",
   setupRetry: "Zkusit znovu",
   setupBuddy: "Buddy na vás čeká.",
@@ -3516,7 +3520,7 @@ const cs: Record<MessageKey, string> = {
   startAiCodeSent: "Kód je odeslaný. Chvíli počkejte.",
   startAiByCode: "Přihlásit kódem",
   startAiByCodeSetting:
-    "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce.",
+    "Kdyby stránka ChatGPT kód nepřijala, zapněte si přihlášení kódem v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje admin jeho pracovního prostoru v ChatGPT.",
   startAiByCodeWaiting:
     "Otevřete stránku ChatGPT v kterémkoli prohlížeči, třeba v telefonu, a opište kód. Platí 15 minut.",
   startAiByCodeOpen: "Otevřít ChatGPT",
@@ -3583,7 +3587,7 @@ const cs: Record<MessageKey, string> = {
   buddyRefused: "ChatGPT přihlášení kódem nepřijal.",
   buddyRefusedHelpLabel: "Co s tím",
   buddyRefusedHelp:
-    "Účet ChatGPT musí mít přihlášení kódem zapnuté v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce. Pak si vyžádejte nový kód.",
+    "Účet ChatGPT musí mít přihlášení kódem zapnuté v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje admin jeho pracovního prostoru v ChatGPT. Pak si vyžádejte nový kód.",
   buddyLost: "Tento kód už neplatí.",
   buddyNoSubscription:
     "Tento účet ChatGPT je bez předplatného a Buddy předplatné potřebuje. Přihlaste ho účtem s předplatným ChatGPT.",
@@ -3780,7 +3784,7 @@ const cs: Record<MessageKey, string> = {
   contentLost: "Průběh přípravy se nepodařilo zjistit.",
   contentAgentFixes: "Agent v Chatu to opraví.",
   contentAgentAfterAi: "Agent v Chatu pomůže, až připojíte AI.",
-  contentAdminPrepares: "Organizaci připravuje Admin.",
+  contentAdminPrepares: "Organizaci připravuje Admin Organizace.",
   contentFailedUnready:
     "Organizace ještě není připravená pro tuto verzi Lazuria.",
   contentDetails: "Podrobnosti",
@@ -4049,7 +4053,7 @@ const cs: Record<MessageKey, string> = {
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
   serverServicesName: "Služby serveru",
-  machineWorksServices: "Owneři a Admini Organizace",
+  machineWorksServices: "Admini Organizace",
   machineKindServices: `${kindDetail("work", "cs")} se službami serveru`,
   machineKindTry: `${kindDetail("team", "cs")} pro vyzkoušení`,
   machineKindPersonal: kindDetail("personal", "cs"),
@@ -4222,8 +4226,8 @@ const cs: Record<MessageKey, string> = {
   integrationsComposioOffHere: "Composio je tu vypnuté.",
   integrationsComposioOff:
     "Composio je připojené, ale agenti ho nepoužívají: v Nástrojích má vypnuté „Používají agenti“.",
-  integrationsAskAdmin: "Požádat Admina",
-  integrationsAskAdminCopied: "Zprávu pro Admina máte ve schránce.",
+  integrationsAskAdmin: "Požádat Admina Organizace",
+  integrationsAskAdminCopied: "Zprávu pro Admina Organizace máte ve schránce.",
   integrationsAskAdminText:
     "Prosím o zpřístupnění aplikace {app} v Napojení našich Prostředí: {line}",
   integrationsSetUpInDashboard: "Nastavit v Přehledu Organizace",
@@ -4380,7 +4384,7 @@ const cs: Record<MessageKey, string> = {
   sshPromptUnavailable:
     "Prompt se objeví, jakmile budou známá nastavení pro váš počítač (níže).",
   sshPromptText:
-    "Připrav připojení tohoto počítače přes SSH k mému Prostředí „{alias}“ v Lazuriu a pak mi dej odkaz na přidání jeho složky Lazurio do ChatGPT Desktopu (dřív Codex Desktop).\n\nAdresu, účet a klíč hostu najdeš na stránce Prostředí: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Po úspěšném testu SSH zakonči odpověď v chatu tímto klikacím Markdown odkazem: [Přidat Lazurio do ChatGPT Desktopu]({desktopLink}). Kliknutí nech na mně; projekt sám nepřidávej a neobcházej bezpečnostní omezení aplikace. Vysvětli mi, že pokud první kliknutí projekt nepřidá, mohu na stejný odkaz kliknout ještě jednou; občas se to stává, nejde o povinný dvojklik. Po úspěšném přidání mám vidět vlevo v seznamu projektů složku Lazurio. Je-li to můj jediný projekt jeho Organizace, mohu ho pojmenovat prostě názvem Organizace; více Prostředí téže Organizace odliším i druhem, třeba Pracovní a Týmové, a osobní projekt vlastním osobním označením. Mění se jen zobrazovaný název, nikdy SSH alias ani cesta ke vzdálené složce. Pokud odkaz stále nefunguje, proveď mě ručním přidáním přesného aliasu a cesty k Folderu ze stránky v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, ten povoluje správce sítě. Nakonec mi napiš, jak připojení dopadlo.",
+    "Připrav připojení tohoto počítače přes SSH k mému Prostředí „{alias}“ v Lazuriu a pak mi dej odkaz na přidání jeho složky Lazurio do ChatGPT Desktopu (dřív Codex Desktop).\n\nAdresu, účet a klíč hostu najdeš na stránce Prostředí: {url}\n\n1. Použij klíč {keyPath} (ve Windows {windowsKeyPath}). Když ještě neexistuje, vytvoř klíč ed25519. Soukromý klíč z počítače nikdy neodchází, ven smí jen soubor .pub.\n2. Na stránce v části „Přidat zařízení“ zaregistruj jeho veřejný klíč.\n3. Doplň nastavení SSH a řádek known_hosts ze stránky pro {alias}. Ostatní připojení nech, jak jsou. Když stejný záznam už existuje, použij ho; když pro {alias} existuje jiný, nic neměň a řekni mi to.\n4. Ověř, že SSH funguje: ssh {alias} true\n5. Po úspěšném testu SSH zakonči odpověď v chatu tímto klikacím Markdown odkazem: [Přidat Lazurio do ChatGPT Desktopu]({desktopLink}). Kliknutí nech na mně; projekt sám nepřidávej a neobcházej bezpečnostní omezení aplikace. Vysvětli mi, že pokud první kliknutí projekt nepřidá, mohu na stejný odkaz kliknout ještě jednou; občas se to stává, nejde o povinný dvojklik. Po úspěšném přidání mám vidět vlevo v seznamu projektů složku Lazurio. Je-li to můj jediný projekt jeho Organizace, mohu ho pojmenovat prostě názvem Organizace; více Prostředí téže Organizace odliším i druhem, třeba Pracovní a Týmové, a osobní projekt vlastním osobním označením. Mění se jen zobrazovaný název, nikdy SSH alias ani cesta ke vzdálené složce. Pokud odkaz stále nefunguje, proveď mě ručním přidáním přesného aliasu a cesty k Folderu ze stránky v Settings → Connections → SSH.\n\nProfil Tailscale nepřepínej. Zaregistrovaný klíč přístup do sítě nedává, povoluje ho ten, kdo síť spravuje. Nakonec mi napiš, jak připojení dopadlo.",
   sshDevicesTitle: "Vaše zařízení",
   sshDevicesNone: "Zatím tu není přidané žádné zařízení.",
   sshAddedBy: "Přidáno {date}, účet {who}",
@@ -4451,7 +4455,7 @@ const cs: Record<MessageKey, string> = {
   sshCopy: "Kopírovat",
   sshCopied: "Zkopírováno.",
   sshNetworkNote:
-    "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to správce sítě.",
+    "Přidaný klíč zařízení sám přístup do sítě nedá. Když SSH selže, dejte agentovi přesnou chybovou hlášku. Pokud zařízení do sítě zatím nesmí, povolí mu to ten, kdo síť spravuje.",
   sshComputerMissing: "Nastavení pro váš počítač zatím není k dispozici:",
   sshMissingTailscale: "{V tomto} není nainstalovaný Tailscale.",
   sshMissingTailscaleFailed: "Tailscale {v tomto} neodpověděl.",

@@ -43,7 +43,7 @@ import { runChild } from "./fixtures/run-child";
 // Decision F55's addendum of 2026-10-17 (root decision 0204 point 5, plan
 // DEV-6668): a public Environment has no GitHub identity at all, neither a
 // broker nor an App nor a person's sign-in. Its content install reads its
-// Organization's root and public modules anonymously, as a reader: no gh
+// Organization's root and public modules anonymously, as a Module Reader: no gh
 // account, no read of GitHub's API, every clone over anonymous HTTPS with no
 // credential helper, and nothing created, granted or pushed. Its texts say
 // so instead of Lazurio for GitHub. Real git over local bare repositories,
@@ -226,7 +226,7 @@ posixTest(
 // ---- The install ---------------------------------------------------------------
 
 posixTest(
-  "a public Team Environment installs the root and its public modules anonymously as a reader: no gh, no GitHub API, no credential helper, nothing created or pushed",
+  "a public Team Environment installs the root and its public modules anonymously as a Module Reader: no gh, no GitHub API, no credential helper, nothing created or pushed",
   async () => {
     world = await createWorld();
     await alphaRemotes(world);
@@ -241,10 +241,13 @@ posixTest(
     });
     const host = await anonymousHost(world, github);
     const steps: ContentStep[] = [];
-    // The CLI's `--role reader --root Alpha/alpha_GEN3`.
+    // The CLI's `--role module-reader --root Alpha/alpha_GEN3`.
     const result = await installContent(
       folder,
-      { roots: { alpha: "Alpha/alpha_GEN3" }, roles: { alpha: "reader" } },
+      {
+        roots: { alpha: "Alpha/alpha_GEN3" },
+        roles: { alpha: "module-reader" },
+      },
       (step) => steps.push(step),
       host,
     );
@@ -261,10 +264,10 @@ posixTest(
       steps.find((step) => step.key === "access" && step.state === "done")
         ?.detail,
     ).toBe(
-      "anonymously (reader, restricted slots excluded); root Alpha/alpha_GEN3 (named)",
+      "anonymously (module-reader, restricted slots excluded); root Alpha/alpha_GEN3 (named)",
     );
     const outcome = result.items[0];
-    expect(outcome?.role).toBe("reader");
+    expect(outcome?.role).toBe("module-reader");
     expect(outcome?.repository).toBe("Alpha/alpha_GEN3");
     expect(outcome?.directory).toBe("organizations/alpha_GEN3");
     expect(
@@ -284,7 +287,7 @@ posixTest(
       "workspace/docs": "failed:clone-failed",
       "workspace/odd": "blocked:access-classification-unknown",
       "workspace/planned": "no-repository",
-      // A reader's scope: the restricted slot and what is below it.
+      // A Module Reader's scope: the restricted slot and what is below it.
       "workspace/secret": "excluded_by_role_scope",
       "workspace/secret/db": "excluded_by_role_scope",
       "workspace/web": "materialized",
@@ -409,7 +412,7 @@ posixTest(
       steps.find((step) => step.key === "access" && step.state === "done")
         ?.detail,
     ).toBe(
-      "anonymously (reader, restricted slots excluded); root beta/beta_GEN3 (by name)",
+      "anonymously (module-reader, restricted slots excluded); root beta/beta_GEN3 (by name)",
     );
     expect(
       await exists(
@@ -422,11 +425,15 @@ posixTest(
 );
 
 posixTest(
-  "a public Environment installs only as a reader: any other role fails closed before anything is cloned",
+  "a public Environment installs only as a Module Reader: any other role fails closed before anything is cloned",
   async () => {
     world = await createWorld();
     await lowercaseOrganization(world, "beta");
-    for (const role of ["admin", "steward", "builder"] as const) {
+    for (const role of [
+      "organization-admin",
+      "module-maintainer",
+      "module-contributor",
+    ] as const) {
       const folder = await presetFolder(
         world,
         "hosted-organization-team",
@@ -445,7 +452,7 @@ posixTest(
       );
       expect(summary(steps)).toEqual(["access:failed:role-unverified"]);
       expect(result.kind === "content-install" && result.failure?.detail).toBe(
-        `the role ${role} in beta could not be verified: this public Environment has no GitHub identity and installs only as a reader${role === "admin" ? "; name it with --role reader" : ""}`,
+        `the role ${role} in beta could not be verified: this public Environment has no GitHub identity and installs only as a Module Reader${role === "organization-admin" ? "; name it with --role module-reader" : ""}`,
       );
       expect(await readdir(join(folder, "organizations"))).toEqual([]);
       expect(host.clones).toEqual([]);
@@ -565,7 +572,7 @@ posixTest(
       steps.find((step) => step.key === "access" && step.state === "done")
         ?.detail,
     ).toBe(
-      "anonymously (reader, restricted slots excluded); root gamma/gamma_GEN3 (by name)",
+      "anonymously (module-reader, restricted slots excluded); root gamma/gamma_GEN3 (by name)",
     );
     expect(
       steps.find((step) => step.key === "root" && step.state === "done")
