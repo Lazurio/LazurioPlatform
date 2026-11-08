@@ -64,8 +64,9 @@ export const contentHelp = `organization install <github-login> [--role module-c
   so), maintain (Module Maintainer), or read or triage together with an
   active membership in the Organization (Module Reader, whose clones GitHub
   keeps read-only). --role module-maintainer with write needs GitHub's
-  answer that the root cannot have branch rules. Anyone may choose a
-  narrower role GitHub confirms. The former values builder, steward and reader are
+  answer that the root cannot have branch rules; where it cannot, --role
+  module-contributor is confirmed as the Module Maintainer. Anyone may
+  choose a narrower role GitHub confirms. The former values builder, steward and reader are
   deprecated aliases of module-contributor, module-maintainer and
   module-reader (root decision 0234): they still work and print a warning
   on stderr. A role GitHub does not confirm fails closed before anything is

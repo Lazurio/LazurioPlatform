@@ -21,7 +21,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This is the personal Remote Environment of the personal zone. It may reach every work Remote Environment of its user; no work Environment may reach it.
 
@@ -131,7 +131,7 @@ Environmenty a klienti jednoho uživatele tvoří dvě zóny. **Osobní zóna** 
 - Sdílený týmový Remote Environment přijímá jen příchozí spojení od členů živého GitHub Teamu, ke kterému je svázaný (decisions 0147/0149), a nikdy nemá odchozí grant.
 - Mezi uživateli nic implicitně. Telefon není SSH server.
 - Všechno platí uvnitř jednoho Conglomerate (jednoho Headscale tailnetu); osobní Remote Environment je node jen svého domovského tailnetu a mezi tailnety se žádný most nestaví.
-- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen z jeho osobního laptopu a osobního Remote Environmentu.
+- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen ze schválených zařízení: přímo z jeho správního stanoviště, tedy jeho Pracovního Prostředí, a z jeho Osobního Prostředí jen dvěma kroky přes toto stanoviště (decision 0202).
 
 **Zóna tohohle Environmentu.** Tenhle Environment je osobní Remote Environment osobní zóny. Smí na každý pracovní Remote Environment svého uživatele; žádný pracovní Environment na něj nesmí.
 
@@ -238,7 +238,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** A workstation is a client of its user. Its zone follows who owns it: a personal laptop is in the personal zone, a work laptop issued by an Organization is in that Organization's work zone. The Folder does not record which one this is.
 
@@ -289,7 +289,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This is the personal Remote Environment of the personal zone. It may reach every work Remote Environment of its user; no work Environment may reach it.
 
@@ -391,7 +391,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -486,7 +486,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This Environment is a shared Team Remote Environment in the work zone of Organization \`example\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or other Environment.
 
@@ -584,7 +584,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This is the Henry Environment of a persona in the work zone of Organization \`example\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.
 
@@ -2801,7 +2801,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -2904,7 +2904,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -3000,7 +3000,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).
 
 **This Environment's zone.** This Environment is a shared Team Remote Environment in the work zone of Organization \`example\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or other Environment.
 

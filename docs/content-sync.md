@@ -451,13 +451,14 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    | Module Contributor | `module-contributor` | `write` on it where it can have branch rules, or where GitHub does not say (the resident's `builder` gate reads WRITE) |
    | Module Reader | `module-reader` | `read` or `triage` on it together with an active membership (any role, not pending) |
 
-   Whether the root can have branch rules is its own answer, asked only for `write`: a
-   public repository always can; for a private one `GET repos/<owner>/<name>/rulesets`
+   Whether the root can have branch rules is its own answer, asked only where the role
+   depends on it (for `write`, and for `write` or more when `--role module-contributor`
+   is asked): a public repository always can; for a private one `GET repos/<owner>/<name>/rulesets`
    answering at all is yes, GitHub's 403 that the plan does not allow it ("Upgrade to
    GitHub Pro or make this repository public") is no, and anything else is unknown. An
    unknown answer names `write` by the lower role, the Module Contributor, so
    `--role module-maintainer` with `write` fails closed there; `--role module-contributor`
-   with `write` where the root cannot have branch rules is confirmed as the Module
+   with `write` or more where the root cannot have branch rules is confirmed as the Module
    Maintainer, because the Module Contributor does not exist there. The install scope is
    the same for every Module role.
 

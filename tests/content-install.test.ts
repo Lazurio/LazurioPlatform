@@ -11,6 +11,7 @@ import type { ContentStep } from "../src/content/model";
 import {
   classifySlotAccess,
   type OrganizationRole,
+  rootBranchRules,
   verifyOrganizationRole,
 } from "../src/content/role";
 import { contentStatus } from "../src/content/status";
@@ -308,6 +309,40 @@ test("the role GitHub confirms, and the scope it gives", () => {
   expect(classifySlotAccess({ required_roles: "builder" })).toBe("unknown");
 });
 
+// The capability is asked where the role depends on it: for write, and for
+// write or more when the Module Contributor is asked for; a public root
+// always can have branch rules.
+test("the root's branch rules are asked only where the Module role depends on them", async () => {
+  const asked: string[] = [];
+  const ask = async (owner: string, name: string) => {
+    asked.push(`${owner}/${name}`);
+    return "unavailable" as const;
+  };
+  const root = { fullName: "Alpha/alpha_GEN3", private: true };
+  const rules = (
+    permission: "admin" | "maintain" | "write" | "read" | null,
+    requested: OrganizationRole | null,
+    repository = root,
+  ) => rootBranchRules(repository, permission, ask, requested);
+  expect(await rules("write", null)).toBe("unavailable");
+  expect(await rules("maintain", "module-contributor")).toBe("unavailable");
+  expect(await rules("admin", "module-contributor")).toBe("unavailable");
+  expect(asked).toHaveLength(3);
+  expect(await rules("maintain", null)).toBe("unknown");
+  expect(await rules("maintain", "module-maintainer")).toBe("unknown");
+  expect(await rules("read", "module-contributor")).toBe("unknown");
+  expect(await rules(null, "module-contributor")).toBe("unknown");
+  expect(asked).toHaveLength(3);
+  expect(
+    await rules("write", null, {
+      fullName: "Alpha/alpha_GEN3",
+      private: false,
+    }),
+  ).toBe("available");
+  expect(asked).toHaveLength(3);
+  expect(await rootBranchRules(root, "write", undefined)).toBe("unknown");
+});
+
 // Root decision 0232: `write` is the Module Contributor where the repository
 // can have branch rules and the Module Maintainer where it cannot; an
 // unknown answer never makes anyone a Module Maintainer.
@@ -367,6 +402,12 @@ test("write on the root is the Module role its branch-rule capability makes it",
   );
   expect(verify("module-contributor", "maintain", "available")).toBe(
     "module-contributor",
+  );
+  expect(verify("module-contributor", "maintain", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-contributor", "admin", "unavailable")).toBe(
+    "module-maintainer",
   );
   expect(verify("module-contributor", "read", "available")).toContain(
     "no write permission",

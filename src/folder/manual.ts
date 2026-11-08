@@ -3170,8 +3170,8 @@ function thisMachine(source: InstructionSource): string {
         "- Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.",
       ),
       t(
-        "- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen z jeho osobního laptopu a osobního Remote Environmentu.",
-        "- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.",
+        "- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen ze schválených zařízení: přímo z jeho správního stanoviště, tedy jeho Pracovního Prostředí, a z jeho Osobního Prostředí jen dvěma kroky přes toto stanoviště (decision 0202).",
+        "- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), and only from approved devices: directly from their administrative station, their Work Environment, and from their Personal Environment only in two steps through that station (decision 0202).",
       ),
       blank,
       t(

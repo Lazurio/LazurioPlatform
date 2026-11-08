@@ -246,14 +246,21 @@ export function classifySlotAccess(
 }
 
 /** Whether the root repository can have branch rules, asked only where it
- * matters: for `write`, the one permission whose Module role depends on it.
- * A public repository always can. */
+ * matters: for `write`, whose Module role depends on it, and for any
+ * permission of `write` or more when the Module Contributor is asked for,
+ * which does not exist where the root cannot have them (root decision
+ * 0232). A public repository always can. */
 export async function rootBranchRules(
   repository: Readonly<{ fullName: string; private: boolean }>,
   permission: RepositoryPermission | null,
   ask: ((owner: string, name: string) => Promise<BranchRules>) | undefined,
+  requested: OrganizationRole | null = null,
 ): Promise<BranchRules> {
-  if (permission !== "write") return "unknown";
+  if (
+    permission !== "write" &&
+    !(requested === "module-contributor" && atLeast(permission, "write"))
+  )
+    return "unknown";
   if (!repository.private) return "available";
   if (ask === undefined) return "unknown";
   const [owner, name] = repository.fullName.split("/") as [string, string];

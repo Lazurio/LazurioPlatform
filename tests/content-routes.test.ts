@@ -814,6 +814,23 @@ posixTest(
       0,
       "module-maintainer",
     ]);
+    // Also with maintain: the Module Contributor asked for on a private root
+    // that cannot have branch rules is confirmed as the Module Maintainer.
+    const maintains = stubGitHub(world, {
+      repositories: { "Alpha/alpha_GEN3": { permission: "maintain" } },
+      membership: { kind: "member", state: "active", role: "member" },
+    });
+    const maintainsWithoutRules = await installAs(
+      "module-contributor",
+      contentHost(world as World, {
+        ...maintains.github,
+        branchRules: async () => "unavailable",
+      }),
+    );
+    expect([maintainsWithoutRules.code, maintainsWithoutRules.role]).toEqual([
+      0,
+      "module-maintainer",
+    ]);
 
     // A Module Reader: an active member who only reads the root. The
     // Module Contributor form fails closed for that account, also by its

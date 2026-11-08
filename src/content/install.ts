@@ -756,6 +756,7 @@ async function accountAccess(
       access.repository,
       rootPermission,
       host.github.branchRules?.bind(host.github),
+      context.roles[login.toLowerCase()] ?? null,
     );
   }
   // The person's live role decides the scope; nothing starts without one.
