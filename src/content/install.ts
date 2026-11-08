@@ -48,10 +48,12 @@ import {
 } from "./personalspace-bootstrap";
 import { dataMountOf, provideRepository } from "./provide";
 import {
+  type BranchRules,
   classifySlotAccess,
   type OrganizationRole,
   type RepositoryPermission,
   type RoleVerification,
+  rootBranchRules,
   verifyOrganizationRole,
 } from "./role";
 import {
@@ -726,6 +728,7 @@ async function accountAccess(
     return unusableRoot(login, resolution, steps);
   let rootRepository = resolution.repository;
   let rootPermission: RepositoryPermission | null = null;
+  let branchRules: BranchRules = "unknown";
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
     const access = await host.github.repository(owner, name);
@@ -749,6 +752,11 @@ async function accountAccess(
       );
     rootRepository = access.repository.fullName;
     rootPermission = access.repository.permission;
+    branchRules = await rootBranchRules(
+      access.repository,
+      rootPermission,
+      host.github.branchRules?.bind(host.github),
+    );
   }
   // The person's live role decides the scope; nothing starts without one.
   // A Module Maintainer or Module Contributor is confirmed by the root's
@@ -763,6 +771,7 @@ async function accountAccess(
     requested,
     membership,
     rootPermission,
+    rootBranchRules: branchRules,
   });
   // Only the CLI's bare form asks for `organization-admin`; its agent learns
   // there that the narrower roles are named with --role (the Launchpad's

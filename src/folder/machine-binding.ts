@@ -28,7 +28,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 // like `operator`; the handover carries it since Machines #277. `services` is
 // the services Environment of a Proxmox server, Služby serveru (root decision
 // 0209, Machines docs/server-services.md §2): a work Environment of the
-// Organization that only its Organization Owners and Organization Admins enter
+// Organization that only its Organization Admins enter (root decision 0228)
 // and that, like `team`,
 // names nobody. Any other kind fails closed. A free work Environment's
 // operator (root decision 0216) is named by their Lazurio account

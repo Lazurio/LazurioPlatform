@@ -21,7 +21,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This is the personal Remote Environment of the personal zone. It may reach every work Remote Environment of its user; no work Environment may reach it.
 
@@ -131,7 +131,7 @@ Environmenty a klienti jednoho uživatele tvoří dvě zóny. **Osobní zóna** 
 - Sdílený týmový Remote Environment přijímá jen příchozí spojení od členů živého GitHub Teamu, ke kterému je svázaný (decisions 0147/0149), a nikdy nemá odchozí grant.
 - Mezi uživateli nic implicitně. Telefon není SSH server.
 - Všechno platí uvnitř jednoho Conglomerate (jednoho Headscale tailnetu); osobní Remote Environment je node jen svého domovského tailnetu a mezi tailnety se žádný most nestaví.
-- Správa Conglomerate Hostu patří Vlastníkovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobního Remote Environmentu.
+- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen z jeho osobního laptopu a osobního Remote Environmentu.
 
 **Zóna tohohle Environmentu.** Tenhle Environment je osobní Remote Environment osobní zóny. Smí na každý pracovní Remote Environment svého uživatele; žádný pracovní Environment na něj nesmí.
 
@@ -238,7 +238,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** A workstation is a client of its user. Its zone follows who owns it: a personal laptop is in the personal zone, a work laptop issued by an Organization is in that Organization's work zone. The Folder does not record which one this is.
 
@@ -289,7 +289,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This is the personal Remote Environment of the personal zone. It may reach every work Remote Environment of its user; no work Environment may reach it.
 
@@ -391,7 +391,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -486,7 +486,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This Environment is a shared Team Remote Environment in the work zone of Organization \`example\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or other Environment.
 
@@ -584,7 +584,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This is the Henry Environment of a persona in the work zone of Organization \`example\`, with one responsible user. Only that user connects to it, over SSH for service interventions; colleagues work with the persona through GitHub. It never reaches a personal Environment.
 
@@ -1329,7 +1329,7 @@ Every access role has one Czech name, one English name and one identifier (decis
 
 ### The Organization
 - **Organization Owner**: owns the GitHub Organization, appoints and removes the Organization Admins and by that alone enters no Environment (decision 0228).
-- **Organization Admin**: manages the Organization's Members, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints (decision 0228, not yet deployed); until then an active Organization Owner is the Organization Admin. How to check the role and what the Organization Admin does is in \`manual/mechanisms.md\` and \`manual/admin.md\`.
+- **Organization Admin**: manages the Organization's membership, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints (decision 0228, not yet deployed); until then an active Organization Owner is the Organization Admin. How to check the role and what the Organization Admin does is in \`manual/mechanisms.md\` and \`manual/admin.md\`.
 - **Organization Member**: every other person in the Organization. What they may do follows from their roles at the level of modules and applications.
 
 ### A module
@@ -1346,7 +1346,7 @@ Every access role has one Czech name, one English name and one identifier (decis
 - **Assigned User**: the person a Work Environment is assigned to (decision 0216); they are that Environment's user.
 - **Service entry** is a kind of entry, not a role: entry to an Environment for someone other than its Assigned User. The Organization Admin has it to every Environment of the Organization by the role (decision 0228), anyone else only with a grant for one Environment.
 
-These names ended for roles: Builder, Steward, the Organization role User, Reader as a command value, the levels Nevidí, Čte, Navrhuje and Zapisuje, maintainer and module access without the level, Owner and Vlastník without the Organization as an access role (the Owner of an Environment below owns a boundary and is no access role), and “Uživatelský přístup” and “Administrátorský přístup” for the application roles. In older texts read Builder as Module Contributor, Steward as Module Maintainer and the role User as an Organization Member who is no Module Contributor. The command \`lazurio organization install --role\` takes \`module-contributor\`, \`module-maintainer\` and \`module-reader\`, and the old \`builder\`, \`steward\` and \`reader\` only as deprecated aliases with a warning; \`lazurio organization role\` prints the identifiers of the table. Deployed values (the roles in Lazurio Auth's tokens, the module kit's \`appRole\`, GitHub's permissions) stay and the table maps them. Words that name no role keep their meaning, such as a Docker builder or the people who develop Lazurio.
+These names ended for roles: Builder, Steward, the Organization role User, Reader as a command value, the levels Nevidí, Čte, Navrhuje and Zapisuje, maintainer and module access without the level, Owner and Vlastník without the Organization as an access role (the Owner of an Environment below owns a boundary and is no access role), and “Uživatelský přístup” and “Administrátorský přístup” for the application roles. In older texts read Builder as Module Contributor, Steward as Module Maintainer and the role User as an Organization Member who is no Module Contributor. The command \`lazurio organization install --role\` takes \`module-contributor\`, \`module-maintainer\` and \`module-reader\`, and the old \`builder\`, \`steward\` and \`reader\` only as deprecated aliases with a warning; \`lazurio organization role\` prints the Organization Admin, or the Module role on the Organization's root repository, and in a single module a person may hold another role. Deployed values (the roles in Lazurio Auth's tokens, the module kit's \`appRole\`, GitHub's permissions) stay and the table maps them. Words that name no role keep their meaning, such as a Docker builder or the people who develop Lazurio.
 
 ## Owner of an Environment
 The user or Organization that owns the Environment, its data, its accesses and the last recovery path. A personal Remote Environment is owned by the user it serves; a work or Team Remote Environment by the Organization. Using a shared Environment grants neither ownership nor Organization-wide authority.
@@ -1396,7 +1396,7 @@ Každá role přístupu má jedno české jméno, jedno anglické a jeden identi
 
 ### Organizace
 - **Vlastník Organizace**: vlastní GitHub Organizaci, jmenuje a odvolává Adminy Organizace a sám o sobě do žádného Prostředí nevstupuje (decision 0228).
-- **Admin Organizace**: spravuje Členy Organizace, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou jmenuje Vlastník Organizace (decision 0228, not yet deployed); do té doby je Adminem Organizace aktivní Vlastník Organizace. Jak roli ověřit a co Admin Organizace dělá, je v \`manual/mechanisms.md\` a \`manual/admin.md\`.
+- **Admin Organizace**: spravuje členství, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou jmenuje Vlastník Organizace (decision 0228, not yet deployed); do té doby je Adminem Organizace aktivní Vlastník Organizace. Jak roli ověřit a co Admin Organizace dělá, je v \`manual/mechanisms.md\` a \`manual/admin.md\`.
 - **Člen Organizace**: každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů a aplikací.
 
 ### Modul
@@ -1413,7 +1413,7 @@ Každá role přístupu má jedno české jméno, jedno anglické a jeden identi
 - **Přidělený uživatel**: člověk, kterému je Pracovní Prostředí přidělené (decision 0216); je to uživatel toho Prostředí.
 - **Servisní vstup** je druh vstupu, ne role: vstup do Prostředí pro někoho jiného než jeho Přiděleného uživatele. Admin Organizace ho má rolí do každého Prostředí Organizace (decision 0228), kdokoli jiný jen s grantem pro jedno Prostředí.
 
-Tato jména pro role skončila: Builder, Steward, role User v Organizaci, Reader jako hodnota příkazu, úrovně Nevidí, Čte, Navrhuje a Zapisuje, maintainer a přístup k modulu bez úrovně, Owner a Vlastník bez Organizace jako role přístupu (Owner Environmentu níže je vlastník hranice, ne role přístupu) a „Uživatelský přístup“ a „Administrátorský přístup“ pro role aplikace. Ve starších textech čti Buildera jako Přispěvatele modulu, Stewarda jako Správce modulu a roli User jako Člena Organizace, který není Přispěvatelem modulu. Příkaz \`lazurio organization install --role\` bere \`module-contributor\`, \`module-maintainer\` a \`module-reader\` a staré \`builder\`, \`steward\` a \`reader\` už jen jako zastaralé aliasy s varováním; \`lazurio organization role\` vypisuje identifikátory z tabulky. Nasazené hodnoty (role v tokenech Lazurio Auth, \`appRole\` module kitu, práva GitHubu) zůstávají a mapuje je tabulka. Slova, která roli nepojmenovávají, si význam nechávají, třeba builder v Dockeru nebo lidé, kteří vyvíjejí Lazurio.
+Tato jména pro role skončila: Builder, Steward, role User v Organizaci, Reader jako hodnota příkazu, úrovně Nevidí, Čte, Navrhuje a Zapisuje, maintainer a přístup k modulu bez úrovně, Owner a Vlastník bez Organizace jako role přístupu (Owner Environmentu níže je vlastník hranice, ne role přístupu) a „Uživatelský přístup“ a „Administrátorský přístup“ pro role aplikace. Ve starších textech čti Buildera jako Přispěvatele modulu, Stewarda jako Správce modulu a roli User jako Člena Organizace, který není Přispěvatelem modulu. Příkaz \`lazurio organization install --role\` bere \`module-contributor\`, \`module-maintainer\` a \`module-reader\` a staré \`builder\`, \`steward\` a \`reader\` už jen jako zastaralé aliasy s varováním; \`lazurio organization role\` vypisuje Admina Organizace, nebo roli modulu na kořenovém repozitáři Organizace, a v jednotlivém modulu může mít člověk jinou roli. Nasazené hodnoty (role v tokenech Lazurio Auth, \`appRole\` module kitu, práva GitHubu) zůstávají a mapuje je tabulka. Slova, která roli nepojmenovávají, si význam nechávají, třeba builder v Dockeru nebo lidé, kteří vyvíjejí Lazurio.
 
 ## Owner Environmentu
 Vlastník Environmentu, jeho dat, přístupů a poslední cesty obnovy: uživatel nebo Organizace. Osobní Remote Environment vlastní uživatel, kterému slouží; pracovní nebo týmový Remote Environment vlastní Organizace. Používání sdíleného Environmentu nedává ani vlastnictví, ani pravomoce v celé Organizaci.
@@ -1441,7 +1441,7 @@ Describe a decision whose status is “decided, not yet deployed” or “propos
 
 ## Who is who
 - **The user** is the person you work for; in a Work Environment its Assigned User, the one the Organization assigned it to (\`manual/roles.md\`). Roles have the names of decision 0234 and always name their level: Organization Admin, Module Maintainer, Application Admin, never just Admin.
-- **The Organization Admin** manages the Organization Members, Teams, access, devices, AI source and Environments of their Organization and has service entry to every one of its Environments by the role (decisions 0202, 0228). An Organization usually has one Organization Admin and may have more.
+- **The Organization Admin** manages the membership, Teams, access, devices, AI source and Environments of their Organization and has service entry to every one of its Environments by the role (decisions 0202, 0228). An Organization usually has one Organization Admin and may have more.
 - **The Organization Owner** owns the GitHub Organization and appoints and removes the Organization Admins; by that alone they enter no Environment (decision 0228).
 - **An Organization Member** is every other person in the Organization. What they may do follows from their roles at the level of modules (Module Reader, Module Contributor, Module Maintainer) and applications (Application Admin, Application User).
 - An Environment belongs to whoever owns it: a Personal Environment to the person, a Work or Team Environment to the Organization.
@@ -1563,7 +1563,7 @@ Rozhodnutí se stavem „rozhodnuto, zatím nenasazeno“ nebo „navrženo“ p
 
 ## Kdo je kdo
 - **Uživatel** je člověk, pro kterého pracuješ; v Pracovním Prostředí jeho Přidělený uživatel, ten, komu ho Organizace přiřadila (\`manual/roles.md\`). Role mají jména podle rozhodnutí 0234 a vždy pojmenují svou úroveň: Admin Organizace, Správce modulu, Admin aplikace, nikdy jen Admin.
-- **Admin Organizace** spravuje Členy Organizace, Teamy, přístupy, zařízení, zdroj AI a Prostředí své Organizace a má rolí servisní vstup do každého jejího Prostředí (rozhodnutí 0202, 0228). Organizace má obvykle jednoho Admina Organizace, může mít víc.
+- **Admin Organizace** spravuje členství, Teamy, přístupy, zařízení, zdroj AI a Prostředí své Organizace a má rolí servisní vstup do každého jejího Prostředí (rozhodnutí 0202, 0228). Organizace má obvykle jednoho Admina Organizace, může mít víc.
 - **Vlastník Organizace** vlastní GitHub Organizaci a jmenuje a odvolává Adminy Organizace; sám o sobě do žádného Prostředí nevstupuje (rozhodnutí 0228).
 - **Člen Organizace** je každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů (Čtenář modulu, Přispěvatel modulu, Správce modulu) a aplikací (Admin aplikace, Uživatel aplikace).
 - Prostředí patří tomu, kdo ho vlastní: Osobní Prostředí člověku, Pracovní a Týmové Organizaci.
@@ -2801,7 +2801,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -2904,7 +2904,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This Environment is in the work zone of Organization \`example\`, assigned to one user. The user's personal clients and personal Remote Environment may reach it; it never reaches them and never reaches another work Remote Environment.
 
@@ -3000,7 +3000,7 @@ One user's Environments and clients form two zones. The **personal zone** holds 
 - A shared Team Remote Environment accepts only inbound connections from members of the live GitHub Team it is bound to (decisions 0147/0149) and never has an outbound grant.
 - Nothing implicitly between users. A phone is not an SSH server.
 - Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.
-- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.
+- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.
 
 **This Environment's zone.** This Environment is a shared Team Remote Environment in the work zone of Organization \`example\`. It accepts inbound connections only from members of the live GitHub Team it is bound to, and it has no outbound grant to any client or other Environment.
 

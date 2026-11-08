@@ -8,9 +8,11 @@ import {
   resolveOrganizationRootRepository,
 } from "../content/organization-root";
 import {
+  type BranchRules,
   type MembershipAnswer,
   type OrganizationRole,
   type RepositoryPermission,
+  rootBranchRules,
   verifyOrganizationRole,
 } from "../content/role";
 import { type CliContext, operatorFolder } from "../update/cli";
@@ -32,10 +34,14 @@ export const roleHelp = `organization role <Organization> [--folder <absolute Fo
   for the account gh is signed in with here (root decision 0234):
   organization-admin (an active Organization Owner, counted as the
   Organization Admin until the role in Lazurio Auth is deployed, root
-  decision 0228), module-maintainer (maintain on the root repository),
-  module-contributor (write on it) or module-reader (an active Organization
-  Member who reads it), and the Organization Admins, as GitHub lists its
-  active Organization Owners, without bot accounts. The root is
+  decision 0228), or the Module role on the Organization's root repository
+  as root decision 0232 maps its permission: module-maintainer (maintain,
+  or write where the root cannot have branch rules), module-contributor
+  (write where it can, or where GitHub does not say) or module-reader (an
+  active member of the Organization who reads it). A Module's own
+  repository may give the account another Module role. Then the
+  Organization Admins, as GitHub lists its active Organization Owners,
+  without bot accounts. The root is
   the one the Folder holds, otherwise the one GitHub declares, as for content
   install; the Folder is --folder, otherwise the supervised unit's or the
   declared operator's, and without one only GitHub is asked. A role GitHub
@@ -159,11 +165,18 @@ export async function readOrganizationRole(
     named !== null && !belongsTo(named, organization) ? named : null;
   const rootRepository = foreign === null ? named : null;
   let rootPermission: RepositoryPermission | null = null;
+  let branchRules: BranchRules = "unknown";
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
     const access = await github.repository(owner, name);
-    if (access.kind === "observed" && access.repository.readable)
+    if (access.kind === "observed" && access.repository.readable) {
       rootPermission = access.repository.permission ?? "read";
+      branchRules = await rootBranchRules(
+        access.repository,
+        rootPermission,
+        github.branchRules?.bind(github),
+      );
+    }
   }
   const membership = await observedMembership(github, organization);
   // The highest live role needs the Organization Owner check: without the
@@ -178,6 +191,7 @@ export async function readOrganizationRole(
           requested: null,
           membership,
           rootPermission,
+          rootBranchRules: branchRules,
         });
   const owners =
     github.owners === undefined

@@ -340,16 +340,16 @@ function assignmentText(assignment: MachineAssignment): Text {
 // Team preset: the brokered identity, sharing, Publication by a named
 // person) and how people name it. The same in AGENTS.md and the manual.
 const servicesAssignment: Text = {
-  cs: "- Přiřazení: Služby serveru (decision 0209). Vstupují sem jen Vlastníci Organizace a Admini Organizace a běží tu služby, které server poskytuje svým Environmentům. Na GitHubu, ve sdílení i v Publikaci tu platí pravidla týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
-  en: "- Assignment: Server services (decision 0209). Only the Organization Owners and Organization Admins enter it, and the services the server provides to its Environments run here. On GitHub, in sharing and in Publication the rules of a Team Environment hold here; to users, though, it is the Work Environment named Server services, never a Team one.",
+  cs: "- Přiřazení: Služby serveru (decision 0209). Vstupují sem jen Admini Organizace a běží tu služby, které server poskytuje svým Environmentům. Na GitHubu, ve sdílení i v Publikaci tu platí pravidla týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  en: "- Assignment: Server services (decision 0209). Only the Organization Admins enter it, and the services the server provides to its Environments run here. On GitHub, in sharing and in Publication the rules of a Team Environment hold here; to users, though, it is the Work Environment named Server services, never a Team one.",
 };
 
 // Who the Operator is in the services Environment of a server: the Team
-// preset's line names a Team member, and only Organization Owners and
-// Organization Admins enter it.
+// preset's line names a Team member, and only Organization Admins enter it
+// (root decision 0228).
 const servicesOperator: Text = {
-  cs: "- Uživatel: Vlastník Organizace nebo Admin Organizace, který je právě připojený. OS účet sdílejí všichni, kdo sem vstupují, a není osoba. Na GitHubu jednáš jako brokerovaná identita Organizace, ne jako ten uživatel, a změny se připisují Teamu.",
-  en: "- User: whichever Organization Owner or Organization Admin is connected now. Everyone who enters shares the OS account, which is not a person. On GitHub you act as the brokered Organization identity, not as that user, and changes are attributed to the Team.",
+  cs: "- Uživatel: Admin Organizace, který je právě připojený. OS účet sdílejí všichni, kdo sem vstupují, a není osoba. Na GitHubu jednáš jako brokerovaná identita Organizace, ne jako ten uživatel, a změny se připisují Teamu.",
+  en: "- User: whichever Organization Admin is connected now. Everyone who enters shares the OS account, which is not a person. On GitHub you act as the brokered Organization identity, not as that user, and changes are attributed to the Team.",
 };
 
 // A check built on `timeout` on the user's Mac (Matěj's rule of 2026-10-24,
@@ -431,8 +431,7 @@ function machineSection(
   }[preset];
   // A public Environment's visitors share it, whatever its preset, and it
   // has no GitHub identity (decision F55's addendum of 2026-10-17). Only
-  // Organization Owners and Organization Admins enter Služby serveru, which
-  // have the Team preset.
+  // Only Organization Admins enter Služby serveru, which have the Team preset.
   const operatorLine =
     githubIdentity(preset, machine) === "none"
       ? publicOperator

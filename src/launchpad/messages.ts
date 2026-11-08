@@ -1884,7 +1884,7 @@ const en = {
   // the shell and in its assignment, who enters it, and its kind, a work
   // Environment set apart as `kindDetail` sets apart an automated one.
   serverServicesName: "Server services",
-  machineWorksServices: "Organization Owners and Organization Admins",
+  machineWorksServices: "Organization Admins",
   machineKindServices: `${kindDetail("work", "en")} with the server's services`,
   // A public Environment (the Try overlay preset, decision F55's addendum
   // of 2026-10-20): a Team Environment set apart by its words, never a
@@ -4053,7 +4053,7 @@ const cs: Record<MessageKey, string> = {
   machineWorksTeam: "Team {team}",
   machineWorksAutomation: "automatizace, odpovídá @{login}",
   serverServicesName: "Služby serveru",
-  machineWorksServices: "Vlastníci Organizace a Admini Organizace",
+  machineWorksServices: "Admini Organizace",
   machineKindServices: `${kindDetail("work", "cs")} se službami serveru`,
   machineKindTry: `${kindDetail("team", "cs")} pro vyzkoušení`,
   machineKindPersonal: kindDetail("personal", "cs"),

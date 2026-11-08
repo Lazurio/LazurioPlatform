@@ -435,11 +435,12 @@ ordinary preview → apply flow.
 
 Every Proxmox server of an Organization has one services Environment `services-NN`,
 to users **Služby serveru** ("Server services"): a work Environment of the
-Organization that only its Organization Owners and Organization Admins enter (Machines
+Organization that only its Organization Admins enter (decision 0228; Machines
 `docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
 `{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
-grants scope its brokered identity. Admission (the Organization's `Owner` role in Lazurio Auth, which its Organization
-Owners and Organization Admins hold) is the gateway's and is not in the handover; the Platform derives nothing from it.
+grants scope its brokered identity. Admission is the gateway's and is not in the handover: until the Organization Admin
+role in Lazurio Auth is deployed, it admits the Organization's `Owner` role in Lazurio Auth,
+which today's Organization Owners and Organization Admins hold; the Platform derives nothing from it.
 Machines writes the assignment, together with `services`, only for a pinned Platform
 that reads them; until then it writes neither and the guest keeps the resident
 Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
@@ -456,12 +457,12 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   `work`, label "Služby serveru" or "Server services", no `assignee` and no
   `operator.login` (`environmentKind` and `environmentLabel` in
   `src/launchpad/shell-document.ts`).
-  Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Vlastníci
-  Organizace a Admini Organizace" working there and "Služby serveru" as the assignment for
+  Toto Prostředí reads "Pracovní Prostředí se službami serveru" with "Admini
+  Organizace" working there and "Služby serveru" as the assignment for
   support; Obecné names the Team preset it has the same way. The generated Folder
-  states the assignment (only Organization Owners and Organization Admins enter, the
+  states the assignment (only Organization Admins enter, the
   Team's rules hold, the name users know it by) and that the user is the connected
-  Organization Owner or Organization Admin.
+  Organization Admin.
 - **Services.** The member `services` (each service's id, kind, productionspace
   repository and loopback page port) is accepted exactly as the schema writes it,
   recorded nowhere in the Folder, and read only by the catalog, only where the

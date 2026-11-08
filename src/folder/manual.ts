@@ -1063,8 +1063,8 @@ const roles: readonly Text[] = [
     "- **Organization Owner**: owns the GitHub Organization, appoints and removes the Organization Admins and by that alone enters no Environment (decision 0228).",
   ),
   t(
-    "- **Admin Organizace**: spravuje Členy Organizace, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou jmenuje Vlastník Organizace (decision 0228, not yet deployed); do té doby je Adminem Organizace aktivní Vlastník Organizace. Jak roli ověřit a co Admin Organizace dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
-    "- **Organization Admin**: manages the Organization's Members, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints (decision 0228, not yet deployed); until then an active Organization Owner is the Organization Admin. How to check the role and what the Organization Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
+    "- **Admin Organizace**: spravuje členství, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou jmenuje Vlastník Organizace (decision 0228, not yet deployed); do té doby je Adminem Organizace aktivní Vlastník Organizace. Jak roli ověřit a co Admin Organizace dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
+    "- **Organization Admin**: manages the Organization's membership, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints (decision 0228, not yet deployed); until then an active Organization Owner is the Organization Admin. How to check the role and what the Organization Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
   ),
   t(
     "- **Člen Organizace**: každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů a aplikací.",
@@ -1110,8 +1110,8 @@ const roles: readonly Text[] = [
   ),
   blank,
   t(
-    "Tato jména pro role skončila: Builder, Steward, role User v Organizaci, Reader jako hodnota příkazu, úrovně Nevidí, Čte, Navrhuje a Zapisuje, maintainer a přístup k modulu bez úrovně, Owner a Vlastník bez Organizace jako role přístupu (Owner Environmentu níže je vlastník hranice, ne role přístupu) a „Uživatelský přístup“ a „Administrátorský přístup“ pro role aplikace. Ve starších textech čti Buildera jako Přispěvatele modulu, Stewarda jako Správce modulu a roli User jako Člena Organizace, který není Přispěvatelem modulu. Příkaz `lazurio organization install --role` bere `module-contributor`, `module-maintainer` a `module-reader` a staré `builder`, `steward` a `reader` už jen jako zastaralé aliasy s varováním; `lazurio organization role` vypisuje identifikátory z tabulky. Nasazené hodnoty (role v tokenech Lazurio Auth, `appRole` module kitu, práva GitHubu) zůstávají a mapuje je tabulka. Slova, která roli nepojmenovávají, si význam nechávají, třeba builder v Dockeru nebo lidé, kteří vyvíjejí Lazurio.",
-    "These names ended for roles: Builder, Steward, the Organization role User, Reader as a command value, the levels Nevidí, Čte, Navrhuje and Zapisuje, maintainer and module access without the level, Owner and Vlastník without the Organization as an access role (the Owner of an Environment below owns a boundary and is no access role), and “Uživatelský přístup” and “Administrátorský přístup” for the application roles. In older texts read Builder as Module Contributor, Steward as Module Maintainer and the role User as an Organization Member who is no Module Contributor. The command `lazurio organization install --role` takes `module-contributor`, `module-maintainer` and `module-reader`, and the old `builder`, `steward` and `reader` only as deprecated aliases with a warning; `lazurio organization role` prints the identifiers of the table. Deployed values (the roles in Lazurio Auth's tokens, the module kit's `appRole`, GitHub's permissions) stay and the table maps them. Words that name no role keep their meaning, such as a Docker builder or the people who develop Lazurio.",
+    "Tato jména pro role skončila: Builder, Steward, role User v Organizaci, Reader jako hodnota příkazu, úrovně Nevidí, Čte, Navrhuje a Zapisuje, maintainer a přístup k modulu bez úrovně, Owner a Vlastník bez Organizace jako role přístupu (Owner Environmentu níže je vlastník hranice, ne role přístupu) a „Uživatelský přístup“ a „Administrátorský přístup“ pro role aplikace. Ve starších textech čti Buildera jako Přispěvatele modulu, Stewarda jako Správce modulu a roli User jako Člena Organizace, který není Přispěvatelem modulu. Příkaz `lazurio organization install --role` bere `module-contributor`, `module-maintainer` a `module-reader` a staré `builder`, `steward` a `reader` už jen jako zastaralé aliasy s varováním; `lazurio organization role` vypisuje Admina Organizace, nebo roli modulu na kořenovém repozitáři Organizace, a v jednotlivém modulu může mít člověk jinou roli. Nasazené hodnoty (role v tokenech Lazurio Auth, `appRole` module kitu, práva GitHubu) zůstávají a mapuje je tabulka. Slova, která roli nepojmenovávají, si význam nechávají, třeba builder v Dockeru nebo lidé, kteří vyvíjejí Lazurio.",
+    "These names ended for roles: Builder, Steward, the Organization role User, Reader as a command value, the levels Nevidí, Čte, Navrhuje and Zapisuje, maintainer and module access without the level, Owner and Vlastník without the Organization as an access role (the Owner of an Environment below owns a boundary and is no access role), and “Uživatelský přístup” and “Administrátorský přístup” for the application roles. In older texts read Builder as Module Contributor, Steward as Module Maintainer and the role User as an Organization Member who is no Module Contributor. The command `lazurio organization install --role` takes `module-contributor`, `module-maintainer` and `module-reader`, and the old `builder`, `steward` and `reader` only as deprecated aliases with a warning; `lazurio organization role` prints the Organization Admin, or the Module role on the Organization's root repository, and in a single module a person may hold another role. Deployed values (the roles in Lazurio Auth's tokens, the module kit's `appRole`, GitHub's permissions) stay and the table maps them. Words that name no role keep their meaning, such as a Docker builder or the people who develop Lazurio.",
   ),
   blank,
   t("## Owner Environmentu", "## Owner of an Environment"),
@@ -2267,8 +2267,8 @@ export function visitorsChapter(
 // Služby serveru (root decision 0209), which takes it for its GitHub identity
 // and Publication: who enters it, who the Operator is and how people name it.
 const servicesMeaning: Text = t(
-  "Jde ale o Služby serveru (decision 0209): do tohoto Environmentu vstupují jen Vlastníci Organizace a Admini Organizace, ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina Organizace, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
-  "This, though, is Server services (decision 0209): only the Organization Owners and Organization Admins enter this Environment, not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Organization Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
+  "Jde ale o Služby serveru (decision 0209): do tohoto Environmentu vstupují jen Admini Organizace (decision 0228; dokud jejich role v Lazurio Auth není nasazená, pouští brána ty, kdo v Lazurio Auth mají roli `Owner` Organizace), ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina Organizace, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  "This, though, is Server services (decision 0209): only the Organization Admins enter this Environment (decision 0228; until their role in Lazurio Auth is deployed, the gateway admits those who hold the Organization's `Owner` role in Lazurio Auth), not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Organization Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
 );
 
 const presetMeaning: Readonly<Record<PresetName, Text>> = {
@@ -2363,14 +2363,13 @@ function zoneOfThisMachine(
 ): Text {
   const organization =
     machine?.owner.kind === "organization" ? machine.owner.organization : null;
-  // Služby serveru have the Team preset, but only Organization Owners and
-  // Organization Admins enter
+  // Služby serveru have the Team preset, but only Organization Admins enter
   // them, and their services serve the server's Environments (root decision
   // 0209 points 3 and 4).
   if (preset === "hosted-organization-team" && isServerServices(machine))
     return t(
-      `Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Vlastníci Organizace a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
-      `This Environment (Server services, decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization Owners and Organization Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
+      `Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
+      `This Environment (Server services, decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
     );
   switch (preset) {
     case "local":
@@ -3171,8 +3170,8 @@ function thisMachine(source: InstructionSource): string {
         "- Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.",
       ),
       t(
-        "- Správa Conglomerate Hostu patří Vlastníkovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobního Remote Environmentu.",
-        "- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.",
+        "- Správa Conglomerate Hostu patří jen Adminovi Organizace, který je zároveň živým Vlastníkem Organizace, jíž host patří (decision 0228), a jen z jeho osobního laptopu a osobního Remote Environmentu.",
+        "- Administration of the Conglomerate Host belongs only to an Organization Admin who also holds the live Organization Owner role of the Organization that owns it (decision 0228), only from their personal laptop and personal Remote Environment.",
       ),
       blank,
       t(

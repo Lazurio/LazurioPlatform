@@ -12,7 +12,13 @@
 //   (Organization Admin only) slots included;
 // - a Module Maintainer, Module Contributor or Module Reader gets everything
 //   else: restricted slots and every slot below one are excluded before any
-//   provider operation (`excluded_by_role_scope`);
+//   provider operation (`excluded_by_role_scope`). These are the Module role
+//   on the Organization's root repository, the one repository the scope is
+//   read from; a Module's own repository may give the same person another
+//   role. As root decision 0232 maps them, `maintain` is the Module
+//   Maintainer, and `push` (`write`) is the Module Contributor where the
+//   repository can have branch rules and the Module Maintainer where it
+//   cannot;
 // - a role that cannot be verified fails closed (`role-unverified`) before
 //   anything is cloned.
 // GitHub is the only authority; nothing here is recorded or cached, and the
@@ -83,6 +89,27 @@ const isOwner = (membership: MembershipAnswer) =>
   membership.state === "active" &&
   membership.role === "admin";
 
+/** Whether a repository can have branch rules, as its own answer says
+ * (root decision 0232: not the name of the plan). `unknown` when GitHub did
+ * not say. */
+export type BranchRules = "available" | "unavailable" | "unknown";
+
+/** The Module role a permission on a repository is (root decision 0232),
+ * or null below `write`. Where GitHub did not say whether the repository can
+ * have branch rules, `write` is named by the lower role, the Module
+ * Contributor: an unknown answer never makes anyone a Module Maintainer. */
+function moduleRole(
+  permission: RepositoryPermission | null,
+  branchRules: BranchRules,
+): "module-maintainer" | "module-contributor" | null {
+  if (atLeast(permission, "maintain")) return "module-maintainer";
+  if (atLeast(permission, "write"))
+    return branchRules === "unavailable"
+      ? "module-maintainer"
+      : "module-contributor";
+  return null;
+}
+
 const verified = (role: OrganizationRole): RoleVerification =>
   Object.freeze({
     kind: "verified",
@@ -97,14 +124,19 @@ const verified = (role: OrganizationRole): RoleVerification =>
  * resolve it live (the Launchpad picks the form from the live role, in the
  * order Organization Admin, Module Maintainer, Module Contributor, Module
  * Reader): the Organization Admin by an active Organization Owner membership
- * (until the role in Lazurio Auth is deployed, root decision 0228), the
- * Module Maintainer by `maintain` on the root repository, the Module
- * Contributor by `write` on it (the resident's `builder` gate reads WRITE),
- * the Module Reader by `read` or `triage` on it together with an active
- * membership (a public root answers `read` to every account, so the
- * permission alone names no one of the Organization). An asserted role
- * GitHub does not confirm, and a live resolution that finds none of them,
- * is `unverified`: the caller fails closed. */
+ * (until the role in Lazurio Auth is deployed, root decision 0228); the
+ * Module role on the root repository by its permission as root decision
+ * 0232 maps it (`moduleRole`: `maintain` the Module Maintainer, `write` the
+ * Module Contributor, or the Module Maintainer where the root cannot have
+ * branch rules; the resident's `builder` gate reads WRITE); the Module
+ * Reader by `read` or `triage` on it together with an active membership (a
+ * public root answers `read` to every account, so the permission alone
+ * names no one of the Organization). A narrower role than the live one is
+ * confirmed as asked, except the Module Contributor where the root cannot
+ * have branch rules: there it does not exist (0232), and `write` is
+ * confirmed as the Module Maintainer. An asserted role GitHub does not
+ * confirm, and a live resolution that finds none of them, is `unverified`:
+ * the caller fails closed. */
 export function verifyOrganizationRole(
   input: Readonly<{
     requested: OrganizationRole | null;
@@ -112,10 +144,15 @@ export function verifyOrganizationRole(
     /** The account's permission on the root repository; null when it is
      * not known. */
     rootPermission: RepositoryPermission | null;
+    /** Whether the root repository can have branch rules; only `write`
+     * depends on it. Absent, `unknown`. */
+    rootBranchRules?: BranchRules | undefined;
   }>,
 ): RoleVerification {
   const { requested, membership, rootPermission } = input;
+  const branchRules = input.rootBranchRules ?? "unknown";
   const admin = isOwner(membership);
+  const live = moduleRole(rootPermission, branchRules);
   if (requested === "organization-admin")
     return admin
       ? verified("organization-admin")
@@ -127,20 +164,29 @@ export function verifyOrganizationRole(
               : "the account is not an active Organization Owner",
         };
   if (requested === "module-maintainer")
-    return atLeast(rootPermission, "maintain")
+    return live === "module-maintainer"
       ? verified("module-maintainer")
       : {
           kind: "unverified",
           detail:
-            "the account has no maintain permission on the root repository",
+            live === null
+              ? "the account has no maintain permission on the root repository, nor write where it cannot have branch rules"
+              : branchRules === "unknown"
+                ? "the account has write but no maintain permission on the root repository, and GitHub did not say whether the repository can have branch rules (where it cannot, write is the Module Maintainer, root decision 0232)"
+                : "the account has write but no maintain permission on the root repository, which can have branch rules (root decision 0232)",
         };
   if (requested === "module-contributor")
-    return atLeast(rootPermission, "write")
-      ? verified("module-contributor")
-      : {
+    return live === null
+      ? {
           kind: "unverified",
           detail: "the account has no write permission on the root repository",
-        };
+        }
+      : verified(
+          // No Module Contributor where the root cannot have branch rules.
+          branchRules === "unavailable"
+            ? "module-maintainer"
+            : "module-contributor",
+        );
   if (requested === "module-reader")
     return isActiveMember(membership) && atLeast(rootPermission, "read")
       ? verified("module-reader")
@@ -153,8 +199,7 @@ export function verifyOrganizationRole(
             : "the account has no read permission on the root repository",
         };
   if (admin) return verified("organization-admin");
-  if (atLeast(rootPermission, "maintain")) return verified("module-maintainer");
-  if (atLeast(rootPermission, "write")) return verified("module-contributor");
+  if (live !== null) return verified(live);
   if (isActiveMember(membership) && atLeast(rootPermission, "read"))
     return verified("module-reader");
   return {
@@ -198,6 +243,21 @@ export function classifySlotAccess(
   return access === "restricted" || access === "private"
     ? "restricted"
     : "ordinary";
+}
+
+/** Whether the root repository can have branch rules, asked only where it
+ * matters: for `write`, the one permission whose Module role depends on it.
+ * A public repository always can. */
+export async function rootBranchRules(
+  repository: Readonly<{ fullName: string; private: boolean }>,
+  permission: RepositoryPermission | null,
+  ask: ((owner: string, name: string) => Promise<BranchRules>) | undefined,
+): Promise<BranchRules> {
+  if (permission !== "write") return "unknown";
+  if (!repository.private) return "available";
+  if (ask === undefined) return "unknown";
+  const [owner, name] = repository.fullName.split("/") as [string, string];
+  return ask(owner, name);
 }
 
 /** Whether this identity can prepare an Organization for this version of

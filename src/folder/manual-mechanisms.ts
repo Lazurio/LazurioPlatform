@@ -123,8 +123,8 @@ export const mechanisms: readonly Text[] = [
     "- **The user** is the person you work for; in a Work Environment its Assigned User, the one the Organization assigned it to (`manual/roles.md`). Roles have the names of decision 0234 and always name their level: Organization Admin, Module Maintainer, Application Admin, never just Admin.",
   ),
   t(
-    "- **Admin Organizace** spravuje Členy Organizace, Teamy, přístupy, zařízení, zdroj AI a Prostředí své Organizace a má rolí servisní vstup do každého jejího Prostředí (rozhodnutí 0202, 0228). Organizace má obvykle jednoho Admina Organizace, může mít víc.",
-    "- **The Organization Admin** manages the Organization Members, Teams, access, devices, AI source and Environments of their Organization and has service entry to every one of its Environments by the role (decisions 0202, 0228). An Organization usually has one Organization Admin and may have more.",
+    "- **Admin Organizace** spravuje členství, Teamy, přístupy, zařízení, zdroj AI a Prostředí své Organizace a má rolí servisní vstup do každého jejího Prostředí (rozhodnutí 0202, 0228). Organizace má obvykle jednoho Admina Organizace, může mít víc.",
+    "- **The Organization Admin** manages the membership, Teams, access, devices, AI source and Environments of their Organization and has service entry to every one of its Environments by the role (decisions 0202, 0228). An Organization usually has one Organization Admin and may have more.",
   ),
   t(
     "- **Vlastník Organizace** vlastní GitHub Organizaci a jmenuje a odvolává Adminy Organizace; sám o sobě do žádného Prostředí nevstupuje (rozhodnutí 0228).",

@@ -268,7 +268,8 @@ Application User (the module kit's `appRole` `admin` and `user`).
   a Team or the whole Organization; the higher role holds, and the Organization Admin
   may remove any.
 - **Availability.** The person on whose Environment the application runs makes it
-  available to the Organization. Organization Members with a role see it in Apps of their
+  available to the Organization. People with an active membership of the Organization
+  and a role see it in Apps of their
   Launchpad, or on their Lazurio account without an Environment, and the gateway
   admits them to that application only (see app-only entry below). A Work
   Environment is the first home; the target is an application the Organization runs
@@ -294,7 +295,7 @@ Application User (the module kit's `appRole` `admin` and `user`).
 
 An Organization Admin manages membership, initial assignments, device admission and
 cross-user links within their scope. An Assigned User may share their work
-Environment or selected apps with existing active Organization Members of the same
+Environment or selected apps with people who have an active membership of the same
 Organization without another click of the Organization Admin. This cannot invite outsiders,
 approve devices, create membership or assign someone else's Environment.
 A user may link two Environments assigned to them in that Organization;

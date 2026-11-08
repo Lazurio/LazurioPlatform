@@ -438,15 +438,28 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    as the resident `lazurio organization install --role builder|steward` scopes it,
    and the Module Reader of decision F9's addendum of 2026-10-05),
    which GitHub must confirm through the same account before anything is cloned. The
-   roles carry the names and identifiers of root decision 0234 and map to GitHub's
-   answers as follows:
+   roles carry the names and identifiers of root decision 0234. Below the Organization
+   Admin they are the Module role on the Organization's root repository, the one
+   repository the scope is read from; a Module's own repository may give the same person
+   another Module role. They map to GitHub's answers as root decision 0232 maps a
+   repository's permission:
 
    | Role | Identifier | GitHub confirms it by |
    | --- | --- | --- |
    | Organization Admin | `organization-admin` | an active Organization Owner membership (`GET /user/memberships/orgs/<org>`, GitHub's organization role `admin`, as `organization-owner.ts` reads it); until the Organization Admin role in Lazurio Auth is deployed, an active Organization Owner counts as the Organization Admin (root decision 0228) |
-   | Module Maintainer | `module-maintainer` | `maintain` on the root repository (the grant `module-maintainer.ts` reads) |
-   | Module Contributor | `module-contributor` | `write` on it (the resident's `builder` gate reads WRITE) |
+   | Module Maintainer | `module-maintainer` | `maintain` on the root repository (the grant `module-maintainer.ts` reads), or `write` on it where it cannot have branch rules |
+   | Module Contributor | `module-contributor` | `write` on it where it can have branch rules, or where GitHub does not say (the resident's `builder` gate reads WRITE) |
    | Module Reader | `module-reader` | `read` or `triage` on it together with an active membership (any role, not pending) |
+
+   Whether the root can have branch rules is its own answer, asked only for `write`: a
+   public repository always can; for a private one `GET repos/<owner>/<name>/rulesets`
+   answering at all is yes, GitHub's 403 that the plan does not allow it ("Upgrade to
+   GitHub Pro or make this repository public") is no, and anything else is unknown. An
+   unknown answer names `write` by the lower role, the Module Contributor, so
+   `--role module-maintainer` with `write` fails closed there; `--role module-contributor`
+   with `write` where the root cannot have branch rules is confirmed as the Module
+   Maintainer, because the Module Contributor does not exist there. The install scope is
+   the same for every Module role.
 
    A public root answers `read` to every account, so the permission alone names no one
    of the Organization, and an outside collaborator who only reads is not a Module

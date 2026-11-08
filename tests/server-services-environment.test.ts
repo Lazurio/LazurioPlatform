@@ -58,7 +58,7 @@ import services from "./fixtures/machine-context-services.json";
 // Root decision 0209 (plan DEV-6674): every Proxmox server of an Organization
 // has one services Environment `services-NN`, to people "Služby serveru"
 // ("Server services"): a work Environment of the Organization that only its
-// Organization Owners and Organization Admins enter. Machines gives it the closed handover assignment
+// Organization Admins enter. Machines gives it the closed handover assignment
 // {"kind": "services"} and lists its services (Machines
 // docs/server-services.md §2 and §2.1). The fixture is shaped like that
 // handover with example names only: its Team is the broker's GitHub Team
@@ -452,7 +452,7 @@ test("Toto Prostředí says the kind, whose it is and who works there in a perso
   expect(czech.facts).toEqual([
     ["Druh", "Pracovní Prostředí se službami serveru"],
     ["Patří", "Example"],
-    ["Pracuje v něm", "Vlastníci Organizace a Admini Organizace"],
+    ["Pracuje v něm", "Admini Organizace"],
   ]);
   expect(czech.support).toContainEqual(["Přiřazení", "Služby serveru"]);
   expect(czech.support).toContainEqual(["Team", "server-services"]);
@@ -463,7 +463,7 @@ test("Toto Prostředí says the kind, whose it is and who works there in a perso
   expect(english.facts).toEqual([
     ["Kind", "Work Environment with the server's services"],
     ["Belongs to", "Example"],
-    ["Who works in it", "Organization Owners and Organization Admins"],
+    ["Who works in it", "Organization Admins"],
   ]);
   expect(english.support).toContainEqual(["Assignment", "Server services"]);
   // No technical word and no Team kind in what a person reads.
@@ -495,13 +495,13 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
   const czech = render(servicesBinding, "cs");
   const agents = czech["AGENTS.md"];
   expect(agents).toContain(
-    "- Přiřazení: Služby serveru (decision 0209). Vstupují sem jen Vlastníci Organizace a Admini Organizace",
+    "- Přiřazení: Služby serveru (decision 0209). Vstupují sem jen Admini Organizace",
   );
   expect(agents).toContain(
     "uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
   );
   expect(agents).toContain(
-    "- Uživatel: Vlastník Organizace nebo Admin Organizace, který je právě připojený.",
+    "- Uživatel: Admin Organizace, který je právě připojený.",
   );
   expect(agents).not.toContain("- Uživatel: člen Teamu");
   // A named person publishes, as from a Team Environment (root 0209 (c)).
@@ -520,7 +520,7 @@ test("the generated Folder tells agents who enters Služby serveru, that the Tea
     "- Assignment: Server services (decision 0209).",
   );
   expect(english["AGENTS.md"]).toContain(
-    "- User: whichever Organization Owner or Organization Admin is connected now.",
+    "- User: whichever Organization Admin is connected now.",
   );
   expect(english["manual/this-machine.md"]).toContain(
     "This, though, is Server services (decision 0209)",

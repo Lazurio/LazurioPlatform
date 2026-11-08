@@ -787,6 +787,33 @@ posixTest(
       0,
       "module-contributor",
     ]);
+    // Write where the private root cannot have branch rules is the Module
+    // Maintainer (root decision 0232): --role module-maintainer is confirmed
+    // there and refused where the root can have them; --role
+    // module-contributor there is confirmed as the Module Maintainer.
+    const ruled = (rules: "available" | "unavailable") =>
+      contentHost(world as World, {
+        ...member.github,
+        branchRules: async () => rules,
+      });
+    const withoutRules = await installAs(
+      "module-maintainer",
+      ruled("unavailable"),
+    );
+    expect([withoutRules.code, withoutRules.role]).toEqual([
+      0,
+      "module-maintainer",
+    ]);
+    const withRules = await installAs("module-maintainer", ruled("available"));
+    expect([withRules.code, withRules.failure]).toEqual([1, "role-unverified"]);
+    const noContributor = await installAs(
+      "module-contributor",
+      ruled("unavailable"),
+    );
+    expect([noContributor.code, noContributor.role]).toEqual([
+      0,
+      "module-maintainer",
+    ]);
 
     // A Module Reader: an active member who only reads the root. The
     // Module Contributor form fails closed for that account, also by its

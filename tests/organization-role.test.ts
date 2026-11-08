@@ -36,6 +36,10 @@ type Answers = Readonly<{
   membership?: MembershipAnswer;
   root?: RepositoryAnswer;
   owners?: readonly string[] | "unavailable" | "absent";
+  /** The root's branch-rule capability; absent, the method is missing. */
+  branchRules?: "available" | "unavailable" | "unknown";
+  /** Collects the repositories whose branch rules were asked. */
+  asked?: string[];
   /** The listing of the viewer's memberships; by default it answers and
    * names none. */
   memberships?:
@@ -82,6 +86,14 @@ function fakeGitHub(answers: Answers = {}): ContentGitHub {
     async memberships() {
       return answers.memberships ?? [];
     },
+    ...(answers.branchRules === undefined
+      ? {}
+      : {
+          async branchRules(owner: string, name: string) {
+            answers.asked?.push(`${owner}/${name}`);
+            return answers.branchRules;
+          },
+        }),
     ...(answers.owners === "absent"
       ? {}
       : {
@@ -145,6 +157,61 @@ test("a member who reads the root is a Module Reader; write and maintain name a 
   expect(await roleWith("read")).toBe("module-reader");
   expect(await roleWith("write")).toBe("module-contributor");
   expect(await roleWith("maintain")).toBe("module-maintainer");
+});
+
+test("write on a private root is the Module Maintainer where it cannot have branch rules, a public root always can, and only write asks", async () => {
+  const roleWith = async (
+    permission: "read" | "write" | "maintain",
+    branchRules: "available" | "unavailable" | "unknown" | undefined,
+    isPrivate = true,
+  ) => {
+    const asked: string[] = [];
+    const answer = await readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        root: {
+          kind: "observed",
+          repository: {
+            fullName: "Acme/Acme_GEN3",
+            owner: { login: "Acme", databaseId: 2, kind: "Organization" },
+            private: isPrivate,
+            archived: false,
+            readable: true,
+            permission,
+          },
+        },
+        ...(branchRules === undefined ? {} : { branchRules }),
+        asked,
+      }),
+      root: resolved,
+    });
+    return { role: answer.role, asked };
+  };
+  expect(await roleWith("write", "unavailable")).toEqual({
+    role: "module-maintainer",
+    asked: ["Acme/Acme_GEN3"],
+  });
+  expect(await roleWith("write", "available")).toEqual({
+    role: "module-contributor",
+    asked: ["Acme/Acme_GEN3"],
+  });
+  // GitHub not saying, or no way to ask, names the lower role.
+  expect((await roleWith("write", "unknown")).role).toBe("module-contributor");
+  expect((await roleWith("write", undefined)).role).toBe("module-contributor");
+  // A public repository can always have branch rules: nothing is asked.
+  expect(await roleWith("write", "unavailable", false)).toEqual({
+    role: "module-contributor",
+    asked: [],
+  });
+  // Only write depends on it.
+  expect(await roleWith("maintain", "available")).toEqual({
+    role: "module-maintainer",
+    asked: [],
+  });
+  expect(await roleWith("read", "unavailable")).toEqual({
+    role: "module-reader",
+    asked: [],
+  });
 });
 
 test("GitHub not answering is no role: not verified, with the reason, and no Organization Admins when it lists none", async () => {
@@ -511,6 +578,39 @@ esac
       admins: ["ada"],
     });
     expect(answer.detail).toContain("this sign-in may not see it");
+  },
+);
+
+posixTest(
+  "through gh, a root's rulesets answering is branch rules available, GitHub's refusal by plan is unavailable, anything else unknown",
+  async () => {
+    parent = await realpath(
+      await mkdtemp(join(tmpdir(), "organization-role-")),
+    );
+    const bin = join(parent, "bin");
+    const home = join(parent, "home");
+    await mkdir(bin);
+    await mkdir(home);
+    await writeFile(
+      join(bin, "gh"),
+      `#!/bin/sh
+case "$*" in
+  "api repos/Acme/Paid/rulesets") echo '[]' ;;
+  "api repos/Acme/Free/rulesets") echo '{"message":"Upgrade to GitHub Pro or make this repository public to enable this feature.","status":"403"}'; echo 'gh: Upgrade to GitHub Pro or make this repository public to enable this feature. (HTTP 403)' >&2; exit 1 ;;
+  "api repos/Acme/Forbidden/rulesets") echo '{"message":"Resource not accessible by integration","status":"403"}'; exit 1 ;;
+  *) echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
+esac
+`,
+    );
+    await chmod(join(bin, "gh"), 0o755);
+    const github = ghContentGitHub(
+      { path: bin, home, platform: process.platform, run: runTool },
+      { sleep: async () => {} },
+    );
+    expect(await github.branchRules?.("Acme", "Paid")).toBe("available");
+    expect(await github.branchRules?.("Acme", "Free")).toBe("unavailable");
+    expect(await github.branchRules?.("Acme", "Forbidden")).toBe("unknown");
+    expect(await github.branchRules?.("Acme", "Missing")).toBe("unknown");
   },
 );
 

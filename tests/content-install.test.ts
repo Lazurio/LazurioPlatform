@@ -308,6 +308,71 @@ test("the role GitHub confirms, and the scope it gives", () => {
   expect(classifySlotAccess({ required_roles: "builder" })).toBe("unknown");
 });
 
+// Root decision 0232: `write` is the Module Contributor where the repository
+// can have branch rules and the Module Maintainer where it cannot; an
+// unknown answer never makes anyone a Module Maintainer.
+test("write on the root is the Module role its branch-rule capability makes it", () => {
+  const member = { kind: "member", state: "active", role: "member" } as const;
+  const verify = (
+    requested: OrganizationRole | null,
+    rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
+    rootBranchRules: "available" | "unavailable" | "unknown" | undefined,
+  ) => {
+    const answer = verifyOrganizationRole({
+      requested,
+      membership: member,
+      rootPermission,
+      rootBranchRules,
+    });
+    return answer.kind === "verified" ? answer.role : answer.detail;
+  };
+  // Live resolution.
+  expect(verify(null, "write", "available")).toBe("module-contributor");
+  expect(verify(null, "write", "unavailable")).toBe("module-maintainer");
+  expect(verify(null, "write", "unknown")).toBe("module-contributor");
+  expect(verify(null, "write", undefined)).toBe("module-contributor");
+  for (const rules of ["available", "unavailable", "unknown"] as const) {
+    expect(verify(null, "maintain", rules)).toBe("module-maintainer");
+    expect(verify(null, "admin", rules)).toBe("module-maintainer");
+    expect(verify(null, "read", rules)).toBe("module-reader");
+  }
+  // --role module-maintainer: maintain anywhere, write only where the root
+  // cannot have branch rules.
+  expect(verify("module-maintainer", "maintain", "available")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-maintainer", "write", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-maintainer", "write", "available")).toContain(
+    "which can have branch rules",
+  );
+  expect(verify("module-maintainer", "write", "unknown")).toContain(
+    "GitHub did not say whether the repository can have branch rules",
+  );
+  expect(verify("module-maintainer", "read", "unavailable")).toContain(
+    "no maintain permission",
+  );
+  // --role module-contributor: write or more; where the root cannot have
+  // branch rules there is no Module Contributor, and write is the Module
+  // Maintainer.
+  expect(verify("module-contributor", "write", "available")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "write", "unknown")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "write", "unavailable")).toBe(
+    "module-maintainer",
+  );
+  expect(verify("module-contributor", "maintain", "available")).toBe(
+    "module-contributor",
+  );
+  expect(verify("module-contributor", "read", "available")).toContain(
+    "no write permission",
+  );
+});
+
 async function installAlpha(
   github: ReturnType<typeof stubGitHub>["github"],
   folder: string,

@@ -57,11 +57,15 @@ export const contentHelp = `organization install <github-login> [--role module-c
   module-contributor, --role module-maintainer or --role module-reader
   installs everything except the restricted (Organization Admin only) slots
   and the slots below them, reported excluded_by_role_scope and never asked
-  of GitHub, and runs only when GitHub confirms write (Module Contributor)
-  or maintain (Module Maintainer) on the root repository, or read or triage
-  on it together with an active membership in the Organization (Module
-  Reader, whose clones GitHub keeps read-only). Anyone may choose a narrower
-  role GitHub confirms. The former values builder, steward and reader are
+  of GitHub, and runs only when GitHub confirms that Module role on the
+  Organization's root repository, as root decision 0232 maps its
+  permission: write (Module Contributor where the root can have branch
+  rules; where it cannot, write is the Module Maintainer and is confirmed
+  so), maintain (Module Maintainer), or read or triage together with an
+  active membership in the Organization (Module Reader, whose clones GitHub
+  keeps read-only). --role module-maintainer with write needs GitHub's
+  answer that the root cannot have branch rules. Anyone may choose a
+  narrower role GitHub confirms. The former values builder, steward and reader are
   deprecated aliases of module-contributor, module-maintainer and
   module-reader (root decision 0234): they still work and print a warning
   on stderr. A role GitHub does not confirm fails closed before anything is

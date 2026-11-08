@@ -96,7 +96,7 @@ what a new choice may take (issue #107): when the handover states
 | `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | `hosted-organization-personal` |
 | `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible user | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
-| `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Organization Owners and Organization Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
+| `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Organization Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | absent | `"workspace-vm"` without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | the three Organization presets |
 | absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets | the three Organization presets |
 
