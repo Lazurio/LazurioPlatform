@@ -26,8 +26,10 @@ import {
 } from "./fixtures/owned-files";
 
 // `lazurio organization role` (#866): the live role from the core that scopes
-// content install, the root as the Folder or GitHub has it, the Owners, and
-// GitHub not answering is never a role.
+// content install, the root as the Folder or GitHub has it, the Organization
+// Owners (the Organization Admins until the role in Lazurio Auth is
+// deployed), and GitHub not answering is never a role. The role values are
+// the identifiers of root decision 0234.
 
 type Answers = Readonly<{
   viewer?: "signed-in" | "signed-out" | "unavailable";
@@ -98,7 +100,7 @@ const resolved = async () =>
     repository: "Acme/Acme_GEN3",
   });
 
-test("an active Owner is the Admin, with the root and the Owners", async () => {
+test("an active Organization Owner is the Organization Admin, with the root and the Organization Admins", async () => {
   expect(
     await readOrganizationRole({
       organization: "Acme",
@@ -111,7 +113,7 @@ test("an active Owner is the Admin, with the root and the Owners", async () => {
     kind: "organization-role",
     organization: "Acme",
     login: "ada",
-    role: "admin",
+    role: "organization-admin",
     verified: true,
     rootRepository: "Acme/Acme_GEN3",
     admins: ["ada", "bob"],
@@ -119,7 +121,7 @@ test("an active Owner is the Admin, with the root and the Owners", async () => {
   });
 });
 
-test("a member who reads the root is a reader; write and maintain name Builder and Steward", async () => {
+test("a member who reads the root is a Module Reader; write and maintain name a Module Contributor and a Module Maintainer", async () => {
   const roleWith = async (permission: "read" | "write" | "maintain") =>
     (
       await readOrganizationRole({
@@ -140,12 +142,12 @@ test("a member who reads the root is a reader; write and maintain name Builder a
         root: resolved,
       })
     ).role;
-  expect(await roleWith("read")).toBe("reader");
-  expect(await roleWith("write")).toBe("builder");
-  expect(await roleWith("maintain")).toBe("steward");
+  expect(await roleWith("read")).toBe("module-reader");
+  expect(await roleWith("write")).toBe("module-contributor");
+  expect(await roleWith("maintain")).toBe("module-maintainer");
 });
 
-test("GitHub not answering is no role: not verified, with the reason, and no Owners when it lists none", async () => {
+test("GitHub not answering is no role: not verified, with the reason, and no Organization Admins when it lists none", async () => {
   const answer = await readOrganizationRole({
     organization: "Acme",
     github: fakeGitHub({
@@ -173,7 +175,7 @@ test("GitHub not answering is no role: not verified, with the reason, and no Own
     });
 });
 
-test("an Owner stays the Admin when the root is not found, and the answer says why", async () => {
+test("an Organization Owner stays the Organization Admin when the root is not found, and the answer says why", async () => {
   const answer = await readOrganizationRole({
     organization: "Acme",
     github: fakeGitHub({
@@ -189,7 +191,7 @@ test("an Owner stays the Admin when the root is not found, and the answer says w
       }),
   });
   expect(answer).toMatchObject({
-    role: "admin",
+    role: "organization-admin",
     verified: true,
     rootRepository: null,
     detail:
@@ -198,7 +200,7 @@ test("an Owner stays the Admin when the root is not found, and the answer says w
   expect("admins" in answer).toBe(false);
 });
 
-test("without the membership no role is confirmed, not even Builder or Steward from the root", async () => {
+test("without the membership no role is confirmed, not even a Module Contributor or Module Maintainer from the root", async () => {
   for (const permission of ["read", "write", "maintain"] as const) {
     const answer = await readOrganizationRole({
       organization: "Acme",
@@ -223,7 +225,9 @@ test("without the membership no role is confirmed, not even Builder or Steward f
       null,
       false,
     ]);
-    expect(answer.detail).toContain("whether the account is an Owner");
+    expect(answer.detail).toContain(
+      "whether the account is an Organization Owner",
+    );
   }
 });
 
@@ -249,17 +253,18 @@ test("a 404 membership counts as no membership only when the listing of membersh
       }),
       root: resolved,
     });
-  // The listing does not answer: the 404 may hide an Owner.
+  // The listing does not answer: the 404 may hide an Organization Owner.
   const hidden = await roleOf("unavailable");
   expect(hidden).toMatchObject({ role: null, verified: false });
   expect(hidden.detail).toContain("this sign-in may not see it");
-  // It answers without Acme: an outside collaborator with write is a Builder.
-  expect((await roleOf([])).role).toBe("builder");
+  // It answers without Acme: an outside collaborator with write is a Module
+  // Contributor.
+  expect((await roleOf([])).role).toBe("module-contributor");
   // It answers with Acme: that is the membership.
   expect(
     (await roleOf([{ organization: "acme", state: "active", role: "admin" }]))
       .role,
-  ).toBe("admin");
+  ).toBe("organization-admin");
 });
 
 test("a root the Folder holds of another owner names no role here", async () => {
@@ -320,7 +325,7 @@ test("a root the Folder holds of another owner names no role here", async () => 
   ).toBe("Acme/Acme_GEN3");
 });
 
-test("an empty listing of the Owners is left out, never an empty list of Admins", async () => {
+test("an empty listing of the Organization Owners is left out, never an empty list of Organization Admins", async () => {
   const answer = await readOrganizationRole({
     organization: "Acme",
     github: fakeGitHub({
@@ -329,7 +334,7 @@ test("an empty listing of the Owners is left out, never an empty list of Admins"
     }),
     root: resolved,
   });
-  expect(answer.role).toBe("admin");
+  expect(answer.role).toBe("organization-admin");
   expect("admins" in answer).toBe(false);
 });
 
@@ -371,21 +376,30 @@ test("the command finds the root the Folder holds, prints JSON, and exits 0 veri
   );
   expect(owner.code).toBe(0);
   expect(JSON.parse(owner.text)).toMatchObject({
-    role: "admin",
+    role: "organization-admin",
     rootRepository: "Acme/Acme_GEN3",
     admins: ["ada", "bob"],
   });
   expect(inspected).toEqual(["/srv/Lazurio/organizations/Acme_GEN3"]);
+  const human = await run(
+    ["organization", "role", "Acme", "--folder", "/srv/Lazurio"],
+    { membership: { kind: "member", state: "active", role: "admin" } },
+  );
+  expect(human.text.split("\n")).toEqual([
+    "Acme: organization-admin (GitHub, as ada)",
+    "  root: Acme/Acme_GEN3",
+    "  Organization Admins: ada, bob",
+  ]);
   const unknown = await run(
     ["organization", "role", "Acme", "--folder", "/srv/Lazurio"],
     { membership: { kind: "unavailable" }, root: { kind: "unavailable" } },
   );
   expect(unknown.code).toBe(1);
   expect(unknown.text).toContain("Acme: role not verified");
-  expect(unknown.text).toContain("proceed as for a member");
+  expect(unknown.text).toContain("proceed as for an Organization Member");
 });
 
-test("the command does not take a Folder-held root of another owner: Acme's checkout of Other/root with write is no Builder", async () => {
+test("the command does not take a Folder-held root of another owner: Acme's checkout of Other/root with write is no Module Contributor", async () => {
   const catalog = {
     kind: "catalog",
     organizations: [
@@ -455,7 +469,7 @@ afterEach(async () => {
 });
 
 posixTest(
-  "through gh, an Owner whose membership answers 404 to this sign-in is no confirmed non-Admin",
+  "through gh, an Organization Owner whose membership answers 404 to this sign-in is no confirmed non-Admin of the Organization",
   async () => {
     parent = await realpath(
       await mkdtemp(join(tmpdir(), "organization-role-")),
@@ -536,7 +550,7 @@ esac
 );
 
 posixTest(
-  "gh lists the Owners without bots, and a listing it refuses or garbles is unavailable",
+  "gh lists the Organization Owners without bots, and a listing it refuses or garbles is unavailable",
   async () => {
     parent = await realpath(
       await mkdtemp(join(tmpdir(), "organization-role-")),

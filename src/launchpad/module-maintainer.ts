@@ -4,14 +4,14 @@ import { askGitHub, githubLogin, ownerCheck } from "./organization-owner";
 
 // Whether this Environment's GitHub identity may maintain a module's
 // repository (decision 0185 S15, issue #151): GitHub's own, live answer, read
-// with the Environment's `gh` the same way as the Owner check
-// (`gh api repos/<owner>/<repo>`: `permissions.maintain`; an admin of the
-// repository has it too). It decides only whether a tile's menu offers
-// "Přístup k modulu" to a Steward, which leads to the Organization's
+// with the Environment's `gh` the same way as the Organization Owner check
+// (`gh api repos/<owner>/<repo>`: `permissions.maintain`; GitHub's `admin`
+// on the repository has it too). It decides only whether a tile's menu
+// offers "Přístup k modulu" to a Module Maintainer, which leads to the Organization's
 // Dashboard; it grants nothing, and the Dashboard decides again with its own
 // live read. A Team Environment acts under the Team's brokered identity, never
-// a person's role, and gets no answer without a call, as with the Owner
-// check. A repository outside the module's own Organization is no: its Teams
+// a person's role, and gets no answer without a call, as with the
+// Organization Owner check. A repository outside the module's own Organization is no: its Teams
 // are not the Organization's to switch. Every failure is no (fail closed). An
 // answer is kept a few minutes per repository, and one question per
 // repository is asked at a time.

@@ -2,7 +2,7 @@
 
 Status: **local preset model implemented (2026-09-22, names, derivation and
 adoption accepted by Matěj); typed owner requests remain accepted direction.
-The Steward preset (decision 0169, 2026-09-30) is proposed and implemented locally
+The Automated preset (`hosted-organization-steward`, decision 0169, 2026-09-30) is proposed and implemented locally
 and derived from the handover value `automation` (Machines #277, pinned to its pull
 request head until it merges). New preset choices are narrowed to the stated
 assignment (issue #107). The services Environment of a server, Služby serveru (root
@@ -32,7 +32,7 @@ A named, versioned, declarative composition, shipped as data in
 | Provider identity | The user's own sign-in, the brokered Organization identity, or the persona's own account |
 | Enabled surfaces | Which installed surfaces are offered, for example Launchpad, hosted entry and Lazurio MausBot |
 | Supervision policy | Session-scoped applications or the OS service manager |
-| Bot team | `null`, or the defaults Lazurio MausBot starts the persona's bot team with ([Steward preset](#the-steward-preset-automated-environment)) |
+| Bot team | `null`, or the defaults Lazurio MausBot starts the persona's bot team with ([Automated preset](#the-automated-preset-automated-environment)) |
 
 A preset carries no scripts, no infrastructure and no authority. An unknown preset,
 an unknown version or an unsupported combination fails before any mutation. Only whole
@@ -45,7 +45,7 @@ provider identity is in the Platform: on the brokered preset (`hosted-organizati
 the curated gh sign-in and SSH key linking are refused and only a user's account
 left signed in may be signed out ([gh on a Team Environment](environment-tools.md#gh-on-a-team-environment),
 F19 addendum 2026-09-28); on every other preset the curated tools behave the
-same. On the Steward preset that sign-in is the persona's account (below). The bot
+same. On the Automated preset that sign-in is the persona's account (below). The bot
 team is declared for the service that runs Lazurio MausBot and rendered into the
 Folder; Platform applies none of it.
 
@@ -57,7 +57,7 @@ Folder; Platform applies none of it.
 | `hosted-personal` | A user's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
 | `hosted-organization-personal` | An Organization-owned work VM assigned to ONE user (`workspace-vm`) | The assigned user | Own sign-in | Never present | `organizations/<org>/` |
 | `hosted-organization-team` | An Organization-owned team VM, one OS account, several users (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
-| `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible user, an Owner or Admin of the Organization; the persona's bot team works here | The persona's own GitHub user account (a bot account), signed in by that user | Never present | `organizations/<org>/` |
+| `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible user, an Organization Owner or Organization Admin; the persona's bot team works here | The persona's own GitHub user account (a bot account), signed in by that user | Never present | `organizations/<org>/` |
 
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
 renamed without compatibility.
@@ -96,16 +96,16 @@ what a new choice may take (issue #107): when the handover states
 | `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | `hosted-organization-personal` |
 | `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible user | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
-| `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Owners and Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
+| `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Organization Owners and Organization Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | absent | `"workspace-vm"` without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | the three Organization presets |
 | absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets | the three Organization presets |
 
 The narrowing follows decision 0168: a Work Team Environment works in GitHub only
-through the Organization bot, and an explicit Work or Steward preset there would
+through the Organization bot, and an explicit Work or Automated preset there would
 re-open a user-account sign-in (the user's own account or the persona's); the
 same holds for the Team or Work preset on an Automated Environment, and for the Team
-or Steward preset on one user's work VM. No transition allowance keeps the
-Steward preset selectable on an `operator` handover: the handover now states
+or Automated preset on one user's work VM. No transition allowance keeps the
+Automated preset selectable on an `operator` handover: the handover now states
 `automation` directly.
 
 Služby serveru (`services`, root decision 0209) take the Team preset because they
@@ -137,7 +137,9 @@ the Team value untouched either way, and the rendered Assignment line states the
 handover's `owner.assignment` exactly when it is present (`assigned to user
 <login>` / `shared by the Team`).
 
-## The Steward preset: Automated Environment
+<a id="the-steward-preset-automated-environment"></a>
+
+## The Automated preset: Automated Environment
 
 Decision 0169 (Lazurio root register) adds a fourth kind of Environment next to the
 three of 0165: **Automated** (Automatizovaný); the Platform decision is
@@ -146,7 +148,7 @@ done by a bot team of its persona (Henry) in Lazurio MausBot, Lazurio's fork of
 OpenMausBot. `hosted-organization-steward` is that Environment's preset:
 
 - **Machine and user.** An Organization-owned work VM (`workspace-vm`) with one
-  responsible user, an Owner or Admin of the Organization, who configures the
+  responsible user, an Organization Owner or Organization Admin, who configures the
   automation and answers for it. Only that user connects over SSH, for service
   interventions; colleagues work with the persona through GitHub. Personalspace is
   never present; Organization repositories are mounted under `organizations/<org>/`
@@ -154,7 +156,7 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   them with the ordinary content operation, under the persona's live GitHub role:
   in Začínáme, where it starts by itself once the AI and GitHub are there, in
   Settings → Toto Prostředí, or with `lazurio organization install`; the
-  Automated label neither grants Steward rights nor requires a hosting archive
+  Automated label neither grants Module Maintainer rights nor requires a hosting archive
   (F9 amendment of 2026-10-12).
 - **Onboarding of a work Environment** (Matěj 2026-10-30, [F27's
   addendum](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment);
@@ -224,12 +226,12 @@ responsible user exactly like `operator`. The vendored handover schema carries i
 since Machines #277; `src/machine/binding.ts` projects it one member to one into the
 binding (`{kind: "automation", githubLogin, githubId}`), which derives
 `hosted-organization-steward`; any other kind still fails closed. On such a handover
-the Steward preset is the only new choice. A work VM without a stated assignment may
+the Automated preset is the only new choice. A work VM without a stated assignment may
 still take it as an explicit choice. A work VM re-assigned to `automation` whose
 derived preset was recorded is `preset-derivation-changed` on refresh; the user
-takes the Steward preset with `lazurio machine folder-refresh --preset
+takes the Automated preset with `lazurio machine folder-refresh --preset
 hosted-organization-steward`, recorded with the new binding as `derived`. A Folder
-that recorded the Steward preset explicitly (Platform #106, before #277) keeps it.
+that recorded the Automated preset explicitly (Platform #106, before #277) keeps it.
 
 ## The Try overlay preset: a public Environment
 
@@ -390,7 +392,7 @@ The handover has no selected-preset field and needs none: the preset is derived 
 `relationships` (Machines v0.12.61) is recorded in the binding and rendered into
 `manual/this-machine.md` and `AGENTS.md` when present; it never takes part in the
 derivation and Platform enforces nothing from it. The persona's account (upstream
-decisions 0156 and 0169) is not carried by the handover or the preset: the Steward
+decisions 0156 and 0169) is not carried by the handover or the preset: the Automated
 preset renders the rule (the persona's own account, signed in by the responsible
 user), never an account name, and the `automation` assignment names only the
 responsible user. If the persona's account must appear in
@@ -424,7 +426,7 @@ Personalspace conflict), conformance of both handover branches, the rendered doc
 per preset and language, and the Launchpad flow. A native run of `folder-init` on a
 fresh Ubuntu 24.04 ARM64 VM with fixture handovers of all three kinds is recorded in
 [evidence](evidence/presets-linux-arm64-2026-09-22.md); a real Machines-delivered VM
-and a native Launchpad preset change are not proven. For the Steward preset, unit
+and a native Launchpad preset change are not proven. For the Automated preset, unit
 tests prove its whole composition, that the four earlier presets are unchanged field
 by field and render the same bytes (their snapshots and the template revision are
 unchanged), derivation from a stored `automation` assignment with and without

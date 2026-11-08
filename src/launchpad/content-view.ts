@@ -11,7 +11,7 @@ import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
 
 /** Where a stopped preparation leads (first-run.ts `resolveOf`): Chat, the
- * AI step, or the sentence that the Organization's Admin prepares it. */
+ * AI step, or the sentence that an Organization Admin prepares it. */
 export type Resolve = "chat" | "ai" | "admin";
 
 /** The failure codes of an Organization that is not prepared for this

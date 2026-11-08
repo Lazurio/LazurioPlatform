@@ -586,7 +586,7 @@ function firstRunFacts(): TourFacts | null {
 let rootAccess: Readonly<{ login: string; write: boolean | null }> | null =
   null;
 /** Where a stopped preparation leads now: Chat, the AI step, or the
- * sentence that the Admin prepares the Organization. */
+ * sentence that an Organization Admin prepares the Organization. */
 function resolveKind() {
   const failure = content.job()?.failure;
   const login =
@@ -1281,7 +1281,7 @@ async function probePreparePrompt() {
 // "Vyřešit v Chatu" (root decision 0188): the wireframe's prompt that
 // finishes the preparation with the same command, tests included; only
 // inserted in Chat, never sent. Without AI it leads to Začínáme's AI step
-// instead, and a stop only the Organization's Admin fixes has nothing to
+// instead, and a stop only an Organization Admin fixes has nothing to
 // hand over (root decision 0201 points 3 and 8).
 function resolveInChat() {
   const lead = resolveKind();

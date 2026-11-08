@@ -266,7 +266,8 @@ export function attentionCount(overview: IntegrationsOverview | null): number {
  * always the apps a connected tool connects and the apps connected here. */
 export function offered(app: IntegrationApp): boolean {
   if (app.connected === true || app.accounts.length > 0) return true;
-  // An Organization's company app is offered for its Admin to set up.
+  // An Organization's company app is offered for an Organization Admin to
+  // set up.
   return app.path.path !== null || app.path.missing === "company-app";
 }
 
@@ -348,7 +349,8 @@ export type CardAction =
   | Readonly<{ kind: "set-up"; label: string }>
   | Readonly<{ kind: "allow"; label: string }>
   | Readonly<{ kind: "ask-admin"; label: string }>
-  /** The Admin's step where the Organization's Dashboard link is not
+  /** The Organization Admin's step where the Organization's Dashboard link
+   * is not
    * known here: one sentence saying where to find it, never a dead button. */
   | Readonly<{ kind: "where"; text: string }>
   | Readonly<{ kind: "none" }>;
@@ -373,7 +375,8 @@ type CardOptions = Readonly<{
   scope: IntegrationsOverview["scope"];
   admin: boolean;
   /** Whether the Organization's Dashboard link is known here, which the
-   * Admin's "Nastavit v Dashboardu" and "Povolit Composio" open. */
+   * Organization Admin's "Nastavit v Dashboardu" and "Povolit Composio"
+   * open. */
   dashboard: boolean;
   copy: Copy;
   /** Composio is signed in here but off for agents (the reading's

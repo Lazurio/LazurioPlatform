@@ -132,16 +132,16 @@ const lazurio: readonly Text[] = [
   // entry, Headscale for the network. True before the move to the account's
   // grants is complete and after it.
   t(
-    "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub: kdo smí do repozitáře zapisovat, schvalovat review a Publikovat, určují živá práva na GitHubu (granty na repozitáře, Teamy a branch rules). Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant, a síť Headscale, do které zařízení pustí až jeho schválení (decision 0192); kde přechod na tyto granty ještě není hotový, rozhoduje o vstupu dosavadní cesta, třeba GitHub Team týmového Environmentu. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhoduje živá odpověď té autority. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Builderovi, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Steward nebo Admin (decisions 0102/0103).",
-    "- **Every access has its own authority.** GitHub decides on source code: live GitHub rights (repository grants, Teams and branch rules) decide who may write to a repository, approve a review and Publish. Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant, and the network by Headscale, which lets a device in only once it is approved (decision 0192); where the move to these grants is not done yet, the existing path decides entry, a Team Environment's GitHub Team, say. There is no second, invented ACL, and the name of a role authorizes nothing; that authority's live answer does. Rules grow with the Organization: a young module may keep `main` open to a Builder, a locked `main` is merged by whoever the branch rules allow, typically a Steward or an Admin (decisions 0102/0103).",
+    "- **Každý přístup má svou autoritu.** O zdrojovém kódu rozhoduje GitHub: kdo smí do repozitáře zapisovat, schvalovat review a Publikovat, určují živá práva na GitHubu (granty na repozitáře, Teamy a branch rules). Vstup do Environmentů a jejich aplikací drží Lazurio účet, členství v Organizaci a konkrétní grant, a síť Headscale, do které zařízení pustí až jeho schválení (decision 0192); kde přechod na tyto granty ještě není hotový, rozhoduje o vstupu dosavadní cesta, třeba GitHub Team týmového Environmentu. Žádné druhé, vymyšlené ACL neexistuje a samotný název role nic neautorizuje; rozhoduje živá odpověď té autority. Pravidla rostou s Organizací: mladý modul může mít `main` vědomě otevřenou i Přispěvatelům modulu, zamčenou `main` merguje ten, komu to branch rules dovolí, typicky Správce modulu nebo Admin Organizace (decisions 0102/0103).",
+    "- **Every access has its own authority.** GitHub decides on source code: live GitHub rights (repository grants, Teams and branch rules) decide who may write to a repository, approve a review and Publish. Entry to Environments and their applications is held by the Lazurio account, membership in the Organization and the exact grant, and the network by Headscale, which lets a device in only once it is approved (decision 0192); where the move to these grants is not done yet, the existing path decides entry, a Team Environment's GitHub Team, say. There is no second, invented ACL, and the name of a role authorizes nothing; that authority's live answer does. Rules grow with the Organization: a young module may keep `main` open to its Module Contributors, a locked `main` is merged by whoever the branch rules allow, typically a Module Maintainer or the Organization Admin (decisions 0102/0103).",
   ),
   t(
     "- **Environment je hranice, ne druh hardwaru.** Technicky běží na **Machine**: fyzické zařízení, virtuální server nebo providerem izolovaný hostovaný pracovní prostor, který tvoří jednu sdílenou runtime, bezpečnostní a recovery hranici se známým Ownerem. Proces, modul, worktree, unixový účet ani kontejner takovou hranicí samy nejsou. Hostovaný Team workspace je Remote Environment Teamu na tenantní vrstvě; host, na kterém běží, zůstává vyšší doménou kompromitace a obnovy. Vždy pojmenuj konkrétní Environment, jeho Ownera a případnou vyšší hranici providera nebo provozovatele. Uživatelům říkej Environment, hostovanému Remote Environment; **Machine** zůstává pojmem architektury, identifikátorů a příkazů.",
     "- **An Environment is a boundary, not a kind of hardware.** Technically it runs on a **Machine**: a physical device, a virtual server or a provider-isolated hosted workspace that forms one shared runtime, security and recovery boundary with a known Owner. A process, a module, a worktree, a Unix account or a container is not one by itself. A hosted Team workspace is the Team's Remote Environment on the tenant layer; the host it runs on stays a higher domain of compromise and recovery. Always name the concrete Environment, its Owner and any higher boundary of a provider or hosting operator. Towards users say Environment, and Remote Environment when it is hosted; **Machine** stays the term of the architecture, the identifiers and the commands.",
   ),
   t(
-    "- **Vlastní Environment, vlastní Personalspace.** Každý uživatel má vlastní Environment s plnými lokálními právy a privátní Personalspace: intimní prostor jen jeho a jeho volitelného Buddyho. Nikdo cizí, ani Steward, Admin nebo provozovatel hostingu, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Každý má právě jeden osobní Remote Environment; druhý trvalý patří do Organizace, kde ho koordinuje GitHub (decision 0153).",
-    "- **Own Environment, own Personalspace.** Every user has their own Environment with full local rights and a private Personalspace: the intimate space of them alone and their optional Buddy. Nobody else, Steward, Admin or hosting operator, reads it, and it is never shared or mounted elsewhere (decision 0091). Everyone has exactly one personal Remote Environment; a second permanent one belongs to an Organization, where GitHub coordinates it (decision 0153).",
+    "- **Vlastní Environment, vlastní Personalspace.** Každý uživatel má vlastní Environment s plnými lokálními právy a privátní Personalspace: intimní prostor jen jeho a jeho volitelného Buddyho. Nikdo cizí, ani Admin Organizace nebo provozovatel hostingu, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Každý má právě jeden osobní Remote Environment; druhý trvalý patří do Organizace, kde ho koordinuje GitHub (decision 0153).",
+    "- **Own Environment, own Personalspace.** Every user has their own Environment with full local rights and a private Personalspace: the intimate space of them alone and their optional Buddy. Nobody else, neither an Organization Admin nor a hosting operator, reads it, and it is never shared or mounted elsewhere (decision 0091). Everyone has exactly one personal Remote Environment; a second permanent one belongs to an Organization, where GitHub coordinates it (decision 0153).",
   ),
   t(
     "- **Buddy je osobní.** Intimní kontrakt mezi uživatelem a jeho Buddym. Produkt řídí životní cyklus hostu, nikdy každodenní jednání Buddyho (decision 0089).",
@@ -256,24 +256,24 @@ const lazurio: readonly Text[] = [
     "| Lazurio itself: the Folder and these instructions, the `lazurio` command, updates, the Launchpad (Apps, Settings, Files, Integrations), Chat, the Environment browser, the vault, the Integrations mechanism, the Module Standard and module creation | Lazurio | an issue in the public `Lazurio/LazurioPlatform`, without Organization content |",
   ),
   t(
-    "| Funkce, data nebo chyba jednoho modulu (aplikace Organizace, jako CRM nebo sklad) | vlastník modulu: v Organizaci její Admin nebo ten, komu repozitář modulu patří; v Personalspace uživatel | issue v repozitáři modulu, s @zmínkou vlastníků podle CODEOWNERS a živých práv |",
-    "| A feature, the data or a defect of one module (an Organization's app, such as a CRM or a warehouse) | the module's owner: in an Organization its Admin or whoever the module repository belongs to; in the Personalspace the user | an issue in the module's repository, mentioning its owners from CODEOWNERS and live rights |",
+    "| Funkce, data nebo chyba jednoho modulu (aplikace Organizace, jako CRM nebo sklad) | v Organizaci Správci modulu, jinak Admin Organizace; v Personalspace uživatel | issue v repozitáři modulu, s @zmínkou lidí, které určuje CODEOWNERS, a Správců modulu podle živých práv |",
+    "| A feature, the data or a defect of one module (an Organization's app, such as a CRM or a warehouse) | in an Organization its Module Maintainers, otherwise the Organization Admin; in the Personalspace the user | an issue in the module's repository, mentioning the people CODEOWNERS names and the Module Maintainers by live rights |",
   ),
   t(
     "| Pravidla, slovník, manifest a sada modulů Organizace | Admin Organizace | pull request nebo issue do kořenového repozitáře Organizace |",
-    "| An Organization's rules, glossary, manifest and set of modules | the Organization's Admin | a pull request or issue in the Organization's root repository |",
+    "| An Organization's rules, glossary, manifest and set of modules | the Organization Admin | a pull request or issue in the Organization's root repository |",
   ),
   t(
-    "| Přístup: členství, Team, grant, nový repozitář, branch rules | Admin Organizace, nebo kdo to smí podle GitHubu | uděláš to jen na výslovný pokyn uživatele, který k tomu má pravomoc, a jen když živé právo má i identita, pod kterou tu na GitHubu jednáš (na týmovém Prostředí identita Organizace, ne uživatel); chybí-li právo jí, issue v kořenovém repozitáři Organizace přiřazené správci, jediná výjimka z pravidla nepřiřazovat (oddíl o chybějících právech v `manual/working-here.md`) |",
-    "| Access: membership, a Team, a grant, a new repository, branch rules | the Organization's Admin, or whoever GitHub lets do it | you do it only on the explicit instruction of a user with the authority for it, and only when the identity you act under on GitHub holds the live right as well (on a Team Environment the Organization's identity, not the user); when that identity lacks it, an issue in the Organization's root repository assigned to the administrator, the one exception to never assigning (the missing-rights section of `manual/working-here.md`) |",
+    "| Přístup: členství, Team, grant, nový repozitář, branch rules | Admin Organizace, nebo kdo to smí podle GitHubu | uděláš to jen na výslovný pokyn uživatele, který k tomu má pravomoc, a jen když živé právo má i identita, pod kterou tu na GitHubu jednáš (na týmovém Prostředí identita Organizace, ne uživatel); chybí-li právo jí, issue v kořenovém repozitáři Organizace přiřazené Adminovi Organizace, jediná výjimka z pravidla nepřiřazovat (oddíl o chybějících právech v `manual/working-here.md`) |",
+    "| Access: membership, a Team, a grant, a new repository, branch rules | the Organization Admin, or whoever GitHub lets do it | you do it only on the explicit instruction of a user with the authority for it, and only when the identity you act under on GitHub holds the live right as well (on a Team Environment the Organization's identity, not the user); when that identity lacks it, an issue in the Organization's root repository assigned to the Organization Admin, the one exception to never assigning (the missing-rights section of `manual/working-here.md`) |",
   ),
   t(
-    "| Paměť, disk, výkon nebo síť tohoto Prostředí | Owner Prostředí; v Organizaci její Admin | v Organizaci pull request nebo issue do jejího repozitáře `infra`; jinak uživateli řekni, co přesně chybí |",
-    "| Memory, disk, performance or network of this Environment | the Environment's Owner; in an Organization its Admin | in an Organization a pull request or issue in its `infra` repository; otherwise tell the user exactly what is missing |",
+    "| Paměť, disk, výkon nebo síť tohoto Prostředí | Owner Prostředí; v Organizaci Admin Organizace | v Organizaci pull request nebo issue do jejího repozitáře `infra`; jinak uživateli řekni, co přesně chybí |",
+    "| Memory, disk, performance or network of this Environment | the Environment's Owner; in an Organization the Organization Admin | in an Organization a pull request or issue in its `infra` repository; otherwise tell the user exactly what is missing |",
   ),
   t(
-    "| Připojení aplikace (pošta, kalendář, chat) | uživatel sám na kartě Integrace, firemní aplikaci Admin | odkaz na kartu Integrace; chybí-li aplikace v katalogu nebo selhává samotný mechanismus, issue v `Lazurio/LazurioPlatform` |",
-    "| Connecting an app (mail, calendar, chat) | the user on the Integration's card, a company app the Admin | a link to the Integration's card; when the app is missing from the catalog or the mechanism itself fails, an issue in `Lazurio/LazurioPlatform` |",
+    "| Připojení aplikace (pošta, kalendář, chat) | uživatel sám na kartě Integrace, aplikaci pro celou Organizaci Admin Organizace | odkaz na kartu Integrace; chybí-li aplikace v katalogu nebo selhává samotný mechanismus, issue v `Lazurio/LazurioPlatform` |",
+    "| Connecting an app (mail, calendar, chat) | the user on the Integration's card, an app for the whole Organization the Organization Admin | a link to the Integration's card; when the app is missing from the catalog or the mechanism itself fails, an issue in `Lazurio/LazurioPlatform` |",
   ),
   t(
     "| Obsah práce: data, rozhodnutí, priorita | uživatel a Kolegové v Organizaci | Knowledgebase, Mission Control a repozitáře Organizace podle tabulky výše |",
@@ -381,8 +381,8 @@ function readOnlyProposal(preset: PresetName): readonly Text[] {
       "## A repository you only read: propose the change in an issue",
     ),
     t(
-      "Kdo do repozitáře zapisuje, rozhoduje GitHub. V Organizaci mají uživatelé i týmový Environment znalostní bázi, plánování (Mission Control) a kořenový repozitář Organizace často jen ke čtení a zapisují do nich Owneři Organizace ze svých Environmentů. Než navrhneš změnu obsahu repozitáře:",
-      "GitHub decides who writes to a repository. In an Organization, users and the Team Environment often only read the knowledge base, the planning (Mission Control) and the Organization's root repository, and the Organization's Owners write to them from their own Environments. Before you propose a change to a repository's content:",
+      "Kdo do repozitáře zapisuje, rozhoduje GitHub. V Organizaci mají uživatelé i týmový Environment znalostní bázi, plánování (Mission Control) a kořenový repozitář Organizace často jen ke čtení a zapisují do nich Admini Organizace ze svých Environmentů. Než navrhneš změnu obsahu repozitáře:",
+      "GitHub decides who writes to a repository. In an Organization, users and the Team Environment often only read the knowledge base, the planning (Mission Control) and the Organization's root repository, and the Organization Admins write to them from their own Environments. Before you propose a change to a repository's content:",
     ),
     blank,
     team
@@ -403,8 +403,8 @@ function readOnlyProposal(preset: PresetName): readonly Text[] {
       "- **Without push,** do not try a pull request. File an issue in that repository with the proposal: what should change, why, and the proposed text or diff. Check duplicates and content as for every issue; when filing is not possible, the section on open questions above holds.",
     ),
     t(
-      '- **Zmiň ty, kdo ji smí provést,** zjištěné živě z GitHubu, nikdy z paměti ani z pevného seznamu: vlastníky, které CODEOWNERS repozitáře určuje pro dotčené cesty (GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`, pro každou cestu platí poslední odpovídající řádek); když CODEOWNERS chybí nebo pro dotčené cesty neurčuje nikoho kromě botů, Ownery Organizace (`gh api "orgs/<org>/members?role=admin" --jq \'.[] | select(.type != "Bot") | .login\'`). Boty vynech. @zmínka stačí, issue jim nepřiřazuj. Když ani tak nikoho nezjistíš (prázdná odpověď nebo chyba), issue zapiš bez @zmínky a uživateli řekni, že na GitHubu nešlo zjistit, kdo změnu smí provést, ať odkaz na issue předá tomu, kdo Organizaci spravuje; nikoho si nedomýšlej.',
-      "- **Mention the users who may make it,** found live on GitHub, never from memory or a fixed list: the owners the repository's CODEOWNERS names for the affected paths (GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`; for each path the last matching line holds); when there is no CODEOWNERS or it names nobody but bots for the affected paths, the Organization's Owners (`gh api \"orgs/<org>/members?role=admin\" --jq '.[] | select(.type != \"Bot\") | .login'`). Leave bots out. An @mention is enough; do not assign the issue. When you still find nobody (an empty answer or an error), file the issue without an @mention and tell the user that GitHub did not show who may make the change, so they pass the issue's link to whoever manages the Organization; never guess anyone.",
+      '- **Zmiň ty, kdo ji smí provést,** zjištěné živě z GitHubu, nikdy z paměti ani z pevného seznamu: vlastníky, které CODEOWNERS repozitáře určuje pro dotčené cesty (GitHub použije první z `.github/CODEOWNERS`, `CODEOWNERS` a `docs/CODEOWNERS`, pro každou cestu platí poslední odpovídající řádek); když CODEOWNERS chybí nebo pro dotčené cesty neurčuje nikoho kromě botů, Vlastníky Organizace (`gh api "orgs/<org>/members?role=admin" --jq \'.[] | select(.type != "Bot") | .login\'`). Boty vynech. @zmínka stačí, issue jim nepřiřazuj. Když ani tak nikoho nezjistíš (prázdná odpověď nebo chyba), issue zapiš bez @zmínky a uživateli řekni, že na GitHubu nešlo zjistit, kdo změnu smí provést, ať odkaz na issue předá Adminovi Organizace; nikoho si nedomýšlej.',
+      "- **Mention the users who may make it,** found live on GitHub, never from memory or a fixed list: the owners the repository's CODEOWNERS names for the affected paths (GitHub uses the first of `.github/CODEOWNERS`, `CODEOWNERS` and `docs/CODEOWNERS`; for each path the last matching line holds); when there is no CODEOWNERS or it names nobody but bots for the affected paths, the Organization Owners (`gh api \"orgs/<org>/members?role=admin\" --jq '.[] | select(.type != \"Bot\") | .login'`). Leave bots out. An @mention is enough; do not assign the issue. When you still find nobody (an empty answer or an error), file the issue without an @mention and tell the user that GitHub did not show who may make the change, so they pass the issue's link to an Organization Admin; never guess anyone.",
     ),
     t(
       "- **Nic neobcházej.** Neforkuj a nepushuj do jiného repozitáře ani pod jinou identitou.",
@@ -441,16 +441,16 @@ const missingRights: readonly Text[] = [
     "- **A repository you only read is not a missing right.** Propose a change to its content as an issue in that repository (previous section) and do not ask for write access to it. This section is for an operation you cannot do without the right: a new repository, a Team's grant, a secret, a setting.",
   ),
   t(
-    "- **Zjisti, kdo to smí.** Živě, ne z paměti: Owneři Organizace (`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) a správce, kterého jmenuje `AGENTS.md` Organizace. Jména drží Organizace, ne tenhle manuál.",
-    "- **Find out who may grant it.** Live, not from memory: the Organization's Owners (`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) and the administrator the Organization's `AGENTS.md` names. The Organization holds the names, not this manual.",
+    "- **Zjisti, kdo to smí.** Živě, ne z paměti: Admini Organizace (dokud role v Lazurio Auth není nasazená, aktivní Vlastníci Organizace: `gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) a člověk, kterého pro to jmenuje `AGENTS.md` Organizace. Jména drží Organizace, ne tenhle manuál.",
+    "- **Find out who may grant it.** Live, not from memory: the Organization Admins (until the role in Lazurio Auth is deployed, the active Organization Owners: `gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`) and the person the Organization's `AGENTS.md` names for it. The Organization holds the names, not this manual.",
   ),
   t(
-    "- **Zapiš to.** Issue v kořenovém repozitáři Organizace, přiřazené tomu správci, s přesným popisem, co má povolit nebo udělat: repozitář, Team, úroveň práva a proč. Přiřazení je tu výslovná výjimka z pravidla o issues výše.",
-    "- **File it.** An issue in the Organization's root repository, assigned to that administrator, saying exactly what to grant or do: the repository, the Team, the permission level and why. Assigning is an explicit exception to the issue rule above.",
+    "- **Zapiš to.** Issue v kořenovém repozitáři Organizace, přiřazené tomu, kdo to smí, s přesným popisem, co má povolit nebo udělat: repozitář, Team, úroveň práva a proč. Přiřazení je tu výslovná výjimka z pravidla o issues výše.",
+    "- **File it.** An issue in the Organization's root repository, assigned to whoever may grant it, saying exactly what to grant or do: the repository, the Team, the permission level and why. Assigning is an explicit exception to the issue rule above.",
   ),
   t(
-    "- **Dej uživateli text.** Krátkou hotovou zprávu pro správce s odkazem na issue, kterou mu jen pošle.",
-    "- **Give the user a text.** A short ready message for the administrator, with the link to the issue, that the user only has to send.",
+    "- **Dej uživateli text.** Krátkou hotovou zprávu pro toho, kdo to smí, s odkazem na issue, kterou mu jen pošle.",
+    "- **Give the user a text.** A short ready message for whoever may grant it, with the link to the issue, that the user only has to send.",
   ),
   t(
     "- **Pokračuj** na všem, co na tom právu nestojí.",
@@ -621,8 +621,8 @@ function workingHere(
       ? []
       : [
           t(
-            "Organizace může ve svém `workspace/` hostit Moduly jiné Organizace. Najdeš je ve složce pojmenované podle té druhé, domovské Organizace: `workspace/<Org>_GEN3/<modul>`, v manifestu modulů se slotem s `home_organization` a v `lazurio module list <Org> --json` mezi `guests` s `homeOrganization`. Repozitář patří domovské Organizaci, nic se nekopíruje a přístup k němu dál určují její práva na GitHubu; bez nich tu hostující Modul chybí a nic dalšího se nezastaví. Jakmile přístup dostaneš, Lazurio ho při další hodinové synchronizaci nebo `lazurio update` naklonuje samo; stejně tak každý další Modul Organizace, ke kterému přístup získáš. Výjimkou jsou sloty jen pro Adminy (`restricted`), které přinese jen instalace Adminem, a Týmové Prostředí, jehož obsah připravuje hosting. Než s ním začneš pracovat, přečti `README.md` a `AGENTS.md` v té složce i v Modulu a řiď se pravidly domovské Organizace. Lazurio ho tu udržuje aktuální jako ostatní obsah, ale nespouští ho a nepočítá ho za Knowledgebase ani Mission Control hostitelské Organizace. Změnu posíláš jako běžný pull request do jeho domovského repozitáře, pod její review a Publikaci.",
-            "An Organization can host Modules of another Organization in its `workspace/`. You find them in a folder named after that other, home Organization: `workspace/<Org>_GEN3/<module>`, in the modules manifest as a slot with `home_organization`, and in `lazurio module list <Org> --json` among `guests` with `homeOrganization`. The repository belongs to the home Organization, nothing is copied, and its GitHub rights still decide access; without them the guest Module is simply absent here and nothing else stops. Once you get access, Lazurio clones it by itself at the next hourly synchronization or `lazurio update`; the same goes for any other Module of the Organization you gain access to. Admin-only (`restricted`) slots are the exception, which only an Admin's installation brings, and so is a Team Environment, whose content the hosting prepares. Before you work with it, read the `README.md` and `AGENTS.md` in that folder and in the module, and follow the home Organization's rules. Lazurio keeps it up to date here like the rest of the content, but never starts it and never counts it as the host Organization's Knowledgebase or Mission Control. A change goes as an ordinary pull request to its home repository, under that Organization's review and Publication.",
+            "Organizace může ve svém `workspace/` hostit Moduly jiné Organizace. Najdeš je ve složce pojmenované podle té druhé, domovské Organizace: `workspace/<Org>_GEN3/<modul>`, v manifestu modulů se slotem s `home_organization` a v `lazurio module list <Org> --json` mezi `guests` s `homeOrganization`. Repozitář patří domovské Organizaci, nic se nekopíruje a přístup k němu dál určují její práva na GitHubu; bez nich tu hostující Modul chybí a nic dalšího se nezastaví. Jakmile přístup dostaneš, Lazurio ho při další hodinové synchronizaci nebo `lazurio update` naklonuje samo; stejně tak každý další Modul Organizace, ke kterému přístup získáš. Výjimkou jsou sloty jen pro Adminy Organizace (`restricted`), které přinese jen instalace Adminem Organizace, a Týmové Prostředí, jehož obsah připravuje hosting. Než s ním začneš pracovat, přečti `README.md` a `AGENTS.md` v té složce i v Modulu a řiď se pravidly domovské Organizace. Lazurio ho tu udržuje aktuální jako ostatní obsah, ale nespouští ho a nepočítá ho za Knowledgebase ani Mission Control hostitelské Organizace. Změnu posíláš jako běžný pull request do jeho domovského repozitáře, pod její review a Publikaci.",
+            "An Organization can host Modules of another Organization in its `workspace/`. You find them in a folder named after that other, home Organization: `workspace/<Org>_GEN3/<module>`, in the modules manifest as a slot with `home_organization`, and in `lazurio module list <Org> --json` among `guests` with `homeOrganization`. The repository belongs to the home Organization, nothing is copied, and its GitHub rights still decide access; without them the guest Module is simply absent here and nothing else stops. Once you get access, Lazurio clones it by itself at the next hourly synchronization or `lazurio update`; the same goes for any other Module of the Organization you gain access to. Slots only for the Organization Admin (`restricted`) are the exception, which only the Organization Admin's installation brings, and so is a Team Environment, whose content the hosting prepares. Before you work with it, read the `README.md` and `AGENTS.md` in that folder and in the module, and follow the home Organization's rules. Lazurio keeps it up to date here like the rest of the content, but never starts it and never counts it as the host Organization's Knowledgebase or Mission Control. A change goes as an ordinary pull request to its home repository, under that Organization's review and Publication.",
           ),
         ]),
     blank,
@@ -685,8 +685,8 @@ function workingHere(
     // defined scope (root AGENTS.md, decisions 0103 and 0218;
     // Lazurio/LazurioPlatform#757 Low).
     t(
-      "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky maintainer modulu nebo Admin), a ty jen na výslovný pokyn uživatele nebo podle stálého mandátu, který pro vymezený rozsah zapsalo rozhodnutí.",
-      "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a maintainer of the module or an Admin) triggers it, and you only on the user's explicit instruction or under a standing mandate that a decision records for a defined scope.",
+      "- **Release** je vydání označené verze ven přes GitHub Release. Není to Publikace; spouští ho jen ten, komu to GitHub dovolí (typicky Správce modulu nebo Admin Organizace), a ty jen na výslovný pokyn uživatele nebo podle stálého mandátu, který pro vymezený rozsah zapsalo rozhodnutí.",
+      "- **Release** is a tagged version going out through a GitHub Release. It is not a Publication; only whoever GitHub allows (typically a Module Maintainer or the Organization Admin) triggers it, and you only on the user's explicit instruction or under a standing mandate that a decision records for a defined scope.",
     ),
     blank,
     // The pull-request lifecycle (decision F14, 2026-09-22, with its addendum
@@ -990,8 +990,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Uživatel", "## User (uživatel)"),
   t(
-    "Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Environmentu Henry odpovědný Owner nebo Admin Organizace (decision F30). Nepleť si ho s uživatelem aplikace (níže, decision 0231).",
-    "The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in a Henry Environment the responsible Owner or Admin of the Organization (decision F30). Do not confuse the user with an application user (below, decision 0231).",
+    "Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (anglicky Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj a v jeho živých právech; on dává pokyn k Publikaci a má vždy poslední slovo. Na osobním Environmentu je to jeho Owner, na pracovním Remote Environmentu jeho Přidělený uživatel, tedy ten, komu ho Organizace přiřadila, na týmovém Remote Environmentu člen Teamu, který je právě připojený, a na Environmentu Henry odpovědný Vlastník Organizace nebo Admin Organizace (decision F30). Nepleť si ho s Uživatelem aplikace (níže, decision 0234).",
+    "The human who uses this Environment and for whom its agents work; the decision records call this the Operator (in Czech Operátor). The user controls the Environment, and with it the Agents they run in it. Agents act for them, within their live rights; they give the instruction to Publish and always have the last word. In a personal Environment that is its Owner, in a work Remote Environment its Assigned User, the one the Organization assigned it to, in a Team Remote Environment whichever Team member is connected now, and in a Henry Environment the responsible Organization Owner or Organization Admin (decision F30). Do not confuse the user with an Application User (below, decision 0234).",
   ),
   blank,
   t(
@@ -1001,57 +1001,117 @@ const roles: readonly Text[] = [
   blank,
   same("## Kolega"),
   t(
-    "Uživatel v Organizaci, tedy člen Organizace. Co smí, určují jeho přístupy níže a Teamy, jejichž je členem.",
-    "A user in an Organization, that is a member of the Organization. What they may do follows their accesses below and the Teams they are a member of.",
+    "Uživatel v Organizaci, kterýkoli z jejích lidí. Co smí, určují jeho role níže a Teamy, jejichž je členem.",
+    "A user in an Organization, any of its people. What they may do follows from their roles below and the Teams they are a member of.",
   ),
   blank,
-  t("## Přístup má tři úrovně", "## Access has three levels"),
+  t("## Role přístupu", "## Access roles"),
   t(
-    "Slova admin a uživatel nikdy nestojí samostatně: vždy řekni, o jakou úroveň jde, Organizaci, modul, nebo aplikaci (decision 0231, not yet deployed). Když tě uživatel požádá, ať někomu dáš admina nebo ho uděláš uživatelem, a úroveň ze zadání neplyne, zeptej se nástrojem na otázky, jestli jde o Organizaci, nebo o kterou aplikaci.",
-    "The words admin and user never stand alone: always say which level you mean, the Organization, a module or an application (decision 0231, not yet deployed). When the user asks you to make someone an admin or a user and the level does not follow from the request, ask with the question tool whether the Organization is meant, or which application.",
+    "Každá role přístupu má jedno české jméno, jedno anglické a jeden identifikátor (decision 0234, not yet deployed). Český text používá jen česká jména a anglický jen anglická, nikdy směs; identifikátor je v obou stejný. Role je pojem: píše se s velkým počátečním písmenem a vždy pojmenuje svou úroveň, Organizaci, modul, aplikaci, nebo Prostředí. Říkej Admin Organizace, Admin aplikace a Správce modulu, nikdy jen Admin; slovo Správce patří jen Správci modulu. Samotné slovo uživatel dál znamená člověka, pro kterého agenti pracují. Když tě uživatel požádá, ať někoho uděláš adminem nebo uživatelem, a úroveň ze zadání neplyne, zeptej se nástrojem na otázky, jestli jde o Organizaci, nebo o kterou aplikaci.",
+    "Every access role has one Czech name, one English name and one identifier (decision 0234, not yet deployed). A Czech text uses only the Czech names and an English text only the English ones, never a mix; the identifier is the same in both. A role is a term: it starts with a capital letter and always names its level, the Organization, a module, an application or an Environment. Say Organization Admin, Application Admin and Module Maintainer, never just Admin or maintainer. The bare word user still means the person agents work for. When the user asks you to make someone an admin or a user and the level does not follow from the request, ask with the question tool whether the Organization is meant, or which application.",
+  ),
+  blank,
+  t(
+    "| Úroveň | Role | Identifikátor | Dnes na GitHubu nebo v nasazení |",
+    "| Level | Role | Identifier | Today on GitHub or as deployed |",
+  ),
+  same("| --- | --- | --- | --- |"),
+  t(
+    "| Organizace | Vlastník Organizace | `organization-owner` | role Owner GitHub Organizace (v API `admin`) a role `Owner` v Lazurio Auth |",
+    "| Organization | Organization Owner | `organization-owner` | the owner role of the GitHub Organization (`admin` in its API) and the `Owner` role in Lazurio Auth |",
+  ),
+  t(
+    "| Organizace | Admin Organizace | `organization-admin` | totéž; dokud role v Lazurio Auth není nasazená, je Adminem Organizace aktivní Vlastník Organizace |",
+    "| Organization | Organization Admin | `organization-admin` | the same; until the role in Lazurio Auth is deployed, an active Organization Owner is the Organization Admin |",
+  ),
+  t(
+    "| Organizace | Člen Organizace | `organization-member` | členství v Lazurio Auth, bez GitHub účtu; do nasazení decision 0231 živé členství v GitHub Organizaci |",
+    "| Organization | Organization Member | `organization-member` | membership in Lazurio Auth, no GitHub account needed; until decision 0231 is deployed, the live membership of the GitHub Organization |",
+  ),
+  t(
+    "| Modul | Čtenář modulu | `module-reader` | GitHub `pull` |",
+    "| Module | Module Reader | `module-reader` | GitHub `pull` |",
+  ),
+  t(
+    "| Modul | Přispěvatel modulu | `module-contributor` | GitHub `push`, kde repozitář může mít branch rules |",
+    "| Module | Module Contributor | `module-contributor` | GitHub `push` where the repository can have branch rules |",
+  ),
+  t(
+    "| Modul | Správce modulu | `module-maintainer` | GitHub `maintain`, nebo `push`, kde repozitář branch rules mít nemůže |",
+    "| Module | Module Maintainer | `module-maintainer` | GitHub `maintain`, or `push` where the repository cannot have branch rules |",
+  ),
+  t(
+    '| Aplikace | Admin aplikace | `application-admin` | `appRole: "admin"` v module kitu |',
+    '| Application | Application Admin | `application-admin` | the module kit\'s `appRole: "admin"` |',
+  ),
+  t(
+    '| Aplikace | Uživatel aplikace | `application-user` | `appRole: "user"` v module kitu |',
+    '| Application | Application User | `application-user` | the module kit\'s `appRole: "user"` |',
+  ),
+  t(
+    "| Prostředí | Přidělený uživatel | `environment-assigned-user` | role `environment-assignee` v Lazurio Auth |",
+    "| Environment | Assigned User | `environment-assigned-user` | the `environment-assignee` role in Lazurio Auth |",
+  ),
+  t(
+    "| Prostředí | servisní vstup (druh vstupu, ne role) | `environment-service-entry` | role `environment-service` v Lazurio Auth a vstup Admina Organizace |",
+    "| Environment | service entry (a kind of entry, not a role) | `environment-service-entry` | the `environment-service` role in Lazurio Auth and the Organization Admin's entry |",
   ),
   blank,
   t("### Organizace", "### The Organization"),
   t(
-    "- **Owner**: vlastní GitHub Organizaci. Sám o sobě do Prostředí nevstupuje; jmenuje a odvolává Admina Organizace (decision 0228).",
-    "- **Owner**: owns the GitHub Organization. By that alone they enter no Environment; they appoint and remove the Organization Admin (decision 0228).",
+    "- **Vlastník Organizace**: vlastní GitHub Organizaci, jmenuje a odvolává Adminy Organizace a sám o sobě do žádného Prostředí nevstupuje (decision 0228).",
+    "- **Organization Owner**: owns the GitHub Organization, appoints and removes the Organization Admins and by that alone enters no Environment (decision 0228).",
   ),
   t(
-    "- **Organization Admin**: spravuje Environmenty, zařízení, zdroj AI a přístupy Organizace, včetně omezených repozitářů. Cílově je to role Lazuria, kterou jmenuje Owner GitHub Organizace (decision 0228, zatím nenasazené); do té doby je Adminem aktivní Owner GitHub Organizace. Jak roli ověřit a co Admin dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
-    "- **Organization Admin**: manages the Organization's Environments, devices, AI source and access, restricted repositories included. As the target it is a role of Lazurio that an Owner of the GitHub Organization appoints (decision 0228, not yet deployed); until then an active Owner of the GitHub Organization is the Admin. How to check the role and what the Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
+    "- **Admin Organizace**: spravuje Členy Organizace, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou jmenuje Vlastník Organizace (decision 0228, not yet deployed); do té doby je Adminem Organizace aktivní Vlastník Organizace. Jak roli ověřit a co Admin Organizace dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
+    "- **Organization Admin**: manages the Organization's Members, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints (decision 0228, not yet deployed); until then an active Organization Owner is the Organization Admin. How to check the role and what the Organization Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
   ),
   t(
-    "- **Člen Organizace** (member): každý další člověk v Organizaci. Co smí, plyne z jeho přístupů k modulům a rolí v aplikacích.",
-    "- **Member of the Organization**: every other person in the Organization. What they may do follows from their module access and application roles.",
+    "- **Člen Organizace**: každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů a aplikací.",
+    "- **Organization Member**: every other person in the Organization. What they may do follows from their roles at the level of modules and applications.",
   ),
   blank,
   t("### Modul", "### A module"),
   t(
-    "- **Přístup k modulu**: právo ke zdrojovému kódu modulu. Kdo ho má, modul staví, spouští ho na svém Prostředí a je adminem jeho aplikace.",
-    "- **Module access**: the right to a module's source code. Whoever has it builds the module, runs it on their own Environment and is an admin of its application.",
+    "- **Čtenář modulu**: čte zdrojový kód modulu a nic v něm nemění.",
+    "- **Module Reader**: reads a module's source code and changes nothing.",
   ),
   t(
-    "- **Maintainer**: smí navíc modul reviewovat, mergovat jeho chráněnou `main` a vydávat ho (Release).",
-    "- **Maintainer**: may also review the module, merge its protected `main` and release it.",
+    "- **Přispěvatel modulu**: modul staví, spouští ho na svém Prostředí a navrhuje změny. Existuje jen tam, kde GitHub repozitáři modulu dovolí branch rules (decision 0232).",
+    "- **Module Contributor**: builds the module, runs it on their own Environment and proposes changes. It exists only where GitHub lets the module's repository have branch rules (decision 0232).",
   ),
   t(
-    "- Teamy, přístup k modulu a maintainery cílově drží Lazurio Auth a GitHub se z nich odvozuje (decision 0231, not yet deployed); do té doby rozhoduje živý grant Teamu na GitHubu (decision 0186).",
-    "- Teams, module access and maintainers are held in Lazurio Auth as the target and GitHub is derived from them (decision 0231, not yet deployed); until then the Team's live grant on GitHub decides (decision 0186).",
+    "- **Správce modulu**: smí navíc modul reviewovat, mergovat jeho chráněnou `main` a vydávat ho (Release).",
+    "- **Module Maintainer**: may also review the module, merge its protected `main` and release it.",
+  ),
+  t(
+    "- Kdo nemá žádnou roli modulu, k modulu přístup nemá. Roli modulu člověka nebo Teamu drží nastavení Přístup k modulu, které samo rolí není. Teamy a role modulů cílově drží Lazurio Auth a GitHub se z nich odvozuje (decision 0231, not yet deployed); do té doby rozhoduje živý grant na GitHubu (decisions 0186, 0232).",
+    "- Whoever has no Module role has no access to the module. A person's or a Team's Module role is held by the setting Module access, which is no role itself. Teams and Module roles are held in Lazurio Auth as the target and GitHub is derived from them (decision 0231, not yet deployed); until then the live grant on GitHub decides (decisions 0186, 0232).",
   ),
   blank,
   t("### Aplikace", "### An application"),
   t(
-    "- **Admin aplikace** a **uživatel aplikace**: role v běžící aplikaci modulu, tedy ve stabilní verzi z `main`. Platí na všech Prostředích Organizace. Bez nastavení jsou admini aplikace členové s přístupem k modulu, Admin Organizace a kdo má celé Prostředí, kde aplikace běží. Role ostatním (lidem, Teamu nebo celé Organizaci) dávají jen členové s přístupem k modulu a Admin Organizace; celé Prostředí k tomu neopravňuje.",
-    "- **Application admin** and **application user**: roles in a module's running application, the stable version from `main`. They hold on every Environment of the Organization. Without any setting the application admins are the members with module access, the Organization Admin and whoever has the whole Environment where the application runs. Only members with module access and the Organization Admin give roles to others (people, a Team or the whole Organization); having the whole Environment does not grant that.",
+    "- **Admin aplikace** a **Uživatel aplikace**: role v běžící aplikaci modulu, tedy ve stabilní verzi z `main`. Platí na všech Prostředích Organizace. Bez nastavení jsou Admini aplikace Přispěvatelé modulu, Správci modulu, Admin Organizace a kdo má celé Prostředí, kde aplikace běží; samotná role Čtenáře modulu žádnou roli v aplikaci nedává. Role ostatním (lidem, Teamu nebo celé Organizaci) dávají jen Přispěvatelé modulu, Správci modulu a Admin Organizace; celé Prostředí k tomu neopravňuje.",
+    "- **Application Admin** and **Application User**: roles in a module's running application, the stable version from `main`. They hold on every Environment of the Organization. Without any setting the Application Admins are the Module Contributors, the Module Maintainers, the Organization Admin and whoever has the whole Environment where the application runs; the Module Reader role by itself gives no application role. Only Module Contributors, Module Maintainers and the Organization Admin give roles to others (people, a Team or the whole Organization); having the whole Environment does not grant that.",
   ),
   t(
-    "- Co role v aplikaci smí, určuje Organizace v kódu modulu a vynucuje to na serveru. Aplikace se o člověku a jeho roli dozví jen přes `appAccess` z `@lazurio/module-kit` (Module Standard, oddíl Who came and with which role). Je to rozhodnutý cíl (decision 0231, not yet deployed). Požadavek zevnitř Prostředí (počítač bez brány, volání na loopback adresu) vrátí `appAccess` vždy jako místní provoz, `entry: local` s adminem aplikace bez jména, bez ohledu na bránu. Osobu s celým Prostředím a lokální vstup prohlížeče Prostředí modul pozná jen za bránou na Lazurio Machines v0.12.223 nebo novějším; přes starší bránu vrací `unknown`. Roli uživatele aplikace pro člověka s jen touto aplikací přinese až zpřístupnění aplikací.",
-    "- What a role may do in the application is the Organization's rule in the module's code, enforced on the server. The application learns the person and their role only through `appAccess` of `@lazurio/module-kit` (Module Standard, section Who came and with which role). This is the decided target (decision 0231, not yet deployed). A request from inside the Environment (a computer without a gateway, a call to a loopback address) always reads as local, `entry: local` with an application admin without a name, whatever the gateway. A person with the whole Environment and the Environment browser's local entry are known only behind a gateway on Lazurio Machines v0.12.223 or newer; through an older gateway `appAccess` reads `unknown`. The application user role for a person with only this application comes only with making applications available.",
+    "- Co role v aplikaci smí, určuje Organizace v kódu modulu a vynucuje to na serveru. Aplikace se o člověku a jeho roli dozví jen přes `appAccess` z `@lazurio/module-kit` (Module Standard, oddíl Who came and with which role). Je to rozhodnutý cíl (decision 0231, not yet deployed). Požadavek zevnitř Prostředí (počítač bez brány, volání na loopback adresu) vrátí `appAccess` vždy jako místní provoz, `entry: local` s Adminem aplikace bez jména, bez ohledu na bránu. Osobu s celým Prostředím a lokální vstup prohlížeče Prostředí modul pozná jen za bránou na Lazurio Machines v0.12.223 nebo novějším; přes starší bránu vrací `unknown`. Roli Uživatele aplikace pro člověka s jen touto aplikací přinese až zpřístupnění aplikací.",
+    "- What a role may do in the application is the Organization's rule in the module's code, enforced on the server. The application learns the person and their role only through `appAccess` of `@lazurio/module-kit` (Module Standard, section Who came and with which role). This is the decided target (decision 0231, not yet deployed). A request from inside the Environment (a computer without a gateway, a call to a loopback address) always reads as local, `entry: local` with an Application Admin without a name, whatever the gateway. A person with the whole Environment and the Environment browser's local entry are known only behind a gateway on Lazurio Machines v0.12.223 or newer; through an older gateway `appAccess` reads `unknown`. The Application User role for a person with only this application comes only with making applications available.",
+  ),
+  blank,
+  t("### Prostředí", "### An Environment"),
+  t(
+    "- **Přidělený uživatel**: člověk, kterému je Pracovní Prostředí přidělené (decision 0216); je to uživatel toho Prostředí.",
+    "- **Assigned User**: the person a Work Environment is assigned to (decision 0216); they are that Environment's user.",
+  ),
+  t(
+    "- **Servisní vstup** je druh vstupu, ne role: vstup do Prostředí pro někoho jiného než jeho Přiděleného uživatele. Admin Organizace ho má rolí do každého Prostředí Organizace (decision 0228), kdokoli jiný jen s grantem pro jedno Prostředí.",
+    "- **Service entry** is a kind of entry, not a role: entry to an Environment for someone other than its Assigned User. The Organization Admin has it to every Environment of the Organization by the role (decision 0228), anyone else only with a grant for one Environment.",
   ),
   blank,
   t(
-    "Starší texty říkají Builder členovi s přístupem k modulu, Steward maintainerovi a role User členovi bez přístupu k modulu. Identifikátory jako `--role builder|steward` zůstávají, dokud je nepřejmenuje jejich vlastní migrace.",
-    "Older texts call a member with module access a Builder, a maintainer a Steward and a member without module access the role User. Identifiers such as `--role builder|steward` stay until their own migration renames them.",
+    "Tato jména pro role skončila: Builder, Steward, role User v Organizaci, Reader jako hodnota příkazu, úrovně Nevidí, Čte, Navrhuje a Zapisuje, maintainer a přístup k modulu bez úrovně, Owner a Vlastník bez Organizace jako role přístupu (Owner Environmentu níže je vlastník hranice, ne role přístupu) a „Uživatelský přístup“ a „Administrátorský přístup“ pro role aplikace. Ve starších textech čti Buildera jako Přispěvatele modulu, Stewarda jako Správce modulu a roli User jako Člena Organizace, který není Přispěvatelem modulu. Příkaz `lazurio organization install --role` bere `module-contributor`, `module-maintainer` a `module-reader` a staré `builder`, `steward` a `reader` už jen jako zastaralé aliasy s varováním; `lazurio organization role` vypisuje identifikátory z tabulky. Nasazené hodnoty (role v tokenech Lazurio Auth, `appRole` module kitu, práva GitHubu) zůstávají a mapuje je tabulka. Slova, která roli nepojmenovávají, si význam nechávají, třeba builder v Dockeru nebo lidé, kteří vyvíjejí Lazurio.",
+    "These names ended for roles: Builder, Steward, the Organization role User, Reader as a command value, the levels Nevidí, Čte, Navrhuje and Zapisuje, maintainer and module access without the level, Owner and Vlastník without the Organization as an access role (the Owner of an Environment below owns a boundary and is no access role), and “Uživatelský přístup” and “Administrátorský přístup” for the application roles. In older texts read Builder as Module Contributor, Steward as Module Maintainer and the role User as an Organization Member who is no Module Contributor. The command `lazurio organization install --role` takes `module-contributor`, `module-maintainer` and `module-reader`, and the old `builder`, `steward` and `reader` only as deprecated aliases with a warning; `lazurio organization role` prints the identifiers of the table. Deployed values (the roles in Lazurio Auth's tokens, the module kit's `appRole`, GitHub's permissions) stay and the table maps them. Words that name no role keep their meaning, such as a Docker builder or the people who develop Lazurio.",
   ),
   blank,
   t("## Owner Environmentu", "## Owner of an Environment"),
@@ -1062,8 +1122,8 @@ const roles: readonly Text[] = [
   blank,
   t("## Opatrovník", "## Opatrovník (guardian)"),
   t(
-    "Jmenovaný člověk pro obnovu a pro jmenovitý, auditovaný servisní přístup (decision 0094). Je to jiná osa než role v Organizaci. U Environmentu, který práci dělá sám přes boty, tuto roli nese jeho odpovědný uživatel (decision 0169).",
-    "The named human for recovery and for named, audited service access (decision 0094). A different axis than the Organization roles. In an Environment that does its work by itself through bots, its responsible user holds this role (decision 0169).",
+    "Jmenovaný člověk pro obnovu a pro jmenovitý, auditovaný servisní vstup (decision 0094). Je to jiná osa než role v Organizaci. U Environmentu, který práci dělá sám přes boty, tuto roli nese jeho odpovědný uživatel (decision 0169).",
+    "The named human for recovery and for named, audited service entry (decision 0094). A different axis than the Organization roles. In an Environment that does its work by itself through bots, its responsible user holds this role (decision 0169).",
   ),
   blank,
   same("## Buddy"),
@@ -1142,28 +1202,48 @@ const glossary: readonly Text[] = [
     "| Owner | The user or Organization that owns an Environment, its data, accesses and the last recovery path. |",
   ),
   t(
-    "| Uživatel (user) | Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj v jeho právech, on dává pokyn k Publikaci a má poslední slovo. Na týmovém Environmentu je to člen Teamu, který je právě připojený (decision F30). Není to uživatel aplikace ani dřívější role User v Organizaci (`manual/roles.md`). |",
-    "| User (uživatel) | The human who uses this Environment and for whom its agents work; the decision records call this the Operator (Operátor). The user controls the Environment and with it the Agents they run in it. The Agents act for them within their rights; they give the instruction to Publish and have the last word. In a Team Environment, the Team member connected now (decision F30). Not an application user, nor the former Organization role User (`manual/roles.md`). |",
+    "| Uživatel (user) | Člověk, který tento Environment používá a pro kterého pracují jeho agenti; decision records mu říkají Operátor (Operator). Ovládá Environment, a tím i Agenty, které v něm spouští. Agenti jednají za něj v jeho právech, on dává pokyn k Publikaci a má poslední slovo. Na týmovém Environmentu je to člen Teamu, který je právě připojený (decision F30). Není to Uživatel aplikace ani dřívější role User v Organizaci (`manual/roles.md`). |",
+    "| User (uživatel) | The human who uses this Environment and for whom its agents work; the decision records call this the Operator (Operátor). The user controls the Environment and with it the Agents they run in it. The Agents act for them within their rights; they give the instruction to Publish and have the last word. In a Team Environment, the Team member connected now (decision F30). Not an Application User, nor the former Organization role User (`manual/roles.md`). |",
   ),
   t(
     "| Provozovatel hostingu (hosting operator) | Kdo Remote Environment přes Lazurio Machines dodává a aktualizuje: jeho baseline, první instalaci a opravu Lazuria (pin je minimum) a handover; verzi Lazuria ani nástroje uživatele ne (decisions 0161, F17). |",
     "| Hosting operator | Whoever delivers and updates a Remote Environment through Lazurio Machines: its baseline, the first installation and repair of Lazurio (the pin is a minimum) and the handover; not the version of Lazurio or the user's tools (decisions 0161, F17). |",
   ),
   t(
-    "| Kolega | Uživatel v Organizaci, člen Organizace; co smí, určují jeho přístupy a Teamy. |",
-    "| Kolega | A user in an Organization, a member of it; their accesses and Teams decide what they may do. |",
+    "| Kolega | Uživatel v Organizaci, kterýkoli z jejích lidí; co smí, určují jeho role a Teamy. |",
+    "| Kolega | A user in an Organization, any of its people; their roles and Teams decide what they may do. |",
   ),
   t(
-    "| Přístup k modulu (module access) | Právo ke zdrojovému kódu modulu; kdo ho má, modul staví a je adminem jeho aplikace (decision 0231). |",
-    "| Module access | The right to a module's source code; whoever has it builds the module and is an admin of its application (decision 0231). |",
+    "| Vlastník Organizace (`organization-owner`) | Vlastní GitHub Organizaci a jmenuje Adminy Organizace; sám o sobě do Prostředí nevstupuje (decisions 0228, 0234). |",
+    "| Organization Owner (`organization-owner`) | Owns the GitHub Organization and appoints the Organization Admins; by that alone enters no Environment (decisions 0228, 0234). |",
   ),
   t(
-    "| Maintainer | Smí navíc modul reviewovat, mergovat jeho chráněnou `main` a vydávat ho; dřív Steward (decision 0231). |",
-    "| Maintainer | May also review a module, merge its protected `main` and release it; formerly Steward (decision 0231). |",
+    "| Admin Organizace (`organization-admin`) | Spravuje lidi, Teamy, přístupy, zařízení a Prostředí Organizace; dokud role v Lazurio Auth není nasazená, je jím aktivní Vlastník Organizace (decisions 0228, 0234). |",
+    "| Organization Admin (`organization-admin`) | Manages the Organization's people, Teams, access, devices and Environments; until the role in Lazurio Auth is deployed, an active Organization Owner is it (decisions 0228, 0234). |",
   ),
   t(
-    "| Admin aplikace, uživatel aplikace (application admin, application user) | Role v běžící aplikaci modulu, platné na všech Prostředích Organizace; nikdy je nezaměňuj s Adminem Organizace (decision 0231). |",
-    "| Application admin, application user | Roles in a module's running application, holding on every Environment of the Organization; never confuse them with the Organization Admin (decision 0231). |",
+    "| Člen Organizace (`organization-member`) | Každý další člověk v Organizaci; co smí, plyne z jeho rolí modulů a aplikací (decision 0234). |",
+    "| Organization Member (`organization-member`) | Every other person in the Organization; their Module and application roles decide what they may do (decision 0234). |",
+  ),
+  t(
+    "| Čtenář modulu, Přispěvatel modulu, Správce modulu (`module-reader`, `module-contributor`, `module-maintainer`) | Role modulu: čte zdrojový kód; navíc modul staví a navrhuje změny; navíc merguje chráněnou `main` a vydává ho. Dřív Builder (Přispěvatel modulu) a Steward (Správce modulu) (decisions 0231, 0232, 0234). |",
+    "| Module Reader, Module Contributor, Module Maintainer (`module-reader`, `module-contributor`, `module-maintainer`) | The Module roles: reads the source code; also builds the module and proposes changes; also merges its protected `main` and releases it. Formerly Builder (Module Contributor) and Steward (Module Maintainer) (decisions 0231, 0232, 0234). |",
+  ),
+  t(
+    "| Přístup k modulu | Nastavení, které drží roli modulu člověka nebo Teamu; samo rolí není (decision 0234). |",
+    "| Module access | The setting that holds a person's or a Team's Module role; no role itself (decision 0234). |",
+  ),
+  t(
+    "| Admin aplikace, Uživatel aplikace (`application-admin`, `application-user`) | Role v běžící aplikaci modulu, platné na všech Prostředích Organizace; nikdy je nezaměňuj s Adminem Organizace (decisions 0231, 0234). |",
+    "| Application Admin, Application User (`application-admin`, `application-user`) | Roles in a module's running application, holding on every Environment of the Organization; never confuse them with the Organization Admin (decisions 0231, 0234). |",
+  ),
+  t(
+    "| Přidělený uživatel (`environment-assigned-user`) | Člověk, kterému je Pracovní Prostředí přidělené (decisions 0216, 0234). |",
+    "| Assigned User (`environment-assigned-user`) | The person a Work Environment is assigned to (decisions 0216, 0234). |",
+  ),
+  t(
+    "| Servisní vstup (`environment-service-entry`) | Druh vstupu, ne role: vstup do Prostředí pro někoho jiného než jeho Přiděleného uživatele; Admin Organizace ho má do každého Prostředí Organizace (decisions 0228, 0234). |",
+    "| Service entry (`environment-service-entry`) | A kind of entry, not a role: entry to an Environment for someone other than its Assigned User; the Organization Admin has it to every Environment of the Organization (decisions 0228, 0234). |",
   ),
   t(
     "| Task Agent (Agent) | Nástrojová pracovní relace, která pro svého uživatele připravuje práci k Publikaci; bez vlastních pravomocí. |",
@@ -1182,8 +1262,8 @@ const glossary: readonly Text[] = [
     "| Persona | The name and character of the agents in an Environment; a description, never an identity or authority (decision 0156). |",
   ),
   t(
-    "| Opatrovník | Jmenovaný člověk pro obnovu a auditovaný servisní přístup; u Environmentu, který práci dělá sám přes boty, jeho odpovědný uživatel (decisions 0094, 0169). |",
-    "| Opatrovník | The named human for recovery and audited service access; in an Environment that does its work by itself through bots, its responsible user (decisions 0094, 0169). |",
+    "| Opatrovník | Jmenovaný člověk pro obnovu a auditovaný servisní vstup; u Environmentu, který práci dělá sám přes boty, jeho odpovědný uživatel (decisions 0094, 0169). |",
+    "| Opatrovník | The named human for recovery and audited service entry; in an Environment that does its work by itself through bots, its responsible user (decisions 0094, 0169). |",
   ),
   t(
     "| Organizace (Organization) | Jedna firma = jedna GitHub organizace = jedna access hranice = jeden repozitář v `organizations/<org>/`. |",
@@ -1663,8 +1743,8 @@ function building(preset: PresetName): readonly Text[] {
       "- An Organization is described by `lazurio.organization.json` (Teams, modules, slots) together with `modules.manifest.json`. `company.gen3.json` is only a generated projection; never edit it by hand. Change the declarations by a PR to the Organization root.",
     ),
     t(
-      "- Deklarace nic neopravňuje; rozhodují živé GitHub granty. Slot s omezeným přístupem (například `infra`) patří Adminovi; když na Environmentu člena bez přístupu k němu chybí, je to záměr.",
-      "- A declaration authorizes nothing; live GitHub grants decide. A restricted slot (`infra`, for example) belongs to the Admin; when it is missing on the Environment of a member without access to it, that is intended.",
+      "- Deklarace nic neopravňuje; rozhodují živé GitHub granty. Slot s omezeným přístupem (například `infra`) patří Adminovi Organizace; když na Environmentu člověka bez přístupu k němu chybí, je to záměr.",
+      "- A declaration authorizes nothing; live GitHub grants decide. A restricted slot (`infra`, for example) belongs to the Organization Admin; when it is missing on the Environment of a person without access to it, that is intended.",
     ),
     t(
       "- Organizaci do Folderu instaluje `lazurio organization install <login>`: kořen do `organizations/<org>/` a podle jeho manifestu moduly přesně do jejich cest (`workspace/<module>/`), na Týmovém Environmentu to dělá hosting. Obsazenou cestu nikdy nepřepisuj.",
@@ -1688,8 +1768,8 @@ function building(preset: PresetName): readonly Text[] {
       "- A workspace module is a repository of its own at `workspace/<module>/` with its own `AGENTS.md`; Organization-level applications (Mission Control, the design system) are modules too. One module = one worktree = one PR.",
     ),
     t(
-      "- Nový modul, jeho slot a granty Teamů zakládá ten, komu to GitHub dovolí, typicky Admin; kdo tato práva nemá, připraví s tebou žádost skillem `admin-request`. Agent uživatele s těmito právy to udělá na jeho výslovný pokyn: repozitář modulu, slot v manifestu Organizace (PR do jejího kořene) a granty Teamů. Změnu přístupů a mazání předem potvrď s uživatelem jako přesnou operaci. Hosting (Lazurio Machines) z Environmentu Organizace nespouštěj; změnu Environmentu navrhni jako PR nebo issue do repozitáře `infra` Organizace.",
-      "- A new module, its slot and the Teams' grants are created by whoever GitHub allows, typically an Admin; whoever lacks those rights prepares a request with you through the skill `admin-request`. The agent of a user with those rights does it on their explicit instruction: the module's repository, its slot in the Organization manifest (a PR to the Organization root) and the Teams' grants. Confirm an access change or a deletion with the user beforehand, as the exact operation. Never run the hosting (Lazurio Machines) from an Organization's Environment; propose a change of the Environment as a PR or an issue in the Organization's `infra` repository.",
+      "- Nový modul, jeho slot a role modulu pro Teamy zakládá ten, komu to GitHub dovolí, typicky Admin Organizace; kdo tato práva nemá, připraví s tebou žádost skillem `admin-request`. Agent uživatele s těmito právy to udělá na jeho výslovný pokyn: repozitář modulu, slot v manifestu Organizace (PR do jejího kořene) a role modulu pro Teamy. Změnu přístupů a mazání předem potvrď s uživatelem jako přesnou operaci. Hosting (Lazurio Machines) z Environmentu Organizace nespouštěj; změnu Environmentu navrhni jako PR nebo issue do repozitáře `infra` Organizace.",
+      "- A new module, its slot and the Teams' Module roles are created by whoever GitHub allows, typically the Organization Admin; whoever lacks those rights prepares a request with you through the skill `admin-request`. The agent of a user with those rights does it on their explicit instruction: the module's repository, its slot in the Organization manifest (a PR to the Organization root) and the Teams' Module roles. Confirm an access change or a deletion with the user beforehand, as the exact operation. Never run the hosting (Lazurio Machines) from an Organization's Environment; propose a change of the Environment as a PR or an issue in the Organization's `infra` repository.",
     ),
     // A Python service is the stack `python-uv` of `lazurio module create`
     // (src/modules/scaffold.ts; decision 0171): same `package.json`, uv in
@@ -1717,7 +1797,7 @@ function building(preset: PresetName): readonly Text[] {
     // in the skill new-module; Lazurio/LazurioPlatform#757 Medium).
     t(
       "- **Data modulu (decision 0196).** K datům modulu dosáhne Environment, ne člověk: na Remote Environmentu mu Admin Organizace dá přístupy přes trezor (strop Environmentu) a aplikace dostane jen tajné údaje, které deklaruje. Kdo má celý Environment, pracuje s celým stropem; kdo má jen aplikaci, vidí část podle pravidel Organizace, kterou server modulu zúží u každého požadavku, i u API, stahování, WebSocketů a přímých URL. Zúžení je služba uživatele Environmentu těm, s kým aplikaci sdílí, ne izolace proti němu; kde má platit i proti němu, data obsluhuje aplikace provozovaná Organizací nebo úložiště, které identitu ověřuje samo. Identita, kterou návštěvníkovi podepíše Lazurio Auth, je krátkodobá, platí pro jeden Environment a aplikaci a nikdy není klíčem k datům, takže modul s omezenými právy má vždy serverovou část a prohlížeč se k jeho úložišti nedostane. Koncept repository-db je společný celému Environmentu: kdo má omezená práva, vidí jen změny záznamů, ke kterým smí, a Publikovat ho smí jen ten, kdo vidí celý.",
-      "- **Module data (decision 0196).** The Environment reaches a module's data, not a person: on a Remote Environment the Organization's Admin gives it its access through the vault (the Environment's ceiling), and an app gets only the secrets it declares. Whoever has the whole Environment works with the whole ceiling; whoever has only an app sees the part the Organization's rules allow, which the module's server narrows on every request, APIs, downloads, WebSockets and direct URLs included. The narrowing is a service of the Environment's user to the people they share an app with, not isolation against that user; where it must hold against them, the data are served by an app the Organization runs or by a store that verifies identity itself. The identity Lazurio Auth signs for a visitor is short-lived, valid for one Environment and app and never a key to data, so a module with restricted rights always has a server part and the browser never reaches its store. The repository-db draft is shared by the whole Environment: a person with restricted rights sees only changes to records they may access, and only someone who sees the whole draft may Publish it.",
+      "- **Module data (decision 0196).** The Environment reaches a module's data, not a person: on a Remote Environment the Organization Admin gives it its access through the vault (the Environment's ceiling), and an app gets only the secrets it declares. Whoever has the whole Environment works with the whole ceiling; whoever has only an app sees the part the Organization's rules allow, which the module's server narrows on every request, APIs, downloads, WebSockets and direct URLs included. The narrowing is a service of the Environment's user to the people they share an app with, not isolation against that user; where it must hold against them, the data are served by an app the Organization runs or by a store that verifies identity itself. The identity Lazurio Auth signs for a visitor is short-lived, valid for one Environment and app and never a key to data, so a module with restricted rights always has a server part and the browser never reaches its store. The repository-db draft is shared by the whole Environment: a person with restricted rights sees only changes to records they may access, and only someone who sees the whole draft may Publish it.",
     ),
     t(
       "- Odchylku modulu opravuješ v modulu, nikdy obcházením Launchpadu nebo Platformy; skutečnou mezeru produktu zapiš jako issue. Konformanci zatím žádný příkaz Platformy neověří: projdi pravidla sám a co ověřit nejde, uveď v handoffu. Převod a kontrolu existujícího modulu vede skill `module-standard`; zná i tajné údaje, sousední moduly a sestavenou verzi.",
@@ -1801,12 +1881,12 @@ const connectedApplications = (
     "- **A custom MCP server** you add only on the user's explicit instruction, and always to this Environment's Executor (users do the same in Apps → Integrations → Custom), never only to your harness: Executor gives it to every agent and bot of the Environment. Prefer the provider's official server. The user enters its key or token in the Launchpad themselves, never into chat.",
   ),
   t(
-    "- **Když cesta chybí,** řekni to uživateli jednou větou a pošli mu kartu aplikace: firemní aplikaci (Google Workspace, Microsoft 365) nastavuje Admin Organizace v Dashboardu, Composio na pracovním Environmentu povoluje Organizace a na osobním uživatel sám; ostatní požádají Admina.",
-    "- **When there is no path,** tell the user in one sentence and send them the app's card: an Organization's Admin sets up a company app (Google Workspace, Microsoft 365) in the Dashboard, the Organization allows Composio on a work Environment and the user on a personal one; everyone else asks the Admin.",
+    "- **Když cesta chybí,** řekni to uživateli jednou větou a pošli mu kartu aplikace: firemní aplikaci (Google Workspace, Microsoft 365) nastavuje Admin Organizace v Dashboardu, Composio na pracovním Environmentu povoluje Organizace a na osobním uživatel sám; ostatní požádají Admina Organizace.",
+    "- **When there is no path,** tell the user in one sentence and send them the app's card: the Organization Admin sets up a company app (Google Workspace, Microsoft 365) in the Dashboard, the Organization allows Composio on a work Environment and the user on a personal one; everyone else asks the Organization Admin.",
   ),
   t(
-    "- **Souhlas IT u firemní aplikace.** Firemní aplikaci (Microsoft 365) registruje Admin Organizace v tenantu firmy a správce firmy schválí její oprávnění jednou za všechny; uživatelé pak žádný souhlas nedávají. Když přihlášení přesto hlásí, že je potřeba schválení správcem (u Microsoftu `AADSTS65001` nebo `AADSTS90094`), v tenantu chybí souhlas s některým oprávněním: řekni to uživateli, ať ho Admin Organizace doplní, a připojení potom spustí znovu. Souhlas v jedné firmě neplatí v jiné.",
-    "- **IT consent of a company app.** An Organization's Admin registers the company app (Microsoft 365) in the company's tenant, and the company's administrator approves its permissions once for everyone; users then give no consent. When a sign-in still says administrator approval is required (at Microsoft `AADSTS65001` or `AADSTS90094`), the tenant lacks consent to one of the permissions: tell the user to have the Organization's Admin add it, and they then start the connection again. Consent in one company does not hold in another.",
+    "- **Souhlas IT u firemní aplikace.** Firemní aplikaci (Microsoft 365) registruje Admin Organizace v tenantu firmy a admin tenantu schválí její oprávnění jednou za všechny; uživatelé pak žádný souhlas nedávají. Když přihlášení přesto hlásí, že je potřeba schválení adminem tenantu (u Microsoftu `AADSTS65001` nebo `AADSTS90094`), v tenantu chybí souhlas s některým oprávněním: řekni to uživateli, ať ho Admin Organizace doplní, a připojení potom spustí znovu. Souhlas v jedné firmě neplatí v jiné.",
+    "- **IT consent of a company app.** The Organization Admin registers the company app (Microsoft 365) in the company's tenant, and the tenant's admin approves its permissions once for everyone; users then give no consent. When a sign-in still says administrator approval is required (at Microsoft `AADSTS65001` or `AADSTS90094`), the tenant lacks consent to one of the permissions: tell the user to have the Organization Admin add it, and they then start the connection again. Consent in one company does not hold in another.",
   ),
   ...microsoft365Guidance(preset),
   // No new ChatGPT or claude.ai connector (decision 0162 in the public
@@ -1913,7 +1993,7 @@ function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
         ),
     t(
       "  - **Sdílený trezor pro účel** drží, co potřebují agenti víc Environmentů nebo uživatelé spolu s agenty, třeba klíče zařízení od dodavatele. Zakládá ho a vlastní Admin Organizace jako uživatel a jeho jméno říká účel. Členy jsou uživatelé, kteří s daty pracují, a účty vybraných Environmentů; kdo hodnoty mění, zapisuje, ostatní jen čtou. Firemní ani osobní hesla do něj nepatří.",
-      "  - **A shared vault for a purpose** holds what the agents of several Environments, or users together with agents, need, such as device keys from a supplier. The Organization's Admin creates and owns it as a user, and its name states the purpose. Its members are the users who work with the data and the accounts of chosen Environments; whoever changes the values writes, the others only read. Company and personal passwords do not belong in it.",
+      "  - **A shared vault for a purpose** holds what the agents of several Environments, or users together with agents, need, such as device keys from a supplier. The Organization Admin creates and owns it as a user, and its name states the purpose. Its members are the users who work with the data and the accounts of chosen Environments; whoever changes the values writes, the others only read. Company and personal passwords do not belong in it.",
     ),
     t(
       "- **Kolekce je šuplík, ne zámek.** Klíč trezoru drží každý jeho člen, takže kdo co vidí, oddělují trezory, ne kolekce. Přístup kolekcemi nikdy neodděluj: co nemají vidět všichni členové trezoru, patří do jiného trezoru.",
@@ -1921,11 +2001,11 @@ function secrets(preset: PresetName, isPublic: boolean): readonly Text[] {
     ),
     t(
       `- **Uživatelům to vysvětli obyčejnými slovy,** bez slov jako organizace, kolekce nebo role, v jejich jazyce; česky například: „Není trezor jako trezor. Do Trezoru Organizace vidí jen uživatelé, agenti ne. ${agentsOnly ? "Trezor tohoto Prostředí používají jeho agenti a jeho hesla vidí každý, kdo do Prostředí vstoupí." : "Trezor tohoto Prostředí používají jeho agenti a uživatelé, kteří do Prostředí mají přístup."} Co potřebují agenti víc Prostředí nebo uživatelé spolu s agenty, patří do sdíleného trezoru pro jeden účel, který založí Admin Organizace.“`,
-      `- **Explain it to users in plain words,** without words like organization, collection or role, in their language; in English for example: “Not every vault is the same. Only users see into the Organization vault, agents do not. ${agentsOnly ? "This Environment's vault is used by its agents, and everyone who enters this Environment sees its passwords." : "This Environment's vault is used by its agents and the users who have access to this Environment."} What the agents of several Environments, or users together with agents, need belongs in a shared vault for one purpose, which the Organization's Admin creates.”`,
+      `- **Explain it to users in plain words,** without words like organization, collection or role, in their language; in English for example: “Not every vault is the same. Only users see into the Organization vault, agents do not. ${agentsOnly ? "This Environment's vault is used by its agents, and everyone who enters this Environment sees its passwords." : "This Environment's vault is used by its agents and the users who have access to this Environment."} What the agents of several Environments, or users together with agents, need belongs in a shared vault for one purpose, which the Organization Admin creates.”`,
     ),
     t(
-      "- **Do sdíleného trezoru Environment přizve jen Admin Organizace.** Požádej uživatele, ať ho Admin založí a pozve do něj účet tohoto Environmentu v trezoru; zápis mu dá, jen když hodnoty mění agenti. Adresu účtu vypíše `lazurio vault status --json` v poli `account`; stránka Trezor ji zatím neukazuje. Pozvánku za účet přijme trezor sám a Admin členství potvrdí; potom sdílený trezor po `bw sync` najdeš podle jména v `bw list organizations`. Odebrání ze sdíleného trezoru zastaví další přístup, ale co si agenti mezitím stáhli nebo použili, jim zůstane: při ztrátě důvěry se dotčené klíče podle dopadu vymění.",
-      "- **Only the Organization's Admin brings an Environment into a shared vault.** Ask the user to have the Admin create it and invite this Environment's vault account into it, with write access only when agents change the values. `lazurio vault status --json` prints the account's address as `account`; the Vault page does not show it yet. The vault accepts the invitation for the account by itself and the Admin confirms the membership; after that, and a `bw sync`, you find the shared vault by its name in `bw list organizations`. Removal from a shared vault stops further access, but what agents fetched or used meanwhile stays with them: when trust is lost, the affected keys are changed according to their impact.",
+      "- **Do sdíleného trezoru Environment přizve jen Admin Organizace.** Požádej uživatele, ať ho Admin Organizace založí a pozve do něj účet tohoto Environmentu v trezoru; zápis mu dá, jen když hodnoty mění agenti. Adresu účtu vypíše `lazurio vault status --json` v poli `account`; stránka Trezor ji zatím neukazuje. Pozvánku za účet přijme trezor sám a Admin Organizace členství potvrdí; potom sdílený trezor po `bw sync` najdeš podle jména v `bw list organizations`. Odebrání ze sdíleného trezoru zastaví další přístup, ale co si agenti mezitím stáhli nebo použili, jim zůstane: při ztrátě důvěry se dotčené klíče podle dopadu vymění.",
+      "- **Only the Organization Admin brings an Environment into a shared vault.** Ask the user to have the Organization Admin create it and invite this Environment's vault account into it, with write access only when agents change the values. `lazurio vault status --json` prints the account's address as `account`; the Vault page does not show it yet. The vault accepts the invitation for the account by itself and the Organization Admin confirms the membership; after that, and a `bw sync`, you find the shared vault by its name in `bw list organizations`. Removal from a shared vault stops further access, but what agents fetched or used meanwhile stays with them: when trust is lost, the affected keys are changed according to their impact.",
     ),
     t(
       '- **Trezory čteš přes nástroj `bitwarden`.** Než o Trezoru Prostředí cokoli řekneš, ověř jeho stav znovu příkazem `lazurio vault status`. Hlásí-li `connected`, čti tajemství jen z Trezoru Prostředí a ze sdílených trezorů, do kterých je tenhle Environment přizvaný, přes společnou relaci (`eval "$(lazurio vault env)"`), a hodnoty nikdy nevypisuj. Co chybí, získej v tomto pořadí:',
@@ -2187,8 +2267,8 @@ export function visitorsChapter(
 // Služby serveru (root decision 0209), which takes it for its GitHub identity
 // and Publication: who enters it, who the Operator is and how people name it.
 const servicesMeaning: Text = t(
-  "Jde ale o Služby serveru (decision 0209): do tohoto Environmentu vstupují jen Owneři a Admini Organizace, ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
-  "This, though, is Server services (decision 0209): only the Organization's Owners and Admins enter this Environment, not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
+  "Jde ale o Služby serveru (decision 0209): do tohoto Environmentu vstupují jen Vlastníci Organizace a Admini Organizace, ne členové Teamu, a uživatelem je ten z nich, kdo je právě připojený. Běží tu služby, které server poskytuje svým Environmentům, a agenti tu jednají za Admina Organizace, který spravuje jejich klíče. Brokerovaná identita, sdílení a Publikace jmenovaným uživatelem platí jako u týmového Environmentu; uživatelům je to ale Pracovní Prostředí jménem Služby serveru, nikdy Týmové.",
+  "This, though, is Server services (decision 0209): only the Organization Owners and Organization Admins enter this Environment, not the Team's members, and the user is whichever of them is connected. The services the server provides to its Environments run here, and agents here act for the Organization Admin who manages their keys. The brokered identity, sharing and Publication by a named user hold as for a Team Environment; to users, though, it is the Work Environment named Server services, never a Team one.",
 );
 
 const presetMeaning: Readonly<Record<PresetName, Text>> = {
@@ -2209,8 +2289,8 @@ const presetMeaning: Readonly<Record<PresetName, Text>> = {
     "An Organization-owned Team Remote Environment: one OS account shared by the Team's members. The user is whichever Team member is connected; the OS account is not a person. It never holds personal credentials, sessions or a Personalspace. Its provider identity is the brokered Organization identity with short-lived tokens, and changes are attributed to the Team (decisions 0147/0149). Applications are owned by the OS service manager.",
   ),
   "hosted-organization-steward": t(
-    "Pracovní Environment Henry persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným uživatelem, Ownerem nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet uživatele ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
-    "The Henry Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Owner or Admin of the Organization, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
+    "Pracovní Environment Henry persony Organizace (decision 0169): Remote Environment vlastněný Organizací s jedním odpovědným uživatelem, Vlastníkem Organizace nebo Adminem Organizace, který automatizace nastavuje a odpovídá za ně. GitHub identitou je vlastní GitHub uživatelský účet persony (účet bota), ne účet uživatele ani Lazurio for GitHub. Lazurio MausBot tu vedle Launchpadu a T3 Code provozuje tým botů persony. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`. Aplikace i boty vlastní OS service manager.",
+    "The Henry Environment of an Organization persona (decision 0169): an Organization-owned Remote Environment with one responsible user, an Organization Owner or Organization Admin, who configures its automation and answers for it. Its GitHub identity is the persona's own GitHub user account, a bot account, not the user's account and not Lazurio for GitHub. Lazurio MausBot runs the persona's bot team here next to the Launchpad and T3 Code. Personalspace is never present. Organization repositories live under `organizations/<org>/`. Applications and bots are owned by the OS service manager.",
   ),
 };
 
@@ -2283,13 +2363,14 @@ function zoneOfThisMachine(
 ): Text {
   const organization =
     machine?.owner.kind === "organization" ? machine.owner.organization : null;
-  // Služby serveru have the Team preset, but only Owners and Admins enter
+  // Služby serveru have the Team preset, but only Organization Owners and
+  // Organization Admins enter
   // them, and their services serve the server's Environments (root decision
   // 0209 points 3 and 4).
   if (preset === "hosted-organization-team" && isServerServices(machine))
     return t(
-      `Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Owneři a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
-      `This Environment (Server services, decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization's Owners and Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
+      `Tenhle Environment (Služby serveru, decision 0209) je v pracovní zóně Organizace \`${organization}\`. Vstupují do něj jen Vlastníci Organizace a Admini Organizace. Environmenty na stejném serveru dosáhnou jen na ty jeho služby, které jim povolí Deployment Repo Organizace, a to po vnitřní síti serveru, ne přes tailnet.`,
+      `This Environment (Server services, decision 0209) is in the work zone of Organization \`${organization}\`. Only the Organization Owners and Organization Admins enter it. Environments on the same server reach only those of its services that the Organization's Deployment Repo grants them, over the server's internal network, not the tailnet.`,
     );
   switch (preset) {
     case "local":
@@ -2402,8 +2483,8 @@ function botTeam(
       "| `OMB_DEFAULT_BOT_CWD` | this Lazurio Folder: new bots start here |",
     ),
     t(
-      `| Tým | tým Steward \`${team.team}\` importovaný z nainstalovaného releasu Lazurio MausBotu: leader pojmenovaný po personě a tři další boti |`,
-      `| Team | the Steward team \`${team.team}\` imported from the installed Lazurio MausBot release: a leader named after the persona and three workers |`,
+      `| Tým | tým \`${team.team}\` importovaný z nainstalovaného releasu Lazurio MausBotu: leader pojmenovaný po personě a tři další boti |`,
+      `| Team | the team \`${team.team}\` imported from the installed Lazurio MausBot release: a leader named after the persona and three workers |`,
     ),
     t(
       "| `OMB_GITHUB_INTAKE` | `1`: napojení na GitHub bez modelu pod účtem `gh` tohoto Environmentu, tedy personou |",
@@ -2439,12 +2520,12 @@ function botTeam(
       "**Handing over.** When the persona hands the work on, it assigns the next entitled person, removes itself as assignee and writes the state, the verification and the next step in a comment. Removing the assignment ends its mandate; a new assignment is a new handover. An assignment transfers no account, sign-in or rights and authorizes no bypass of branch rules, change of intent, Release, deployment or access change.",
     ),
     t(
-      "**Plán GitHubu.** Na GitHub Free drží stejné povinnosti dohoda, i když je GitHub všechny nevynutí: persona se živým právem zápisu smí na platné přiřazení pull request dotáhnout a mergnout, a technickou možnost merge nevydává za vynucené oddělení pravomocí. Na placeném plánu navíc platí vynucená pravidla: kde repozitář dovoluje merge jen Ownerům, persona zajistí review a merge Ownerovi předá. Merge, který spouští nasazení (například v repozitáři `infra`), dělá vždy člověk.",
-      "**The GitHub plan.** On GitHub Free an agreement holds the same duties even where GitHub cannot enforce them all: a persona with live write access may take a pull request through and merge it on a valid assignment, and never presents that technical ability as enforced separation of powers. On a paid plan the enforced rules apply as well: where a repository lets only Owners merge, the persona secures the review and hands the merge to an Owner. A merge that triggers a deployment (in the `infra` repository, for example) is always done by a person.",
+      "**Plán GitHubu.** Na GitHub Free drží stejné povinnosti dohoda, i když je GitHub všechny nevynutí: persona se živým právem zápisu smí na platné přiřazení pull request dotáhnout a mergnout, a technickou možnost merge nevydává za vynucené oddělení pravomocí. Na placeném plánu navíc platí vynucená pravidla: kde repozitář dovoluje merge jen Vlastníkům Organizace, persona zajistí review a merge Vlastníkovi Organizace předá. Merge, který spouští nasazení (například v repozitáři `infra`), dělá vždy člověk.",
+      "**The GitHub plan.** On GitHub Free an agreement holds the same duties even where GitHub cannot enforce them all: a persona with live write access may take a pull request through and merge it on a valid assignment, and never presents that technical ability as enforced separation of powers. On a paid plan the enforced rules apply as well: where a repository lets only Organization Owners merge, the persona secures the review and hands the merge to an Organization Owner. A merge that triggers a deployment (in the `infra` repository, for example) is always done by a person.",
     ),
     t(
-      "**Mandát k pinům nástrojů** (dodatek 0171). Persona smí sama mergnout pull request, který sama založila ve workspace repozitáři své Organizace (ne v `infra` ani v productionspace) a který jen posouvá piny nástrojů o patch nebo minor verzi, nejvýš na výchozí verzi Lazuria, a přegeneruje lockfile. Podmínkou je zelené CI a čerstvé nezávislé schválení na přesném headu. Major verzi (první číslo verze, u verzí `0.x` druhé) předá Ownerovi přiřazením. Mandát nepokrývá jiný obsah, Release ani nasazení a Owner nebo Admin Organizace ho může zúžit nebo odvolat.",
-      "**Tool-pin mandate** (0171 addendum). The persona may merge on its own a pull request it opened itself in a workspace repository of its Organization (not in `infra` or productionspace) that only moves tool pins by a patch or minor version, at most to Lazurio's default version, and regenerates the lockfile. It needs green CI and a fresh independent approval on the exact head. It hands a major version (the first number, for `0.x` versions the second) to an Owner by assignment. The mandate covers no other content, Release or deployment, and an Owner or Admin of the Organization may narrow or revoke it.",
+      "**Mandát k pinům nástrojů** (dodatek 0171). Persona smí sama mergnout pull request, který sama založila ve workspace repozitáři své Organizace (ne v `infra` ani v productionspace) a který jen posouvá piny nástrojů o patch nebo minor verzi, nejvýš na výchozí verzi Lazuria, a přegeneruje lockfile. Podmínkou je zelené CI a čerstvé nezávislé schválení na přesném headu. Major verzi (první číslo verze, u verzí `0.x` druhé) předá přiřazením Adminovi Organizace. Mandát nepokrývá jiný obsah, Release ani nasazení a Vlastník Organizace nebo Admin Organizace ho může zúžit nebo odvolat.",
+      "**Tool-pin mandate** (0171 addendum). The persona may merge on its own a pull request it opened itself in a workspace repository of its Organization (not in `infra` or productionspace) that only moves tool pins by a patch or minor version, at most to Lazurio's default version, and regenerates the lockfile. It needs green CI and a fresh independent approval on the exact head. It hands a major version (the first number, for `0.x` versions the second) to an Organization Admin by assignment. The mandate covers no other content, Release or deployment, and an Organization Owner or Organization Admin may narrow or revoke it.",
     ),
   ];
 }
@@ -2461,16 +2542,16 @@ const environmentRoutes: readonly Text[] = [
     "## Routes into other Environments (decision 0224)",
   ),
   t(
-    "Kam odsud smíš, zapisuje Lazurio do `~/.ssh/config.d/lazurio-environments.conf`: jeden `Host <id Prostředí>` na cestu, s pinnutým klíčem hostitele a jediným klíčem tohoto Prostředí `~/.ssh/lazurio-environment-ed25519`. Cesty plynou z faktů, ne z ruční konfigurace: z Osobního Prostředí do Pracovních Prostředí uživatele ve všech Organizacích jeho Conglomerate, z Pracovního Prostředí do Týmových Prostředí Teamů uživatele a z Pracovního Prostředí Admina do všech ostatních Prostředí jeho Organizace. Seznam vypíše `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf`.",
-    "Lazurio writes where you may go from here into `~/.ssh/config.d/lazurio-environments.conf`: one `Host <environment id>` per route, with the host key pinned and this Environment's one key `~/.ssh/lazurio-environment-ed25519`. Routes follow from facts, not from hand-written configuration: from a Personal Environment into the user's Work Environments in every Organization of its Conglomerate, from a Work Environment into the Team Environments of the user's Teams, and from an Admin's Work Environment into every other Environment of their Organization. `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf` lists them.",
+    "Kam odsud smíš, zapisuje Lazurio do `~/.ssh/config.d/lazurio-environments.conf`: jeden `Host <id Prostředí>` na cestu, s pinnutým klíčem hostitele a jediným klíčem tohoto Prostředí `~/.ssh/lazurio-environment-ed25519`. Cesty plynou z faktů, ne z ruční konfigurace: z Osobního Prostředí do Pracovních Prostředí uživatele ve všech Organizacích jeho Conglomerate, z Pracovního Prostředí do Týmových Prostředí Teamů uživatele a z Pracovního Prostředí Admina Organizace do všech ostatních Prostředí jeho Organizace. Seznam vypíše `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf`.",
+    "Lazurio writes where you may go from here into `~/.ssh/config.d/lazurio-environments.conf`: one `Host <environment id>` per route, with the host key pinned and this Environment's one key `~/.ssh/lazurio-environment-ed25519`. Routes follow from facts, not from hand-written configuration: from a Personal Environment into the user's Work Environments in every Organization of its Conglomerate, from a Work Environment into the Team Environments of the user's Teams, and from an Organization Admin's Work Environment into every other Environment of their Organization. `grep '^Host ' ~/.ssh/config.d/lazurio-environments.conf` lists them.",
   ),
   t(
     "- Připojuj se jen `ssh <id Prostředí> …`. Ruční alias v `~/.ssh/config`, adresu, `ProxyJump` (`-J`), přeposílání agenta (`-A`) ani portů nepoužívej, i kdyby fungovaly, a soubory, které Lazurio spravuje, neupravuj.",
     "- Connect only with `ssh <environment id> …`. Never use a hand-written alias in `~/.ssh/config`, an address, `ProxyJump` (`-J`), agent forwarding (`-A`) or port forwarding, even if they would work, and never edit the files Lazurio manages.",
   ),
   t(
-    "- Do Týmového Prostředí z Osobního Prostředí vedou dva kroky: `ssh <id tvého Pracovního Prostředí>` a teprve v něm druhé `ssh <id Týmového Prostředí>` jeho vlastním klíčem, například `ssh <pracovní> 'ssh <týmové> …'`. Napřímo cesta nevede a klíč tohoto Prostředí se dál nepřeposílá. Stejně jdeš přes Pracovní Prostředí Admina do ostatních Prostředí jeho Organizace.",
-    "- From a Personal Environment into a Team Environment there are two steps: `ssh <your Work Environment's id>`, and only there a second `ssh <Team Environment id>` with that Environment's own key, for example `ssh <work> 'ssh <team> …'`. No route leads there directly, and this Environment's key is never forwarded. You go the same way through an Admin's Work Environment into the other Environments of their Organization.",
+    "- Do Týmového Prostředí z Osobního Prostředí vedou dva kroky: `ssh <id tvého Pracovního Prostředí>` a teprve v něm druhé `ssh <id Týmového Prostředí>` jeho vlastním klíčem, například `ssh <pracovní> 'ssh <týmové> …'`. Napřímo cesta nevede a klíč tohoto Prostředí se dál nepřeposílá. Stejně jdeš přes Pracovní Prostředí Admina Organizace do ostatních Prostředí jeho Organizace.",
+    "- From a Personal Environment into a Team Environment there are two steps: `ssh <your Work Environment's id>`, and only there a second `ssh <Team Environment id>` with that Environment's own key, for example `ssh <work> 'ssh <team> …'`. No route leads there directly, and this Environment's key is never forwarded. You go the same way through an Organization Admin's Work Environment into the other Environments of their Organization.",
   ),
   t(
     "- Když cesta chybí (Prostředí není v souboru, `ssh` odmítne přihlášení, vyprší, nebo nesedí klíč hostitele), jinou nehledej a neobcházej ji: řekni uživateli, kam se nedostaneš a co `ssh` odpovědělo. Stav všech cest i přístupové služby ukáže `lazurio doctor --routes`. Klíč hostitele nikdy nemaž ani znovu nepřijímej a `ssh-keyscan` nepoužívej; nový klíč přinese Lazurio, až ho potvrdí záznamy Organizace cíle.",
@@ -2662,7 +2743,7 @@ const deviceEnrollment: readonly Text[] = [
     "Establish the user, device and target tailnet, then choose its stable name. Add the computer to the user's existing account; a second computer creates neither another account nor another Environment. Run client commands on the source computer. If you run in a hosted Environment, prepare the procedure for the agent on the source computer; do not rename this Environment.",
   ),
   t(
-    "1. Ověř identitu účtu a Headscale login server z přihlášeného Lazuria nebo od správce daného tailnetu. Login neodvozuj ze jména OS účtu, e-mailu ani cílového Environmentu. U propojeného GitHub účtu použij lowercase login zmrazený při založení osobního Headscale usera; u účtu bez GitHubu použij jeho existující štítek. GitHub kvůli názvu nepropojuj. Když identitu neznáš, nejdřív ji dohledej nebo si ji vyžádej.",
+    "1. Ověř identitu účtu a Headscale login server z přihlášeného Lazuria nebo od toho, kdo daný tailnet spravuje. Login neodvozuj ze jména OS účtu, e-mailu ani cílového Environmentu. U propojeného GitHub účtu použij lowercase login zmrazený při založení osobního Headscale usera; u účtu bez GitHubu použij jeho existující štítek. GitHub kvůli názvu nepropojuj. Když identitu neznáš, nejdřív ji dohledej nebo si ji vyžádej.",
     "1. Verify the account identity and Headscale login server from signed-in Lazurio or the administrator of that tailnet. Do not derive the login from the OS account, email or target Environment. For a linked GitHub account use the lowercase login frozen when its personal Headscale user was created; without GitHub use its existing label. Do not link GitHub for a name. If the identity is unknown, find it or ask for it first.",
   ),
   t(
@@ -2674,15 +2755,15 @@ const deviceEnrollment: readonly Text[] = [
     "3. Before enrollment inspect the existing client: `tailscale debug prefs` (`ControlURL`) and `tailscale status --json`. Do not switch, log out or reset a different active tailnet yourself. If an approved headless client exists for the target network, use its socket in every command (`tailscale --socket=<socket> …`). Do not create another client just for this task. A headless client of the same computer is named `<login>-<device>-cli`, at most one per computer and tailnet, with its own approval.",
   ),
   t(
-    "4. Při prvním připojení nastav explicitní `--hostname=<jméno>` spolu s ověřeným `--login-server=<adresa>` v podporovaném přihlašovacím postupu klienta. OIDC přihlášení dokončí uživatel svým Lazurio účtem; pokud podporované přihlášení chybí, předej to správci místo improvizované staré registrace. U nově zaregistrovaného, dosud neschváleného zařízení se špatným jménem použij na zařízení `tailscale set --hostname=<jméno>`; ostatní nastavení zachovej. Má-li macOS CLI mimo PATH, použij klienta dodaného nainstalovanou aplikací. Kvůli názvu neinstaluj druhý daemon a neměň systémové jméno počítače. Na Conglomerate Hostu ručně nepoužívej `headscale nodes rename`.",
+    "4. Při prvním připojení nastav explicitní `--hostname=<jméno>` spolu s ověřeným `--login-server=<adresa>` v podporovaném přihlašovacím postupu klienta. OIDC přihlášení dokončí uživatel svým Lazurio účtem; pokud podporované přihlášení chybí, předej to tomu, kdo tailnet spravuje, místo improvizované staré registrace. U nově zaregistrovaného, dosud neschváleného zařízení se špatným jménem použij na zařízení `tailscale set --hostname=<jméno>`; ostatní nastavení zachovej. Má-li macOS CLI mimo PATH, použij klienta dodaného nainstalovanou aplikací. Kvůli názvu neinstaluj druhý daemon a neměň systémové jméno počítače. Na Conglomerate Hostu ručně nepoužívej `headscale nodes rename`.",
     "4. On first connection pass an explicit `--hostname=<name>` with the verified `--login-server=<address>` through the client's supported sign-in procedure. The user completes OIDC sign-in with their Lazurio account; if supported sign-in is unavailable, hand off to the administrator instead of improvising legacy enrollment. For a newly enrolled, still unapproved device with a wrong name, run `tailscale set --hostname=<name>` on the device; preserve its other settings. If the macOS CLI is outside PATH, use the client supplied by the installed app. Do not install a second daemon or change the OS computer name for this. Never manually run `headscale nodes rename` on the Conglomerate Host.",
   ),
   t(
-    "5. Ověř výsledek: `ControlURL` odpovídá cílové síti a `Self.DNSName` z `tailscale status --json` má přesný zvolený první štítek a správný suffix. Správce porovná čerstvý Headscale readback: node ID, machine key, konečné jméno, vlastníka a IPv4/IPv6. Přípona `-1` nebo jiné jméno není úspěch: dořeš kolizi nebo dřívější ruční přejmenování se správcem, cizí uzel nemaž. Už schválené zařízení nepřejmenovávej jen kvůli konvenci: jméno je součástí přesných vazeb přístupu, takže jeho změna potřebuje koordinovaný plán a nové ověření. Stejně postupuj při novém přihlášení, které změní node ID nebo machine key.",
+    "5. Ověř výsledek: `ControlURL` odpovídá cílové síti a `Self.DNSName` z `tailscale status --json` má přesný zvolený první štítek a správný suffix. Ten, kdo tailnet spravuje, porovná čerstvý Headscale readback: node ID, machine key, konečné jméno, vlastníka uzlu a IPv4/IPv6. Přípona `-1` nebo jiné jméno není úspěch: dořeš kolizi nebo dřívější ruční přejmenování s tím, kdo tailnet spravuje, cizí uzel nemaž. Už schválené zařízení nepřejmenovávej jen kvůli konvenci: jméno je součástí přesných vazeb přístupu, takže jeho změna potřebuje koordinovaný plán a nové ověření. Stejně postupuj při novém přihlášení, které změní node ID nebo machine key.",
     "5. Verify the result: `ControlURL` matches the target network and `Self.DNSName` from `tailscale status --json` has exactly the chosen first label and the correct suffix. The administrator compares fresh Headscale readback: node ID, machine key, final name, owner and IPv4/IPv6. A `-1` suffix or another name is not success: resolve a collision or an earlier manual rename with the administrator; do not delete another node. Do not rename an approved device just for convention: its name is part of exact access bindings, so a change needs a coordinated plan and new verification. Treat re-enrollment changing the node ID or machine key the same way.",
   ),
   t(
-    "6. Registrace do tailnetu ještě přístup neuděluje. Pro Pracovní nebo Týmové Prostředí schvaluje Admin Organizace konkrétní zařízení a jeho přidělenou cestu v řízeném postupu správce sítě. Do Osobního Prostředí zařízení Admin Organizace neschvaluje: vstup v domovském tailnetu povolí reviewovaná změna vlastníka Conglomerate Hostu. Každý počítač má vlastní vazbu a vlastní SSH klíč; privátní klíč se nekopíruje. Správce porovná čerstvý Headscale readback z kroku 5 pro oba počítače a jejich přesné síťové vazby; nepředpokládej seznam zařízení v Přehledu Organizace. Až po schválení a nasazení, pokud cílové Prostředí nabízí SSH, pokračuj v jeho Nastavení → SSH ze zařízení, připni klíč hostu a ověř `ssh <alias> true`. Osobní Prostředí bez tailnetu a SSH, do kterého se vstupuje jen přihlášením Lazurio účtem z webu, tento postup nemá. Rozlišuj registraci, schválení, nasazení a test; řekni, co chybí.",
+    "6. Registrace do tailnetu ještě přístup neuděluje. Pro Pracovní nebo Týmové Prostředí schvaluje Admin Organizace konkrétní zařízení a jeho přidělenou cestu v řízeném postupu toho, kdo síť spravuje. Do Osobního Prostředí zařízení Admin Organizace neschvaluje: vstup v domovském tailnetu povolí reviewovaná změna od toho, komu Conglomerate Host patří. Každý počítač má vlastní vazbu a vlastní SSH klíč; privátní klíč se nekopíruje. Ten, kdo síť spravuje, porovná čerstvý Headscale readback z kroku 5 pro oba počítače a jejich přesné síťové vazby; nepředpokládej seznam zařízení v Přehledu Organizace. Až po schválení a nasazení, pokud cílové Prostředí nabízí SSH, pokračuj v jeho Nastavení → SSH ze zařízení, připni klíč hostu a ověř `ssh <alias> true`. Osobní Prostředí bez tailnetu a SSH, do kterého se vstupuje jen přihlášením Lazurio účtem z webu, tento postup nemá. Rozlišuj registraci, schválení, nasazení a test; řekni, co chybí.",
     "6. Tailnet registration grants no access yet. For a work or Team Environment, the Organization Admin approves the exact device and its assigned path through the network administrator's managed procedure. No Organization Admin approves a device for a personal Environment: a reviewed change by the Conglomerate Host owner admits it in the home tailnet. Each computer has its own binding and SSH key; never copy a private key. The administrator compares fresh Headscale readback from step 5 for both computers and their exact network bindings; do not assume a device list in the Organization overview. Only after approval and deployment, if the target Environment offers SSH, continue in its Settings → SSH from your devices, pin its host key and verify `ssh <alias> true`. A personal Environment without tailnet or SSH, entered only by signing in with the Lazurio account on the web, has no such path. Distinguish registration, approval, deployment and the test; say what is missing.",
   ),
 ];
@@ -2701,8 +2782,8 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
     ),
     origin === undefined
       ? t(
-          "Handover neuvádí adresu Launchpadu, tak ji neodvozuj. Požádej správce Environmentu, ať ji doplní.",
-          "The handover gives no Launchpad address, so do not guess it. Ask the Environment's administrator to add it.",
+          "Handover neuvádí adresu Launchpadu, tak ji neodvozuj. Požádej toho, kdo Environment spravuje (v Organizaci Admina Organizace), ať ji doplní.",
+          "The handover gives no Launchpad address, so do not guess it. Ask whoever manages the Environment (in an Organization, the Organization Admin) to add it.",
         )
       : t(
           `Pošli uživateli odkaz na [Nastavení → SSH ze zařízení](${origin}/settings/ssh). Čeká tam hotový prompt pro agenta na jeho počítači: jednoznačný alias tohoto Prostředí, klíč hostu a odkaz, který přidá tuto složku Lazurio do ChatGPT Desktopu (dřív Codex Desktop) jako projekt. Údaje ber z té stránky.`,
@@ -2713,7 +2794,7 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
       "After a successful SSH test, the agent on the source computer ends its chat reply with a clickable Markdown link to ChatGPT Desktop taken exactly from the page. It does not add the project itself or bypass app security restrictions: the user clicks. Explain that if the first click adds no project, they can click the same link once again; this sometimes happens and is not a required double-click. Once successful, the user sees the Lazurio folder in the left sidebar. A single Organization project may simply be named after the Organization; distinguish several Environments of one Organization by kind as well, such as work and Team, and give a personal project its own personal label. Only the display name changes, never the SSH alias or remote path. If the link still fails, guide the user through adding the page's exact values manually in Settings → Connections → SSH.",
     ),
     t(
-      "Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje správce sítě (Headscale a povolení SSH). Profil Tailscale na počítači uživatele nepřepínej.",
+      "Zaregistrovaný klíč sám přístup do sítě nedává. Která zařízení se do sítě dostanou, rozhoduje ten, kdo síť spravuje (Headscale a povolení SSH). Profil Tailscale na počítači uživatele nepřepínej.",
       "A registered key gives no network access by itself. The network administrator decides which devices reach the network (Headscale and the SSH grant). Do not switch the Tailscale profile on the user's computer.",
     ),
   ];
@@ -3090,8 +3171,8 @@ function thisMachine(source: InstructionSource): string {
         "- Everything holds inside one Conglomerate (one Headscale tailnet); a personal Remote Environment is a node of its home tailnet only, and no bridge is built between tailnets.",
       ),
       t(
-        "- Správa Conglomerate Hostu patří Ownerovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobního Remote Environmentu.",
-        "- Administration of the Conglomerate Host belongs to the Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.",
+        "- Správa Conglomerate Hostu patří Vlastníkovi Organizace, která ho vlastní, a jen z jeho osobního laptopu a osobního Remote Environmentu.",
+        "- Administration of the Conglomerate Host belongs to the Organization Owner of the Organization that owns it, only from their personal laptop and personal Remote Environment.",
       ),
       blank,
       t(

@@ -27,7 +27,7 @@ import { type SyncEntry, type SyncHost, syncContent } from "./sync";
  * `lazurio personalspace install`: the terminal surface of content
  * installation and synchronization. The Launchpad's
  * `POST /api/content/install` and its sweep run the same cores. */
-export const contentHelp = `organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
+export const contentHelp = `organization install <github-login> [--role module-contributor|module-maintainer|module-reader] [--root <owner>/<repository>] [--folder <absolute Folder>] [--json]
   Installs the Organization bound to that GitHub login into the Folder: its
   root repository first (cloned into a temporary sibling, verified — remote,
   branch main, and its own lazurio.organization.json binding the login — and
@@ -50,23 +50,29 @@ export const contentHelp = `organization install <github-login> [--role builder|
   account can read, each accepted only when its own lazurio.organization.json
   declares it the root of that login (root-declaration-mismatch for a named
   one that does not; root-not-found or root-ambiguous after the scan). The scope follows the user's role in the Organization, as
-  the resident CLI's: without --role it is the Admin installation, the full
-  one, and runs only when GitHub confirms through gh an active Owner
-  membership; --role builder, --role steward or --role reader installs
-  everything except the restricted (Admin-only) slots and the slots below
-  them, reported excluded_by_role_scope and never asked of GitHub, and runs
-  only when GitHub confirms write (Builder) or maintain (Steward) on the
-  root repository, or read or triage on it together with an active
-  membership in the Organization (Reader, whose clones GitHub keeps
-  read-only). Anyone may choose a narrower role GitHub confirms. A role
-  GitHub does not confirm fails closed before anything is cloned
-  (role-unverified). Only
+  the resident CLI's: without --role it is the Organization Admin's
+  installation, the full one, and runs only when GitHub confirms through gh
+  an active Organization Owner membership (the Organization Admin until the
+  role in Lazurio Auth is deployed, root decision 0228); --role
+  module-contributor, --role module-maintainer or --role module-reader
+  installs everything except the restricted (Organization Admin only) slots
+  and the slots below them, reported excluded_by_role_scope and never asked
+  of GitHub, and runs only when GitHub confirms write (Module Contributor)
+  or maintain (Module Maintainer) on the root repository, or read or triage
+  on it together with an active membership in the Organization (Module
+  Reader, whose clones GitHub keeps read-only). Anyone may choose a narrower
+  role GitHub confirms. The former values builder, steward and reader are
+  deprecated aliases of module-contributor, module-maintainer and
+  module-reader (root decision 0234): they still work and print a warning
+  on stderr. A role GitHub does not confirm fails closed before anything is
+  cloned (role-unverified). Only
   on a workstation (local) and a work Environment
   (hosted-organization-personal or hosted-organization-steward, its own
   Organization only). The Automated preset grants no GitHub role. A public
   Environment (its handover's entry.audience public, whatever its preset) has
-  no GitHub identity: it installs its own Organization only, as a reader
-  (--role reader; any other role fails role-unverified), reads nothing of
+  no GitHub identity: it installs its own Organization only, as a Module
+  Reader (--role module-reader; any other role fails role-unverified),
+  reads nothing of
   GitHub's API and clones the root and every child over anonymous HTTPS with
   an isolated git (none of the user's Git configuration, credential, askpass
   or SSH helpers, HTTPS only, exactly https://github.com/<owner>/<repository>.git);
@@ -145,13 +151,36 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
 
 export class ContentUsageError extends Error {}
 
-/** The roles `--role` names; the Admin installation is the bare form. */
-const scopedRoles = ["builder", "steward", "reader"] as const;
-const isScopedRole = (value: string): value is (typeof scopedRoles)[number] =>
+/** The roles `--role` names (root decision 0234); the Organization Admin's
+ * installation is the bare form. */
+const scopedRoles = [
+  "module-contributor",
+  "module-maintainer",
+  "module-reader",
+] as const;
+type ScopedRole = (typeof scopedRoles)[number];
+const isScopedRole = (value: string): value is ScopedRole =>
   (scopedRoles as readonly string[]).includes(value);
 
+/** The former values of `--role` (the resident's `builder` and `steward`,
+ * this CLI's `reader`), accepted only as deprecated aliases until the
+ * option's migration (root decision 0234). */
+const deprecatedRoles: Readonly<Record<string, ScopedRole>> = Object.freeze({
+  builder: "module-contributor",
+  steward: "module-maintainer",
+  reader: "module-reader",
+});
+
+/** The value `--role` names, an alias resolved; undefined for any other. */
+const scopedRoleOf = (value: string): ScopedRole | undefined =>
+  isScopedRole(value)
+    ? value
+    : Object.hasOwn(deprecatedRoles, value)
+      ? deprecatedRoles[value]
+      : undefined;
+
 const usage =
-  "Usage: organization install <github-login> [--role builder|steward|reader] [--root <owner>/<repository>] [--folder <Folder>] [--json] | organization sync [<github-login>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
+  "Usage: organization install <github-login> [--role module-contributor|module-maintainer|module-reader] [--root <owner>/<repository>] [--folder <Folder>] [--json] | organization sync [<github-login>] [--folder <Folder>] [--json] | personalspace install [--folder <Folder>] [--json]";
 
 /** Whether `args` is a content command (the dispatcher's question). */
 export const isContentCommand = (args: readonly string[]) =>
@@ -266,6 +295,11 @@ export async function runContentCommand(
   // Test seam: the host; the product composes gh, git, the install base's
   // lock and the module core of this process.
   hostFor?: (folder: string) => ContentHost,
+  // A notice for people that is not the result (a deprecated alias), one
+  // line on stderr; stdout stays the result only.
+  warn: (line: string) => void = (line) => {
+    process.stderr.write(`${line}\n`);
+  },
 ): Promise<number> {
   let values: {
     folder?: string | undefined;
@@ -334,15 +368,21 @@ export async function runContentCommand(
     (!organization && (noun !== "personalspace" || rest.length !== 0)) ||
     (!organization &&
       (values.root !== undefined || values.role !== undefined)) ||
-    // As the resident CLI: an Admin installs without --role. The resident
-    // knows no Reader; this CLI accepts it (decision F9, addendum
-    // 2026-10-05).
-    (values.role !== undefined && !isScopedRole(values.role)) ||
+    // As the resident CLI: an Organization Admin installs without --role.
+    // The resident knows no Module Reader; this CLI accepts it (decision F9,
+    // addendum 2026-10-05).
+    (values.role !== undefined && scopedRoleOf(values.role) === undefined) ||
     (values.root !== undefined && !repositoryPattern.test(values.root)) ||
     (values.folder !== undefined &&
       (!isAbsolute(values.folder) || resolve(values.folder) !== values.folder))
   )
     throw new ContentUsageError(usage);
+  const role =
+    values.role === undefined ? undefined : scopedRoleOf(values.role);
+  if (values.role !== undefined && role !== values.role)
+    warn(
+      `lazurio: --role ${values.role} is deprecated; use --role ${role} (decision 0234)`,
+    );
   const json = values.json === true;
   const print = (result: Record<string, unknown>, text: string) =>
     write(json ? JSON.stringify(result) : text);
@@ -363,17 +403,11 @@ export async function runContentCommand(
     ...(organization && values.root !== undefined
       ? { roots: { [key]: values.root } }
       : {}),
-    // The bare form is the Admin installation; it never falls back to a
-    // narrower role (the Launchpad resolves the role live instead).
+    // The bare form is the Organization Admin's installation; it never
+    // falls back to a narrower role (the Launchpad resolves the role live
+    // instead).
     ...(organization
-      ? {
-          roles: {
-            [key]:
-              values.role !== undefined && isScopedRole(values.role)
-                ? values.role
-                : ("admin" as const),
-          },
-        }
+      ? { roles: { [key]: role ?? ("organization-admin" as const) } }
       : {}),
   };
   let host: ContentHost;

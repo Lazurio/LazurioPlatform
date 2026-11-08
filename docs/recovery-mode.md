@@ -594,7 +594,7 @@ hours on one Environment.
 **Changed on 2026-10-31 (root decision 0166, addendum 2026-10-31):** the 8-hour
 window is replaced by one recorded end-to-end smoke test on the candidate. Once
 every in-scope Machine runs the candidate healthy, a thread signs in as a test
-account of the pilot Organization (its Owner or a member), checks the main path and
+account of the pilot Organization (its Organization Owner or an Organization Member), checks the main path and
 gives the green light; that ends the stage. The record is `lazurio.canary.v2`
 ([release cycle](release-cycle.md#qualification-and-the-canary)). Matěj accepted
 that slow failures (memory growth, timers, nightly jobs) are then caught in use,

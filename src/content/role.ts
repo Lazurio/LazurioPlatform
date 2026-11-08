@@ -2,25 +2,29 @@
 // root decision 0188, 2026-10-04), as the resident `lazurio organization
 // install <login> [--role builder|steward]` scopes it
 // (`R:lazurio/organization-install-lib.mjs`, `installRestrictedSlotPolicy`),
-// plus the Reader of Matěj's direction of 2026-10-05 (decision F9, addendum
-// 2026-10-05), which the resident does not know:
-// - a verified Admin gets the full installation, restricted (Admin-only)
-//   slots included;
-// - a Steward, Builder or Reader gets everything else: restricted slots and
-//   every slot below one are excluded before any provider operation
-//   (`excluded_by_role_scope`);
+// plus the Module Reader of Matěj's direction of 2026-10-05 (decision F9,
+// addendum 2026-10-05), which the resident does not know. The values are the
+// identifiers of root decision 0234 (`organization-admin`,
+// `module-maintainer`, `module-contributor`, `module-reader`); the
+// resident's `builder` and `steward` and this CLI's former `reader` are
+// accepted only as deprecated aliases of `--role` (`src/content/cli.ts`):
+// - a verified Organization Admin gets the full installation, restricted
+//   (Organization Admin only) slots included;
+// - a Module Maintainer, Module Contributor or Module Reader gets everything
+//   else: restricted slots and every slot below one are excluded before any
+//   provider operation (`excluded_by_role_scope`);
 // - a role that cannot be verified fails closed (`role-unverified`) before
 //   anything is cloned.
 // GitHub is the only authority; nothing here is recorded or cached, and the
-// role decides only the install's scope, never access: a Reader's clones are
-// read-only because GitHub refuses their pushes, not because of anything
-// here.
+// role decides only the install's scope, never access: a Module Reader's
+// clones are read-only because GitHub refuses their pushes, not because of
+// anything here.
 
 export const organizationRoles = [
-  "admin",
-  "steward",
-  "builder",
-  "reader",
+  "organization-admin",
+  "module-maintainer",
+  "module-contributor",
+  "module-reader",
 ] as const;
 export type OrganizationRole = (typeof organizationRoles)[number];
 
@@ -38,8 +42,8 @@ export type RepositoryPermission =
   | "read";
 
 /** `GET /user/memberships/orgs/<org>` through gh: an Organization Owner is
- * an active membership with the role `admin` (as `organization-owner.ts`
- * reads it). */
+ * an active membership with GitHub's organization role `admin` (as
+ * `organization-owner.ts` reads it). */
 export type MembershipAnswer =
   | Readonly<{
       kind: "member";
@@ -53,7 +57,8 @@ export type RoleVerification =
   | Readonly<{
       kind: "verified";
       role: OrganizationRole;
-      /** Restricted slots: in scope only for a verified Admin. */
+      /** Restricted slots: in scope only for a verified Organization
+       * Admin. */
       restricted: "include" | "exclude";
     }>
   | Readonly<{ kind: "unverified"; detail: string }>;
@@ -82,17 +87,20 @@ const verified = (role: OrganizationRole): RoleVerification =>
   Object.freeze({
     kind: "verified",
     role,
-    restricted: role === "admin" ? "include" : "exclude",
+    restricted: role === "organization-admin" ? "include" : "exclude",
   });
 
 /** The role GitHub confirms now. `requested` is the role the caller asks
- * for — `admin` for the CLI's bare `organization install <login>` (the
- * resident's Admin installation), `builder`, `steward` or `reader` for its
- * `--role` — or null to resolve it live (the Launchpad picks the form from
- * the live role, in the order Admin, Steward, Builder, Reader): Admin by an
- * active Owner membership, Steward by `maintain` on the root repository (the
- * Steward's grant), Builder by `write` on it (the resident's Builder gate
- * reads WRITE), Reader by `read` or `triage` on it together with an active
+ * for — `organization-admin` for the CLI's bare `organization install
+ * <login>` (the resident's Admin installation), `module-contributor`,
+ * `module-maintainer` or `module-reader` for its `--role` — or null to
+ * resolve it live (the Launchpad picks the form from the live role, in the
+ * order Organization Admin, Module Maintainer, Module Contributor, Module
+ * Reader): the Organization Admin by an active Organization Owner membership
+ * (until the role in Lazurio Auth is deployed, root decision 0228), the
+ * Module Maintainer by `maintain` on the root repository, the Module
+ * Contributor by `write` on it (the resident's `builder` gate reads WRITE),
+ * the Module Reader by `read` or `triage` on it together with an active
  * membership (a public root answers `read` to every account, so the
  * permission alone names no one of the Organization). An asserted role
  * GitHub does not confirm, and a live resolution that finds none of them,
@@ -108,34 +116,34 @@ export function verifyOrganizationRole(
 ): RoleVerification {
   const { requested, membership, rootPermission } = input;
   const admin = isOwner(membership);
-  if (requested === "admin")
+  if (requested === "organization-admin")
     return admin
-      ? verified("admin")
+      ? verified("organization-admin")
       : {
           kind: "unverified",
           detail:
             membership.kind === "unavailable"
               ? "GitHub did not answer the Organization membership"
-              : "the account is not an active Owner of the Organization",
+              : "the account is not an active Organization Owner",
         };
-  if (requested === "steward")
+  if (requested === "module-maintainer")
     return atLeast(rootPermission, "maintain")
-      ? verified("steward")
+      ? verified("module-maintainer")
       : {
           kind: "unverified",
           detail:
             "the account has no maintain permission on the root repository",
         };
-  if (requested === "builder")
+  if (requested === "module-contributor")
     return atLeast(rootPermission, "write")
-      ? verified("builder")
+      ? verified("module-contributor")
       : {
           kind: "unverified",
           detail: "the account has no write permission on the root repository",
         };
-  if (requested === "reader")
+  if (requested === "module-reader")
     return isActiveMember(membership) && atLeast(rootPermission, "read")
-      ? verified("reader")
+      ? verified("module-reader")
       : {
           kind: "unverified",
           detail: !isActiveMember(membership)
@@ -144,11 +152,11 @@ export function verifyOrganizationRole(
               : "the account is not an active member of the Organization"
             : "the account has no read permission on the root repository",
         };
-  if (admin) return verified("admin");
-  if (atLeast(rootPermission, "maintain")) return verified("steward");
-  if (atLeast(rootPermission, "write")) return verified("builder");
+  if (admin) return verified("organization-admin");
+  if (atLeast(rootPermission, "maintain")) return verified("module-maintainer");
+  if (atLeast(rootPermission, "write")) return verified("module-contributor");
   if (isActiveMember(membership) && atLeast(rootPermission, "read"))
-    return verified("reader");
+    return verified("module-reader");
   return {
     kind: "unverified",
     detail:
@@ -156,13 +164,14 @@ export function verifyOrganizationRole(
         ? "GitHub did not answer the membership or the root repository's permission"
         : membership.kind === "unavailable"
           ? "the account has no write permission on the root repository and GitHub did not answer the Organization membership"
-          : "the account is neither an Owner, nor has write permission on the root repository, nor is an active member who reads it",
+          : "the account is neither an Organization Owner, nor has write permission on the root repository, nor is an active Organization Member who reads it",
   };
 }
 
 /** How a declared slot's access is classified, as the resident's
  * `classifyOrganizationSlotAccess` (`R:lazurio/core/organization-slot-scope-lib.mjs`):
- * `restricted` for `default_access` `restricted` or `private` (Admin-only),
+ * `restricted` for `default_access` `restricted` or `private` (Organization
+ * Admin only),
  * `unknown` for any other undeclared mode or a malformed `required_roles`,
  * `ordinary` otherwise. */
 export function classifySlotAccess(
@@ -193,11 +202,11 @@ export function classifySlotAccess(
 
 /** Whether this identity can prepare an Organization for this version of
  * Lazurio when its root does not declare itself or cannot be read (root
- * decision 0201 point 8): write its root repository, by an active Owner
- * membership or `write` (or more) on the conventional root
+ * decision 0201 point 8): write its root repository, by an active
+ * Organization Owner membership or `write` (or more) on the conventional root
  * `<login>/<login>_GEN3`. GitHub's live answer only; nothing is recorded,
  * and it decides only which way the Launchpad points (Chat, or the sentence
- * that the Admin prepares it), never access. Anything GitHub does not
+ * that the Organization Admin prepares it), never access. Anything GitHub does not
  * confirm is no. */
 export function canPrepareRoot(
   membership: MembershipAnswer,

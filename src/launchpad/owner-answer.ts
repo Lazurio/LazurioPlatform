@@ -1,4 +1,4 @@
-// How long an Owner answer stands, and the page's copy of the answers
+// How long an Organization Owner answer stands, and the page's copy of the answers
 // (decision F36 addendum of 2026-10-04). The Launchpad keeps GitHub's answer
 // this long per login (organization-owner.ts); the page asks again once its
 // own copy is this old (waking itself at that moment), when the bound login

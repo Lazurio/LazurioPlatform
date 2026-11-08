@@ -439,7 +439,7 @@ test(".hermes.md says how Buddy treats his chat in Lazurio: one conversation, it
 // The route to an Environment the page context names (plan DEV-6676, task F;
 // root decision 0192, its addendum of 2026-10-26, point (g); 0202; 0210 point
 // 5): its own name in the file Lazurio writes, else a step into the user's
-// own Work Environment of the same Organization, which as an Admin's
+// own Work Environment of the same Organization, which as an Organization Admin's
 // administration station reaches colleagues' Environments and Henry with the
 // station's own access, else plain words that it is not reachable yet. A step
 // in, never a jump, agent forwarding or a copied key; the rule on this
@@ -461,7 +461,7 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
           "vlastní Pracovní Prostředí uživatele v téže Organizaci (část id za první tečkou)",
           "vnořeným příkazem `ssh <stanoviště> '…'`",
           "podle jeho `AGENTS.md`",
-          "ze správního stanoviště Admina se dostaneš do Pracovních a Týmových Prostředí kolegů a do Prostředí Henry",
+          "ze správního stanoviště Admina Organizace se dostaneš do Pracovních a Týmových Prostředí kolegů a do Prostředí Henry",
           "botovi v cílovém Prostředí",
         ],
         [
@@ -490,7 +490,7 @@ test(".hermes.md gives Buddy the route to another Environment of the page contex
           "the user's own Work Environment of the same Organization (after the id's first dot)",
           "a nested `ssh <station> '…'`",
           "go on by its `AGENTS.md`",
-          "an Admin's administration station reaches colleagues' Work and Team Environments and Henry",
+          "an Organization Admin's administration station reaches colleagues' Work and Team Environments and Henry",
           "a bot in the target",
         ],
         [

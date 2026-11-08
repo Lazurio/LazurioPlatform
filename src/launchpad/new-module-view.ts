@@ -11,8 +11,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // Pure presentation of the dialog "+ Nový modul" (decision F36's addendum of
 // 2026-11-05): three screens, what a module is, what it should do, and the
 // whole brief before it goes to Chat. The same dialog speaks to an
-// Organization Admin, to a member, who asks the Organization Admin instead (the Steward
-// too), and to the holder of the personal space, who founds a module there.
+// Organization Admin, to an Organization Member, who asks the Organization
+// Admin instead (a Module Maintainer too), and to the holder of the personal space, who founds a module there.
 // new-module-dialog.ts draws it. Nothing here decides who may do what: the
 // prompt route asks GitHub again.
 

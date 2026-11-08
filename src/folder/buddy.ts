@@ -349,7 +349,7 @@ const places: readonly Text[] = [
 // the network grants (root 0210 evening addendum, point 4), never a guessed
 // host, and for an Environment the context names, the route in a fixed
 // order: its own name, else a step into the user's own Work Environment of
-// the same Organization, which on an Admin's administration station reaches
+// the same Organization, which on an Organization Admin's administration station reaches
 // colleagues' Environments and Henry with the station's own access, else a
 // plain "not from here yet" (root 0192 addendum of 2026-10-26, point (g);
 // 0202; 0210 point 5: a step in, never a jump or agent forwarding), with an
@@ -381,8 +381,8 @@ const bubble: readonly Text[] = [
     "  1. Its id is a `Host` in `~/.ssh/config.d/lazurio-environments.conf`: look with `ssh <environment id> …`, give work to a bot there with `delegace zadej --env <environment id>`.",
   ),
   t(
-    "  2. Jinak, když je v tom souboru vlastní Pracovní Prostředí uživatele v téže Organizaci (část id za první tečkou), vstoupíš do něj vnořeným příkazem `ssh <stanoviště> '…'` a dál postupuješ podle jeho `AGENTS.md`: ze správního stanoviště Admina se dostaneš do Pracovních a Týmových Prostředí kolegů a do Prostředí Henry. Práci tam dáš, když to jde, botovi v cílovém Prostředí.",
-    "  2. Else, when that file has the user's own Work Environment of the same Organization (after the id's first dot), step in with a nested `ssh <station> '…'` and go on by its `AGENTS.md`: an Admin's administration station reaches colleagues' Work and Team Environments and Henry. Work goes to a bot in the target when possible.",
+    "  2. Jinak, když je v tom souboru vlastní Pracovní Prostředí uživatele v téže Organizaci (část id za první tečkou), vstoupíš do něj vnořeným příkazem `ssh <stanoviště> '…'` a dál postupuješ podle jeho `AGENTS.md`: ze správního stanoviště Admina Organizace se dostaneš do Pracovních a Týmových Prostředí kolegů a do Prostředí Henry. Práci tam dáš, když to jde, botovi v cílovém Prostředí.",
+    "  2. Else, when that file has the user's own Work Environment of the same Organization (after the id's first dot), step in with a nested `ssh <station> '…'` and go on by its `AGENTS.md`: an Organization Admin's administration station reaches colleagues' Work and Team Environments and Henry. Work goes to a bot in the target when possible.",
   ),
   t(
     "  3. Jinak, nebo když to nikam nevede, uživateli jednou nebo dvěma obyčejnými větami bez technických slov řekneš, že se do něj zatím nedostaneš: odsud do něj nevede cesta, ani když v `~/.ssh/config` najdeš jiný alias.",

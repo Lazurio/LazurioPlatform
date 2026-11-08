@@ -38,11 +38,13 @@ import { BodyTooLarge, readJsonBody } from "./json-body";
 //   same `write: false`, without asking GitHub, so it tells nothing about
 //   the identity's rights elsewhere.
 // An Organization's scope follows the person's role, which the request does
-// not carry: the core resolves it live from GitHub through gh (an Owner's
-// membership, `maintain` or `write` on the root repository, or `read` on it
-// with an active membership: a Reader) and fails closed with
-// `role-unverified` when GitHub confirms none. A public Environment has no
-// GitHub identity: it installs as a Reader without asking GitHub (decision
+// not carry: the core resolves it live from GitHub through gh (an active
+// Organization Owner's membership: the Organization Admin; `maintain` or
+// `write` on the root repository: a Module Maintainer or Module Contributor;
+// or `read` on it with an active membership: a Module Reader) and fails
+// closed with `role-unverified` when GitHub confirms none. A public
+// Environment has no GitHub identity: it installs as a Module Reader without
+// asking GitHub (decision
 // F55's addendum of 2026-10-17).
 
 const jobRoute = /^\/api\/content\/jobs\/([0-9a-f]{32})$/;

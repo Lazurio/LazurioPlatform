@@ -122,11 +122,11 @@ export type HomeEnvironment = Readonly<{
 // in a short message. The "⋯" menu at a tile's top right stars it, leads to
 // the module's overview (a repository's GitHub page), which carries the
 // module lifecycle (slice P5) over `/api/modules/<org>/<module>/…`, the same
-// core as `lazurio module`, and for the Organization's Owners and Stewards
-// to the module's access in the Organization's Dashboard (S15). Favourites
+// core as `lazurio module`, and for Organization Owners and Module
+// Maintainers to the module's access in the Organization's Dashboard (S15). Favourites
 // are the account's (S12) when it can be read, else this browser's. Where this
-// Environment's GitHub identity is an Owner of the Organization, Workspace
-// ends with "+ Nový modul", muted for a member, and Zkontrolovat přístupy runs
+// Environment's GitHub identity is an Organization Owner, Workspace
+// ends with "+ Nový modul", muted for an Organization Member, and Zkontrolovat přístupy runs
 // the Organization's synchronization now. In the personal space its holder sees, "Co
 // dalšího tu můžete dělat" follows everything else: links into Chat,
 // Automate, Integrace and Soubory (root decision 0185's addendum of
@@ -229,16 +229,17 @@ export function createCatalogPanel(
     busy: boolean;
     line: AccessLine;
   }> | null = null;
-  // Whether this Environment's GitHub identity is an Owner of an
-  // Organization, by its route key: read once per page, never assumed.
-  // The Owner answers this page holds (owner-answer.ts); a catalog read
+  // Whether this Environment's GitHub identity is an Organization Owner, by
+  // the Organization's route key: read once per page, never assumed.
+  // The Organization Owner answers this page holds (owner-answer.ts); a catalog read
   // drops them all.
   const owners = createOwnerAnswers();
-  // Whether it is an active member of it and no Owner, from the same answer:
+  // Whether it is an active Organization Member and no Organization Owner,
+  // from the same answer:
   // the muted "+ Nový modul" (F36's addendum of 2026-11-05).
   const members = createOwnerAnswers();
-  // Whether it may maintain a module's repository (a Steward's "Přístup k
-  // modulu"), by the Organization's route key and the module id: asked only
+  // Whether it may maintain a module's repository (a Module Maintainer's
+  // "Přístup k modulu"), by the Organization's route key and the module id: asked only
   // when the person reaches for a module's menu, never for every tile.
   const maintainers = createOwnerAnswers();
   // The person's account (root decision 0185 S12, S18): undefined until it
@@ -630,11 +631,12 @@ export function createCatalogPanel(
   });
 
   // "Přístup k modulu" (root decision 0185 S15, issue #151): the module in
-  // its Organization's Dashboard, in this window, for the Organization's
-  // Owners (the Owner answer of "+ Nový modul") and Stewards (GitHub's
+  // its Organization's Dashboard, in this window, for Organization
+  // Owners (the Organization Owner answer of "+ Nový modul") and Module
+  // Maintainers (GitHub's
   // `maintain` on the module's repository); moduleAccessTarget says where
   // and whether. The Dashboard decides again with its own live read: the item
-  // grants nothing. A Steward's answer is asked once it is older than the
+  // grants nothing. A Module Maintainer's answer is asked once it is older than the
   // server's cache; `settled` runs when it arrives.
   function askMaintainer(
     group: CatalogGroupEntry,
@@ -752,7 +754,7 @@ export function createCatalogPanel(
       list.append(github);
     }
     // Whether the menu could ever offer it (a module, a Dashboard page),
-    // before any Steward answer.
+    // before any Module Maintainer answer.
     const reachable =
       moduleAccessTarget(item, group, options.dashboard, {
         owner: true,
@@ -778,7 +780,7 @@ export function createCatalogPanel(
     };
     showAccess();
     // "Přesunout do karty" (decision F32's addendum of 2026-10-16): the
-    // Organization's Owner arranges the tabs in its Dashboard.
+    // Organization Owner arranges the tabs in its Dashboard.
     const tabs = workspaceTabsTarget(item, group, options.dashboard, owner);
     if (tabs !== null) {
       const link = element("a", "tile-menu-item");
@@ -788,7 +790,8 @@ export function createCatalogPanel(
       link.addEventListener("click", close);
       list.append(link);
     }
-    // A Steward's answer is asked when the person reaches for the menu, and
+    // A Module Maintainer's answer is asked when the person reaches for the
+    // menu, and
     // the item joins the open menu when it comes.
     const reach = () => {
       if (reachable && !owner)
@@ -851,12 +854,13 @@ export function createCatalogPanel(
     return wrap;
   }
 
-  // "+ Nový modul" (2026-10-04): the last tile of Workspace. An Owner of the
-  // Organization gets it as it was; before the first module, the Owner's
-  // Workspace has only it (#376). A member, a Steward too, gets it muted with
+  // "+ Nový modul" (2026-10-04): the last tile of Workspace. An Organization
+  // Owner gets it as it was; before the first module, the Organization
+  // Owner's Workspace has only it (#376). An Organization Member, a Module
+  // Maintainer too, gets it muted with
   // a lock (F36's addendum of 2026-11-05): a button, never disabled, since
   // the dialog tells them what happens and sends the Organization Admin a request. In the
-  // personal space, the Owner's tile for its verified holder, with the prompt
+  // personal space, the Organization Owner's tile for its verified holder, with the prompt
   // `new-personal-module` (root decision 0185's addendum of 2026-10-13);
   // `newModuleOffer` in apps-view.ts decides who gets which. The tile opens
   // the dialog; the dialog hands the brief to Chat (ui.ts `handOver`).
@@ -889,8 +893,8 @@ export function createCatalogPanel(
 
   // This Environment's place in an Organization: GitHub's own answer through
   // the Launchpad, fail closed, asked again once it is older than the
-  // server's cache or the bound login changed. An Owner founds modules, a
-  // member asks the Organization Admin for them.
+  // server's cache or the bound login changed. An Organization Owner founds
+  // modules, an Organization Member asks the Organization Admin for them.
   function roleOf(
     value: Catalog,
     group: CatalogGroupEntry,
@@ -931,7 +935,7 @@ export function createCatalogPanel(
     return { owner, member };
   }
 
-  // Wakes the page when the earliest Owner answer expires, so that a shown
+  // Wakes the page when the earliest Organization Owner answer expires, so that a shown
   // "+ Nový modul" is asked again without any navigation.
   let ownerWake: ReturnType<typeof setTimeout> | undefined;
   function wakeForOwners() {
@@ -1301,7 +1305,7 @@ export function createCatalogPanel(
       group.organization.reason !== undefined
     )
       parts.push(statusLine(group.status));
-    // An Owner's Workspace shows even before its first module, ending with
+    // An Organization Owner's Workspace shows even before its first module, ending with
     // "+ Nový modul" (#376), so GitHub's answer comes first.
     const { owner, member } = roleOf(value, group);
     // The rest in the order appsHomeParts gives: the plain sentence of an
@@ -2026,7 +2030,7 @@ export function createCatalogPanel(
         : found.modules.filter((module) => module.absent !== true).length;
     },
     /** The key of the Folder's one Organization (a work Environment's),
-     * for its Owner question; null with none or several. */
+     * for its Organization Owner question; null with none or several. */
     soleOrganization(): string | null {
       if (catalog === null || catalog.organizations.length !== 1) return null;
       const [organization] = catalog.organizations;

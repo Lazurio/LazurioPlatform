@@ -1779,7 +1779,7 @@ test("an Organization's Environment asks who needs a secret before it names one 
             "**A collection is a drawer, not a lock.**",
             "Never separate access by collections",
             "“Not every vault is the same.",
-            "**Only the Organization's Admin brings an Environment into a shared vault.**",
+            "**Only the Organization Admin brings an Environment into a shared vault.**",
             "`lazurio vault status --json` prints the account's address as `account`; the Vault page does not show it yet",
             "what agents fetched or used meanwhile stays with them",
             "  - (a) ",

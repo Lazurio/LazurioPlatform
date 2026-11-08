@@ -253,7 +253,7 @@ this repository).
 - **No consent or window** in that Organization: rollouts, restarts, reinstalls and
   redeploys there, candidates included, need neither the consent of the users of
   its Environments nor a window. The Agent runs them as part of the release, on
-  the instruction of its user, who holds the live Admin role there.
+  the instruction of its user, who holds the live Organization Admin role there.
 - **What stays:** the user's instruction, source review, the Machines lifecycle
   gates, release approval, no secrets in Git, the personal VM Owner's consent and
   every other Organization's own consent.
@@ -266,7 +266,7 @@ what ends the stage early is
 
 **The smoke test ends the stage (root decision 0166, addendum 2026-10-31).** The
 8-hour window is gone. Once every in-scope Machine runs the candidate healthy, a
-thread signs in as a test account of the pilot Organization, its Owner or a member,
+thread signs in as a test account of the pilot Organization, its Organization Owner or an Organization Member,
 checks the main path end to end and gives the green light. When the stage passed,
 the release reviewer adds `qualification/canary/<candidate>.json` by a pull request
 to this repository:

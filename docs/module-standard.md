@@ -486,7 +486,8 @@ Personalspace gets none.
 ### Who came and with which role
 
 Lazurio decides who may open a Module's App and with which application role,
-application admin or application user, and the Organization decides in the
+Application Admin or Application User (`appRole` `admin` or `user`, [decision 0234](decision-register.md#0234--the-names-of-access-roles-one-vocabulary-for-every-text-screen-and-agent)),
+and the Organization decides in the
 Module's code what each role may do ([decision 0231](decision-register.md#0231--access-in-an-organization-owner-admin-and-members-module-access-and-maintainers-application-admins-and-users)). An App learns it for
 each request from the person's existing Lazurio session, with no second
 sign-in.
@@ -528,7 +529,7 @@ The rules:
   background request gets `401`).
 - **`unknown` is no role.** The App shows that Lazurio did not say who came and
   refuses what needs a role. It never fills in a name or a role from the
-  browser, the operating-system account, the Environment's assignee or the
+  browser, the operating-system account, the Environment's Assigned User or the
   account that runs the Environment.
 - **The subject identifies, the username is shown.** An App that remembers a
   person keys them by `subject`; `username` may be `null`.
@@ -823,7 +824,7 @@ without it simply finds no tools.
 - A Module keeps at most two App generations: the default one and one more,
   either the previous one kept for a return or a newer candidate that is not the
   default yet. Switching `default_app` to the candidate is the decision of the
-  Organization's Steward or the user, never a conformance fix. Older generations
+  Module Maintainer or the user, never a conformance fix. Older generations
   are deleted; Git history keeps them.
 - `apps[]` matches the directories: a package not declared in `apps[]` is not in
   the repository.
@@ -870,10 +871,11 @@ lazurio module create personalspace/<module> --stack <stack> [--name <name>] [--
 - `--dry-run` checks everything a real run would and prints the plan with its
   digest; nothing is written. The agent shows the plan to the user, and only after
   they confirm it does `--confirm <plan>` create exactly that plan.
-- An Organization's Module is created by an active Owner of the Organization,
-  never from a Team Environment, from a task worktree of the Organization root on
-  a branch of its own. The run creates the private repository, grants Write to
-  each Team of `--teams`, places the Module in `workspace/<module>`, pushes `main`
+- An Organization's Module is created by the Organization Admin, until decision
+  0228 is deployed an active Organization Owner on GitHub (its `admin`
+  organization role), never from a Team Environment, from a task worktree of the Organization root on
+  a branch of its own. The run creates the private repository, grants Write (`push`,
+  the Module Contributor) to each Team of `--teams`, places the Module in `workspace/<module>`, pushes `main`
   and declares the slot in the worktree's `modules.manifest.json`; merging the
   root's pull request is the user's Publication.
 - A personal Module is a private repository `<login>/<module>` on the account

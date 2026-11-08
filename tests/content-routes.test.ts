@@ -527,7 +527,8 @@ posixTest(
     world = await createWorld();
     await alphaRemotes(world);
     const folder = await presetFolder(world, "local");
-    // The Folder already holds the Organization (installed by an Admin).
+    // The Folder already holds the Organization (installed by an
+    // Organization Admin).
     const owner = stubGitHub(world, {
       repositories: {
         "Alpha/alpha_GEN3": {},
@@ -546,7 +547,7 @@ posixTest(
       contentHost(world, owner.github),
     );
     // In the Launchpad, gh works as a member with write on the root: the
-    // live role is Builder, and the install is scoped to it.
+    // live role is Module Contributor, and the install is scoped to it.
     const builder = stubGitHub(world, {
       repositories: {
         "Alpha/alpha_GEN3": { permission: "write" },
@@ -571,7 +572,7 @@ posixTest(
     };
     expect(ended.state).toBe("succeeded");
     expect(ended.steps.find((step) => step.key === "access")?.detail).toBe(
-      "as example (builder, restricted slots excluded); root Alpha/alpha_GEN3",
+      "as example (module-contributor, restricted slots excluded); root Alpha/alpha_GEN3",
     );
     expect(
       builder.calls.some(
@@ -684,37 +685,79 @@ posixTest(
     const result = parsed.at(-1);
     expect(result.kind).toBe("content-install");
     expect(result.state).toBe("succeeded");
-    expect(result.items[0].role).toBe("admin");
+    expect(result.items[0].role).toBe("organization-admin");
 
-    // --role narrows the scope to the asserted role GitHub confirms.
-    const builder: string[] = [];
-    expect(
-      await runContentCommand(
+    // One install with --role <value>: its exit code, the role GitHub
+    // confirmed, the stdout lines (JSON only) and the stderr notices.
+    const home = world.home;
+    const installAs = async (role: string, target: ContentHost = host) => {
+      const out: string[] = [];
+      const warnings: string[] = [];
+      const code = await runContentCommand(
         [
           "organization",
           "install",
           "Alpha",
           "--role",
-          "builder",
+          role,
           "--folder",
           folder,
           "--json",
         ],
-        cliContext(world.home),
-        (line) => builder.push(line),
-        () => host,
-      ),
-    ).toBe(0);
-    const scoped = JSON.parse(builder.at(-1) as string);
-    expect(scoped.items[0].role).toBe("builder");
+        cliContext(home),
+        (line) => out.push(line),
+        () => target,
+        (line) => warnings.push(line),
+      );
+      const parsed = out.map((line) => JSON.parse(line));
+      const last = parsed.at(-1);
+      return {
+        code,
+        role: last.items?.[0]?.role ?? null,
+        failure: last.failure?.code ?? null,
+        result: last,
+        warnings,
+      };
+    };
+
+    // --role narrows the scope to the asserted role GitHub confirms (root
+    // decision 0234's identifiers), with no notice.
+    const scoped = await installAs("module-contributor");
+    expect([scoped.code, scoped.role, scoped.warnings]).toEqual([
+      0,
+      "module-contributor",
+      [],
+    ]);
     expect(
-      scoped.items[0].repositories.find(
+      scoped.result.items[0].repositories.find(
         (entry: { path: string }) => entry.path === "workspace/secret",
       ).result,
     ).toBe("excluded_by_role_scope");
+    const maintainer = await installAs("module-maintainer");
+    expect([maintainer.code, maintainer.role, maintainer.warnings]).toEqual([
+      0,
+      "module-maintainer",
+      [],
+    ]);
+    // The former values are deprecated aliases: the same install, and one
+    // line on stderr naming the replacement; stdout stays JSON only.
+    for (const [alias, role] of [
+      ["builder", "module-contributor"],
+      ["steward", "module-maintainer"],
+    ] as const) {
+      const aliased = await installAs(alias);
+      expect([aliased.code, aliased.role, aliased.warnings]).toEqual([
+        0,
+        role,
+        [
+          `lazurio: --role ${alias} is deprecated; use --role ${role} (decision 0234)`,
+        ],
+      ]);
+    }
 
-    // The bare form is the Admin installation: for an account GitHub does
-    // not confirm as an Owner it fails closed (exit 1), even with write.
+    // The bare form is the Organization Admin's installation: for an
+    // account GitHub does not confirm as an Organization Owner it fails
+    // closed (exit 1), even with write.
     const member = stubGitHub(world, {
       repositories: { "Alpha/alpha_GEN3": { permission: "write" } },
       membership: { kind: "member", state: "active", role: "member" },
@@ -733,72 +776,52 @@ posixTest(
     );
     // Its agent learns there how to name a narrower role.
     expect(JSON.parse(bare.at(-1) as string).failure.detail).toEndWith(
-      "without --role this is the Admin installation: name the role GitHub confirms with --role steward, --role builder or --role reader",
+      "without --role this is the Organization Admin's installation: name the role GitHub confirms with --role module-maintainer, --role module-contributor or --role module-reader",
     );
-    // The same account with --role builder: confirmed by write.
-    expect(
-      await runContentCommand(
-        [
-          "organization",
-          "install",
-          "Alpha",
-          "--role",
-          "builder",
-          "--folder",
-          folder,
-        ],
-        cliContext(world.home),
-        () => {},
-        () => contentHost(world as World, member.github),
-      ),
-    ).toBe(0);
+    // The same account with --role module-contributor: confirmed by write.
+    const contributor = await installAs(
+      "module-contributor",
+      contentHost(world as World, member.github),
+    );
+    expect([contributor.code, contributor.role]).toEqual([
+      0,
+      "module-contributor",
+    ]);
 
-    // A Reader: an active member who only reads the root. The Builder
-    // form fails closed for that account, --role reader installs.
+    // A Module Reader: an active member who only reads the root. The
+    // Module Contributor form fails closed for that account, also by its
+    // alias, and --role module-reader installs.
     const reader = stubGitHub(world, {
       repositories: { "Alpha/alpha_GEN3": { permission: "read" } },
       membership: { kind: "member", state: "active", role: "member" },
     });
-    const asBuilder: string[] = [];
-    expect(
-      await runContentCommand(
-        [
-          "organization",
-          "install",
-          "Alpha",
-          "--role",
-          "builder",
-          "--folder",
-          folder,
-          "--json",
-        ],
-        cliContext(world.home),
-        (line) => asBuilder.push(line),
-        () => contentHost(world as World, reader.github),
-      ),
-    ).toBe(1);
-    expect(JSON.parse(asBuilder.at(-1) as string).failure.code).toBe(
-      "role-unverified",
+    for (const role of ["module-contributor", "builder"]) {
+      const refused = await installAs(
+        role,
+        contentHost(world as World, reader.github),
+      );
+      expect([refused.code, refused.failure]).toEqual([1, "role-unverified"]);
+    }
+    const asReader = await installAs(
+      "module-reader",
+      contentHost(world as World, reader.github),
     );
-    const asReader: string[] = [];
-    expect(
-      await runContentCommand(
-        [
-          "organization",
-          "install",
-          "Alpha",
-          "--role",
-          "reader",
-          "--folder",
-          folder,
-          "--json",
-        ],
-        cliContext(world.home),
-        (line) => asReader.push(line),
-        () => contentHost(world as World, reader.github),
-      ),
-    ).toBe(0);
-    expect(JSON.parse(asReader.at(-1) as string).items[0].role).toBe("reader");
+    expect([asReader.code, asReader.role, asReader.warnings]).toEqual([
+      0,
+      "module-reader",
+      [],
+    ]);
+    const asAlias = await installAs(
+      "reader",
+      contentHost(world as World, reader.github),
+    );
+    expect([asAlias.code, asAlias.role, asAlias.warnings]).toEqual([
+      0,
+      "module-reader",
+      [
+        "lazurio: --role reader is deprecated; use --role module-reader (decision 0234)",
+      ],
+    ]);
 
     // An Organization none of whose repositories declares itself the root
     // fails the run (exit 1), with its code.
@@ -841,6 +864,7 @@ posixTest(
     expect(lines.map((line) => JSON.parse(line))).toEqual([
       { kind: "blocked", reason: "not-for-this-environment" },
     ]);
+    const warnings: string[] = [];
     for (const args of [
       ["organization", "install"],
       ["organization", "install", "-x"],
@@ -849,10 +873,15 @@ posixTest(
       ["personalspace", "install", "--root", "Alpha/alpha_GEN3"],
       ["personalspace", "install", "--role", "admin"],
       ["personalspace", "install", "--role", "reader"],
+      ["personalspace", "install", "--role", "module-reader"],
       ["organization", "install", "Alpha", "--role", "owner"],
       ["organization", "install", "Alpha", "--role", "Reader"],
-      // As the resident CLI: an Admin installs without --role.
+      ["organization", "install", "Alpha", "--role", "Module-Reader"],
+      ["organization", "install", "Alpha", "--role", "module-owner"],
+      ["organization", "install", "Alpha", "--role", "toString"],
+      // As the resident CLI: an Organization Admin installs without --role.
       ["organization", "install", "Alpha", "--role", "admin"],
+      ["organization", "install", "Alpha", "--role", "organization-admin"],
       ["personalspace", "install", "--folder", "relative/Folder"],
     ])
       await expect(
@@ -861,8 +890,11 @@ posixTest(
           cliContext(world.home),
           () => {},
           () => host,
+          (line) => warnings.push(line),
         ),
       ).rejects.toBeInstanceOf(ContentUsageError);
+    // A refused value is a usage error, never a deprecation notice.
+    expect(warnings).toEqual([]);
   },
 );
 
@@ -908,7 +940,7 @@ posixTest(
           "install",
           "Alpha",
           "--role",
-          "builder",
+          "module-contributor",
           "--folder",
           cliFolder,
           "--json",
@@ -918,7 +950,9 @@ posixTest(
         () => host,
       ),
     ).toBe(0);
-    expect(JSON.parse(lines.at(-1) as string).items[0].role).toBe("builder");
+    expect(JSON.parse(lines.at(-1) as string).items[0].role).toBe(
+      "module-contributor",
+    );
     const folder = await presetFolder(
       world,
       "hosted-organization-steward",
@@ -949,7 +983,7 @@ posixTest(
     };
     expect(ended.state).toBe("succeeded");
     expect(ended.steps.find((step) => step.key === "access")?.detail).toBe(
-      "as alpha-helper (builder, restricted slots excluded); root Alpha/alpha_GEN3 (by name)",
+      "as alpha-helper (module-contributor, restricted slots excluded); root Alpha/alpha_GEN3 (by name)",
     );
     expect(
       (

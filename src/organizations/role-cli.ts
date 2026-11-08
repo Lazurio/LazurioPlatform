@@ -20,23 +20,27 @@ import { shown } from "./cli";
 /** `lazurio organization role <Organization>` (#866): the live role of the
  * account gh is signed in with, from the same core that scopes `lazurio
  * content install` (`verifyOrganizationRole`, the root as
- * `resolveOrganizationRootRepository` finds it), and the Organization's
- * Admins, for the agent that must know whether its user is the Admin before
- * it does or prepares what only the Admin does (root decisions 0228, 0230).
- * GitHub is the source until Lazurio Auth holds the Admin role (0228); the
- * output keeps its shape when the source changes. */
+ * `resolveOrganizationRootRepository` finds it), and the Organization
+ * Admins, for the agent that must know whether its user is the Organization
+ * Admin before it does or prepares what only the Organization Admin does
+ * (root decisions 0228, 0230). The role values are the identifiers of root
+ * decision 0234. GitHub is the source until Lazurio Auth holds the
+ * Organization Admin role (0228); the output keeps its shape when the source
+ * changes. */
 export const roleHelp = `organization role <Organization> [--folder <absolute Folder>] [--json]
   The role GitHub confirms now in the Organization named by its GitHub login
-  for the account gh is signed in with here: admin (an active Owner, the
+  for the account gh is signed in with here (root decision 0234):
+  organization-admin (an active Organization Owner, counted as the
   Organization Admin until the role in Lazurio Auth is deployed, root
-  decision 0228), steward (maintain on the root repository), builder (write
-  on it) or reader (an active member who reads it), and the Organization's
-  Admins as GitHub lists its active Owners, without bot accounts. The root is
+  decision 0228), module-maintainer (maintain on the root repository),
+  module-contributor (write on it) or module-reader (an active Organization
+  Member who reads it), and the Organization Admins, as GitHub lists its
+  active Organization Owners, without bot accounts. The root is
   the one the Folder holds, otherwise the one GitHub declares, as for content
   install; the Folder is --folder, otherwise the supervised unit's or the
   declared operator's, and without one only GitHub is asked. A role GitHub
   does not confirm is printed as not verified with the reason, and an agent
-  then proceeds as for a member. Reads only. Exit status: 0 verified, 1 not
+  then proceeds as for an Organization Member. Reads only. Exit status: 0 verified, 1 not
   verified, 2 usage.`;
 
 export class RoleUsageError extends Error {}
@@ -54,8 +58,9 @@ export type OrganizationRoleAnswer = Readonly<{
   source: "github";
   /** `<owner>/<name>` of the root repository, when it was found. */
   rootRepository: string | null;
-  /** The active Owners as GitHub lists them to this account, without bots;
-   * absent when GitHub did not list any. */
+  /** The Organization Admins: the active Organization Owners as GitHub
+   * lists them to this account, without bots; absent when GitHub did not
+   * list any. */
   admins?: readonly string[];
   /** Why the role is not verified, or what was not found on the way. */
   detail?: string;
@@ -98,8 +103,8 @@ async function observedMembership(
     kind: "unobservable" as const,
     detail:
       membership.kind === "unavailable"
-        ? "GitHub did not answer the Organization membership, so whether the account is an Owner is not known"
-        : "GitHub shows no membership, but this sign-in may not see it, so whether the account is an Owner is not known",
+        ? "GitHub did not answer the Organization membership, so whether the account is an Organization Owner is not known"
+        : "GitHub shows no membership, but this sign-in may not see it, so whether the account is an Organization Owner is not known",
   });
   if (membership.kind === "unavailable" || github.memberships === undefined)
     return unobservable;
@@ -115,8 +120,8 @@ async function observedMembership(
 }
 
 /** The answer for one Organization: who gh is, the root, the permission on
- * it, the membership and the Owners. GitHub not answering never yields a
- * role (fail closed). */
+ * it, the membership and the Organization Owners. GitHub not answering never
+ * yields a role (fail closed). */
 export async function readOrganizationRole(
   input: Readonly<{
     organization: string;
@@ -161,8 +166,9 @@ export async function readOrganizationRole(
       rootPermission = access.repository.permission ?? "read";
   }
   const membership = await observedMembership(github, organization);
-  // The highest live role needs the Owner check: without the membership a
-  // write or maintain on the root could be an Owner's, so no role is
+  // The highest live role needs the Organization Owner check: without the
+  // membership a write or maintain on the root could be an Organization
+  // Owner's, so no role is
   // confirmed (content install, which only scopes, takes the narrower role
   // from the same core and its plain membership).
   const role =
@@ -193,7 +199,8 @@ export async function readOrganizationRole(
     verified: role.kind === "verified",
     rootRepository,
     // An empty listing is what GitHub shows an account that may not see the
-    // Owners, never a definitive "no Admins": the key is left out.
+    // Organization Owners, never a definitive "no Organization Admins": the
+    // key is left out.
     ...(owners === "unavailable" || owners.length === 0
       ? {}
       : { admins: owners }),
@@ -268,10 +275,10 @@ export async function runOrganizationRoleCommand(
   const lines = [
     result.verified
       ? `${organization}: ${result.role} (GitHub, as ${result.login})`
-      : `${organization}: role not verified${detail === undefined ? "" : ` (${detail})`}; proceed as for a member`,
+      : `${organization}: role not verified${detail === undefined ? "" : ` (${detail})`}; proceed as for an Organization Member`,
     ...(result.verified && detail !== undefined ? [`  ${detail}`] : []),
     `  root: ${result.rootRepository ?? "not found"}`,
-    `  Admins: ${result.admins === undefined ? "GitHub did not list them" : result.admins.length === 0 ? "none listed" : result.admins.join(", ")}`,
+    `  Organization Admins: ${result.admins === undefined ? "GitHub did not list them" : result.admins.length === 0 ? "none listed" : result.admins.join(", ")}`,
   ];
   return {
     code: result.verified ? 0 : 1,

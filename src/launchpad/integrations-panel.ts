@@ -151,11 +151,11 @@ export function createIntegrationsPanel(
     /** A card's tool in Settings → Tools (Matěj 2026-10-28): its sign-in
      * over this page where it has one, else Settings → Tools at its row. */
     openTool: (tool: string) => void;
-    /** Whether the person is the Organization's Admin or Owner (GitHub's
-     * answer); false where it is not known. */
+    /** Whether the person is an Organization Admin or Organization Owner
+     * (GitHub's answer); false where it is not known. */
     admin: () => Promise<boolean>;
-    /** The Organization's page in the Dashboard, where its Admin sets up a
-     * company app and allows Composio; null where none is known. */
+    /** The Organization's page in the Dashboard, where an Organization Admin
+     * sets up a company app and allows Composio; null where none is known. */
     dashboard: () => string | null;
     /** Whether this is a Team Environment, whose Composio is signed in with
      * the Team's Composio account (decision F42, note of 2026-10-19). */
@@ -1057,7 +1057,7 @@ export function createIntegrationsPanel(
         state.append(label);
       }
       foot.append(state);
-      // The Admin's sentence stands alone in the foot, from its left edge.
+      // The Organization Admin's sentence stands alone in the foot, from its left edge.
     } else if (view.action.kind !== "where") foot.append(element("span"));
     if (view.action.kind === "where")
       foot.append(element("p", "integration-where", view.action.text));

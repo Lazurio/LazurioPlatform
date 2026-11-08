@@ -402,7 +402,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
   });
   expect(cardView(outlook, entry("outlook"), options(cs))).toMatchObject({
     line: "Firemní aplikace Microsoft ještě není nastavená.",
-    action: { kind: "ask-admin", label: "Požádat Admina" },
+    action: { kind: "ask-admin", label: "Požádat Admina Organizace" },
   });
   expect(cardView(outlook, entry("outlook"), options(cs, true))).toMatchObject({
     action: { kind: "set-up", label: "Nastavit v Přehledu Organizace" },
@@ -419,9 +419,9 @@ test("where nothing connects an app: one line and one action, the Admin's or any
   ).toMatchObject({
     action: { kind: "allow", label: "Povolit Composio" },
   });
-  // Where the Organization's Dashboard link is not known here, the Admin
-  // gets one sentence saying where to find it, never a dead button; anyone
-  // else still asks the Admin.
+  // Where the Organization's Dashboard link is not known here, the
+  // Organization Admin gets one sentence saying where to find it, never a
+  // dead button; anyone else still asks an Organization Admin.
   for (const card of [outlook, salesforce]) {
     const id = card.id;
     expect(cardView(card, entry(id), options(cs, true, false)).action).toEqual({
@@ -433,7 +433,7 @@ test("where nothing connects an app: one line and one action, the Admin's or any
       text: "You set this up in the Dashboard, in the Organization's settings.",
     });
     expect(cardView(card, entry(id), options(cs, false, false)).action).toEqual(
-      { kind: "ask-admin", label: "Požádat Admina" },
+      { kind: "ask-admin", label: "Požádat Admina Organizace" },
     );
   }
   expect(

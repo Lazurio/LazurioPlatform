@@ -92,7 +92,7 @@ Dashboard is not in the switch; the Lazurio logo at the top of the rail opens it
 **Rail.** The rail switches spaces, not Environments. From the top: the Lazurio logo
 (the Dashboard), the search button that opens the jump dialog (**⌘⇧E**, Ctrl+Shift+E on
 Windows and Linux; not ⌘K, which T3 Code uses for its own command palette), the personal
-space (its Owner's initials) when the user has an Environment there, one GitHub avatar
+space (its owner's initials) when the user has an Environment there, one GitHub avatar
 per Organization, and "+" to add an Organization when the document names an address for
 it (none for now: F36's addendum of 2026-10-16). At the bottom there is only the account, shown as the user's GitHub
 photo. There are no Environment icons, no Organization folders and no "+N"/"méně": a
@@ -111,7 +111,7 @@ Chat); without a remembered one it opens the Organization's first Environment, a
 no Environment at all the Organization's Dashboard. The personal space opens the
 personal Remote Environment, or the last personal Environment used. Dedicated servers
 are never Environments and appear neither in the rail nor in the picker; they belong to
-the Organization Settings (Owner only).
+the Organization Settings (Organization Owner only).
 
 **Column head: the Environment picker.** Above Chat · Apps · Automate the picker names
 the Environment: its name, below it its kind ("Pracovní Prostředí"), and the
@@ -243,7 +243,7 @@ information page is reached only from its tile's menu.
 - **The tile's "⋯" menu.** "Přidat do oblíbených" / "Odebrat z oblíbených";
   "Informace o modulu" ("Informace o repozitáři" in Productionspace), the only entry to
   the module's information page (the application's lifecycle, its folder, branches and
-  worktrees, its log); and for the Organization's Admin and Steward "Přístup k modulu".
+  worktrees, its log); and for the Organization Admin and the Module Maintainer "Přístup k modulu".
   That opens the module in the Organization's Dashboard (Nastavení Organizace → Moduly
   → the module) in the same window. There a switch per Team decides whether the Team
   reaches the module, other roles see it read-only, and the page lists the users who
@@ -266,10 +266,10 @@ information page is reached only from its tile's menu.
   they get the tile only if their identity really has that capability. The personal
   space has its own "+ Nový modul" for its verified holder, which founds the user's
   own module ([below](#personal-new-module)). #154 builds
-  this as the Owner check of F36's Organization-rail addendum, point 8. Before the
+  this as the Organization Owner check of F36's Organization-rail addendum, point 8. Before the
   Organization's first module, such an identity still sees Workspace ("zatím žádné
   moduly") with the tile as its only tile, not the sentence that sends a user
-  without modules to the Admin (#376). Once
+  without modules to the Organization Admin (#376). Once
   founding a Module in the Dashboard is done (plan DEV-6634), "+ Nový modul" leads there
   instead of to Chat (Matěj, 2026-10-04). The
   T3 Code fork accepts the prompt by link, from the Environment's own origin only and
@@ -434,8 +434,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   `/.lazurio/shell.json`, `/.lazurio/prompts/<id>`, `/api/organizations/<org>/owner`,
   `/api/organizations/<org>/modules/<module>/maintain` and `/api/chat/prompt-handoff`
   in the server after admission (`src/launchpad/server.ts`, producer
-  `shell-document.ts`, the prompts `prompts.ts`, the Owner answer
-  `organization-owner.ts`, a Steward's answer `module-maintainer.ts`, the hand-off
+  `shell-document.ts`, the prompts `prompts.ts`, the Organization Owner answer
+  `organization-owner.ts`, a Module Maintainer's answer `module-maintainer.ts`, the hand-off
   check `chat.ts`). The page and the library also speak to `/.lazurio/account/…` on the
   same origin, which the Environment's gateway relays to the user's account (F37 and
   its addendum); the Launchpad does not answer it.
@@ -488,7 +488,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     arrives (Matěj 2026-10-05: the rail took seconds to appear). Only an Environment
     that belongs to one user remembers one, and only that user's: the account's
     `operator` must be the Environment's own (`operator.login` of the shell document:
-    the owner of a personal Remote Environment, the assigned user of a work one,
+    the owner of a personal Remote Environment, the Assigned User of a work one,
     the responsible user of an Automated one) when the fresh answer is kept
     (`rememberAccount`) and when it is used (`cachedAccountFor`). A Team Environment
     and a workstation name no user, so they neither keep nor use one: another
@@ -501,12 +501,12 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     `lazurio.shell.v1` (https only, `isEnvironmentId` and the base-host identity, unknown
     members dropped, an invalid document refused as a whole), plus the optional `name`,
     `who`, `offline` and `assigneeName` of an Environment (both documents;
-    `assigneeName`, the assigned person's name since F36's addendum of 2026-11-03, is
+    `assigneeName`, the Assigned User's name since F36's addendum of 2026-11-03, is
     left out rather than refused when it is not display text) and the account-only
     `last`, `lastBySpace`, `favourites` and `preferences.openApps`; an account
     Environment's Apps address is always absolute. `mergeAccount` keeps this
     Environment's own entry, `current` and apps, and drops the account's entry of
-    the same id, taking only its `name`, `who`, `offline` and, for the same assignee,
+    the same id, taking only its `name`, `who`, `offline` and, for the same Assigned User,
     `assigneeName`. It adds the account's
     other Environments and its spaces in the account's order. An Organization is
     matched by its Dashboard slug (`dashboardSlug`), the local entry winning in
@@ -547,15 +547,15 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     relay, so no `405` in the browser). The
     Environment it names is the shell document's `current`, its base host (the
     identity of an Environment entry, F37's addendum).
-  - "Přístup k modulu" (S15, #151): in a module tile's menu for the Organization's
-    Owners and Stewards (GitHub's `maintain` on the module's declared repository), into
+  - "Přístup k modulu" (S15, #151): in a module tile's menu for the Organization
+    Owners and the Module Maintainers (GitHub's `maintain` on the module's declared repository), into
     the Organization's Dashboard in the same window.
 - **Preview.** A temporary fixture Folder, never a live one: `bun
   scripts/preview-launchpad.ts local|hosted cs|en <port> [owner|steward|member]` writes
   an Organization with root-level and workspace modules in Workspace, two production
   repositories in Productionspace and an `infra` that is not listed, a synthetic home
   for Files and Tools whose `gh` answers for the example Organization as the role says
-  (an Owner by default; a Steward maintains its workspace modules' repositories), and
+  (an Organization Owner by default; `steward` a Module Maintainer, with `maintain` on its workspace modules' repositories), and
   with `hosted` a recorded entry plus a loopback proxy that adds the gateway's Host and
   cookie. The entry names the user's sign-out (Machines#358), so the account at the
   foot of the rail opens its menu; the preview has no gateway, so its "Odhlásit"
@@ -897,14 +897,14 @@ in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform
   Organization's (its text `newModulePrompt`); the
   Organization is the one Organization of the Folder whose manifest binds that GitHub
   login. Each prompt names who may get it: `new-module` only where this Environment's
-  GitHub identity is an Owner of the Organization, the tile's live check
+  GitHub identity is an Organization Owner, the tile's live check
   (`organization-owner.ts`), so never on a Team Environment. `new-module-request`
-  (a member's "+ Nový modul", audience `organization-member`, [F36's addendum of
+  (an Organization Member's "+ Nový modul", audience `organization-member`, [F36's addendum of
   2026-11-05](decisions.md#f36-addendum-of-2026-11-05-a-new-module-explains-itself-a-member-asks-the-organization-admin-access-is-checked-at-once))
-  is the same Organization's prompt for an active member who is no Owner, by the same
+  is the same Organization's prompt for an active Organization Member who is no Organization Owner, by the same
   answer (`audienceAdmits`), its text `newModuleRequestPrompt`: the agent prepares a
   request with the skill `admin-request` and sends it only with the person's consent. An
-  Owner gets the same 404 for it, and a member for `new-module`. `new-personal-module`
+  Organization Owner gets the same 404 for it, and an Organization Member for `new-module`. `new-personal-module`
   (the personal space's "+ Nový modul", audience `personalspace-holder`) is the
   Folder's too: only where this Environment's GitHub account holds the Folder's
   Personalspace, decided at the request as `GET /api/content` decides it (#186: its
@@ -957,9 +957,9 @@ in a new thread's composer, not sent (Lazurio/t3code#35, Lazurio/LazurioPlatform
 - **Tests.** `tests/launchpad-prompts.test.ts`: the prompt registry and its audience,
   the Organization a login names (case-insensitive, exactly one), the document, the
   version rule and the cached `t3 --version` check (every failure no), the link's shape,
-  and HTTP: hosted behind the admission (401 without the session), the Owner's document
+  and HTTP: hosted behind the admission (401 without the session), the Organization Owner's document
   with `no-store`, GitHub asked for the bound login, 405 for POST, the same 404 for
-  another id, Organization, query or a non-Owner, a member's request and the Owner's
+  another id, Organization, query or someone who is no Organization Owner, an Organization Member's request and the Organization Owner's
   prompt each only for its own, a brief kept and read for whom the prompt names, the
   hand-off answer from the Environment's `t3`; locally only with the token, and no
   hand-off without a Chat origin. `tests/new-module-view.test.ts`: the dialog's three
@@ -1495,8 +1495,8 @@ the first run's line shows. An Organization never has it.
   plan DEV-6662 M1b). For the holder, the personal space's one section is Workspace,
   even with no module ("zatím žádné moduly"), and it ends with the tile "+ Nový modul"
   / "Vytvořit s agentem"; the empty sentence gives way to it, and the starts stay after
-  it. `newModuleOffer` in `apps-view.ts` decides who gets which tile: an Organization's
-  Owner the prompt `new-module`, its member [the muted tile](#new-module-dialog), the
+  it. `newModuleOffer` in `apps-view.ts` decides who gets which tile: an Organization
+  Owner the prompt `new-module`, an Organization Member [the muted tile](#new-module-dialog), the
   personal space's holder `new-personal-module`. The
   holder is the `login` of the `present` personalspace item of `GET /api/content`
   (`personalHolderOf`), which the page reads once it is idle; until then, and for a
@@ -1532,13 +1532,13 @@ dialog stays open, and a dialog opened anew hears only the short message. "Kopí
 clipboard only once the clipboard answered, and otherwise that it was not copied and how to
 take it by hand.
 
-A member, a Steward too, sees the tile muted with its lock, "Zakládá Admin Organizace" under it: a
-button, never disabled, which opens the same dialog. The answer is the Owner route's, which
+An Organization Member, a Module Maintainer too, sees the tile muted with its lock, "Zakládá Admin Organizace" under it: a
+button, never disabled, which opens the same dialog. The answer is the Organization Owner route's, which
 now says `{"owner": …, "member": …}` from the one membership read (`roleIn`). No tile on a Team
 Environment, whose identity is no person's, none on a public one, whose visitors are nobody's
-members, and none for anyone without an active membership. A member without a module keeps
+members, and none for anyone without an active membership. An Organization Member without a module keeps
 the plain sentence of an empty space and Zkontrolovat přístupy under it, and over a Workspace
-with only the muted tile, the one way to ask for a first module. An Owner's empty Workspace
+with only the muted tile, the one way to ask for a first module. An Organization Owner's empty Workspace
 has only "+ Nový modul", with no sentence and the button beside the "?".
 
 **Zkontrolovat přístupy.** A quiet button beside the "?" of an Organization's Apps, under
@@ -1927,7 +1927,7 @@ create <Organization>/<module> --stack <stack> --teams <team,team> …`, the sam
 dry run and digest, planned by `planOrganizationModule` in
 `src/modules/module-create-organization.ts` and run by the same `createModule`. The
 Organization is named by its slug, its directory or its GitHub login. Only an
-active Owner of the Organization (`organization-owner-required`), never on a Team
+active Organization Owner (`organization-owner-required`), never on a Team
 Environment (`team-environment`); `--teams` required (`teams-required`), each a Team of
 `lazurio.organization.json` that exists on GitHub (`unknown_team`,
 `team-not-on-github`, `team-binding-mismatch`); the Organization found in the catalog
@@ -2517,7 +2517,7 @@ status" (with them again and `fresh: true`, read anew), and shows:
   where the user had it on, that the choice is kept for when the Organization allows
   it; no "Add and connect", "Connect" or agent fallback, while "Disconnect" stays for a
   sign-in left from before. Its Details gain "Organization settings"
-  (`organizationDetails`): that only the Organization's Admin changes it, where this
+  (`organizationDetails`): that only the Organization Admin changes it, where this
   Environment gets the settings, the version applied and when, when it last asked, and
   why nothing new came (the Dashboard silent, the Environment's identity missing, the
   Organization's settings invalid, the repository unreadable, the record unreadable). A
@@ -2820,7 +2820,7 @@ funguje", and the "?" beside the heading closes and reopens the video).
 The line depends on the vault's reason (`vaultPageView`'s `note`): a
 public Organization's Environment, whose handover names no tailnet (`no-tailnet`), has
 none on purpose, since the Organization is a public demo; any other (`no-vault`) is not
-set up yet, and the Organization's Admin sets it up. A public Environment (F55) has
+set up yet, and the Organization Admin sets it up. A public Environment (F55) has
 Trezor only with its own vault (see below). `bun scripts/preview-launchpad.ts hosted
 cs|en <port> owner no-tailnet|no-vault` shows either: the preview's work Environment then
 has no vault, for that reason, and its Apps column no Trezor; `/vault` opens the page.
@@ -3356,7 +3356,7 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit
   AI", "Zkusit znovu"; for an Organization not prepared for this version, to a member who
-  cannot write its root, "<Organizace> ještě není připravená. Připravuje ji Admin." ·
+  cannot write its root, "<Organizace> ještě není připravená. Připravuje ji Admin Organizace." ·
   "Zkusit znovu". Every button leads to Začínáme. No empty card beside it.
 - **The quiet prompt in the shell's column** (`columnSetupPrompt` in `src/shell/view.ts`,
   0201 point 2): while a basic is known to be missing, "Dokončit nastavení (1 ze 3)"
@@ -3420,8 +3420,8 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   not declare itself in `lazurio.organization.json`, or its declaration cannot be read)
   the sentence is "Organizace ještě není připravená pro tuto verzi Lazuria.", and to
   someone whom `GET /api/content/root-access?org=<login>` does not confirm (an active
-  Owner, or `write` on the conventional root `<login>/<login>_GEN3`; GitHub's live
-  answer, any failure no) "Organizaci připravuje Admin." with no Chat button. The route
+  Organization Owner, or `write` on the conventional root `<login>/<login>_GEN3`; GitHub's live
+  answer, any failure no) "Organizaci připravuje Admin Organizace." with no Chat button. The route
   answers only for the Organization of that stop and gives the same no, without asking
   GitHub, for any other.
 - **Toto Prostředí** says what a user needs (`environmentFacts` in
@@ -3469,7 +3469,7 @@ Organization's app, its basics are the Organization's, and it gets none of it.
 
 An Organization's own tabs in Workspace (decision F32's addendum of 2026-10-16)
 are shaped in [Workspace tabs](workspace-tabs.md): one setting of the
-Organization, read with its catalog, arranged by its Owner in the Dashboard.
+Organization, read with its catalog, arranged by its Organization Owner in the Dashboard.
 They look like the column head's switch Chat · Apps · Automate (F32's addendum
 of 2026-10-19, prototypes-lazurio#73): `nav.switch` and `.tab` of
 `src/shell/styles.ts` drawn in the page's roles the shell's colour roles stand

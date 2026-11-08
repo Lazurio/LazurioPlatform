@@ -75,7 +75,7 @@ export type ShellEnvironment = Readonly<{
   apps: ShellApps;
   /** The Dashboard's display name, when the account names it (F37's
    * addendum of 2026-10-04): the purpose name, with an order number for a
-   * second Environment of the same Team, or an Admin's rename. Absent: the
+   * second Environment of the same Team, or an Organization Admin's rename. Absent: the
    * elements name it by `label` or its kind. */
   name?: string;
   /** The line saying whom it serves, as the Dashboard words it; absent: the

@@ -49,8 +49,8 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // app (where the person's account says, app-opening.ts); one without an app,
 // one that cannot start and a repository only say so in a short message. Its
 // "⋯" menu stars it, leads to the module's overview (a repository's GitHub
-// page) and, for the Organization's Owners and Stewards, to the module's
-// access in the Dashboard. Favourites come first, in the column's order. In
+// page) and, for Organization Owners and Module Maintainers, to the
+// module's access in the Dashboard. Favourites come first, in the column's order. In
 // the personal space its holder sees, a quiet section of links into Chat,
 // Automate, Integrace and Soubory follows everything else (root decision
 // 0185's addendum of 2026-10-13). The DOM lives in catalog-panel.ts.
@@ -300,7 +300,7 @@ export type AppsTab = Readonly<{ name: string; tiles: readonly AppsTile[] }>;
  * 2026-10-16 and 2026-10-19): the flag first, flush on the section's rule,
  * then the count; or, where the Workspace shows the Organization's tabs, no
  * count but the tabs' switch at the head's right end, with "Upravit karty"
- * after it where the Owner is led to arrange them (`edit`, from
+ * after it where the Organization Owner is led to arrange them (`edit`, from
  * `workspaceTabsTarget`). */
 export type AppsSectionHead = Readonly<{
   flag: string;
@@ -512,10 +512,11 @@ export function repositoryAction(
  * holder is this Environment's GitHub account (root decision 0185's
  * addendum of 2026-10-13). An
  * Organization's Workspace stays, even without a module, where `owner` is
- * GitHub's live answer that this Environment's identity is the
- * Organization's Owner (false until it comes), or a member's muted offer:
+ * GitHub's live answer that this Environment's identity is an
+ * Organization Owner (false until it comes), or an Organization Member's
+ * muted offer:
  * "+ Nový modul" ends every Workspace of theirs, so before the first module
- * it is its only tile (#376), and the page tells no Owner to ask the Organization Admin
+ * it is its only tile (#376), and the page tells no Organization Owner to ask the Organization Admin
  * for access. */
 export function appsSections(
   catalog: Catalog,
@@ -713,11 +714,13 @@ export function appsHomeParts(
      * document is read. */
     tabs: readonly SwitchTab[];
     /** GitHub's live answer that this Environment's identity is the
-     * Organization's Owner (false until it comes): an Owner's Workspace
+     * an Organization Owner (false until it comes): an Organization Owner's
+     * Workspace
      * shows even before its first module (#376). */
     owner?: boolean;
     /** GitHub's live answer that it is an active member of the Organization
-     * and no Owner (false until it comes): its Workspace ends with the
+     * and no Organization Owner (false until it comes): its Workspace ends
+     * with the
      * muted tile (F36's addendum of 2026-11-05). */
     member?: boolean;
   }>,
@@ -728,8 +731,9 @@ export function appsHomeParts(
     holder: input.holder ?? null,
   });
   // Whoever gets the offer sees the Workspace it ends, even before the first
-  // module: an Organization's Owner (#376), the personal space's holder (root
-  // decision 0185's addendum of 2026-10-13), and a member, for whom the muted
+  // module: an Organization Owner (#376), the personal space's holder (root
+  // decision 0185's addendum of 2026-10-13), and an Organization Member, for
+  // whom the muted
   // tile is the one way to ask for a first module.
   const sections = appsSections(
     catalog,
@@ -850,12 +854,12 @@ export function moduleAccessUrl(
   return url.href;
 }
 
-/** Where an Organization's Owner arranges its Workspace tabs (decision F32's
+/** Where an Organization Owner arranges its Workspace tabs (decision F32's
  * addendum of 2026-10-16): its modules in the Organization's Dashboard,
- * where the Dashboard writes the setting `workspace.tabs` with the Owner's
- * own GitHub rights (root decision 0194 point 2). From a tile's menu
+ * where the Dashboard writes the setting `workspace.tabs` with the Organization
+ * Owner's own GitHub rights (root decision 0194 point 2). From a tile's menu
  * ("Přesunout do karty") with that module, from the tabs ("Upravit karty")
- * without one. Null for anyone but the Owner (GitHub's live answer, false
+ * without one. Null for anyone but an Organization Owner (GitHub's live answer, false
  * until it comes), for the Personalspace group and a production repository,
  * and where the shell document names no Dashboard page. Like "Přístup k
  * modulu", it grants nothing: the Dashboard decides again. */
@@ -887,8 +891,8 @@ export function workspaceTabsTarget(
 
 /** Where a tile's "Přístup k modulu" leads, or null when the menu offers
  * none: only a module of an Organization bound to a GitHub login (never a
- * production repository or the Personalspace group), only for its Owners and
- * Stewards (`owner`, `maintainer`: GitHub's live answers, false until they
+ * production repository or the Personalspace group), only for its Organization
+ * Owners and Module Maintainers (`owner`, `maintainer`: GitHub's live answers, false until they
  * come), and only where the shell document names the Organization's
  * Dashboard page. `dashboard` looks that page up by the Organization slug. */
 export function moduleAccessTarget(
@@ -938,7 +942,7 @@ export const newModulePrompt = (
     description ?? "",
   );
 
-/** The prompt of a member's "+ Nový modul" (decision F36's addendum of
+/** The prompt of an Organization Member's "+ Nový modul" (decision F36's addendum of
  * 2026-11-05): the Organization Admin founds a module, so the agent prepares a request to
  * the Organization Admin with the Folder's skill `admin-request` and sends it only with
  * the person's consent. */
@@ -1000,7 +1004,7 @@ export function personalHolderOf(list: ContentList | null): string | null {
  * (new-module-view.ts). */
 export type NewModuleOffer = Readonly<{
   id: "new-module" | "new-module-request" | "new-personal-module";
-  /** The Organization Admin founds it, a member asks the Organization Admin for it, the
+  /** The Organization Admin founds it, an Organization Member asks the Organization Admin for it, the
    * personal space's holder founds it there. */
   variant: "admin" | "member" | "personal";
   organization: string;
@@ -1009,9 +1013,9 @@ export type NewModuleOffer = Readonly<{
 
 /** Who gets "+ Nový modul" in a group, and with which prompt: in an
  * Organization bound to a GitHub login, an identity GitHub's live answer
- * says is its Owner (`owner`, F36's Organization-rail addendum, point 8),
- * the prompt `new-module`, or an active member of it (`member`, a Steward
- * too), the muted tile and the prompt `new-module-request` (F36's addendum of
+ * says is its Organization Owner (`owner`, F36's Organization-rail
+ * addendum, point 8), the prompt `new-module`, or an active Organization
+ * Member (`member`, a Module Maintainer too), the muted tile and the prompt `new-module-request` (F36's addendum of
  * 2026-11-05); in the personal space listed without a reason, its verified
  * holder (`holder`, the login of the `present` personalspace item, #186), the
  * prompt `new-personal-module`. Everyone else, a Team Environment among them:

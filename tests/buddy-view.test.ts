@@ -365,7 +365,7 @@ test("the step while a code is on its way, and each way it can stop, in one plai
     mark: "warn",
     title: "Přihlášení k ChatGPT",
     status: "ChatGPT přihlášení kódem nepřijal.",
-    help: "Účet ChatGPT musí mít přihlášení kódem zapnuté v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje jeho správce. Pak si vyžádejte nový kód.",
+    help: "Účet ChatGPT musí mít přihlášení kódem zapnuté v nastavení zabezpečení ChatGPT. U pracovního účtu ho povoluje admin jeho pracovního prostoru v ChatGPT. Pak si vyžádejte nový kód.",
   });
   expect(failed("refused").action).toBe("new-code");
   // A Hermes without the cancellation contract: an update first, no code.

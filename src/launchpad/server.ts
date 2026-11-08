@@ -463,7 +463,7 @@ async function machineTailnet(): Promise<string | null> {
   }
 }
 
-// Whether this Environment's GitHub identity is an Owner of an Organization
+// Whether this Environment's GitHub identity is an Organization Owner
 // (decision F36 addendum of 2026-10-04): `<org>` names it as the catalog's
 // routes do.
 const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
@@ -473,7 +473,7 @@ const ownerRoute = /^\/api\/organizations\/([^/]+)\/owner$/;
 const organizationSyncRoute = /^\/api\/organizations\/([^/]+)\/sync$/;
 
 // Whether it may maintain one module's repository (decision 0185 S15, the
-// Steward's "Přístup k modulu"): `<org>` as above, `<module>` its id.
+// Module Maintainer's "Přístup k modulu"): `<org>` as above, `<module>` its id.
 const maintainRoute =
   /^\/api\/organizations\/([^/]+)\/modules\/([^/]+)\/maintain$/;
 
