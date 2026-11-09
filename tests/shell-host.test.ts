@@ -287,7 +287,7 @@ test("the rail on the personal Dashboard rings no space and marks the logo; on a
   });
 });
 
-test("from a Dashboard page a space leads to the account's last Environment there in the recorded app, else its first Environment's Apps, else its Dashboard", () => {
+test("from a Dashboard page an Organization leads to Apps of the account's last Environment there, your personal space in the recorded app, else the first Environment's Apps, else its Dashboard", () => {
   const read = account({
     lastBySpace: {
       example: { environment: "vm-03.example", app: "chat" },
@@ -303,8 +303,10 @@ test("from a Dashboard page a space leads to the account's last Environment ther
   expect(spaces.map((space) => [space.space, space.href])).toEqual([
     // No visit: the first Environment, in Apps.
     ["personal", "https://launchpad.ada.lazurio.io/"],
-    // The visit, in the app it recorded.
-    ["example", "https://t3code.vm-03.example.lazurio.io/"],
+    // The visit's Environment, in Apps: on the Dashboard an Organization
+    // opens Apps, never the Chat its visit recorded (F36's addendum of
+    // 2026-11-09).
+    ["example", "https://launchpad.vm-03.example.lazurio.io/"],
     // No Environment: its Dashboard.
     ["other-example", "https://dashboard.lazurio.ai/orgs/other-example"],
   ]);
