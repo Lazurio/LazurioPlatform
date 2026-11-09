@@ -21532,6 +21532,10 @@ address `buddy.<login>` showed the same error. This amends point 1 of the addend
    2026-10-26 opened his window at once. His T3 Code now starts only after the apply, so the
    page reads the shell document again every 3 s, at most 30 times, and opens his window once
    his bubble is in it; after that it opens nothing by itself.
+   Right after the Launchpad started, its first document (the boot document's included) comes
+   before the setup's first reading and leaves an open Buddy out: while the entry names him and
+   the document carries neither his bubble nor `setup`, the page reads it again every 2 s, at
+   most 15 times (`awaitsBuddyReading`).
 5. **His address leads to Začínáme.** `GET /.lazurio/buddy/gate` on every shell origin, which
    the gateway forwards to the Launchpad behind its admission like the rest of
    `/.lazurio/`, answers `204` while Buddy is open and `303` to Začínáme of the Environment's
@@ -21555,7 +21559,8 @@ address `buddy.<login>` showed the same error. This amends point 1 of the addend
   `systemctl --user is-active --quiet` and nothing else; the gate's `204`, `303` to Začínáme
   of the Launchpad's own origin and `404`; the entry's public parts with `buddyOrigin` and
   another shape refused; the boot document with and without him; the setup's cache keeping
-  `buddyOpen` beside `setup`.
+  `buddyOpen` beside `setup`; a cold start, whose first document leaves an open Buddy out
+  and the page reads again until the reading says (`awaitsBuddyReading`).
 - `tests/shell-buddy.test.ts`: the Launchpad of an Osobní Prostředí names him only while he is
   open.
 
