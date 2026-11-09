@@ -12,7 +12,10 @@ import {
   buddyT3Active,
 } from "../src/launchpad/buddy-gate";
 import { publicEntry } from "../src/launchpad/chat";
-import { parseEntryAnswer } from "../src/launchpad/chat-view";
+import {
+  awaitsBuddyReading,
+  parseEntryAnswer,
+} from "../src/launchpad/chat-view";
 import { createSetupCache } from "../src/launchpad/setup-state";
 import type { ToolRunner } from "../src/tools/status";
 import { bindings } from "./fixtures/machine-bindings";
@@ -170,4 +173,39 @@ test("the setup's cache keeps Buddy's open beside the setup, from one reading", 
   cache.forget();
   await cache.settled();
   expect(cache.peek()?.buddyOpen).toBe(true);
+});
+
+test("a cold start: the first document leaves an open Buddy out, and the page reads again until the server's reading says", () => {
+  const boot = (buddyOpen: boolean | undefined) =>
+    launchpadBoot({
+      preset: "hosted-personal",
+      machine: recorded,
+      locale: "cs",
+      catalog: { kind: "catalog", organizations: [] },
+      entry: recorded.entry,
+      tailnet: null,
+      ...(buddyOpen === undefined ? {} : { buddyOpen }),
+    }).shell;
+  const entry = publicEntry(recorded.entry);
+  // Right after the Launchpad started its setup's cache is empty: the boot
+  // document has neither his bubble nor `setup`, so the page reads again.
+  const cold = boot(undefined);
+  expect(cold?.buddy).toBeUndefined();
+  expect(cold?.setup).toBeUndefined();
+  expect(awaitsBuddyReading(entry, cold)).toBe(true);
+  // The reading ended with Buddy open: the document names him, and the page
+  // stops.
+  const open = boot(true);
+  expect(open?.buddy).toEqual({ origin: buddyOrigin });
+  expect(awaitsBuddyReading(entry, open)).toBe(false);
+  // The reading ended with Buddy not open: `setup` says it was read, and the
+  // page stops too.
+  const known =
+    cold === null ? null : { ...cold, setup: { github: "connected" as const } };
+  expect(awaitsBuddyReading(entry, known)).toBe(false);
+  // Without Buddy, or without a document, there is nothing to wait for.
+  expect(awaitsBuddyReading(publicEntry(personalEntry.entry), cold)).toBe(
+    false,
+  );
+  expect(awaitsBuddyReading(entry, null)).toBe(false);
 });

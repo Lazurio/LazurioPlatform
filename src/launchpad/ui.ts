@@ -38,6 +38,7 @@ import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
+  awaitsBuddyReading,
   chatHref,
   chatPairLink,
   chatPromptHref,
@@ -393,8 +394,10 @@ async function readShell() {
     // The kind the explanations are chosen by may be known only now.
     if (framed) drawGuide(shell.route());
     drawMachine();
-    // Buddy is known from the entry: read him once.
+    // Buddy is known from the entry: read him once, and his bubble once the
+    // server's first reading ended.
     readBuddy();
+    followBuddyReading();
     if (framed) drawBuddy();
     firstRun();
     showWhenDrawn();
@@ -988,6 +991,28 @@ function meetingFinished() {
 const buddyOpenWaitMs = 3000;
 const buddyOpenTries = 30;
 let buddyOpenWait: ReturnType<typeof setInterval> | undefined;
+/** Right after the Launchpad started, its first shell document leaves Buddy
+ * out until its first reading ended (`awaitsBuddyReading`): the page reads
+ * the document again every `buddyReadingWaitMs`, at most
+ * `buddyReadingTries` times while the page lives, so an open Buddy shows
+ * without a reload. */
+const buddyReadingWaitMs = 2000;
+const buddyReadingTries = 15;
+let buddyReadingAsked = 0;
+let buddyReadingTimer: ReturnType<typeof setTimeout> | undefined;
+function followBuddyReading() {
+  if (
+    buddyReadingTimer !== undefined ||
+    buddyReadingAsked >= buddyReadingTries ||
+    !awaitsBuddyReading(entry, shellDocument)
+  )
+    return;
+  buddyReadingAsked += 1;
+  buddyReadingTimer = setTimeout(() => {
+    buddyReadingTimer = undefined;
+    void readShell();
+  }, buddyReadingWaitMs);
+}
 /** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
 function buddyElement(): Readonly<{
   spotlight(on: boolean): void;
@@ -2350,6 +2375,7 @@ async function readEntry() {
     // Whether Buddy is here, which the page may learn only now too.
     readBuddy();
     drawBuddy();
+    followBuddyReading();
   }
   // Trezor waited for the entry (plan DEV-6668 slice 6): drawn now, whether
   // the entry changed or not.
@@ -2391,8 +2417,10 @@ if (boot === null) {
   browser.render();
   openAskedService();
 }
-// Buddy, where the carried shell document names him.
+// Buddy, where the carried entry names him, and his bubble once the
+// server's first reading ended.
 readBuddy();
+followBuddyReading();
 drawBuddy();
 // The themes for Settings → Obecné; nothing to read on a public Environment.
 void theme.load();
