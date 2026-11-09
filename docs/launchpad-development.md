@@ -106,10 +106,12 @@ item is 40 px around a 32 px mark with concentric corners, an item under the poi
 brings the quiet surface and keeps its shape, and the personal space is a white monogram
 with a hairline, never an ink block (prototypes-lazurio #11). The tooltip shows the
 space's name alone, as every label of the rail (F36's addendum of 2026-10-16). Clicking an
-Organization returns to the Environment last used in it, in the same app (Chat stays
-Chat); without a remembered one it opens the Organization's first Environment, and with
-no Environment at all the Organization's Dashboard. The personal space opens the
-personal Remote Environment, or the last personal Environment used. Dedicated servers
+Organization opens Apps of the Environment last used in it, from Chat and Automate as well
+(F36's addendum of 2026-11-09; Chat is one click away in the column head's switch); without
+a remembered one it opens Apps of the Organization's first Environment, and with no
+Environment at all the Organization's Dashboard. The personal space opens the personal
+Remote Environment, or the last personal Environment used, in the same app (Chat stays
+Chat). Dedicated servers
 are never Environments and appear neither in the rail nor in the picker; they belong to
 the Organization Settings (Organization Owner only).
 

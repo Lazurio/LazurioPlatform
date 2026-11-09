@@ -317,8 +317,9 @@ test("a hosted work Environment is named by its kind and its person, never by it
   expect(
     spaces.map((space) => [space.space, space.href, space.active]),
   ).toEqual([
-    // A click stays in the app the rail sits in (Chat).
-    ["example", "https://t3code.workspace.example.lazurio.io/", true],
+    // A click on an Organization opens its Apps, even from Chat (F36's
+    // addendum of 2026-11-09).
+    ["example", "https://launchpad.workspace.example.lazurio.io/", true],
   ]);
   // The picker's list: its Environments, the current one marked, and no
   // head (F36's addendum of 2026-10-06); the jump keeps the Organization's
@@ -705,7 +706,8 @@ test("several Organizations: a space's Environments, its last one remembered, th
     ["laptop", "operator"],
   );
   // A click on a space: the last Environment this browser was in there,
-  // else its first; in Automate an Environment without it opens Apps.
+  // else its first; an Organization opens its Apps even from Automate (F36's
+  // addendum of 2026-11-09).
   const spaces = railSpaces(shell, en, {
     here: "north",
     app: "automate",
@@ -715,7 +717,7 @@ test("several Organizations: a space's Environments, its last one remembered, th
     [
       ["personal", "/", "Personal"],
       ["north", "https://launchpad.vm-2.north.lazurio.io/", "North Example"],
-      ["south", "https://mausbot.vm-1.south.lazurio.io/", "South Example"],
+      ["south", "https://launchpad.vm-1.south.lazurio.io/", "South Example"],
     ],
   );
   // The list under the picker: this space only, without a title or a head.

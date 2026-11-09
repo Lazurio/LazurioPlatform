@@ -646,14 +646,25 @@ test("the account's last Environment per space, by the merged space's id, only f
     ["personal", { environment: "ada", app: "apps" }],
     ["Example", { environment: "vm-03.example", app: "chat" }],
   ]);
-  // The rail leads there.
+  // The rail leads there, to its Apps: an Organization opens Apps from
+  // Chat and whatever app its last visit recorded (F36's addendum of
+  // 2026-11-09).
   const last = accountLastBySpace(merged, read);
   const spaces = railSpaces(merged, en, {
     here: "personal",
     app: "chat",
     last: (space) => last.get(space) ?? null,
   });
-  expect(spaces[1]?.href).toBe("https://t3code.vm-03.example.lazurio.io/");
+  expect(spaces[1]?.href).toBe("https://launchpad.vm-03.example.lazurio.io/");
+  // A page that is no Environment's (the Dashboard): Apps as well, never
+  // the Chat the visit recorded.
+  expect(
+    railSpaces(merged, en, {
+      here: null,
+      app: null,
+      last: (space) => last.get(space) ?? null,
+    })[1]?.href,
+  ).toBe("https://launchpad.vm-03.example.lazurio.io/");
 });
 
 // An ambiguous Dashboard slug (Pablo's review of #166): two local

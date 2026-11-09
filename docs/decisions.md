@@ -10378,6 +10378,41 @@ Verified by unit tests (`tests/shell.test.ts`: the rail's personal space and the
 and list line with and without Buddy's origin) and in headless Chrome against the Launchpad's
 preview (root decision 0178).
 
+### F36 addendum of 2026-11-09: an Organization's avatar in the rail opens Apps
+
+**Decided by Matěj (Organization Admin) on 2026-11-09, on a pilot Organization Owner's report and
+proposal in #146.** It changes point 1 of decision 0185 for the Organizations: a click on a space
+no longer keeps the rail's app there.
+
+People use the Organization's avatar as the way to its applications. Since 0185 a click kept the
+app the rail sits in, and on a page that is no Environment's the app the last visit recorded. A
+person who had last been in Chat therefore landed in T3 Code every time they clicked their
+Organization, and took the direct Apps address as the only way in.
+
+1. **An Organization opens Apps.** `railSpaces` leads every Organization's avatar to Apps of the
+   same Environment as before (the last one used there, else the first; `o/<slug>` on a
+   workstation holding several Organizations), from Chat, Apps, Automate and a page that is no
+   Environment's alike. An Organization without an Environment still leads to its Dashboard.
+2. **Chat stays one click away.** The column head's switch Chat · Apps · Automate is unchanged;
+   the jump (⌘⇧E) and the picker keep the app they are opened in.
+3. **The personal space is unchanged.** It keeps the rail's app, and on a page that is no
+   Environment's the app of its last visit: it is one person's own place, and the report was
+   about Organizations.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the app (0185 as it was) | Predictable for someone switching Organizations inside Chat, but the avatar never reliably leads to the applications; rejected |
+| Apps for every space, personal too | One rule for the whole rail, but changes the personal space nobody asked about; left for a later decision |
+| Forget the recorded app only | A person in Chat still lands in Chat; does not fix the report |
+
+**Honest limits.** Someone who switched Organizations from Chat on purpose now lands in Apps and
+needs one more click to Chat. The Dashboard hosts the shell from its vendored bundle, so its rail
+changes only when it vendors a release with this addendum.
+
+Verified by unit tests: `tests/shell.test.ts` (a click from Chat and from Automate opens Apps),
+`tests/shell-account.test.ts` (the account's last visit recorded in Chat opens Apps, from Chat and
+from a page that is no Environment's).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
