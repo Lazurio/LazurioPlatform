@@ -68,6 +68,9 @@ export function launchpadBoot(
     theme?: ShellTheme;
     /** Whether the Apps column lists Trezor (`vaultInAppsOf`). */
     vaultInApps?: boolean | undefined;
+    /** Whether Buddy is open (F60's addendum of 2026-11-09), as the
+     * shell document says it. */
+    buddyOpen?: boolean | undefined;
   }>,
 ): LaunchpadBoot {
   let shell: Shell | null = null;
@@ -81,6 +84,7 @@ export function launchpadBoot(
         ...(input.computer === undefined ? {} : { computer: input.computer }),
         ownerKey: input.ownerKey ?? null,
         ...(input.theme === undefined ? {} : { theme: input.theme }),
+        buddyOpen: input.buddyOpen === true,
       }),
       input.tailnet,
     );

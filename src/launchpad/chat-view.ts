@@ -1,3 +1,4 @@
+import { isShellBuddyOrigin, type Shell } from "../shell/contract";
 import type { PublicEntry } from "./chat";
 import { isHttpsOrigin, isModuleOriginTemplate } from "./hosted-entry";
 import { isEntryAudience } from "./public-environment";
@@ -33,7 +34,8 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
       !isHttpsOrigin(entry.mausbotOrigin)) ||
     (entry.browserOrigin !== undefined &&
       !isHttpsOrigin(entry.browserOrigin)) ||
-    (entry.audience !== undefined && !isEntryAudience(entry.audience))
+    (entry.audience !== undefined && !isEntryAudience(entry.audience)) ||
+    (entry.buddyOrigin !== undefined && !isShellBuddyOrigin(entry.buddyOrigin))
   )
     return null;
   return Object.freeze({
@@ -47,7 +49,29 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
       ? {}
       : { browserOrigin: entry.browserOrigin }),
     ...(entry.audience === undefined ? {} : { audience: entry.audience }),
+    ...(entry.buddyOrigin === undefined
+      ? {}
+      : { buddyOrigin: entry.buddyOrigin }),
   });
+}
+
+/** Whether the page reads the shell document again for Buddy's bubble (F60's
+ * addendum of 2026-11-09): the entry names Buddy, and the document the page
+ * has neither names his bubble nor carries `setup`, which the server's
+ * reading of whether he is open fills at the same moment. Right after the
+ * Launchpad started, its first document (the boot document's included)
+ * comes before that reading ended and leaves him out even when he is open;
+ * once it says either, the page follows as for every other change. */
+export function awaitsBuddyReading(
+  entry: PublicEntry | null,
+  shell: Shell | null,
+): boolean {
+  return (
+    entry?.buddyOrigin !== undefined &&
+    shell !== null &&
+    shell.buddy === undefined &&
+    shell.setup === undefined
+  );
 }
 
 /** The Chat entry of the sidebar: T3 Code's origin, as recorded, or absent

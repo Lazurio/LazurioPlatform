@@ -311,7 +311,10 @@ export function ownerOrganization(
  * `ownerKey` the owning Organization's own slug as the Machine handover
  * names it (`owner.organization_key`), when it does; `theme` the
  * Environment's theme (root decision 0208, `shellThemeOf` of its record),
- * which `/.lazurio/shell.json` and the page's boot document always carry. */
+ * which `/.lazurio/shell.json` and the page's boot document always carry.
+ * `buddyOpen` whether Buddy runs and the person has his persona (F60's
+ * addendum of 2026-11-09, `buddyOpen` in buddy-gate.ts): his bubble only
+ * then, and never where the caller does not say so. */
 export function shellDocument(
   input: Readonly<{
     preset: PresetName;
@@ -322,6 +325,7 @@ export function shellDocument(
     setup?: ShellSetup;
     ownerKey?: string | null;
     theme?: ShellTheme;
+    buddyOpen?: boolean;
   }>,
 ): Shell {
   const { machine } = input;
@@ -426,8 +430,13 @@ export function shellDocument(
     ...(visitors ? { audience: "public" as const } : {}),
     ...(input.theme === undefined ? {} : { theme: input.theme }),
     // Buddy's bubble on the person's own Osobní Prostředí, where the gateway
-    // routes his frame (decision F60); everywhere else the account says.
-    ...(kind === "personal" && entry?.buddyOrigin !== undefined
+    // routes his frame (decision F60), only once he runs and the person has
+    // his persona (F60's addendum of 2026-11-09): before that his frame
+    // would show the gateway's error, and Začínáme is the way to him.
+    // Everywhere else the account says.
+    ...(kind === "personal" &&
+    entry?.buddyOrigin !== undefined &&
+    input.buddyOpen === true
       ? { buddy: { origin: entry.buddyOrigin } }
       : {}),
   };

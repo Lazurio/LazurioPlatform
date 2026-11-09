@@ -20,6 +20,7 @@ import {
 } from "../browser/view";
 import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createFirstMeeting } from "../buddy/first-meeting";
+import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
@@ -97,6 +98,7 @@ import {
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
+import type { ShellSetup } from "../shell/contract";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
@@ -162,6 +164,12 @@ import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import { accessCheckAnswer, accessCheckFailed } from "./access-check";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
+import {
+  buddyGateAnswer,
+  buddyGatePath,
+  buddyOpenOf,
+  buddyT3Active,
+} from "./buddy-gate";
 import { createBuddyRoutes } from "./buddy-routes";
 import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
@@ -512,6 +520,7 @@ const isLazurioDocument = (path: string) =>
   path === browserViewDocumentPath ||
   path === browserViewPath ||
   path === chatPairingPath ||
+  path === buddyGatePath ||
   path === mausbotPairingPath ||
   promptRoute.test(path);
 
@@ -1548,40 +1557,58 @@ export async function startLaunchpad(
   // The shell document's `setup` from the last reading, never awaited (F36's
   // addendum of 2026-10-08): the forks' column head says what is missing
   // once it is known, and no page waits for GitHub to learn it.
-  const setup = createSetupCache(async () => {
+  // Beside it, from the same reading, whether Buddy is open (F60's addendum
+  // of 2026-11-09, buddy-gate.ts): his bubble is in the document only then.
+  const buddyService: ServiceRun = {
+    run: toolsEnvironment.run,
+    env: serviceEnvironment(process.env),
+  };
+  const setup = createSetupCache<
+    Readonly<{ setup: ShellSetup | undefined; buddyOpen: boolean }>
+  >(async () => {
     const current = await withFolderReadLock(state, () =>
       readFolderState(state),
     );
     const preset = current.preferences.preset.name;
-    if (!hasOnboarding(preset) || publicEnvironment) return undefined;
+    if (!hasOnboarding(preset) || publicEnvironment)
+      return { setup: undefined, buddyOpen: false };
     // The Automated Environment's soft check (F27's addendum of
     // 2026-10-30): the responsible user's own account where the persona's
     // belongs counts as missing, as Začínáme counts it.
     const responsible = responsibleLogin(preset, current.preferences.machine);
-    const [reading, signIn, read, buddyFact] = await Promise.all([
+    const [reading, signIn, read, buddyRead] = await Promise.all([
       ai.state(),
       github.reading(),
       readContent(contentState),
       // Buddy's step where the entry names him (decision F65): his sign-in
-      // as Hermes's card says it and whether his names were confirmed.
+      // as Hermes's card says it and whether his names were confirmed; and
+      // whether his T3 Code runs, for his bubble.
       entry?.buddyOrigin === undefined
         ? undefined
-        : Promise.all([readBuddyFacts(buddyGateway), buddyPersona.read()]).then(
-            ([facts, persona]) => ({
+        : Promise.all([
+            readBuddyFacts(buddyGateway),
+            buddyPersona.read(),
+            buddyT3Active(buddyService),
+          ]).then(([facts, persona, t3]) => ({
+            fact: {
               signIn: buddyStatus(facts).signIn.state,
               confirmed: persona?.confirmed === true,
-            }),
-          ),
+            },
+            open: buddyOpenOf(facts, persona?.confirmed === true, t3),
+          })),
     ]);
-    return shellSetup({
-      preset,
-      ai: reading.state,
-      github: ownAccount(signIn.account, responsible)
-        ? "own-account"
-        : signIn.state,
-      ...read,
-      ...(buddyFact === undefined ? {} : { buddy: buddyFact }),
-    });
+    return {
+      setup: shellSetup({
+        preset,
+        ai: reading.state,
+        github: ownAccount(signIn.account, responsible)
+          ? "own-account"
+          : signIn.state,
+        ...read,
+        ...(buddyRead === undefined ? {} : { buddy: buddyRead.fact }),
+      }),
+      buddyOpen: buddyRead?.open === true,
+    };
   });
   // The boot document of the page (F36's addendum of 2026-10-08, boot.ts):
   // what this Launchpad knows from the Folder alone, under one short read of
@@ -1608,6 +1635,11 @@ export async function startLaunchpad(
         tailnet,
         theme: shellThemeOf(theme),
         vaultInApps,
+        // Buddy's bubble as the last reading knows him (F60's addendum of
+        // 2026-11-09); none before the first one.
+        buddyOpen: hasOnboarding(inputs.preset)
+          ? setup.peek()?.buddyOpen === true
+          : false,
       });
     })().catch(() => null);
     try {
@@ -1848,13 +1880,15 @@ export async function startLaunchpad(
           const known = hasOnboarding(inputs.preset) ? setup.peek() : undefined;
           // Whether the elements register the offline guide's worker
           // (decision F41): only where the worker's address serves it. The
-          // Environment's theme always (root decision 0208).
+          // Environment's theme always (root decision 0208). Buddy's bubble
+          // only once he is open (F60's addendum of 2026-11-09).
           return response(
             withOfflineGuide(
               shellDocument({
                 ...inputs,
-                ...(known === undefined ? {} : { setup: known }),
+                ...(known?.setup === undefined ? {} : { setup: known.setup }),
                 theme: shellThemeOf(theme),
+                buddyOpen: known?.buddyOpen === true,
               }),
               tailnet,
             ),
@@ -2058,6 +2092,29 @@ export async function startLaunchpad(
         } catch {
           return notFound();
         }
+      }
+      if (url.pathname === buddyGatePath) {
+        // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the
+        // gateway asks it, behind the same admission, before a top-level
+        // navigation of Buddy's origin reaches his T3 Code. Read fresh,
+        // never from the setup's last reading: a person who just met him is
+        // let through at once.
+        if (request.method !== "GET" && request.method !== "HEAD")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (entry?.buddyOrigin === undefined)
+          return buddyGateAnswer(entry, false);
+        server.timeout(request, 30);
+        const open = await Promise.all([
+          readBuddyFacts(buddyGateway),
+          buddyPersona.read(),
+          buddyT3Active(buddyService),
+        ])
+          .then(([facts, persona, t3]) =>
+            buddyOpenOf(facts, persona?.confirmed === true, t3),
+          )
+          .catch(() => false);
+        return buddyGateAnswer(entry, open);
       }
       if (url.pathname === chatPairingPath) {
         // The Environment pairs its own browser (decision of 2026-10-17):

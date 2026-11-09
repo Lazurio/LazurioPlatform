@@ -41,7 +41,11 @@ import { isPublicEnvironment } from "./public-environment";
  * view through `/.lazurio/browser.json`, never by this origin alone.
  * `audience` only on a public Environment (root decision 0204, decision
  * F55): the page then runs the demo onboarding and has no Integrace and no
- * Trezor; the server withholds them by the same recorded entry. */
+ * Trezor; the server withholds them by the same recorded entry.
+ * `buddyOrigin` only on an Osobní Prostředí whose entry names Buddy (decision
+ * F60): the page knows from it that Buddy is here, also while the shell
+ * document leaves his bubble out because he does not run yet (F60's addendum
+ * of 2026-11-09). */
 export type PublicEntry = Readonly<{
   launchpadOrigin: string;
   t3codeOrigin: string;
@@ -49,6 +53,7 @@ export type PublicEntry = Readonly<{
   mausbotOrigin?: string;
   browserOrigin?: string;
   audience?: "public";
+  buddyOrigin?: string;
 }>;
 
 export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
@@ -64,6 +69,9 @@ export function publicEntry(entry: MachineEntry | null): PublicEntry | null {
       ? {}
       : { browserOrigin: entry.browserOrigin }),
     ...(entry.audience === undefined ? {} : { audience: entry.audience }),
+    ...(entry.buddyOrigin === undefined
+      ? {}
+      : { buddyOrigin: entry.buddyOrigin }),
   });
 }
 
