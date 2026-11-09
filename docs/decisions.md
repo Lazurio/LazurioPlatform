@@ -21498,6 +21498,76 @@ adds to points 1 to 5 above.
 - After "Teď ne" the Launchpad's own tour of Začínáme comes back beside his window, as after any
   step.
 
+### F60 addendum of 2026-11-09: Buddy's bubble only once he runs, his address leads to Začínáme
+
+**Decided by Matěj (Organization Admin) on 2026-11-09** for the first Osobní Prostředí of
+Product 1 ("Odkaz do Začínáme"). On such an Environment Buddy does not run until the person
+met him: Machines start his T3 Code only once the Platform wrote its settings, which the
+persona's first apply does. The shell nevertheless drew his launcher wherever the entry named
+his origin, and a frame made then showed the gateway's 502 inside Lazurio's own chrome; his
+address `buddy.<login>` showed the same error. This amends point 1 of the addendum of
+2026-10-26 and points 1 to 5 above.
+
+1. **Open.** Buddy is open while, read at the same moment: his gateway runs and Hermes's card
+   says he is signed in to the person's own ChatGPT (`openai-codex`, F63), the person
+   confirmed his names (F64), and the unit of his T3 Code, the page his bubble frames, is
+   active (`lazurio-t3-buddy.service`). Anything not known counts as not open
+   (`buddyOpenOf`, `buddyT3Active`, `src/launchpad/buddy-gate.ts`).
+2. **His bubble only while he is open.** The Launchpad of his Osobní Prostředí names
+   `buddy.origin` in `/.lazurio/shell.json` and in its page's boot document only then
+   (`shellDocument`'s `buddyOpen`, from the same reading as `setup`, kept beside it). Every
+   other producer of the document leaves it out. Chat and Automate follow at their next reading
+   of the document, as for `setup`. Before the meeting there is no launcher at all: the "1",
+   his hello and the action of the addendum of 2026-10-26 point 1 no longer show on his own
+   Osobní Prostředí (the code stays for a document that still names him with `buddyNext`),
+   and the way to him is Začínáme's step, its count, its line and the tour, as F65 has them.
+   On another Environment's page the account's `buddy` is as before.
+3. **The page knows he is here from the entry.** The Launchpad's page took Buddy's presence
+   from the shell document. The recorded entry's public parts (`GET /api/entry`, the boot
+   document's `entry`) now carry `buddyOrigin` on an Osobní Prostředí whose entry names him,
+   and Začínáme's step, Nastavení → Buddy, his picture and `#lazurio-start=meet-buddy` read
+   it from there. The picture falls back to his still or his initial while his T3 Code does
+   not serve it, as it already did.
+4. **The meeting's end opens his window once he is there.** Point 6 of the addendum of
+   2026-10-26 opened his window at once. His T3 Code now starts only after the apply, so the
+   page reads the shell document again every 3 s, at most 30 times, and opens his window once
+   his bubble is in it; after that it opens nothing by itself.
+5. **His address leads to Začínáme.** `GET /.lazurio/buddy/gate` on every shell origin, which
+   the gateway forwards to the Launchpad behind its admission like the rest of
+   `/.lazurio/`, answers `204` while Buddy is open and `303` to Začínáme of the Environment's
+   own Launchpad with his dialog to open (`<Launchpad origin>/settings/start#lazurio-start=meet-buddy`)
+   otherwise, `Cache-Control: no-store`, read fresh each time; `404` `buddy-absent` where the
+   entry names no Buddy. Machines ask it with Caddy's `forward_auth` before a top-level
+   navigation of `buddy.<login>` reaches his T3 Code, which hands the `303` to the browser,
+   and send a navigation there whose T3 Code does not answer. The Launchpad's side is this
+   route; the gateway's is Machines' ([hosted entry](hosted-entry.md)).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Hide the bubble in the shell's code by `setup.buddy` | Older bundles in T3 Code and MausBot would still frame him, and `setup` is absent while GitHub's state is not known; rejected for the producer leaving the origin out |
+| The launcher's "1" before the meeting, as on 2026-10-26 | The bubble shows before Buddy runs, which the decision forbids; superseded |
+| Open means signed in and confirmed only | His T3 Code starts after the apply, so the window opened at the meeting's end would frame the gateway's 502; rejected for the unit's state too |
+| Only the gateway's error page for `buddy.<login>` | Covers a T3 Code that does not run, not one that runs without his persona or sign-in; kept as the fallback beside the gate |
+| The gate from the setup's last reading | Up to 30 s old, so a person who just met him would be sent back to Začínáme; rejected for a fresh read |
+
+**Verified by:**
+- `tests/launchpad-buddy-gate.test.ts`: open only with all three; the unit's state by
+  `systemctl --user is-active --quiet` and nothing else; the gate's `204`, `303` to Začínáme
+  of the Launchpad's own origin and `404`; the entry's public parts with `buddyOrigin` and
+  another shape refused; the boot document with and without him; the setup's cache keeping
+  `buddyOpen` beside `setup`.
+- `tests/shell-buddy.test.ts`: the Launchpad of an Osobní Prostředí names him only while he is
+  open.
+
+**Honest limits.**
+- No Osobní Prostředí of Product 1 ran it before this change: Machines' `buddyOrigin` and
+  route for a free Environment and Hermes's installation there (Machines#701) are in work.
+  The acceptance is on such an Environment, as listed in the change's pull request.
+- Chat and Automate learn that Buddy opened at their next reading of the shell document, not
+  at once, and so does the Launchpad's page outside the meeting's end.
+- A T3 Code that stops while the person has his window open shows the gateway's error until
+  the page reads the document again.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210

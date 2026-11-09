@@ -202,15 +202,16 @@ export type GithubProbe = ReturnType<typeof createGithubProbe>;
  * revalidating): until the first reading ends the document carries no
  * `setup`, which v1 allows. `forget` drops it where it changed (a sign-in or
  * sign-out of gh, an installation of the content, a profile change) and
- * reads it again at once; a reading that was running then is not kept. */
-export function createSetupCache(
-  read: () => Promise<ShellSetup | undefined>,
+ * reads it again at once; a reading that was running then is not kept.
+ * The server keeps Buddy's `buddyOpen` beside it from the same reading
+ * (`T`), so the two never come from different moments. */
+export function createSetupCache<T = ShellSetup>(
+  read: () => Promise<T | undefined>,
   options: Readonly<{ ttlMs?: number; now?: () => number }> = {},
 ) {
   const ttl = options.ttlMs ?? 30_000;
   const now = options.now ?? Date.now;
-  let known: Readonly<{ setup: ShellSetup | undefined; at: number }> | null =
-    null;
+  let known: Readonly<{ setup: T | undefined; at: number }> | null = null;
   let generation = 0;
   let reading: Readonly<{ generation: number; done: Promise<void> }> | null =
     null;
@@ -234,7 +235,7 @@ export function createSetupCache(
   return {
     /** What is known now, at once; a reading starts in the background when
      * there is none or it is older than the TTL. */
-    peek(): ShellSetup | undefined {
+    peek(): T | undefined {
       if (known === null || now() - known.at >= ttl) void refresh();
       return known?.setup;
     },

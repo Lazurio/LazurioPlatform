@@ -1,3 +1,4 @@
+import { isShellBuddyOrigin } from "../shell/contract";
 import type { PublicEntry } from "./chat";
 import { isHttpsOrigin, isModuleOriginTemplate } from "./hosted-entry";
 import { isEntryAudience } from "./public-environment";
@@ -33,7 +34,8 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
       !isHttpsOrigin(entry.mausbotOrigin)) ||
     (entry.browserOrigin !== undefined &&
       !isHttpsOrigin(entry.browserOrigin)) ||
-    (entry.audience !== undefined && !isEntryAudience(entry.audience))
+    (entry.audience !== undefined && !isEntryAudience(entry.audience)) ||
+    (entry.buddyOrigin !== undefined && !isShellBuddyOrigin(entry.buddyOrigin))
   )
     return null;
   return Object.freeze({
@@ -47,6 +49,9 @@ export function parseEntryAnswer(value: unknown): PublicEntry | null {
       ? {}
       : { browserOrigin: entry.browserOrigin }),
     ...(entry.audience === undefined ? {} : { audience: entry.audience }),
+    ...(entry.buddyOrigin === undefined
+      ? {}
+      : { buddyOrigin: entry.buddyOrigin }),
   });
 }
 

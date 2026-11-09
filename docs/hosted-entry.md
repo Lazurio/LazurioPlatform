@@ -297,6 +297,18 @@ the origin, and the header only says which recorded origin a request came throug
 After admission it chooses which of the admitted person's two T3 Codes the credential
 is for, and a shell on the Machine can mint either.
 
+**Buddy's gate ([F60's addendum of
+2026-11-09](decisions.md#f60-addendum-of-2026-11-09-buddys-bubble-only-once-he-runs-his-address-leads-to-začínáme)).**
+`GET /.lazurio/buddy/gate` answers `204` while Buddy is open (his gateway runs and he is
+signed in, the person confirmed his names, and his T3 Code's unit is active) and `303` to
+`<Launchpad origin>/settings/start#lazurio-start=meet-buddy` otherwise, with
+`Cache-Control: no-store`; where the entry names no Buddy, `404`. It sits behind the
+whole-Environment admission like the rest of `/.lazurio/`, and a `HEAD` reads the same. On
+`buddy.<login>` the gateway asks it with Caddy's `forward_auth` for a top-level navigation
+(`Sec-Fetch-Dest: document`) before the request reaches Buddy's T3 Code, and Caddy hands its
+`303` to the browser as it is; a navigation whose T3 Code does not answer goes to the same
+Začínáme. That is the gateway's part, Machines'.
+
 **MausBot pairs itself the same way (addendum of 2026-10-22,
 [contract](launchpad-development.md#lazurio-mausbot-entry)).** MausBot's web client asks
 for `GET /.lazurio/mausbot/pairing` on its own origin whenever it has no session. The

@@ -421,6 +421,7 @@ test("the handover's entry.buddy projects Buddy's origin into the binding, and i
       machine: recorded,
       locale: "cs",
       catalog: { kind: "catalog", organizations: [] },
+      buddyOpen: true,
     }).buddy,
   ).toEqual({ origin: "https://buddy.example.lazurio.io" });
   // A handover without it projects exactly as before.
@@ -473,7 +474,7 @@ test("entry.buddy is refused on an Organization's VM, beside another Machine's b
     refused(buddyOf(buddy));
 });
 
-test("the Launchpad of an Osobní Prostředí names Buddy where its entry routes him; nowhere else", () => {
+test("the Launchpad of an Osobní Prostředí names Buddy where its entry routes him and he is open; nowhere else", () => {
   const catalog = { kind: "catalog", organizations: [] } as const;
   const recorded = parseMachineBinding(
     withBuddy(personalEntry, "https://buddy.example.lazurio.io"),
@@ -483,6 +484,7 @@ test("the Launchpad of an Osobní Prostředí names Buddy where its entry routes
     machine: recorded,
     locale: "cs",
     catalog,
+    buddyOpen: true,
   });
   expect(own.current).toBe("example");
   expect(own.buddy).toEqual({ origin: "https://buddy.example.lazurio.io" });
@@ -495,7 +497,28 @@ test("the Launchpad of an Osobní Prostředí names Buddy where its entry routes
   ] as const)
     expect(
       Object.hasOwn(
-        shellDocument({ preset, machine, locale: "cs", catalog }),
+        shellDocument({
+          preset,
+          machine,
+          locale: "cs",
+          catalog,
+          buddyOpen: true,
+        }),
+        "buddy",
+      ),
+    ).toBe(false);
+  // While Buddy is not open, or the caller does not say he is, his entry
+  // alone names no bubble (F60's addendum of 2026-11-09).
+  for (const buddyOpen of [false, undefined])
+    expect(
+      Object.hasOwn(
+        shellDocument({
+          preset: "hosted-personal",
+          machine: recorded,
+          locale: "cs",
+          catalog,
+          ...(buddyOpen === undefined ? {} : { buddyOpen }),
+        }),
         "buddy",
       ),
     ).toBe(false);

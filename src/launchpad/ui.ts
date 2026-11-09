@@ -393,7 +393,7 @@ async function readShell() {
     // The kind the explanations are chosen by may be known only now.
     if (framed) drawGuide(shell.route());
     drawMachine();
-    // Buddy is known from the shell document: read him once.
+    // Buddy is known from the entry: read him once.
     readBuddy();
     if (framed) drawBuddy();
     firstRun();
@@ -545,8 +545,12 @@ const buddyClient = createBuddyClient({
   changed: () => drawBuddy(),
 });
 let buddyAsked = false;
+// Buddy is here where the recorded entry names his origin (decision F60):
+// the shell document names it only once he runs and has his persona (F60's
+// addendum of 2026-11-09), and Začínáme is where the person meets him
+// before that.
 const buddyHere = (): boolean =>
-  shellDocument?.buddy !== undefined && !buddyClient.absent();
+  entry?.buddyOrigin !== undefined && !buddyClient.absent();
 const buddyFacts = (): BuddyStepFacts => {
   const refused = buddyClient.refused();
   return {
@@ -915,7 +919,7 @@ const startPanel = createStartPanel({
   },
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
-const buddyAvatar = () => buddyAvatarSource(shellDocument?.buddy?.origin);
+const buddyAvatar = () => buddyAvatarSource(entry?.buddyOrigin);
 // "Připojit Telegram" (decision F66): his own bot from BotFather, from
 // Nastavení → Buddy → Kanály and the last screen of "Seznamte se s Buddym".
 const telegramDialog = createTelegramDialog({
@@ -957,11 +961,33 @@ const buddyDialog = createBuddyDialog({
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
  * it opened, closed): the page draws again and his window opens, where his
- * first message comes, as the person's own click would open it. */
+ * first message comes, as the person's own click would open it. His bubble
+ * is in the shell document only once he runs (F60's addendum of
+ * 2026-11-09), and his T3 Code starts only after the persona's apply wrote
+ * its settings: until then the page reads the document again every few
+ * seconds (`buddyOpenWaitMs`) and opens his window once his bubble is
+ * there, never later than `buddyOpenTries` readings after the meeting. */
 function meetingFinished() {
   firstRun();
-  buddyElement()?.openWindow();
+  if (buddyOpenWait !== undefined) clearInterval(buddyOpenWait);
+  buddyOpenWait = undefined;
+  if (buddyElement()?.openWindow() === true) return;
+  let tries = 0;
+  buddyOpenWait = setInterval(() => {
+    tries += 1;
+    if (buddyElement()?.openWindow() === true || tries > buddyOpenTries) {
+      clearInterval(buddyOpenWait);
+      buddyOpenWait = undefined;
+      return;
+    }
+    void readShell();
+  }, buddyOpenWaitMs);
 }
+/** How often the page reads the shell document after the meeting until
+ * Buddy's bubble is there, and how many times at most. */
+const buddyOpenWaitMs = 3000;
+const buddyOpenTries = 30;
+let buddyOpenWait: ReturnType<typeof setInterval> | undefined;
 /** This page's `<lazurio-buddy>`, Buddy's bubble, once the shell defined it. */
 function buddyElement(): Readonly<{
   spotlight(on: boolean): void;
@@ -1209,9 +1235,9 @@ function takeStart() {
   if (facts === null) return;
   // GitHub waits for AI, the content for its turn (0201 point 3,
   // `startDecision`): an older link starts nothing out of order.
-  // Buddy's request waits for the shell document, which says whether he is
-  // here at all.
-  if (start === "meet-buddy" && shellDocument === null && !shellRead) return;
+  // Buddy's request waits for the entry, which says whether he is here at
+  // all.
+  if (start === "meet-buddy" && !entryKnown) return;
   const decision = startDecision(start, facts);
   if (decision === "wait") return;
   if (decision === "meet-buddy") {
@@ -2321,7 +2347,9 @@ async function readEntry() {
     // Whether it is a public Environment, which the page may learn only now.
     drawAudience();
     shell.replace();
-    firstRun();
+    // Whether Buddy is here, which the page may learn only now too.
+    readBuddy();
+    drawBuddy();
   }
   // Trezor waited for the entry (plan DEV-6668 slice 6): drawn now, whether
   // the entry changed or not.
