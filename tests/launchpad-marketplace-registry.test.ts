@@ -235,7 +235,10 @@ test("the first read after main moved waits for the question a moment: a quick a
     const cacheFile = join(directory, "registry.json");
     // An installed Launchpad that kept main's index an hour ago, as the
     // canary's had before the curator's merge.
-    await writeFile(cacheFile, JSON.stringify({ commit: head, index: index() }));
+    await writeFile(
+      cacheFile,
+      JSON.stringify({ commit: head, index: index() }),
+    );
     const state = {
       main: next,
       indexes: { [next]: index("Slides") } as Record<string, unknown>,
@@ -264,7 +267,10 @@ test("the first read after main moved waits for the question a moment: a quick a
 
     // GitHub is slower than the wait: the kept index answers, checking says
     // the question still runs, and its outcome replaces it afterwards.
-    await writeFile(cacheFile, JSON.stringify({ commit: head, index: index() }));
+    await writeFile(
+      cacheFile,
+      JSON.stringify({ commit: head, index: index() }),
+    );
     const slowly = createMarketplaceRegistry({
       fetch: async (url, init) => {
         await new Promise((resolve) => setTimeout(resolve, 400));
