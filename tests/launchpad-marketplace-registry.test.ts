@@ -10,6 +10,7 @@ import {
   registryInterval,
   registryRetry,
   registrySource,
+  registryWait,
 } from "../src/launchpad/marketplace-registry";
 import unreleasedIndex from "./fixtures/marketplace-index-unreleased.json";
 
@@ -105,13 +106,13 @@ test("the registry is read at main's commit, kept, and read again only when main
     await registry.read();
     await settled();
     expect(asked).toHaveLength(3);
-    // main moved: the new index replaces the shown one once it is read.
+    // main moved: GitHub answers within the wait, so this very read
+    // already shows the new index.
     state.main = next;
     state.indexes[next] = index("Slides");
     clock += registryInterval;
-    expect((await registry.read()).commit).toBe(head);
-    await settled();
-    expect(registry.current().commit).toBe(next);
+    expect((await registry.read()).commit).toBe(next);
+    expect(registry.checking()).toBe(false);
     const kept = JSON.parse(await readFile(cacheFile, "utf8"));
     expect(kept.commit).toBe(next);
 
@@ -202,6 +203,7 @@ test("a failed question is asked again a retry later, and checking says while on
     },
     cacheFile: null,
     now: () => clock,
+    wait: 10,
   });
   // GitHub refuses: the built-in copy, and nothing more within the retry.
   expect(await registry.read()).toBe(builtInMarketplace);
@@ -225,6 +227,61 @@ test("a failed question is asked again a retry later, and checking says while on
   release();
   await settled();
   expect(registry.checking()).toBe(false);
+});
+
+test("the first read after main moved waits for the question a moment: a quick answer shows the new index, a slow one the kept index", async () => {
+  expect(registryWait).toBe(3_000);
+  await withDirectory(async (directory) => {
+    const cacheFile = join(directory, "registry.json");
+    // An installed Launchpad that kept main's index an hour ago, as the
+    // canary's had before the curator's merge.
+    await writeFile(cacheFile, JSON.stringify({ commit: head, index: index() }));
+    const state = {
+      main: next,
+      indexes: { [next]: index("Slides") } as Record<string, unknown>,
+    };
+    const asked: string[] = [];
+    let delay = 0;
+    const answering = github(state, asked);
+    const registry = createMarketplaceRegistry({
+      fetch: async (url, init) => {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return answering(url, init);
+      },
+      cacheFile,
+      wait: 200,
+    });
+    // GitHub answers within the wait: the person opening the Marketplace
+    // sees main's offers at once, and nothing is still being asked.
+    delay = 5;
+    const quick = await registry.read();
+    expect(quick.commit).toBe(next);
+    expect(
+      quick.offers.find((offer) => offer.id === "presentations")?.title.en,
+    ).toBe("Slides");
+    expect(registry.checking()).toBe(false);
+    expect(asked).toHaveLength(2);
+
+    // GitHub is slower than the wait: the kept index answers, checking says
+    // the question still runs, and its outcome replaces it afterwards.
+    await writeFile(cacheFile, JSON.stringify({ commit: head, index: index() }));
+    const slowly = createMarketplaceRegistry({
+      fetch: async (url, init) => {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return answering(url, init);
+      },
+      cacheFile,
+      wait: 20,
+    });
+    const started = Date.now();
+    const slow = await slowly.read();
+    expect(Date.now() - started).toBeLessThan(300);
+    expect(slow.commit).toBe(head);
+    expect(slowly.checking()).toBe(true);
+    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    expect(slowly.checking()).toBe(false);
+    expect(slowly.current().commit).toBe(next);
+  });
 });
 
 test("a replaced catalog is still served to prompts for an hour, the built-in copy always", async () => {
