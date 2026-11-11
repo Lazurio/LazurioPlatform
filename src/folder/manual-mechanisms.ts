@@ -499,6 +499,10 @@ export const organizationAdmin: readonly Text[] = [
     "### A new colleague and their Environment",
   ),
   t(
+    "Potřebuje-li kolega jen produkční aplikaci, nezakládej mu kvůli ní Prostředí ani roli modulu. Stačí Lazurio účet, aktivní členství a role v aplikaci; aktuální dostupnost přihlášení bez GitHubu a správy rolí ověř podle oddílu Produkční aplikace Organizace. Následující postup je pro kolegu, který potřebuje i vlastní Pracovní Prostředí.",
+    "When a colleague needs only the production app, create neither an Environment nor a Module role for that purpose. A Lazurio account, active membership and an application role suffice; verify current sign-in without GitHub and role-management availability by the Production applications of an Organization section. The following procedure is for a colleague who also needs their own Work Environment.",
+  ),
+  t(
     "Kolega potřebuje členství v Organizaci (GitHub a Lazurio účet), přidělené Pracovní Prostředí, role modulů svého Teamu a podle sítě schválená zařízení. Nové Prostředí na serveru s poolem začíná na poolu. Hesla a přístupové údaje se kolegovi nikdy nepíšou do chatu, issue ani zprávy.",
     "A colleague needs membership of the Organization (GitHub and a Lazurio account), an assigned Work Environment, the Module roles of their Team and, depending on the network, approved devices. A new Environment on a server with a pool starts on the pool. Passwords and credentials are never written to a colleague in a chat, an issue or a message.",
   ),
