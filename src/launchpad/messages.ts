@@ -549,6 +549,24 @@ const en = {
   appsModuleAccess: "Module access",
   appsMoveToTab: "Move to a tab",
   appsTabsEdit: "Edit tabs",
+  // Shared applications (decision 0231, plan LZD-0009 M6): what colleagues
+  // made available from their Work Environments, opened as applications,
+  // never Modules; the roles by their names of decision 0234.
+  appsSharedTitle: "Shared applications",
+  appsSharedOne: "{count} application",
+  appsSharedFew: "{count} applications",
+  appsSharedMany: "{count} applications",
+  appsSharedBy: "Shared by {name}",
+  appsSharedBySomeone: "Shared by someone in the Organization",
+  appsSharedOpen: "Open the application {name} in a new tab",
+  appsSharedOpenSame: "Open the application {name}",
+  appsRoleAdmin: "Application Admin",
+  appsRoleUser: "Application User",
+  // Its Assigned User makes an application of this Work Environment
+  // available in the Organization Dashboard and comes back (decision 0231).
+  appsShare: "Share with colleagues",
+  appsShareHint:
+    "Opens the Organization Dashboard, where you make this application available to colleagues; then you come back here.",
   appsInfoModule: "Module information",
   appsInfoRepository: "Repository information",
   // A service repository of Server services and its page (root decision
@@ -2834,6 +2852,19 @@ const cs: Record<MessageKey, string> = {
   appsModuleAccess: "Přístup k modulu",
   appsMoveToTab: "Přesunout do karty",
   appsTabsEdit: "Upravit karty",
+  appsSharedTitle: "Sdílené aplikace",
+  appsSharedOne: "{count} aplikace",
+  appsSharedFew: "{count} aplikace",
+  appsSharedMany: "{count} aplikací",
+  appsSharedBy: "Sdílí {name}",
+  appsSharedBySomeone: "Sdílí ji někdo z Organizace",
+  appsSharedOpen: "Otevřít aplikaci {name} v nové záložce",
+  appsSharedOpenSame: "Otevřít aplikaci {name}",
+  appsRoleAdmin: "Admin aplikace",
+  appsRoleUser: "Uživatel aplikace",
+  appsShare: "Zpřístupnit kolegům",
+  appsShareHint:
+    "Otevře Přehled Organizace, kde tuto aplikaci zpřístupníte kolegům; pak se vrátíte sem.",
   appsInfoModule: "Informace o modulu",
   appsInfoRepository: "Informace o repozitáři",
   appsServiceOpen: "Otevřít stránku služby",
