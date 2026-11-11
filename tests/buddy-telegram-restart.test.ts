@@ -64,6 +64,24 @@ type World = {
 
 type Timer = { at: number; callback: () => void; done: boolean };
 
+/** Waits until the condition is true. If the condition is not true after
+ * 10 seconds, the function stops with an error. Do not use a fixed number of
+ * waits, because a slow runner can need more time (#725). */
+async function until(holds: () => boolean | Promise<boolean>) {
+  const deadline = Date.now() + 10_000;
+  while (!(await holds())) {
+    if (Date.now() > deadline) throw new Error("timed out waiting");
+    await Bun.sleep(1);
+  }
+}
+
+/** The result is true if the path does not exist. */
+const gone = (path: string) =>
+  lstat(path).then(
+    () => false,
+    () => true,
+  );
+
 async function within(
   body: (fixture: {
     home: string;
@@ -164,8 +182,10 @@ async function within(
       if (due === undefined) break;
       due.done = true;
       due.callback();
-      // Let the attempt it started finish.
-      for (let turn = 0; turn < 50; turn += 1) await Bun.sleep(1);
+      // Wait until the attempt from this timer is complete. Then wait one
+      // macrotask, so that the answer to the follow-up can run.
+      await restart.settled();
+      await Bun.sleep(0);
     }
   };
   try {
@@ -447,8 +467,9 @@ posix(
       expect(restarts()).toBe(1);
       expect(await restart.blocked()).toBe(false);
       expect(restart.owed()).toBe(false);
-      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
-      await expect(lstat(telegramUncertainPath(home))).rejects.toThrow();
+      // The module removes the barrier file in the background. Wait until
+      // the file does not exist.
+      await until(() => gone(telegramUncertainPath(home)));
       expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
     }),
 );
@@ -460,13 +481,18 @@ posix(
       // A change asks an attempt; a write ends in doubt as its restart is
       // made, so it may have reached the new gateway.
       world.restartTakes = 5;
+      let inDoubt: Promise<"recorded" | "unrecorded"> | undefined;
       world.onRestart = () => {
         world.onRestart = undefined;
-        void restart.uncertain();
+        inDoubt = restart.uncertain();
       };
       expect(await restart.changed()).toBe("recorded");
       await restart.settled();
-      for (let turn = 0; turn < 50; turn += 1) await Bun.sleep(1);
+      // Wait until the write records its file. Then wait until its attempt
+      // is complete. The spacing stops the restart, so the attempt sets a
+      // retry timer.
+      expect(await inDoubt).toBe("recorded");
+      await restart.settled();
       expect(restarts()).toBe(1);
       // That restart may have started before the write: still held.
       expect(await restart.blocked()).toBe(true);
@@ -487,7 +513,9 @@ posix(
       world.followUps = ["again", "again"];
       await restart.uncertain();
       await restart.settled();
-      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      // The module sends the follow-up when it removes the barrier. The
+      // answer runs as microtasks. Wait one macrotask to let it run.
+      await Bun.sleep(0);
       expect(world.followed).toHaveLength(1);
       // After 15 s, then 30 s after that; done then. (The fixture's clock
       // moves with real time too: each step keeps a margin.)
@@ -517,7 +545,7 @@ posix(
       await restart.start();
       expect(restarts()).toBe(1);
       expect(await restart.blocked()).toBe(false);
-      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      await Bun.sleep(0);
       expect(world.followed.map((entry) => entry.why)).toEqual(["lifted"]);
     }),
 );
@@ -527,7 +555,7 @@ posix(
   () =>
     within(async ({ world, restart }) => {
       await restart.start();
-      for (let turn = 0; turn < 20; turn += 1) await Bun.sleep(1);
+      await Bun.sleep(0);
       expect(world.followed.map((entry) => entry.why)).toEqual(["start"]);
     }),
 );
