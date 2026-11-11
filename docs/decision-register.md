@@ -1167,3 +1167,17 @@ Mission Control is the Organization's shared ground for its agents: what is plan
 Writing stays where 0102 and 0232 put it: the Module Contributors and Maintainers of Mission Control and the Organization Admin, and once the Admin locks the data branch, only through reviewed pull requests. Planning that is not meant for every member does not belong to Mission Control; it lives in a separate Module whose access the Organization Admin narrows.
 
 Mission Control and its data are never restricted slots (0143): every role-scoped installation materializes them, as 0138 already says for the data mount. The Dashboard shows a member below Module Reader of Mission Control as a mismatch the Organization Admin aligns, and the Organization's task doctor reports a member's missing access to Mission Control as that mismatch with the way to ask the Admin (0230), not as a failed fetch.
+
+### 0237 — One source of the shell: the Dashboard loads the released Lazurio shell instead of keeping its own copy
+
+- **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-11
+- **Related:** 0179, 0185, 0186, F36
+
+The rail, the column head and the jump are one shell for every place a person meets Lazurio. The Dashboard keeps no copy of it in its own source: it loads the shell of a released Lazurio, attested like the rest of the release, so a change of the shell reaches the Dashboard with that release and never waits for a separate release of the Dashboard. The Dashboard pins which released shell it loads and moves the pin as the release train moves, without changing its own code; a pin it cannot load is a failed check, never a silent fallback to an older shell. Until this is deployed, every Lazurio release that changes the shell is followed by a refresh of the Dashboard's copy and a Dashboard release.
+
+### 0238 — The release train moves every Organization on its own, in parallel, after a canary wave
+
+- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-11
+- **Related:** 0161, 0166, 0204, 0217
+
+Lazurio is meant for a thousand Organizations and more, so the release train never moves them one after another and never lets one Organization hold back the others. A release goes first to a canary wave: the reference Organization and a few pilot Organizations, with their checks and the recorded smoke test. Once the canary accepts it, the release opens to every other Organization at once, and each Organization's deployment runs on its own, in parallel with all the others. A failure in one Organization stops that Organization alone: it is repaired forward there (0166), and nothing else waits for it. An Organization whose own deployment cannot run through its pipeline is deployed by an operator with the same recorded evidence, and that counts as its deployment. The wave stops as a whole only on a signal about the release itself: the canary failing, or the release failing in a share of Organizations (the threshold is the train's setting, initially 5 %), in which case the release is fixed forward by a new release. Until the train is rebuilt this way, an operator deployment with recorded evidence counts as a lane's acceptance in its ring.
