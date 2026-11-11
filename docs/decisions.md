@@ -24766,12 +24766,25 @@ to F49's page.
      link or a QR code would put a token in a URL, against `chat.ts` and the
      F36 addendum of 2026-10-31, with a lifetime and scopes nobody has decided
      yet: Lazurio/LazurioPlatform#934 asks for that decision.
+   - **Where no code pairs but SSH comes in**, the card of an app that speaks
+     SSH (ChatGPT without remote control, on the Organization's AI, signed
+     out or in a Team Environment; T3 Code, whose sentence is then "Párování
+     kódem připravujeme.") offers *Připojit přes SSH*, which opens the
+     pairing straight at its SSH way (point 3) for a computer, with nothing
+     to go back to. 0215 keeps SSH where pairing is not possible.
+   - On the person's own computer ChatGPT's sentence is "Telefon spárujete
+     kódem.", since only the phone pairs there.
 2. **Spárovat opens the pairing.** First the device, Telefon or Počítač (on the
    person's own computer only the phone, so it starts at the code). Then the
    code, the default way: one motion graphic for exactly this app, device and
    way, the QR code for a phone, the short code for a computer, the time left
    and the one live code of point 3, shared by both devices. A computer
    without a short code from Codex is told so instead of being asked for it.
+   While the device is chosen the dialog offers *Zrušit*, since nothing has
+   happened yet; from the code on, *Hotovo*. *Nový kód* belongs to the code's
+   attempt, not to the step shown: a code that expires or is refused while
+   the SSH way is open leaves that step as it is, and *Nový kód* waits on the
+   code's step.
 3. **SSH is hidden inside the pairing.** A quiet *Jiný způsob: SSH* appears only
    for a computer, only for an app that speaks SSH (ChatGPT Desktop, T3 Code)
    and only where the handover records a peer that may open SSH into this

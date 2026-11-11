@@ -11,6 +11,7 @@ import {
   offersSsh,
   offersSshWay,
   pairApps,
+  pairingFoot,
   pairingShape,
   parseConnectionsOverview,
   parsePairing,
@@ -344,33 +345,116 @@ test("one card per app: ChatGPT by its state, Claude and T3 Code coming", () => 
     devices: [],
     restart: false,
   } as const;
+  const server = { ssh: false, computer: true };
   expect(pairApps).toEqual(["chatgpt", "claude", "t3code"]);
-  expect(appCard("chatgpt", ready, false)).toEqual({
+  expect(appCard("chatgpt", ready, false, server)).toEqual({
     app: "chatgpt",
     available: true,
+    sshOnly: false,
     line: "appChatgptReady",
   });
+  // Your own computer pairs only a phone, and the card says so.
   expect(
-    appCard("chatgpt", { ...ready, state: "organization-ai" }, false),
+    appCard("chatgpt", ready, false, { ssh: false, computer: false }).line,
+  ).toBe("appChatgptReadyPhone");
+  expect(
+    appCard("chatgpt", { ...ready, state: "organization-ai" }, false, server),
   ).toEqual({
     app: "chatgpt",
     available: false,
+    sshOnly: false,
     line: "phoneStateOrganizationAi",
   });
   expect(appCard("chatgpt", null, true).line).toBe("phoneLoading");
   expect(appCard("chatgpt", null, false).line).toBe("phoneFailed");
   // Nothing is claimed for Claude or T3 Code but that they are coming.
   for (const app of ["claude", "t3code"] as const)
-    expect(appCard(app, ready, false)).toEqual({
+    expect(appCard(app, ready, false, server)).toEqual({
       app,
       available: false,
+      sshOnly: false,
       line: "appComing",
     });
   for (const locale of ["cs", "en"] as const) {
     const copy = messages(locale, "work");
     expect(copy.phoneStateOrganizationAi).toMatch(/ChatGPT/);
-    expect(copy.appComing.length).toBeGreaterThan(0);
+    expect(copy.appChatgptReadyPhone).not.toMatch(/počítač|computer/);
   }
+});
+
+test("where no code pairs but SSH comes in, a card leads to SSH (0215)", () => {
+  const ssh = { ssh: true, computer: true };
+  const of = (
+    state: "no-remote-control" | "organization-ai" | "no-chatgpt" | "team",
+  ) => ({
+    kind: "connections" as const,
+    state,
+    devices: [],
+    restart: false,
+  });
+  for (const state of [
+    "no-remote-control",
+    "organization-ai",
+    "no-chatgpt",
+    "team",
+  ] as const)
+    expect({
+      state,
+      card: appCard("chatgpt", of(state), false, ssh),
+    }).toMatchObject({
+      state,
+      card: { available: false, sshOnly: true },
+    });
+  expect(appCard("t3code", null, false, ssh)).toEqual({
+    app: "t3code",
+    available: false,
+    sshOnly: true,
+    line: "appCodeComing",
+  });
+  // Claude speaks no SSH here; without a path in nothing leads to SSH.
+  expect(appCard("claude", null, false, ssh).sshOnly).toBe(false);
+  expect(
+    appCard("chatgpt", of("organization-ai"), false, {
+      ssh: false,
+      computer: true,
+    }).sshOnly,
+  ).toBe(false);
+  // Where the code pairs, SSH stays a way inside the pairing, not the card's.
+  expect(
+    appCard("chatgpt", { ...of("team"), state: "ready" }, false, ssh).sshOnly,
+  ).toBe(false);
+  for (const locale of ["cs", "en"] as const)
+    expect(messages(locale, "work").appSsh).toMatch(/SSH/);
+});
+
+test("the dialog foot: Nový kód once the code ended, on the code step only", () => {
+  const foot = (
+    step: "device" | "code" | "ssh",
+    ended = false,
+    paired = false,
+    sshOnly = false,
+  ) => pairingFoot({ step, ended, paired, sshOnly });
+  expect(foot("device")).toEqual({
+    newCode: false,
+    status: false,
+    back: false,
+  });
+  expect(foot("code")).toEqual({ newCode: false, status: true, back: true });
+  // The code expired or was refused while SSH was open: Nový kód waits on the
+  // code step and comes back there; the SSH step shows neither.
+  expect(foot("ssh", true)).toEqual({
+    newCode: false,
+    status: false,
+    back: true,
+  });
+  expect(foot("code", true)).toEqual({
+    newCode: true,
+    status: true,
+    back: true,
+  });
+  expect(foot("code", true, true).newCode).toBe(false);
+  // Opened for SSH alone: nothing to go back to.
+  expect(foot("ssh", false, false, true).back).toBe(false);
 });
 
 test("Jiný způsob: SSH only for a computer, an app that speaks SSH, where SSH may come in", () => {

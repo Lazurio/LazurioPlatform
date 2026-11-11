@@ -638,9 +638,11 @@ pre:empty { display: none; }
 .app-badge .icon { width: 12px; height: 12px; }
 .pair-step { display: grid; gap: 12px; }
 .pair-devices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.pair-device { display: grid; justify-items: center; gap: 8px; padding: 18px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--bg, #fff); color: var(--fg); font-weight: var(--lz-weight-akce); }
-.pair-device:hover { border-color: var(--fg); }
-.pair-device .icon { width: 28px; height: 28px; }
+button.pair-device { display: grid; justify-items: center; align-content: center; gap: 8px; height: auto; min-height: 96px; padding: 18px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--card); color: var(--fg); font-size: 15px; line-height: 1.2; white-space: normal; }
+button.pair-device:hover { border-color: var(--fg); }
+button.pair-device:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
+button.pair-device .icon { width: 28px; height: 28px; }
+#pair-where { text-align: center; color: var(--fg); }
 .pair-other { justify-self: center; color: var(--muted-fg); font-size: 13px; }
 #pair-motion .phone-motion-device, #pair-ssh-motion .phone-motion-device { display: flex; flex-direction: column; }
 #pair-motion .phone-motion-device[data-device="computer"], #pair-ssh-motion .phone-motion-device[data-device="computer"] { height: 132px; }
@@ -2321,7 +2323,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 </div>
 <div id="phone-dialog-done" class="phone-done" hidden><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><p id="phone-dialog-paired">Your phone is paired</p></div>
 <p id="phone-dialog-status" class="row-status" role="status" aria-live="polite"></p>
-<div class="dialog-foot"><button type="button" class="pair-back" id="pair-back" data-message="pairBack" hidden>Back</button><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" class="primary" id="phone-dialog-ok" data-message="phoneDone">Done</button></div>
+<div class="dialog-foot"><button type="button" class="pair-back" id="pair-back" data-message="pairBack" hidden>Back</button><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" id="phone-dialog-ok">Cancel</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
 <div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>

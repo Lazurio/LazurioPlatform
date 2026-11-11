@@ -15,6 +15,7 @@ import {
   type PairDevice,
   type PairMethod,
   pairApps,
+  pairingFoot,
   pairingShape,
   parseConnectionsOverview,
   pathDetail,
@@ -118,6 +119,11 @@ export function createConnectionsPanel(
   let app: PairApp = "chatgpt";
   let device: PairDevice = "phone";
   let step: Step = "device";
+  // The code's attempt, apart from the step shown: whether it ended
+  // (expired or refused), so Nový kód comes back on the code's step.
+  let ended = false;
+  // Opened for SSH alone: no code and no device to go back to.
+  let sshOnly = false;
   // The countdown of the code shown.
   let tick: ReturnType<typeof setInterval> | null = null;
   const flow = createPairingFlow({
@@ -253,22 +259,29 @@ export function createConnectionsPanel(
   function renderApps(copy: Copy) {
     apps.replaceChildren(
       ...pairApps.map((which) => {
-        const card = appCard(which, overview, loading);
+        const card = appCard(which, overview, loading, {
+          ssh: sshHere(),
+          computer: onServer(),
+        });
         const node = element("div", "card app-card");
         node.dataset.app = which;
         node.dataset.available = String(card.available);
         const head = element("div", "app-card-head");
         head.append(appMark(which), element("h3", "", copy[appNames[which]]));
         const actions = element("div", "phone-actions");
+        // Where no code pairs but SSH comes in, the card leads straight to
+        // that way (0215 keeps SSH where pairing is not possible).
+        const viaSsh = !card.available && card.sshOnly;
         const pair = button(
-          copy.appPair,
+          viaSsh ? copy.appSsh : copy.appPair,
           card.available ? "primary" : "",
           () => {
             note = null;
-            open(which);
+            if (viaSsh) openSsh(which);
+            else open(which);
           },
         );
-        pair.disabled = !card.available || busy !== null;
+        pair.disabled = (!card.available && !viaSsh) || busy !== null;
         actions.append(pair);
         if (which === "chatgpt" && overview !== null) {
           if (offersSignIn(overview)) {
@@ -416,9 +429,17 @@ export function createConnectionsPanel(
     stepDevice.hidden = step !== "device";
     pairing.hidden = step !== "code" || !done.hidden;
     stepSsh.hidden = step !== "ssh";
-    back.hidden = step === "device" || !done.hidden || !onServer();
+    back.hidden =
+      !onServer() ||
+      !pairingFoot({ step, ended, paired: !done.hidden, sshOnly }).back;
+    backToCode.hidden = sshOnly;
     otherSsh.hidden = !offersSshWay(app, device, sshHere());
-    newCode.hidden = newCode.hidden || step !== "code";
+    const foot = pairingFoot({ step, ended, paired: !done.hidden, sshOnly });
+    newCode.hidden = !foot.newCode;
+    dialogStatus.hidden = !foot.status;
+    // Nothing has happened while the device is being chosen: leave, not done.
+    ok.textContent = step === "device" ? copy.phoneCancel : copy.phoneDone;
+    ok.classList.toggle("primary", step !== "device");
     if (step === "code") {
       const phone = device === "phone";
       dialogHint.textContent = phone ? copy.phoneHint : copy.computerHint;
@@ -459,13 +480,14 @@ export function createConnectionsPanel(
     switch (view.kind) {
       case "loading":
         clearCode();
+        ended = false;
         done.hidden = true;
-        newCode.hidden = true;
         delete qrFrame.dataset.expired;
         dialogStatus.textContent = copy.phoneLoading;
         break;
       case "code": {
         stopTick();
+        ended = false;
         // A computer pairs only by the short code: without one, the dialog
         // says so instead of asking for it.
         const shape = pairingShape(device, view.manualCode);
@@ -485,22 +507,23 @@ export function createConnectionsPanel(
         qrFrame.dataset.expired = "";
         code.textContent = "";
         countdown.textContent = copy.phoneExpired;
-        newCode.hidden = false;
+        ended = true;
         break;
       case "paired":
         clearCode();
+        ended = false;
         done.hidden = false;
-        newCode.hidden = true;
         dialogStatus.textContent = "";
         if (overview !== null)
           overview = Object.freeze({ ...overview, devices: view.devices });
         break;
       case "refused":
+        // The step shown stays: a refusal that arrives while the SSH way is
+        // open waits on the code's step for Nový kód.
         clearCode();
-        step = "code";
+        ended = true;
         qrFrame.hidden = true;
         codeRow.hidden = true;
-        newCode.hidden = false;
         dialogStatus.textContent =
           view.until !== null
             ? copy.phoneOutstanding.replace(
@@ -523,14 +546,30 @@ export function createConnectionsPanel(
    * so the pairing starts at the code. */
   function open(which: PairApp) {
     app = which;
+    sshOnly = false;
+    ended = false;
     step = "device";
     done.hidden = true;
-    newCode.hidden = true;
     dialogStatus.textContent = "";
     if (!dialog.open && typeof dialog.showModal === "function")
       dialog.showModal();
     if (onServer()) render();
     else choose("phone");
+  }
+
+  /** An app that pairs no code here but reaches it over SSH from a
+   * computer: the SSH way alone. */
+  function openSsh(which: PairApp) {
+    app = which;
+    sshOnly = true;
+    ended = false;
+    device = "computer";
+    step = "ssh";
+    done.hidden = true;
+    dialogStatus.textContent = "";
+    if (!dialog.open && typeof dialog.showModal === "function")
+      dialog.showModal();
+    render();
   }
 
   /** A device chosen: the code, the default way, from the one live code. */
@@ -603,7 +642,7 @@ export function createConnectionsPanel(
     flow.close();
     clearCode();
     step = "device";
-    newCode.hidden = true;
+    ended = false;
     dialogStatus.textContent = "";
     render();
   });
@@ -619,6 +658,8 @@ export function createConnectionsPanel(
     flow.close();
     clearCode();
     step = "device";
+    sshOnly = false;
+    ended = false;
     void refresh();
   });
   codeCopy.addEventListener("click", () => {

@@ -215,7 +215,12 @@ export type PairMethod = "code" | "ssh";
  * reach a native app (Lazurio/LazurioPlatform#934). */
 export type AppCard = Readonly<{
   app: PairApp;
+  /** Whether the app pairs here by a code. */
   available: boolean;
+  /** Where it does not, whether a computer still reaches this Environment
+   * over SSH: the card then leads straight to that way (0215 keeps SSH
+   * where pairing is not possible). */
+  sshOnly: boolean;
   line: MessageKey;
 }>;
 
@@ -223,18 +228,37 @@ export function appCard(
   app: PairApp,
   overview: ConnectionsOverview | null,
   loading: boolean,
+  here: Readonly<{ ssh: boolean; computer: boolean }> = {
+    ssh: false,
+    computer: true,
+  },
 ): AppCard {
-  if (app !== "chatgpt") return { app, available: false, line: "appComing" };
+  const sshOnly = here.ssh && sshApps.includes(app);
+  if (app === "claude")
+    return { app, available: false, sshOnly: false, line: "appComing" };
+  if (app === "t3code")
+    return {
+      app,
+      available: false,
+      sshOnly,
+      line: sshOnly ? "appCodeComing" : "appComing",
+    };
   if (overview === null)
     return {
       app,
       available: false,
+      sshOnly: false,
       line: loading ? "phoneLoading" : "phoneFailed",
     };
   const state = stateMessage(overview);
-  return state === null
-    ? { app, available: true, line: "appChatgptReady" }
-    : { app, available: false, line: state };
+  if (state !== null) return { app, available: false, sshOnly, line: state };
+  // Your own computer offers only the phone (the pairing skips the device).
+  return {
+    app,
+    available: true,
+    sshOnly: false,
+    line: here.computer ? "appChatgptReady" : "appChatgptReadyPhone",
+  };
 }
 
 /** The apps that reach an Environment over SSH from a computer: ChatGPT
@@ -301,6 +325,26 @@ export function motionSteps(
         { mark: "letters", letters: "K7QF", text: "computerMotionCode" },
         done,
       ];
+}
+
+/** The pairing dialog's foot and status from its state, kept apart from
+ * the step shown: Nový kód only on the code's step once the code's attempt
+ * ended (expired or refused), whatever step was open when it ended; the
+ * code's status line only on that step; Zpět wherever a device was chosen,
+ * except where the dialog was opened for SSH alone. */
+export function pairingFoot(
+  state: Readonly<{
+    step: "device" | "code" | "ssh";
+    ended: boolean;
+    paired: boolean;
+    sshOnly: boolean;
+  }>,
+): Readonly<{ newCode: boolean; status: boolean; back: boolean }> {
+  return {
+    newCode: state.step === "code" && state.ended && !state.paired,
+    status: state.step === "code",
+    back: state.step !== "device" && !state.paired && !state.sshOnly,
+  };
 }
 
 /** What the pairing dialog shows of the one live code for the way that
