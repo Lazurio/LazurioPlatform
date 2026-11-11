@@ -2244,8 +2244,7 @@ async function handOver(
   if (current !== null && chatTakesPrompts && link !== null) {
     const tab = window.open("about:blank", "_blank");
     if (tab !== null) {
-      const id =
-        prompt.brief === undefined ? link.id : await prompt.brief();
+      const id = prompt.brief === undefined ? link.id : await prompt.brief();
       if (id === null) {
         const copied = await copyToClipboard(prompt.text);
         tab.opener = null;

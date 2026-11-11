@@ -714,7 +714,7 @@ test("an offer id is at most 32 characters, so its longest prompt id is Chat's 6
   expect(id).toHaveLength(promptIdLength);
   expect(isAdoptionPromptId(id)).toBe(true);
   expect(
-    chatPromptHref("https://chat.example.test/", "https://chat.example.test", {
+    chatPromptHref("https://chat.example.test", {
       id,
       organization: "Example-Org",
     }),
