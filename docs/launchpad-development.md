@@ -352,11 +352,10 @@ replaces these.
 
 **Open.** The narrow display (how the rail and a fork's sidebar collapse; upstream T3
 Code uses an off-canvas sheet); how the context reaches Buddy's iframe (an attribute or a
-`postMessage` per navigation); whether the switch still pairs the browser with T3 Code
-and MausBot on the way (it does until every Environment's T3 Code and MausBot pair
-themselves, [Chat entry](#chat-entry), 2026-10-17, and
-[MausBot entry](#lazurio-mausbot-entry), 2026-10-22);
-where the update pill goes. (How the catalog reads the productionspace repositories
+`postMessage` per navigation); where the update pill goes. (Whether the switch pairs the
+browser on the way was settled by F36's addendum of 2026-10-31: it does not, T3 Code and
+MausBot pair themselves, [Chat entry](#chat-entry) and
+[MausBot entry](#lazurio-mausbot-entry).) (How the catalog reads the productionspace repositories
 was settled by F32's addenda: the read-only `repositories`; `infra` is not listed.)
 
 ## The shell as built (decision F36)
@@ -2236,9 +2235,8 @@ way it enters:
 The Launchpad's click used to mint a pairing on the way, `POST /api/chat/pair`, and
 follow `<t3codeOrigin>/pair#token=…`: a round trip to the Launchpad and T3 Code's own
 pairing page before the app, so the switch took long and the page flashed three times
-(the Organization Admin's report). Every T3
-Code an Environment runs now pairs itself (`v0.1.0-lazurio.3` and later), so the click
-follows the plain `t3codeOrigin`: an unpaired browser is paired by T3 Code through
+(the Organization Admin's report). A T3 Code from `v0.1.0-lazurio.3` on pairs
+itself, so the click follows the plain `t3codeOrigin`: an unpaired browser is paired by T3 Code through
 `GET /.lazurio/chat/pairing`, a paired one (a session lasts 365 days) opens at once. The
 route `POST /api/chat/pair` is gone. A T3 Code older than `0.1.0-lazurio.3` would show
 its own pairing page instead, so this Platform must not reach an Environment below that
@@ -2426,7 +2424,7 @@ as the click did, `mintMausbotPairing` in `src/launchpad/mausbot.ts`.
 
 **The click no longer pairs (addendum of 2026-10-31,
 [F36](decisions.md#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs)).**
-Every MausBot an Environment runs now pairs itself (`v0.1.115-lazurio.7` and later), so
+A MausBot from `v0.1.115-lazurio.7` on pairs itself, so
 Automate's click follows the plain `mausbotOrigin` and `POST /api/mausbot/pair` is gone.
 A MausBot older than `0.1.115-lazurio.7` would show its own empty pairing form instead,
 so this Platform must not reach an Environment below that floor.
