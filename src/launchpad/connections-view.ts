@@ -201,6 +201,108 @@ export function deviceDetail(device: PairedDevice): string {
     .join(" · ");
 }
 
+/** The apps a person pairs with this Environment (root decision 0215 as
+ * amended on 2026-11-11): the page is built by app, so a new app is a new
+ * card, never a new page. */
+export type PairApp = "chatgpt" | "claude" | "t3code";
+export const pairApps: readonly PairApp[] = ["chatgpt", "claude", "t3code"];
+export type PairDevice = "phone" | "computer";
+export type PairMethod = "code" | "ssh";
+
+/** One app's card: whether it pairs here and its one sentence. ChatGPT
+ * pairs through Codex's remote control (F71); Claude is coming until
+ * Anthropic's pairing is verified, and T3 Code until its pairing token may
+ * reach a native app (Lazurio/LazurioPlatform#934). */
+export type AppCard = Readonly<{
+  app: PairApp;
+  available: boolean;
+  line: MessageKey;
+}>;
+
+export function appCard(
+  app: PairApp,
+  overview: ConnectionsOverview | null,
+  loading: boolean,
+): AppCard {
+  if (app !== "chatgpt") return { app, available: false, line: "appComing" };
+  if (overview === null)
+    return {
+      app,
+      available: false,
+      line: loading ? "phoneLoading" : "phoneFailed",
+    };
+  const state = stateMessage(overview);
+  return state === null
+    ? { app, available: true, line: "appChatgptReady" }
+    : { app, available: false, line: state };
+}
+
+/** The apps that reach an Environment over SSH from a computer: ChatGPT
+ * Desktop (F49) and T3 Code. */
+const sshApps: readonly PairApp[] = ["chatgpt", "t3code"];
+
+/** Whether the pairing offers "Jiný způsob: SSH": only for a computer, only
+ * for an app that speaks SSH, and only where SSH into this Environment is
+ * allowed (`offersSsh`). */
+export const offersSshWay = (
+  app: PairApp,
+  device: PairDevice,
+  ssh: boolean,
+): boolean => ssh && device === "computer" && sshApps.includes(app);
+
+/** One step of the motion graphic's template: what its mark shows (the
+ * app's logo, an icon of the page's own symbols, a few letters, a QR code)
+ * and its caption. */
+export type MotionStep = Readonly<{
+  mark: "app" | "icon" | "letters" | "scan";
+  icon?: string;
+  letters?: string;
+  text: MessageKey;
+}>;
+
+const done: MotionStep = {
+  mark: "icon",
+  icon: "check",
+  text: "phoneMotionDone",
+};
+
+/** The steps of one combination of app, device and way, filled into the one
+ * template (a device's frame, the app's screen, five steps in turn), so a
+ * guide can draw the same pictures. Null where the combination has no way
+ * yet. */
+export function motionSteps(
+  app: PairApp,
+  device: PairDevice,
+  method: PairMethod,
+): readonly MotionStep[] | null {
+  if (app !== "chatgpt") return null;
+  if (method === "ssh")
+    return device === "computer"
+      ? [
+          { mark: "icon", icon: "copy", text: "sshMotionCopy" },
+          { mark: "app", text: "computerMotionOpen" },
+          { mark: "icon", icon: "bot", text: "sshMotionPaste" },
+          { mark: "icon", icon: "plus", text: "sshMotionAdd" },
+          done,
+        ]
+      : null;
+  return device === "phone"
+    ? [
+        { mark: "app", text: "phoneMotionOpen" },
+        { mark: "letters", letters: "</>", text: "phoneMotionCodex" },
+        { mark: "icon", icon: "laptop", text: "phoneMotionAdd" },
+        { mark: "scan", text: "phoneMotionScan" },
+        done,
+      ]
+    : [
+        { mark: "app", text: "computerMotionOpen" },
+        { mark: "icon", icon: "settings", text: "computerMotionConnections" },
+        { mark: "icon", icon: "laptop", text: "computerMotionControl" },
+        { mark: "letters", letters: "K7QF", text: "computerMotionCode" },
+        done,
+      ];
+}
+
 /** What the pairing dialog shows of the one live code for the way that
  * opened it: a phone gets the QR code and, where Codex gave one, the short
  * code; a computer only the short code, so without it the computer cannot

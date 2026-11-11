@@ -1,19 +1,26 @@
 import type { ConnectionsOverview, PairedDevice } from "../connections/pairing";
 import { createPairingFlow, type PairingView } from "./connections-flow";
 import {
+  appCard,
   deviceDetail,
   deviceForm,
   deviceName,
+  type MotionStep,
+  motionSteps,
   offersRestart,
   offersSignIn,
   offersSsh,
+  offersSshWay,
+  type PairApp,
+  type PairDevice,
+  type PairMethod,
+  pairApps,
   pairingShape,
   parseConnectionsOverview,
   pathDetail,
   remaining,
   type SshPath,
   sshPaths,
-  stateMessage,
 } from "./connections-view";
 import type { MachineView } from "./machine-view";
 import type { MessageKey } from "./messages";
@@ -21,19 +28,27 @@ import { pollWhileVisible } from "./visible-poll";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
-type Way = "phone" | "computer";
+type Step = "device" | "code" | "ssh";
 
-// Settings → Connections (decision F71 and its addendum of 2026-11-11):
-// Ovládat toto Prostředí with its ways by device, both paired by a code
-// through the person's ChatGPT account. Telefon and Počítač: one sentence,
-// one button, the motion graphic, and one dialog with the one live code:
-// the QR code the ChatGPT app's own scanner reads for a phone, the short
-// code ChatGPT Desktop takes for a computer, the time left, a new code once
-// it expired and "spárovaný" (the sequence in connections-flow.ts). Below,
-// only where the handover records a peer that may open SSH into this
-// Environment, Přes SSH: the paths the tailnet allows each way and the way
-// to F49's page. Every server value is drawn as text; the page drops the
-// code when the dialog closes.
+const appNames: Readonly<Record<PairApp, MessageKey>> = {
+  chatgpt: "appChatgpt",
+  claude: "appClaude",
+  t3code: "appT3code",
+};
+
+// Settings → Connections (decision F71 and its addendum of 2026-11-11, root
+// decision 0215 as amended that day): built by app. Ovládat toto Prostředí
+// has one card per app with one sentence on whether it pairs here and
+// Spárovat. Spárovat opens the pairing: the device first, then the code,
+// with the motion graphic drawn from one template for the app, device and
+// way; the one live code is connections-flow.ts's (a QR code for the phone
+// app, the short code for ChatGPT Desktop, the time left, a new code once
+// it expired, "spárovaný"). Only for a computer, an app that speaks SSH and
+// where the handover records a peer that may open SSH into this
+// Environment, the quiet "Jiný způsob: SSH" shows the paths in and leads to
+// F49's page. The paired devices are one list with the app's mark; below,
+// the Environments this one reaches. Every server value is drawn as text;
+// the page drops the code when the dialog closes.
 export function createConnectionsPanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -41,7 +56,7 @@ export function createConnectionsPanel(
     copy: () => Copy;
     locale: () => string;
     /** The recorded preset and Machine binding, null until the profile is
-     * read: Počítač is offered on an Environment on a server, not on the
+     * read: a computer is offered on an Environment on a server, not on the
      * person's own computer, and the binding's peers are the SSH paths. */
     environment: () => Readonly<{
       preset: string;
@@ -55,80 +70,59 @@ export function createConnectionsPanel(
     return element;
   };
   const state = find<HTMLParagraphElement>("#phone-state");
-  const signIn = find<HTMLAnchorElement>("#phone-sign-in");
-  const restartButton = find<HTMLButtonElement>("#phone-restart");
   const restartConfirm = find<HTMLDivElement>("#phone-restart-confirm");
   const restartYes = find<HTMLButtonElement>("#phone-restart-yes");
   const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
-  const computerCard = find<HTMLDivElement>("#computer-card");
-  const ways: Readonly<
-    Record<
-      Way,
-      Readonly<{
-        card: HTMLDivElement;
-        pair: HTMLButtonElement;
-        how: HTMLButtonElement;
-      }>
-    >
-  > = {
-    phone: {
-      card: find<HTMLDivElement>("#phone-card"),
-      pair: find<HTMLButtonElement>("#phone-pair"),
-      how: find<HTMLButtonElement>("#phone-how"),
-    },
-    computer: {
-      card: computerCard,
-      pair: find<HTMLButtonElement>("#computer-pair"),
-      how: find<HTMLButtonElement>("#computer-how"),
-    },
-  };
-  const needs = find<HTMLParagraphElement>("#phone-needs");
+  const apps = find<HTMLDivElement>("#connections-apps");
   const devicesGroup = find<HTMLElement>("#phone-devices-group");
   const devicesList = find<HTMLUListElement>("#phone-devices");
-  const sshGroup = find<HTMLElement>("#ssh-paths");
-  const sshSetUp = find<HTMLAnchorElement>("#ssh-setup");
-  const sshIn = find<HTMLElement>("#ssh-paths-in");
-  const sshInList = find<HTMLUListElement>("#ssh-paths-in-list");
-  const sshOut = find<HTMLElement>("#ssh-paths-out");
-  const sshOutList = find<HTMLUListElement>("#ssh-paths-out-list");
+  const outGroup = find<HTMLElement>("#ssh-paths");
+  const outList = find<HTMLUListElement>("#ssh-paths-out-list");
   const again = find<HTMLButtonElement>("#connections-refresh");
   const dialog = find<HTMLDialogElement>("#phone-dialog");
   const dialogTitle = find<HTMLHeadingElement>("#phone-dialog-title");
-  const dialogHint = find<HTMLParagraphElement>("#phone-dialog-hint");
-  const dialogPaired = find<HTMLParagraphElement>("#phone-dialog-paired");
   const dialogClose = find<HTMLButtonElement>("#phone-dialog-close");
+  const stepDevice = find<HTMLDivElement>("#pair-step-device");
+  const where = find<HTMLParagraphElement>("#pair-where");
+  const pickPhone = find<HTMLButtonElement>("#pair-phone");
+  const pickComputer = find<HTMLButtonElement>("#pair-computer");
   const pairing = find<HTMLDivElement>("#phone-dialog-pairing");
+  const motion = find<HTMLDivElement>("#pair-motion");
+  const dialogHint = find<HTMLParagraphElement>("#phone-dialog-hint");
   const qrFrame = find<HTMLDivElement>(".phone-qr-frame");
   const qr = find<HTMLImageElement>("#phone-qr");
   const code = find<HTMLElement>("#phone-code");
   const codeRow = find<HTMLDivElement>("#phone-code-row");
   const codeCopy = find<HTMLButtonElement>("#phone-code-copy");
   const countdown = find<HTMLParagraphElement>("#phone-countdown");
+  const otherSsh = find<HTMLButtonElement>("#pair-other-ssh");
+  const stepSsh = find<HTMLDivElement>("#pair-step-ssh");
+  const sshMotion = find<HTMLDivElement>("#pair-ssh-motion");
+  const inList = find<HTMLUListElement>("#ssh-paths-in-list");
+  const backToCode = find<HTMLButtonElement>("#pair-back-code");
   const done = find<HTMLDivElement>("#phone-dialog-done");
+  const dialogPaired = find<HTMLParagraphElement>("#phone-dialog-paired");
   const dialogStatus = find<HTMLParagraphElement>("#phone-dialog-status");
+  const back = find<HTMLButtonElement>("#pair-back");
   const newCode = find<HTMLButtonElement>("#phone-new");
   const ok = find<HTMLButtonElement>("#phone-dialog-ok");
 
   let overview: ConnectionsOverview | null = null;
   let loading = false;
-  let failed = false;
   let busy: "restart" | null = null;
   let note: MessageKey | null = null;
   let confirming: string | null = null;
   let removing: string | null = null;
   let reading = 0;
-  // Each way's motion shows until a device of its form is paired, then
-  // folds under "Ukázat postup" (the prototype's rework of 2026-11-03); null
-  // follows that rule.
-  const showHow: Record<Way, boolean | null> = { phone: null, computer: null };
-  // The way whose button opened the dialog: what the dialog shows of the
-  // one live code.
-  let way: Way = "phone";
+  // The pairing open now: its app, its device and the step shown.
+  let app: PairApp = "chatgpt";
+  let device: PairDevice = "phone";
+  let step: Step = "device";
   // The countdown of the code shown.
   let tick: ReturnType<typeof setInterval> | null = null;
   const flow = createPairingFlow({
     post: options.post,
-    poll: (step, ms) => pollWhileVisible(step, ms),
+    poll: (stepper, ms) => pollWhileVisible(stepper, ms),
     show: (view) => showPairing(view),
   });
 
@@ -148,17 +142,40 @@ export function createConnectionsPanel(
     node.addEventListener("click", action);
     return node;
   };
-  /** A row's icon from the page's own symbols. */
-  const icon = (name: string) => {
-    const box = element("span", "connections-row-icon");
-    box.setAttribute("aria-hidden", "true");
+  /** One of the page's own symbols. */
+  const symbol = (name: string) => {
     const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     svg.setAttribute("class", "icon");
+    svg.setAttribute("aria-hidden", "true");
     const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
     use.setAttribute("href", `#i-${name}`);
     svg.append(use);
-    box.append(svg);
+    return svg;
+  };
+  /** A row's icon. */
+  const icon = (name: string) => {
+    const box = element("span", "connections-row-icon");
+    box.setAttribute("aria-hidden", "true");
+    box.append(symbol(name));
     return box;
+  };
+  /** An app's mark: its logo where the page has one, else its letters. */
+  const appMark = (which: PairApp, className = "app-mark") => {
+    const mark = element("span", className);
+    mark.setAttribute("aria-hidden", "true");
+    if (which === "chatgpt") mark.append(symbol("openai"));
+    else if (which === "claude") mark.append(symbol("claude"));
+    else mark.textContent = "T3";
+    return mark;
+  };
+  const environmentHere = () => options.environment();
+  const onServer = () => {
+    const here = environmentHere();
+    return here !== null && here.preset !== "local";
+  };
+  const sshHere = () => {
+    const here = environmentHere();
+    return here !== null && offersSsh(here.preset, sshPaths(here.machine));
   };
 
   async function refresh(): Promise<void> {
@@ -174,9 +191,96 @@ export function createConnectionsPanel(
     }
     if (turn !== reading) return;
     loading = false;
-    failed = read === null;
     if (read !== null) overview = read;
     render();
+  }
+
+  /** The motion graphic's one template: the device's frame, the app's
+   * screen and the steps of this app, device and way in turn. */
+  function drawMotion(
+    target: HTMLElement,
+    copy: Copy,
+    steps: readonly MotionStep[] | null,
+  ) {
+    target.hidden = steps === null;
+    if (steps === null) {
+      target.replaceChildren();
+      return;
+    }
+    const frame = element("div", "phone-motion-device");
+    frame.dataset.device = device;
+    frame.dataset.app = app;
+    const head = element("div", "phone-motion-head");
+    head.append(appMark(app, "phone-motion-app"), copy[appNames[app]]);
+    const screen = element("div", "phone-motion-screen");
+    frame.append(head, screen);
+    steps.forEach((each, index) => {
+      const shown = element("div", "phone-motion-step");
+      shown.dataset.step = String(index + 1);
+      const mark = element(
+        "span",
+        each.mark === "scan"
+          ? "phone-motion-icon phone-motion-scan"
+          : each.mark === "letters"
+            ? "phone-motion-icon phone-motion-codex"
+            : "phone-motion-icon",
+      );
+      if (each.mark === "app") mark.append(appMark(app, "phone-motion-logo"));
+      else if (each.mark === "icon" && each.icon)
+        mark.append(symbol(each.icon));
+      else if (each.mark === "letters") mark.textContent = each.letters ?? "";
+      shown.append(
+        mark,
+        element("span", "phone-motion-label", copy[each.text]),
+      );
+      screen.append(shown);
+    });
+    const dots = element("ol", "phone-motion-dots");
+    for (const _ of steps) dots.append(element("li"));
+    target.replaceChildren(frame, dots);
+  }
+
+  function renderApps(copy: Copy) {
+    apps.replaceChildren(
+      ...pairApps.map((which) => {
+        const card = appCard(which, overview, loading);
+        const node = element("div", "card app-card");
+        node.dataset.app = which;
+        node.dataset.available = String(card.available);
+        const head = element("div", "app-card-head");
+        head.append(appMark(which), element("h3", "", copy[appNames[which]]));
+        const actions = element("div", "phone-actions");
+        const pair = button(
+          copy.appPair,
+          card.available ? "primary" : "",
+          () => {
+            note = null;
+            open(which);
+          },
+        );
+        pair.disabled = !card.available || busy !== null;
+        actions.append(pair);
+        if (which === "chatgpt" && overview !== null) {
+          if (offersSignIn(overview)) {
+            const link = element("a", "button", copy.phoneSignIn);
+            link.setAttribute("href", "/settings/start");
+            link.dataset.route = "";
+            actions.append(link);
+          }
+          if (offersRestart(overview) && restartConfirm.hidden) {
+            const restart = button(copy.phoneRestart, "", () => {
+              restartConfirm.hidden = false;
+              render();
+              restartCancel.focus();
+            });
+            restart.disabled = busy !== null;
+            actions.append(restart);
+          }
+        }
+        node.append(head, element("p", "row-desc", copy[card.line]), actions);
+        return node;
+      }),
+    );
   }
 
   function renderDevices(copy: Copy, devices: readonly PairedDevice[]) {
@@ -186,45 +290,52 @@ export function createConnectionsPanel(
       timeStyle: "short",
     });
     devicesList.replaceChildren(
-      ...devices.map((device) => {
+      ...devices.map((paired) => {
         const item = element("li");
-        item.dataset.form = deviceForm(device);
-        item.append(icon(deviceForm(device) === "phone" ? "phone" : "laptop"));
+        const form = deviceForm(paired);
+        item.dataset.form = form;
+        item.append(icon(form === "phone" ? "phone" : "laptop"));
         const main = element("div", "row-copy");
-        main.append(element("p", "row-title", deviceName(device)));
+        const title = element("p", "row-title", deviceName(paired));
+        // Every device paired here is the ChatGPT app's (Codex's remote
+        // control); its mark says so, as a later app's will.
+        const badge = element("span", "app-badge");
+        badge.append(symbol("openai"), copy.appChatgpt);
+        title.append(" ", badge);
+        main.append(title);
         const details = [
-          deviceDetail(device),
-          device.lastSeenAt === null
+          deviceDetail(paired),
+          paired.lastSeenAt === null
             ? ""
             : copy.phoneLastSeen.replace(
                 "{time}",
-                format.format(new Date(device.lastSeenAt)),
+                format.format(new Date(paired.lastSeenAt)),
               ),
         ].filter((part) => part !== "");
         if (details.length > 0)
           main.append(element("p", "row-desc", details.join(" · ")));
         const actions = element("div", "phone-device-actions");
-        if (confirming === device.clientId) {
+        if (confirming === paired.clientId) {
           actions.append(
             element(
               "span",
               "row-status",
-              (deviceForm(device) === "phone"
+              (form === "phone"
                 ? copy.phoneRemoveQuestion
                 : copy.computerRemoveQuestion
-              ).replace("{name}", deviceName(device)),
+              ).replace("{name}", deviceName(paired)),
             ),
             button(copy.phoneCancel, "", () => {
               confirming = null;
               render();
             }),
             button(copy.phoneRemoveYes, "primary", () => {
-              void revoke(device.clientId);
+              void revoke(paired.clientId);
             }),
           );
         } else {
           const remove = button(copy.phoneRemove, "", () => {
-            confirming = device.clientId;
+            confirming = paired.clientId;
             render();
           });
           remove.disabled = removing !== null;
@@ -247,84 +358,65 @@ export function createConnectionsPanel(
     return item;
   }
 
-  /** Přes SSH: the recorded paths each way, and the way to F49's page only
-   * where SSH into this Environment is allowed. */
-  function renderSsh(copy: Copy) {
-    const environment = options.environment();
+  /** Odsud se připojíte do: the Environments and devices this one reaches,
+   * as the handover records them; the paths in belong to the pairing's
+   * "Jiný způsob: SSH". */
+  function renderPaths(copy: Copy) {
+    const here = environmentHere();
     const paths =
-      environment === null || environment.preset === "local"
-        ? null
-        : sshPaths(environment.machine);
-    const inbound = paths?.inbound ?? [];
+      here === null || here.preset === "local" ? null : sshPaths(here.machine);
     const outbound = paths?.outbound ?? [];
-    sshGroup.hidden = inbound.length === 0 && outbound.length === 0;
-    sshSetUp.hidden = !(
-      environment !== null && offersSsh(environment.preset, paths)
+    outGroup.hidden = outbound.length === 0;
+    outList.replaceChildren(...outbound.map((path) => pathRow(path, copy)));
+    inList.replaceChildren(
+      ...(paths?.inbound ?? []).map((path) => pathRow(path, copy)),
     );
-    sshIn.hidden = inbound.length === 0;
-    sshInList.replaceChildren(...inbound.map((path) => pathRow(path, copy)));
-    sshOut.hidden = outbound.length === 0;
-    sshOutList.replaceChildren(...outbound.map((path) => pathRow(path, copy)));
   }
 
   function render() {
     const copy = options.copy();
-    const environment = options.environment();
-    computerCard.hidden =
-      environment === null || environment.preset === "local";
     qr.alt = copy.phoneQrAlt;
     again.disabled = loading;
-    const shown = overview;
     const message: string | null =
       busy === "restart"
         ? copy.phoneRestarting
         : note !== null
           ? copy[note]
-          : shown === null
-            ? loading
-              ? copy.phoneLoading
-              : failed
-                ? copy.phoneFailed
-                : null
-            : (() => {
-                const key = stateMessage(shown);
-                return key === null ? null : copy[key];
-              })();
+          : null;
     state.textContent = message ?? "";
     state.hidden = message === null;
     state.dataset.kind =
       note === "phoneRemoved" && busy === null ? "info" : "warning";
-    const ready = shown?.state === "ready";
-    const devices = ready ? shown.devices : [];
-    for (const form of ["phone", "computer"] as const) {
-      const { card, pair, how } = ways[form];
-      const paired = devices.some((device) => deviceForm(device) === form);
-      pair.hidden = !ready;
-      pair.disabled = busy !== null;
-      pair.textContent =
-        form === "phone"
-          ? paired
-            ? copy.phonePairAnother
-            : copy.phonePair
-          : paired
-            ? copy.computerPairAnother
-            : copy.computerPair;
-      pair.classList.toggle("primary", !paired);
-      how.hidden = !paired;
-      // No steps to show where nothing can pair here.
-      const motion = ready && (showHow[form] ?? !paired);
-      how.textContent = motion ? copy.phoneHideHow : copy.phoneHow;
-      how.setAttribute("aria-expanded", String(motion));
-      if (motion) delete card.dataset.folded;
-      else card.dataset.folded = "";
+    renderApps(copy);
+    renderDevices(copy, overview?.state === "ready" ? overview.devices : []);
+    renderPaths(copy);
+    drawStep();
+  }
+
+  /** The dialog's step: the device, the code, or the SSH way. */
+  function drawStep() {
+    const copy = options.copy();
+    const name = copy[appNames[app]];
+    dialog.dataset.app = app;
+    dialog.dataset.way = device;
+    dialog.dataset.step = step;
+    dialogTitle.textContent = copy.pairTitle.replace("{app}", name);
+    where.textContent = copy.pairWhere.replace("{app}", name);
+    pickComputer.hidden = !onServer();
+    stepDevice.hidden = step !== "device";
+    pairing.hidden = step !== "code" || !done.hidden;
+    stepSsh.hidden = step !== "ssh";
+    back.hidden = step === "device" || !done.hidden || !onServer();
+    otherSsh.hidden = !offersSshWay(app, device, sshHere());
+    newCode.hidden = newCode.hidden || step !== "code";
+    if (step === "code") {
+      const phone = device === "phone";
+      dialogHint.textContent = phone ? copy.phoneHint : copy.computerHint;
+      dialogPaired.textContent = phone ? copy.phonePaired : copy.computerPaired;
+      drawMotion(motion, copy, motionSteps(app, device, "code"));
     }
-    needs.hidden = !ready || devices.length > 0;
-    signIn.hidden = shown === null || !offersSignIn(shown);
-    restartButton.hidden =
-      shown === null || !offersRestart(shown) || !restartConfirm.hidden;
-    restartButton.disabled = busy !== null;
-    renderDevices(copy, shown?.devices ?? []);
-    renderSsh(copy);
+    if (step === "ssh")
+      drawMotion(sshMotion, copy, motionSteps(app, device, "ssh"));
   }
 
   function stopTick() {
@@ -357,7 +449,6 @@ export function createConnectionsPanel(
     switch (view.kind) {
       case "loading":
         clearCode();
-        pairing.hidden = false;
         done.hidden = true;
         newCode.hidden = true;
         delete qrFrame.dataset.expired;
@@ -367,7 +458,7 @@ export function createConnectionsPanel(
         stopTick();
         // A computer pairs only by the short code: without one, the dialog
         // says so instead of asking for it.
-        const shape = pairingShape(way, view.manualCode);
+        const shape = pairingShape(device, view.manualCode);
         qrFrame.hidden = !shape.qr;
         qr.src = view.qrSource;
         code.textContent = view.manualCode ?? "";
@@ -388,7 +479,6 @@ export function createConnectionsPanel(
         break;
       case "paired":
         clearCode();
-        pairing.hidden = true;
         done.hidden = false;
         newCode.hidden = true;
         dialogStatus.textContent = "";
@@ -397,7 +487,9 @@ export function createConnectionsPanel(
         break;
       case "refused":
         clearCode();
-        pairing.hidden = true;
+        step = "code";
+        qrFrame.hidden = true;
+        codeRow.hidden = true;
         newCode.hidden = false;
         dialogStatus.textContent =
           view.until !== null
@@ -417,26 +509,34 @@ export function createConnectionsPanel(
     if (view.kind === "paired") ok.focus();
   }
 
-  /** The dialog's words for the way that opened it: a phone scans the QR
-   * code (or types the short code), a computer types the short code. */
-  function drawWay() {
-    const copy = options.copy();
-    const phone = way === "phone";
-    dialog.dataset.way = way;
-    dialogTitle.textContent = phone ? copy.phonePair : copy.computerPair;
-    dialogHint.textContent = phone ? copy.phoneHint : copy.computerHint;
-    dialogPaired.textContent = phone ? copy.phonePaired : copy.computerPaired;
-    dialogHint.hidden = false;
-    codeRow.hidden = false;
-    qrFrame.hidden = !phone;
-  }
-
-  function open(opened: Way) {
-    way = opened;
-    drawWay();
+  /** Spárovat: the device first; on your own computer only a phone pairs,
+   * so the pairing starts at the code. */
+  function open(which: PairApp) {
+    app = which;
+    step = "device";
+    done.hidden = true;
+    newCode.hidden = true;
+    dialogStatus.textContent = "";
     if (!dialog.open && typeof dialog.showModal === "function")
       dialog.showModal();
+    if (onServer()) render();
+    else choose("phone");
+  }
+
+  /** A device chosen: the code, the default way, from the one live code. */
+  function choose(chosen: PairDevice) {
+    device = chosen;
+    step = "code";
+    qrFrame.hidden = chosen !== "phone";
+    codeRow.hidden = false;
+    dialogHint.hidden = false;
+    render();
     void flow.start();
+  }
+
+  function way(method: PairMethod) {
+    step = method;
+    render();
   }
 
   async function revoke(clientId: string) {
@@ -485,17 +585,18 @@ export function createConnectionsPanel(
     }
   }
 
-  for (const form of ["phone", "computer"] as const) {
-    const { card, pair, how } = ways[form];
-    pair.addEventListener("click", () => {
-      note = null;
-      open(form);
-    });
-    how.addEventListener("click", () => {
-      showHow[form] = card.dataset.folded !== undefined;
-      render();
-    });
-  }
+  pickPhone.addEventListener("click", () => choose("phone"));
+  pickComputer.addEventListener("click", () => choose("computer"));
+  otherSsh.addEventListener("click", () => way("ssh"));
+  backToCode.addEventListener("click", () => way("code"));
+  back.addEventListener("click", () => {
+    flow.close();
+    clearCode();
+    step = "device";
+    newCode.hidden = true;
+    dialogStatus.textContent = "";
+    render();
+  });
   newCode.addEventListener("click", () => void flow.start());
   const close = () => {
     flow.close();
@@ -507,6 +608,7 @@ export function createConnectionsPanel(
   dialog.addEventListener("close", () => {
     flow.close();
     clearCode();
+    step = "device";
     void refresh();
   });
   codeCopy.addEventListener("click", () => {
@@ -518,11 +620,6 @@ export function createConnectionsPanel(
       },
       () => undefined,
     );
-  });
-  restartButton.addEventListener("click", () => {
-    restartConfirm.hidden = false;
-    render();
-    restartCancel.focus();
   });
   restartCancel.addEventListener("click", () => {
     restartConfirm.hidden = true;
@@ -540,7 +637,7 @@ export function createConnectionsPanel(
     get loaded() {
       return overview !== null || loading;
     },
-    /** For Začínáme: whether pairing is offered, and how many phones. */
+    /** For Začínáme: whether pairing is offered, and how many devices. */
     summary(): Readonly<{ ready: boolean; devices: number }> | null {
       return overview === null
         ? null

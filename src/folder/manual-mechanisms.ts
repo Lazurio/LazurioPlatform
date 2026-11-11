@@ -29,8 +29,12 @@ const nav = (...keys: readonly MessageKey[]): Text => ({
   cs: keys.map((key) => ucs[key]).join(" → "),
   en: keys.map((key) => uen[key]).join(" → "),
 });
-const phonePath = nav("settingsTitle", "connectionsTitle", "phoneTitle");
-const computerPath = nav("settingsTitle", "connectionsTitle", "computerTitle");
+const chatgptPath = nav(
+  "settingsTitle",
+  "connectionsTitle",
+  "appChatgpt",
+  "appPair",
+);
 const aiPath = nav("settingsTitle", "startTitle", "startAiTitle");
 const integrationsPath = nav("integrationsTitle");
 const recoveryPath = nav("settingsTitle", "recoveryTitle");
@@ -40,15 +44,15 @@ const recoveryPath = nav("settingsTitle", "recoveryTitle");
 export const quotedLaunchpadLabels: readonly MessageKey[] = Object.freeze([
   "settingsTitle",
   "connectionsTitle",
+  "appChatgpt",
+  "appPair",
   "phoneTitle",
-  "phonePair",
   "phoneDevices",
   "phoneRemove",
   "phoneStateOrganizationAi",
   "phoneStateTeam",
   "computerTitle",
-  "computerPair",
-  "pathsTitle",
+  "pairOtherSsh",
   "sshTitle",
   "startTitle",
   "startAiTitle",
@@ -290,8 +294,8 @@ export const mechanisms: readonly Text[] = [
   blank,
   t("## Telefon a počítač", "## Phone and computer"),
   t(
-    `- **Telefon s vlastním účtem ChatGPT** (Plus a vyšší, nebo Business, stejný účet jako Codex v Prostředí) spáruje člověk sám tam, kde ho Lazurio nabízí: ${phonePath.cs} → ${ucs.phonePair}, v aplikaci ChatGPT Codex → Přidat počítač a naskenovat QR kód (rozhodnutí 0215). Párování jde jen tam, kde Lazurio v Prostředí rozpozná funkci vzdáleného ovládání; jinak ho stránka ukáže jako nedostupné. Telefon nepotřebuje Tailscale ani heslo. Odebere ho v seznamu ${ucs.phoneDevices} tlačítkem ${ucs.phoneRemove}.`,
-    `- **A phone with an own ChatGPT account** (Plus or higher, or Business, the same account as Codex in the Environment) the person pairs alone where Lazurio offers it: ${phonePath.en} → ${uen.phonePair}, then in the ChatGPT app Codex → Add a computer and scan the QR code (decision 0215). Pairing works only where Lazurio detects the remote-control feature in the Environment; otherwise the page shows it as unavailable. The phone needs neither Tailscale nor a password. They remove it in the list ${uen.phoneDevices} with ${uen.phoneRemove}.`,
+    `- **Telefon s vlastním účtem ChatGPT** (Plus a vyšší, nebo Business, stejný účet jako Codex v Prostředí) spáruje člověk sám tam, kde ho Lazurio nabízí: ${chatgptPath.cs} → ${ucs.phoneTitle}, v aplikaci ChatGPT Codex → Přidat počítač a naskenovat QR kód (rozhodnutí 0215). Párování jde jen tam, kde Lazurio v Prostředí rozpozná funkci vzdáleného ovládání; jinak ho stránka ukáže jako nedostupné. Telefon nepotřebuje Tailscale ani heslo. Odebere ho v seznamu ${ucs.phoneDevices} tlačítkem ${ucs.phoneRemove}.`,
+    `- **A phone with an own ChatGPT account** (Plus or higher, or Business, the same account as Codex in the Environment) the person pairs alone where Lazurio offers it: ${chatgptPath.en} → ${uen.phoneTitle}, then in the ChatGPT app Codex → Add a computer and scan the QR code (decision 0215). Pairing works only where Lazurio detects the remote-control feature in the Environment; otherwise the page shows it as unavailable. The phone needs neither Tailscale nor a password. They remove it in the list ${uen.phoneDevices} with ${uen.phoneRemove}.`,
   ),
   t(
     `- **Na poolu** stránka hlásí „${ucs.phoneStateOrganizationAi}“: párování přes účet ChatGPT tam nejde. Cesty jsou dvě a obě vedou přes Admina Organizace: přechod na vlastní účet (výš), nebo dočasná cesta Organizace, pokud ji má ve svých skillech (třeba iPhone přes SSH s heslem). Na Týmovém Prostředí stránka hlásí „${ucs.phoneStateTeam}“`,
@@ -302,8 +306,8 @@ export const mechanisms: readonly Text[] = [
     "- **In public DNS** (decision 0213) people have no SSH and pairing shows as unavailable; they enter the Environment only on the web (Launchpad, chat, MausBot, Buddy). No phone or computer connects there from either AI source, and the Organization Admin cannot change that.",
   ),
   t(
-    `- **Počítač** s ChatGPT Desktopem spáruje člověk stejně, kódem přes stejný účet ChatGPT: ${computerPath.cs} → ${ucs.computerPair}, v ChatGPT Desktopu Připojení → Ovládání jiných zařízení a zadat kód (rozhodnutí F71, dodatek 2026-11-11). Druhou cestou je SSH (${ucs.sshTitle}): stránka ho nabízí jen tam, kde k Prostředí v síti vede povolená cesta, a ve skupině „${ucs.pathsTitle}“ ukazuje, odkud a kam cesty vedou. Novou cestu nepřidáš ani neslíbíš; povoluje ji ten, kdo spravuje síť.`,
-    `- **A computer** with ChatGPT Desktop the person pairs the same way, by a code through the same ChatGPT account: ${computerPath.en} → ${uen.computerPair}, then in ChatGPT Desktop Connections → Control other devices and enter the code (decision F71, addendum of 2026-11-11). The second way is SSH (${uen.sshTitle}): the page offers it only where the network has an allowed path to the Environment, and its group “${uen.pathsTitle}” shows where the paths lead from and to. Do not add or promise a new path; whoever runs the network allows it.`,
+    `- **Počítač** s ChatGPT Desktopem spáruje člověk stejně, kódem přes stejný účet ChatGPT: ${chatgptPath.cs} → ${ucs.computerTitle}, v ChatGPT Desktopu Připojení → Ovládání jiných zařízení a zadat kód (rozhodnutí F71, dodatek 2026-11-11). Stránka je podle aplikací: ChatGPT, Claude a T3 Code; Claude a T3 Code ukazuje jako připravované, jejich párování neslibuj. SSH je skrytá druhá cesta v postupu (${ucs.pairOtherSsh}, stránka ${ucs.sshTitle}): jen pro počítač, jen u aplikace, která SSH umí, a jen tam, kde k Prostředí v síti vede povolená cesta. Novou cestu nepřidáš ani neslíbíš; povoluje ji ten, kdo spravuje síť.`,
+    `- **A computer** with ChatGPT Desktop the person pairs the same way, by a code through the same ChatGPT account: ${chatgptPath.en} → ${uen.computerTitle}, then in ChatGPT Desktop Connections → Control other devices and enter the code (decision F71, addendum of 2026-11-11). The page is built by app: ChatGPT, Claude and T3 Code; it shows Claude and T3 Code as coming, so do not promise their pairing. SSH is a hidden second way inside the pairing (${uen.pairOtherSsh}, the page ${uen.sshTitle}): only for a computer, only for an app that speaks SSH, and only where the network has an allowed path to the Environment. Do not add or promise a new path; whoever runs the network allows it.`,
   ),
   blank,
   t("## Zařízení a síť", "## Devices and the network"),
@@ -339,16 +343,16 @@ export const mechanisms: readonly Text[] = [
     "| Move between the pool and an own account | asks | switches |",
   ),
   t(
-    `| Telefon s vlastním účtem | ${phonePath.cs} | — |`,
-    `| Phone with an own account | ${phonePath.en} | — |`,
+    `| Telefon s vlastním účtem | ${chatgptPath.cs} → ${ucs.phoneTitle} | — |`,
+    `| Phone with an own account | ${chatgptPath.en} → ${uen.phoneTitle} | — |`,
   ),
   t(
     "| Telefon v Prostředí na poolu | požádá | dočasná cesta Organizace |",
     "| Phone in an Environment on the pool | asks | the Organization's temporary path |",
   ),
   t(
-    `| Počítač s ChatGPT Desktopem | ${computerPath.cs} | — |`,
-    `| Computer with ChatGPT Desktop | ${computerPath.en} | — |`,
+    `| Počítač s ChatGPT Desktopem | ${chatgptPath.cs} → ${ucs.computerTitle} | — |`,
+    `| Computer with ChatGPT Desktop | ${chatgptPath.en} → ${uen.computerTitle} | — |`,
   ),
   t(
     "| Nové zařízení v tailnetu | registruje v Tailscale | schválí |",

@@ -1,12 +1,16 @@
 import { expect, test } from "bun:test";
 import { pairingQrPayload } from "../src/connections/pairing";
 import {
+  appCard,
   deviceDetail,
   deviceForm,
   deviceName,
+  motionSteps,
   offersRestart,
   offersSignIn,
   offersSsh,
+  offersSshWay,
+  pairApps,
   pairingShape,
   parseConnectionsOverview,
   parsePairing,
@@ -78,7 +82,7 @@ test("each state's words, sign-in and restart", () => {
   // The Organization's AI: the phone's route there is coming, no sign-in.
   expect(offersSignIn(of("organization-ai"))).toBe(false);
   expect(cs[stateMessage(of("organization-ai")) ?? "phoneTitle"]).toBe(
-    "Pro Prostředí s AI Organizace telefon připravujeme.",
+    "Na AI Organizace nejde, potřebuje váš vlastní účet ChatGPT.",
   );
   expect(stateMessage(of("team"))).toBe("phoneStateTeam");
   expect(offersRestart(of("team"))).toBe(false);
@@ -329,4 +333,84 @@ test("the dialog: a phone gets the QR code, a computer the short code or a reaso
   expect(messages("en", "work").computerNoCode).toContain(
     "short code for a computer",
   );
+});
+
+// F71 addendum of 2026-11-11, as agreed that day: the page is built by app.
+
+test("one card per app: ChatGPT by its state, Claude and T3 Code coming", () => {
+  const ready = {
+    kind: "connections",
+    state: "ready",
+    devices: [],
+    restart: false,
+  } as const;
+  expect(pairApps).toEqual(["chatgpt", "claude", "t3code"]);
+  expect(appCard("chatgpt", ready, false)).toEqual({
+    app: "chatgpt",
+    available: true,
+    line: "appChatgptReady",
+  });
+  expect(
+    appCard("chatgpt", { ...ready, state: "organization-ai" }, false),
+  ).toEqual({
+    app: "chatgpt",
+    available: false,
+    line: "phoneStateOrganizationAi",
+  });
+  expect(appCard("chatgpt", null, true).line).toBe("phoneLoading");
+  expect(appCard("chatgpt", null, false).line).toBe("phoneFailed");
+  // Nothing is claimed for Claude or T3 Code but that they are coming.
+  for (const app of ["claude", "t3code"] as const)
+    expect(appCard(app, ready, false)).toEqual({
+      app,
+      available: false,
+      line: "appComing",
+    });
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale, "work");
+    expect(copy.phoneStateOrganizationAi).toMatch(/ChatGPT/);
+    expect(copy.appComing.length).toBeGreaterThan(0);
+  }
+});
+
+test("Jiný způsob: SSH only for a computer, an app that speaks SSH, where SSH may come in", () => {
+  expect(offersSshWay("chatgpt", "computer", true)).toBe(true);
+  expect(offersSshWay("t3code", "computer", true)).toBe(true);
+  expect(offersSshWay("chatgpt", "phone", true)).toBe(false);
+  expect(offersSshWay("claude", "computer", true)).toBe(false);
+  expect(offersSshWay("chatgpt", "computer", false)).toBe(false);
+});
+
+test("one motion template, filled per app, device and way", () => {
+  const texts = (steps: ReturnType<typeof motionSteps>) =>
+    steps?.map((step) => step.text) ?? null;
+  expect(texts(motionSteps("chatgpt", "phone", "code"))).toEqual([
+    "phoneMotionOpen",
+    "phoneMotionCodex",
+    "phoneMotionAdd",
+    "phoneMotionScan",
+    "phoneMotionDone",
+  ]);
+  expect(texts(motionSteps("chatgpt", "computer", "code"))).toEqual([
+    "computerMotionOpen",
+    "computerMotionConnections",
+    "computerMotionControl",
+    "computerMotionCode",
+    "phoneMotionDone",
+  ]);
+  expect(texts(motionSteps("chatgpt", "computer", "ssh"))?.[0]).toBe(
+    "sshMotionCopy",
+  );
+  expect(motionSteps("chatgpt", "phone", "ssh")).toBeNull();
+  expect(motionSteps("claude", "phone", "code")).toBeNull();
+  // Every caption exists in both languages.
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale, "work");
+    for (const way of [
+      motionSteps("chatgpt", "phone", "code"),
+      motionSteps("chatgpt", "computer", "code"),
+      motionSteps("chatgpt", "computer", "ssh"),
+    ])
+      for (const step of way ?? []) expect(copy[step.text]).toBeTruthy();
+  }
 });

@@ -625,7 +625,38 @@ pre:empty { display: none; }
 .connections-devices { display: grid; gap: 6px; }
 .connections-devices[hidden] { display: none; }
 .connections-devices-head { padding: 0 4px; color: var(--muted-fg); font-size: 13px; font-weight: var(--lz-weight-akce); }
-.connections-ways { display: grid; gap: 12px; }
+.connections-apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 12px; }
+.app-card { display: grid; align-content: start; gap: 10px; padding: 16px 18px; }
+.app-card > * + * { border-top: 0; }
+.app-card-head { display: flex; gap: 10px; align-items: center; }
+.app-card-head h3 { color: var(--fg); font-size: 16px; font-weight: var(--lz-weight-akce); }
+.app-mark { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 8px; background: var(--fg); color: var(--bg, #fff); font: 700 11px/1 var(--font-mono, monospace); }
+.app-mark .icon { width: 16px; height: 16px; }
+.app-card[data-available="false"] .app-mark { opacity: 0.55; }
+.app-card .row-desc { min-height: 2.6em; }
+.app-badge { display: inline-flex; gap: 4px; align-items: center; padding: 1px 6px; border: 1px solid var(--lz-line); border-radius: 999px; color: var(--muted-fg); font-size: 12px; font-weight: var(--lz-weight-akce); }
+.app-badge .icon { width: 12px; height: 12px; }
+.pair-step { display: grid; gap: 12px; }
+.pair-devices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pair-device { display: grid; justify-items: center; gap: 8px; padding: 18px 10px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--bg, #fff); color: var(--fg); font-weight: var(--lz-weight-akce); }
+.pair-device:hover { border-color: var(--fg); }
+.pair-device .icon { width: 28px; height: 28px; }
+.pair-other { justify-self: center; color: var(--muted-fg); font-size: 13px; }
+#pair-motion .phone-motion-device, #pair-ssh-motion .phone-motion-device { display: flex; flex-direction: column; }
+#pair-motion .phone-motion-device[data-device="computer"], #pair-ssh-motion .phone-motion-device[data-device="computer"] { height: 132px; }
+.phone-motion-head { display: flex; flex: none; gap: 4px; align-items: center; justify-content: center; padding: 5px 0 3px; border-bottom: 1px solid var(--lz-line); color: var(--muted-fg); font-size: 10px; font-weight: var(--lz-weight-akce); }
+.phone-motion-screen { position: relative; flex: 1; }
+#pair-motion .phone-motion-step, #pair-ssh-motion .phone-motion-step { gap: 6px; }
+#pair-motion .phone-motion-icon, #pair-ssh-motion .phone-motion-icon { width: 40px; height: 40px; border-radius: 11px; font-size: 15px; }
+#pair-motion .phone-motion-icon .icon, #pair-ssh-motion .phone-motion-icon .icon { width: 22px; height: 22px; }
+.phone-motion-device[data-device="computer"] .phone-motion-label { max-width: 160px; }
+#pair-step-ssh .connections-paths { justify-self: stretch; text-align: left; }
+#pair-step-ssh .connections-paths li { flex-wrap: nowrap; }
+.phone-motion-head .icon { width: 10px; height: 10px; }
+.phone-motion-head .phone-motion-app { display: inline-flex; }
+.phone-motion-logo { display: contents; }
+.pair-step[hidden], .phone-pairing[hidden], .phone-motion[hidden] { display: none; }
+#phone-dialog .dialog-foot .pair-back { margin-right: auto; }
 .connections-ssh-head { grid-template-columns: 1fr auto; align-items: center; }
 .connections-ssh-head .button[hidden] { display: none; }
 .connections-paths li, #phone-devices li { display: flex; flex-wrap: wrap; gap: 0.5rem 0.75rem; align-items: center; padding: 12px 16px; }
@@ -639,12 +670,8 @@ pre:empty { display: none; }
 details.ssh-advanced { display: grid; gap: 12px; }
 details.ssh-advanced > summary { color: var(--muted-fg); font-size: 14px; cursor: pointer; }
 details.ssh-advanced[open] > summary { color: var(--fg); }
-.phone-card { display: grid; grid-template-columns: 180px 1fr; gap: 20px; align-items: center; padding: 18px; }
-.phone-card > * + * { border-top: 0; }
-@container (max-width: 520px) { .phone-card { grid-template-columns: 1fr; } }
 .phone-copy { display: grid; gap: 10px; align-content: center; }
 .phone-copy h3 { color: var(--fg); font-size: 17px; font-weight: var(--lz-weight-akce); }
-.phone-card[hidden] { display: none; }
 .phone-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
 .phone-actions:not(:has(> :not([hidden]))) { display: none; }
 #phone-restart-confirm { display: grid; gap: 8px; }
@@ -669,14 +696,15 @@ details.ssh-advanced[open] > summary { color: var(--fg); }
 .phone-motion-dots li:nth-child(5) { animation-delay: 8s; }
 @keyframes phone-step { 0% { opacity: 0; transform: translateY(8px); } 3%, 17% { opacity: 1; transform: none; } 20%, 100% { opacity: 0; transform: translateY(-8px); } }
 @keyframes phone-dot { 0%, 19% { background: var(--lz-accent); } 20%, 100% { background: var(--lz-gray-300, #c9ccd3); } }
-.phone-card[data-folded] { grid-template-columns: 1fr; }
-.phone-card[data-folded] .phone-motion { display: none; }
 .phone-needs { color: var(--muted-fg); font-size: 13px; }
 .link-button { padding: 0; border: 0; background: none; color: var(--link); font: inherit; font-size: 14px; cursor: pointer; }
 .link-button:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .phone-motion-device, .phone-motion-device[data-device="computer"] { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: auto; max-width: 100%; height: auto; overflow: visible; border: 0; border-radius: 0; }
   .phone-motion-step { position: static; opacity: 1; animation: none; }
+  #pair-motion .phone-motion-device, #pair-ssh-motion .phone-motion-device, #pair-motion .phone-motion-device[data-device="computer"], #pair-ssh-motion .phone-motion-device[data-device="computer"] { height: auto; }
+  .phone-motion-head { flex-basis: 100%; }
+  .phone-motion-screen { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
   .phone-motion-icon { width: 36px; height: 36px; font-size: 14px; }
   .phone-motion-dots { display: none; }
 }
@@ -2120,74 +2148,31 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      `data-ssh-block` (`prompt`, `config`, `known-hosts`) whose text is
      exactly what is written. -->
 <!-- Settings → Connections (decision F71 and its addendum of 2026-11-11,
-     root decision 0215 as amended that day, Matěj 2026-11-03 and
-     2026-11-11): one topic, Ovládat toto Prostředí, and under it the ways by
-     the device the person holds, both paired by a code through the person's
-     ChatGPT account: Telefon (the ChatGPT app scans the QR code) and Počítač
-     (ChatGPT Desktop takes the short code), one live code for both, drawn by
-     connections-panel.ts. Below them, only where the handover records a peer
-     that may open SSH into this Environment, the second way: Přes SSH with
-     the paths the tailnet allows in each direction and the way to F49's page
-     at /settings/ssh. Each way has its own motion graphic (#phone-motion,
-     #computer-motion), one element each. -->
+     root decision 0215 as amended that day, Matěj 2026-11-11): built by
+     app. Ovládat toto Prostředí has one card per app (ChatGPT, Claude,
+     T3 Code), each with one sentence on whether it pairs here and
+     Spárovat; the cards are drawn by connections-panel.ts. Spárovat opens
+     the pairing: the device first (phone or computer), then the code, with
+     one motion graphic drawn from one template for the app, device and
+     way, and, only for a computer, an app that speaks SSH and where the
+     handover records a peer that may open SSH into this Environment, the
+     quiet "Jiný způsob: SSH" with the paths in. The paired devices are one
+     list with the app's mark. Below, only where the handover records one,
+     the Environments this one reaches. -->
 <section id="section-connections" data-section="connections" aria-labelledby="page-heading">
 <section class="group" aria-labelledby="control-heading">
 <div class="group-head"><h2 id="control-heading" data-message="connectionsControl">Control this Environment</h2></div>
 <p id="phone-state" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
 <div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
-<div class="phone-actions"><a id="phone-sign-in" class="button" href="/settings/start" data-route data-message="phoneSignIn" hidden>Sign in</a><button type="button" id="phone-restart" data-message="phoneRestart" hidden>Restart Codex</button></div>
-<div class="connections-ways" data-guide="connections-ways">
-<div class="card phone-card" id="phone-card">
-<div class="phone-motion" id="phone-motion" aria-hidden="true">
-<div class="phone-motion-device" data-device="phone">
-<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="phoneMotionOpen">Open ChatGPT</span></div>
-<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon phone-motion-codex">&lt;/&gt;</span><span class="phone-motion-label" data-message="phoneMotionCodex">Tap Codex</span></div>
-<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="phoneMotionAdd">Add computer</span></div>
-<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-scan"></span><span class="phone-motion-label" data-message="phoneMotionScan">Scan the QR code</span></div>
-<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
-</div>
-<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
-</div>
-<div class="phone-copy">
-<h3 id="phone-heading" data-message="phoneTitle">Phone</h3>
-<p class="row-desc" data-message="phoneLead">Control the chats of this Environment from the ChatGPT app.</p>
-<div class="phone-actions"><button type="button" class="primary" id="phone-pair" data-message="phonePair" hidden>Pair a phone</button><button type="button" class="link-button" id="phone-how" aria-controls="phone-motion" hidden>Show how</button></div>
-</div>
-</div>
-<div class="card phone-card" id="computer-card">
-<div class="phone-motion" id="computer-motion" aria-hidden="true">
-<div class="phone-motion-device" data-device="computer">
-<div class="phone-motion-step" data-step="1"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-openai"/></svg></span><span class="phone-motion-label" data-message="computerMotionOpen">Open ChatGPT Desktop</span></div>
-<div class="phone-motion-step" data-step="2"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></span><span class="phone-motion-label" data-message="computerMotionConnections">Settings → Connections</span></div>
-<div class="phone-motion-step" data-step="3"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg></span><span class="phone-motion-label" data-message="computerMotionControl">Control other devices</span></div>
-<div class="phone-motion-step" data-step="4"><span class="phone-motion-icon phone-motion-codex">K7QF</span><span class="phone-motion-label" data-message="computerMotionCode">Enter the code</span></div>
-<div class="phone-motion-step" data-step="5"><span class="phone-motion-icon"><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg></span><span class="phone-motion-label" data-message="phoneMotionDone">Done</span></div>
-</div>
-<ol class="phone-motion-dots"><li></li><li></li><li></li><li></li><li></li></ol>
-</div>
-<div class="phone-copy">
-<h3 id="computer-heading" data-message="computerTitle">Computer</h3>
-<p class="row-desc" data-message="computerLead">Control this Environment from ChatGPT Desktop on your computer.</p>
-<div class="phone-actions"><button type="button" class="primary" id="computer-pair" data-message="computerPair" hidden>Pair a computer</button><button type="button" class="link-button" id="computer-how" aria-controls="computer-motion" hidden>Show how</button></div>
-</div>
-</div>
-</div>
-<p class="phone-needs" id="phone-needs" data-message="phoneNeeds" hidden>ChatGPT Plus or higher, the same account as Codex in this Environment.</p>
+<div class="connections-apps" id="connections-apps" data-guide="connections-ways"></div>
 <div id="phone-devices-group" class="connections-devices" hidden>
 <h3 id="phone-devices-heading" class="connections-devices-head" data-message="phoneDevices">Paired devices</h3>
 <ul class="card" id="phone-devices" aria-labelledby="phone-devices-heading"></ul>
 </div>
 </section>
-<section class="group" id="ssh-paths" aria-labelledby="ssh-paths-heading" data-guide="connections-ssh" hidden>
-<div class="group-head connections-ssh-head"><h2 id="ssh-paths-heading" data-message="pathsTitle">Over SSH</h2><a id="ssh-setup" class="button" href="/settings/ssh" data-route data-message="pathsSetUp" hidden>Set up SSH</a></div>
-<div id="ssh-paths-in" class="connections-devices" hidden>
-<h3 id="ssh-paths-in-heading" class="connections-devices-head" data-message="pathsInbound">You can connect here from</h3>
-<ul class="card connections-paths" id="ssh-paths-in-list" aria-labelledby="ssh-paths-in-heading"></ul>
-</div>
-<div id="ssh-paths-out" class="connections-devices" hidden>
-<h3 id="ssh-paths-out-heading" class="connections-devices-head" data-message="pathsOutbound">From here you can connect to</h3>
-<ul class="card connections-paths" id="ssh-paths-out-list" aria-labelledby="ssh-paths-out-heading"></ul>
-</div>
+<section class="group" id="ssh-paths" aria-labelledby="ssh-paths-heading" data-guide="connections-paths" hidden>
+<div class="group-head"><h2 id="ssh-paths-heading" data-message="pathsOutbound">From here you can connect to</h2></div>
+<ul class="card connections-paths" id="ssh-paths-out-list" aria-labelledby="ssh-paths-heading"></ul>
 </section>
 </section>
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">
@@ -2313,16 +2298,30 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      the dialog closes; Codex cannot end it, so it stays valid at ChatGPT
      until it expires and the next open shows the same code. -->
 <dialog id="phone-dialog" class="phone-dialog" aria-labelledby="phone-dialog-title">
-<div class="dialog-head"><h2 id="phone-dialog-title" tabindex="-1">Pair a phone</h2><button type="button" class="dialog-x" id="phone-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
-<div id="phone-dialog-pairing" class="phone-pairing">
-<p id="phone-dialog-hint">In the ChatGPT app, open Codex → Add computer and scan the code.</p>
+<div class="dialog-head"><h2 id="phone-dialog-title" tabindex="-1">Pair</h2><button type="button" class="dialog-x" id="phone-dialog-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>
+<div id="pair-step-device" class="pair-step">
+<p id="pair-where" class="row-desc"></p>
+<div class="pair-devices"><button type="button" class="pair-device" id="pair-phone"><svg class="icon" aria-hidden="true"><use href="#i-phone"/></svg><span data-message="phoneTitle">Phone</span></button><button type="button" class="pair-device" id="pair-computer"><svg class="icon" aria-hidden="true"><use href="#i-laptop"/></svg><span data-message="computerTitle">Computer</span></button></div>
+</div>
+<div id="phone-dialog-pairing" class="phone-pairing" hidden>
+<div class="phone-motion" id="pair-motion" aria-hidden="true"></div>
+<p id="phone-dialog-hint"></p>
 <div class="phone-qr-frame"><img id="phone-qr" class="phone-qr" width="280" height="280" alt=""></div>
 <div class="phone-code-row" id="phone-code-row"><code id="phone-code" class="phone-code"></code><button type="button" id="phone-code-copy"><svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-message="phoneCopy">Copy</span></button></div>
 <p id="phone-countdown" class="row-desc" role="timer" aria-live="off"></p>
+<p class="phone-needs" data-message="phoneNeeds">ChatGPT Plus or higher, the same account as Codex in this Environment.</p>
+<button type="button" class="link-button pair-other" id="pair-other-ssh" data-message="pairOtherSsh" hidden>Another way: SSH</button>
+</div>
+<div id="pair-step-ssh" class="phone-pairing" hidden>
+<div class="phone-motion" id="pair-ssh-motion" aria-hidden="true"></div>
+<p data-message="pathsInbound">You can connect here from</p>
+<ul class="card connections-paths" id="ssh-paths-in-list"></ul>
+<a id="ssh-setup" class="button primary" href="/settings/ssh" data-route data-message="pathsSetUp">Set up SSH</a>
+<button type="button" class="link-button pair-other" id="pair-back-code" data-message="pairBackToCode">Back to the code</button>
 </div>
 <div id="phone-dialog-done" class="phone-done" hidden><svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><p id="phone-dialog-paired">Your phone is paired</p></div>
 <p id="phone-dialog-status" class="row-status" role="status" aria-live="polite"></p>
-<div class="dialog-foot"><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" class="primary" id="phone-dialog-ok" data-message="phoneDone">Done</button></div>
+<div class="dialog-foot"><button type="button" class="pair-back" id="pair-back" data-message="pairBack" hidden>Back</button><button type="button" id="phone-new" data-message="phoneNewCode">New code</button><button type="button" class="primary" id="phone-dialog-ok" data-message="phoneDone">Done</button></div>
 </dialog>
 <dialog id="tools-login" aria-labelledby="tools-login-title" aria-describedby="tools-login-status">
 <div class="dialog-head"><h2 id="tools-login-title" tabindex="-1"></h2><button type="button" class="dialog-x" id="tools-login-close"><svg class="icon" aria-hidden="true"><use href="#i-x"/></svg><span class="sr-only" data-message="toolsClose">Close</span></button></div>

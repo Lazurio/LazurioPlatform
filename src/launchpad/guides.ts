@@ -383,9 +383,9 @@ export const devicesGuide = (copy: Copy, team: boolean): PageGuideInput => ({
   ],
 });
 
-/** Settings → Připojení (decision F71's addendum of 2026-11-11): a phone
- * or, on an Environment on a server, a computer pairs by a code through the
- * same ChatGPT account, and,
+/** Settings → Připojení (decision F71's addendum of 2026-11-11), built by
+ * app: an app pairs a phone or, on an Environment on a server, a computer
+ * by a code, and,
  * where the page shows SSH paths, SSH runs only along the paths the
  * network allows. */
 export const connectionsGuide = (
@@ -409,7 +409,7 @@ export const connectionsGuide = (
           {
             text: copy.guideConnectionsSsh,
             sub: copy.guideConnectionsSshSub,
-            at: "connections-ssh",
+            at: "connections-paths",
           },
         ]
       : []),
@@ -548,8 +548,8 @@ export type PageGuideFacts = Readonly<{
   /** Whether the Environment has Buddy (decision F65): Začínáme explains
    * his step, and Nastavení → Buddy is his. Absent: no Buddy. */
   buddy?: boolean | undefined;
-  /** Whether Připojení shows SSH paths (F71's addendum of 2026-11-11), so
-   * its "?" explains them. Absent: it shows none. */
+  /** Whether Připojení shows where this Environment reaches (F71's addendum
+   * of 2026-11-11), so its "?" explains it. Absent: it shows none. */
   connectionsSsh?: boolean | undefined;
 }>;
 

@@ -265,12 +265,12 @@ let toolTargets: ToolGuideTargets | null = null;
  * box (guides.ts `helpVideoBoxes`). */
 let videoHelp: HTMLButtonElement | null = null;
 let videoBox: string | null = null;
-/** Whether Připojení shows SSH paths: on a server, where the recorded
- * binding names a peer either way (F71's addendum of 2026-11-11). */
+/** Whether Připojení shows where this Environment reaches: on a server,
+ * where the recorded binding names a peer it may open SSH into (F71's
+ * addendum of 2026-11-11). */
 function connectionsShowSsh(): boolean {
   if (profileState === null || profileState.preset === "local") return false;
-  const paths = sshPaths(current.machine);
-  return paths !== null && paths.inbound.length + paths.outbound.length > 0;
+  return (sshPaths(current.machine)?.outbound.length ?? 0) > 0;
 }
 function drawGuide(route: PageRoute) {
   const guide = pageGuide(
