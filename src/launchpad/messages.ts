@@ -1258,6 +1258,8 @@ const en = {
   startAiOrganization: "Provided by your Organization.",
   startAiConnected: "Connected: {accounts}",
   startAiUnknown: "Could not check whether AI works here.",
+  startAiLapsed:
+    "The ChatGPT sign-in here no longer works. Please sign in again.",
   startAiApiKey: "OpenAI API key",
   startAiSignInChatgpt: "Sign in to ChatGPT",
   startAiSignInClaude: "Sign in to Claude",
@@ -3494,6 +3496,8 @@ const cs: Record<MessageKey, string> = {
   startAiOrganization: "Zajišťuje vaše Organizace.",
   startAiConnected: "Připojeno: {accounts}",
   startAiUnknown: "Nepodařilo se ověřit, jestli tu AI funguje.",
+  startAiLapsed:
+    "Přihlášení k ChatGPT tu už neplatí. Přihlaste se prosím znovu.",
   startAiApiKey: "API klíč OpenAI",
   startAiSignInChatgpt: "Přihlásit ChatGPT",
   startAiSignInClaude: "Přihlásit Claude",

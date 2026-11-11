@@ -3257,7 +3257,9 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   - the AI from `GET /api/ai` (`src/tools/ai.ts`, `src/tools/ai-probe.ts`): Codex's own
     app-server answers `account/read` (a ChatGPT sign-in or an API key works;
     `requiresOpenaiAuth: false` is the Organization's AI pool, whose provider needs no
-    OpenAI sign-in, so the step is done without the user), Claude Code answers
+    OpenAI sign-in, so the step is done without the user; an error that says the OpenAI
+    sign-in no longer works reads signed out with `lapsed`, and the step offers the
+    sign-in again), Claude Code answers
     `claude auth status --json`. `organization` or `connected` is done; `missing` only
     when every CLI answered (signed out or not installed); `unknown` (no answer) is
     never claimed missing and holds nothing back. The server keeps an answer a minute;

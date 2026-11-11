@@ -433,6 +433,97 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
   ).not.toHaveProperty("warning");
 });
 
+test("a ChatGPT sign-in that no longer works (revoked, expired, stored half): the step says so and offers the sign-in again, by page and by code", () => {
+  const lapsed = {
+    provider: "codex" as const,
+    state: "signed-out" as const,
+    lapsed: true as const,
+  };
+  const choose = {
+    kind: "choose" as const,
+    cancel: false,
+    byCode: { hint: byCodeHint },
+  };
+  // The only AI here: the step is to do, with why and both sign-ins.
+  const alone = startView(
+    facts({
+      ai: "missing",
+      aiReading: {
+        state: "missing",
+        providers: [lapsed, { provider: "claude", state: "signed-out" }],
+      },
+    }),
+    cs,
+  );
+  expect(alone?.steps[0]).toEqual({
+    basic: "ai",
+    mark: "now",
+    title: "Připojit AI",
+    status: "Přihlášení k ChatGPT tu už neplatí. Přihlaste se prosím znovu.",
+  });
+  expect(alone?.ai).toEqual(choose);
+  expect(
+    startView(
+      facts({
+        ai: "missing",
+        aiReading: { state: "missing", providers: [lapsed] },
+      }),
+      en,
+    )?.steps[0]?.status,
+  ).toBe("The ChatGPT sign-in here no longer works. Please sign in again.");
+  // Claude could not be checked: what Codex said is the one to act on.
+  const unknown = startView(
+    facts({
+      ai: "unknown",
+      aiReading: {
+        state: "unknown",
+        providers: [lapsed, { provider: "claude", state: "unknown" }],
+      },
+    }),
+    cs,
+  );
+  expect(unknown?.steps[0]?.status).toBe(
+    "Přihlášení k ChatGPT tu už neplatí. Přihlaste se prosím znovu.",
+  );
+  expect(unknown?.ai).toEqual(choose);
+  // Claude works: the step stays done, with the line beside the account and
+  // "Přihlásit jiný účet" for ChatGPT.
+  const connected = startView(
+    facts({
+      ai: "connected",
+      aiReading: {
+        state: "connected",
+        providers: [
+          lapsed,
+          { provider: "claude", state: "signed-in", account: "a@example.com" },
+        ],
+      },
+    }),
+    cs,
+  );
+  expect(connected?.steps[0]).toEqual({
+    basic: "ai",
+    mark: "done",
+    title: "Připojit AI",
+    status: "Připojeno: Claude, a@example.com",
+    warning: "Přihlášení k ChatGPT tu už neplatí. Přihlaste se prosím znovu.",
+  });
+  expect(connected?.ai).toEqual({ kind: "connected" });
+  // An ordinary sign-out says nothing more than before.
+  expect(
+    startView(
+      facts({
+        ai: "missing",
+        aiReading: {
+          state: "missing",
+          providers: [{ provider: "codex", state: "signed-out" }],
+        },
+      }),
+      cs,
+    )?.steps[0]?.status,
+  ).toBeNull();
+});
+
 test("Přihlásit kódem (root decision 0201 point 10): ChatGPT's quieter sign-in by code beneath the two, the code and OpenAI's page while it waits, never for Claude, the Organization's AI or a Team Environment", () => {
   const view = (overrides: Partial<StartFacts>, copy = cs) =>
     startView(facts(overrides), copy);

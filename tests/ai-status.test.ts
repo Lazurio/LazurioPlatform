@@ -75,6 +75,86 @@ test("Codex's account/read: an account works, a provider without OpenAI sign-in 
     });
 });
 
+// The errors Codex 0.167.1's `account/read` answers for an OpenAI sign-in
+// that no longer works (ai.ts, `codexLapsedSignIn`).
+const lapsedErrors = [
+  {
+    code: -32603,
+    message:
+      "Your access token could not be refreshed because your refresh token was revoked. Please log out and sign in again.",
+  },
+  {
+    code: -32603,
+    message:
+      "Your access token could not be refreshed because your refresh token has expired. Please log out and sign in again.",
+  },
+  {
+    code: -32603,
+    message:
+      "Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.",
+  },
+  {
+    code: -32603,
+    message:
+      "Your access token could not be refreshed. Please log out and sign in again.",
+  },
+  {
+    code: -32603,
+    message:
+      "Your access token could not be refreshed because you have since logged out or signed in to another account. Please sign in again.",
+  },
+  { code: -32603, message: "workspace routing discovery unauthorized (401)" },
+  {
+    code: -32600,
+    message: "plan type is required for chatgpt authentication",
+  },
+];
+
+test("Codex's account/read error: a sign-in that no longer works reads signed out, any other error is not known", () => {
+  for (const error of lapsedErrors)
+    expect(codexReading(undefined, error)).toEqual({
+      provider: "codex",
+      state: "signed-out",
+      lapsed: true,
+    });
+  // Errors that say nothing about the sign-in, or cannot be read: whether
+  // the Organization provides the AI is then not known (fail closed).
+  for (const error of [
+    { code: -32603, message: "workspace routing discovery failed" },
+    { code: -32603, message: "workspace routing discovery timed out" },
+    {
+      code: -32603,
+      message:
+        "failed to load workspace requirements: cloud config: request timed out",
+    },
+    {
+      code: -32600,
+      message: "Server is draining; retry after reconnecting",
+    },
+    {
+      code: -32600,
+      message:
+        "Bedrock API key auth is only supported by the Amazon Bedrock model provider",
+    },
+    { code: -32603, message: "" },
+    { code: -32603 },
+    "revoked",
+    null,
+  ])
+    expect(codexReading(undefined, error)).toEqual({
+      provider: "codex",
+      state: "unknown",
+    });
+  // Signed out after a sign-in that no longer works is missing like any
+  // other signed-out Codex; never the Organization's.
+  expect(
+    aiState([
+      codexReading(undefined, lapsedErrors[0]),
+      { provider: "claude", state: "signed-out" },
+    ]),
+  ).toBe("missing");
+});
+
 test("Claude Code's auth status: loggedIn, whatever the exit code", () => {
   expect(
     claudeReading(
@@ -154,6 +234,21 @@ test("the route's answer, as the page reads it", () => {
       { provider: "claude", state: "signed-out" },
     ],
   });
+  // A sign-in that no longer works is carried to the page, only where the
+  // CLI is signed out.
+  expect(
+    parseAiAnswer({
+      kind: "ai",
+      state: "missing",
+      providers: [
+        { provider: "codex", state: "signed-out", lapsed: true },
+        { provider: "claude", state: "signed-in", lapsed: true },
+      ],
+    })?.providers,
+  ).toEqual([
+    { provider: "codex", state: "signed-out", lapsed: true },
+    { provider: "claude", state: "signed-in" },
+  ]);
   for (const wrong of [
     null,
     { ...answer, kind: "other" },
@@ -306,6 +401,29 @@ posixTest(
         { loggedIn: false },
       );
       expect((await readAi(environment)).state).toBe("missing");
+      // A stored sign-in whose refresh token OpenAI revoked: account/read
+      // answers an error (while `codex login status` still says signed
+      // in). Signed out, so the sign-in is offered again.
+      await writeFile(
+        join(bin, "codex"),
+        `#!/bin/sh
+[ "$1" = "app-server" ] || exit 2
+while IFS= read -r line; do
+  case "$line" in
+    *'"account/read"'*) printf '%s\\n' '${JSON.stringify({ id: 1, error: lapsedErrors[0] })}' ;;
+    *'"initialize"'*) printf '%s\\n' '{"id":0,"result":{}}' ;;
+  esac
+done
+`,
+        { mode: 0o755 },
+      );
+      expect(await readAi(environment)).toEqual({
+        state: "missing",
+        providers: [
+          { provider: "codex", state: "signed-out", lapsed: true },
+          { provider: "claude", state: "signed-out" },
+        ],
+      });
       // A Codex that ends before it answers, or never answers: not known.
       await writeFile(join(bin, "codex"), "#!/bin/sh\nexit 0\n", {
         mode: 0o755,

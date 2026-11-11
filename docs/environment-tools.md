@@ -472,7 +472,9 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
     afresh right before `codex login` and never from a reading kept for the page, says
     its provider needs no OpenAI sign-in, the Organization's AI pool (`blocked`,
     `organization-provided`, exit 2). An `account/read` that cannot be read starts
-    nothing (`failed`, `provider-unknown`, exit 1). A hosted context that cannot be read
+    nothing (`failed`, `provider-unknown`, exit 1); one whose error says the OpenAI
+    sign-in no longer works (revoked, expired or stored without its account) reads
+    signed out and starts the sign-in (F36's addendum of 2026-11-11). A hosted context that cannot be read
     fails as `environment-unreadable`.
   - Signed in is what `codex login status` and `claude auth status --json` (the
     catalog's `signInProbe`) say after the CLI exited 0; otherwise `tool-exit` or
