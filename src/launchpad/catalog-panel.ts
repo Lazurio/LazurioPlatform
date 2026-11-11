@@ -784,6 +784,20 @@ export function createCatalogPanel(
       github.addEventListener("click", close);
       list.append(github);
     }
+    // "Zpřístupnit kolegům" (decision 0231): the Assigned User of this Work
+    // Environment makes the application available in the Organization's
+    // Dashboard, in this window, and comes back. Right after the overview,
+    // before the access items, which may join the open menu later.
+    const share = tileShareTarget(item, group, shareInput());
+    if (share !== null) {
+      const link = element("a", "tile-menu-item");
+      link.href = share;
+      link.title = copy.appsShareHint;
+      link.setAttribute("role", "menuitem");
+      link.append(svg("key"), copy.appsShare);
+      link.addEventListener("click", close);
+      list.append(link);
+    }
     // Whether the menu could ever offer it (a module, a Dashboard page),
     // before any Module Maintainer answer.
     const reachable =
@@ -818,19 +832,6 @@ export function createCatalogPanel(
       link.href = tabs;
       link.setAttribute("role", "menuitem");
       link.append(svg("folder"), copy.appsMoveToTab);
-      link.addEventListener("click", close);
-      list.append(link);
-    }
-    // "Zpřístupnit kolegům" (decision 0231): the Assigned User of this Work
-    // Environment makes the application available in the Organization's
-    // Dashboard, in this window, and comes back.
-    const share = tileShareTarget(item, group, shareInput());
-    if (share !== null) {
-      const link = element("a", "tile-menu-item");
-      link.href = share;
-      link.title = copy.appsShareHint;
-      link.setAttribute("role", "menuitem");
-      link.append(svg("key"), copy.appsShare);
       link.addEventListener("click", close);
       list.append(link);
     }
