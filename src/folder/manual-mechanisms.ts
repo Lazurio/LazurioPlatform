@@ -90,24 +90,29 @@ export const moduleWebsiteExample: Text = t(
 // and names the target.
 export const roleCheck: readonly Text[] = [
   t(
-    "Roli ověř živě, nikdy podle jména, persony ani souboru v repozitáři. `<org>` je GitHub organizace kořenového repozitáře Organizace (`git -C organizations/<složka> remote get-url origin`):",
-    "Check the role live, never by a name, a persona or a file in a repository. `<org>` is the GitHub organization of the Organization's root repository (`git -C organizations/<folder> remote get-url origin`):",
+    "Roli ověř živě pro nasazenou autoritu Organizace, nikdy podle jména, persony ani souboru v repozitáři. Následující příkazy ověřují jen dosavadní autoritu `owner`: aktivního Vlastníka Organizace na GitHubu. Neověřují jmenovaného Admina Organizace při autoritě `admin`. `<org>` je GitHub organizace kořenového repozitáře Organizace (`git -C organizations/<složka> remote get-url origin`):",
+    "Check the role live for the Organization's deployed authority, never by a name, persona or repository file. The commands below verify only the current `owner` authority: an active GitHub Organization Owner. They do not verify an appointed Organization Admin under `admin` authority. `<org>` is the GitHub organization of the Organization's root repository (`git -C organizations/<folder> remote get-url origin`):",
+  ),
+  blank,
+  t(
+    "**Autorita `admin`: zatím blokovaná cesta.** Rozhoduje účinná role jednajícího Lazurio účtu, nikoli členství na GitHubu. Tento manuál zatím nemá podporovaný konkrétní postup jejího živého ověření a přihlášení bez GitHubu dosud neexistuje. Neprováděj touto cestou správu Organizace, dokud není doložené nasazené přihlášení a podporované živé ověření účinné role pro konkrétní Lazurio subject. Nepředpokládej ji z deklarace, starého tokenu ani výpisu Vlastníků GitHubu a nevymýšlej náhradní API nebo přihlášení. Uveď blokaci, ne tvrzení, že je člověk Člen Organizace bez práv.",
+    "**Authority `admin`: currently blocked.** The acting Lazurio account's effective role decides, not GitHub membership. This manual does not yet have a supported concrete live-verification procedure for that role, and sign-in without GitHub does not exist yet. Perform no Organization administration by this path until deployed sign-in and a supported live check of the effective role for the exact Lazurio subject are evidenced. Never infer it from a declaration, old token or GitHub Owners list, and invent no substitute API or sign-in. Report the blocker instead of claiming the person is an Organization Member without rights.",
   ),
   blank,
   t("```sh", "```sh"),
   t(
-    "gh api user/memberships/orgs/<org> --jq '.role + \" \" + .state'   # admin active = Admin Organizace",
-    "gh api user/memberships/orgs/<org> --jq '.role + \" \" + .state'   # admin active = Organization Admin",
+    "gh api user/memberships/orgs/<org> --jq '.role + \" \" + .state'   # owner: admin active = dosavadní Admin Organizace",
+    "gh api user/memberships/orgs/<org> --jq '.role + \" \" + .state'   # owner: admin active = current Organization Admin",
   ),
   t(
-    "gh api 'orgs/<org>/members?role=admin' --jq '.[].login'          # kdo jsou Admini Organizace",
-    "gh api 'orgs/<org>/members?role=admin' --jq '.[].login'          # who the Organization Admins are",
+    "gh api 'orgs/<org>/members?role=admin' --jq '.[].login'          # Vlastníci pro autoritu owner",
+    "gh api 'orgs/<org>/members?role=admin' --jq '.[].login'          # Owners for owner authority",
   ),
   t("```", "```"),
   blank,
   t(
-    "Admin Organizace je cílově role Lazuria, kterou jmenuje Vlastník Organizace v Přehledu Organizace (rozhodnutí 0228, zatím nenasazené). Dokud Lazurio roli samo nehlásí, platí za Admina Organizace aktivní Vlastník Organizace (na GitHubu role Owner, v odpovědi `admin active`); tak to čte i Lazurio při instalaci Organizace a `lazurio organization role <Organizace>` to vypíše jako `organization-admin`. `member active` je Člen Organizace bez role Admina Organizace. Když GitHub neodpoví, roli neznáš a postupuj jako u Člena Organizace. Na Týmovém Prostředí jedná identita Teamu, která Adminem Organizace není nikdy. Z výpisu Adminů Organizace vynech boty a persony. `AGENTS.md` Organizace může Adminy Organizace jmenovat a říct, kde mají správní stanoviště; to je vodítko, ne oprávnění.",
-    "The Organization Admin is, as the target, a role of Lazurio that an Organization Owner appoints in the Organization's Dashboard (decision 0228, not yet deployed). Until Lazurio reports the role itself, an active Organization Owner (the GitHub Organization's owner role, `admin active` in the answer) counts as the Organization Admin; that is how Lazurio reads it when it installs an Organization, too, and `lazurio organization role <Organization>` prints it as `organization-admin`. `member active` is an Organization Member without the Organization Admin role. When GitHub does not answer, you do not know the role, so proceed as for an Organization Member. In a Team Environment the Team's identity acts, and it is never an Organization Admin. Leave bots and personas out of the list of Organization Admins. The Organization's `AGENTS.md` may name its Organization Admins and say where their administrative station is; that is a pointer, not a right.",
+    "Admin Organizace je cílově role Lazuria, kterou jmenuje Vlastník Organizace v Přehledu Organizace (rozhodnutí 0228, zatím nenasazené). Pro dosavadní autoritu `owner` je jím aktivní Vlastník Organizace (na GitHubu role Owner, odpověď `admin active`); tak tuto cestu čte instalace Organizace a `lazurio organization role <Organizace>` ji vypíše jako `organization-admin`. Tento příkaz nenahrazuje živé ověření jmenovaného Admina Organizace pro autoritu `admin`. `member active` dokládá jen členství na GitHubu; selhání GitHubu nedokládá žádnou roli. Neověřený stav označ jako neznámý a neprováděj správu, která vyžaduje Admina Organizace. Na Týmovém Prostředí jedná identita Teamu, která Adminem Organizace není nikdy. Z dosavadního výpisu Vlastníků vynech boty a persony. `AGENTS.md` Organizace může Adminy Organizace a správní stanoviště jmenovat; je to vodítko, ne oprávnění.",
+    "The Organization Admin is, as the target, a Lazurio role appointed by an Organization Owner in the Organization's Dashboard (decision 0228, not yet deployed). Under the current `owner` authority it is an active Organization Owner (GitHub Owner, `admin active`); Organization installation reads this path that way, and `lazurio organization role <Organization>` prints it as `organization-admin`. That command is no substitute for live verification of an appointed Organization Admin under `admin` authority. `member active` proves only GitHub membership; a GitHub failure proves no role. Mark unverified state unknown and perform no administration requiring the Organization Admin. In a Team Environment the Team identity acts and is never an Organization Admin. Leave bots and personas out of the current Owners list. The Organization's `AGENTS.md` may name its Organization Admins and administrative station; that is a pointer, not a right.",
   ),
 ];
 
@@ -389,8 +394,8 @@ export const mechanisms: readonly Text[] = [
     "| Publish a production application or deploy a new version | prepares a request | approves by merging the deployment PR; the pipeline deploys |",
   ),
   t(
-    "| Přidat nebo odebrat roli v produkční aplikaci | požádá podle Lazurio účtu | ověří členství, změní roli a přečte výsledek |",
-    "| Add or remove a production application's role | asks by Lazurio account | checks membership, changes the role and reads back the result |",
+    "| Přidat nebo odebrat roli v produkční aplikaci | oprávněný Správce modulu či Přispěvatel modulu podle společného postupu; ostatní požádají | ověří členství, změní roli a přečte výsledek |",
+    "| Add or remove a production application's role | an authorized Module Maintainer or Module Contributor follows the shared procedure; others ask | checks membership, changes the role and reads back the result |",
   ),
   t(
     "| Nový kolega, nové Prostředí, víc paměti nebo disku | požádá | zařídí |",
@@ -418,8 +423,8 @@ export const mechanisms: readonly Text[] = [
 
 export const organizationAdmin: readonly Text[] = [
   t(
-    "Tato kapitola je pro agenta, jehož uživatel je Admin Organizace. Než podle ní cokoli uděláš, ověř roli. Když uživatel Admin Organizace není, řiď se `manual/mechanisms.md` a skillem `admin-request`. Obecný model je tady; konkrétní dočasné cesty, jména Adminů Organizace, správní stanoviště a aktuální práva drží `AGENTS.md` a skilly Organizace. Přečti je před první změnou a kde se s touto kapitolou rozcházejí, platí pro postup Organizace, pro principy tahle kapitola; rozpor zapiš jako issue do kořenového repozitáře Organizace.",
-    "This chapter is for the agent whose user is the Organization Admin. Before you do anything by it, check the role. When the user is not the Organization Admin, follow `manual/mechanisms.md` and the skill `admin-request`. The general model is here; the concrete temporary paths, the Organization Admins' names, the administrative station and the current rights are in the Organization's `AGENTS.md` and skills. Read them before the first change; where they and this chapter disagree, the Organization's text holds for the procedure and this chapter for the principles; file the conflict as an issue in the Organization's root repository.",
+    "Tato kapitola drží postupy Admina Organizace; před správou Organizace ověř jeho roli. Jedinou společnou částí je oddíl Role produkční aplikace: při změně role aplikace v již nasazeném vlastním modulu ho může použít i Správce modulu nebo Přispěvatel modulu s ověřeným živým grantem a nasazeným ověřovatelem role modulu. Ten přejde přímo k tomuto oddílu a neprovádí ostatní postupy vyhrazené Adminovi Organizace. Kdo nesplňuje podmínky ani jedné cesty, připraví žádost skillem `admin-request` podle `manual/mechanisms.md`; neověřitelnou autoritu `admin` označ jako blokaci podle ověření role níže. Obecný model je tady; konkrétní dočasné cesty, jména Adminů Organizace, správní stanoviště a aktuální práva drží `AGENTS.md` a skilly Organizace. Přečti je před první změnou a kde se s touto kapitolou rozcházejí, platí pro postup Organizace, pro principy tahle kapitola; rozpor zapiš jako issue do kořenového repozitáře Organizace.",
+    "This chapter holds the Organization Admin's procedures; verify their role before Organization administration. The sole shared part is Production application roles: for an application-role change in an already deployed app of their own module, a Module Maintainer or Module Contributor with a verified live grant and deployed Module role observer may use it too. They go directly to that section and perform none of the other procedures reserved for the Organization Admin. Whoever qualifies for neither path prepares an `admin-request` by `manual/mechanisms.md`; report unverifiable `admin` authority as a blocker by the role check below. The general model is here; the concrete temporary paths, the Organization Admins' names, the administrative station and the current rights are in the Organization's `AGENTS.md` and skills. Read them before the first change; where they and this chapter disagree, the Organization's text holds for the procedure and this chapter for the principles; file the conflict as an issue in the Organization's root repository.",
   ),
   blank,
   ...roleCheck,

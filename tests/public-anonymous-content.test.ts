@@ -992,13 +992,13 @@ test("a public Environment's agents' texts say it has no GitHub identity, reads 
     en: [
       "On GitHub you act as the brokered Organization identity",
       "check live whether the Team's identity may push to it",
-      "file an issue for them in the Organization's root repository",
+      "assign them an issue in the Organization's root repository",
       "## A repository you only read: propose the change in an issue",
     ],
     cs: [
       "Na GitHubu jednáš jako brokerovaná identita Organizace",
       "ověř živě, jestli do něj identita Teamu smí pushovat",
-      "zapiš mu issue do kořenového repozitáře Organizace",
+      "přiřaď mu issue v kořenovém repozitáři Organizace",
       "## Repozitář, který jen čteš: změnu navrhni v issue",
     ],
   };
