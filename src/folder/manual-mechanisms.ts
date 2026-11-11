@@ -1,5 +1,9 @@
 import { type MessageKey, messages } from "../launchpad/messages";
 import { folderCzechLabels } from "./held-labels";
+import {
+  productionAdmin,
+  productionMechanisms,
+} from "./production-applications";
 import type { Text } from "./render";
 
 // Two chapters of the agent manual (decision F14) for the agents of people in
@@ -311,6 +315,8 @@ export const mechanisms: readonly Text[] = [
     "As the target, an Organization with a tailnet lets only devices an Organization Admin approved into its Environments (decision 0192, target model). The transition is not complete, and how a device gets access today differs between tailnets: the Organization's `AGENTS.md` says what holds there, otherwise the Organization Admin. Do not tell the user that a device is blocked or allowed until you have checked. The person registers the device alone in the Tailscale app with their Lazurio account; registration alone grants no access. Approval is the Organization Admin's: as the target with a click in the Organization's Dashboard, today in some Organizations by a reviewed change in the Deployment Repo. The person reports a lost device to the Organization Admin at once. An Organization in public DNS (decision 0213) approves no devices: entry is with the Lazurio account and only on the web. The registration steps are in `manual/this-machine.md`, section Adding a computer to a tailnet.",
   ),
   blank,
+  ...productionMechanisms,
+  blank,
   t("## Aktualizace", "## Updates"),
   t(
     "Základ Prostředí a Lazurio aktualizuje provozovatel hostingu rolloutem a `lazurio update` srovná checkouty (rozhodnutí 0161). Nástroje uživatele (Codex, Claude Code, `gh` a další) aktualizuješ jen s jeho souhlasem (`manual/troubleshooting.md`). Když něco selže, opravuje se vpřed v Obnově (rozhodnutí 0166). Server, paměť, disk a síť jsou věc Admina Organizace.",
@@ -376,6 +382,14 @@ export const mechanisms: readonly Text[] = [
   t(
     "| Role modulu (nastavení Přístup k modulu) | požádá | nastaví ji |",
     "| A Module role (the setting Module access) | asks | sets it |",
+  ),
+  t(
+    "| Zveřejnit produkční aplikaci nebo nasadit novou verzi | připraví žádost | schválí mergem PR nasazení, pipeline nasadí |",
+    "| Publish a production application or deploy a new version | prepares a request | approves by merging the deployment PR; the pipeline deploys |",
+  ),
+  t(
+    "| Přidat nebo odebrat roli v produkční aplikaci | požádá podle Lazurio účtu | ověří členství, změní roli a přečte výsledek |",
+    "| Add or remove a production application's role | asks by Lazurio account | checks membership, changes the role and reads back the result |",
   ),
   t(
     "| Nový kolega, nové Prostředí, víc paměti nebo disku | požádá | zařídí |",
@@ -502,6 +516,8 @@ export const organizationAdmin: readonly Text[] = [
     "Roli modulu pro Team nebo jednoho člověka měň v Přehledu Organizace (Moduly → Přístup), kde to jde, jinak na GitHubu právy Admina Organizace (rozhodnutí 0186, 0232). Kde repozitář může mít branch rules, je Čtenář modulu `pull`, Přispěvatel modulu `push` a Správce modulu `maintain`; kde je mít nemůže, Přispěvatel modulu neexistuje a Správce modulu je `push`. Roli modulu dostanou jen lidé s členstvím v Organizaci. Integraci pro celou Organizaci připojuje Admin Organizace sám svým přihlášením; agent ji nepřipojuje za něj.",
     "Change a Module role for a Team or one person in the Organization's Dashboard (Modules → Access) where possible, otherwise on GitHub with the Organization Admin's rights (decisions 0186, 0232). Where the repository can have branch rules, the Module Reader is `pull`, the Module Contributor `push` and the Module Maintainer `maintain`; where it cannot, there is no Module Contributor and the Module Maintainer is `push`. Module roles go only to people with a membership of the Organization. The Organization Admin connects an Integration for the whole Organization with their own sign-in; the agent never connects it for them.",
   ),
+  blank,
+  ...productionAdmin,
   blank,
   t(
     "## Co Admin Organizace nedělá",
