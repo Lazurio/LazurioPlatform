@@ -24793,7 +24793,8 @@ as the second way, and only where the tailnet allows it.
    page shows paths, that they are the ones the network allows and whoever
    runs the network allows a new one. The motion graphics stay; the page keeps
    only data and actions.
-6. **The generated manual** (`manual-mechanisms.ts`) says that a computer pairs
+6. **The generated manual** (`manual-mechanisms.ts`, template revision
+   `base-instructions-118`) says that a computer pairs
    by code and that SSH is the second way, offered only where the network
    allows a path.
 
