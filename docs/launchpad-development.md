@@ -635,9 +635,11 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
     that Organization's Dashboard; without it, `personal` or an unlisted slug is the
     personal Dashboard (`pageOf` in `view.ts`). The rail marks that Organization as the
     space you are in (the quiet surface with a hairline), or on the personal Dashboard
-    no space and the logo (`aria-current="page"`, the same look). It keeps no last Environment and reports none; a space opens the
-    account's last visit there in its app, else its first Environment's Apps, else its
-    Dashboard (`railSpaces` with no app of its own).
+    no space and the logo (`aria-current="page"`, the same look). It keeps no last Environment and reports none; an Organization opens Apps of the
+    account's last Environment there, never the app that visit recorded (F36's addendum
+    of 2026-11-09), and your personal space the account's last visit there in its app;
+    else the first Environment's Apps, else the space's Dashboard (`railSpaces` with no
+    app of its own).
   - **The column head** (`columnHead` in `view.ts`) on an Organization's Dashboard:
     the Organization's avatar (or initials), its name and "Dashboard Organizace"; the
     list under it with its Environments, none current (⌘⇧E marks the Organization's head

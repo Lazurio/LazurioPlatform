@@ -937,8 +937,9 @@ export class LazurioRail extends ShellElement {
       app,
       last:
         app === null
-          ? // A page that is no Environment's: the account's last visit,
-            // in its app; this origin keeps none.
+          ? // A page that is no Environment's: the account's last visit
+            // (railSpaces opens an Organization's in Apps, your personal
+            // space's in its app); this origin keeps none.
             (space) => accountLast.get(space) ?? null
           : // Where you were last in each other space: the account's
             // memory (every Environment is its own origin, so this
