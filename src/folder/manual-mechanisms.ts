@@ -2,6 +2,7 @@ import { type MessageKey, messages } from "../launchpad/messages";
 import { folderCzechLabels } from "./held-labels";
 import {
   productionAdmin,
+  productionApplicationRoles,
   productionMechanisms,
 } from "./production-applications";
 import type { Text } from "./render";
@@ -518,6 +519,7 @@ export const organizationAdmin: readonly Text[] = [
   ),
   blank,
   ...productionAdmin,
+  ...productionApplicationRoles,
   blank,
   t(
     "## Co Admin Organizace nedělá",
