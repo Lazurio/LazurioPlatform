@@ -281,9 +281,11 @@ export function personalStandIn(
  * entry point to nothing. It appears by itself once one exists. A click
  * leads to the space's last Environment (`last`, by space: the account's or what this browser remembers), else its first;
  * a space without one leads to its Dashboard. On an Environment's page it
- * stays in the rail's app (`app`). On a page that is no Environment's
- * (`app` null, F36's addendum of 2026-10-05) there is no app to stay in: the
- * last Environment opens in the app its visit recorded, any other in Apps.
+ * stays in the rail's app (`app`): from Chat you stay in Chat, from Automate
+ * in Automate. On a page that is no Environment's (`app` null, F36's addendum
+ * of 2026-10-05) an Organization opens Apps (F36's addendum of 2026-11-09),
+ * never the app its last visit recorded; your personal space's last
+ * Environment opens in the app its visit recorded, any other in Apps.
  * `here` is the space you are in; none on the personal Dashboard. */
 export function railSpaces(
   shell: Shell,
@@ -308,8 +310,11 @@ export function railSpaces(
         : remembered;
     const last = environments.find((entry) => entry.id === visit?.environment);
     const target = last ?? environments[0];
-    const app =
-      options.app ?? (last === undefined ? null : visit?.app) ?? "apps";
+    // Off an Environment's page an Organization opens Apps, not the app of
+    // its last visit (F36's addendum of 2026-11-09).
+    const recorded =
+      id === personalSpace && last !== undefined ? visit?.app : null;
+    const app: ShellApp = options.app ?? recorded ?? "apps";
     return Object.freeze({
       space: id,
       title,
