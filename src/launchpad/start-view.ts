@@ -600,8 +600,9 @@ export const carriesOrganization = (
 
 /** "Volitelné": Composio where Tools offer it; on a Remote Environment SSH
  * from the person's own computer (`sshDevices`: how many devices have a
- * key, null when not known) and ChatGPT Desktop, which works over that SSH
- * (its state is the person's computer's, so it has none here). Between them
+ * key, null when not known), where SSH into it is allowed (`ssh`), and
+ * ChatGPT Desktop over that SSH where it cannot pair by code (its state is
+ * the person's computer's, so it has none here). Between them
  * "Trezor v Bitwardenu" where Apps → Trezor gives the steps that add the
  * Environment's vault to Bitwarden in ChatGPT Desktop and the person's browser
  * (`bitwarden`, `offersBitwarden`; F53's addendum of 2026-10-16): no state
@@ -616,9 +617,14 @@ export function optionalRows(
     composio: ComposioFact;
     sshDevices: number | null;
     bitwarden: boolean;
-    /** Telefon přes ChatGPT (decision F71): shown only where pairing is
-     * offered, with how many phones are paired; absent or null hides it. */
+    /** Telefon a počítač přes ChatGPT (decision F71 and its addendum of
+     * 2026-11-11): shown only where pairing is offered, with how many
+     * devices are paired; absent or null hides it. */
     phone?: Readonly<{ ready: boolean; devices: number }> | null;
+    /** Whether SSH into this Environment is offered (`offersSsh`: the
+     * handover records a peer that may open it); false hides SSH and
+     * ChatGPT Desktop over SSH, absent keeps them on a server. */
+    ssh?: boolean | undefined;
     organization?: boolean;
   }>,
   copy: Copy,
@@ -665,7 +671,7 @@ export function optionalRows(
               to: "composio",
             },
     });
-  const remote = input.preset !== "local";
+  const remote = input.preset !== "local" && input.ssh !== false;
   if (input.phone?.ready === true)
     rows.push({
       id: "phone",
@@ -699,7 +705,8 @@ export function optionalRows(
         part: "bitwarden",
       },
     });
-  if (remote)
+  // ChatGPT Desktop over SSH only where the computer cannot pair by code.
+  if (remote && input.phone?.ready !== true)
     rows.push({
       id: "codex",
       title: "ChatGPT Desktop",

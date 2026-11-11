@@ -2,15 +2,20 @@ import { expect, test } from "bun:test";
 import { pairingQrPayload } from "../src/connections/pairing";
 import {
   deviceDetail,
+  deviceForm,
   deviceName,
   offersRestart,
   offersSignIn,
+  offersSsh,
   parseConnectionsOverview,
   parsePairing,
   parsePoll,
+  pathDetail,
   remaining,
+  sshPaths,
   stateMessage,
 } from "../src/launchpad/connections-view";
+import type { MachinePeer } from "../src/launchpad/machine-view";
 import { messages } from "../src/launchpad/messages";
 import { optionalRows } from "../src/launchpad/start-view";
 import { qrMatrix, qrSvg } from "../src/tools/qr";
@@ -92,7 +97,7 @@ test("each state's words, sign-in and restart", () => {
   );
   expect(cs.connectionsControl).toBe("Ovládat toto Osobní Prostředí");
   expect(cs.computerLead).toBe(
-    "Z ChatGPT Desktopu na svém počítači ovládáte toto Osobní Prostředí.",
+    "Chaty tohoto Osobního Prostředí ovládáte z ChatGPT Desktopu.",
   );
   expect(cs.phoneHint).toBe(
     "V aplikaci ChatGPT otevřete Codex → Přidat počítač a naskenujte kód.",
@@ -156,11 +161,140 @@ test("Začínáme: the phone's row only where pairing is offered", () => {
     "codex",
   ]);
   const offered = rows({ ready: true, devices: 0 });
-  expect(offered.map((row) => row.id)).toEqual(["phone", "ssh", "codex"]);
+  // A computer pairs by code too, so ChatGPT Desktop over SSH steps back.
+  expect(offered.map((row) => row.id)).toEqual(["phone", "ssh"]);
   expect(offered[0]).toMatchObject({
-    title: "Telefon přes ChatGPT",
+    title: "Telefon a počítač přes ChatGPT",
     status: cs.startNotSet,
-    action: { label: "Spárovat telefon", to: "/settings/connections" },
+    action: { label: "Spárovat", to: "/settings/connections" },
   });
   expect(rows({ ready: true, devices: 1 })[0]?.status).toBe(cs.startSet);
+});
+
+// Settings → Connections, F71's addendum of 2026-11-11: a phone and a
+// computer both pair by code; SSH is offered only where the handover
+// records a peer that may open it, with the paths each way.
+
+const peer = (
+  name: string,
+  kind: string,
+  direction: "inbound" | "outbound" | "both" | null,
+  organization: string | null = null,
+): MachinePeer => ({
+  name,
+  kind,
+  zone: null,
+  organization,
+  ssh:
+    direction === null
+      ? null
+      : { host: `${name}.tailnet.example`, user: null, direction },
+  https: [],
+});
+
+test("a paired device is a phone or a computer", () => {
+  expect(deviceForm(device)).toBe("phone");
+  expect(deviceForm({ ...device, deviceType: null, platform: "ios" })).toBe(
+    "phone",
+  );
+  expect(
+    deviceForm({ ...device, deviceType: "desktop", platform: "macos" }),
+  ).toBe("computer");
+  // An unknown form is a computer: only phones are known to say so.
+  expect(deviceForm({ ...device, deviceType: null, platform: null })).toBe(
+    "computer",
+  );
+});
+
+test("the SSH paths each way, as the handover records them", () => {
+  const machine = {
+    relationships: {
+      zone: "work",
+      peers: [
+        peer("alex-laptop", "client-device", "inbound"),
+        peer("alex-personal-vm", "personal-vm", "inbound"),
+        peer("example-sales-vm", "workspace-vm", "outbound", "example"),
+        peer("alex-desktop", "client-device", "both"),
+        peer("alex-phone", "client-device", null),
+        peer("alex-laptop", "client-device", "inbound"),
+      ],
+    },
+  };
+  const paths = sshPaths(machine);
+  expect(paths?.inbound.map((path) => path.name)).toEqual([
+    "alex-laptop",
+    "alex-personal-vm",
+    "alex-desktop",
+  ]);
+  expect(paths?.outbound.map((path) => path.name)).toEqual([
+    "example-sales-vm",
+    "alex-desktop",
+  ]);
+  // Nothing recorded is nothing known; an empty list is known to be empty.
+  expect(sshPaths({})).toBeNull();
+  expect(sshPaths(null)).toBeNull();
+  expect(sshPaths({ relationships: { zone: "work", peers: [] } })).toEqual({
+    inbound: [],
+    outbound: [],
+  });
+});
+
+test("SSH is offered only where a peer may open it into a server", () => {
+  const into = sshPaths({
+    relationships: {
+      zone: "personal",
+      peers: [peer("alex-laptop", "client-device", "inbound")],
+    },
+  });
+  const outOnly = sshPaths({
+    relationships: {
+      zone: "personal",
+      peers: [peer("example-sales-vm", "workspace-vm", "outbound", "example")],
+    },
+  });
+  expect(offersSsh("hosted-personal", into)).toBe(true);
+  expect(offersSsh("hosted-personal", outOnly)).toBe(false);
+  expect(offersSsh("hosted-organization-personal", null)).toBe(false);
+  expect(offersSsh("local", into)).toBe(false);
+});
+
+test("a path's line names its kind and Organization in both languages", () => {
+  const cs = messages("cs", "work");
+  const en = messages("en", "work");
+  const work = {
+    name: "example-sales-vm",
+    kind: "workspace-vm",
+    organization: "example",
+  };
+  expect(pathDetail(work, cs)).toBe("Pracovní Prostředí · example");
+  expect(pathDetail(work, en)).toBe("Work Environment · example");
+  expect(
+    pathDetail(
+      { name: "alex-laptop", kind: "client-device", organization: null },
+      cs,
+    ),
+  ).toBe("Zařízení");
+  expect(
+    pathDetail({ name: "x", kind: "future-kind", organization: null }, en),
+  ).toBe("future-kind");
+});
+
+test("Začínáme: SSH and ChatGPT Desktop over it only where SSH is allowed", () => {
+  const cs = messages("cs", "work");
+  const rows = (ssh: boolean | undefined, ready: boolean) =>
+    optionalRows(
+      {
+        preset: "hosted-organization-personal",
+        composio: "none",
+        sshDevices: 0,
+        bitwarden: false,
+        phone: { ready, devices: 0 },
+        ssh,
+      },
+      cs,
+    ).map((row) => row.id);
+  expect(rows(false, true)).toEqual(["phone"]);
+  expect(rows(false, false)).toEqual([]);
+  expect(rows(true, false)).toEqual(["ssh", "codex"]);
+  expect(rows(undefined, false)).toEqual(["ssh", "codex"]);
 });

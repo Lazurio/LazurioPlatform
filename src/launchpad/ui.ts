@@ -47,7 +47,11 @@ import {
   parsePromptHandoff,
 } from "./chat-view";
 import { createConnectionsPanel } from "./connections-panel";
-import { parseConnectionsOverview } from "./connections-view";
+import {
+  offersSsh,
+  parseConnectionsOverview,
+  sshPaths,
+} from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
 import { createContentPanel } from "./content-panel";
 import {
@@ -261,6 +265,13 @@ let toolTargets: ToolGuideTargets | null = null;
  * box (guides.ts `helpVideoBoxes`). */
 let videoHelp: HTMLButtonElement | null = null;
 let videoBox: string | null = null;
+/** Whether Připojení shows SSH paths: on a server, where the recorded
+ * binding names a peer either way (F71's addendum of 2026-11-11). */
+function connectionsShowSsh(): boolean {
+  if (profileState === null || profileState.preset === "local") return false;
+  const paths = sshPaths(current.machine);
+  return paths !== null && paths.inbound.length + paths.outbound.length > 0;
+}
 function drawGuide(route: PageRoute) {
   const guide = pageGuide(
     route,
@@ -279,6 +290,7 @@ function drawGuide(route: PageRoute) {
             : "none",
       tools: toolTargets,
       buddy: buddyHere(),
+      connectionsSsh: connectionsShowSsh(),
     },
     copy,
   );
@@ -886,6 +898,12 @@ const startPanel = createStartPanel({
   composio: () => composioFact(toolsOverview, composioOrganization.rule()),
   sshDevices: () => sshDevices,
   phone: () => phoneSummary,
+  // SSH and ChatGPT Desktop over it only where SSH into this Environment is
+  // allowed (F71's addendum of 2026-11-11).
+  ssh: () =>
+    profileState === null
+      ? undefined
+      : offersSsh(profileState.preset, sshPaths(current.machine)),
   vault: () => vaultRow,
   bitwarden: () => vaultBitwarden,
   reveal: () => vaultPage.revealBitwarden(),
@@ -1467,14 +1485,18 @@ const ssh = createSshPanel({
   },
   origin: () => location.origin,
 });
-// Settings → Connections → Telefon přes ChatGPT (decision F71): read on
-// first view and after the pairing dialog closes.
+// Settings → Connections (decision F71 and its addendum of 2026-11-11): read
+// on first view and after the pairing dialog closes; the SSH paths are the
+// recorded binding's.
 const connections = createConnectionsPanel({
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,
   locale: () => locale,
-  computer: () => profileState !== null && profileState.preset !== "local",
+  environment: () =>
+    profileState === null
+      ? null
+      : { preset: profileState.preset, machine: current.machine },
 });
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
@@ -1941,7 +1963,7 @@ async function load() {
   // content operation as a person's work Environment.
   if (!first) void content.refresh();
   renderUpdate();
-  // Připojení offers Počítač by the preset (decision F71).
+  // Připojení offers Počítač by the preset and SSH by the binding (F71).
   connections.render();
   if (relabelled) {
     relabel();

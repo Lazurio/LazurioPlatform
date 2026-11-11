@@ -383,6 +383,31 @@ export const devicesGuide = (copy: Copy, team: boolean): PageGuideInput => ({
   ],
 });
 
+/** Settings → Připojení (decision F71's addendum of 2026-11-11): a phone
+ * or a computer pairs by a code through the same ChatGPT account, and,
+ * where the page shows SSH paths, SSH runs only along the paths the
+ * network allows. */
+export const connectionsGuide = (copy: Copy, ssh: boolean): PageGuideInput => ({
+  id: ssh ? "settings-connections-ssh" : "settings-connections",
+  title: copy.connectionsTitle,
+  steps: [
+    {
+      text: copy.guideConnectionsPair,
+      sub: copy.guideConnectionsPairSub,
+      at: "connections-ways",
+    },
+    ...(ssh
+      ? [
+          {
+            text: copy.guideConnectionsSsh,
+            sub: copy.guideConnectionsSshSub,
+            at: "connections-ssh",
+          },
+        ]
+      : []),
+  ],
+});
+
 /** Settings → Obnova: Lazurio checks itself, what fails shows, an agent
  * repairs it. */
 export const recoveryGuide = (copy: Copy): PageGuideInput => ({
@@ -515,6 +540,9 @@ export type PageGuideFacts = Readonly<{
   /** Whether the Environment has Buddy (decision F65): Začínáme explains
    * his step, and Nastavení → Buddy is his. Absent: no Buddy. */
   buddy?: boolean | undefined;
+  /** Whether Připojení shows SSH paths (F71's addendum of 2026-11-11), so
+   * its "?" explains them. Absent: it shows none. */
+  connectionsSsh?: boolean | undefined;
 }>;
 
 const none: PageGuide = Object.freeze({ help: null, video: null, guides: [] });
@@ -595,8 +623,10 @@ export function pageGuide(
           const guide = toolsGuide(copy, team, facts.tools);
           return plays(guide.id, [guide]);
         }
-        case "connections":
-          return none;
+        case "connections": {
+          const guide = connectionsGuide(copy, facts.connectionsSsh === true);
+          return plays(guide.id, [guide]);
+        }
         case "ssh": {
           const guide = devicesGuide(copy, team);
           return plays(guide.id, [guide]);

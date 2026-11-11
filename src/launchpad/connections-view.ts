@@ -6,12 +6,14 @@ import type {
   PairingStarted,
   RemoteControlReason,
 } from "../connections/pairing";
+import type { MachinePeer, MachineView } from "./machine-view";
 import type { MessageKey } from "./messages";
 import { qrImageSource } from "./tools-view";
 
-// Settings → Connections → Telefon přes ChatGPT (decision F71): the answers
-// of `/api/connections*` in their exact shapes and the words the page shows
-// for them. Pure, so the page's logic is tested without a browser.
+// Settings → Connections (decision F71 and its addendum of 2026-11-11): the
+// answers of `/api/connections*` in their exact shapes, the SSH paths the
+// handover records and the words the page shows for them. Pure, so the
+// page's logic is tested without a browser.
 
 type Data = Readonly<Record<string, unknown>>;
 const isRecord = (value: unknown): value is Data =>
@@ -195,6 +197,104 @@ export function deviceDetail(device: PairedDevice): string {
     device.platform,
     device.appVersion === null ? null : `ChatGPT ${device.appVersion}`,
   ]
+    .filter((part): part is string => part !== null && part !== "")
+    .join(" · ");
+}
+
+/** Whether a paired device is a phone (or a tablet) or a computer. Codex
+ * names the form in a free string and only "phone" has been seen (F71), so
+ * a phone is that, a mobile form or a phone platform, and anything else,
+ * an unknown form included, is a computer. */
+export function deviceForm(device: PairedDevice): "phone" | "computer" {
+  const type = device.deviceType?.toLowerCase() ?? "";
+  const platform = device.platform?.toLowerCase() ?? "";
+  return /phone|mobile|tablet/.test(type) ||
+    /^(android|ios|ipados)$/.test(platform)
+    ? "phone"
+    : "computer";
+}
+
+/** One SSH path between this Environment and a peer of its tailnet, as the
+ * handover records it (F71's addendum of 2026-11-11): the peer's node name,
+ * its kind and its Organization. */
+export type SshPath = Readonly<{
+  name: string;
+  kind: MachinePeer["kind"];
+  organization: string | null;
+}>;
+
+export type SshPaths = Readonly<{
+  /** Peers that may open SSH into this Environment. */
+  inbound: readonly SshPath[];
+  /** Peers this Environment may open SSH into. */
+  outbound: readonly SshPath[];
+}>;
+
+/** The SSH paths the handover records, each peer once per direction, in
+ * the handover's order; null where the handover records no relationships,
+ * so nothing is known and nothing is offered. Machines derives them from
+ * the tailnet's grants (root decisions 0192 and 0224) and Headscale
+ * enforces them; the page only reads them. */
+export function sshPaths(
+  machine: Pick<MachineView, "relationships"> | null,
+): SshPaths | null {
+  const peers = machine?.relationships?.peers;
+  if (peers === undefined) return null;
+  const inbound: SshPath[] = [];
+  const outbound: SshPath[] = [];
+  const seenIn = new Set<string>();
+  const seenOut = new Set<string>();
+  for (const peer of peers) {
+    if (peer.ssh === null) continue;
+    const path: SshPath = Object.freeze({
+      name: peer.name,
+      kind: peer.kind,
+      organization: peer.organization,
+    });
+    const { direction } = peer.ssh;
+    if (
+      (direction === "inbound" || direction === "both") &&
+      !seenIn.has(peer.name)
+    ) {
+      seenIn.add(peer.name);
+      inbound.push(path);
+    }
+    if (
+      (direction === "outbound" || direction === "both") &&
+      !seenOut.has(peer.name)
+    ) {
+      seenOut.add(peer.name);
+      outbound.push(path);
+    }
+  }
+  return Object.freeze({
+    inbound: Object.freeze(inbound),
+    outbound: Object.freeze(outbound),
+  });
+}
+
+/** Whether the page offers SSH into this Environment: on a server, and only
+ * where the handover records a peer that may open SSH into it (root
+ * decision 0215 as amended on 2026-11-11). Without that record SSH is not
+ * offered, since the tailnet would refuse it. */
+export const offersSsh = (preset: string, paths: SshPaths | null): boolean =>
+  preset !== "local" && paths !== null && paths.inbound.length > 0;
+
+const pathKinds: Readonly<Record<string, MessageKey>> = {
+  "client-device": "pathDevice",
+  "personal-vm": "pathPersonal",
+  "workspace-vm": "pathWork",
+  "conglomerate-host": "pathServer",
+};
+
+/** A path's second line: what the peer is and, for an Organization's
+ * Environment, whose. A kind this release does not know shows as recorded. */
+export function pathDetail(
+  path: SshPath,
+  copy: Readonly<Record<MessageKey, string>>,
+): string {
+  const kind = pathKinds[path.kind];
+  return [kind === undefined ? path.kind : copy[kind], path.organization]
     .filter((part): part is string => part !== null && part !== "")
     .join(" · ");
 }

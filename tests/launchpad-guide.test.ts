@@ -280,6 +280,8 @@ function* everyFacts(): Generator<PageGuideFacts> {
       // step, and Nastavení → Buddy has its own guide.
       for (const start of ["basics", null] as const)
         yield { ...base, start, buddy: true };
+      // Připojení showing SSH paths (F71's addendum of 2026-11-11).
+      yield { ...base, connectionsSsh: true };
     }
 }
 
@@ -376,11 +378,9 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
         // Only Trezor waits, while its vault's state is not read;
         // Nástroje, while its tools are not read; Začínáme, where it has
         // no basics to explain (a public demo, a Team or Automated
-        // Environment) or the profile is not read; Nastavení → Buddy,
-        // where the Environment has no Buddy (decision F65); and
-        // Připojení, whose motion graphic is its explanation (F71).
+        // Environment) or the profile is not read; and Nastavení → Buddy,
+        // where the Environment has no Buddy (decision F65).
         const waiting: Readonly<Record<string, boolean>> = {
-          "Nastavení connections": true,
           Trezor: facts.vault.vault === null,
           "Nastavení tools": facts.tools === null,
           "Nastavení start": facts.start !== "basics",
@@ -466,8 +466,9 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-communication",
     "settings-machine",
     "settings-tools",
-    // Připojení explains itself by its motion graphic (decision F71).
-    null,
+    // Připojení: pairing by code, and the SSH paths where it shows them
+    // (F71's addendum of 2026-11-11).
+    "settings-connections",
     "settings-ssh",
     "settings-recovery",
     // Nastavení → Buddy only with Buddy (decision F65).
@@ -481,7 +482,7 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
     "settings-communication-team",
     "settings-machine",
     "settings-tools-team",
-    null,
+    "settings-connections",
     "settings-ssh-team",
     "settings-recovery",
     null,
@@ -491,6 +492,9 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
   );
   expect(help(section("start"), { kind: "personal", buddy: true })).toBe(
     "settings-start-buddy",
+  );
+  expect(help(section("connections"), { connectionsSsh: true })).toBe(
+    "settings-connections-ssh",
   );
   // Začínáme only where it has the basics.
   for (const start of ["demo", "none", null] as const)
@@ -600,6 +604,8 @@ test("the Launchpad's explanations keep the guide's rules in both languages and 
     "settings-buddy",
     "settings-communication",
     "settings-communication-team",
+    "settings-connections",
+    "settings-connections-ssh",
     "settings-general",
     "settings-machine",
     "settings-recovery",

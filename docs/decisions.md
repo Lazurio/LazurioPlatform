@@ -24740,6 +24740,77 @@ points above:
 5. The API is experimental. A Codex update can change it, so the Platform checks the
    methods at runtime and qualifies each new Codex release on one Environment first.
 
+### F71 addendum of 2026-11-11: a computer pairs by code too, SSH is the second way with its paths
+
+**Decided by Matěj on 2026-11-11 (root decision 0215 as amended that day); the
+form proposed by the implementing agent. Implemented; accepted only when the
+owner accepts it.** People connected their computers through ChatGPT Desktop
+over SSH, and the app kept turning the connection off after a drop
+("Odpojeno"), while the servers saw no outage. The way that holds is the one a
+phone already uses: pairing through the person's ChatGPT account. SSH stays,
+as the second way, and only where the tailnet allows it.
+
+1. **Počítač pairs by code.** The card Počítač works as Telefon: one sentence,
+   *Spárovat počítač* and its own motion graphic (open ChatGPT Desktop, open
+   Connections, Control other devices, enter the code, done). It opens the
+   same dialog with the same one live code (point 3 above): for a computer the
+   dialog shows the short code with *Kopírovat* and "V ChatGPT Desktopu
+   otevřete Připojení → Ovládání jiných zařízení a zadejte kód.", without the
+   QR code; for a phone it stays as it was. Where pairing is not offered (the
+   Organization's AI, no ChatGPT sign-in, a Team Environment, no remote
+   control), the one state line above both cards says why, as before. The card
+   is offered on an Environment on a server, not on the person's own computer.
+2. **Paired devices.** *Spárovaná zařízení* lists phones and computers
+   together, each with its icon. Codex names a device's form in a free string
+   and only `phone` has been seen, so a device is a phone when its form says
+   phone, mobile or tablet or its platform is Android, iOS or iPadOS, and a
+   computer otherwise. Each way's motion graphic folds under *Ukázat postup*
+   once a device of its form is paired.
+3. **Přes SSH, only where the tailnet allows it.** The paths come from the
+   handover's `relationships.peers` (the Machine binding the page already
+   reads through `/api/profile`), which Machines derives from the tailnet's
+   grants and Headscale enforces (0192, 0224); the page decides nothing about
+   the network:
+   - **Sem se připojíte z**: peers whose SSH direction is `inbound` or `both`,
+     each with its node name and kind (device, Personal or Work Environment,
+     server) and, for an Organization's Environment, the Organization;
+   - **Odsud se připojíte do**: peers whose direction is `outbound` or `both`;
+   - **Nastavit SSH** leads to F49's page at `/settings/ssh`, unchanged, and
+     only where the first list is not empty.
+
+   The group shows only where one of the lists has a path. A handover without
+   `relationships` records nothing, so the page offers no SSH there: a guess
+   would send a person to a port the tailnet refuses. `/settings/ssh` stays
+   reachable by its address. The access service's targets (0224) are not
+   listed: where the handover declares the service, the outbound list is the
+   handover's peers only.
+4. **Začínáme** follows the page: *Telefon a počítač přes ChatGPT* with
+   *Spárovat* where pairing is offered; *SSH z vlastního počítače* only where
+   SSH into the Environment is offered; ChatGPT Desktop over SSH only where,
+   in addition, pairing is not offered.
+5. **The "?"** of Připojení explains, under the guide's rules, that a phone or
+   a computer pairs with a code under the account Codex uses, and, where the
+   page shows paths, that they are the ones the network allows and whoever
+   runs the network allows a new one. The motion graphics stay; the page keeps
+   only data and actions.
+6. **The generated manual** (`manual-mechanisms.ts`) says that a computer pairs
+   by code and that SSH is the second way, offered only where the network
+   allows a path.
+
+Not verified: the exact labels of ChatGPT Desktop (Matěj's words "Připojení →
+Ovládání jiných zařízení" are used; the English "Connections → Control other
+devices" is a translation), the form string Codex reports for a computer, and
+pairing a computer end to end (A1–A8 above, with ChatGPT Desktop in place of
+the phone, remain the owner's).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Počítač on SSH | The connection that kept dropping; rejected by the decision |
+| One card *Telefon a počítač* with one button | Fewer elements, but one motion graphic cannot show two apps; the ways by device stay (point 1 of F71) |
+| Offer SSH where the handover records nothing | Sends a person to a port the tailnet may refuse; rejected |
+| A new route for the paths | The page already reads the binding; a second reader would only drift |
+| SSH as a tab | 0215's hidden tab; the amended decision puts it below pairing on the same page |
+
 ## F72 — A module whose access proved to have ended leaves the Environment
 
 **Decided by Matěj on 2026-11-06 (root decision 0232); the rule of the proof proposed by the
