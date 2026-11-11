@@ -188,10 +188,13 @@ contribution guide and the template contract live there (`schemas/offer.v1.schem
    like `update/last-check.json`) and shown at once after a restart. A read of the
    Marketplace (`POST /api/marketplace`) and an adoption prompt ask the registry again
    when the last question is an hour old, and five minutes after a question that
-   failed; only while nothing was ever read from the registry does the answer wait for
-   that question, otherwise it never waits for the network and says `checking: true`
-   while the question runs. Offline, rate-limited, private or refused: the kept index,
-   else the built-in copy.
+   failed. While nothing was ever read from the registry the answer waits for that
+   question; otherwise it waits for it at most 3 s (`registryWait`) and then answers
+   with the kept index and `checking: true` while the question runs. The registry is
+   asked only when someone opens the Marketplace, so without that wait the first
+   person after a curator's merge saw the previous offers until the page read again
+   12 s later (seen on the canary of `v0.1.21-rc.3`, 2026-11-10). Offline,
+   rate-limited, private or refused: the kept index, else the built-in copy.
 5. **The open page follows** (`src/launchpad/marketplace-refresh.ts`). The page reads
    the offers each time it is entered or becomes visible again, every five minutes
    while it stays open, 30 s after a failed read, and 12 s after an answer with

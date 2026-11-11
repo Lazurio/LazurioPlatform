@@ -16,8 +16,12 @@ import {
 // `index.json` of exactly that commit, which the Launchpad parses in full
 // (marketplace.ts) or refuses. The last index read is kept in the install
 // base and survives a restart; without one, or offline, the copy built into
-// this release is shown. A listing grants nothing: whatever an index says,
-// adoption stays a brief the agent checks against the release itself.
+// this release is shown. A read that asks the registry waits for that
+// question a moment (`registryWait`), so the first person to open the
+// Marketplace after a curator's merge sees the new offers, not the kept
+// ones; a slower question never holds the page longer than that. A listing
+// grants nothing: whatever an index says, adoption stays a brief the agent
+// checks against the release itself.
 
 /** The registry this release reads. */
 export const registrySource = Object.freeze({
@@ -31,6 +35,10 @@ export const registryInterval = 60 * 60 * 1000;
 /** How soon a question that failed (offline, rate-limited, refused) is
  * asked again, instead of an interval later. */
 export const registryRetry = 5 * 60 * 1000;
+/** How long an answer waits for a question under way while an index is
+ * kept, before it gives the kept index with `checking: true`. GitHub
+ * usually answers both requests well within it. */
+export const registryWait = 3_000;
 const requestTimeoutMs = 10_000;
 const maxIndexBytes = 1024 * 1024;
 
@@ -48,7 +56,8 @@ export type MarketplaceRegistry = Readonly<{
   /** The catalog to answer with: the kept index once it is loaded, and
    * the registry asked again when the last question is an interval old.
    * While nothing was ever read from the registry the answer waits for
-   * that question; otherwise it never waits for the network. */
+   * that question; otherwise it waits for a question under way at most
+   * `registryWait`, then answers with the kept index. */
   read: () => Promise<MarketplaceCatalog>;
   /** Whether a question to the registry is under way: its answer can change
    * the catalog within the question's 10 s, so an open page reads again. */
@@ -84,6 +93,21 @@ function catalogOf(commit: unknown, index: unknown): MarketplaceCatalog | null {
     : Object.freeze({ source: "registry", commit, offers });
 }
 
+/** Waits for `question`, or for `ms` when it takes longer. */
+async function within(question: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      question,
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function body(response: Response, limit: number): Promise<string> {
   const declared = Number(response.headers.get("content-length") ?? "0");
   if (declared > limit) throw new Error("too large");
@@ -100,9 +124,13 @@ export function createMarketplaceRegistry(
     /** Where the last index read is kept, or null to keep none. */
     cacheFile: string | null;
     now?: () => number;
+    /** How long an answer waits for a question under way while an index
+     * is kept; `registryWait` unless a test shortens it. */
+    wait?: number;
   }>,
 ): MarketplaceRegistry {
   const now = options.now ?? Date.now;
+  const wait = options.wait ?? registryWait;
   let catalog: MarketplaceCatalog = builtInMarketplace;
   // The catalogs replaced, newest first, with when they were.
   let replaced: { catalog: MarketplaceCatalog; at: number }[] = [];
@@ -190,6 +218,7 @@ export function createMarketplaceRegistry(
       await loaded;
       const question = refresh();
       if (catalog.source === "built-in") await question;
+      else await within(question, wait);
       return catalog;
     },
     checking: () => asking !== null,
