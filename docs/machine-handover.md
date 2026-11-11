@@ -208,7 +208,14 @@ version after handover, and Platform does not rewrite the identity.
 node, a new virtualization host: the first apply after the move answers
 `already-adopted`, then `folder-refresh` records the new host like the rest of the
 handover-derived binding. A handover with another kind, name, Owner or tailnet node
-is another Machine and stays `folder-binding-changed`. A copy of the guest on
+is another Machine and stays `folder-binding-changed`, with one exception: a work
+Environment whose handover now names the Owner Organization by exactly
+`owner.organization_key` in lower case, where the Folder recorded another value (an earlier
+runtime label), and whose identity is otherwise the same, is the same Machine;
+`folder-refresh` records that Organization and says so with
+`"bindingCorrected":"owner-organization"`
+([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
+A copy of the guest on
 another host with the same name, Owner and tailnet node is not told apart by the
 binding; Machines keeps one Machine on one host (one lane roster per guest, the old
 copy released and fenced before the new server applies; Machines#1016).
@@ -282,6 +289,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
+| `{"kind":"refreshed","revision":<n>,"bindingCorrected":"owner-organization"}` | 0 | Revision `n` records the Owner Organization as the handover now names it, exactly `owner.organization_key` in lower case, on a work Environment whose Folder recorded another value and whose identity is otherwise the same ([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)); `folder-init` on that Folder answers `already-adopted` with `"bindingCorrection":"owner-organization"` and writes nothing |
 | `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) access and host keys are rendered nowhere in the Folder. On a personal Machine either answer adds `environmentSsh` ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |

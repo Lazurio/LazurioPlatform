@@ -14,6 +14,7 @@ import {
 import {
   type MachineBinding,
   machineIdentity,
+  ownerOrganizationCorrection,
   parseMachineBinding,
 } from "./machine-binding";
 import type { OutputPath } from "./outputs";
@@ -284,7 +285,8 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // requested change of the enabled tools and notes (everything else carried
 // forward) and a refresh from the current handover (the recorded preset,
 // profile, tools and notes carried forward, the binding of the same Machine
-// re-projected). The Machine identity never changes here; the
+// re-projected). The Machine identity never changes here, except by the one
+// correction a refresh records (`ownerOrganizationKey`, below); the
 // handover-derived rest of the binding (assignment, relationships, document
 // digest, entry) follows the handover. A binding that renders the same bytes
 // and declares the same entry and relationships is `unchanged` and is not
@@ -302,6 +304,13 @@ export type FolderChange = Readonly<{
   /** The person's choice of their ChatGPT account's apps; kept only on a
    * preset no Organization governs. */
   chatgptAppsAllowed: boolean;
+  /** Only from a refresh: the live handover's `owner.organization_key`. With
+   * it, a binding whose identity differs from the recorded one only by the
+   * Owner Organization, now named by exactly this key in lower case, is the
+   * same Machine and its corrected identity is recorded
+   * (`ownerOrganizationCorrection`, decision F10's addendum of 2026-11-11);
+   * any other difference stays `binding-changed`. */
+  ownerOrganizationKey?: string;
 }>;
 
 export async function planFolderChange(
@@ -346,10 +355,17 @@ export async function planFolderChange(
   const tools = parseEnabledTools(change.tools);
   const notes = parseToolNotes(change.notes, tools);
   const settings = parseOrganizationSettingsValues(change.organizationSettings);
-  if (
-    JSON.stringify(machineIdentity(machine)) !==
-    JSON.stringify(machineIdentity(current.machine))
-  )
+  const sameIdentity =
+    JSON.stringify(machineIdentity(machine)) ===
+    JSON.stringify(machineIdentity(current.machine));
+  const bindingCorrected = sameIdentity
+    ? null
+    : ownerOrganizationCorrection(
+        current.machine,
+        machine,
+        change.ownerOrganizationKey,
+      );
+  if (!sameIdentity && bindingCorrected === null)
     return { kind: "blocked", reason: "binding-changed" } as const;
   // The preset may only change to one the handover offers as a new choice
   // (issue #107: the derived one when it states `owner.assignment`); the
@@ -429,9 +445,11 @@ export async function planFolderChange(
   // 2026-10-26), which only the person's SSH config outside the Folder carries
   // (src/ssh-access/environments.ts), so a change of only those is recorded
   // here too, never left behind the handover. So is the home access
-  // service's origin (decision F70), which only the machine commands act on.
+  // service's origin (decision F70), which only the machine commands act on,
+  // and a corrected identity, which the content scope and doctor read.
   if (
     preview.plan.kind === "unchanged" &&
+    bindingCorrected === null &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
     JSON.stringify(machine?.relationships) ===
@@ -488,5 +506,6 @@ export async function planFolderChange(
     manifest: nextManifest,
     desired: preview.desired,
     files: preview.plan.kind === "write" ? preview.plan.files : [],
+    ...(bindingCorrected === null ? {} : { bindingCorrected }),
   };
 }

@@ -90,6 +90,10 @@ export type FolderChangeRequest =
       kind: "handover";
       machine: MachineBinding;
       preset?: PresetName;
+      /** The live handover's `owner.organization_key`: lets the planner
+       * record the one correction of the identity (`ownerOrganizationKey`
+       * of `FolderChange`). */
+      organizationKey?: string;
     }>
   | Readonly<{ kind: "organization-settings"; settings: unknown }>
   | Readonly<{
@@ -158,6 +162,9 @@ function planRequestedChange(
       notes: toolNotes(state.preferences),
       organizationSettings: folderOrganizationSettings(state.preferences),
       chatgptAppsAllowed: personalChatgptApps(state.preferences),
+      ...(request.organizationKey === undefined
+        ? {}
+        : { ownerOrganizationKey: request.organizationKey }),
     },
     inspect,
   );
@@ -298,6 +305,9 @@ export async function prepareFolderChangeLocked(
     kind: "prepared" as const,
     expectedRevision,
     nextRevision: plan.preferences.revision,
+    ...(plan.bindingCorrected === undefined
+      ? {}
+      : { bindingCorrected: plan.bindingCorrected }),
   };
 }
 

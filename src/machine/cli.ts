@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 import { FolderAdoptionError } from "../folder/handover-layout";
 import {
   adoptedHandoverFolder,
+  adoptionReadWaitMs,
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
 import { FolderOperationBusyError } from "../folder/lock";
@@ -37,7 +38,7 @@ import {
 } from "../ssh-access/routes";
 import { runTool } from "../tools/status";
 import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
-import { machineBinding } from "./binding";
+import { machineBinding, ownerOrganizationKey } from "./binding";
 import {
   bindMachineOperator,
   MachineContextError,
@@ -106,7 +107,14 @@ an older template revision is re-rendered in full when every generated file
 still matches its recorded digest.
 The Environment identity (kind, name, Owner, tailnet node) must be the one the
 Folder was adopted for; the host, assignment, relationships and the document
-digest follow the handover. Prints {"kind":"refreshed","revision":<n>} after one
+digest follow the handover. One correction of the identity is recorded: on a
+work Environment whose Folder recorded the Owner Organization by another value,
+a handover that now names it by exactly owner.organization_key in lower case,
+with everything else in the identity the same, is the same Environment; the
+refresh records it and adds "bindingCorrected":"owner-organization" to its
+answer (folder-init on that Folder answers already-adopted with
+"bindingCorrection":"owner-organization" and writes nothing). Prints
+{"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the current handover
 renders the same bytes (nothing is written, the revision stays). On a
 personal Remote Environment either answer then also writes, from the recorded
@@ -245,6 +253,7 @@ export async function runMachineCommand(
     // the receipt names a person (machine-assignment-pending before).
     const observed = await readMachineContext();
     const machine = machineBinding(observed.context, observed.digest);
+    const organizationKey = ownerOrganizationKey(observed.context);
     const operator = await readLinuxOperator();
     // Only the installed product acts on this operator's Folder and home;
     // refused before the binding reads them (decision F68, #782).
@@ -257,6 +266,7 @@ export async function runMachineCommand(
             machine,
             requestedPreset,
             launchpad,
+            organizationKey,
           )
         : await initializeMachineFolder(
             folder,
@@ -266,6 +276,7 @@ export async function runMachineCommand(
             // the person's home, at the assignment (root decision 0216):
             // nobody delivered its layout ahead.
             observed.authSourced,
+            organizationKey,
           );
     return {
       code,
@@ -369,12 +380,18 @@ export async function initializeMachineFolder(
   machine: MachineBinding,
   choices: FolderInitChoices,
   assigned = false,
+  organizationKey: string | undefined = undefined,
 ) {
   const derived = derivePreset(machine);
   const allowed = selectablePresets(machine);
   const preset = choices.preset ?? derived;
   if (preset === null) {
-    const adopted = await adoptedHandoverFolder(folder, machine);
+    const adopted = await adoptedHandoverFolder(
+      folder,
+      machine,
+      adoptionReadWaitMs,
+      organizationKey,
+    );
     if (adopted) return { code: 0, result: adopted };
     return {
       code: 2,
@@ -390,7 +407,12 @@ export async function initializeMachineFolder(
     // Rerunning the command that adopted this Folder is no new choice: a
     // preset the handover still allows reports the adopted Folder (#107).
     if (allowedPresets(machine).includes(preset)) {
-      const adopted = await adoptedHandoverFolder(folder, machine);
+      const adopted = await adoptedHandoverFolder(
+        folder,
+        machine,
+        adoptionReadWaitMs,
+        organizationKey,
+      );
       if (adopted) return { code: 0, result: adopted };
     }
     return {
@@ -424,6 +446,7 @@ export async function initializeMachineFolder(
     preset,
     machine,
     profile,
+    ...(organizationKey === undefined ? {} : { organizationKey }),
   });
   return { code: 0, result };
 }
@@ -432,12 +455,20 @@ export async function initializeMachineFolder(
 // check refuses another Machine's or unrecognized state by name before the
 // update transaction; the planner checks the identity again under its lock.
 // `preset` is the preset the handover now derives, taken with it (#107).
+// `organizationKey` is the handover's `owner.organization_key`: with it the
+// one correction of the identity is recorded (`bindingCorrected`).
 export async function refreshMachineFolder(
   folder: string,
   machine: MachineBinding,
   preset: PresetName | undefined = undefined,
+  organizationKey: string | undefined = undefined,
 ) {
-  const adopted = await adoptedHandoverFolder(folder, machine);
+  const adopted = await adoptedHandoverFolder(
+    folder,
+    machine,
+    adoptionReadWaitMs,
+    organizationKey,
+  );
   if (adopted === null)
     return {
       code: 2,
@@ -447,7 +478,13 @@ export async function refreshMachineFolder(
         next: "Run lazurio machine folder-init first; nothing was created.",
       },
     };
-  const result = await refreshFolder(folder, machine, undefined, preset);
+  const result = await refreshFolder(
+    folder,
+    machine,
+    undefined,
+    preset,
+    organizationKey,
+  );
   return { code: result.kind === "blocked" ? 2 : 0, result };
 }
 
@@ -461,9 +498,15 @@ export async function refreshMachineFolderAndLaunchpad(
   machine: MachineBinding,
   preset: PresetName | undefined,
   launchpad: LaunchpadSeams | undefined,
+  organizationKey: string | undefined = undefined,
 ) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
-  const refreshed = await refreshMachineFolder(folder, machine, preset);
+  const refreshed = await refreshMachineFolder(
+    folder,
+    machine,
+    preset,
+    organizationKey,
+  );
   if (launchpad === undefined || refreshed.result.kind !== "refreshed")
     return refreshed;
   if ((await recordedEntry(folder)) === before) return refreshed;

@@ -15,7 +15,11 @@ import {
   recordInitializationCreation,
 } from "./initialization-receipt";
 import { withFolderOperationLock, withFolderReadLock } from "./lock";
-import { type MachineBinding, machineIdentity } from "./machine-binding";
+import {
+  type MachineBinding,
+  machineIdentity,
+  ownerOrganizationCorrection,
+} from "./machine-binding";
 import {
   createManualDirectory,
   verifyManualDirectory,
@@ -67,6 +71,10 @@ export type HandoverSource = Readonly<{
   preset: PresetName;
   machine: MachineBinding;
   profile: unknown;
+  /** The live handover's `owner.organization_key`, which the binding does
+   * not record: the adoption check needs it to recognize the one correction
+   * of the identity a refresh records (`ownerOrganizationCorrection`). */
+  organizationKey?: string;
 }>;
 
 // Fresh-path development initialization only. Never adopts an existing directory.
@@ -109,6 +117,9 @@ export async function initializeHandoverFolder(
           },
       machine: source.machine,
       profile: source.profile,
+      ...(source.organizationKey === undefined
+        ? {}
+        : { organizationKey: source.organizationKey }),
     },
     checkpoint,
     true,
@@ -134,6 +145,7 @@ async function initialize(
     preset: unknown;
     machine: MachineBinding | null;
     profile: unknown;
+    organizationKey?: string;
   }>,
   checkpoint: (step: InitializationStep) => Promise<void>,
   handover: boolean,
@@ -162,7 +174,12 @@ async function initialize(
   const state = join(folder, ".lazurio");
   const personalspace = workspacePreset(preferences.preset.name).personalspace;
   if (handover) {
-    const adopted = await adoptedHandoverFolder(folder, preferences.machine);
+    const adopted = await adoptedHandoverFolder(
+      folder,
+      preferences.machine,
+      adoptionReadWaitMs,
+      source.organizationKey,
+    );
     if (adopted) return adopted;
   }
   if (!newChoice)
@@ -364,10 +381,16 @@ export const adoptionReadWaitMs = 30_000;
 // adopted Folder (with the preset and the binding it already has); another
 // Machine's handover or unrecognized state is refused by name. Only the
 // ephemeral operation lock is written. `null` means no Folder state exists yet.
+// A binding that differs only by the one correction a refresh records (the
+// Owner Organization by the handover's GitHub login in lower case,
+// `ownerOrganizationCorrection` with the handover's `organizationKey`) is the
+// same Machine: it is reported adopted with `bindingCorrection`, and nothing
+// is written here; `machine folder-refresh` records the correction.
 export async function adoptedHandoverFolder(
   folder: string,
   machine: MachineBinding | null,
   waitMs = adoptionReadWaitMs,
+  organizationKey: string | undefined = undefined,
 ) {
   const state = join(folder, ".lazurio");
   try {
@@ -388,14 +411,24 @@ export async function adoptedHandoverFolder(
     if (error instanceof Error && /busy/.test(error.message)) throw error;
     throw new FolderAdoptionError("state-unrecognized", ".lazurio");
   }
-  if (
-    JSON.stringify(machineIdentity(current.preferences.machine)) !==
-    JSON.stringify(machineIdentity(machine))
-  )
+  const recorded = current.preferences.machine;
+  const same =
+    JSON.stringify(machineIdentity(recorded)) ===
+    JSON.stringify(machineIdentity(machine));
+  const correction = same
+    ? null
+    : ownerOrganizationCorrection(recorded, machine, organizationKey);
+  if (!same && correction === null)
     throw new FolderAdoptionError("binding-changed", ".lazurio");
   return {
     kind: "already-adopted" as const,
     revision: current.preferences.revision,
     preset: current.preferences.preset,
+    ...(correction === null
+      ? {}
+      : {
+          bindingCorrection: correction,
+          next: "Run lazurio machine folder-refresh: it records the Owner Organization as the handover now names it, by its GitHub login in lower case.",
+        }),
   };
 }
