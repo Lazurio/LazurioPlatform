@@ -10983,12 +10983,19 @@ contract (`docs/application-roles.md` of HumanAndMachine-ai/Auth, Interfaces,
    the Module's overview: only for a Module of an Organization the Environment holds
    whose application opens here, never in the personal space, for a guest Module, a
    repository or a Module without an app or that cannot start. It opens the
-   Dashboard's availability page for that Module on this Environment, in the same
-   window, with a return address on this Launchpad's own Apps address. It grants
-   nothing: the Dashboard and Auth decide again. The page's path and parameter names
-   are one template, `availabilityPageTemplate` in `src/launchpad/apps-view.ts`,
-   pending the Dashboard's pull request (LZD-0009 M4); `availabilityUrl` fills it on
-   the origin of the Organization's Dashboard page the shell document names.
+   Dashboard's page "Zpřístupnit aplikaci" (HumanAndMachine-ai/Dashboard#499, LZD-0009
+   M4) in the same window:
+   `/orgs/<Organization slug>/environments/<Environment id>/applications/<Module slug>?return=<address>`
+   on the origin of the Organization's Dashboard page the shell document names. The
+   Environment id is the shell's `current`, the base host of the Apps address; the
+   Module slug is one DNS label, as Auth records it. The Dashboard keeps `return` only
+   as an https address on exactly this Environment's Launchpad origin, at most 256
+   characters, so the Launchpad passes a short one: its Apps origin with the Module's
+   page (`/o/<org>/<module>`), or its root where that would be longer. One template
+   holds the path and parameter names (`availabilityPageTemplate` in
+   `src/launchpad/apps-view.ts`), filled by `availabilityUrl`. It grants nothing: the
+   Dashboard and Auth decide again. The round trip lands when Dashboard#499 is merged
+   and deployed.
 5. **Not here.** Nová karta's suggestions stay this Environment's own Modules: the
    Environment browser never holds the person's Lazurio session, so a colleague's
    application does not open there (decision 0231, "Not yet").

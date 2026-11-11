@@ -11,6 +11,7 @@ import {
   type AccountSharedApplication,
   dashboardSlug,
   environmentIdOf,
+  isEnvironmentId,
   isShellUrl,
   type ShellEnvironment,
 } from "../shell/contract";
@@ -1081,13 +1082,24 @@ export function sharedApplicationsSection(
 
 // --- Zpřístupnit kolegům (decision 0231, plan LZD-0009 M6) ----------------
 
-/** PENDING the Dashboard's availability page (plan LZD-0009 M4, built in
- * parallel in HumanAndMachine-ai/Dashboard): its path and the names of its
- * parameters on the Dashboard's origin. The one line to align with that pull
- * request once it is merged; `availabilityUrl` fills it and nothing else
- * knows it. */
+/** The Dashboard's page "Zpřístupnit aplikaci" (HumanAndMachine-ai/Dashboard#499,
+ * plan LZD-0009 M4), on the Dashboard's origin: a Module's application on one
+ * Work Environment, by the Organization's Dashboard slug, the Environment's
+ * id (the shell's `current`, the base host of its Apps address,
+ * `<machine>.<org>`) and the Module's slug as Auth records it, with the
+ * address back to this Launchpad as `return`. The Dashboard's route table
+ * and its validation of `return` are the authority; `availabilityUrl` fills
+ * this and nothing else knows it. */
 export const availabilityPageTemplate =
-  "/orgs/{organization}/environments/{environment}/availability?module={module}&return={return}";
+  "/orgs/{organization}/environments/{environment}/applications/{module}?return={return}";
+
+/** The longest `return` the Dashboard keeps (its `RETURN_MAX`); a longer one,
+ * like any it refuses, leads back to the bare Launchpad. */
+export const availabilityReturnMax = 256;
+
+/** A Module's slug as Auth records it and the Dashboard's route takes it:
+ * one lowercase DNS label. */
+const moduleSlug = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** The Dashboard's page where the Assigned User of the Work Environment
  * `environment` (its id, `<machine>.<org>`) makes the application of
@@ -1095,16 +1107,25 @@ export const availabilityPageTemplate =
  * `returnTo`, an address of this Launchpad, brings them back. Its origin and
  * the Organization's slug are those of `organizationPage`, the
  * Organization's Dashboard page as the shell document names it
- * (`https://…/orgs/<slug>`); anything else, or a `returnTo` that is no https
- * URL, has no page (fail closed). Each value is encoded into its place of
- * `availabilityPageTemplate`. */
+ * (`https://…/orgs/<slug>`). Null (fail closed) for anything else: another
+ * page, an Environment id or Module slug the route does not take, or a
+ * `returnTo` the Dashboard would not keep (no https URL without credentials
+ * and fragment, or longer than `availabilityReturnMax`). Each value is
+ * encoded into its place of `availabilityPageTemplate`. */
 export function availabilityUrl(
   organizationPage: string | null,
   environment: string,
   module: string,
   returnTo: string,
 ): string | null {
-  if (organizationPage === null || !isShellUrl(returnTo)) return null;
+  if (
+    organizationPage === null ||
+    !isEnvironmentId(environment) ||
+    !moduleSlug.test(module) ||
+    !isShellUrl(returnTo) ||
+    returnTo.length > availabilityReturnMax
+  )
+    return null;
   let page: URL;
   try {
     page = new URL(organizationPage);
@@ -1139,6 +1160,16 @@ export type ShareHere = Pick<
   "id" | "kind" | "assignee" | "organizations" | "apps"
 >;
 
+/** What "Zpřístupnit kolegům" needs besides the Module. */
+export type ShareInput = Readonly<{
+  here: ShareHere | null;
+  /** The person at the browser: the account's login, null when unknown. */
+  viewer: string | null;
+  /** The Dashboard page of an Organization slug, as the shell document
+   * names it. */
+  dashboard: (slug: string) => string | null;
+}>;
+
 /** Where "Zpřístupnit kolegům" leads for one Module, or null where it is
  * not offered (decision 0231: only the Assigned User of a Work Environment
  * makes an application of it available). Offered only on a Work
@@ -1148,20 +1179,18 @@ export type ShareHere = Pick<
  * space, a guest Module or a production repository), only for an
  * application that runs here (its tile opens it on its own origin, so never
  * a Module without an app or one that cannot start), and only where the
- * shell document names the Organization's Dashboard page. The return
- * address is `path` on this Launchpad's own Apps address. It grants nothing:
- * the Dashboard and Auth decide again. */
+ * shell document names the Organization's Dashboard page. The way back is
+ * short, as the Dashboard keeps it: this Launchpad's origin with `page`, the
+ * Module's page here (`/o/<org>/<module>`, a path without query or
+ * fragment), or the Launchpad's root where there is none or it would be
+ * longer than `availabilityReturnMax`. It grants nothing: the Dashboard and
+ * Auth decide again. */
 export function shareTarget(
   group: CatalogGroupEntry | null,
   module: CatalogModule,
   target: TileTarget,
-  input: Readonly<{
-    here: ShareHere | null;
-    viewer: string | null;
-    dashboard: (slug: string) => string | null;
-    /** The page to come back to: a path of this Launchpad (`/…`). */
-    path: string;
-  }>,
+  page: string | null,
+  input: ShareInput,
 ): string | null {
   const { here, viewer } = input;
   const slug = group?.organization.organization ?? null;
@@ -1178,36 +1207,37 @@ export function shareTarget(
     !here.organizations.some(
       (entry) => entry.toLowerCase() === slug.toLowerCase(),
     ) ||
-    !isShellUrl(here.apps.apps) ||
-    !/^\/(?!\/)/.test(input.path)
+    !isShellUrl(here.apps.apps)
   )
     return null;
-  const apps = new URL(here.apps.apps);
-  let back: URL;
-  try {
-    back = new URL(input.path, apps);
-  } catch {
-    return null;
-  }
-  if (back.origin !== apps.origin) return null;
-  back.hash = "";
+  const origin = new URL(here.apps.apps).origin;
+  const own =
+    page !== null && /^\/(?!\/)[^?#\\]*$/.test(page)
+      ? `${origin}${page}`
+      : null;
   return availabilityUrl(
     input.dashboard(slug),
     here.id,
     module.module,
-    back.href,
+    own !== null && own.length <= availabilityReturnMax ? own : `${origin}/`,
   );
 }
 
 /** "Zpřístupnit kolegům" of a tile (`shareTarget`): only a Module's tile
- * that opens its application here. */
+ * that opens its application here, back to the Module's page (`info`). */
 export function tileShareTarget(
   tile: AppsTile,
   group: CatalogGroupEntry | null,
-  input: Parameters<typeof shareTarget>[3],
+  input: ShareInput,
 ): string | null {
   return tile.kind === "module" && tile.action.kind === "open"
-    ? shareTarget(group, tile.entry.module, tile.action.target, input)
+    ? shareTarget(
+        group,
+        tile.entry.module,
+        tile.action.target,
+        tile.info,
+        input,
+      )
     : null;
 }
 

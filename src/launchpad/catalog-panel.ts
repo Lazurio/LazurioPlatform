@@ -48,6 +48,7 @@ import {
   type PersonalStart,
   type SharedApplicationTile,
   type ShareHere,
+  type ShareInput,
   sharedApplicationsSection,
   shareTarget,
   type TileTarget,
@@ -63,6 +64,7 @@ import {
   catalogStatus,
   guestFacts,
   moduleFacts,
+  moduleRoute,
   organizationName,
   organizationRoute,
   parseCatalog,
@@ -291,13 +293,12 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
-  // "Zpřístupnit kolegům" (decision 0231): what shareTarget needs, the page
-  // to come back to being the one the person is on.
-  const shareInput = () => ({
+  // "Zpřístupnit kolegům" (decision 0231): what shareTarget needs besides
+  // the Module and its page here, where the Dashboard leads back.
+  const shareInput = (): ShareInput => ({
     here: options.here(),
     viewer: account?.login ?? null,
     dashboard: options.dashboard,
-    path: `${location.pathname}${location.search}`,
   });
   let lifecycle: LifecycleState | null = null;
   // Why a tile's Open was refused, for the overview it then shows; taken once
@@ -786,8 +787,9 @@ export function createCatalogPanel(
     }
     // "Zpřístupnit kolegům" (decision 0231): the Assigned User of this Work
     // Environment makes the application available in the Organization's
-    // Dashboard, in this window, and comes back. Right after the overview,
-    // before the access items, which may join the open menu later.
+    // Dashboard, in this window, and comes back to the Module's page. Right
+    // after the overview, before the access items, which may join the open
+    // menu later.
     const share = tileShareTarget(item, group, shareInput());
     if (share !== null) {
       const link = element("a", "tile-menu-item");
@@ -1584,7 +1586,13 @@ export function createCatalogPanel(
     const target = tileTarget(value, organization, module, options.entry());
     // Beside the application, its Assigned User's "Zpřístupnit kolegům"
     // (decision 0231), before its primary Open.
-    const share = shareTarget(scope, module, target, shareInput());
+    const share = shareTarget(
+      scope,
+      module,
+      target,
+      moduleRoute(value, organization, module),
+      shareInput(),
+    );
     if (share !== null) {
       const link = element("a", "button module-share");
       link.href = share;

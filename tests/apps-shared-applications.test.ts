@@ -6,16 +6,21 @@ import {
   appsScopes,
   appsSections,
   availabilityPageTemplate,
+  availabilityReturnMax,
   availabilityUrl,
   groupDashboardSlug,
   guestTile,
   type ShareHere,
+  type ShareInput,
   sharedApplicationsSection,
   shareTarget,
   tileShareTarget,
   tileTarget,
 } from "../src/launchpad/apps-view";
-import type { CatalogGroupEntry } from "../src/launchpad/catalog-view";
+import {
+  type CatalogGroupEntry,
+  moduleRoute,
+} from "../src/launchpad/catalog-view";
 import type { PublicEntry } from "../src/launchpad/chat";
 import { messages } from "../src/launchpad/messages";
 import type {
@@ -376,38 +381,72 @@ const here: ShareHere = {
   },
 };
 const share = (
-  extra: Partial<Parameters<typeof shareTarget>[3]> = {},
+  extra: Partial<ShareInput> = {},
   id = "deals",
   group: CatalogGroupEntry | null = orgGroup(),
   host: PublicEntry | null = entry,
+  page: string | null = `/o/example/${id}`,
 ) => {
   const found = example.modules.find((item) => item.module === id);
   if (found === undefined) throw new Error(`No module ${id}`);
-  return shareTarget(group, found, tileTarget(catalog, example, found, host), {
-    here,
-    viewer: "ada",
-    dashboard,
-    path: "/o/example",
-    ...extra,
-  });
-};
-
-test("the Assigned User of this Work Environment gets it beside an application: the Dashboard's availability page with the way back", () => {
-  const href = share();
-  expect(href).toBe(
-    `https://dashboard.lazurio.ai/orgs/example/environments/vm-03.example/availability?module=deals&return=${encodeURIComponent("https://launchpad.vm-03.example.lazurio.io/o/example")}`,
+  return shareTarget(
+    group,
+    found,
+    tileTarget(catalog, example, found, host),
+    page,
+    { here, viewer: "ada", dashboard, ...extra },
   );
-  // The way back is this Launchpad's own Apps address, without a fragment,
-  // whatever origin the page was reached by.
-  const back = new URL(href ?? "").searchParams.get("return");
-  expect(back).toBe("https://launchpad.vm-03.example.lazurio.io/o/example");
-  expect(
-    new URL(share({ path: "/o/example/deals?x=1#top" }) ?? "").searchParams.get(
-      "return",
-    ),
-  ).toBe("https://launchpad.vm-03.example.lazurio.io/o/example/deals?x=1");
+};
+const returnOf = (href: string | null) =>
+  href === null ? null : new URL(href).searchParams.get("return");
+
+test("the Assigned User of this Work Environment gets it beside an application: the Dashboard's page of the application on this Environment, with the way back to the Module's page", () => {
+  const href = share();
+  // HumanAndMachine-ai/Dashboard#499: /orgs/<slug>/environments/<id>/
+  // applications/<module>?return=<this Launchpad's address>.
+  expect(href).toBe(
+    `https://dashboard.lazurio.ai/orgs/example/environments/vm-03.example/applications/deals?return=${encodeURIComponent("https://launchpad.vm-03.example.lazurio.io/o/example/deals")}`,
+  );
   // The login is compared without case.
   expect(share({ viewer: "Ada" })).toBe(href);
+});
+
+test("the way back is short, as the Dashboard keeps it: this Launchpad's origin and the Module's page, else the Launchpad's root", () => {
+  const root = "https://launchpad.vm-03.example.lazurio.io/";
+  expect(returnOf(share())).toBe(
+    "https://launchpad.vm-03.example.lazurio.io/o/example/deals",
+  );
+  // Whatever origin the page was reached by, the Apps address's origin.
+  expect(
+    returnOf(
+      share({
+        here: {
+          ...here,
+          apps: {
+            ...here.apps,
+            apps: "https://launchpad.vm-03.example.lazurio.io/",
+          },
+        },
+      }),
+    ),
+  ).toBe("https://launchpad.vm-03.example.lazurio.io/o/example/deals");
+  // No page, one with a query or fragment, one that would leave this
+  // Launchpad, or one past the Dashboard's 256 characters: the root.
+  for (const page of [
+    null,
+    "/o/example/deals?x=1",
+    "/o/example/deals#top",
+    "//elsewhere.example/",
+    "/\\elsewhere.example/",
+    "o/example/deals",
+    `/o/example/${"x".repeat(256)}`,
+  ])
+    expect(returnOf(share({}, "deals", orgGroup(), entry, page))).toBe(root);
+  // At most 256 characters, the longest kept whole.
+  const longest = `/o/example/${"d".repeat(256 - root.length - "o/example/".length)}`;
+  expect(returnOf(share({}, "deals", orgGroup(), entry, longest))?.length).toBe(
+    availabilityReturnMax,
+  );
 });
 
 test("only on a Work Environment, only for its Assigned User, and only when the person at the browser is known", () => {
@@ -435,25 +474,30 @@ test("only for an application of a Module of an Organization this Environment ho
   expect(
     share({ dashboard: () => "https://dashboard.lazurio.ai/settings" }),
   ).toBeNull();
-  // A way back that would leave this Launchpad.
-  expect(share({ path: "//elsewhere.example/" })).toBeNull();
-  expect(share({ path: "o/example" })).toBeNull();
+  // Without an https Apps address there is no way back.
   expect(
     share({ here: { ...here, apps: { ...here.apps, apps: "/" } } }),
   ).toBeNull();
 });
 
-test("tiles: a Module's tile that opens its application here, never a guest Module, a repository or a Module without an app", () => {
+test("tiles: a Module's tile that opens its application here, back to its own page; never a guest Module, a repository or a Module without an app", () => {
   const group = orgGroup();
   const tiles = appsSections(catalog, group, cs, entry).flatMap(
     (section) => section.tiles,
   );
-  const shareInput = { here, viewer: "ada", dashboard, path: "/" };
-  expect(
-    tiles
-      .filter((tile) => tileShareTarget(tile, group, shareInput) !== null)
-      .map((tile) => tile.name),
-  ).toEqual(["deals"]);
+  const shareInput: ShareInput = { here, viewer: "ada", dashboard };
+  const offered = tiles.flatMap((tile) => {
+    const href = tileShareTarget(tile, group, shareInput);
+    return href === null ? [] : [[tile.name, returnOf(href)]];
+  });
+  const deals = example.modules.find((item) => item.module === "deals");
+  if (deals === undefined) throw new Error("The fixture has deals");
+  expect(offered).toEqual([
+    [
+      "deals",
+      `https://launchpad.vm-03.example.lazurio.io${moduleRoute(catalog, example, deals)}`,
+    ],
+  ]);
   const [guest] = example.guests ?? [];
   if (guest === undefined) throw new Error("The fixture has a guest");
   expect(
@@ -468,26 +512,35 @@ test("tiles: a Module's tile that opens its application here, never a guest Modu
   ).toEqual([null]);
 });
 
-test("the availability page's address: one template on the Organization page's origin, every value encoded in its place", () => {
+test("the availability page's address: the Dashboard's route on the Organization page's origin, every value encoded in its place", () => {
   expect(availabilityPageTemplate).toBe(
-    "/orgs/{organization}/environments/{environment}/availability?module={module}&return={return}",
+    "/orgs/{organization}/environments/{environment}/applications/{module}?return={return}",
   );
+  const back = "https://launchpad.vm-03.example.lazurio.io/o/example/deals";
   const url = availabilityUrl(
     "https://dashboard.lazurio.ai/orgs/example",
     "vm-03.example",
-    "deals&x=1",
-    "https://launchpad.vm-03.example.lazurio.io/o/example?a=1&b=2",
+    "deals",
+    back,
   );
   expect(url).not.toBeNull();
   const parsed = new URL(url ?? "");
   expect(parsed.origin).toBe("https://dashboard.lazurio.ai");
   expect(parsed.pathname).toBe(
-    "/orgs/example/environments/vm-03.example/availability",
+    "/orgs/example/environments/vm-03.example/applications/deals",
   );
-  expect([...parsed.searchParams]).toEqual([
-    ["module", "deals&x=1"],
-    ["return", "https://launchpad.vm-03.example.lazurio.io/o/example?a=1&b=2"],
-  ]);
+  expect([...parsed.searchParams]).toEqual([["return", back]]);
+  // A query of the way back stays inside `return`.
+  expect(
+    returnOf(
+      availabilityUrl(
+        "https://dashboard.lazurio.ai/orgs/example",
+        "vm-03.example",
+        "deals",
+        `${back}?a=1&b=2`,
+      ),
+    ),
+  ).toBe(`${back}?a=1&b=2`);
   for (const page of [
     null,
     "http://dashboard.lazurio.ai/orgs/example",
@@ -497,25 +550,39 @@ test("the availability page's address: one template on the Organization page's o
     "https://dashboard.lazurio.ai/orgs/Example",
     "/orgs/example",
   ])
+    expect(availabilityUrl(page, "vm-03.example", "deals", back)).toBeNull();
+  // An Environment id or Module slug the Dashboard's route does not take.
+  for (const [environment, module] of [
+    ["Vm-03.example", "deals"],
+    ["vm-03/example", "deals"],
+    ["", "deals"],
+    ["vm-03.example", "Deals"],
+    ["vm-03.example", "deals&x=1"],
+    ["vm-03.example", "deals/x"],
+    ["vm-03.example", ""],
+  ] as const)
     expect(
       availabilityUrl(
-        page,
-        "vm-03.example",
-        "deals",
-        "https://launchpad.vm-03.example.lazurio.io/",
+        "https://dashboard.lazurio.ai/orgs/example",
+        environment,
+        module,
+        back,
       ),
     ).toBeNull();
-  for (const back of [
+  // A way back the Dashboard would not keep.
+  for (const refused of [
     "http://launchpad.vm-03.example.lazurio.io/",
     "/o/example",
     "https://launchpad.vm-03.example.lazurio.io/#top",
+    "https://ada:secret@launchpad.vm-03.example.lazurio.io/",
+    `https://launchpad.vm-03.example.lazurio.io/${"x".repeat(256)}`,
   ])
     expect(
       availabilityUrl(
         "https://dashboard.lazurio.ai/orgs/example",
         "vm-03.example",
         "deals",
-        back,
+        refused,
       ),
     ).toBeNull();
 });
