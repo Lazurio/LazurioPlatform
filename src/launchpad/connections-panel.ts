@@ -7,6 +7,7 @@ import {
   offersRestart,
   offersSignIn,
   offersSsh,
+  pairingShape,
   parseConnectionsOverview,
   pathDetail,
   remaining,
@@ -100,6 +101,7 @@ export function createConnectionsPanel(
   const qrFrame = find<HTMLDivElement>(".phone-qr-frame");
   const qr = find<HTMLImageElement>("#phone-qr");
   const code = find<HTMLElement>("#phone-code");
+  const codeRow = find<HTMLDivElement>("#phone-code-row");
   const codeCopy = find<HTMLButtonElement>("#phone-code-copy");
   const countdown = find<HTMLParagraphElement>("#phone-countdown");
   const done = find<HTMLDivElement>("#phone-dialog-done");
@@ -361,15 +363,22 @@ export function createConnectionsPanel(
         delete qrFrame.dataset.expired;
         dialogStatus.textContent = copy.phoneLoading;
         break;
-      case "code":
+      case "code": {
         stopTick();
+        // A computer pairs only by the short code: without one, the dialog
+        // says so instead of asking for it.
+        const shape = pairingShape(way, view.manualCode);
+        qrFrame.hidden = !shape.qr;
         qr.src = view.qrSource;
         code.textContent = view.manualCode ?? "";
-        codeCopy.hidden = view.manualCode === null;
-        dialogStatus.textContent = "";
+        codeRow.hidden = !shape.code;
+        codeCopy.hidden = !shape.code;
+        dialogHint.hidden = shape.unavailable;
+        dialogStatus.textContent = shape.unavailable ? copy.computerNoCode : "";
         showCountdown();
         tick = setInterval(showCountdown, 1_000);
         break;
+      }
       case "expired":
         stopTick();
         qrFrame.dataset.expired = "";
@@ -417,6 +426,8 @@ export function createConnectionsPanel(
     dialogTitle.textContent = phone ? copy.phonePair : copy.computerPair;
     dialogHint.textContent = phone ? copy.phoneHint : copy.computerHint;
     dialogPaired.textContent = phone ? copy.phonePaired : copy.computerPaired;
+    dialogHint.hidden = false;
+    codeRow.hidden = false;
     qrFrame.hidden = !phone;
   }
 

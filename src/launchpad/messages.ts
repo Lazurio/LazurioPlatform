@@ -2168,6 +2168,8 @@ const en = {
   computerHint:
     "In ChatGPT Desktop, open Connections → Control other devices and enter the code.",
   computerPaired: "Your computer is paired",
+  computerNoCode:
+    "Codex did not give a short code for a computer this time. Try again once this code expires.",
   computerRemoveQuestion: "Remove access for the computer {name}?",
   computerMotionOpen: "Open ChatGPT Desktop",
   computerMotionConnections: "Open Connections",
@@ -2182,6 +2184,7 @@ const en = {
   pathWork: "Work Environment",
   pathServer: "Server",
   guideConnectionsPair: "Pair a phone or a computer with a code",
+  guideConnectionsPairPhone: "Pair a phone with a code",
   guideConnectionsPairSub:
     "Sign the ChatGPT app in with the account Codex uses {in this}. Remove access here or in the app.",
   guideConnectionsSsh: "Here are the paths the network allows",
@@ -4356,6 +4359,8 @@ const cs: Record<MessageKey, string> = {
   computerHint:
     "V ChatGPT Desktopu otevřete Připojení → Ovládání jiných zařízení a zadejte kód.",
   computerPaired: "Počítač je spárovaný",
+  computerNoCode:
+    "Codex tentokrát nedal krátký kód pro počítač. Zkuste to znovu, až tento kód vyprší.",
   computerRemoveQuestion: "Odebrat přístup počítači {name}?",
   computerMotionOpen: "Otevřete ChatGPT Desktop",
   computerMotionConnections: "Otevřete Připojení",
@@ -4370,6 +4375,7 @@ const cs: Record<MessageKey, string> = {
   pathWork: "Pracovní Prostředí",
   pathServer: "Server",
   guideConnectionsPair: "Telefon i počítač spárujete kódem",
+  guideConnectionsPairPhone: "Telefon spárujete kódem",
   guideConnectionsPairSub:
     "Aplikaci ChatGPT přihlaste účtem, kterým je přihlášený Codex {v tomto}. Přístup odeberete tady nebo v aplikaci.",
   guideConnectionsSsh: "Tady vidíte cesty, které povoluje síť",

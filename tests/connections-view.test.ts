@@ -7,6 +7,7 @@ import {
   offersRestart,
   offersSignIn,
   offersSsh,
+  pairingShape,
   parseConnectionsOverview,
   parsePairing,
   parsePoll,
@@ -297,4 +298,35 @@ test("Začínáme: SSH and ChatGPT Desktop over it only where SSH is allowed", (
   expect(rows(false, false)).toEqual([]);
   expect(rows(true, false)).toEqual(["ssh", "codex"]);
   expect(rows(undefined, false)).toEqual(["ssh", "codex"]);
+});
+
+test("the dialog: a phone gets the QR code, a computer the short code or a reason", () => {
+  expect(pairingShape("phone", "ABCD-EFGH")).toEqual({
+    qr: true,
+    code: true,
+    unavailable: false,
+  });
+  // Without a short code a phone still scans the QR code.
+  expect(pairingShape("phone", null)).toEqual({
+    qr: true,
+    code: false,
+    unavailable: false,
+  });
+  expect(pairingShape("computer", "ABCD-EFGH")).toEqual({
+    qr: false,
+    code: true,
+    unavailable: false,
+  });
+  // A computer has nothing to enter: the dialog says so, in both languages.
+  expect(pairingShape("computer", null)).toEqual({
+    qr: false,
+    code: false,
+    unavailable: true,
+  });
+  expect(messages("cs", "work").computerNoCode).toContain(
+    "krátký kód pro počítač",
+  );
+  expect(messages("en", "work").computerNoCode).toContain(
+    "short code for a computer",
+  );
 });

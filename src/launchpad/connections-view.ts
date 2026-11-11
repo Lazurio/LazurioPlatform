@@ -201,6 +201,20 @@ export function deviceDetail(device: PairedDevice): string {
     .join(" · ");
 }
 
+/** What the pairing dialog shows of the one live code for the way that
+ * opened it: a phone gets the QR code and, where Codex gave one, the short
+ * code; a computer only the short code, so without it the computer cannot
+ * pair from this code and the dialog says so instead of asking for it. */
+export function pairingShape(
+  way: "phone" | "computer",
+  manualCode: string | null,
+): Readonly<{ qr: boolean; code: boolean; unavailable: boolean }> {
+  const code = manualCode !== null;
+  return way === "phone"
+    ? { qr: true, code, unavailable: false }
+    : { qr: false, code, unavailable: !code };
+}
+
 /** Whether a paired device is a phone (or a tablet) or a computer. Codex
  * names the form in a free string and only "phone" has been seen (F71), so
  * a phone is that, a mobile form or a phone platform, and anything else,

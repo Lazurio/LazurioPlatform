@@ -384,15 +384,23 @@ export const devicesGuide = (copy: Copy, team: boolean): PageGuideInput => ({
 });
 
 /** Settings → Připojení (decision F71's addendum of 2026-11-11): a phone
- * or a computer pairs by a code through the same ChatGPT account, and,
+ * or, on an Environment on a server, a computer pairs by a code through the
+ * same ChatGPT account, and,
  * where the page shows SSH paths, SSH runs only along the paths the
  * network allows. */
-export const connectionsGuide = (copy: Copy, ssh: boolean): PageGuideInput => ({
+export const connectionsGuide = (
+  copy: Copy,
+  ssh: boolean,
+  computer = true,
+): PageGuideInput => ({
   id: ssh ? "settings-connections-ssh" : "settings-connections",
   title: copy.connectionsTitle,
   steps: [
     {
-      text: copy.guideConnectionsPair,
+      // Your own computer offers no Počítač card: only the phone pairs.
+      text: computer
+        ? copy.guideConnectionsPair
+        : copy.guideConnectionsPairPhone,
       sub: copy.guideConnectionsPairSub,
       at: "connections-ways",
     },
@@ -624,7 +632,11 @@ export function pageGuide(
           return plays(guide.id, [guide]);
         }
         case "connections": {
-          const guide = connectionsGuide(copy, facts.connectionsSsh === true);
+          const guide = connectionsGuide(
+            copy,
+            facts.connectionsSsh === true,
+            facts.kind !== "workstation",
+          );
           return plays(guide.id, [guide]);
         }
         case "ssh": {

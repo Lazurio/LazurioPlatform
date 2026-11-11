@@ -496,6 +496,24 @@ test("what each page's '?' plays is known in every kind, language and fact, and 
   expect(help(section("connections"), { connectionsSsh: true })).toBe(
     "settings-connections-ssh",
   );
+  // Your own computer has no Počítač card: its "?" speaks of the phone only.
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale, "workstation");
+    const [own] = pageGuide(
+      section("connections"),
+      facts({ kind: "workstation", locale }),
+      copy,
+    ).guides;
+    expect(own?.steps[0]?.text).toBe(copy.guideConnectionsPairPhone);
+    const [server] = pageGuide(
+      section("connections"),
+      facts({ kind: "work", locale }),
+      messages(locale, "work"),
+    ).guides;
+    expect(server?.steps[0]?.text).toBe(
+      messages(locale, "work").guideConnectionsPair,
+    );
+  }
   // Začínáme only where it has the basics.
   for (const start of ["demo", "none", null] as const)
     expect(help(section("start"), { start })).toBeNull();
