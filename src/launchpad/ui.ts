@@ -92,6 +92,7 @@ import { createColumn, keepCornerFree } from "./layout";
 import {
   environmentFacts,
   type Fact,
+  isServerServicesView,
   type MachineView,
   presetChoice,
 } from "./machine-view";
@@ -846,10 +847,13 @@ const aiSignIn = createAiSignIn({
   changed: () => startPanel.render(),
   readAi: () => void readAi(true),
 });
+// Whether this is Služby serveru, from the profile once read.
+let servicesHere = false;
 const startPanel = createStartPanel({
   copy: () => copy,
   organizations: () => catalog.current()?.organizations.length ?? 0,
   modulesVideo: () => startVideo,
+  servicesEnvironment: () => servicesHere,
   facts: () => {
     const facts = firstRunFacts();
     return facts === null
@@ -1918,6 +1922,7 @@ async function request(path: string, body: unknown) {
 }
 async function load() {
   current = await request("/api/profile", {});
+  servicesHere = isServerServicesView(current.machine);
   // The first read follows the page's start, a later one a change of the
   // Folder (a profile or tools change, "Reload profile").
   const first = !loaded;
