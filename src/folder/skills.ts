@@ -4,6 +4,7 @@ import { moduleSentence, moduleWebsiteExample } from "./manual-mechanisms";
 import type { SkillName, SkillPath } from "./outputs";
 import { skillNames, skillRoots } from "./outputs";
 import { type PresetName, workspacePreset } from "./presets";
+import { productionRequirements } from "./production-applications";
 import type { FolderProfile } from "./profile";
 import {
   type InstructionSource,
@@ -151,8 +152,8 @@ function newModule(preset: PresetName): readonly Text[] {
       "- what problem the module is to solve and what slows the user down or bothers them today;",
     ),
     t(
-      "- kdo ho bude používat a kde: jen on, nebo i další uživatelé, u počítače, na telefonu, v terénu;",
-      "- who will use it and where: only them or other users too, at a computer, on a phone, out in the field;",
+      "- kdo ho bude používat a kde: jen on, nebo i další uživatelé, u počítače, na telefonu, v terénu; zda i lidé bez vlastního Prostředí, kteří potřebují pouze aplikaci;",
+      "- who will use it and where: only them or other users too, at a computer, on a phone, out in the field; whether this includes people without their own Environment who need only the app;",
     ),
     ...(organizations
       ? [
@@ -193,6 +194,8 @@ function newModule(preset: PresetName): readonly Text[] {
     ),
     blank,
     t("## 2. Kam modul patří", "## 2. Where the module goes"),
+    ...(organizations ? productionRequirements : []),
+    blank,
     ...newModulePlace(personal, organizations),
     blank,
     t("## 3. Technické volby děláš ty", "## 3. You make the technical choices"),
@@ -949,6 +952,8 @@ const moduleStandard: readonly Text[] = [
     '- **Sestavená verze.** Z `main` Lazurio spouští sestavenou aplikaci. Statická aplikace deklaruje `build_script` a `build_output` (u SPA `static_fallback: "spa"`) a nemá `secrets`. Aplikace s vlastním serverem deklaruje `start_script`, který spustí produkční server jako jeden proces, a výstup klienta čte z `LAZURIO_RUNTIME_BUILD_OUTPUT`. Při sestavení aplikace nečte listenery ani tajné údaje.',
     '- **The built version.** From `main` Lazurio runs the built app. A static app declares `build_script` and `build_output` (`static_fallback: "spa"` for a single-page app) and has no `secrets`. An app with its own server declares `start_script`, which starts the production server as one process, and reads the client\'s output from `LAZURIO_RUNTIME_BUILD_OUTPUT`. The build reads no listeners or secrets.',
   ),
+  ...productionRequirements,
+  blank,
   t(
     "- **Kdo přišel.** Rozlišuje-li aplikace lidi, čte je jen přes `appAccess` z `@lazurio/module-kit` u každého požadavku a roli aplikace vynucuje na serveru; `unknown` nedává žádnou roli. Vlastní přihlášení, seznam lidí ani čtení hlaviček brány nestaví (Module Standard, oddíl Who came and with which role). Je to rozhodnutý cíl (decision 0231, not yet deployed): požadavek zevnitř Prostředí (počítač bez brány, volání na loopback adresu) vrací vždy jako místní provoz, `entry: local` s Adminem aplikace bez jména; osobu s celým Prostředím a lokální vstup prohlížeče Prostředí jen za bránou na Lazurio Machines v0.12.223 nebo novějším, přes starší bránu `unknown`; Uživatel aplikace přijde až se zpřístupněním aplikací. Aplikace proto musí `unknown` i chybějící roli ukázat srozumitelně a nic na nich nestavět.",
     "- **Who came.** When the app tells people apart, it reads them only through `appAccess` of `@lazurio/module-kit` on every request and enforces the application role on the server; `unknown` gives no role. It builds no sign-in, no list of people and reads no gateway headers itself (Module Standard, section Who came and with which role). This is the decided target (decision 0231, not yet deployed): a request from inside the Environment (a computer without a gateway, a call to a loopback address) always reads as local, `entry: local` with an Application Admin without a name; a person with the whole Environment and the Environment browser's local entry only behind a gateway on Lazurio Machines v0.12.223 or newer, `unknown` through an older gateway; the Application User comes only with making applications available. So the app must show `unknown` and a missing role plainly and build nothing on them.",
