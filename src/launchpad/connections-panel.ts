@@ -205,8 +205,18 @@ export function createConnectionsPanel(
     target.hidden = steps === null;
     if (steps === null) {
       target.replaceChildren();
+      delete target.dataset.drawn;
       return;
     }
+    // Drawn again only for another combination, so a render of the page
+    // never restarts the steps.
+    const drawn = [
+      app,
+      device,
+      steps.map((each) => copy[each.text]).join("|"),
+    ].join("/");
+    if (target.dataset.drawn === drawn) return;
+    target.dataset.drawn = drawn;
     const frame = element("div", "phone-motion-device");
     frame.dataset.device = device;
     frame.dataset.app = app;
