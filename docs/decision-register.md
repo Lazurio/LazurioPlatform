@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0235**, by a pull request to this
+A new decision takes the next free number, **0240**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -975,9 +975,12 @@ The official way to connect the ChatGPT app on a phone (iOS, Android) or on a co
 
 ### 0216 — Environments are created in advance and assigned to people
 
-- **Status:** decided, not yet deployed · **Applies to:** internal (HumanAndMachine-ai) · **Decided:** 2026-10-26 (amended 2026-10-27)
+- **Status:** decided, implementation in progress · **Applies to:** internal (HumanAndMachine-ai) · **Decided:** 2026-10-26 (amended 2026-10-27, 2026-11-11)
+- **Related:** 0205, 0209, 0214, 0217, 0239
 
-The full decision is internal to the HumanAndMachine-ai Organization.
+The full decision is internal to the HumanAndMachine-ai Organization. The amendment of 2026-11-11 defines the general server capacity norm that production applications (0239) rely on. One slot is 4 vCPU, 8 GiB RAM and **50 GiB disk**; sizes of 1, 2 and 4 slots therefore have 50, 100 and 200 GiB disk. The 32 GB server class is removed. The 64 GB RAM / 2×512 GB NVMe class has 6 slots, Server Services with 4 GiB RAM / 40 GiB disk, an application host with 4 vCPU / 2 GiB RAM / 20 GiB disk and an 8 GiB host memory reserve. The 128 GB RAM / 2×1 TB NVMe class has 12 slots, Server Services with 8 GiB RAM / 80 GiB disk, an application host with 4 vCPU / 8 GiB RAM / 40 GiB disk and a 12 GiB host memory reserve. Server Services and the application host stand outside people's slots. Memory and disk are not overcommitted; CPU may be shared. The two disks form a mirror, not twice the usable capacity. Provisioning verifies actual memory and the empty ZFS pool: guest disks × 1.01 + 40 GiB must fit within 92 % of the pool.
+
+Existing guests are never shrunk in place. Moving a person to a newly created smaller guest needs a separately reviewed migration and its own approval and window; this decision alone applies no migration. The development Organization's custom server allocation of 0217 remains outside these classes. Internal prices and capacity calculations live in the private decision text.
 
 ### 0217 — Stations of the development Organization
 
@@ -1181,3 +1184,22 @@ The rail, the column head and the jump are one shell for every place a person me
 - **Related:** 0161, 0166, 0169, 0204, 0205, 0217
 
 Lazurio is meant for a thousand Organizations and more, so the release train never moves them one after another and never lets one Organization hold back the others. A release goes first to a canary wave, the rings ordered by how far a fault would reach: ring 0 the reference Organization, ring 1 the Organization that operates Lazurio, ring 2 the Organizations that share its Conglomerate Host, each with its checks and the recorded smoke test. These few rings open one after another. Once the canary accepts the release, ring 3, every other Organization, gets it at once, and each Organization's deployment runs on its own, in parallel with all the others. A ring opens on what is known about the release, never on every lane of the previous ring having been deployed through its pipeline. In ring 3 nothing waits for a person in each Organization: one named person approves the release once for the whole wave, and that approval stands for the merge and the GitHub Environment approval of 0205 in every managed Organization. The approver is the operator of the managed Organizations (Lazurio's Admin for the managed service); an Organization whose Admin keeps the approval for itself is left out of the wave approval and approves its own deployment as before. The release train then merges each lane's pull request under the approver's own identity and live rights, and only a pull request that was reviewed on its exact head and whose CI Plan holds nothing but the release's own changes (no deletion, no other change of the Organization); any other lane waits for an approval of its own. An Organization's own persona still never merges or approves a deployment (0169). The provider persona's merge that 0218 allows and 0205 records stays in force with all its conditions; inside a wave it merges only a lane the wave approval covers, so the approval is always a named person's and the merge either the train's under that person's identity or the provider persona's under 0218. A failure in one Organization stops that Organization alone: it is repaired forward there (0166), and nothing else waits for it. An Organization whose own deployment cannot run through its pipeline is deployed by an operator with the same recorded evidence, and that counts as its deployment. The wave stops as a whole only on a signal about the release itself: the canary failing, or the release failing in a share of Organizations (the threshold is the train's setting, initially 5 %), in which case the release is fixed forward by a new release. Until the train is rebuilt this way, an operator deployment with recorded evidence counts as a lane's acceptance in its ring.
+
+### 0239 — An Organization publishes production applications on its own server
+
+- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-11
+- **Related:** 0146, 0192, 0205, 0209, 0216, 0231, 0234, 0235, 0238
+
+An Organization with its own server can publish its production applications to people outside its tailnet. They sign in with their Lazurio account and receive an Application User or Application Admin role; this grants no Environment, shell or source access, and an Organization Member needs no GitHub account (0192, 0231). The Organization Admin approves every publication and deployed version through a reviewed pull request to the Organization's Deployment Repo. Its merge is the approval; the rollout pipeline deploys the exact released tag and commit through the existing Plan, Permit, readback and evidence gates (0205). The normal approval path belongs to the Organization itself.
+
+Production applications run on an application host on the Organization's own Proxmox server, never on the Conglomerate Host or in a third-party cloud. Every server has the same structure: Server Services (public entry, DNS-01 and later the database), one application host and people's slots, sized by amended 0216. The application host is not an Environment: it has no Assigned User, agent harness, Chat, shell UI or Environment browser/computer. It runs only declared released builds. Each application belongs to exactly one server in the deployment manifest, by default the server of its primary data; a move is another reviewed pull request. There is no active-active deployment in the first version.
+
+An application's address is `<module>.<organization>.lazurio.app`, where organization is the runtime slug (the lowercase GitHub login). No application-host name appears in the address. The domain must first be owned and its DNS delegation verified; nothing is made public before that. One wildcard address and one challenge CNAME per Organization point to its server and that server's challenge zone (0235), so adding an application needs no new DNS write. A second server needs an explicit reviewed routing choice for that zone: the wildcard is not copied to two addresses as an implicit active-active deployment. Gateway cookies are host-only, with the `__Host-` prefix; submitting the domain to the Public Suffix List follows acquisition.
+
+The native fail-closed gateway uses the application roles of 0231 and 0234. Modules consume entry and role only through `@lazurio/module-kit` `appAccess`. Whole-host diagnostic entry is limited to Organization Admins. Application-role assignment follows 0231 and 0234 and is separate from approving a deployment. An agent without the Organization Admin role prepares one standard request for the Admin; the Admin's agent gets the publication and version-approval checklist.
+
+A production application is the sole writer of its production data. With v3 repository-db the application host is the Module's one sync host, using the Organization's broker identity for its data repository, while builders use preview data. A cutover explicitly transfers that single writer. With v4, Dolt runs in Server Services when that capability is available. Secrets come from the Organization's vault through Machines custody and never from Git.
+
+An application may expose Streamable HTTP MCP at `/mcp` on its application origin. Clients authenticate using OAuth 2.1 / MCP authorization with a Bearer access token from Lazurio Auth for the application host's audience, the same application roles, protected-resource metadata and policy-limited dynamic client registration. Anonymous or wrong-audience entry fails closed. This is an accepted target, not evidence that MCP or production entry is deployed.
+
+Production publication (variant B) takes priority over sharing an application from a Work Environment (variant A); A follows B. The implementation and migration plans record the streams, validation and rollout windows separately.
