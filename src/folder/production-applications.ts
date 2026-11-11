@@ -116,6 +116,10 @@ export const productionAdmin: readonly Text[] = [
 
 export const productionGlossary: readonly Text[] = [
   t(
+    "| Role v aplikaci | Uživatel aplikace a Admin aplikace určují, co člověk smí uvnitř konkrétní aplikace; pravidla vynucuje modul na serveru přes `appAccess`. Nejsou rolí modulu ani Adminem Organizace a neotevírají celé Prostředí. |",
+    "| Application role | Application User and Application Admin determine what a person may do within a particular app; the module enforces its rules on the server through `appAccess`. Neither a Module role nor Organization Admin, and they never open the whole Environment. |",
+  ),
+  t(
     "| Produkční aplikace | Vydaná a sestavená aplikace modulu, kterou Organizace provozuje na svém serveru pro členy s rolí v aplikaci a Lazurio účtem, i bez Prostředí. Zveřejnění a každou verzi schvaluje Admin Organizace. |",
     "| Production application | A released, built module app its Organization runs on its own server for members with an application role and Lazurio account, including people without an Environment. The Organization Admin approves publication and each version. |",
   ),
@@ -126,5 +130,38 @@ export const productionGlossary: readonly Text[] = [
   t(
     "| Služby serveru | Podpůrné služby serveru Organizace: veřejný vstup, certifikáty a AI pool; cílově i databáze Dolt. Nejsou Hostitel aplikací ani další druh Prostředí. Spravuje je Admin Organizace řízenou cestou nasazení. |",
     "| Server services | Supporting services of an Organization's server: public entry, certificates and AI pool; Dolt as the target too. Neither an Application host nor another kind of Environment. The Organization Admin manages them through controlled deployment. |",
+  ),
+];
+
+export const productionApplicationRoles: readonly Text[] = [
+  blank,
+  t("### Role produkční aplikace", "### Production application roles"),
+  t(
+    "Nejdřív ověř nasazenou verzi Lazurio Auth, registraci Organizace a klienta Hostitele aplikací. Zdrojový kontrakt nebo přítomnost tohoto manuálu nejsou důkaz běžící správy rolí. Chybí-li delegovaná správa nebo produkční vstup, zapiš přesnou blokaci do původní žádosti; neobcházej ji účtem správce issueru, ručními rolemi v Keycloaku ani přidělením celého Prostředí.",
+    "First verify the deployed Lazurio Auth version and the registration of the Organization and Application host client. A source contract or the presence of this manual does not prove running role management. When delegated management or production entry is missing, record the exact blocker in the original request; bypass neither with an issuer administrator account, manual Keycloak roles nor a grant to the whole Environment.",
+  ),
+  t(
+    "Správa rolí používá nativní resource `POST /realms/workspace/lazurio-application-roles/<organizationId>/<operation>` přes ověřeného klienta Přehledu Organizace a přihlášení jednajícího člověka; `lazurio-application-roles` není příkaz CLI. Použij dodaný postup Organizace pro tohoto klienta. Token správce issueru, klientské tajemství ani přihlašovací údaje od uživatele nevyžaduj a nevytvářej si náhradního klienta. Není-li podporovaný klientský postup k dispozici, požadavek zůstává blokovaný.",
+    "Role management uses the native resource `POST /realms/workspace/lazurio-application-roles/<organizationId>/<operation>` through the verified Organization Dashboard client and the acting person's sign-in; `lazurio-application-roles` is not a CLI command. Use the Organization's supplied procedure for this client. Ask for no issuer administrator token, client secret or user credentials, and create no substitute client. Without a supported client procedure the request remains blocked.",
+  ),
+  t(
+    "1. **Najdi přesné identity.** Z registrace vezmi UUID Organizace a produkčního klienta `<org>--apps-0N-applications`, z manifestu slug modulu a ze živého GitHubu neměnné číselné `repositoryId`. Příjemce ověř v adresáři Lazurio účtů podle `subject` a aktivního členství, nikoli jen podle jména či e-mailu. Přístup k celé Organizaci nepřidávej místo chybějící identity.",
+    "1. **Resolve exact identities.** Take the Organization UUID and production client `<org>--apps-0N-applications` from registration, the module slug from the manifest and immutable numeric `repositoryId` from live GitHub. Check the recipient in the Lazurio account directory by `subject` and active membership, never by name or e-mail alone. Do not grant the whole Organization access instead of resolving an identity.",
+  ),
+  t(
+    "2. **Přečti stav.** Operace `roles` s tělem `{module}` vrátí záznam modulu, `incarnation`, `generation`, granty osob a grant celé Organizace. Chybějící modul smí Admin Organizace potvrdit operací `module-confirm` s `{module, repositoryId}` až po porovnání s manifestem; chybu nebo chybějící registraci neřeš přímým zápisem do issueru. Zkontroluj i grant celé Organizace, protože může zachovat přístup člověku po odebrání jeho osobního grantu.",
+    "2. **Read the state.** Operation `roles` with body `{module}` returns the Module record, `incarnation`, `generation`, person grants and the whole-Organization grant. The Organization Admin may confirm a missing module with `module-confirm` and `{module, repositoryId}` only after comparing it with the manifest; solve no error or missing registration by writing to the issuer directly. Check the whole-Organization grant too, since it can retain a person's access after their personal grant is removed.",
+  ),
+  t(
+    "3. **Zapiš přesně schválenou změnu.** `set` dostane `{module, incarnation, generation, grantee, role}`; `remove` stejné tělo bez `role`. `grantee` je neměnný subject člověka (UUID malými písmeny), nebo `organization` jen pro výslovně schválený grant celé Organizace; `role` je `user` (Uživatel aplikace) nebo `admin` (Admin aplikace). Čísla pocházejí z posledního čtení, ne z odhadu. Grant Teamu nepřeváděj na grant celé Organizace: dokud nasazená správa Teamy nepodporuje, označ ho jako nepodporovaný.",
+    "3. **Write exactly the approved change.** `set` takes `{module, incarnation, generation, grantee, role}`; `remove` the same body without `role`. `grantee` is the person's immutable subject (lower-case UUID), or `organization` only for an explicitly approved whole-Organization grant; `role` is `user` (Application User) or `admin` (Application Admin). The numbers come from the latest read, never a guess. Never turn a Team grant into a whole-Organization grant: until deployed management supports Teams, mark it unsupported.",
+  ),
+  t(
+    "4. **Přečti výsledek a ověř vstup.** Porovnej vrácený záznam a nové čtení `roles` se schválenou změnou a otestuj novou uživatelskou relaci v konkrétní aplikaci. Při `409 application_generation_conflict` nebo `module_incarnation_conflict` nejdřív znovu načti stav a posuď, zda mandát stále platí; neopakuj slepě starý zápis. Odebrání ověř i po vypršení tokenu a obnovení brány podle nasazeného kontraktu, ne pouze zavřením stránky. `environment-full` na Hostiteli aplikací patří jen Adminům Organizace pro diagnostiku; role aplikace ho nepotřebuje.",
+    "4. **Read back and verify entry.** Compare the returned record and a fresh `roles` read with the approved change and test a new user session in the specific app. On `409 application_generation_conflict` or `module_incarnation_conflict`, read the state again and assess whether the mandate still holds; never blindly retry the stale write. Verify removal after token expiry and gateway refresh by the deployed contract too, never just by closing the page. `environment-full` on an Application host belongs only to Organization Admins for diagnostics; an application role does not need it.",
+  ),
+  t(
+    "Operace `make-available` a `withdraw` pro Pracovní Prostředí patří sdílení z Prostředí (A). Nenahrazují schválení nasazení produkční aplikace (B) ani registraci jejího hostitele a neprovádějí se za vymyšleného Přiděleného uživatele hostitele. Výsledek správy rolí, testu a případnou blokaci zapiš do původní žádosti bez tokenů a osobních údajů, které tam nepatří.",
+    "The Work Environment operations `make-available` and `withdraw` belong to sharing from an Environment (A). They replace neither production deployment approval (B) nor its host's registration, and are never performed for an invented Assigned User of the host. Record the role-management result, test and any blocker in the original request without tokens or personal data that does not belong there.",
   ),
 ];
