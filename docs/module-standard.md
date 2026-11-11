@@ -694,7 +694,8 @@ The production app is the sole writer of its data. With repository-db its host
 is the sole sync host for the declared data repository; development Environments
 use preview data. A writer cutover names the old and new writer and its approved
 steps. Until then a production rehearsal stays read-only: `data.writer: false`
-in the deployment declaration and the application itself refusing writes. A
+in the deployment declaration and the application itself allowing mutations only with explicit
+`LAZURIO_RUNTIME_DATA_WRITER=true`, rejecting them for `false` or a missing value. A
 second writer is never a rehearsal.
 
 An optional `/mcp` endpoint uses Streamable HTTP and a Lazurio Auth Bearer access

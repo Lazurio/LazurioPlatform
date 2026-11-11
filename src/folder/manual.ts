@@ -1097,6 +1097,10 @@ const roles: readonly Text[] = [
   blank,
   t("### Aplikace", "### An application"),
   t(
+    "U produkční aplikace Organizace stačí člověku Lazurio účet, aktivní členství a role v aplikaci; nepotřebuje celé Prostředí ani roli modulu. Její zveřejnění a každou nasazenou verzi schvaluje Admin Organizace. Stav přihlášení bez GitHubu a nasazené správy rolí vždy ověř podle `manual/mechanisms.md`, oddíl Produkční aplikace Organizace.",
+    "For an Organization's production application a person needs only a Lazurio account, active membership and an application role; they need neither the whole Environment nor a Module role. The Organization Admin approves publication and every deployed version. Always check sign-in without GitHub and deployed role management by `manual/mechanisms.md`, section Production applications of an Organization.",
+  ),
+  t(
     "- **Admin aplikace** a **Uživatel aplikace**: role v běžící aplikaci modulu, tedy ve stabilní verzi z `main`. Platí na všech Prostředích Organizace. Bez nastavení jsou Admini aplikace Přispěvatelé modulu, Správci modulu, Admin Organizace a kdo má celé Prostředí, kde aplikace běží; samotná role Čtenáře modulu žádnou roli v aplikaci nedává. Role ostatním (lidem, Teamu nebo celé Organizaci) dávají jen Přispěvatelé modulu, Správci modulu a Admin Organizace; celé Prostředí k tomu neopravňuje.",
     "- **Application Admin** and **Application User**: roles in a module's running application, the stable version from `main`. They hold on every Environment of the Organization. Without any setting the Application Admins are the Module Contributors, the Module Maintainers, the Organization Admin and whoever has the whole Environment where the application runs; the Module Reader role by itself gives no application role. Only Module Contributors, Module Maintainers and the Organization Admin give roles to others (people, a Team or the whole Organization); having the whole Environment does not grant that.",
   ),

@@ -194,8 +194,6 @@ function newModule(preset: PresetName): readonly Text[] {
     ),
     blank,
     t("## 2. Kam modul patří", "## 2. Where the module goes"),
-    ...(organizations ? productionRequirements : []),
-    blank,
     ...newModulePlace(personal, organizations),
     blank,
     t("## 3. Technické volby děláš ty", "## 3. You make the technical choices"),
@@ -270,6 +268,8 @@ function newModule(preset: PresetName): readonly Text[] {
       "- **Port** vybere `lazurio module create` sám z poolu portů; `--port` dávej jen z konkrétního důvodu. Tajné údaje nikdy nepatří do repozitáře ani do souboru `.env` (Module Standard).",
       "- **The port** is chosen by `lazurio module create` itself from the port pool; pass `--port` only for a specific reason. Secrets never go into the repository or an `.env` file (the Module Standard).",
     ),
+    blank,
+    ...(organizations ? productionRequirements : []),
     blank,
     t("## 4. Plán k potvrzení", "## 4. The plan to confirm"),
     t(
