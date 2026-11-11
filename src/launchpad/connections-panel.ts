@@ -423,7 +423,9 @@ export function createConnectionsPanel(
     dialog.dataset.app = app;
     dialog.dataset.way = device;
     dialog.dataset.step = step;
-    dialogTitle.textContent = copy.pairTitle.replace("{app}", name);
+    dialogTitle.textContent = (
+      sshOnly ? copy.pairSshTitle : copy.pairTitle
+    ).replace("{app}", name);
     where.textContent = copy.pairWhere.replace("{app}", name);
     pickComputer.hidden = !onServer();
     stepDevice.hidden = step !== "device";
@@ -504,7 +506,8 @@ export function createConnectionsPanel(
       }
       case "expired":
         stopTick();
-        qrFrame.dataset.expired = "";
+        // An expired code is no QR code to scan; a new code brings it back.
+        qrFrame.hidden = true;
         code.textContent = "";
         countdown.textContent = copy.phoneExpired;
         ended = true;

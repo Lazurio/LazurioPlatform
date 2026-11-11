@@ -24784,7 +24784,8 @@ to F49's page.
    happened yet; from the code on, *Hotovo*. *Nový kód* belongs to the code's
    attempt, not to the step shown: a code that expires or is refused while
    the SSH way is open leaves that step as it is, and *Nový kód* waits on the
-   code's step.
+   code's step. An expired code's QR code disappears, so nobody scans it; a
+   new code brings it back.
 3. **SSH is hidden inside the pairing.** A quiet *Jiný způsob: SSH* appears only
    for a computer, only for an app that speaks SSH (ChatGPT Desktop, T3 Code)
    and only where the handover records a peer that may open SSH into this

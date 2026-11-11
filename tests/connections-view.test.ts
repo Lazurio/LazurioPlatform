@@ -423,8 +423,10 @@ test("where no code pairs but SSH comes in, a card leads to SSH (0215)", () => {
   expect(
     appCard("chatgpt", { ...of("team"), state: "ready" }, false, ssh).sshOnly,
   ).toBe(false);
-  for (const locale of ["cs", "en"] as const)
+  for (const locale of ["cs", "en"] as const) {
     expect(messages(locale, "work").appSsh).toMatch(/SSH/);
+    expect(messages(locale, "work").pairSshTitle).toContain("{app}");
+  }
 });
 
 test("the dialog foot: Nový kód once the code ended, on the code step only", () => {
