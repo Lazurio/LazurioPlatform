@@ -47,11 +47,11 @@ export function createStartPanel(
     copy: () => Copy;
     /** What Začínáme reads, or null while the profile is not loaded. */
     facts: () => StartFacts | null;
-    /** A public Environment's Začínáme (`demoStartView`); null elsewhere. */
     /** Whether this is the services Environment of a server, Služby
-     * serveru (root decision 0209): its AI comes from the Organization's
-     * pool, not from a sign-in here, and is not set up there yet (#771). */
+     * serveru (root decision 0209): its Organization provides its AI, not
+     * a sign-in here (#771). */
     servicesEnvironment: () => boolean;
+    /** A public Environment's Začínáme (`demoStartView`); null elsewhere. */
     demo: () => DemoStartView | null;
     composio: () => ComposioFact;
     /** Devices with a key added here, null when not known. */
