@@ -5245,7 +5245,10 @@ SSH, the terminal and every agent read it.
    decides it (Pablo's review of #441: an Organization that switched to its provider
    within that minute would otherwise get a ChatGPT sign-in). An answer that cannot be
    read starts nothing either (`failed`, `provider-unknown`, exit 1, fail closed): whether
-   the sign-in would bypass the Organization's provider is then not known.
+   the sign-in would bypass the Organization's provider is then not known. *(Since
+   [F36's addendum of 2026-11-11](#f36-addendum-of-2026-11-11-a-chatgpt-sign-in-that-no-longer-works-reads-signed-out)
+   an `account/read` error that says the OpenAI sign-in no longer works reads signed out
+   and starts the sign-in; any other error still starts nothing.)*
 5. **Done is what the CLI says; then the running services read it** (0201 point 4).
    Signed in means the CLI exited 0 and its own status confirms it: `codex login status`
    and `claude auth status --json`, the catalog's `signInProbe`, which moves from a
@@ -9495,6 +9498,67 @@ Verified by unit and route tests: `tests/first-run.test.ts`, `tests/start-view.t
 the admission), `tests/content-view.test.ts`, `tests/content-routes.test.ts`
 (`root-access`), `tests/first-run-shell.test.ts` and `tests/shell-host.test.ts`; and in a
 browser (root decision 0178) on a local Launchpad in both languages.
+
+### F36 addendum of 2026-11-11: a ChatGPT sign-in that no longer works reads signed out
+
+**Context.** In a pilot Organization two people moved their work Environments from the
+Organization's AI pool to their own ChatGPT accounts, and Codex then did not work while
+Lazurio offered no way forward. In one, `codex login status` still said "Logged in using
+ChatGPT", but Codex's `account/read` answered an error for a revoked refresh token; the
+probe read an answer without `result` as `unknown`, Začínáme said it could not check the
+AI, and the sign-in refused to start (`provider-unknown`, fail closed by F19 point 4). Only
+a manual `codex logout` helped. In the other, the running Codex still held an account
+in memory, new turns ended `unauthorized` and `codex login status` said "Not logged in".
+
+**Decision.** An `account/read` error that says the OpenAI sign-in Codex needs no longer
+works reads **signed out**, with `lapsed: true` on Codex's reading of `GET /api/ai`; every
+other error stays `unknown`. The errors are matched by their messages as Codex 0.167.1
+writes them (read in `openai/codex`: `codex-rs/login/src/auth/manager.rs`, the
+app-server's `account_processor/workspace_routing.rs` and the model provider's
+`account_state`):
+
+- the refresh of the ChatGPT tokens refused for good: "Your access token could not be
+  refreshed …" ending "Please log out and sign in again." (revoked, expired, already
+  used, other) or "Please sign in again." (another account since), JSON-RPC `-32603`;
+- OpenAI refusing the account's check even after a refresh: "workspace routing discovery
+  unauthorized (401)", `-32603`;
+- a ChatGPT sign-in stored without its plan: "plan type is required for chatgpt
+  authentication", `-32600`.
+
+Each arises only where the configured provider requires an OpenAI sign-in: Codex checks a
+ChatGPT account only for such a provider, and a provider of the Organization's AI pool
+(`requiresOpenaiAuth: false`) has none. So the rule of 0201 points 4 and 6 holds: the
+Organization's AI is never offered a ChatGPT sign-in, and an answer that cannot be read
+still starts nothing. Začínáme then says "Přihlášení k ChatGPT tu už neplatí. Přihlaste
+se prosím znovu." ("The ChatGPT sign-in here no longer works. Please sign in again.") with
+both sign-ins and the sign-in by code; where Claude Code works, the step stays done and
+says the same beside the account, with "Přihlásit jiný účet" for ChatGPT. The sign-in
+reads `account/read` afresh as before and now starts: `codex login` and `codex login
+--device-auth` clear the stored sign-in themselves before they store the new one (Codex
+0.167.1, `codex-rs/cli/src/login.rs`), so no `codex logout` is needed first, and the end
+of the sign-in restarts the running services as F19 point 5 says.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Treat every `account/read` error as signed out | Simpler, but an error that says nothing about the sign-in (a timeout, a configuration that did not load) under the Organization's AI pool would offer a sign-in that bypasses it. Rejected: 0201 point 4 |
+| Read `codex login status` as well | It says "Logged in" for a revoked sign-in and "Not logged in" under the AI pool (F36's addendum of 2026-10-15). Rejected |
+| Run `codex logout` before the sign-in | Codex's sign-in already clears the stored one, and a logout would end a sign-in that might still work. Rejected |
+
+**Honest limits.** The messages were read in Codex's source, not captured from the pilot
+Environments, which were already repaired when this was written; the one recorded there
+("revoked refresh token") matches the revoked message. A Codex that changes these
+messages reads `unknown` again until this list follows it. The second case, a running
+Codex holding in memory an account that is no longer stored, is not detected as such: the
+probe starts an app-server of its own, which reads the stored state, so it reads plainly
+signed out (no `lapsed`) and Začínáme offers the sign-in where no other CLI works; where
+Claude Code works, ChatGPT's sign-in stays under "Přihlásit jiný účet" without a warning.
+Asking the running app-server unit instead is a separate change.
+
+Verified by unit and process tests: `tests/ai-status.test.ts` (each error, other errors
+`unknown`, the route's shape, a fake app-server answering the error),
+`tests/start-view.test.ts` (both languages, alone, beside an unknown or a working Claude)
+and `tests/tools-ai-login.test.ts` (a revoked stored sign-in starts the sign-in by page and
+by code, and the new one replaces it).
 
 ### F36 addendum of 2026-10-16: the shell and the Launchpad say only what a person needs
 

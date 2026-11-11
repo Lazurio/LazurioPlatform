@@ -28,8 +28,11 @@ import { join } from "node:path";
 // `codex.page`/`claude.page` replace the page's origin; `claude.no-browser`
 // never runs `$BROWSER` (a CLI that ignores it); `codex.provided` makes
 // `codex app-server` answer that the configured provider needs no sign-in,
-// which otherwise answers the stored ChatGPT account (`account/read`), and
-// `codex.no-answer` makes it end without an answer. For a
+// which otherwise answers the stored ChatGPT account (`account/read`),
+// `codex.no-answer` makes it end without an answer, and `codex.revoked`
+// makes it answer a stored sign-in with Codex 0.167.1's error for a revoked
+// refresh token (`codex login status` still says signed in, as it did in a
+// pilot Organization); a new sign-in replaces the tokens and ends that. For a
 // walkthrough in a browser: `codex.auto` and `claude.auto` return from the
 // page by themselves after a few seconds (no person signs in to a fake), and
 // `claude.show-code` writes the code its code page would show to
@@ -87,7 +90,10 @@ if (args[0] === "app-server") {
   const lines = createInterface({ input: process.stdin });
   lines.on("line", (line) => {
     const message = JSON.parse(line);
-    if (message.method === "account/read")
+    if (message.method === "account/read" && existsSync(authFile) && flag("codex.revoked"))
+      console.log(JSON.stringify({ id: message.id, error: { code: -32603,
+        message: "Your access token could not be refreshed because your refresh token was revoked. Please log out and sign in again." } }));
+    else if (message.method === "account/read")
       console.log(JSON.stringify({ id: message.id, result: {
         account: existsSync(authFile) ? { type: "chatgpt", email: ${JSON.stringify(fakeAi.email)}, planType: "plus" } : null,
         requiresOpenaiAuth: !flag("codex.provided"),
@@ -100,6 +106,7 @@ if (args[0] === "app-server") {
     if (!flag("codex.unconfirmed")) {
       mkdirSync(home + "/.codex", { recursive: true });
       writeFileSync(authFile, JSON.stringify({ tokens: { id_token: "fake" } }));
+      rmSync(home + "/codex.revoked", { force: true });
     }
     console.error("Successfully logged in");
     process.exit(0);
@@ -133,6 +140,7 @@ if (args[0] === "app-server") {
     if (!flag("codex.unconfirmed")) {
       mkdirSync(home + "/.codex", { recursive: true });
       writeFileSync(authFile, JSON.stringify({ tokens: { id_token: "fake" } }));
+      rmSync(home + "/codex.revoked", { force: true });
     }
     console.error("Successfully logged in");
     process.exit(0);

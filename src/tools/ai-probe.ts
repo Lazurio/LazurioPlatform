@@ -137,16 +137,21 @@ function toolEnv(environment: ToolsEnvironment): Record<string, string> {
 }
 
 /** One question to a short-lived app-server of this Environment's Codex,
- * as the operator: `{ result }` of its answer (absent when it answered with
- * an error), `not-installed` without `codex` on PATH, or `no-answer` when it
- * could not be asked, ended first or did not answer in time. */
+ * as the operator: `{ result }` of its answer, or `{ error }` when it
+ * answered with one, `not-installed` without `codex` on PATH, or
+ * `no-answer` when it could not be asked, ended first or did not answer in
+ * time. */
 export async function askCodex(
   environment: ToolsEnvironment,
   talk: Converse,
   timeoutMs: number,
   method: string,
   params: unknown,
-): Promise<Readonly<{ result?: unknown }> | "not-installed" | "no-answer"> {
+): Promise<
+  | Readonly<{ result?: unknown; error?: unknown }>
+  | "not-installed"
+  | "no-answer"
+> {
   const codex = await resolveOnPath(
     "codex",
     environment.path,
@@ -163,9 +168,11 @@ export async function askCodex(
   ).catch(() => "failed" as const);
   if (typeof lines === "string") return "no-answer";
   const answer = answerOf(lines.at(-1) ?? "") as
-    | { result?: unknown }
+    | { result?: unknown; error?: unknown }
     | undefined;
-  return { result: answer?.result };
+  return answer?.result === undefined && answer?.error !== undefined
+    ? { error: answer.error }
+    : { result: answer?.result };
 }
 
 export async function readCodex(
@@ -179,7 +186,7 @@ export async function readCodex(
   if (answer === "not-installed")
     return { provider: "codex", state: "not-installed" };
   if (answer === "no-answer") return { provider: "codex", state: "unknown" };
-  return codexReading(answer.result);
+  return codexReading(answer.result, answer.error);
 }
 
 export async function readClaude(

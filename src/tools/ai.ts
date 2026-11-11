@@ -115,6 +115,10 @@ export type AiProviderState =
 export type AiProviderReading = Readonly<{
   provider: AiProvider;
   state: AiProviderState;
+  /** Codex signed out because the OpenAI sign-in it holds no longer works:
+   * revoked, expired or stored without its account (`codexReading`). Only
+   * with `signed-out`. */
+  lapsed?: true;
   /** Codex signed in: a ChatGPT account or an API key. */
   method?: "chatgpt" | "api-key";
   /** The account's e-mail, when the CLI names one. */
@@ -146,9 +150,51 @@ function email(value: unknown): string | undefined {
     : undefined;
 }
 
-/** Codex's `account/read` result (`{ account, requiresOpenaiAuth }`). */
-export function codexReading(result: unknown): AiProviderReading {
+// What Codex's `account/read` answers with an error when the configured
+// provider needs an OpenAI sign-in and the one Codex holds no longer works
+// (read in Codex 0.167.1: `codex-rs/login/src/auth/manager.rs`, the app-
+// server's `account_processor/workspace_routing.rs` and the model
+// provider's `account_state`). Each arises only where the provider requires
+// OpenAI auth: a provider of the Organization's AI pool never checks a
+// ChatGPT account, so these never stand for it.
+// - The refresh of the ChatGPT tokens refused for good: "Your access token
+//   could not be refreshed because your refresh token was revoked | has
+//   expired | was already used. Please log out and sign in again.", "… could
+//   not be refreshed. Please log out and sign in again." and "… because you
+//   have since logged out or signed in to another account. Please sign in
+//   again." (JSON-RPC -32603).
+// - The account's check refused by OpenAI even after a refresh: "workspace
+//   routing discovery unauthorized (401)" (-32603).
+// - A ChatGPT sign-in stored without its plan, half written: "plan type is
+//   required for chatgpt authentication" (-32600).
+// Any other error is not known (fail closed, root decision 0201 point 4).
+const codexLapsedSignIn: readonly RegExp[] = [
+  /^Your access token could not be refreshed\b.*\bsign in again\.?$/i,
+  /^workspace routing discovery unauthorized \(401\)$/i,
+  /^plan type is required for chatgpt authentication$/i,
+];
+
+/** Whether an `account/read` error says the OpenAI sign-in is no longer
+ * usable (`codexLapsedSignIn`), by its message alone. */
+export function codexSignInLapsed(error: unknown): boolean {
+  if (!isRecord(error) || typeof error.message !== "string") return false;
+  const message = error.message.trim();
+  return codexLapsedSignIn.some((pattern) => pattern.test(message));
+}
+
+/** Codex's `account/read` answer: its result (`{ account,
+ * requiresOpenaiAuth }`), or the error it answered instead. An error that
+ * says the OpenAI sign-in no longer works reads signed out (`lapsed`), so
+ * Začínáme offers a new sign-in; any other error is not known. */
+export function codexReading(
+  result: unknown,
+  error?: unknown,
+): AiProviderReading {
   const unknown = { provider: "codex", state: "unknown" } as const;
+  if (error !== undefined)
+    return codexSignInLapsed(error)
+      ? { provider: "codex", state: "signed-out", lapsed: true }
+      : unknown;
   if (!isRecord(result)) return unknown;
   if (result.requiresOpenaiAuth === false)
     return { provider: "codex", state: "provided" };
@@ -240,10 +286,12 @@ export function parseAiAnswer(value: unknown): AiReading | null {
         ? entry.method
         : undefined;
     const account = email(entry.account);
+    const lapsed = entry.state === "signed-out" && entry.lapsed === true;
     providers.push(
       Object.freeze({
         provider: entry.provider as AiProvider,
         state: entry.state as AiProviderState,
+        ...(lapsed ? { lapsed: true as const } : {}),
         ...(method === undefined ? {} : { method }),
         ...(account === undefined ? {} : { account }),
       }),

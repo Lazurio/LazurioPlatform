@@ -226,6 +226,11 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   const signIn = facts.aiSignIn ?? idleAiSignIn;
   const place = facts.aiPlace ?? "own";
   const ready = facts.ai === "organization" || facts.ai === "connected";
+  // Codex holds an OpenAI sign-in that no longer works (revoked, expired or
+  // stored half): the step says so, and its sign-in is offered again.
+  const lapsed = (facts.aiReading?.providers ?? []).some(
+    (reading) => reading.lapsed === true,
+  );
   const mark: StartMark = ready ? "done" : "now";
   // A CLI that is not installed cannot sign in: its button is left out,
   // and so is the one whose click just said so.
@@ -320,7 +325,8 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
     const warning =
       signIn.kind === "failed"
         ? aiFailure(signIn, copy)
-        : aiServicesWarning(signIn, copy);
+        : (aiServicesWarning(signIn, copy) ??
+          (lapsed ? copy.startAiLapsed : undefined));
     return [
       {
         ...base,
@@ -358,9 +364,19 @@ function aiStep(facts: StartFacts, copy: Copy): [StartStep, AiAction] {
   switch (facts.ai) {
     // Only the title and the two sign-ins (Matěj, 2026-10-16).
     case "missing":
-      return [{ ...base, mark: "now", status: null }, choose];
+      return [
+        { ...base, mark: "now", status: lapsed ? copy.startAiLapsed : null },
+        choose,
+      ];
     case "unknown":
-      return [{ ...base, mark: "now", status: copy.startAiUnknown }, choose];
+      return [
+        {
+          ...base,
+          mark: "now",
+          status: lapsed ? copy.startAiLapsed : copy.startAiUnknown,
+        },
+        choose,
+      ];
     case "loading":
       return [
         { ...base, mark: "now", status: copy.startChecking },
