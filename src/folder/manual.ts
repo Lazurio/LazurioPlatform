@@ -957,8 +957,7 @@ function workingHere(
     ...(isPublic
       ? []
       : [...readOnlyProposal(preset), blank, ...missingRights, blank]),
-    productionRequestRule,
-    blank,
+    ...(isPublic ? [] : [productionRequestRule, blank]),
     t(
       "## Poznatky patří tam, kde je najdou ostatní",
       "## Knowledge belongs where others find it",
