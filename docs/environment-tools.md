@@ -312,6 +312,13 @@ which `gh auth logout` cannot remove) or `unknown`. The account label keeps a `[
 suffix. On a Team Environment the gh line says "uses Lazurio for GitHub" instead of the
 state of an SSH key, and the Organization's App identity reads "works as
 lazurio-for-github[bot]" instead of "signed in as" ([below](#gh-on-a-team-environment)).
+A `person` sign-in whose token names its scopes also carries `workflow`: whether the
+token has the `workflow` scope, without which GitHub refuses a push that changes
+`.github/workflows/` (#823). Where it is `false` and the SSH key is linked, the gh row
+offers "Allow CI changes", which opens the session of "Link SSH key": that session
+refreshes the sign-in with `admin:public_key,workflow` (one device code) whenever the
+token lacks either scope. An App's identity, a fine-grained token or an older gh names
+no scopes, and nothing is said about `workflow` there.
 
 The Tools section itself is described in
 [launchpad-development.md](launchpad-development.md#tools-section).
@@ -352,7 +359,8 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
 - `tools login <tool> [--phone <+number>] [--ssh-key] [--device-code] [--json]` runs the tool's own
   sign-in in the foreground and shows its challenge: for gh the one-time code and
   `https://github.com/login/device` (`gh auth login --hostname github.com
-  --git-protocol ssh --web --scopes admin:public_key --clipboard=false`; since gh
+  --git-protocol ssh --web --scopes admin:public_key,workflow --clipboard=false`;
+  `workflow` lets an agent push a change of `.github/workflows/`, #823; since gh
   2.101.0 the code is copied to the clipboard by default, and `--clipboard=false`
   turns that off for this run only);
   for composio the dashboard link (`composio login --no-wait --no-skill-install`, then
@@ -397,9 +405,12 @@ an agent (`gogcli`, `neon`) are refused with a pointer to `lazurio tools prompt
   `host-keys-unavailable`, `host-key-mismatch`, `known-hosts-failed`, `ssh-missing`,
   `proof-failed`, `proof-other-account`. gh exits 0 only when the key is linked.
   `--ssh-key` (gh only) does these steps for a gh that is signed in already, after
-  `gh auth refresh --hostname github.com --scopes admin:public_key --clipboard=false`
-  (a device code) when the token lacks the scope; a gh that is not signed in fails as
-  `not-signed-in`.
+  `gh auth refresh --hostname github.com --scopes admin:public_key,workflow --clipboard=false`
+  (a device code) when the token lacks `admin:public_key` or, where gh names its scopes,
+  `workflow` (the Tools row's "Allow CI changes" runs this same session). When the refresh
+  was asked for `workflow`, the session ends signed in only if the token has it then: a
+  refresh that fails or is denied is `tool-exit`, and one that does not grant the scope
+  is `not-confirmed`. A gh that is not signed in fails as `not-signed-in`.
 - **gh sets the user's Git identity where git has none** (F19 addendum 2026-10-14):
   after the SSH key step, whatever its outcome, each of `user.name` and `user.email`
   that neither git's global nor system configuration names is written with `git config

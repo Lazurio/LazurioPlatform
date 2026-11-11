@@ -322,6 +322,11 @@ export type ToolSignIn = Readonly<{
    * a GitHub App's identity or a token from a variable (the Team rule of
    * `team-github.ts`). */
   identity?: GhIdentity;
+  /** gh signed in as a person: whether its token has the `workflow` scope,
+   * so that GitHub accepts a push that changes `.github/workflows/` (#823).
+   * Absent when gh names no scopes for the token (a GitHub App's identity,
+   * a fine-grained token, an older gh). */
+  workflow?: boolean;
 }>;
 
 export type ToolsSignInInput = Readonly<{
@@ -340,6 +345,9 @@ export type ToolsSignInInput = Readonly<{
 }>;
 
 const signInTimeoutMs = 10_000;
+
+/** The scope GitHub asks of a token that changes `.github/workflows/`. */
+export const workflowScope = "workflow";
 const labelLength = 120;
 
 // A label for the page and the terminal: plain text without control or
@@ -498,7 +506,18 @@ export async function toolsSignIn(
           run,
           proofs: input.sshProofs,
         }).catch((): SshStatus => ({ state: "unknown", reason: "unreadable" }));
-        return { ...signIn, ssh };
+        return {
+          ...signIn,
+          ssh,
+          // Only a person's OAuth sign-in names its scopes: a GitHub App's
+          // identity or a fine-grained token names none, and a scope
+          // refresh cannot widen it, so nothing is claimed there.
+          ...(signIn.identity === "person" &&
+          scopes !== undefined &&
+          scopes.length > 0
+            ? { workflow: scopes.includes(workflowScope) }
+            : {}),
+        };
       } catch {
         return { state: "unknown" };
       }

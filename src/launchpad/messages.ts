@@ -358,6 +358,9 @@ const en = {
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
   toolsLinkSshNamed: "Link the SSH key of {this} to the {name} account",
+  toolsAllowWorkflowAction: "Allow CI changes",
+  toolsAllowWorkflowNamed:
+    "Allow the {name} sign-in to push changes of .github/workflows",
   toolsStepLinking: "Linking the SSH key",
   toolsStepLinked: "SSH key linked",
   toolsLoginLinking: "Finishing the connection…",
@@ -2644,6 +2647,9 @@ const cs: Record<MessageKey, string> = {
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
   toolsLinkSshNamed: "Propojit SSH klíč {tohoto} s účtem {name}",
+  toolsAllowWorkflowAction: "Povolit změny CI",
+  toolsAllowWorkflowNamed:
+    "Povolit přihlášení {name} posílat změny .github/workflows",
   toolsStepLinking: "Propojení SSH klíče",
   toolsStepLinked: "SSH klíč propojený",
   toolsLoginLinking: "Dokončuji připojení…",
