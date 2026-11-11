@@ -1415,6 +1415,41 @@ product no longer enforces it by stopping the Environment's updates:
 
 Authority: Matěj 2026-11-03 in the question tool, „Neblokovat, jen ohlásit (Doporučeno)“.
 
+**Addendum 2026-11-11: one correction of the Owner Organization.** A work Environment adopted
+its Folder while its handover named the Owner Organization by a short runtime label
+(`owner.organization` `example`) and by its GitHub login only in `owner.organization_key`
+(`ExampleOrg`). Machines now writes `owner.organization` as that login in lower case
+(`exampleorg`; HumanAndMachine-ai/Machines#1164), so the next handover differs from the
+recorded identity by the Owner only and was refused as another Machine: `folder-refresh` and
+`folder-init` answered `folder-binding-changed`, `organization install ExampleOrg` stayed
+`not-for-this-environment` (the content scope admits the recorded Organization), `doctor`
+warned `machine-identity-changed`, and Machines' Launchpad switch failed because the refresh
+recorded nothing.
+
+- `machine folder-refresh` records exactly one change of the identity: on a work Environment
+  (`workspace-vm`, Owner of kind `organization`) whose handover names the Owner Organization
+  by exactly `owner.organization_key` in lower case, where the Folder recorded another value,
+  and whose identity is otherwise the same (kind, name, the Owner's kind and Team, tailnet
+  node). It goes through the one planner and one archived update transaction as every
+  refresh (the archive, the journal and `profile-resume` unchanged), is always recorded even
+  when no rendered text changes, and answers `{"kind":"refreshed","revision":<n>,
+  "bindingCorrected":"owner-organization"}`. The planner checks the rule again under the
+  Folder lock; the journal does not carry `organization_key`, so validating a staged
+  transaction (apply, `profile-resume`) admits only a binding that differs from the previous
+  one by the Owner Organization and nothing else.
+- Every other difference stays `folder-binding-changed`, nothing written: a new value that is
+  not the lower-cased `organization_key`, a handover without `organization_key`, any other
+  identity field changed as well, another Owner kind, a personal Environment's owner.
+- `machine folder-init` on such a Folder writes nothing and answers `already-adopted` with
+  `"bindingCorrection":"owner-organization"` and a `next` naming `folder-refresh`, instead of
+  calling it another Machine. Before the refresh, `doctor` reports the binding as
+  `handover-changed` (the refresh records it), not `machine-identity-changed`; after it the
+  check is `ok`, and `organization install <Login>` is admitted because the content scope
+  compares the login case-insensitively with the corrected Organization.
+
+Authority: Matěj 2026-11-11, the rule exactly as stated in the first point; nothing else of the
+identity follows the handover.
+
 ## F11 — Hosted admission is not identity
 
 **Accepted direction (2026-09-19), not implemented.** The hosted gateway authenticates.

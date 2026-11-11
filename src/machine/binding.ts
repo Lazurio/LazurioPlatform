@@ -17,6 +17,7 @@ import {
   type MachineContext,
   MachineContextError,
   type OrganizationAssignment,
+  type OrganizationWorkspaceContext,
   type PersonalMachineContext,
 } from "./context";
 
@@ -229,4 +230,17 @@ export function machineBinding(
     }),
     ...related,
   });
+}
+
+/** The handover's `owner.organization_key` of a work Environment, which the
+ * binding does not record: the adoption check and the refresh need it to
+ * recognize the one correction of the identity a refresh records
+ * (`ownerOrganizationCorrection`). Undefined anywhere else. */
+export function ownerOrganizationKey(
+  context: MachineContext,
+): string | undefined {
+  return context.machine.kind === "workspace-vm" &&
+    context.owner.kind === "organization"
+    ? (context as OrganizationWorkspaceContext).owner.organization_key
+    : undefined;
 }

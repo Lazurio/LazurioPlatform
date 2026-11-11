@@ -780,3 +780,47 @@ export function machineIdentity(machine: MachineBinding | null) {
     network: machine.network,
   };
 }
+
+/** The one correction of the identity a refresh records
+ * (`bindingCorrected`, decision F10's addendum of 2026-11-11). */
+export type BindingCorrection = "owner-organization";
+
+/** Whether the live binding differs from the recorded one only by the one
+ * correction a refresh records: a work Environment whose Folder was adopted
+ * while its handover named the Owner Organization by another value (an
+ * earlier runtime label) and whose handover now names it, as Machines writes
+ * it since then, by its GitHub login in lower case. `organizationKey` is the
+ * live handover's `owner.organization_key`, which the binding does not
+ * record. The live `owner.organization` must be exactly that key in lower
+ * case, and every other part of the identity (kind, name, the Owner's kind
+ * and Team, the tailnet node) must be the same; anything else stays another
+ * Machine. Null when the identities are the same, too: nothing to correct. */
+export function ownerOrganizationCorrection(
+  recorded: MachineBinding | null,
+  live: MachineBinding | null,
+  organizationKey: string | undefined,
+): BindingCorrection | null {
+  if (recorded === null || live === null || organizationKey === undefined)
+    return null;
+  if (
+    recorded.kind !== "workspace-vm" ||
+    live.kind !== "workspace-vm" ||
+    recorded.owner.kind !== "organization" ||
+    live.owner.kind !== "organization"
+  )
+    return null;
+  const organization = organizationKey.toLowerCase();
+  if (
+    live.owner.organization !== organization ||
+    recorded.owner.organization === organization
+  )
+    return null;
+  const corrected: MachineBinding = {
+    ...recorded,
+    owner: { ...recorded.owner, organization },
+  };
+  return JSON.stringify(machineIdentity(corrected)) ===
+    JSON.stringify(machineIdentity(live))
+    ? "owner-organization"
+    : null;
+}

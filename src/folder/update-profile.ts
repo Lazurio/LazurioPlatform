@@ -69,23 +69,35 @@ export async function updateTools(
 // removed owned files are refused by path exactly as there; a binding that
 // renders the same bytes is `unchanged` and nothing is written. `preset`,
 // when given, is the preset a changed assignment now derives, recorded with
-// the new binding in the same revision (issue #107).
+// the new binding in the same revision (issue #107). `organizationKey`, the
+// live handover's `owner.organization_key`, lets the refresh record the one
+// correction of the identity (`ownerOrganizationCorrection`): the answer then
+// names it, `bindingCorrected: "owner-organization"`.
 export async function refreshFolder(
   folder: string,
   machine: MachineBinding,
   checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
   preset: PresetName | undefined = undefined,
+  organizationKey: string | undefined = undefined,
 ) {
   const result = await changeFolder(
     folder,
-    preset === undefined
-      ? { kind: "handover", machine }
-      : { kind: "handover", machine, preset },
+    {
+      kind: "handover",
+      machine,
+      ...(preset === undefined ? {} : { preset }),
+      ...(organizationKey === undefined ? {} : { organizationKey }),
+    },
     checkpoint,
   );
-  return result.kind === "updated"
-    ? { kind: "refreshed" as const, revision: result.revision }
-    : result;
+  if (result.kind !== "updated") return result;
+  return {
+    kind: "refreshed" as const,
+    revision: result.revision,
+    ...(result.bindingCorrected === undefined
+      ? {}
+      : { bindingCorrected: result.bindingCorrected }),
+  };
 }
 
 // Records the Organization settings the Launchpad applies (root decision
@@ -152,7 +164,13 @@ async function changeFolder(
       await checkpoint("finalized");
       await writeBuddyLayerLocked(folder, assertHeld);
       await assertHeld();
-      return { kind: "updated" as const, revision: applied.revision };
+      return {
+        kind: "updated" as const,
+        revision: applied.revision,
+        ...(prepared.bindingCorrected === undefined
+          ? {}
+          : { bindingCorrected: prepared.bindingCorrected }),
+      };
     },
   );
 }

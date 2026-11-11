@@ -121,7 +121,14 @@ export async function validatePreparation(
   // re-projected binding of the same Machine, a profile change the recorded
   // one; the staged enabled tools and notes are the requested or the
   // recorded ones, and the staged Organization settings the applied or the
-  // recorded ones.
+  // recorded ones. A refresh that recorded the one correction of the identity
+  // (`ownerOrganizationCorrection`) checked the handover's
+  // `owner.organization_key` under the lock when it prepared; the journal
+  // does not carry the key, so the transition is regenerated with the staged
+  // Owner Organization as the key: the staged binding must still differ from
+  // the previous one by nothing but that Organization, and anything else
+  // stays `binding-changed`.
+  const staged = preferences.machine;
   const plan = await planFolderChange(
     previousPreferences,
     previousManifest,
@@ -135,6 +142,9 @@ export async function validatePreparation(
       notes: toolNotes(preferences),
       organizationSettings: folderOrganizationSettings(preferences),
       chatgptAppsAllowed: personalChatgptApps(preferences),
+      ...(staged?.owner.kind === "organization"
+        ? { ownerOrganizationKey: staged.owner.organization }
+        : {}),
     },
     async (path) => recordedFile(previousManifest.outputs, path),
   );
