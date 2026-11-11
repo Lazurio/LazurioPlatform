@@ -101,6 +101,19 @@ export type MachineService = Readonly<{
   repository?: string;
   page_port?: number;
 }>;
+// A Personal Environment's own AI pool (root decision 0181, addendum of
+// 2026-11-05; Machines workloads/workspace-vm/personal-ai-pool.ts): at most
+// one, the fork it runs and the loopback port of its Management Center, never
+// a hostname. Only the personal branch carries it, never on an auth-sourced
+// handover, and Machines writes it only for a Platform that reads it. The
+// catalog lists it in the Personalspace group (`serverServicesOf` in
+// src/organizations/catalog.ts, decision F32's addendum of 2026-11-05).
+export type PersonalMachineService = Readonly<{
+  id: "ai-pool";
+  kind: "ai-pool";
+  repository: "Lazurio/CLIProxyAPI";
+  page_port: number;
+}>;
 // How the Machine is entered through its workspace gateway, rendered by
 // Machines from the same route catalog as the gateway (Machines 0.12.93).
 // Optional and closed on both branches; finished values, never a convention.
@@ -229,6 +242,7 @@ export type PersonalMachineContext = Readonly<{
   access_service?: MachineAccessService;
   entry?: MachineEntry;
   vault?: MachineVault;
+  services?: readonly PersonalMachineService[];
   installed: MachineInstalled;
   account: null;
 }>;
