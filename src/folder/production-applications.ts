@@ -21,8 +21,8 @@ export const productionRequirements: readonly Text[] = [
     "### Production applications of an Organization",
   ),
   t(
-    "Má-li aplikace sloužit lidem bez Prostředí, připrav ji jako produkční aplikaci Organizace. Její dostupnost ověř v repozitáři nasazení a v důkazech rolloutu; samotný manuál ani běh v Pracovním Prostředí nejsou důkaz nasazení. Dokud Organizace tuto cestu nemá, popiš blokaci a připrav žádost, neslibuj hotovou adresu.",
-    "When the app is to serve people without an Environment, prepare it as an Organization's production application. Check its availability in the Deployment Repo and rollout evidence; neither this manual nor running in a Work Environment proves deployment. Until the Organization has this path, describe the blocker and prepare the request, never promise a working address.",
+    "Má-li aplikace sloužit členům Organizace bez Prostředí, připrav ji jako produkční aplikaci Organizace. Její dostupnost ověř v repozitáři nasazení a v důkazech rolloutu; samotný manuál ani běh v Pracovním Prostředí nejsou důkaz nasazení. Dokud Organizace tuto cestu nemá, popiš blokaci a připrav žádost, neslibuj hotovou adresu.",
+    "When the app is to serve Organization members without an Environment, prepare it as an Organization's production application. Check its availability in the Deployment Repo and rollout evidence; neither this manual nor running in a Work Environment proves deployment. Until the Organization has this path, describe the blocker and prepare the request, never promise a working address.",
   ),
   t(
     "- **Vydání a běh.** Vydání označ tagem a zaznamenej přesný commit, zelenou CI a sestavení. Nasazuje se sestavená vydaná verze, nikdy vývojový server ani pohyblivá větev. Host a port ber jen z `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` a `_PORT`, veřejnou adresu z `_EXTERNAL_ORIGIN`. Health musí vracet přímo 200 a server běžet jako jeden proces.",
