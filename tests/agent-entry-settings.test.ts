@@ -23,6 +23,7 @@ import {
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 import { freePort } from "./fixtures/ports";
+import { tryBinding } from "./fixtures/try-environments";
 
 // Plan LZD-0009 M9, LazurioPlatform step 2 of Lazurio Auth's contract
 // `docs/agent-application-entry.md`: the agent rule in the Folder's manual,
@@ -72,6 +73,11 @@ test("the manual's rule on colleagues' applications, exactly as the contract wor
     ).not.toContain(rule[locale]);
     expect(
       manualOf("hosted-organization-personal", bindings.organization, locale),
+    ).not.toContain(rule[locale]);
+    // A public Environment (the Try overlay) is a Team one to people,
+    // whatever preset it recorded.
+    expect(
+      manualOf("hosted-organization-personal", tryBinding(), locale),
     ).not.toContain(rule[locale]);
   }
 });

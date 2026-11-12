@@ -3,6 +3,7 @@ import { realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
+import { readAgentEntry } from "../agent-entry/settings";
 import {
   browserViewDocumentPath,
   browserViewPath,
@@ -91,6 +92,10 @@ import {
   launchpadSettingsPoller,
   type OrganizationSettingsSeams,
 } from "../organization-settings/host";
+import {
+  type RelayTransport,
+  unixSocketTransport,
+} from "../organization-settings/relay";
 import {
   handoverServerServices,
   type ServerServices,
@@ -275,6 +280,7 @@ import {
 } from "./setup-state";
 import {
   environmentKind,
+  handoverOwnerKey,
   presetKinds,
   readShellInputs,
   shellDocument,
@@ -320,6 +326,12 @@ export type HostedOptions = Readonly<{
    * handover, none where it names none or there is no handover. Trusted
    * composition, never HTTP input; tests supply the key. */
   ownerKey?: () => Promise<string | null>;
+  /** Where Settings → Tento Environment reads the switch of agents in
+   * colleagues' applications (Lazurio Auth docs/agent-application-entry.md,
+   * LZD-0009 M9): the relay the Folder records, by default over its unix
+   * socket. Trusted composition, never HTTP input; tests and the preview
+   * supply a relay socket of their own. */
+  agentEntryTransport?: (socket: string) => RelayTransport;
   /** Where the catalog reads this Environment's services for Služby
    * serveru's Productionspace (root decision 0209 point 6): by default the
    * root-custodied Machine handover, none where it is not Služby serveru's
@@ -2770,6 +2782,25 @@ export async function startLaunchpad(
                   read,
                   await readSyncRecord(syncHost.lockDirectory, folder),
                 ),
+          );
+        }
+        if (url.pathname === "/api/agent-entry") {
+          // Settings → Tento Environment (LZD-0009 M9): the switch of agents
+          // in colleagues' applications, read through the relay as this
+          // Environment, and the Dashboard page where the person changes it.
+          // Nothing is written; the Environment can switch nothing.
+          stateFields(input, []);
+          const current = await withFolderReadLock(state, () =>
+            readFolderState(state),
+          );
+          return response(
+            await readAgentEntry({
+              preset: current.preferences.preset.name,
+              machine: current.preferences.machine,
+              ownerKey: hostedOptions.ownerKey ?? handoverOwnerKey,
+              transport:
+                hostedOptions.agentEntryTransport ?? unixSocketTransport,
+            }),
           );
         }
         if (url.pathname === "/api/profile") {

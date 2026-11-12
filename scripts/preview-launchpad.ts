@@ -182,6 +182,7 @@ import { microsoft365Description } from "../src/integrations/microsoft365-execut
 import type { NewTabHost } from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import { parseMachineContext } from "../src/machine/context";
+import { unixSocketTransport } from "../src/organization-settings/relay";
 import { serverServicesOf } from "../src/organizations/catalog";
 import { toolsEnvironmentOf } from "../src/tools/overview";
 import { runTool } from "../src/tools/status";
@@ -208,6 +209,7 @@ import {
   githubHostKeys,
   realSshKeygen,
 } from "../tests/fixtures/fake-login-tools";
+import { fakeRelay } from "../tests/fixtures/fake-relay";
 import {
   fakeBw,
   fakeHost,
@@ -299,6 +301,39 @@ const assignment =
         : process.argv.slice(3).includes("services")
           ? "services"
           : null;
+// With `agent-entry` or `agent-entry-off` anywhere after the mode, a hosted
+// or personal preview's entry names the Environment's relay (on a socket
+// under /run that does not exist, so nothing real is asked) and a stand-in on
+// a unix socket of its own answers the Dashboard's list for this Environment
+// (Lazurio Auth docs/agent-application-entry.md, LZD-0009 M9) with the
+// switch on or off, so Settings → Tento Environment shows "Agenti
+// v aplikacích kolegů" and its link to Lazurio.
+const agentEntryState = process.argv.slice(3).includes("agent-entry-off")
+  ? "off"
+  : process.argv.slice(3).includes("agent-entry")
+    ? "on"
+    : null;
+const agentEntryRouted = <T extends { entry?: object }>(binding: T): T =>
+  agentEntryState === null || binding.entry === undefined
+    ? binding
+    : {
+        ...binding,
+        entry: {
+          ...binding.entry,
+          environmentRelaySocket: "/run/lazurio-preview/relay.sock",
+        },
+      };
+const agentEntryRelay =
+  agentEntryState === null
+    ? null
+    : await fakeRelay(() =>
+        Response.json({
+          schema: "lazurio.environment-shared-applications.v1",
+          environment: "environment-vm-01",
+          agentEntry: agentEntryState,
+          sharedApplications: [],
+        }),
+      );
 // The work Environment assigned to `example`, whose account the proxy
 // relays with the applications shared with them (decision 0231).
 const sharedApps =
@@ -353,15 +388,19 @@ else {
     // `public` a public Environment's audience (decision F55).
     machine:
       mode === "personal"
-        ? hubRouted(buddyRouted(personalWithEntry(listenPort, true, true)))
-        : hubRouted(
-            organizationWithEntry(
-              listenPort,
-              host,
-              true,
-              true,
-              publicEnvironment,
-              sharedApps ? "operator" : assignment,
+        ? agentEntryRouted(
+            hubRouted(buddyRouted(personalWithEntry(listenPort, true, true))),
+          )
+        : agentEntryRouted(
+            hubRouted(
+              organizationWithEntry(
+                listenPort,
+                host,
+                true,
+                true,
+                publicEnvironment,
+                sharedApps ? "operator" : assignment,
+              ),
             ),
           ),
     profile: presetProfile(preset, os, { locale }),
@@ -1243,6 +1282,16 @@ const app = await startLaunchpad(
               serverServices: async () => services.served,
               ownerKey: async () => services.served?.owner?.key ?? null,
             }),
+        // The switch of agents in colleagues' applications through the
+        // stand-in relay, and the example Organization's Dashboard page by
+        // the binding, never this computer's handover.
+        ...(agentEntryRelay === null
+          ? {}
+          : {
+              agentEntryTransport: () =>
+                unixSocketTransport(agentEntryRelay.socket),
+              ownerKey: async () => null,
+            }),
         // Telegram's word on a bot's token (decision F66): a stand-in, so
         // nothing reaches Telegram.
         telegramBot: async () => ({ kind: "bot", username: "jana_buddy_bot" }),
@@ -1498,6 +1547,7 @@ console.log(
     proxy,
     browser: mode === "local" ? null : browserOrigin,
     ...(buddyOrigin === null ? {} : { buddy: buddyOrigin }),
+    ...(agentEntryState === null ? {} : { agentEntry: agentEntryState }),
     folder,
     ...(bitwarden === null ? {} : { bitwarden }),
     ...(composioSignedOut
