@@ -34,8 +34,10 @@ import {
 } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
+  aiSignInRouting,
   buddyChatRouting,
   buddyPublicationRules,
+  launchpadRouting,
   networkLine,
   ownSignInIdentity,
   publicationRules,
@@ -908,8 +910,12 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         );
         expect(text).toContain(
           cs
-            ? "a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá uživatel sám v Launchpadu; o heslo, token ani kód nežádej."
-            : "and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The user makes sign-ins and connections in the Launchpad themselves; never ask for a password, token or code.",
+            ? "a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá uživatel sám v Launchpadu" +
+                (github === "brokered" ? "" : " (AI v Začínáme)") +
+                "; o heslo, token ani kód nežádej."
+            : "and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The user makes sign-ins and connections in the Launchpad themselves" +
+                (github === "brokered" ? "" : " (AI in Začínáme)") +
+                "; never ask for a password, token or code.",
         );
         expect(text).toContain(
           cs
@@ -1032,15 +1038,19 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
           const [line = ""] = naming;
           for (const sentence of contract[locale])
             expect(line).toContain(sentence);
-          // Right after the Launchpad's lines: the Launchpad, then its
-          // GitHub line on the person's own sign-in.
+          // Right after the Launchpad's lines: the Launchpad, its GitHub
+          // line on the person's own sign-in and, in the manual, where AI
+          // signs in (AGENTS.md, at its byte budget, names Začínáme in the
+          // Launchpad's line instead).
           const at = lines.indexOf(line);
-          expect(lines[at - 2]).toStartWith(
+          const ai = path === "manual/this-machine.md" ? 1 : 0;
+          expect(lines[at - 2 - ai]).toStartWith(
             locale === "cs"
               ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
               : "- This Environment's Launchpad (call it Lazurio towards users;",
           );
-          expect(lines[at - 1]).toStartWith("- GitHub: ");
+          expect(lines[at - 1 - ai]).toStartWith("- GitHub: ");
+          if (ai === 1) expect(lines[at - 1]).toStartWith("- AI (");
         }
         expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
         // His origin names his chat and nothing else: no other file of the
@@ -2868,4 +2878,41 @@ test("the remaining rules of the Root's inventory each have one place in the man
         environment.preset !== "hosted-personal",
       ]);
     }
+});
+
+// Where ChatGPT and Claude sign in (root decision 0201, F19's addendum of
+// 2026-10-15): an agent that read only the gh line sent the user to Tools,
+// which has no AI sign-in (2026-11-03). Every Environment with Začínáme says
+// it; a Team Environment, whose hosting prepares its AI, does not.
+test("the manual says AI signs in at Začínáme, never Tools, and AGENTS.md names Začínáme, where the Environment has Začínáme", () => {
+  const origin = "https://launchpad.example.lazurio.io";
+  for (const identity of ["own-sign-in", "persona-account"] as const) {
+    const ai = aiSignInRouting(origin, identity);
+    expect(ai?.cs).toContain(
+      `Nastavení → Začínáme \`${origin}/settings/start\``,
+    );
+    expect(ai?.cs).toContain("Nástroje přihlášení k AI nenabízejí");
+    expect(ai?.en).toContain(
+      `Settings → Začínáme \`${origin}/settings/start\``,
+    );
+    expect(ai?.en).toContain("Tools offers no AI sign-in");
+    const [launchpad] = launchpadRouting(
+      "hosted-organization-personal",
+      origin,
+      identity,
+    );
+    expect(launchpad?.cs).toContain("(AI v Začínáme)");
+    expect(launchpad?.en).toContain("(AI in Začínáme)");
+  }
+  // A Team Environment has no Začínáme: neither the line nor the hint.
+  for (const identity of ["brokered-organization", "none"] as const) {
+    expect(aiSignInRouting(origin, identity)).toBeNull();
+    const [launchpad] = launchpadRouting(
+      "hosted-organization-team",
+      origin,
+      identity,
+    );
+    expect(launchpad?.cs).not.toContain("Začínáme");
+    expect(launchpad?.en).not.toContain("Začínáme");
+  }
 });
