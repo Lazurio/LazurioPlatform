@@ -145,12 +145,14 @@ test("a locked tool offers no sign-in or installation, still a sign-out", () => 
     primary: null,
     logout: true,
     linkSsh: false,
+    allowWorkflow: false,
   });
   const { signIn: _, ...missing } = forbidden;
   expect(curatedActions({ ...missing, installed: false }, copy)).toEqual({
     primary: null,
     logout: false,
     linkSsh: false,
+    allowWorkflow: false,
   });
 });
 

@@ -174,7 +174,7 @@ test("a brief: kept a while for its prompt and login, its id within Chat's gramm
   expect(id).toBe(`new-module-request-${"0".repeat(32)}`);
   expect(briefPromptOf(id)).toBe("new-module-request");
   expect(
-    chatPromptHref("https://chat.example/", "https://chat.example", {
+    chatPromptHref("https://chat.example", {
       id,
       organization: "Example-Org",
     }),

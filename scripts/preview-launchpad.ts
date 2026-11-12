@@ -95,7 +95,12 @@
 // (`hosted cs <port> owner fresh services`), the Folder holds no
 // Organization, as on a services Environment whose Organization install has
 // not run, and Apps lists the services in a group of their own, named as
-// the handover names its owner. With `vault-member` anywhere
+// the handover names its owner. With `pool` anywhere after the mode, a
+// personal preview's handover names its own AI pool (root decision 0181,
+// addendum of 2026-11-05) and its Personalspace has an owner directory, so
+// the personal Workspace shows the pool's tile, opened through the same fake
+// hub; `hub=<port>` moves that hub off 4848 where an Environment's own hub
+// listens there. With `vault-member` anywhere
 // after the mode, the fictional person jana already has her Lazurio account
 // with a master password in the hosted work Environment's vault, so Apps →
 // Trezor adds and confirms her and finds her a member: the vault's video
@@ -209,6 +214,7 @@ import {
   organizationWithEntry,
   personalWithEntry,
 } from "../tests/fixtures/machine-bindings";
+import personalContext from "../tests/fixtures/machine-context-personal.json";
 import servicesContext from "../tests/fixtures/machine-context-services.json";
 
 const mode =
@@ -245,6 +251,24 @@ const ghSlow = process.argv.slice(3).includes("gh-slow");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
 const codexSignedOut = process.argv.slice(3).includes("codex-signed-out");
+// A personal preview's own AI pool (root decision 0181, addendum of
+// 2026-11-05), with `pool`: its handover names it, and its Personalspace has
+// an owner directory, as once it is prepared, so the personal Workspace
+// shows the pool's tile.
+const personalPool =
+  process.argv[2] === "personal" && process.argv.slice(3).includes("pool");
+// The fake hub's port, the entry's `browser.listen_port`: 4848 as Machines
+// writes it, or `hub=<port>` anywhere after the mode where 4848 is taken
+// (an Environment whose own hub listens there).
+const hubArgument = process.argv
+  .slice(3)
+  .find((value) => /^hub=[0-9]{4,5}$/.test(value));
+const hubPort = hubArgument === undefined ? 4848 : Number(hubArgument.slice(4));
+/** The binding with the fake hub's port, where `hub=<port>` names one. */
+const hubRouted = <T extends { entry?: object }>(binding: T): T =>
+  hubArgument === undefined || binding.entry === undefined
+    ? binding
+    : { ...binding, entry: { ...binding.entry, browserListenPort: hubPort } };
 // Buddy's frame routed by a personal preview's entry (decision F60).
 const withBuddy =
   process.argv[2] === "personal" && process.argv.slice(3).includes("buddy");
@@ -313,18 +337,22 @@ else {
     // `public` a public Environment's audience (decision F55).
     machine:
       mode === "personal"
-        ? buddyRouted(personalWithEntry(listenPort, true, true))
-        : organizationWithEntry(
-            listenPort,
-            host,
-            true,
-            true,
-            publicEnvironment,
-            assignment,
+        ? hubRouted(buddyRouted(personalWithEntry(listenPort, true, true)))
+        : hubRouted(
+            organizationWithEntry(
+              listenPort,
+              host,
+              true,
+              true,
+              publicEnvironment,
+              assignment,
+            ),
           ),
     profile: presetProfile(preset, os, { locale }),
   });
 }
+if (personalPool)
+  await mkdir(join(folder, "personalspace", "example_GEN3"), { mode: 0o700 });
 if (!fresh && mode !== "personal") await writeExample();
 async function writeExample() {
   const root = await writeOrganization(folder, "example_GEN3", {
@@ -1069,37 +1097,51 @@ if ((composioOff || microsoft365) && mode === "hosted" && !fresh) {
 // the entry's loopback port (4848) that keeps one tab per page and strip, as
 // the hub does (decision F57 point 7), and lists its tabs on `/preview/tabs`
 // for the browser automation that stands in for the view's origin; Nová
-// karta's holder file is in a temporary runtime directory.
-const services = assignment === "services" ? await servicesWorld() : null;
-async function servicesWorld() {
-  const served = serverServicesOf(
-    parseMachineContext(
-      Buffer.from(
-        JSON.stringify({
-          ...servicesContext,
+// karta's holder file is in a temporary runtime directory. With `pool`, a
+// personal preview's handover names its own AI pool (root decision 0181,
+// addendum of 2026-11-05) with its Management Center on 127.0.0.1:18410,
+// opened through the same fake hub.
+const services =
+  assignment === "services"
+    ? await servicesWorld({
+        ...servicesContext,
+        services: [
+          { id: "entry", kind: "public-entry" },
+          { id: "dns01", kind: "dns01" },
+          {
+            id: "try",
+            kind: "ai-gateway",
+            repository: "Lazurio/CLIProxyAPI",
+          },
+          {
+            id: "members",
+            kind: "ai-pool",
+            repository: "Lazurio/CLIProxyAPI",
+            page_port: 18402,
+          },
+        ],
+      })
+    : personalPool
+      ? await servicesWorld({
+          ...personalContext,
           services: [
-            { id: "entry", kind: "public-entry" },
-            { id: "dns01", kind: "dns01" },
             {
-              id: "try",
-              kind: "ai-gateway",
-              repository: "Lazurio/CLIProxyAPI",
-            },
-            {
-              id: "members",
+              id: "ai-pool",
               kind: "ai-pool",
               repository: "Lazurio/CLIProxyAPI",
-              page_port: 18402,
+              page_port: 18410,
             },
           ],
-        }),
-      ),
-    ),
+        })
+      : null;
+async function servicesWorld(handover: unknown) {
+  const served = serverServicesOf(
+    parseMachineContext(Buffer.from(JSON.stringify(handover))),
   );
   const tabs: TabFacts[] = [];
   Bun.serve({
     hostname: "127.0.0.1",
-    port: 4848,
+    port: hubPort,
     async fetch(request) {
       const url = new URL(request.url);
       if (url.pathname === "/preview/tabs") return Response.json(tabs);
@@ -1183,7 +1225,7 @@ const app = await startLaunchpad(
           ? {}
           : {
               serverServices: async () => services.served,
-              ownerKey: async () => services.served?.owner.key ?? null,
+              ownerKey: async () => services.served?.owner?.key ?? null,
             }),
         // Telegram's word on a bot's token (decision F66): a stand-in, so
         // nothing reaches Telegram.

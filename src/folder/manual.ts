@@ -14,6 +14,10 @@ import {
   presetVersion,
   workspacePreset,
 } from "./presets";
+import {
+  productionGlossary,
+  productionRequestRule,
+} from "./production-applications";
 import type { FolderProfile } from "./profile";
 import {
   accountText,
@@ -183,8 +187,8 @@ const lazurio: readonly Text[] = [
     "- **Organization**: one company = one GitHub organization = one access boundary = one git repository checked out at `organizations/<org>/`. Every Organization has its own `AGENTS.md`; load it before working inside.",
   ),
   t(
-    "- **Workspace moduly**: oblasti práce Organizace, každá s postupem, daty a aplikací (`manual/mechanisms.md`, oddíl Moduly), všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše); produkční aplikace mají `<app>.<org>.lazurio.io` (decision 0146). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
-    "- **Workspace modules**: the Organization's areas of work, each with its process, data and app (`manual/mechanisms.md`, section Modules), all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above); production applications are `<app>.<org>.lazurio.io` (decision 0146). A workshop is not production: production is a reproducible build from a protected commit or tag.",
+    "- **Workspace moduly**: oblasti práce Organizace, každá s postupem, daty a aplikací (`manual/mechanisms.md`, oddíl Moduly), všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše); produkční aplikace Organizace mají `<modul>.<org>.lazurio.app` (oddíl Produkční aplikace Organizace v `manual/mechanisms.md`). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
+    "- **Workspace modules**: the Organization's areas of work, each with its process, data and app (`manual/mechanisms.md`, section Modules), all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above); an Organization's production applications are `<module>.<org>.lazurio.app` (section Production applications of an Organization in `manual/mechanisms.md`). A workshop is not production: production is a reproducible build from a protected commit or tag.",
   ),
   t(
     "- **`productionspace/`**: repozitáře na úrovni Organizace mimo workspace moduly (firmware, connect, monorepo). Každý má vlastní branch model a release proces (decision 0041); bez výslovné policy Organizace je z Folderu nespouštěj ani nereleasuj.",
@@ -953,6 +957,7 @@ function workingHere(
     ...(isPublic
       ? []
       : [...readOnlyProposal(preset), blank, ...missingRights, blank]),
+    ...(isPublic ? [] : [productionRequestRule, blank]),
     t(
       "## Poznatky patří tam, kde je najdou ostatní",
       "## Knowledge belongs where others find it",
@@ -1090,6 +1095,10 @@ const roles: readonly Text[] = [
   ),
   blank,
   t("### Aplikace", "### An application"),
+  t(
+    "U produkční aplikace Organizace stačí člověku Lazurio účet, aktivní členství a role v aplikaci; nepotřebuje celé Prostředí ani roli modulu. Její zveřejnění a každou nasazenou verzi schvaluje Admin Organizace. Stav přihlášení bez GitHubu a nasazené správy rolí vždy ověř podle `manual/mechanisms.md`, oddíl Produkční aplikace Organizace.",
+    "For an Organization's production application a person needs only a Lazurio account, active membership and an application role; they need neither the whole Environment nor a Module role. The Organization Admin approves publication and every deployed version. Always check sign-in without GitHub and deployed role management by `manual/mechanisms.md`, section Production applications of an Organization.",
+  ),
   t(
     "- **Admin aplikace** a **Uživatel aplikace**: role v běžící aplikaci modulu, tedy ve stabilní verzi z `main`. Platí na všech Prostředích Organizace. Bez nastavení jsou Admini aplikace Přispěvatelé modulu, Správci modulu, Admin Organizace a kdo má celé Prostředí, kde aplikace běží; samotná role Čtenáře modulu žádnou roli v aplikaci nedává. Role ostatním (lidem, Teamu nebo celé Organizaci) dávají jen Přispěvatelé modulu, Správci modulu a Admin Organizace; celé Prostředí k tomu neopravňuje.",
     "- **Application Admin** and **Application User**: roles in a module's running application, the stable version from `main`. They hold on every Environment of the Organization. Without any setting the Application Admins are the Module Contributors, the Module Maintainers, the Organization Admin and whoever has the whole Environment where the application runs; the Module Reader role by itself gives no application role. Only Module Contributors, Module Maintainers and the Organization Admin give roles to others (people, a Team or the whole Organization); having the whole Environment does not grant that.",
@@ -1237,6 +1246,7 @@ const glossary: readonly Text[] = [
     "| Admin aplikace, Uživatel aplikace (`application-admin`, `application-user`) | Role v běžící aplikaci modulu, platné na všech Prostředích Organizace; nikdy je nezaměňuj s Adminem Organizace (decisions 0231, 0234). |",
     "| Application Admin, Application User (`application-admin`, `application-user`) | Roles in a module's running application, holding on every Environment of the Organization; never confuse them with the Organization Admin (decisions 0231, 0234). |",
   ),
+  ...productionGlossary,
   t(
     "| Přidělený uživatel (`environment-assigned-user`) | Člověk, kterému je Pracovní Prostředí přidělené (decisions 0216, 0234). |",
     "| Assigned User (`environment-assigned-user`) | The person a Work Environment is assigned to (decisions 0216, 0234). |",

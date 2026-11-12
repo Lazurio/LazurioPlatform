@@ -11,13 +11,18 @@ does not authorize deployment, restart, access changes or resident removal.
 Machines writes `/etc/lazurio/lazurio.machine.json`, root-owned and non-shared,
 after successful managed handover. Platform only reads it. The exact upstream
 JSON Schema is vendored in `src/machine/lazurio-machine.v1.schema.json`. The pin is
-Machines pull request **#1072** (HumanAndMachine-ai/Machines#955, root decision 0216),
-which adds only the auth-sourced handover of a free Environment
+Machines pull request **#1099** (root decision 0181, addendum of 2026-11-05), which
+adds only the personal branch's optional member `services`, a Personal Environment's
+own AI pool ([below](#a-personal-environments-own-ai-pool-root-decision-0181-addendum-of-2026-11-05)),
+to the schema of Machines #1072 and changes nothing else, taken byte for byte from
+its merge commit `440047ff4d3bc09794718a9631dbdc9a35d46339` (SHA-256
+`057195b531c5ea012f7af8387d02da245fcb03bb4b94fc49ffa113affd251434`). Before it, the
+pin was Machines pull request **#1072** (HumanAndMachine-ai/Machines#955, root
+decision 0216), which added only the auth-sourced handover of a free Environment
 ([below](#free-environments-the-assignment-receipt-root-decision-0216)) to the schema of
-Machines #1051 and changes nothing else, taken byte for byte from its merge commit
+Machines #1051 and changed nothing else, taken byte for byte from its merge commit
 `67a6a6131315208f8f0d31b3ab33453a0fb210e5` (SHA-256
-`1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd`), as
-`src/machine/schema-provenance.json` records it. Before it,
+`1a4d7b92afd69f405289f57bb5941831e3c3d0e0a0f798e834b2b2bf6e3160cd`). Before it,
 the pin was Machines pull request **#1051** (HumanAndMachine-ai/Machines#1040, decision
 F70), which added only the optional member `access_service` on both branches
 ([below](#the-home-access-service-decision-f70)) to the schema of v0.12.211 and
@@ -203,7 +208,14 @@ version after handover, and Platform does not rewrite the identity.
 node, a new virtualization host: the first apply after the move answers
 `already-adopted`, then `folder-refresh` records the new host like the rest of the
 handover-derived binding. A handover with another kind, name, Owner or tailnet node
-is another Machine and stays `folder-binding-changed`. A copy of the guest on
+is another Machine and stays `folder-binding-changed`, with one exception: a work
+Environment whose handover now names the Owner Organization by exactly
+`owner.organization_key` in lower case, where the Folder recorded another value (an earlier
+runtime label), and whose identity is otherwise the same, is the same Machine;
+`folder-refresh` records that Organization and says so with
+`"bindingCorrected":"owner-organization"`
+([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
+A copy of the guest on
 another host with the same name, Owner and tailnet node is not told apart by the
 binding; Machines keeps one Machine on one host (one lane roster per guest, the old
 copy released and fenced before the new server applies; Machines#1016).
@@ -277,6 +289,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
+| `{"kind":"refreshed","revision":<n>,"bindingCorrected":"owner-organization"}` | 0 | Revision `n` records the Owner Organization as the handover now names it, exactly `owner.organization_key` in lower case, on a work Environment whose Folder recorded another value and whose identity is otherwise the same ([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)); `folder-init` on that Folder answers `already-adopted` with `"bindingCorrection":"owner-organization"` and writes nothing |
 | `{"kind":"unchanged"}` | 0 | The current handover renders the same bytes and declares the same entry and relationships (identical handover, or only `installed` rewritten); nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) access and host keys are rendered nowhere in the Folder. On a personal Machine either answer adds `environmentSsh` ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
 | `{"kind":"blocked","reason":"drift","path":…}` / `"unsafe-path"` | 2 | An owned file was edited, removed or replaced by a link; it is named and never overwritten, nothing is written |
@@ -485,6 +498,31 @@ Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-p
   GitHubu přes Lazurio for GitHub …"), and pages whose words follow the shell's kind
   use the work wording, which does not say the Environment is shared. Telling two
   servers' Služby serveru apart waits for the wireframe.
+
+## A Personal Environment's own AI pool (root decision 0181, addendum of 2026-11-05)
+
+A person may switch on an AI pool of their own in their Personal Environment, on
+its loopback only. Machines #1099 carries it in the personal branch's optional
+member `services`: at most one closed `{id: "ai-pool", kind: "ai-pool",
+repository: "Lazurio/CLIProxyAPI", page_port}`, `page_port` 18400 to 18499, never a
+hostname; an auth-sourced handover may not carry it. Machines writes it only for a
+pinned Platform at least its gate, which stays unset until a Platform release with
+this reader exists; a Platform that vendors an earlier schema refuses a handover
+carrying it, as for `entry` and `vault`.
+
+The Platform reads it as it reads Služby serveru's `services`, and records it
+nowhere in the Folder: `serverServicesOf` gives it with no owner, and the catalog
+merges it into the Personalspace group's repositories, one read-only entry for
+`Lazurio/CLIProxyAPI` carrying the service (also where the group is listed with a
+reason, since the pool runs on this Environment whatever the Personalspace's
+state). Apps shows it in the personal Workspace after the modules, "Váš AI pool" /
+"Your AI pool", with "Otevřít stránku služby": its Management Center at
+`http://127.0.0.1:<page_port>/management.html` in the Environment browser, also
+from `/service/ai-pool`; its menu leads to its read-only page
+([F32's addendum of 2026-11-05](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace)).
+A Folder without a Personalspace group lists it nowhere: the pool is the person's,
+never an Organization's. Without `services`, and on every other Environment, the
+catalog is unchanged.
 
 ## Assigned peers (root decision 0192, addendum of 2026-10-26)
 

@@ -1324,8 +1324,8 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       const workingHere = outputs["manual/working-here.md"];
       expect(outputs["AGENTS.md"]).toContain(
         locale === "cs"
-          ? "- Když na něco nemáš práva nebo GitHub odmítne push, práci nezahazuj."
-          : "- When you lack the rights for something or GitHub refuses a push, never discard the work.",
+          ? "- Chybí-li právo nebo GitHub odmítne push, zachovej práci"
+          : "- If a right is missing or GitHub refuses a push, preserve the work",
       );
       for (const sentence of locale === "cs"
         ? [

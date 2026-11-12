@@ -360,7 +360,10 @@ export function moduleAction(
 }
 
 /** Every tile of one group, in the catalog's order: its modules, then its
- * production repositories. */
+ * production repositories. The Personalspace group's only repositories are
+ * those that carry this Environment's services: a Personal Environment's own
+ * AI pool (root decision 0181, addendum of 2026-11-05), shown as Služby
+ * serveru's are. */
 export function appsTiles(
   catalog: Catalog,
   group: CatalogGroupEntry,
@@ -392,9 +395,12 @@ export function appsTiles(
       : group.sections.flatMap((section) =>
           section.kind === "workspace" ? section.modules : [],
         );
+  const personal = group.sections === null;
   const repositories =
     group.sections === null
-      ? []
+      ? group.organization.repositories.flatMap((repository) =>
+          repository.services === undefined ? [] : [{ repository }],
+        )
       : group.sections.flatMap((section) =>
           section.kind === "productionspace" ? section.repositories : [],
         );
@@ -411,7 +417,7 @@ export function appsTiles(
         description:
           services === undefined
             ? (repository.path ?? "")
-            : servicesText(services, copy),
+            : servicesText(services, copy, personal),
         action: repositoryAction(catalog, group, repository, copy),
         // A service repository's own page; any other's GitHub page.
         info:
@@ -510,7 +516,9 @@ export function repositoryAction(
  * sections are left out. The Personalspace group is one section,
  * "Workspace", which stays without a module where `owner` says its verified
  * holder is this Environment's GitHub account (root decision 0185's
- * addendum of 2026-10-13). An
+ * addendum of 2026-10-13) or where it carries a Personal Environment's own
+ * AI pool, whose repository tile follows its modules (root decision 0181,
+ * addendum of 2026-11-05). An
  * Organization's Workspace stays, even without a module, where `owner` is
  * GitHub's live answer that this Environment's identity is an
  * Organization Owner (false until it comes), or an Organization Member's
@@ -538,7 +546,9 @@ export function appsSections(
   // root decision 0185's addendum of 2026-10-13); `owner` here is its
   // verified holder, for whom it stays without a module.
   if (group.sections === null)
-    return tiles.modules.length === 0 && !owner
+    return tiles.modules.length === 0 &&
+      tiles.repositories.length === 0 &&
+      !owner
       ? []
       : [
           {
@@ -546,7 +556,10 @@ export function appsSections(
             title: copy.catalogSectionWorkspace,
             badge: null,
             count: count(tiles.modules.length, "modules"),
-            tiles: favoritesFirst(tiles.modules, favorites),
+            tiles: favoritesFirst(
+              [...tiles.modules, ...tiles.repositories],
+              favorites,
+            ),
             tabs: null,
           },
         ];
@@ -622,7 +635,7 @@ export type PersonalStart = Readonly<{
    * sentence why. */
   text: string;
   /** An app of the switch, whose plain click announces `lazurio-app` as its
-   * tab does (ui.ts pairs the browser on the way); a route of this page, as
+   * tab does and follows its plain origin (ui.ts); a route of this page, as
    * the column's item; null where the app does not run here (muted). */
   target:
     | Readonly<{ kind: "app"; app: "chat" | "automate"; href: string }>

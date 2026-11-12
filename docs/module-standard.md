@@ -666,6 +666,50 @@ Organization declares as `workspace/<slug>` never sleeps, because its callers
 reach it past the gateway, which wakes nothing; a Module that must work without a
 person is a service, not an App.
 
+## Production applications of an Organization
+
+A production application is a released, built Module app on the Organization's
+Application host, not a development server in a person's Environment. People use
+their Lazurio account and an Application User or Application Admin role, without
+an Environment, tailnet access or source code. The public address has the form
+`<module>.<org>.lazurio.app`; use the verified deployment output for an actual
+link. Sharing an app from a Work Environment is a separate delivery path.
+
+The release has a tag, an exact commit and green CI. The deployment declaration
+pins that tag and commit to exactly one Application host on one server.
+Every publication and every newly deployed version requires the Organization
+Admin's approval by merging a reviewed Deployment Repo pull request; the rollout
+still obeys its Plan, Permit, branch rules and readback gates. Releasing the Module
+as a Module Maintainer does not itself authorize deployment.
+
+The ordinary runtime contract still holds: built output, one server process,
+listener host and port from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`,
+direct 200 health, and secrets declared by name and delivered from the
+Organization's vault through Machines custody. No secret values in Git or requests.
+The app enforces Application User and Application Admin permissions on every
+server request through `appAccess` of `@lazurio/module-kit`; unknown identity or
+a missing role grants nothing.
+
+The production app is the sole writer of its data. With repository-db its host
+is the sole sync host for the declared data repository; development Environments
+use preview data. A writer cutover names the old and new writer and its approved
+steps. Until then a production rehearsal stays read-only: `data.writer: false`
+in the deployment declaration and the application itself allowing mutations only with explicit
+`LAZURIO_RUNTIME_DATA_WRITER=true`, rejecting them for `false` or a missing value. A
+second writer is never a rehearsal.
+
+An optional `/mcp` endpoint uses Streamable HTTP and a Lazurio Auth Bearer access
+token obtained through Lazurio sign-in, with the Application host's audience and a
+role for the selected application. The gateway validates token and role.
+Unauthenticated calls return 401 with a Bearer challenge pointing to protected-resource
+metadata; invalid tokens, wrong audiences and missing application roles are denied.
+A fixed shared token is not a substitute for Lazurio sign-in.
+
+The generated `manual/admin.md` describes the Organization Admin's checklist,
+approval and verification; `admin-request` gives everyone else one request in
+the Organization's root repository. Check the Organization's deployed pipeline
+and evidence before describing this delivery path as available.
+
 ## Boundaries and dependencies
 
 - An App imports only from its own repository and from dependencies declared in

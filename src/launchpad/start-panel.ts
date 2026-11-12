@@ -47,6 +47,10 @@ export function createStartPanel(
     copy: () => Copy;
     /** What Začínáme reads, or null while the profile is not loaded. */
     facts: () => StartFacts | null;
+    /** Whether this is the services Environment of a server, Služby
+     * serveru (root decision 0209): its Organization provides its AI, not
+     * a sign-in here (#771). */
+    servicesEnvironment: () => boolean;
     /** A public Environment's Začínáme (`demoStartView`); null elsewhere. */
     demo: () => DemoStartView | null;
     composio: () => ComposioFact;
@@ -496,8 +500,8 @@ export function createStartPanel(
 
   /** One row of a public Environment's Začínáme: its title, its sentence,
    * a state where it has one, and its button. Chat opens as the shell's own
-   * Chat entry does (the `lazurio-app` event pairs it); a route of this page
-   * moves within it. */
+   * Chat entry does (the `lazurio-app` event, then its plain origin); a
+   * route of this page moves within it. */
   function demoNode(row: DemoRow): HTMLElement {
     const node = element("div", "row");
     node.dataset.demo = row.id;
@@ -574,8 +578,15 @@ export function createStartPanel(
       facts === null
         ? null
         : startView({ ...facts, aiChoosing: choosing }, copy);
-    // A Team Environment: its Organization prepares it.
+    // A Team Environment: its Organization prepares it. The services
+    // Environment says where its AI comes from instead, since T3 Code and
+    // the bots send a signed-out AI here (#771).
     notHere.hidden = facts === null || view !== null;
+    const notHereKey = options.servicesEnvironment()
+      ? "startServicesAi"
+      : "startNotHere";
+    notHere.dataset.message = notHereKey;
+    notHere.textContent = copy[notHereKey];
     for (const group of groups) group.hidden = view === null;
     intro.hidden = view === null;
     if (facts === null || view === null) {

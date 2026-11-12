@@ -1415,6 +1415,41 @@ product no longer enforces it by stopping the Environment's updates:
 
 Authority: Matěj 2026-11-03 in the question tool, „Neblokovat, jen ohlásit (Doporučeno)“.
 
+**Addendum 2026-11-11: one correction of the Owner Organization.** A work Environment adopted
+its Folder while its handover named the Owner Organization by a short runtime label
+(`owner.organization` `example`) and by its GitHub login only in `owner.organization_key`
+(`ExampleOrg`). Machines now writes `owner.organization` as that login in lower case
+(`exampleorg`; HumanAndMachine-ai/Machines#1164), so the next handover differs from the
+recorded identity by the Owner only and was refused as another Machine: `folder-refresh` and
+`folder-init` answered `folder-binding-changed`, `organization install ExampleOrg` stayed
+`not-for-this-environment` (the content scope admits the recorded Organization), `doctor`
+warned `machine-identity-changed`, and Machines' Launchpad switch failed because the refresh
+recorded nothing.
+
+- `machine folder-refresh` records exactly one change of the identity: on a work Environment
+  (`workspace-vm`, Owner of kind `organization`) whose handover names the Owner Organization
+  by exactly `owner.organization_key` in lower case, where the Folder recorded another value,
+  and whose identity is otherwise the same (kind, name, the Owner's kind and Team, tailnet
+  node). It goes through the one planner and one archived update transaction as every
+  refresh (the archive, the journal and `profile-resume` unchanged), is always recorded even
+  when no rendered text changes, and answers `{"kind":"refreshed","revision":<n>,
+  "bindingCorrected":"owner-organization"}`. The planner checks the rule again under the
+  Folder lock; the journal does not carry `organization_key`, so validating a staged
+  transaction (apply, `profile-resume`) admits only a binding that differs from the previous
+  one by the Owner Organization and nothing else.
+- Every other difference stays `folder-binding-changed`, nothing written: a new value that is
+  not the lower-cased `organization_key`, a handover without `organization_key`, any other
+  identity field changed as well, another Owner kind, a personal Environment's owner.
+- `machine folder-init` on such a Folder writes nothing and answers `already-adopted` with
+  `"bindingCorrection":"owner-organization"` and a `next` naming `folder-refresh`, instead of
+  calling it another Machine. Before the refresh, `doctor` reports the binding as
+  `handover-changed` (the refresh records it), not `machine-identity-changed`; after it the
+  check is `ok`, and `organization install <Login>` is admitted because the content scope
+  compares the login case-insensitively with the corrected Organization.
+
+Authority: Matěj 2026-11-11, the rule exactly as stated in the first point; nothing else of the
+identity follows the handover.
+
 ## F11 — Hosted admission is not identity
 
 **Accepted direction (2026-09-19), not implemented.** The hosted gateway authenticates.
@@ -5245,7 +5280,10 @@ SSH, the terminal and every agent read it.
    decides it (Pablo's review of #441: an Organization that switched to its provider
    within that minute would otherwise get a ChatGPT sign-in). An answer that cannot be
    read starts nothing either (`failed`, `provider-unknown`, exit 1, fail closed): whether
-   the sign-in would bypass the Organization's provider is then not known.
+   the sign-in would bypass the Organization's provider is then not known. *(Since
+   [F36's addendum of 2026-11-11](#f36-addendum-of-2026-11-11-a-chatgpt-sign-in-that-no-longer-works-reads-signed-out)
+   an `account/read` error that says the OpenAI sign-in no longer works reads signed out
+   and starts the sign-in; any other error still starts nothing.)*
 5. **Done is what the CLI says; then the running services read it** (0201 point 4).
    Signed in means the CLI exited 0 and its own status confirms it: `codex login status`
    and `claude auth status --json`, the catalog's `signInProbe`, which moves from a
@@ -7691,6 +7729,32 @@ is a separate finding, and point 2 changes no install behaviour.
 | The owner by its login, slug or `organization_key`, as the shell document finds it for the rail | A third rule for the same fact; replaced by `selectOwnerOrganization`, the one rule Organization settings and Composio already read |
 | The services in the owning Organization's Productionspace, or in a group of their own where it is not installed, their page opened through Nová karta's open (selected) | One core for the CLI and the page; no new interface; one tab per service by the hub's own rule; nothing that acts on an installed Organization sees the group |
 
+**Addendum 2026-11-05, plan LZD-0001 (root decision 0181, its amendment of
+2026-11-05, Lazurio/LazurioPlatform#859; Machines #1099): a Personal Environment's
+own AI pool is shown like Služby serveru's.** The amendment lets a person switch on
+an AI pool of their own in their Personal Environment, on its loopback only, and
+the Launchpad shows it "like a services Environment's pool, as the fork's read-only
+repository that opens its page on localhost in the Environment's browser". Machines
+names it in the personal branch's optional `services`: at most one `ai-pool` from
+`Lazurio/CLIProxyAPI` with its `page_port`, written only for a Platform release
+that reads it.
+
+1. **Where.** `serverServicesOf` gives a personal handover's `services` with no
+   owner; the catalog merges them into the Personalspace group's repositories by the
+   same rule (`withServiceRepositories`), also where the group carries a reason,
+   since the pool runs here whatever the Personalspace's state. No Organization and
+   no `serverServices` group ever gets it. A Folder without a Personalspace group
+   lists it nowhere: the pool is the person's, and placing it elsewhere would invent
+   a group for one tile.
+2. **What Apps shows.** The personal Workspace section has the pool's repository
+   tile after the modules (favourites first, as before), with the same tile, menu,
+   read-only page, "Otevřít stránku služby" and `/service/ai-pool` as point 5 to 7.
+   The section shows for the tile even without a module. Its kind reads "Váš AI
+   pool" / "Your AI pool" wherever the service is listed in the Personalspace group;
+   an Organization's stays "AI pool Organizace".
+3. **Unchanged.** A personal handover without `services`, every other Environment
+   and Služby serveru answer as before; the member is recorded nowhere in the Folder.
+
 ## F33 — The workspace of an Environment is composed by the Dashboard from live GitHub rights (proposal, partly decided)
 
 **Proposal of 2026-10-02 (plan DEV-6638); partly decided by Matěj the same evening, not
@@ -9470,6 +9534,67 @@ the admission), `tests/content-view.test.ts`, `tests/content-routes.test.ts`
 (`root-access`), `tests/first-run-shell.test.ts` and `tests/shell-host.test.ts`; and in a
 browser (root decision 0178) on a local Launchpad in both languages.
 
+### F36 addendum of 2026-11-11: a ChatGPT sign-in that no longer works reads signed out
+
+**Context.** In a pilot Organization two people moved their work Environments from the
+Organization's AI pool to their own ChatGPT accounts, and Codex then did not work while
+Lazurio offered no way forward. In one, `codex login status` still said "Logged in using
+ChatGPT", but Codex's `account/read` answered an error for a revoked refresh token; the
+probe read an answer without `result` as `unknown`, Začínáme said it could not check the
+AI, and the sign-in refused to start (`provider-unknown`, fail closed by F19 point 4). Only
+a manual `codex logout` helped. In the other, the running Codex still held an account
+in memory, new turns ended `unauthorized` and `codex login status` said "Not logged in".
+
+**Decision.** An `account/read` error that says the OpenAI sign-in Codex needs no longer
+works reads **signed out**, with `lapsed: true` on Codex's reading of `GET /api/ai`; every
+other error stays `unknown`. The errors are matched by their messages as Codex 0.167.1
+writes them (read in `openai/codex`: `codex-rs/login/src/auth/manager.rs`, the
+app-server's `account_processor/workspace_routing.rs` and the model provider's
+`account_state`):
+
+- the refresh of the ChatGPT tokens refused for good: "Your access token could not be
+  refreshed …" ending "Please log out and sign in again." (revoked, expired, already
+  used, other) or "Please sign in again." (another account since), JSON-RPC `-32603`;
+- OpenAI refusing the account's check even after a refresh: "workspace routing discovery
+  unauthorized (401)", `-32603`;
+- a ChatGPT sign-in stored without its plan: "plan type is required for chatgpt
+  authentication", `-32600`.
+
+Each arises only where the configured provider requires an OpenAI sign-in: Codex checks a
+ChatGPT account only for such a provider, and a provider of the Organization's AI pool
+(`requiresOpenaiAuth: false`) has none. So the rule of 0201 points 4 and 6 holds: the
+Organization's AI is never offered a ChatGPT sign-in, and an answer that cannot be read
+still starts nothing. Začínáme then says "Přihlášení k ChatGPT tu už neplatí. Přihlaste
+se prosím znovu." ("The ChatGPT sign-in here no longer works. Please sign in again.") with
+both sign-ins and the sign-in by code; where Claude Code works, the step stays done and
+says the same beside the account, with "Přihlásit jiný účet" for ChatGPT. The sign-in
+reads `account/read` afresh as before and now starts: `codex login` and `codex login
+--device-auth` clear the stored sign-in themselves before they store the new one (Codex
+0.167.1, `codex-rs/cli/src/login.rs`), so no `codex logout` is needed first, and the end
+of the sign-in restarts the running services as F19 point 5 says.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Treat every `account/read` error as signed out | Simpler, but an error that says nothing about the sign-in (a timeout, a configuration that did not load) under the Organization's AI pool would offer a sign-in that bypasses it. Rejected: 0201 point 4 |
+| Read `codex login status` as well | It says "Logged in" for a revoked sign-in and "Not logged in" under the AI pool (F36's addendum of 2026-10-15). Rejected |
+| Run `codex logout` before the sign-in | Codex's sign-in already clears the stored one, and a logout would end a sign-in that might still work. Rejected |
+
+**Honest limits.** The messages were read in Codex's source, not captured from the pilot
+Environments, which were already repaired when this was written; the one recorded there
+("revoked refresh token") matches the revoked message. A Codex that changes these
+messages reads `unknown` again until this list follows it. The second case, a running
+Codex holding in memory an account that is no longer stored, is not detected as such: the
+probe starts an app-server of its own, which reads the stored state, so it reads plainly
+signed out (no `lapsed`) and Začínáme offers the sign-in where no other CLI works; where
+Claude Code works, ChatGPT's sign-in stays under "Přihlásit jiný účet" without a warning.
+Asking the running app-server unit instead is a separate change.
+
+Verified by unit and process tests: `tests/ai-status.test.ts` (each error, other errors
+`unknown`, the route's shape, a fake app-server answering the error),
+`tests/start-view.test.ts` (both languages, alone, beside an unknown or a working Claude)
+and `tests/tools-ai-login.test.ts` (a revoked stored sign-in starts the sign-in by page and
+by code, and the new one replaces it).
+
 ### F36 addendum of 2026-10-16: the shell and the Launchpad say only what a person needs
 
 **Asked for by Matěj (Organization Admin) on 2026-10-16 (plan DEV-6665).** Labels in the
@@ -10118,7 +10243,9 @@ when T3 Code began to pair itself (the decision of 2026-10-17,
    only the session cookie, so Machines does not change.
 4. **The click stays.** Automate's click still pairs on the way: older MausBot builds
    need it, and with the fork's change a paired browser passes straight through it. It
-   can go once every Environment's MausBot pairs itself, as Chat's can.
+   can go once every Environment's MausBot pairs itself, as Chat's can. *(Ended by the
+   [addendum of 2026-10-31](#f36-addendum-of-2026-10-31-the-click-into-chat-and-automate-no-longer-pairs):
+   the click no longer pairs.)*
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -10130,6 +10257,54 @@ when T3 Code began to pair itself (the decision of 2026-10-17,
 route and Automate behaves as before. Verified by `tests/launchpad-mausbot.test.ts` and
 `tests/launchpad-recovery-page.test.ts`; a real gateway and a real Lazurio MausBot were
 not exercised in this change.
+
+### F36 addendum of 2026-10-31: the click into Chat and Automate no longer pairs
+
+**Decided by Matěj (Organization Admin) on 2026-10-31.** A click from the Launchpad into
+T3 Code took long: the page asked the Launchpad for a pairing, followed the link with
+the token, T3 Code paired the browser, and the whole page flashed three times. Once
+every Environment runs a T3 Code and a MausBot that pair themselves, the click stops
+pairing, for the speed of loading and switching. This ends point 4 of the addendum of
+2026-10-22 ("the click stays") and the click's pairing on the way that the decision of
+2026-10-17 ([Chat entry](launchpad-development.md#chat-entry)) kept for older T3 Code
+builds; the self-pairings themselves stay as they are.
+
+1. **The click follows the plain origin.** Chat's and Automate's links (the switch's
+   tabs, the personal space's starts, Začínáme) are `t3codeOrigin` and `mausbotOrigin`
+   as recorded, and a click follows them as a link does. The page asks the Launchpad for
+   nothing on the way. A browser without a session is paired by the app itself
+   (`GET /.lazurio/chat/pairing`, `GET /.lazurio/mausbot/pairing`); one with a session
+   opens at once.
+2. **The prompt hand-off.** "+ Nový modul" opens `t3codeOrigin` with only
+   `#lazurio-prompt=<id>&lazurio-org=<login>` in the fragment, no token. The T3 Code
+   fork keeps the link in the tab across its own pairing and reload
+   (`captureLazurioPromptLink`).
+3. **The routes go.** `POST /api/chat/pair` and `POST /api/mausbot/pair` are removed and
+   answer as every unknown route does (`404`). The self-pairing routes, their minting
+   (`mintChatPairing`, `mintMausbotPairing`), Buddy's origin and the operator or
+   standard pairing are unchanged. `lazurio chat link` prints the plain T3 Code origin
+   and mints nothing (`pairing: false`, reason `t3-pairs-itself`; `--plain` is accepted
+   and changes nothing; the exit codes and the `--json` keys stay).
+4. **The version floor.** T3 Code pairs itself from `0.1.0-lazurio.3` (Lazurio/t3code#84)
+   and MausBot from `0.1.115-lazurio.7` (DEV-6673 M2). Below that, a click lands on the
+   app's own pairing page (T3 Code's, or MausBot's empty form) and the user has to pair
+   by hand. A Platform release with this change must therefore not reach an Environment
+   whose T3 Code or MausBot is below its floor: the release's rollout rules carry both
+   versions, and lanes still on older pins move T3 Code, MausBot and the Platform
+   together.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the click's pairing (until now) | Harmless for a paired browser in function, but a round trip and the app's pairing page on every switch, the slowness the Admin reported |
+| Pair only when the app says it has no session | Needs a question to the other origin before the navigation, a second mechanism for what the app already does itself |
+| Follow the plain origin, the app pairs itself (selected) | One way of pairing for every way in; nothing on the way; needs the version floor in the rollout |
+
+**Honest limits.** Verified by `tests/launchpad-app-click.test.ts` (a real page in
+headless Chrome: a plain click on Chat and on Automate lands on the plain origin and no
+pairing route is asked), `tests/launchpad-chat.test.ts`, `tests/launchpad-mausbot.test.ts`
+and `tests/chat-link-cli.test.ts`. A real gateway, a real T3 Code and a real MausBot were
+not exercised in this change. Machines' qualification item for `lazurio chat link`
+still expects a pairing link and follows in Machines.
 
 ### F36 addendum of 2026-11-05: a new module explains itself, a member asks the Organization Admin, access is checked at once
 
@@ -10351,6 +10526,39 @@ the product's names wait for their own decision.
 Verified by unit tests (`tests/shell.test.ts`: the rail's personal space and the picker's glyph
 and list line with and without Buddy's origin) and in headless Chrome against the Launchpad's
 preview (root decision 0178).
+
+### F36 addendum of 2026-11-09: from the Dashboard an Organization's avatar opens Apps
+
+**Decided by Matěj (Organization Admin) on 2026-11-09, on a pilot Organization Owner's report in
+#146.** It narrows the Dashboard rule of F36's addendum of 2026-10-05 for the Organizations.
+
+On a page that is no Environment's, the Dashboard, a click on an Organization opened its last
+Environment in the app the last visit recorded. A person whose last visit was Chat therefore
+landed in T3 Code from the Dashboard, and reached the applications only through the direct Apps
+address. On the Dashboard there is no app to stay in, and people expect the applications there.
+
+1. **From the Dashboard, Apps.** With no rail app (`app` null), `railSpaces` leads an
+   Organization's avatar to Apps of the same Environment as before (the last one used there,
+   else the first; `o/<slug>` on a workstation holding several Organizations). The app the
+   visit recorded no longer decides it.
+2. **Inside an app, the app stays.** On an Environment's page the click keeps the rail's app, as
+   0185 says: someone working in T3 Code who switches Organization stays in T3 Code, in MausBot
+   stays in MausBot, in Apps stays in Apps.
+3. **The personal space is unchanged.** From the Dashboard it still opens the app of its last
+   visit: the report was about Organizations.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the recorded app on the Dashboard (as before) | Lands people in Chat from a page where they look for applications; rejected |
+| Apps from every app | Throws someone working in T3 Code or MausBot out of their app when they switch Organization; rejected by Matěj |
+| The same for the personal space | One rule for the whole rail, but changes what nobody asked about; left for a later decision |
+
+**Honest limits.** The Dashboard hosts the shell from its vendored bundle, so its rail changes
+only when it vendors a release with this addendum.
+
+Verified by unit tests: `tests/shell-account.test.ts` (the account's last visit recorded in Chat
+opens Chat from Chat and Apps from a page that is no Environment's), `tests/shell.test.ts` (Chat
+and Automate keep their app).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 

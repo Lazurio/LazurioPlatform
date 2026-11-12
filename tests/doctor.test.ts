@@ -40,6 +40,7 @@ import { executionOs } from "../src/folder/platform";
 import { presetProfile } from "../src/folder/presets";
 import { instructionTemplateRevision } from "../src/folder/render";
 import { machineBinding } from "../src/machine/binding";
+import { refreshMachineFolder } from "../src/machine/cli";
 import { parseMachineContext } from "../src/machine/context";
 import { exitBroken } from "../src/recover/cli";
 import type { ToolRunner } from "../src/tools/status";
@@ -927,6 +928,69 @@ test.skipIf(process.platform === "win32")(
         expect(result.human).not.toContain(digest);
       }
       expect(result.stdout).not.toContain("other-vm");
+      expectTierOne(result.stdout, world);
+      expectSameAnswer(result.human, result.json);
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "hosted: an Owner Organization the handover now names by its lower-cased organization_key is the refresh's to record, then the binding is ok",
+  async () => {
+    const world = await createWorld({ hosted: true });
+    // The Folder recorded `example`; the handover now names the
+    // Organization `exampleorg`, its organization_key `ExampleOrg`.
+    const relabelled = (organizationKey: string) => ({
+      ...handoverDocument(),
+      owner: {
+        ...handoverDocument().owner,
+        organization: "exampleorg",
+        organization_key: organizationKey,
+      },
+    });
+    const live = (document: unknown) => async () => ({
+      context: document as never,
+      digest: digestOf(document),
+    });
+    const pending = await doctor(world, [], {
+      machineContext: live(relabelled("ExampleOrg")),
+    });
+    expect(find(pending.json, "machine-binding")).toEqual({
+      id: "machine-binding",
+      outcome: "warn",
+      reason: "handover-changed",
+    });
+    const foreign = await doctor(world, [], {
+      machineContext: live(relabelled("AnotherOrg")),
+    });
+    expect(find(foreign.json, "machine-binding")?.reason).toBe(
+      "machine-identity-changed",
+    );
+    const document = relabelled("ExampleOrg");
+    expect(
+      await refreshMachineFolder(
+        world.folder,
+        machineBinding(
+          parseMachineContext(Buffer.from(JSON.stringify(document))),
+          digestOf(document),
+        ),
+        undefined,
+        "ExampleOrg",
+      ),
+    ).toMatchObject({
+      code: 0,
+      result: { kind: "refreshed", bindingCorrected: "owner-organization" },
+    });
+    const corrected = await doctor(world, [], {
+      machineContext: live(document),
+    });
+    expect(find(corrected.json, "machine-binding")).toEqual({
+      id: "machine-binding",
+      outcome: "ok",
+      context: { machineKind: "workspace-vm" },
+    });
+    for (const result of [pending, foreign, corrected]) {
+      expect(result.stdout).not.toContain("exampleorg");
       expectTierOne(result.stdout, world);
       expectSameAnswer(result.human, result.json);
     }

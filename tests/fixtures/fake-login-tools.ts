@@ -94,7 +94,9 @@ auth)
     kill "$(cat "$HOME/gh.child")" 2>/dev/null
     [ -f "$HOME/gh.fail" ] && exit 1
     if [ "$2" = login ]; then echo octocat > "$HOME/gh.state"; scopes="gist read:org repo"; else scopes=$(cat "$HOME/gh.scopes" 2>/dev/null); fi
-    extra=$(after --scopes "$@") && scopes="$scopes $extra"
+    # gh takes --scopes as a comma-separated list (shell only: PATH has no tr).
+    # gh.noscopes: the flow completes, but the account grants none of them.
+    if [ ! -f "$HOME/gh.noscopes" ] && extra=$(after --scopes "$@"); then old="$IFS"; IFS=,; for s in $extra; do scopes="$scopes $s"; done; IFS="$old"; fi
     echo "$scopes" > "$HOME/gh.scopes"
     echo "✓ Authentication complete." >&2
     exit 0;;

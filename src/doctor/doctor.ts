@@ -25,6 +25,7 @@ import {
   isEnvironmentId,
   type MachineBinding,
   machineIdentity,
+  ownerOrganizationCorrection,
 } from "../folder/machine-binding";
 import { githubIdentity, presetNames } from "../folder/presets";
 import {
@@ -43,7 +44,7 @@ import { type GithubStatus, pilotStatus } from "../github/cli";
 import { tokenVariableNames } from "../github/leftovers";
 import { pilotPaths } from "../github/pilot";
 import { codexKeptHere } from "../integrations/chatgpt-apps";
-import { machineBinding } from "../machine/binding";
+import { machineBinding, ownerOrganizationKey } from "../machine/binding";
 import { preparationReasons } from "../modules/preparation-refusal";
 import {
   type RuntimeSecretFinding,
@@ -643,8 +644,10 @@ type Handover = Awaited<ReturnType<RecoveryEnvironment["machineContext"]>>;
 
 /** The binding the Folder recorded against the one the live handover
  * projects: the identity first (another Machine), then the document digest
- * (a rewritten handover `machine folder-refresh` records). Only the
- * enumerated reason is reported, never a digest. */
+ * (a rewritten handover `machine folder-refresh` records). An identity that
+ * differs only by the one correction the refresh records
+ * (`ownerOrganizationCorrection`) is the same Machine, so the digest decides.
+ * Only the enumerated reason is reported, never a digest. */
 function bindingChecks(
   folder: Awaited<ReturnType<typeof observeFolder>>,
   handover: Handover,
@@ -677,7 +680,13 @@ function bindingChecks(
       : live === null
         ? check("machine-binding", "warn", "handover-unreadable")
         : JSON.stringify(machineIdentity(recorded)) !==
-            JSON.stringify(machineIdentity(live))
+              JSON.stringify(machineIdentity(live)) &&
+            (handover === null ||
+              ownerOrganizationCorrection(
+                recorded,
+                live,
+                ownerOrganizationKey(handover.context),
+              ) === null)
           ? check("machine-binding", "warn", "machine-identity-changed")
           : recorded.contextDigest !== live.contextDigest
             ? check("machine-binding", "warn", "handover-changed")

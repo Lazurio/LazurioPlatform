@@ -93,7 +93,8 @@ function parseSignIn(input: unknown): ToolSignIn | null {
     !optionalText(value.account) ||
     !optionalText(value.organization) ||
     (value.identity !== undefined &&
-      !identities.includes(value.identity as GhIdentity))
+      !identities.includes(value.identity as GhIdentity)) ||
+    (value.workflow !== undefined && typeof value.workflow !== "boolean")
   )
     return null;
   const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
@@ -108,6 +109,9 @@ function parseSignIn(input: unknown): ToolSignIn | null {
     ...(value.identity === undefined
       ? {}
       : { identity: value.identity as GhIdentity }),
+    ...(typeof value.workflow === "boolean"
+      ? { workflow: value.workflow }
+      : {}),
   };
 }
 
@@ -682,6 +686,10 @@ export type CuratedActions = Readonly<{
   /** A signed-in gh whose SSH key is not known to be linked offers "Link
    * SSH key". */
   linkSsh: boolean;
+  /** A person's signed-in gh whose token has no `workflow` scope offers
+   * "Allow CI changes" (#823): the same session as "Link SSH key", which
+   * adds the scope. Never beside "Link SSH key", which adds it too. */
+  allowWorkflow: boolean;
 }>;
 
 /** The curated actions of a `launchpad` tool (decision F19): "Install and
@@ -698,7 +706,12 @@ export function curatedActions(
   brokered = false,
 ): CuratedActions {
   if (tool.setup !== "launchpad")
-    return { primary: null, logout: false, linkSsh: false };
+    return {
+      primary: null,
+      logout: false,
+      linkSsh: false,
+      allowWorkflow: false,
+    };
   // A tool the Organization does not allow here (decision F45) is neither
   // added nor signed in from this page; a sign-in left from before can go.
   // Nor Composio while its organization cannot be told (`held`): its
@@ -708,6 +721,7 @@ export function curatedActions(
       primary: null,
       logout: tool.installed && tool.signIn?.state === "signed-in",
       linkSsh: false,
+      allowWorkflow: false,
     };
   if (githubActionRefused({ brokered, tool: tool.name, action: "login" }))
     return {
@@ -717,6 +731,7 @@ export function curatedActions(
         ? null
         : { mode: "install-only", label: copy.toolsInstallOnlyAction },
       linkSsh: false,
+      allowWorkflow: false,
       logout: !githubActionRefused({
         brokered,
         tool: tool.name,
@@ -729,18 +744,25 @@ export function curatedActions(
       primary: { mode: "install", label: copy.toolsInstallAction },
       logout: false,
       linkSsh: false,
+      allowWorkflow: false,
     };
-  if (tool.signIn?.state === "signed-in")
+  if (tool.signIn?.state === "signed-in") {
+    // Also without an SSH part: only a passing proof is linked.
+    const linkSsh = tool.name === "gh" && tool.signIn.ssh?.state !== "linked";
     return {
       primary: null,
       logout: true,
-      // Also without an SSH part: only a passing proof is linked.
-      linkSsh: tool.name === "gh" && tool.signIn.ssh?.state !== "linked",
+      linkSsh,
+      // Only where the token's scopes were read and lack `workflow`.
+      allowWorkflow:
+        tool.name === "gh" && !linkSsh && tool.signIn.workflow === false,
     };
+  }
   return {
     primary: { mode: "login", label: copy.toolsSignInAction },
     logout: false,
     linkSsh: false,
+    allowWorkflow: false,
   };
 }
 

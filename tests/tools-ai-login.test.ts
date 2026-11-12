@@ -570,6 +570,65 @@ posixTest(
 );
 
 posixTest(
+  "a stored ChatGPT sign-in that OpenAI revoked starts a new sign-in, by page and by code, and the new one replaces it",
+  async () => {
+    const opened = await scratch(["codex"]);
+    const { sessions, journal } = sessionsFor(opened, {
+      signInPage: environmentBrowser().page,
+    });
+    try {
+      // Codex holds a sign-in whose refresh token was revoked: its status
+      // says signed in, its account/read answers the error.
+      await mkdir(join(opened.home, ".codex"), { recursive: true });
+      await writeFile(
+        join(opened.home, ".codex", "auth.json"),
+        JSON.stringify({ tokens: { id_token: "old" } }),
+      );
+      await writeFile(join(opened.home, "codex.revoked"), "");
+      const first = await sessions.start("codex");
+      expect(first.kind).toBe("pending");
+      if (first.kind === "pending") sessions.cancel("codex", first.session);
+      // By code, where the page cannot be finished.
+      const byCode = await sessions.start("codex", { deviceCode: true });
+      expect(byCode).toMatchObject({
+        kind: "pending",
+        tool: "codex",
+        challenge: { kind: "device-code", code: fakeAi.deviceCode },
+      });
+      // The person enters the code: signed in, the revoked one replaced.
+      if (byCode.kind !== "pending") throw new Error("not pending");
+      await writeFile(join(opened.home, "codex.approve"), "");
+      expect(await settle(sessions, "codex", byCode.session)).toMatchObject({
+        kind: "signed-in",
+        tool: "codex",
+      });
+      expect(await gone(join(opened.home, "codex.revoked"))).toBe(true);
+      expect(
+        (await calls(opened.home, "codex")).map((call) => call.args.join(" ")),
+      ).toEqual([
+        "app-server",
+        "login",
+        "app-server",
+        "login --device-auth",
+        "login status",
+      ]);
+      expect(
+        journal.some(
+          (entry) =>
+            entry.event === "end" &&
+            "reason" in entry &&
+            entry.reason === "provider-unknown",
+        ),
+      ).toBe(false);
+    } finally {
+      await sessions.close();
+      await opened.close();
+    }
+  },
+  20_000,
+);
+
+posixTest(
   "a page on another host is never opened, and an Environment browser that does not open it stops the CLI",
   async () => {
     const opened = await scratch(["codex"]);
