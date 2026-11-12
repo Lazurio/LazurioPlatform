@@ -9,12 +9,12 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { runAppsCommand } from "../src/agent-entry/cli";
 import {
   agentEntryRelayPaths,
   handOverRefusals,
   sharedReadRefusals,
 } from "../src/agent-entry/relay";
-import { runAppsCommand } from "../src/agent-entry/cli";
 import type { WindowSeams } from "../src/browser/window";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
 import type { MachineBinding } from "../src/folder/machine-binding";
@@ -95,7 +95,7 @@ const listAnswer = (
     { headers: { "cache-control": "no-store" } },
   );
 // 32 random bytes, base64url without padding: 43 characters.
-const value = "A".repeat(20) + "-_" + "b".repeat(21);
+const value = `${"A".repeat(20)}-_${"b".repeat(21)}`;
 const handOverUrl = (origin: string) =>
   `${origin}/.lazurio/agent-entry?hand_over=${value}`;
 const handOverAnswer = (origin: string) =>
@@ -558,7 +558,7 @@ test.skipIf(process.platform === "win32" || uid === 0)(
   "apps open: every refusal of the hand-over is named and nothing is opened without a 200 carrying the hand-over of exactly that origin",
   async () => {
     const world = await environment(work());
-    expect([...handOverRefusals].sort()).toEqual(
+    expect<string[]>([...handOverRefusals].sort()).toEqual(
       [
         "invalid_request",
         "unauthorized",
