@@ -353,7 +353,7 @@ by default.
 | Team Environments through a Work Environment | A person's Work Environment → the Team Environments of that person's Teams in the same Organization | Team membership | Automatically, SSH with the Work Environment's key. From the Personal Environment in two `ssh` steps through the person's own Work Environment, never directly and without forwarding its key |
 | Administration (decision 0202) | An Organization Admin's Work Environment → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services | The live Organization Admin role | Automatically, SSH with the station's one key. From the Organization Admin's Personal Environment in two steps through that Work Environment |
 | From a device | A person's approved device → that person's Environments | The Organization Admin's approval of the device (0192) | Automatically after the approval: 443 and 22, a phone 443 |
-| To a device | An Environment → one specific computer | The consent of the device's owner: a person for their own computer, the Organization Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable, SSH |
+| To a device | An Environment → one specific computer (decision 0240) | The consent of the device's owner: a person for their own computer, the Organization Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable. A Device of the Organization: SSH from the Environment. A personal Device: never SSH into it; only over the channel the Device itself opened into the Environment, while its owner has it switched on, ending at once when switched off |
 | Exceptions | Anything else | A reviewed pull request to the Deployment Repository with its reason and owner | Exceptionally |
 
 - **No reverse edges.** No edge exists as the reverse of another: neither Work →
@@ -371,8 +371,9 @@ by default.
   gives the source its targets with host keys pinned from the Organization's records,
   never trusted on first use; no edge forwards the agent or ports. After a fact is
   removed, new connections fail within five minutes, while sessions already running
-  may finish; nothing supervises running sessions. Git holds only the exceptions no
-  rule derives.
+  may finish; nothing supervises running sessions. The use of a personal Device is the
+  exception (0240): switched off by its owner, the Device closes its channel at once and
+  the agent's use ends with it. Git holds only the exceptions no rule derives.
 - **Agents** use only the routes Lazurio gives an Environment and say so when a route
   is missing.
 - **Data in the personal context.** In a person's personal context the data of the
@@ -382,7 +383,8 @@ by default.
 - **Without a tailnet.** A Personal Environment in public-DNS mode (decision 0207) has
   none of these routes.
 - **Replaced.** 0224 replaces decision 0158 and point 3 of decision 0182: an Environment
-  reaches a person's device only by the access to a device above.
+  reaches a person's device only by the access to a device above, which 0240 narrows
+  for a personal Device to the channel the Device itself opened.
 
 ## SSH from a user's devices
 
