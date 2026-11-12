@@ -15684,13 +15684,19 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
      write (`f_bavail`), so the blocks reserved for root count as used and a full bar means
      writes fail. Sizes read like the memory up to 100 GB, then whole gigabytes, and terabytes
      from 1000 GB (`formatDisk`).
-   - **Procesor Prostředí / Environment CPU:** how busy the cores were on average over the last
-     5 minutes, in percent, said as such beside the number ("23 % průměr za 5 min", "23% 5-min
-     average"), the bar and the number of cores ("4 jádra", "8 cores"). Matěj 2026-11-12, when
-     approving the page: the number is the 5-minute average, so that it agrees with the
-     warning; a reading of the last moment beside a 5-minute warning showed 2 % next to "fully
-     busy". The percent is the 5-minute load average against the cores, at most 100: a load past
-     the cores is a full processor with work waiting.
+   - **Procesor Prostředí / Environment CPU:** the processor's load over the last 5 minutes
+     against its cores, in percent, said as an average beside the number ("23 % průměr za 5
+     min", "23% 5-min average"), the bar and the number of cores ("4 jádra", "8 cores"). Matěj
+     2026-11-12, when approving the page: the number is the 5-minute average, so that it agrees
+     with the warning; a reading of the last moment beside a 5-minute warning showed 2 % next to
+     "fully busy". The percent is the 5-minute load average against the cores, at most 100. It
+     is not how busy the cores were: Linux's load average is an exponentially weighted average
+     of the tasks running, ready to run and waiting uninterruptibly, mostly on the disk, so a
+     stalled disk raises it with idle cores, and it does not say that the cores were busy for
+     the whole 5 minutes. The page therefore calls it load ("zátěž"), never busy ("vytížení"):
+     the value's title says that it is a weighted average against the cores that also counts
+     tasks waiting for the disk, and the warning says the load is high and that it counts
+     waiting for the disk.
 2. **Thresholds.**
    - The disk warns under 15 % or 8 GiB free and is bad under 5 % or 2 GiB, whichever comes
      first: a small disk runs out by its gigabytes, a big one by its share. 8 GiB is the room
@@ -15699,8 +15705,8 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
      worse of the two is the tone. The warning says to delete files or ask for a bigger disk;
      the bad state adds that writes will soon fail.
    - The processor only warns, from 90 % of that same number. A short peak is how agents work
-     and moves the 5-minute average little, and a busy processor slows the Environment down
-     without failing anything, so it never shows red. The memory keeps the Dashboard's 80 and
+     and moves the 5-minute average little, and a high load slows the Environment down without
+     failing anything, so it never shows red. The memory keeps the Dashboard's 80 and
      90 %.
 3. **Where the data comes from.** `GET /api/new-tab/overview` answers two more fields,
    `disk {total, used, free, home}` and `cpu {percent, cores, load}`

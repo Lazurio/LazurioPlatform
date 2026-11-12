@@ -56,12 +56,12 @@ const en = {
   cpuPercent: "{value}%",
   cpuAverage: "5-min average",
   cpuValueTitle:
-    "How busy the processor was on average over the last 5 minutes",
+    "Processor load over the last 5 minutes against its cores. It is a weighted average and also counts tasks waiting for the disk.",
   cpuCoresOne: "{n} core",
   cpuCoresFew: "{n} cores",
   cpuCoresMany: "{n} cores",
   cpuHint:
-    "The processor has been fully busy for the last 5 minutes; apps and agents may slow down.",
+    "The load over the last 5 minutes is high; apps and agents may slow down. The load also counts waiting for the disk.",
   tabsTitle: "Environment tabs",
   tabsEmpty:
     "No tab is open in the Environment browser. Enter an address above.",
@@ -225,12 +225,13 @@ const cs: Words = {
   cpuTitle: "Procesor Prostředí",
   cpuPercent: "{value} %",
   cpuAverage: "průměr za 5 min",
-  cpuValueTitle: "Průměrné vytížení procesoru za posledních 5 minut",
+  cpuValueTitle:
+    "Zátěž procesoru za posledních 5 minut vůči počtu jader. Je to vážený průměr a počítá i úlohy, které čekají na disk.",
   cpuCoresOne: "{n} jádro",
   cpuCoresFew: "{n} jádra",
   cpuCoresMany: "{n} jader",
   cpuHint:
-    "Procesor je posledních 5 minut plně vytížený, aplikace a agenti mohou zpomalit.",
+    "Zátěž za posledních 5 minut je vysoká, aplikace a agenti mohou zpomalit. Zátěž počítá i čekání na disk.",
   tabsTitle: "Záložky Prostředí",
   tabsEmpty:
     "V prohlížeči Prostředí není otevřená žádná záložka. Zadejte adresu nahoře.",
@@ -871,7 +872,7 @@ export function diskModel(
 
 /** The processor's number is its 5-minute load average against its cores
  * (Matěj 2026-11-12), and it warns from 90 %. A short peak is how agents
- * work and moves the average little; a busy processor slows the Environment
+ * work and moves the average little; a high load slows the Environment
  * down without failing anything, so it is never bad. */
 export function cpuTone(cpu: NewTabCpu): Tone {
   return cpu.percent !== null && cpu.percent >= 90 ? "warn" : "ok";

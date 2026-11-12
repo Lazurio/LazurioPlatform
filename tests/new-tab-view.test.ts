@@ -1758,7 +1758,8 @@ describe("the disk and the processor of Přehled", () => {
       value: {
         strong: "23 %",
         rest: "průměr za 5 min",
-        title: "Průměrné vytížení procesoru za posledních 5 minut",
+        title:
+          "Zátěž procesoru za posledních 5 minut vůči počtu jader. Je to vážený průměr a počítá i úlohy, které čekají na disk.",
       },
       percent: 23,
       tone: "ok",
