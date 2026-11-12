@@ -903,23 +903,31 @@ export function isAccountApplicationOrigin(value: unknown): value is string {
  * only: a value that is no name is left out rather than refusing the entry,
  * as the shell does with an Environment's `assigneeName`. Members it does
  * not know are ignored. One reader for every consumer of the list: the
- * shell's parser, Apps, and later the Folder's list for agents (plan
- * LZD-0009 M9). */
+ * shell's parser, Apps, and the Folder's list for agents (plan LZD-0009 M9,
+ * `src/agent-entry/relay.ts`). That list is the Environment's own read
+ * (`lazurio.environment-shared-applications.v1`), which lists no
+ * Organizations: with `organizations` null an entry names any Dashboard
+ * slug (`isShellSlug`). */
 export function parseAccountSharedApplications(
   value: unknown,
-  organizations: readonly Pick<ShellOrganization, "slug">[],
+  organizations: readonly Pick<ShellOrganization, "slug">[] | null,
 ): readonly AccountSharedApplication[] | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!Array.isArray(value) || value.length > accountSharedApplicationsMax)
     return false;
-  const slugs = new Set(organizations.map((entry) => entry.slug.toLowerCase()));
+  const slugs =
+    organizations === null
+      ? null
+      : new Set(organizations.map((entry) => entry.slug.toLowerCase()));
   const read: AccountSharedApplication[] = [];
   for (const entry of value) {
     if (!isRecord(entry)) return false;
     const { organization, module, name, url, role, host } = entry;
     if (
       typeof organization !== "string" ||
-      !slugs.has(organization.toLowerCase()) ||
+      !(slugs === null
+        ? isShellSlug(organization)
+        : slugs.has(organization.toLowerCase())) ||
       !isShellSlug(module) ||
       !text(name, 128) ||
       !isAccountApplicationOrigin(url) ||

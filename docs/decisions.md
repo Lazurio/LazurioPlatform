@@ -11613,6 +11613,78 @@ Verified by `tests/environment-browser.test.ts` (the rendered unit, and its step
 systemd runs it against meminfo files of 4, 8, 16 and 64 GiB guests and five that set
 nothing, and with a manager that refuses the setting).
 
+**Addendum 2026-11-12: an agent opens a colleague's application by its hand-over
+(decision 0231, plan LZD-0009 M9).** Lazurio Auth's contract
+`docs/agent-application-entry.md` (HumanAndMachine-ai/Auth, "The Environment browser and
+the Folder") lets a colleague's agent act in a shared application for its person, from
+the person's own Environment, as that person with their application role. The Folder's
+part is two commands (`src/agent-entry/`); Auth decides every hand-over and the hosting
+gateway every request.
+
+1. **`lazurio apps shared`** reads the Dashboard's list for this Environment through the
+   Environment's relay (`GET /shared-applications`), which attaches the Environment's own
+   identity token; neither the Folder nor an agent holds one, and the person's sign-in is
+   used nowhere. The answer (`lazurio.environment-shared-applications.v1`) is taken only in
+   its exact shape; its entries go through the one reader of the account's
+   `AccountSharedApplication` (`parseAccountSharedApplications`, here without a list of
+   Organizations to check against, since this answer names none). `--json` prints
+   `{schema: "lazurio.folder.shared-applications.v1", kind: "shared-applications",
+   agentEntry, sharedApplications, next_steps}`; switched off, the list is empty and
+   `next_steps` names the Dashboard page where the person switches it on.
+2. **`lazurio apps open <module> --org <organization> [--host <login>] [--origin <url>]`**
+   takes the list's entry, never a guess. Where several entries share the Module, `--host`
+   chooses by the colleague's login and, where that does not tell them apart (a host
+   without a login, or one colleague sharing it from two Environments), `--origin` by the
+   entry's exact `url`, which only selects among the list's entries (Pablo's review of
+   #948); `apps shared` prints, and `host-ambiguous` names, the one command for each. It
+   asks for a hand-over through the relay (`POST /agent-entry/hand-over` with
+   `{origin, generation}`: the entry's `url` and the assignment generation the receipt
+   bound, `null` on a handover that is not auth-sourced) and opens Auth's answer exactly
+   as given in the thread's window. The entry's `url` is only that input: it is never
+   opened, and no address is composed. Only a `200` whose `url` is exactly
+   `<origin>/.lazurio/agent-entry?hand_over=<43 base64url characters>` of the origin asked
+   is opened; a redirect, another success or any other address opens nothing. The
+   one-time value is never printed.
+3. **The thread's window, moved on purpose.** `openInThreadWindow` (src/browser/window.ts)
+   opens a new window at the address when the session has none, and otherwise navigates
+   the bound window there with agent-browser's own `open`; `ensureThreadWindow` still never
+   moves an open window. Both are navigations the browser starts itself, which the hosting
+   gateway's landing requires against login CSRF. Measured on this release's Environment
+   browser on 2026-11-12 against a loopback page: each way reached the landing exactly once
+   with `Sec-Fetch-Site: none`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document` and
+   neither `Sec-Purpose` nor `Purpose`.
+4. **Nothing is asked that cannot be opened.** `apps open` checks the relay, the
+   Environment browser, the thread's session and the person the Environment acts for (a
+   free Environment's receipt naming nobody is `assignment-pending`) before it reads the
+   list or asks for a hand-over.
+5. **Every refusal is named.** Auth's and the Dashboard's codes pass through verbatim
+   (`agent_entry_off`, `agent_entry_no_role`, `token_invalid`, …), the relay's
+   `environment_identity_unavailable` too, and the Folder names its own: `relay-absent`
+   and `no-browser` (exit 10, nothing asked), `relay-unreachable`, `relay-unsupported` (a
+   relay without the path, before Machines step 2), `relay-answer-invalid`, `not-shared`,
+   `host-ambiguous`, `no-session`, `assignment-pending`, `assignment-released`, and
+   `refused` for a code this version does not know. With `--json` each is `{schema, kind:
+   "blocked", reason, message, next_steps}` in the Folder's language; `agent_entry_off`
+   names the Dashboard's Prostředí page of the Environment's Organization
+   (`/orgs/<slug>/environments`), or the person's Dashboard home for a Personal
+   Environment.
+
+The agent rule in the Folder's manual and the switch's state in Settings are step 2 of the
+contract and follow separately. The relay's two paths (Machines step 2), the hosting
+gateway's landing (Machines step 3), the browser policy for other Environments' application
+hostnames (Machines step 4) and Auth's route (Auth steps 2 to 4) are not here; until they
+are deployed `apps shared` answers `relay-absent` or `relay-unsupported`, and nothing opens.
+
+Verified by `tests/agent-entry-cli.test.ts` against a relay fake on a unix socket: the
+list in its shape and the read's every refusal; the hand-over's request (path, method,
+body, no token from the Folder), its answered address opened unchanged in a new window and
+by agent-browser's `open` in a bound one, the list's address never opened; the generation
+of a receipt and of a handover without one; every refusal code of the hand-over, a
+redirect, another success and seven wrong addresses opening nothing; `--host`, an unlisted
+application, no session, no relay and no browser asking nothing; every entry of a list with
+a host without a login and one login sharing from two origins opened by its own printed
+command, `--origin` not of the list or not an exact origin opening nothing; and usage.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan

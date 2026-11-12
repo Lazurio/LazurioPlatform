@@ -129,6 +129,8 @@ const text = {
       "The Environment browser did not open a window. Run lazurio doctor.",
     "bind-failed":
       "The window is open, but agent-browser did not bind the session to it.",
+    "navigate-failed":
+      "The window is open, but agent-browser did not open the address in it.",
     failed: "lazurio browser failed",
     session: "Session",
     view: "The user works with you in this tab",
@@ -167,6 +169,8 @@ const text = {
       "Prohlížeč Prostředí neotevřel okno. Spusťte lazurio doctor.",
     "bind-failed":
       "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
+    "navigate-failed":
+      "Okno je otevřené, ale agent-browser v něm adresu neotevřel.",
     failed: "lazurio browser selhal",
     session: "Sezení",
     view: "Tady s tebou uživatel pracuje ve stejné záložce",
