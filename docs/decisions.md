@@ -24740,93 +24740,103 @@ points above:
 5. The API is experimental. A Codex update can change it, so the Platform checks the
    methods at runtime and qualifies each new Codex release on one Environment first.
 
-### F71 addendum of 2026-11-11: Připojení by app, pairing by code first, SSH hidden inside the pairing
+### F71 addendum of 2026-11-11: Připojení starts with the Device by its system, then the app, then the way
 
-**Decided by Matěj on 2026-11-11 (root decision 0215 as amended that day); the
-form proposed by the implementing agent. Implemented; accepted only when the
+**Decided by Matěj on 2026-11-11 and 2026-11-12 (root decisions 0215 and 0240);
+the form proposed by the implementing agent. Implemented; accepted only when the
 owner accepts it.** People connected their computers through ChatGPT Desktop
 over SSH, and the app kept turning the connection off after a drop
 ("Odpojeno"), while the servers saw no outage. The way that holds is the one a
-phone already uses: pairing through the person's own account. The page is
-built **by app**, so that ChatGPT, Claude and T3 Code fit without a later
-rebuild. This replaces point 1's ways by device and the Počítač card that led
-to F49's page.
+phone already uses: pairing through the person's own account. Root decision
+0240 then settled the model: what people hold is a **Device**, told apart by its
+operating system, and a Device that works in an Environment has the capability
+*Operates an Environment*. This page is that capability's place; the other
+capability, *Used by an Environment* (Lazurio App), gets its own section, which
+its own change fills. This replaces point 1's ways by device and the Počítač
+card that led to F49's page.
 
-1. **Ovládat toto Prostředí: one card per app.** ChatGPT, Claude and T3 Code.
-   Each card says in one sentence whether the app pairs here and has
-   *Spárovat*:
-   - **ChatGPT** pairs by this decision's code. Its sentence is its state:
-     "Telefon i počítač spárujete kódem.", on the Organization's AI "Na AI
+1. **The Device first, by its system.** Ovládat toto Prostředí shows one tile
+   per system with its icon: Mac, Windows, Linux, iPhone, Android (iconoir's
+   AppleMac, Windows and Linux, and an Android head in the same stroke; an
+   iPhone shows Apple's mark). On the person's own computer only iPhone and
+   Android are offered, since the computer it would pair is itself. Ordinary
+   text keeps "computer" and "phone"; the earlier working term Workstation is
+   not used.
+2. **Then the app.** A tile opens the pairing at the apps, ChatGPT, Claude,
+   T3 Code and VS Code, each with one sentence on whether it pairs from that
+   system and *Spárovat*:
+   - **ChatGPT** pairs by this decision's code from the ChatGPT app on a phone
+     and from ChatGPT Desktop on Mac and Windows. Its sentence is its state
+     ("Spárujete kódem z ChatGPT Desktopu.", on the Organization's AI "Na AI
      Organizace nejde, potřebuje váš vlastní účet ChatGPT.", without a ChatGPT
-     sign-in the sign-in, without remote control the restart of point 7.
-   - **Claude** is "Připravujeme." until Anthropic's pairing is verified. The
-     page says nothing else about what Claude can do.
-   - **T3 Code** is "Připravujeme." Its pairing token (`t3 auth pairing
-     create`, root decision 0157) exists, but showing it to a native app as a
-     link or a QR code would put a token in a URL, against `chat.ts` and the
-     F36 addendum of 2026-10-31, with a lifetime and scopes nobody has decided
-     yet: Lazurio/LazurioPlatform#934 asks for that decision.
-   - **Where no code pairs but SSH comes in**, the card of an app that speaks
-     SSH (ChatGPT without remote control, on the Organization's AI, signed
-     out or in a Team Environment; T3 Code, whose sentence is then "Párování
-     kódem připravujeme.") offers *Připojit přes SSH*, which opens the
-     pairing straight at its SSH way (point 3) for a computer, with nothing
-     to go back to. 0215 keeps SSH where pairing is not possible.
-   - On the person's own computer ChatGPT's sentence is "Telefon spárujete
-     kódem.", since only the phone pairs there.
-2. **Spárovat opens the pairing.** First the device, Telefon or Počítač (on the
-   person's own computer only the phone, so it starts at the code). Then the
-   code, the default way: one motion graphic for exactly this app, device and
-   way, the QR code for a phone, the short code for a computer, the time left
-   and the one live code of point 3, shared by both devices. A computer
+     sign-in the sign-in, without remote control the restart of point 7). On
+     Linux, where ChatGPT Desktop does not run, it is "Připravujeme."
+   - **Claude** and **VS Code** are "Připravujeme." The page says nothing else
+     about what they can do.
+   - **T3 Code** is "Připravujeme." for pairing by code: its pairing token
+     (`t3 auth pairing create`, root decision 0157) exists, but showing it to
+     a native app as a link or a QR code would put a token in a URL, against
+     `chat.ts` and the F36 addendum of 2026-10-31, with a lifetime and scopes
+     nobody has decided yet (Lazurio/LazurioPlatform#934).
+   - **Where no code pairs but SSH comes in**, an app that speaks SSH from
+     that system offers *Připojit přes SSH* instead, which opens its SSH way
+     (point 4). 0215 keeps SSH where pairing is not possible.
+3. **Then the way: the code first.** One motion graphic for exactly this
+   system, app and way, the QR code for a phone, the short code for a
+   computer, the time left and the one live code of point 3. A computer
    without a short code from Codex is told so instead of being asked for it.
-   While the device is chosen the dialog offers *Zrušit*, since nothing has
-   happened yet; from the code on, *Hotovo*. *Nový kód* belongs to the code's
-   attempt, not to the step shown: a code that expires or is refused while
-   the SSH way is open leaves that step as it is, and *Nový kód* waits on the
-   code's step. An expired code's QR code disappears, so nobody scans it; a
-   new code brings it back.
-3. **SSH is hidden inside the pairing.** A quiet *Jiný způsob: SSH* appears only
-   for a computer, only for an app that speaks SSH (ChatGPT Desktop, T3 Code)
-   and only where the handover records a peer that may open SSH into this
-   Environment (`relationships.peers`, direction `inbound` or `both`; root
-   decisions 0192 and 0224). It shows *Sem se připojíte z* with those peers,
-   its own motion graphic and *Nastavit SSH* to F49's page, unchanged. A
-   handover without `relationships` records nothing, so SSH is not offered
-   there; `/settings/ssh` stays reachable by its address.
-4. **One motion template.** A device's frame (phone or computer), the app's
-   screen with its mark and name, and five steps in turn, filled from
-   `motionSteps(app, device, way)`. A new combination is data, not a new
+   While the app is chosen the dialog offers *Zrušit*; from the code on,
+   *Hotovo*. *Nový kód* belongs to the code's attempt, not to the step shown,
+   so a code that expires or is refused while the SSH way is open leaves that
+   step alone. An expired code's QR code disappears; a new code brings it
+   back.
+4. **SSH is hidden inside the pairing.** A quiet *Jiný způsob: SSH* appears only
+   on Mac, Windows and Linux, only for an app that speaks SSH there (ChatGPT
+   Desktop on Mac and Windows, F49; T3 Code) and only where the handover
+   records a peer that may open SSH into this Environment
+   (`relationships.peers`, direction `inbound` or `both`; root decisions 0192
+   and 0224). It shows *Sem se připojíte z* with those peers, its own motion
+   graphic and *Nastavit SSH* to F49's page, unchanged. A handover without
+   `relationships` records nothing, so SSH is not offered there;
+   `/settings/ssh` stays reachable by its address. A phone never goes over
+   SSH: under 0240 nothing connects into a personal Device, and the Device
+   always opens the connection.
+5. **One motion template.** The system's frame (a phone or a computer), the
+   app's screen with its mark and name, and five steps in turn, filled from
+   `motionSteps(system, app, way)`. A new combination is data, not a new
    animation, and guides can draw the same pictures. With less motion the
    steps stand side by side.
-5. **Spárovaná zařízení** is one list of phones and computers, each with its
-   form, the app's mark and *Odebrat přístup*. Codex names a device's form in
-   a free string and only `phone` has been seen, so a device is a phone when
-   its form says phone, mobile or tablet or its platform is Android, iOS or
-   iPadOS, and a computer otherwise.
-6. **Odsud se připojíte do** stays on the page as a small read-only group: the
-   peers whose direction is `outbound` or `both`, shown only where there is one.
-   The paths in left the page for the pairing's SSH way.
-7. **Začínáme, the "?" and the manual follow.** Začínáme's row is *Telefon a
+6. **Spárovaná zařízení** is one list, each Device with its system's icon where
+   Codex names the platform (else the form's), the app's mark and *Odebrat
+   přístup*. Codex names a device's form in a free string and only `phone`
+   has been seen.
+7. **Used by an Environment.** `#connections-used` is the place of 0240's
+   second capability (Lazurio App, its switch, history and devices). This
+   change leaves it empty and hidden; the change that builds the capability
+   fills it.
+8. **Odsud se připojíte do** stays as a small read-only group: the peers whose
+   direction is `outbound` or `both`, shown only where there is one.
+9. **Začínáme, the "?" and the manual follow.** Začínáme's row is *Telefon a
    počítač přes ChatGPT* with *Spárovat*, and SSH and ChatGPT Desktop over SSH
-   only where SSH into the Environment is offered. The "?" says to choose an
-   app and pair it with a code and, where the page shows where this
-   Environment reaches, that the network allows those paths. The generated
-   manual (`manual-mechanisms.ts`, template revision `base-instructions-118`)
-   says the same, and that Claude and T3 Code are coming.
+   only where SSH into the Environment is offered. The "?" says to choose the
+   device's system, then the app and the code, and, where the page shows where
+   this Environment reaches, that the network allows those paths. The
+   generated manual (`manual-mechanisms.ts`, template revision
+   `base-instructions-118`) says the same.
 
 Not verified: the exact labels of ChatGPT Desktop (Matěj's words "Připojení →
 Ovládání jiných zařízení"; the English "Connections → Control other devices"
-is a translation), the form string Codex reports for a computer, and pairing a
-computer end to end (A1–A8 above with ChatGPT Desktop in place of the phone
-remain the owner's).
+is a translation), the platform and form strings Codex reports for a computer,
+and pairing a computer end to end (A1–A8 above with ChatGPT Desktop in place
+of the phone remain the owner's).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
-| Ways by device (Telefon, Počítač), the first form of this addendum | Fits ChatGPT only; Claude and T3 Code would need a rebuild; replaced the same day |
+| Ways by form (Telefon, Počítač), the first form of this addendum | The system, not the form, decides what is possible (0240); replaced |
+| The app first (the second form of this addendum) | Offers apps a system cannot run; replaced by the Device first (0240) |
 | Keep Počítač on SSH | The connection that kept dropping; rejected by the decision |
-| SSH as its own section with the paths in | Offers SSH first to whoever reads the page; it is the second way, inside the pairing |
-| An animation per combination | Grows with every app and device; one template with data instead |
+| SSH as its own section with the paths in | Offers SSH first to whoever reads the page; it is the other way, inside the pairing |
+| An animation per combination | Grows with every system and app; one template with data instead |
 | Show T3 Code's pairing link now | Puts a token in a URL without a decision on its lifetime and scopes; #934 |
 | Offer SSH where the handover records nothing | Sends a person to a port the tailnet may refuse; rejected |
 

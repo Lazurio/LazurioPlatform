@@ -5,11 +5,16 @@ import {
   deviceDetail,
   deviceForm,
   deviceName,
+  deviceOs,
+  deviceOses,
+  formOf,
+  isPhoneOs,
   motionSteps,
   offersRestart,
   offersSignIn,
   offersSsh,
   offersSshWay,
+  osesHere,
   pairApps,
   pairingFoot,
   pairingShape,
@@ -198,20 +203,6 @@ const peer = (
   https: [],
 });
 
-test("a paired device is a phone or a computer", () => {
-  expect(deviceForm(device)).toBe("phone");
-  expect(deviceForm({ ...device, deviceType: null, platform: "ios" })).toBe(
-    "phone",
-  );
-  expect(
-    deviceForm({ ...device, deviceType: "desktop", platform: "macos" }),
-  ).toBe("computer");
-  // An unknown form is a computer: only phones are known to say so.
-  expect(deviceForm({ ...device, deviceType: null, platform: null })).toBe(
-    "computer",
-  );
-});
-
 test("the SSH paths each way, as the handover records them", () => {
   const machine = {
     relationships: {
@@ -305,25 +296,72 @@ test("Začínáme: SSH and ChatGPT Desktop over it only where SSH is allowed", (
   expect(rows(undefined, false)).toEqual(["ssh", "codex"]);
 });
 
+// Root decision 0240 and F71's addendum of 2026-11-11: a Device first, by its
+// operating system, then the app, then the way.
+
+test("a Device by its system: five systems, phones by the QR code, yours pairs a phone", () => {
+  expect(deviceOses).toEqual(["mac", "windows", "linux", "iphone", "android"]);
+  expect(deviceOses.filter(isPhoneOs)).toEqual(["iphone", "android"]);
+  expect(deviceOses.map(formOf)).toEqual([
+    "computer",
+    "computer",
+    "computer",
+    "phone",
+    "phone",
+  ]);
+  expect(osesHere(true)).toEqual(deviceOses);
+  // Your own computer would pair itself: only the phones are offered there.
+  expect(osesHere(false)).toEqual(["iphone", "android"]);
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale, "work");
+    expect([
+      copy.osMac,
+      copy.osWindows,
+      copy.osLinux,
+      copy.osIphone,
+      copy.osAndroid,
+    ]).toEqual(["Mac", "Windows", "Linux", "iPhone", "Android"]);
+  }
+});
+
+test("a paired device shows its system where Codex names it", () => {
+  expect(deviceOs(device)).toBe("android");
+  expect(deviceOs({ ...device, platform: "iOS" })).toBe("iphone");
+  expect(deviceOs({ ...device, platform: "macos" })).toBe("mac");
+  expect(deviceOs({ ...device, platform: "windows" })).toBe("windows");
+  expect(deviceOs({ ...device, platform: "linux" })).toBe("linux");
+  expect(deviceOs({ ...device, platform: null })).toBeNull();
+  expect(deviceForm({ ...device, deviceType: null, platform: "ios" })).toBe(
+    "phone",
+  );
+  expect(
+    deviceForm({ ...device, deviceType: "desktop", platform: "macos" }),
+  ).toBe("computer");
+  // An unknown form is a computer: only phones are known to say so.
+  expect(deviceForm({ ...device, deviceType: null, platform: null })).toBe(
+    "computer",
+  );
+});
+
 test("the dialog: a phone gets the QR code, a computer the short code or a reason", () => {
-  expect(pairingShape("phone", "ABCD-EFGH")).toEqual({
+  expect(pairingShape("iphone", "ABCD-EFGH")).toEqual({
     qr: true,
     code: true,
     unavailable: false,
   });
   // Without a short code a phone still scans the QR code.
-  expect(pairingShape("phone", null)).toEqual({
+  expect(pairingShape("android", null)).toEqual({
     qr: true,
     code: false,
     unavailable: false,
   });
-  expect(pairingShape("computer", "ABCD-EFGH")).toEqual({
+  expect(pairingShape("mac", "ABCD-EFGH")).toEqual({
     qr: false,
     code: true,
     unavailable: false,
   });
   // A computer has nothing to enter: the dialog says so, in both languages.
-  expect(pairingShape("computer", null)).toEqual({
+  expect(pairingShape("windows", null)).toEqual({
     qr: false,
     code: false,
     unavailable: true,
@@ -336,62 +374,79 @@ test("the dialog: a phone gets the QR code, a computer the short code or a reaso
   );
 });
 
-// F71 addendum of 2026-11-11, as agreed that day: the page is built by app.
+const ready = {
+  kind: "connections",
+  state: "ready",
+  devices: [],
+  restart: false,
+} as const;
+const stateOf = (
+  state: "no-remote-control" | "organization-ai" | "no-chatgpt" | "team",
+) => ({
+  kind: "connections" as const,
+  state,
+  devices: [],
+  restart: false,
+});
 
-test("one card per app: ChatGPT by its state, Claude and T3 Code coming", () => {
-  const ready = {
-    kind: "connections",
-    state: "ready",
-    devices: [],
-    restart: false,
-  } as const;
-  const server = { ssh: false, computer: true };
-  expect(pairApps).toEqual(["chatgpt", "claude", "t3code"]);
-  expect(appCard("chatgpt", ready, false, server)).toEqual({
+test("the apps for a system: ChatGPT by its state and system, the others coming", () => {
+  expect(pairApps).toEqual(["chatgpt", "claude", "t3code", "vscode"]);
+  expect(appCard("chatgpt", "mac", ready, false)).toEqual({
     app: "chatgpt",
     available: true,
     sshOnly: false,
     line: "appChatgptReady",
   });
-  // Your own computer pairs only a phone, and the card says so.
-  expect(
-    appCard("chatgpt", ready, false, { ssh: false, computer: false }).line,
-  ).toBe("appChatgptReadyPhone");
-  expect(
-    appCard("chatgpt", { ...ready, state: "organization-ai" }, false, server),
-  ).toEqual({
+  expect(appCard("chatgpt", "iphone", ready, false).line).toBe(
+    "appChatgptReadyPhone",
+  );
+  // ChatGPT Desktop runs on Mac and Windows: Linux pairs no ChatGPT by code.
+  expect(appCard("chatgpt", "linux", ready, false)).toMatchObject({
+    available: false,
+    line: "appComing",
+  });
+  expect(appCard("chatgpt", "mac", stateOf("organization-ai"), false)).toEqual({
     app: "chatgpt",
     available: false,
     sshOnly: false,
     line: "phoneStateOrganizationAi",
   });
-  expect(appCard("chatgpt", null, true).line).toBe("phoneLoading");
-  expect(appCard("chatgpt", null, false).line).toBe("phoneFailed");
-  // Nothing is claimed for Claude or T3 Code but that they are coming.
-  for (const app of ["claude", "t3code"] as const)
-    expect(appCard(app, ready, false, server)).toEqual({
-      app,
-      available: false,
-      sshOnly: false,
-      line: "appComing",
-    });
+  expect(appCard("chatgpt", "mac", null, true).line).toBe("phoneLoading");
+  expect(appCard("chatgpt", "mac", null, false).line).toBe("phoneFailed");
+  // Nothing is claimed for Claude, T3 Code or VS Code but that they are coming.
+  for (const app of ["claude", "t3code", "vscode"] as const)
+    for (const os of deviceOses)
+      expect(appCard(app, os, ready, false)).toEqual({
+        app,
+        available: false,
+        sshOnly: false,
+        line: "appComing",
+      });
   for (const locale of ["cs", "en"] as const) {
     const copy = messages(locale, "work");
     expect(copy.phoneStateOrganizationAi).toMatch(/ChatGPT/);
-    expect(copy.appChatgptReadyPhone).not.toMatch(/počítač|computer/);
+    expect(copy.appChatgptReady).toMatch(/ChatGPT Desktop/);
+    expect(copy.appChatgptReadyPhone).not.toMatch(/Desktop/);
   }
 });
 
-test("where no code pairs but SSH comes in, a card leads to SSH (0215)", () => {
-  const ssh = { ssh: true, computer: true };
-  const of = (
-    state: "no-remote-control" | "organization-ai" | "no-chatgpt" | "team",
-  ) => ({
-    kind: "connections" as const,
-    state,
-    devices: [],
-    restart: false,
-  });
+test("SSH only on Mac, Windows and Linux, for an app that speaks it, where it comes in", () => {
+  for (const os of ["mac", "windows"] as const) {
+    expect(offersSshWay("chatgpt", os, true)).toBe(true);
+    expect(offersSshWay("t3code", os, true)).toBe(true);
+  }
+  // Linux has no ChatGPT Desktop, but T3 Code speaks SSH there.
+  expect(offersSshWay("chatgpt", "linux", true)).toBe(false);
+  expect(offersSshWay("t3code", "linux", true)).toBe(true);
+  for (const os of ["iphone", "android"] as const)
+    for (const app of pairApps) expect(offersSshWay(app, os, true)).toBe(false);
+  for (const app of ["claude", "vscode"] as const)
+    expect(offersSshWay(app, "mac", true)).toBe(false);
+  for (const os of deviceOses)
+    expect(offersSshWay("chatgpt", os, false)).toBe(false);
+});
+
+test("where no code pairs but SSH comes in, an app leads to SSH (0215)", () => {
   for (const state of [
     "no-remote-control",
     "organization-ai",
@@ -400,29 +455,28 @@ test("where no code pairs but SSH comes in, a card leads to SSH (0215)", () => {
   ] as const)
     expect({
       state,
-      card: appCard("chatgpt", of(state), false, ssh),
+      card: appCard("chatgpt", "mac", stateOf(state), false, true),
     }).toMatchObject({
       state,
       card: { available: false, sshOnly: true },
     });
-  expect(appCard("t3code", null, false, ssh)).toEqual({
+  expect(appCard("t3code", "linux", null, false, true)).toEqual({
     app: "t3code",
     available: false,
     sshOnly: true,
     line: "appCodeComing",
   });
-  // Claude speaks no SSH here; without a path in nothing leads to SSH.
-  expect(appCard("claude", null, false, ssh).sshOnly).toBe(false);
+  // A phone has no SSH; Claude speaks none here; without a path in nothing leads there.
   expect(
-    appCard("chatgpt", of("organization-ai"), false, {
-      ssh: false,
-      computer: true,
-    }).sshOnly,
+    appCard("chatgpt", "iphone", stateOf("organization-ai"), false, true)
+      .sshOnly,
   ).toBe(false);
-  // Where the code pairs, SSH stays a way inside the pairing, not the card's.
+  expect(appCard("claude", "mac", null, false, true).sshOnly).toBe(false);
   expect(
-    appCard("chatgpt", { ...of("team"), state: "ready" }, false, ssh).sshOnly,
+    appCard("chatgpt", "mac", stateOf("organization-ai"), false, false).sshOnly,
   ).toBe(false);
+  // Where the code pairs, SSH stays a way inside the pairing, not the app's.
+  expect(appCard("chatgpt", "mac", ready, false, true).sshOnly).toBe(false);
   for (const locale of ["cs", "en"] as const) {
     expect(messages(locale, "work").appSsh).toMatch(/SSH/);
     expect(messages(locale, "work").pairSshTitle).toContain("{app}");
@@ -431,16 +485,12 @@ test("where no code pairs but SSH comes in, a card leads to SSH (0215)", () => {
 
 test("the dialog foot: Nový kód once the code ended, on the code step only", () => {
   const foot = (
-    step: "device" | "code" | "ssh",
+    step: "app" | "code" | "ssh",
     ended = false,
     paired = false,
     sshOnly = false,
   ) => pairingFoot({ step, ended, paired, sshOnly });
-  expect(foot("device")).toEqual({
-    newCode: false,
-    status: false,
-    back: false,
-  });
+  expect(foot("app")).toEqual({ newCode: false, status: false, back: false });
   expect(foot("code")).toEqual({ newCode: false, status: true, back: true });
   // The code expired or was refused while SSH was open: Nový kód waits on the
   // code step and comes back there; the SSH step shows neither.
@@ -455,48 +505,44 @@ test("the dialog foot: Nový kód once the code ended, on the code step only", (
     back: true,
   });
   expect(foot("code", true, true).newCode).toBe(false);
-  // Opened for SSH alone: nothing to go back to.
-  expect(foot("ssh", false, false, true).back).toBe(false);
+  // SSH alone goes back to the apps as well.
+  expect(foot("ssh", false, false, true).back).toBe(true);
 });
 
-test("Jiný způsob: SSH only for a computer, an app that speaks SSH, where SSH may come in", () => {
-  expect(offersSshWay("chatgpt", "computer", true)).toBe(true);
-  expect(offersSshWay("t3code", "computer", true)).toBe(true);
-  expect(offersSshWay("chatgpt", "phone", true)).toBe(false);
-  expect(offersSshWay("claude", "computer", true)).toBe(false);
-  expect(offersSshWay("chatgpt", "computer", false)).toBe(false);
-});
-
-test("one motion template, filled per app, device and way", () => {
-  const texts = (steps: ReturnType<typeof motionSteps>) =>
-    steps?.map((step) => step.text) ?? null;
-  expect(texts(motionSteps("chatgpt", "phone", "code"))).toEqual([
+test("one motion template, filled per system, app and way", () => {
+  const texts = (
+    os: (typeof deviceOses)[number],
+    way: "code" | "ssh",
+  ): string[] | null =>
+    motionSteps(os, "chatgpt", way)?.map((step): string => step.text) ?? null;
+  const phone = [
     "phoneMotionOpen",
     "phoneMotionCodex",
     "phoneMotionAdd",
     "phoneMotionScan",
     "phoneMotionDone",
-  ]);
-  expect(texts(motionSteps("chatgpt", "computer", "code"))).toEqual([
+  ];
+  const computer = [
     "computerMotionOpen",
     "computerMotionConnections",
     "computerMotionControl",
     "computerMotionCode",
     "phoneMotionDone",
-  ]);
-  expect(texts(motionSteps("chatgpt", "computer", "ssh"))?.[0]).toBe(
-    "sshMotionCopy",
-  );
-  expect(motionSteps("chatgpt", "phone", "ssh")).toBeNull();
-  expect(motionSteps("claude", "phone", "code")).toBeNull();
+  ];
+  expect(texts("iphone", "code")).toEqual(phone);
+  expect(texts("android", "code")).toEqual(phone);
+  expect(texts("mac", "code")).toEqual(computer);
+  expect(texts("windows", "code")).toEqual(computer);
+  expect(texts("mac", "ssh")?.[0]).toBe("sshMotionCopy");
+  expect(texts("iphone", "ssh")).toBeNull();
+  expect(texts("linux", "code")).toBeNull();
+  expect(motionSteps("mac", "claude", "code")).toBeNull();
   // Every caption exists in both languages.
   for (const locale of ["cs", "en"] as const) {
     const copy = messages(locale, "work");
-    for (const way of [
-      motionSteps("chatgpt", "phone", "code"),
-      motionSteps("chatgpt", "computer", "code"),
-      motionSteps("chatgpt", "computer", "ssh"),
-    ])
-      for (const step of way ?? []) expect(copy[step.text]).toBeTruthy();
+    for (const os of deviceOses)
+      for (const way of ["code", "ssh"] as const)
+        for (const step of motionSteps(os, "chatgpt", way) ?? [])
+          expect(copy[step.text]).toBeTruthy();
   }
 });

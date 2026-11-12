@@ -2,17 +2,21 @@ import type { ConnectionsOverview, PairedDevice } from "../connections/pairing";
 import { createPairingFlow, type PairingView } from "./connections-flow";
 import {
   appCard,
+  type DeviceOs,
   deviceDetail,
   deviceForm,
   deviceName,
+  deviceOs,
+  formOf,
+  isPhoneOs,
   type MotionStep,
   motionSteps,
   offersRestart,
   offersSignIn,
   offersSsh,
   offersSshWay,
+  osesHere,
   type PairApp,
-  type PairDevice,
   type PairMethod,
   pairApps,
   pairingFoot,
@@ -29,27 +33,45 @@ import { pollWhileVisible } from "./visible-poll";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
-type Step = "device" | "code" | "ssh";
+type Step = "app" | "code" | "ssh";
 
 const appNames: Readonly<Record<PairApp, MessageKey>> = {
   chatgpt: "appChatgpt",
   claude: "appClaude",
   t3code: "appT3code",
+  vscode: "appVscode",
+};
+const osNames: Readonly<Record<DeviceOs, MessageKey>> = {
+  mac: "osMac",
+  windows: "osWindows",
+  linux: "osLinux",
+  iphone: "osIphone",
+  android: "osAndroid",
+};
+/** A system's icon: an iPhone shows Apple's mark, as a Mac does. */
+const osIcons: Readonly<Record<DeviceOs, string>> = {
+  mac: "os-mac",
+  windows: "os-windows",
+  linux: "os-linux",
+  iphone: "os-mac",
+  android: "os-android",
 };
 
 // Settings → Connections (decision F71 and its addendum of 2026-11-11, root
-// decision 0215 as amended that day): built by app. Ovládat toto Prostředí
-// has one card per app with one sentence on whether it pairs here and
-// Spárovat. Spárovat opens the pairing: the device first, then the code,
-// with the motion graphic drawn from one template for the app, device and
-// way; the one live code is connections-flow.ts's (a QR code for the phone
-// app, the short code for ChatGPT Desktop, the time left, a new code once
-// it expired, "spárovaný"). Only for a computer, an app that speaks SSH and
-// where the handover records a peer that may open SSH into this
+// decisions 0215 and 0240): a Device first, by its operating system, then
+// the app, then the way. Ovládat toto Prostředí shows one tile per system;
+// a tile opens the pairing at the apps, each with one sentence on whether it
+// pairs from that system and Spárovat (or "Připojit přes SSH" where no code
+// pairs but SSH comes in). The code is the default way, with the motion
+// graphic drawn from one template for the system, app and way; the one live
+// code is connections-flow.ts's (a QR code for a phone's app, the short code
+// for ChatGPT Desktop, the time left, a new code once it expired,
+// "spárovaný"). Only on Mac, Windows and Linux, for an app that speaks SSH
+// and where the handover records a peer that may open SSH into this
 // Environment, the quiet "Jiný způsob: SSH" shows the paths in and leads to
-// F49's page. The paired devices are one list with the app's mark; below,
-// the Environments this one reaches. Every server value is drawn as text;
-// the page drops the code when the dialog closes.
+// F49's page. The paired devices are one list with the system's icon and
+// the app's mark; below, the Environments this one reaches. Every server
+// value is drawn as text; the page drops the code when the dialog closes.
 export function createConnectionsPanel(
   options: Readonly<{
     get: (path: string) => Answer;
@@ -74,7 +96,8 @@ export function createConnectionsPanel(
   const restartConfirm = find<HTMLDivElement>("#phone-restart-confirm");
   const restartYes = find<HTMLButtonElement>("#phone-restart-yes");
   const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
-  const apps = find<HTMLDivElement>("#connections-apps");
+  const oses = find<HTMLDivElement>("#connections-oses");
+  const apps = find<HTMLDivElement>("#pair-apps");
   const devicesGroup = find<HTMLElement>("#phone-devices-group");
   const devicesList = find<HTMLUListElement>("#phone-devices");
   const outGroup = find<HTMLElement>("#ssh-paths");
@@ -83,10 +106,8 @@ export function createConnectionsPanel(
   const dialog = find<HTMLDialogElement>("#phone-dialog");
   const dialogTitle = find<HTMLHeadingElement>("#phone-dialog-title");
   const dialogClose = find<HTMLButtonElement>("#phone-dialog-close");
-  const stepDevice = find<HTMLDivElement>("#pair-step-device");
+  const stepApp = find<HTMLDivElement>("#pair-step-app");
   const where = find<HTMLParagraphElement>("#pair-where");
-  const pickPhone = find<HTMLButtonElement>("#pair-phone");
-  const pickComputer = find<HTMLButtonElement>("#pair-computer");
   const pairing = find<HTMLDivElement>("#phone-dialog-pairing");
   const motion = find<HTMLDivElement>("#pair-motion");
   const dialogHint = find<HTMLParagraphElement>("#phone-dialog-hint");
@@ -115,10 +136,10 @@ export function createConnectionsPanel(
   let confirming: string | null = null;
   let removing: string | null = null;
   let reading = 0;
-  // The pairing open now: its app, its device and the step shown.
+  // The pairing open now: its Device's system, its app and the step shown.
+  let os: DeviceOs = "iphone";
   let app: PairApp = "chatgpt";
-  let device: PairDevice = "phone";
-  let step: Step = "device";
+  let step: Step = "app";
   // The code's attempt, apart from the step shown: whether it ended
   // (expired or refused), so Nový kód comes back on the code's step.
   let ended = false;
@@ -171,7 +192,7 @@ export function createConnectionsPanel(
     mark.setAttribute("aria-hidden", "true");
     if (which === "chatgpt") mark.append(symbol("openai"));
     else if (which === "claude") mark.append(symbol("claude"));
-    else mark.textContent = "T3";
+    else mark.textContent = which === "t3code" ? "T3" : "VS";
     return mark;
   };
   const environmentHere = () => options.environment();
@@ -217,14 +238,15 @@ export function createConnectionsPanel(
     // Drawn again only for another combination, so a render of the page
     // never restarts the steps.
     const drawn = [
+      os,
       app,
-      device,
       steps.map((each) => copy[each.text]).join("|"),
     ].join("/");
     if (target.dataset.drawn === drawn) return;
     target.dataset.drawn = drawn;
     const frame = element("div", "phone-motion-device");
-    frame.dataset.device = device;
+    frame.dataset.device = formOf(os);
+    frame.dataset.os = os;
     frame.dataset.app = app;
     const head = element("div", "phone-motion-head");
     head.append(appMark(app, "phone-motion-app"), copy[appNames[app]]);
@@ -256,18 +278,29 @@ export function createConnectionsPanel(
     target.replaceChildren(frame, dots);
   }
 
+  /** Ovládat toto Prostředí: one tile per system offered here. */
+  function renderOses(copy: Copy) {
+    oses.replaceChildren(
+      ...osesHere(onServer()).map((which) => {
+        const tile = button(copy[osNames[which]], "os-tile", () => {
+          note = null;
+          open(which);
+        });
+        tile.dataset.os = which;
+        tile.prepend(symbol(osIcons[which]));
+        return tile;
+      }),
+    );
+  }
+
+  /** The pairing's first step: the apps for the chosen system. */
   function renderApps(copy: Copy) {
     apps.replaceChildren(
       ...pairApps.map((which) => {
-        const card = appCard(which, overview, loading, {
-          ssh: sshHere(),
-          computer: onServer(),
-        });
-        const node = element("div", "card app-card");
+        const card = appCard(which, os, overview, loading, sshHere());
+        const node = element("div", "pair-app");
         node.dataset.app = which;
         node.dataset.available = String(card.available);
-        const head = element("div", "app-card-head");
-        head.append(appMark(which), element("h3", "", copy[appNames[which]]));
         const actions = element("div", "phone-actions");
         // Where no code pairs but SSH comes in, the card leads straight to
         // that way (0215 keeps SSH where pairing is not possible).
@@ -277,17 +310,20 @@ export function createConnectionsPanel(
           card.available ? "primary" : "",
           () => {
             note = null;
-            if (viaSsh) openSsh(which);
-            else open(which);
+            if (viaSsh) chooseSsh(which);
+            else choose(which);
           },
         );
         pair.disabled = (!card.available && !viaSsh) || busy !== null;
         actions.append(pair);
-        if (which === "chatgpt" && overview !== null) {
+        if (which === "chatgpt" && overview !== null && os !== "linux") {
           if (offersSignIn(overview)) {
             const link = element("a", "button", copy.phoneSignIn);
             link.setAttribute("href", "/settings/start");
             link.dataset.route = "";
+            link.addEventListener("click", () => {
+              if (dialog.open) dialog.close();
+            });
             actions.append(link);
           }
           if (offersRestart(overview) && restartConfirm.hidden) {
@@ -300,7 +336,12 @@ export function createConnectionsPanel(
             actions.append(restart);
           }
         }
-        node.append(head, element("p", "row-desc", copy[card.line]), actions);
+        node.append(
+          appMark(which),
+          element("p", "row-title", copy[appNames[which]]),
+          element("p", "row-desc", copy[card.line]),
+          actions,
+        );
         return node;
       }),
     );
@@ -316,8 +357,19 @@ export function createConnectionsPanel(
       ...devices.map((paired) => {
         const item = element("li");
         const form = deviceForm(paired);
+        const system = deviceOs(paired);
         item.dataset.form = form;
-        item.append(icon(form === "phone" ? "phone" : "laptop"));
+        if (system !== null) item.dataset.os = system;
+        // The system's icon where Codex names it, else the form's.
+        item.append(
+          icon(
+            system !== null
+              ? osIcons[system]
+              : form === "phone"
+                ? "phone"
+                : "laptop",
+          ),
+        );
         const main = element("div", "row-copy");
         const title = element("p", "row-title", deviceName(paired));
         // Every device paired here is the ChatGPT app's (Codex's remote
@@ -410,46 +462,48 @@ export function createConnectionsPanel(
     state.hidden = message === null;
     state.dataset.kind =
       note === "phoneRemoved" && busy === null ? "info" : "warning";
+    renderOses(copy);
     renderApps(copy);
     renderDevices(copy, overview?.state === "ready" ? overview.devices : []);
     renderPaths(copy);
     drawStep();
   }
 
-  /** The dialog's step: the device, the code, or the SSH way. */
+  /** The dialog's step: the apps, the code, or the SSH way. */
   function drawStep() {
     const copy = options.copy();
     const name = copy[appNames[app]];
+    dialog.dataset.os = os;
     dialog.dataset.app = app;
-    dialog.dataset.way = device;
     dialog.dataset.step = step;
-    dialogTitle.textContent = (
-      sshOnly ? copy.pairSshTitle : copy.pairTitle
-    ).replace("{app}", name);
-    where.textContent = copy.pairWhere.replace("{app}", name);
-    pickComputer.hidden = !onServer();
-    stepDevice.hidden = step !== "device";
+    dialogTitle.textContent =
+      step === "app"
+        ? copy[osNames[os]]
+        : (sshOnly || step === "ssh"
+            ? copy.pairSshTitle
+            : copy.pairTitle
+          ).replace("{app}", name);
+    where.textContent = copy.pairWhereApp;
+    stepApp.hidden = step !== "app";
     pairing.hidden = step !== "code" || !done.hidden;
     stepSsh.hidden = step !== "ssh";
-    back.hidden =
-      !onServer() ||
-      !pairingFoot({ step, ended, paired: !done.hidden, sshOnly }).back;
-    backToCode.hidden = sshOnly;
-    otherSsh.hidden = !offersSshWay(app, device, sshHere());
     const foot = pairingFoot({ step, ended, paired: !done.hidden, sshOnly });
+    back.hidden = !foot.back;
+    backToCode.hidden = sshOnly;
+    otherSsh.hidden = !offersSshWay(app, os, sshHere());
     newCode.hidden = !foot.newCode;
     dialogStatus.hidden = !foot.status;
-    // Nothing has happened while the device is being chosen: leave, not done.
-    ok.textContent = step === "device" ? copy.phoneCancel : copy.phoneDone;
-    ok.classList.toggle("primary", step !== "device");
+    // Nothing has happened while the app is being chosen: leave, not done.
+    ok.textContent = step === "app" ? copy.phoneCancel : copy.phoneDone;
+    ok.classList.toggle("primary", step !== "app");
     if (step === "code") {
-      const phone = device === "phone";
+      const phone = isPhoneOs(os);
       dialogHint.textContent = phone ? copy.phoneHint : copy.computerHint;
       dialogPaired.textContent = phone ? copy.phonePaired : copy.computerPaired;
-      drawMotion(motion, copy, motionSteps(app, device, "code"));
+      drawMotion(motion, copy, motionSteps(os, app, "code"));
     }
     if (step === "ssh")
-      drawMotion(sshMotion, copy, motionSteps(app, device, "ssh"));
+      drawMotion(sshMotion, copy, motionSteps(os, app, "ssh"));
   }
 
   function stopTick() {
@@ -492,7 +546,7 @@ export function createConnectionsPanel(
         ended = false;
         // A computer pairs only by the short code: without one, the dialog
         // says so instead of asking for it.
-        const shape = pairingShape(device, view.manualCode);
+        const shape = pairingShape(os, view.manualCode);
         qrFrame.hidden = !shape.qr;
         qr.src = view.qrSource;
         code.textContent = view.manualCode ?? "";
@@ -545,45 +599,39 @@ export function createConnectionsPanel(
     if (view.kind === "paired") ok.focus();
   }
 
-  /** Spárovat: the device first; on your own computer only a phone pairs,
-   * so the pairing starts at the code. */
-  function open(which: PairApp) {
-    app = which;
+  /** A system's tile: the pairing opens at its apps. */
+  function open(which: DeviceOs) {
+    os = which;
     sshOnly = false;
     ended = false;
-    step = "device";
+    step = "app";
     done.hidden = true;
-    dialogStatus.textContent = "";
-    if (!dialog.open && typeof dialog.showModal === "function")
-      dialog.showModal();
-    if (onServer()) render();
-    else choose("phone");
-  }
-
-  /** An app that pairs no code here but reaches it over SSH from a
-   * computer: the SSH way alone. */
-  function openSsh(which: PairApp) {
-    app = which;
-    sshOnly = true;
-    ended = false;
-    device = "computer";
-    step = "ssh";
-    done.hidden = true;
+    restartConfirm.hidden = true;
     dialogStatus.textContent = "";
     if (!dialog.open && typeof dialog.showModal === "function")
       dialog.showModal();
     render();
   }
 
-  /** A device chosen: the code, the default way, from the one live code. */
-  function choose(chosen: PairDevice) {
-    device = chosen;
+  /** An app chosen: the code, the default way, from the one live code. */
+  function choose(which: PairApp) {
+    app = which;
+    sshOnly = false;
     step = "code";
-    qrFrame.hidden = chosen !== "phone";
+    qrFrame.hidden = !isPhoneOs(os);
     codeRow.hidden = false;
     dialogHint.hidden = false;
     render();
     void flow.start();
+  }
+
+  /** An app that pairs no code here but reaches it over SSH from this
+   * system: the SSH way alone. */
+  function chooseSsh(which: PairApp) {
+    app = which;
+    sshOnly = true;
+    step = "ssh";
+    render();
   }
 
   function way(method: PairMethod) {
@@ -637,14 +685,13 @@ export function createConnectionsPanel(
     }
   }
 
-  pickPhone.addEventListener("click", () => choose("phone"));
-  pickComputer.addEventListener("click", () => choose("computer"));
   otherSsh.addEventListener("click", () => way("ssh"));
   backToCode.addEventListener("click", () => way("code"));
   back.addEventListener("click", () => {
     flow.close();
     clearCode();
-    step = "device";
+    step = "app";
+    sshOnly = false;
     ended = false;
     dialogStatus.textContent = "";
     render();
@@ -660,7 +707,7 @@ export function createConnectionsPanel(
   dialog.addEventListener("close", () => {
     flow.close();
     clearCode();
-    step = "device";
+    step = "app";
     sshOnly = false;
     ended = false;
     void refresh();

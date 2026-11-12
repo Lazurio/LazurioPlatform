@@ -201,40 +201,63 @@ export function deviceDetail(device: PairedDevice): string {
     .join(" · ");
 }
 
-/** The apps a person pairs with this Environment (root decision 0215 as
- * amended on 2026-11-11): the page is built by app, so a new app is a new
+/** A Device's operating system, as people are shown it (root decision 0240):
+ * the system, not the form, decides what is possible and how. Ordinary text
+ * keeps "computer" and "phone". */
+export type DeviceOs = "mac" | "windows" | "linux" | "iphone" | "android";
+export const deviceOses: readonly DeviceOs[] = [
+  "mac",
+  "windows",
+  "linux",
+  "iphone",
+  "android",
+];
+/** A phone's system: its app scans a QR code, and nothing goes over SSH. */
+export const isPhoneOs = (os: DeviceOs): boolean =>
+  os === "iphone" || os === "android";
+/** The form a system pairs as: a phone by the QR code, a computer by the
+ * short code. */
+export const formOf = (os: DeviceOs): "phone" | "computer" =>
+  isPhoneOs(os) ? "phone" : "computer";
+/** The systems offered here: your own computer pairs only a phone, since
+ * the computer it would pair is itself. */
+export const osesHere = (computer: boolean): readonly DeviceOs[] =>
+  computer ? deviceOses : deviceOses.filter(isPhoneOs);
+
+/** The apps a Device operates this Environment with (root decisions 0215
+ * and 0240): ChatGPT, Claude, T3 Code and later VS Code; a new app is a new
  * card, never a new page. */
-export type PairApp = "chatgpt" | "claude" | "t3code";
-export const pairApps: readonly PairApp[] = ["chatgpt", "claude", "t3code"];
-export type PairDevice = "phone" | "computer";
+export type PairApp = "chatgpt" | "claude" | "t3code" | "vscode";
+export const pairApps: readonly PairApp[] = [
+  "chatgpt",
+  "claude",
+  "t3code",
+  "vscode",
+];
 export type PairMethod = "code" | "ssh";
 
-/** One app's card: whether it pairs here and its one sentence. ChatGPT
- * pairs through Codex's remote control (F71); Claude is coming until
- * Anthropic's pairing is verified, and T3 Code until its pairing token may
+/** One app's card for a Device's system: whether it pairs here by a code,
+ * whether it reaches this Environment over SSH where it does not, and its
+ * one sentence. ChatGPT pairs through Codex's remote control (F71), from the
+ * ChatGPT app on a phone and from ChatGPT Desktop on Mac and Windows;
+ * Claude and VS Code are coming, and T3 Code until its pairing token may
  * reach a native app (Lazurio/LazurioPlatform#934). */
 export type AppCard = Readonly<{
   app: PairApp;
-  /** Whether the app pairs here by a code. */
   available: boolean;
-  /** Where it does not, whether a computer still reaches this Environment
-   * over SSH: the card then leads straight to that way (0215 keeps SSH
-   * where pairing is not possible). */
   sshOnly: boolean;
   line: MessageKey;
 }>;
 
 export function appCard(
   app: PairApp,
+  os: DeviceOs,
   overview: ConnectionsOverview | null,
   loading: boolean,
-  here: Readonly<{ ssh: boolean; computer: boolean }> = {
-    ssh: false,
-    computer: true,
-  },
+  ssh = false,
 ): AppCard {
-  const sshOnly = here.ssh && sshApps.includes(app);
-  if (app === "claude")
+  const sshOnly = offersSshWay(app, os, ssh);
+  if (app === "claude" || app === "vscode")
     return { app, available: false, sshOnly: false, line: "appComing" };
   if (app === "t3code")
     return {
@@ -243,6 +266,9 @@ export function appCard(
       sshOnly,
       line: sshOnly ? "appCodeComing" : "appComing",
     };
+  // ChatGPT Desktop runs on Mac and Windows: on Linux nothing pairs by code.
+  if (os === "linux")
+    return { app, available: false, sshOnly: false, line: "appComing" };
   if (overview === null)
     return {
       app,
@@ -252,27 +278,27 @@ export function appCard(
     };
   const state = stateMessage(overview);
   if (state !== null) return { app, available: false, sshOnly, line: state };
-  // Your own computer offers only the phone (the pairing skips the device).
   return {
     app,
     available: true,
     sshOnly: false,
-    line: here.computer ? "appChatgptReady" : "appChatgptReadyPhone",
+    line: isPhoneOs(os) ? "appChatgptReadyPhone" : "appChatgptReady",
   };
 }
 
-/** The apps that reach an Environment over SSH from a computer: ChatGPT
- * Desktop (F49) and T3 Code. */
-const sshApps: readonly PairApp[] = ["chatgpt", "t3code"];
-
-/** Whether the pairing offers "Jiný způsob: SSH": only for a computer, only
- * for an app that speaks SSH, and only where SSH into this Environment is
+/** Whether "Jiný způsob: SSH" is offered: only on Mac, Windows and Linux,
+ * only for an app that speaks SSH there (ChatGPT Desktop on Mac and
+ * Windows, F49; T3 Code), and only where SSH into this Environment is
  * allowed (`offersSsh`). */
-export const offersSshWay = (
+export function offersSshWay(
   app: PairApp,
-  device: PairDevice,
+  os: DeviceOs,
   ssh: boolean,
-): boolean => ssh && device === "computer" && sshApps.includes(app);
+): boolean {
+  if (!ssh || isPhoneOs(os)) return false;
+  if (app === "t3code") return true;
+  return app === "chatgpt" && os !== "linux";
+}
 
 /** One step of the motion graphic's template: what its mark shows (the
  * app's logo, an icon of the page's own symbols, a few letters, a QR code)
@@ -290,27 +316,27 @@ const done: MotionStep = {
   text: "phoneMotionDone",
 };
 
-/** The steps of one combination of app, device and way, filled into the one
- * template (a device's frame, the app's screen, five steps in turn), so a
+/** The steps of one combination of system, app and way, filled into the one
+ * template (the system's frame, the app's screen, five steps in turn), so a
  * guide can draw the same pictures. Null where the combination has no way
  * yet. */
 export function motionSteps(
+  os: DeviceOs,
   app: PairApp,
-  device: PairDevice,
   method: PairMethod,
 ): readonly MotionStep[] | null {
-  if (app !== "chatgpt") return null;
+  if (app !== "chatgpt" || os === "linux") return null;
   if (method === "ssh")
-    return device === "computer"
-      ? [
+    return isPhoneOs(os)
+      ? null
+      : [
           { mark: "icon", icon: "copy", text: "sshMotionCopy" },
           { mark: "app", text: "computerMotionOpen" },
           { mark: "icon", icon: "bot", text: "sshMotionPaste" },
           { mark: "icon", icon: "plus", text: "sshMotionAdd" },
           done,
-        ]
-      : null;
-  return device === "phone"
+        ];
+  return isPhoneOs(os)
     ? [
         { mark: "app", text: "phoneMotionOpen" },
         { mark: "letters", letters: "</>", text: "phoneMotionCodex" },
@@ -330,11 +356,11 @@ export function motionSteps(
 /** The pairing dialog's foot and status from its state, kept apart from
  * the step shown: Nový kód only on the code's step once the code's attempt
  * ended (expired or refused), whatever step was open when it ended; the
- * code's status line only on that step; Zpět wherever a device was chosen,
- * except where the dialog was opened for SSH alone. */
+ * code's status line only on that step; Zpět to the apps from the code or
+ * the SSH way. */
 export function pairingFoot(
   state: Readonly<{
-    step: "device" | "code" | "ssh";
+    step: "app" | "code" | "ssh";
     ended: boolean;
     paired: boolean;
     sshOnly: boolean;
@@ -343,22 +369,34 @@ export function pairingFoot(
   return {
     newCode: state.step === "code" && state.ended && !state.paired,
     status: state.step === "code",
-    back: state.step !== "device" && !state.paired && !state.sshOnly,
+    back: state.step !== "app" && !state.paired,
   };
 }
 
-/** What the pairing dialog shows of the one live code for the way that
+/** What the pairing dialog shows of the one live code for the system that
  * opened it: a phone gets the QR code and, where Codex gave one, the short
  * code; a computer only the short code, so without it the computer cannot
  * pair from this code and the dialog says so instead of asking for it. */
 export function pairingShape(
-  way: "phone" | "computer",
+  os: DeviceOs,
   manualCode: string | null,
 ): Readonly<{ qr: boolean; code: boolean; unavailable: boolean }> {
   const code = manualCode !== null;
-  return way === "phone"
+  return isPhoneOs(os)
     ? { qr: true, code, unavailable: false }
     : { qr: false, code, unavailable: !code };
+}
+
+/** A paired device's system from what Codex reports, or null where it names
+ * none we know: the list then shows the form's icon. */
+export function deviceOs(device: PairedDevice): DeviceOs | null {
+  const platform = device.platform?.toLowerCase() ?? "";
+  if (/^android/.test(platform)) return "android";
+  if (/^(ios|ipados|iphone)/.test(platform)) return "iphone";
+  if (/^(macos|mac|darwin|osx)/.test(platform)) return "mac";
+  if (/^(windows|win32|win)/.test(platform)) return "windows";
+  if (/^linux/.test(platform)) return "linux";
+  return null;
 }
 
 /** Whether a paired device is a phone (or a tablet) or a computer. Codex
@@ -367,9 +405,8 @@ export function pairingShape(
  * an unknown form included, is a computer. */
 export function deviceForm(device: PairedDevice): "phone" | "computer" {
   const type = device.deviceType?.toLowerCase() ?? "";
-  const platform = device.platform?.toLowerCase() ?? "";
-  return /phone|mobile|tablet/.test(type) ||
-    /^(android|ios|ipados)$/.test(platform)
+  const os = deviceOs(device);
+  return /phone|mobile|tablet/.test(type) || (os !== null && isPhoneOs(os))
     ? "phone"
     : "computer";
 }
