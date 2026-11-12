@@ -785,6 +785,12 @@ export function machineIdentity(machine: MachineBinding | null) {
  * (`bindingCorrected`, decision F10's addendum of 2026-11-11). */
 export type BindingCorrection = "owner-organization";
 
+/** A refresh whose revision records nothing but the live handover's digest
+ * (`bindingRebound`, issue #111, decision F10's addendum of 2026-11-12): the
+ * handover was rewritten where the Folder renders and records nothing else,
+ * so doctor's `machine-binding` reads the binding as current again. */
+export type BindingRebinding = "handover-digest";
+
 /** Whether the live binding differs from the recorded one only by the one
  * correction a refresh records: a work Environment whose Folder was adopted
  * while its handover named the Owner Organization by another value (an

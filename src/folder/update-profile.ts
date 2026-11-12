@@ -67,7 +67,10 @@ export async function updateTools(
 // Machine with the recorded preset and profile: the same planner, transaction,
 // archive and recovery (`profile-resume`) as a profile change. Edited or
 // removed owned files are refused by path exactly as there; a binding that
-// renders the same bytes is `unchanged` and nothing is written. `preset`,
+// renders the same bytes from the same handover digest is `unchanged` and
+// nothing is written. A rewritten handover that changes nothing else is
+// recorded by its digest alone, and the answer says so, `bindingRebound:
+// "handover-digest"` (issue #111). `preset`,
 // when given, is the preset a changed assignment now derives, recorded with
 // the new binding in the same revision (issue #107). `organizationKey`, the
 // live handover's `owner.organization_key`, lets the refresh record the one
@@ -97,6 +100,9 @@ export async function refreshFolder(
     ...(result.bindingCorrected === undefined
       ? {}
       : { bindingCorrected: result.bindingCorrected }),
+    ...(result.bindingRebound === undefined
+      ? {}
+      : { bindingRebound: result.bindingRebound }),
   };
 }
 
@@ -170,6 +176,9 @@ async function changeFolder(
         ...(prepared.bindingCorrected === undefined
           ? {}
           : { bindingCorrected: prepared.bindingCorrected }),
+        ...(prepared.bindingRebound === undefined
+          ? {}
+          : { bindingRebound: prepared.bindingRebound }),
       };
     },
   );

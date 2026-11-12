@@ -308,6 +308,9 @@ export async function prepareFolderChangeLocked(
     ...(plan.bindingCorrected === undefined
       ? {}
       : { bindingCorrected: plan.bindingCorrected }),
+    ...(plan.bindingRebound === undefined
+      ? {}
+      : { bindingRebound: plan.bindingRebound }),
   };
 }
 
