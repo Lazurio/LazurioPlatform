@@ -119,6 +119,8 @@ test.skipIf(!posix)(
       const url = pageUrl();
       const page = await routes.page(new Request(url), url);
       expect(page.status).toBe(200);
+      // A script-free form under `no-referrer` would post `Origin: null`.
+      expect(page.headers.get("Referrer-Policy")).toBe("same-origin");
       expect(page.headers.get("Content-Security-Policy")).toContain(
         "form-action 'self' http://127.0.0.1:53111",
       );

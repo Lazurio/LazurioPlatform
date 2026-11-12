@@ -204,6 +204,10 @@ const pageHeaders = (
   callback: URL | null,
 ) => ({
   ...headers,
+  // A form posts without script, and a browser sends `Origin: null` for a
+  // form post under `no-referrer`, which the hosted same-origin rule refuses.
+  // `same-origin` keeps the referrer off every other origin, the callback too.
+  "Referrer-Policy": "same-origin",
   "Content-Type": "text/html; charset=utf-8",
   "Content-Security-Policy": `default-src 'none'; style-src 'unsafe-inline'; form-action 'self'${callback === null ? "" : ` ${callback.origin}`}; frame-ancestors 'none'; base-uri 'none'`,
 });
