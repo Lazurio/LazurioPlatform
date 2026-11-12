@@ -15684,8 +15684,13 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
      write (`f_bavail`), so the blocks reserved for root count as used and a full bar means
      writes fail. Sizes read like the memory up to 100 GB, then whole gigabytes, and terabytes
      from 1000 GB (`formatDisk`).
-   - **Procesor Prostředí / Environment CPU:** how busy all cores were over the last moment in
-     percent, the bar and the number of cores ("4 jádra", "8 cores").
+   - **Procesor Prostředí / Environment CPU:** how busy the cores were on average over the last
+     5 minutes, in percent, said as such beside the number ("23 % průměr za 5 min", "23% 5-min
+     average"), the bar and the number of cores ("4 jádra", "8 cores"). Matěj 2026-11-12, when
+     approving the page: the number is the 5-minute average, so that it agrees with the
+     warning; a reading of the last moment beside a 5-minute warning showed 2 % next to "fully
+     busy". The percent is the 5-minute load average against the cores, at most 100: a load past
+     the cores is a full processor with work waiting.
 2. **Thresholds.**
    - The disk warns under 15 % or 8 GiB free and is bad under 5 % or 2 GiB, whichever comes
      first: a small disk runs out by its gigabytes, a big one by its share. 8 GiB is the room
@@ -15693,21 +15698,20 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
      2 GiB a single build or download can fail. With the home folder on a disk of its own, the
      worse of the two is the tone. The warning says to delete files or ask for a bigger disk;
      the bad state adds that writes will soon fail.
-   - The processor only warns, and only when it has been busy for a while: the 5-minute load
-     average (`/proc/loadavg`) at 90 % of the cores. A short peak is how agents work, and a busy
-     processor slows the Environment down without failing anything, so it never shows red. The
-     memory keeps the Dashboard's 80 and 90 %.
+   - The processor only warns, from 90 % of that same number. A short peak is how agents work
+     and moves the 5-minute average little, and a busy processor slows the Environment down
+     without failing anything, so it never shows red. The memory keeps the Dashboard's 80 and
+     90 %.
 3. **Where the data comes from.** `GET /api/new-tab/overview` answers two more fields,
    `disk {total, used, free, home}` and `cpu {percent, cores, load}`
    (`src/launchpad/new-tab/machine.ts`), read with the memory and the tabs:
    - the disk: `statfs` and `stat` of `/` and, when the account's `HOME` is on another device,
      of `HOME`. No walk of the disk on any reading, so no breakdown of the biggest folders;
-   - the processor: two readings of `/proc/stat` (busy is everything but `idle` and `iowait`;
-     `guest` is already in `user`) and the count of its `cpuN` lines. The Launchpad keeps its
-     last reading: Přehled, read every 5 s while visible, measures since it; a reading within a
-     second of the last repeats its answer, and a first one or one more than a minute later
-     takes two readings 250 ms apart. No daemon, no new service, nothing read while nobody
-     looks.
+   - the processor: the 5-minute load average of `/proc/loadavg` and the count of the `cpuN`
+     lines of `/proc/stat`, one reading of each per overview, without state or a wait. The load
+     average counts tasks waiting on the disk too (Linux's uninterruptible sleep), so a disk
+     that stalls also shows as a busy processor. No daemon, no new service, nothing read while
+     nobody looks.
    - Read only, never throwing: an unreadable part is null, and the page leaves out what it does
      not know. Off Linux both are null (the host's `system` seam is absent), as an unknown
      memory value is.
@@ -15716,18 +15720,18 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
 | --- | --- |
 | Percent thresholds only, as the memory's 80/90 % | On a 60 GB disk 90 % still leaves 6 GB, on a 1 TB disk 100 GB; neither says when writes fail. Rejected for share or gigabytes, whichever comes first |
 | The biggest folders of the disk | Needs a walk of the disk (`du`) on each reading or a cache kept by a job; not cheap and not safe every 5 s. Not now |
+| The processor's number from the last moment (two readings of `/proc/stat`), the first build of this addendum | It changed every 5 s and disagreed with the 5-minute warning (2 % beside "fully busy"); Matěj chose the 5-minute average for both. Replaced |
 | The processor's tone from the last moment | Every agent's build would turn it orange; the 5-minute load average says when it lasts |
 | A sampler service that keeps the history | A new daemon for a meter only seen while Nová karta is open; rejected |
 | One card "Prostředí" with three rows | Less room, but another look than the memory's box the wireframe and the brief keep; rejected |
 
-Tests: `tests/new-tab-machine.test.ts` (`/proc/stat` with and without `iowait`, `guest` not
-counted twice, cores; busy between two readings and across a reboot; the 5-minute load; the
-reader's first sample, measuring since the last, repeating within a second and sampling again
-after a minute; an unreadable `/proc`; the root, the home folder on the same and on another
+Tests: `tests/new-tab-machine.test.ts` (the cores of `/proc/stat`; the 5-minute load; the load
+against the cores in percent, at most 100; one file or both unreadable; the root, the home folder on the same and on another
 device, an unreadable root or home, free past the size; null off Linux and this Linux's real
 numbers), `tests/new-tab-view.test.ts` (the thresholds with a 60 GB, 1 TB and 20 GB disk and
 40 MB left, `formatDisk`, both blocks in Czech and English, the home folder's tone, the
-processor's warning, cores in Czech plural forms, the answer read field by field) and
+processor's 5-minute average said as such and its warning from 90 %, cores in Czech plural
+forms, the answer read field by field) and
 `tests/launchpad-new-tab.test.ts` (the overview's `disk` and `cpu`, and null without them).
 The page was checked in a browser at 1440, 700 and 390 px in Czech and English against the
 wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and processor are now the

@@ -1,10 +1,9 @@
 import { expect, test } from "bun:test";
 import {
-  busyPercent,
-  cpuWindowMs,
-  createCpuReader,
+  loadPercent,
+  parseCores,
   parseLoadavg,
-  parseProcStat,
+  readEnvironmentCpu,
   readEnvironmentDisk,
   type SystemSeams,
   type Volume,
@@ -16,51 +15,19 @@ import { processNewTabHost } from "../src/launchpad/new-tab-routes";
 
 const GiB = 1024 * 1024 * 1024;
 
-/** `/proc/stat` with the aggregate line's user, nice, system, idle, iowait,
- * irq, softirq, steal, guest and guest_nice, and `cores` lines. */
-const procStat = (busy: number, idle: number, cores = 4) =>
+const procStat = (cores: number) =>
   [
-    `cpu  ${busy} 0 0 ${idle} 0 0 0 0 ${busy} 0`,
+    "cpu  100 0 0 900 0 0 0 0 0 0",
     ...Array.from({ length: cores }, (_, n) => `cpu${n} 1 0 0 1 0 0 0 0 0 0`),
     "intr 1 2 3",
-    "ctxt 100",
-    "btime 1700000000",
     "",
   ].join("\n");
 
-test("/proc/stat: busy and all ticks of the first line, idle and iowait idle, guest not twice, and the cores", () => {
-  expect(
-    parseProcStat(
-      "cpu  100 5 20 800 40 3 2 1 50 0\ncpu0 1 0 0 1 0 0 0 0 0 0\ncpu1 1 0 0 1 0 0 0 0 0 0\n",
-    ),
-  ).toEqual({ times: { busy: 131, total: 971 }, cores: 2 });
-  // An old kernel's four fields.
-  expect(parseProcStat("cpu 10 0 10 80\n")).toEqual({
-    times: { busy: 20, total: 100 },
-    cores: null,
-  });
-  for (const text of [
-    "",
-    "intr 1 2",
-    "cpu 1 2\n",
-    "cpu0 1 2 3 4\n",
-    "cpu a b c d\n",
-  ])
-    expect(parseProcStat(text)).toBeNull();
-});
-
-test("busy between two readings in percent; nothing when no time passed or the counters went back", () => {
-  expect(
-    busyPercent({ busy: 100, total: 1000 }, { busy: 350, total: 2000 }),
-  ).toBe(25);
-  expect(busyPercent({ busy: 0, total: 0 }, { busy: 10, total: 10 })).toBe(100);
-  expect(
-    busyPercent({ busy: 5, total: 10 }, { busy: 5, total: 10 }),
-  ).toBeNull();
-  // A reboot between the readings.
-  expect(
-    busyPercent({ busy: 900, total: 2000 }, { busy: 10, total: 100 }),
-  ).toBeNull();
+test("/proc/stat: the online cores", () => {
+  expect(parseCores(procStat(4))).toBe(4);
+  expect(parseCores(procStat(24))).toBe(24);
+  for (const text of ["", "cpu 1 2 3 4\n", "intr 1 2"])
+    expect(parseCores(text)).toBeNull();
 });
 
 test("/proc/loadavg: the 5-minute average", () => {
@@ -69,91 +36,54 @@ test("/proc/loadavg: the 5-minute average", () => {
   for (const text of ["", "high", "1 2"]) expect(parseLoadavg(text)).toBeNull();
 });
 
-/** A /proc whose /proc/stat answers `stats` one after another (the last
- * again), with a fake clock that `sleep` moves. */
-function fakeProc(
-  stats: (string | null)[],
-  loadavg: string | null = "0.50 3.80 2.00 1/100 1\n",
-) {
-  let at = 0;
-  const reads: number[] = [];
-  const sleeps: number[] = [];
-  let next = 0;
-  return {
-    reads,
-    sleeps,
-    advance: (ms: number) => {
-      at += ms;
-    },
-    seams: {
-      readFile: async (path: string) => {
-        if (path === "/proc/loadavg") {
-          if (loadavg === null) throw new Error("ENOENT");
-          return loadavg;
-        }
-        if (path !== "/proc/stat") throw new Error(`unexpected ${path}`);
-        reads.push(at);
-        const text = stats[Math.min(next, stats.length - 1)] ?? null;
-        next += 1;
-        if (text === null) throw new Error("ENOENT");
-        return text;
-      },
-      now: () => at,
-      sleep: async (ms: number) => {
-        sleeps.push(ms);
-        at += ms;
-      },
-    },
+test("the processor's number: the 5-minute load against the cores in percent, at most 100", () => {
+  expect(loadPercent(1, 4)).toBe(25);
+  expect(loadPercent(3.6, 4)).toBe(90);
+  expect(loadPercent(0, 24)).toBe(0);
+  // Work waiting past the cores is a full processor.
+  expect(loadPercent(9.5, 4)).toBe(100);
+  expect(loadPercent(1, 0)).toBeNull();
+  expect(loadPercent(Number.NaN, 4)).toBeNull();
+});
+
+/** A /proc with `stat` and `loadavg`, each null to fail. */
+const fakeProc =
+  (stat: string | null, loadavg: string | null) => async (path: string) => {
+    const text =
+      path === "/proc/stat" ? stat : path === "/proc/loadavg" ? loadavg : null;
+    if (text === null) throw new Error("ENOENT");
+    return text;
   };
-}
 
 const linux: SystemSeams = {
   volume: async () => ({ device: 1, total: GiB, free: GiB }),
   home: null,
 };
 
-test("the processor: a first reading samples twice, a later one measures since the last, a sooner one repeats it", async () => {
-  const proc = fakeProc([
-    procStat(100, 900),
-    procStat(150, 950), // after the 250 ms sample: 50 %
-    procStat(450, 1650), // 5 s later: 300 of 1000, 30 %
-    procStat(999, 9999), // not read: within a second
-    procStat(1450, 1650), // 70 s later, too old: sampled again
-    procStat(1550, 1650), // 100 %
-  ]);
-  const read = createCpuReader(proc.seams);
-  expect(await read(linux)).toEqual({ percent: 50, cores: 4, load: 3.8 });
-  expect(proc.sleeps).toEqual([cpuWindowMs.sample]);
-  proc.advance(5_000);
-  expect(await read(linux)).toEqual({ percent: 30, cores: 4, load: 3.8 });
-  expect(proc.sleeps).toHaveLength(1);
-  proc.advance(500);
-  // Within a second of the last: the same answer, still from a fresh read.
-  expect((await read(linux))?.percent).toBe(30);
-  proc.advance(70_000);
-  expect((await read(linux))?.percent).toBe(100);
-  expect(proc.sleeps).toHaveLength(2);
-});
-
-test("the processor never throws: an unreadable /proc gives what it can, off Linux nothing", async () => {
-  const none = fakeProc([null], null);
-  expect(await createCpuReader(none.seams)(linux)).toBeNull();
-  const loadOnly = fakeProc([null]);
-  expect(await createCpuReader(loadOnly.seams)(linux)).toEqual({
+test("the processor: one reading of each file, never throwing, what it can when a file fails, and nothing off Linux", async () => {
+  expect(
+    await readEnvironmentCpu(
+      fakeProc(procStat(4), "0.50 3.80 2.00 1/100 1\n"),
+      linux,
+    ),
+  ).toEqual({ percent: 95, cores: 4, load: 3.8 });
+  expect(
+    await readEnvironmentCpu(fakeProc(null, "0.5 1.5 2 1/1 1\n"), linux),
+  ).toEqual({ percent: null, cores: null, load: 1.5 });
+  expect(await readEnvironmentCpu(fakeProc(procStat(2), null), linux)).toEqual({
     percent: null,
-    cores: null,
-    load: 3.8,
-  });
-  // The second reading fails: the cores are known, how busy is not.
-  const once = fakeProc([procStat(1, 1), null], null);
-  expect(await createCpuReader(once.seams)(linux)).toEqual({
-    percent: null,
-    cores: 4,
+    cores: 2,
     load: null,
   });
-  const off = fakeProc([procStat(1, 1)]);
-  expect(await createCpuReader(off.seams)(null)).toBeNull();
-  expect(off.reads).toEqual([]);
+  expect(await readEnvironmentCpu(fakeProc(null, null), linux)).toBeNull();
+  let read = 0;
+  expect(
+    await readEnvironmentCpu(async () => {
+      read += 1;
+      return "";
+    }, null),
+  ).toBeNull();
+  expect(read).toBe(0);
 });
 
 function volumes(
@@ -232,9 +162,8 @@ test("the Launchpad's own host reads the disk and the processor only on Linux, f
   const disk = await readEnvironmentDisk(host.system ?? null);
   expect(disk?.total).toBeGreaterThan(0);
   expect((disk?.used ?? -1) + (disk?.free ?? -1)).toBe(disk?.total ?? 0);
-  const cpu = await createCpuReader({ readFile: host.readFile })(
-    host.system ?? null,
-  );
+  const cpu = await readEnvironmentCpu(host.readFile, host.system ?? null);
   expect(cpu?.cores).toBeGreaterThan(0);
   expect(cpu?.percent).toBeGreaterThanOrEqual(0);
+  expect(cpu?.percent).toBeLessThanOrEqual(100);
 });

@@ -54,12 +54,14 @@ const en = {
     "The disk is almost full and writes will soon fail. Delete files you do not need or ask for a bigger disk.",
   cpuTitle: "Environment CPU",
   cpuPercent: "{value}%",
-  cpuValueTitle: "How busy the processor was over the last few seconds",
+  cpuAverage: "5-min average",
+  cpuValueTitle:
+    "How busy the processor was on average over the last 5 minutes",
   cpuCoresOne: "{n} core",
   cpuCoresFew: "{n} cores",
   cpuCoresMany: "{n} cores",
   cpuHint:
-    "The processor has been fully busy for several minutes; apps and agents may slow down.",
+    "The processor has been fully busy for the last 5 minutes; apps and agents may slow down.",
   tabsTitle: "Environment tabs",
   tabsEmpty:
     "No tab is open in the Environment browser. Enter an address above.",
@@ -222,12 +224,13 @@ const cs: Words = {
     "Disk je téměř plný a zápisy brzy začnou selhávat. Smažte nepotřebné soubory nebo požádejte o větší disk.",
   cpuTitle: "Procesor Prostředí",
   cpuPercent: "{value} %",
-  cpuValueTitle: "Vytížení procesoru za posledních několik sekund",
+  cpuAverage: "průměr za 5 min",
+  cpuValueTitle: "Průměrné vytížení procesoru za posledních 5 minut",
   cpuCoresOne: "{n} jádro",
   cpuCoresFew: "{n} jádra",
   cpuCoresMany: "{n} jader",
   cpuHint:
-    "Procesor je několik minut plně vytížený, aplikace a agenti mohou zpomalit.",
+    "Procesor je posledních 5 minut plně vytížený, aplikace a agenti mohou zpomalit.",
   tabsTitle: "Záložky Prostředí",
   tabsEmpty:
     "V prohlížeči Prostředí není otevřená žádná záložka. Zadejte adresu nahoře.",
@@ -866,13 +869,12 @@ export function diskModel(
   };
 }
 
-/** Only a long busy processor warns: its 5-minute load average at 90 % of
- * its cores. A short peak is how agents work, and a busy processor slows the
- * Environment down without failing anything, so it is never bad. */
+/** The processor's number is its 5-minute load average against its cores
+ * (Matěj 2026-11-12), and it warns from 90 %. A short peak is how agents
+ * work and moves the average little; a busy processor slows the Environment
+ * down without failing anything, so it is never bad. */
 export function cpuTone(cpu: NewTabCpu): Tone {
-  return cpu.load !== null && cpu.cores !== null && cpu.load >= cpu.cores * 0.9
-    ? "warn"
-    : "ok";
+  return cpu.percent !== null && cpu.percent >= 90 ? "warn" : "ok";
 }
 
 /** "1 jádro", "2 jádra", "8 jader"; "1 core", "8 cores". */
@@ -900,7 +902,7 @@ export function cpuModel(
         cpu.percent === null
           ? ""
           : fill(copy.cpuPercent, { value: String(cpu.percent) }),
-      rest: null,
+      rest: cpu.percent === null ? null : copy.cpuAverage,
       title: copy.cpuValueTitle,
     },
     percent: cpu.percent,

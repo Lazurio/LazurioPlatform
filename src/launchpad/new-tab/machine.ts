@@ -1,9 +1,9 @@
 // The Environment's disk and processor for the overview of Nová karta
 // (decision F47 point 7, its addendum of 2026-11-12), beside the memory
 // (memory.ts). Read only and never throwing: `statfs` of the root and, when
-// the home folder is on another file system, of the home folder; two
-// readings of `/proc/stat` and the load average of `/proc/loadavg`. No
-// daemon, no walk of the disk. Off Linux there is nothing to read: both are
+// the home folder is on another file system, of the home folder; the cores
+// of `/proc/stat` and the 5-minute load average of `/proc/loadavg`. No
+// daemon, no state, no walk of the disk. Off Linux there is nothing to read: both are
 // null. Every value is in bytes or a plain number, or null where unknown.
 
 /** One file system: its size and what an unprivileged writer can still
@@ -30,7 +30,7 @@ export type EnvironmentDisk = DiskSpace &
   }>;
 
 export type EnvironmentCpu = Readonly<{
-  /** How busy all cores were over the last moment, 0-100. */
+  /** The 5-minute load average against the cores, 0-100. */
   percent: number | null;
   /** Online cores (`cpuN` lines of `/proc/stat`). */
   cores: number | null;
@@ -76,36 +76,10 @@ export async function readEnvironmentDisk(
   };
 }
 
-/** The processor's times since boot: busy and in all, in clock ticks. */
-export type CpuTimes = Readonly<{ busy: number; total: number }>;
-
-/** `/proc/stat`'s first line in ticks and its count of cores; null without
- * the line. `idle` and `iowait` are idle; `guest` is counted in `user`
- * already and is left out. */
-export function parseProcStat(
-  text: string,
-): Readonly<{ times: CpuTimes; cores: number | null }> | null {
-  const line = /^cpu +([\d ]+)$/m.exec(text);
-  if (line === null) return null;
-  const fields = (line[1] ?? "").trim().split(/ +/).slice(0, 8).map(Number);
-  if (fields.length < 4 || fields.some((value) => !Number.isSafeInteger(value)))
-    return null;
-  const total = fields.reduce((sum, value) => sum + value, 0);
-  const idle = (fields[3] ?? 0) + (fields[4] ?? 0);
+/** The online cores: the `cpuN` lines of `/proc/stat`; null without any. */
+export function parseCores(text: string): number | null {
   const cores = text.match(/^cpu\d+ /gm)?.length ?? 0;
-  return {
-    times: { busy: total - idle, total },
-    cores: cores > 0 ? cores : null,
-  };
-}
-
-/** How busy the processor was between two readings, 0-100; null when no
- * time passed or the counters went back (a reboot between them). */
-export function busyPercent(before: CpuTimes, after: CpuTimes): number | null {
-  const total = after.total - before.total;
-  const busy = after.busy - before.busy;
-  if (total <= 0 || busy < 0) return null;
-  return Math.min(100, Math.max(0, Math.round((busy / total) * 100)));
+  return cores > 0 ? cores : null;
 }
 
 /** The 5-minute load average of `/proc/loadavg`; null when it is not one. */
@@ -114,73 +88,34 @@ export function parseLoadavg(text: string): number | null {
   return match === null ? null : Number(match[1]);
 }
 
-export type CpuSeams = Readonly<{
-  readFile: (path: string) => Promise<string>;
-  now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
-}>;
+/** The 5-minute load against the cores in percent, at most 100: a load
+ * past the cores is a full processor with work waiting. */
+export function loadPercent(load: number, cores: number): number | null {
+  if (!Number.isFinite(load) || load < 0 || cores <= 0) return null;
+  return Math.min(100, Math.round((load / cores) * 100));
+}
 
-/** A reading taken within this long of the last is measured against the
- * last one; a sooner one repeats its answer, a later or a first one takes
- * two readings `sample` ms apart. */
-export const cpuWindowMs = Object.freeze({
-  min: 1_000,
-  max: 60_000,
-  sample: 250,
-});
-
-/** The processor's reader for one Launchpad: it keeps its last reading, so
- * Přehled, read every 5 s, measures the time since its last reading
- * without a wait. Null off Linux (`system` null). */
-export function createCpuReader(
-  seams: CpuSeams,
-): (system: SystemSeams | null) => Promise<EnvironmentCpu | null> {
-  const now = seams.now ?? Date.now;
-  const sleep =
-    seams.sleep ??
-    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-  const stat = () =>
-    seams
-      .readFile("/proc/stat")
-      .then(parseProcStat)
-      .catch(() => null);
-  let last: Readonly<{ times: CpuTimes; at: number }> | null = null;
-  let lastPercent: number | null = null;
-  return async (system) => {
-    if (system === null) return null;
-    const [first, load] = await Promise.all([
-      stat(),
-      seams
-        .readFile("/proc/loadavg")
-        .then(parseLoadavg)
-        .catch(() => null),
-    ]);
-    const at = now();
-    let percent: number | null = null;
-    if (first !== null) {
-      const since = last === null ? null : at - last.at;
-      if (
-        last !== null &&
-        since !== null &&
-        since >= cpuWindowMs.min &&
-        since <= cpuWindowMs.max
-      ) {
-        percent = busyPercent(last.times, first.times);
-        last = { times: first.times, at };
-      } else if (since !== null && since >= 0 && since < cpuWindowMs.min) {
-        percent = lastPercent;
-      }
-      if (percent === null) {
-        await sleep(cpuWindowMs.sample);
-        const second = await stat();
-        if (second !== null) {
-          percent = busyPercent(first.times, second.times);
-          last = { times: second.times, at: now() };
-        }
-      }
-      lastPercent = percent;
-    }
-    if (first === null && load === null) return null;
-    return { percent, cores: first?.cores ?? null, load };
+/** The processor: its cores, its 5-minute load average and that load in
+ * percent of the cores (Matěj 2026-11-12: the number Přehled shows is the
+ * average its warning reads). One reading of each file, no state, no wait.
+ * Null off Linux (`system` null) or when neither file can be read. */
+export async function readEnvironmentCpu(
+  readFile: (path: string) => Promise<string>,
+  system: SystemSeams | null,
+): Promise<EnvironmentCpu | null> {
+  if (system === null) return null;
+  const [cores, load] = await Promise.all([
+    readFile("/proc/stat")
+      .then(parseCores)
+      .catch(() => null),
+    readFile("/proc/loadavg")
+      .then(parseLoadavg)
+      .catch(() => null),
+  ]);
+  if (cores === null && load === null) return null;
+  return {
+    percent: cores === null || load === null ? null : loadPercent(load, cores),
+    cores,
+    load,
   };
 }

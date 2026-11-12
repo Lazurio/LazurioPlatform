@@ -1741,26 +1741,25 @@ describe("the disk and the processor of Přehled", () => {
     expect(diskModel(null, cs, "cs")).toBeNull();
   });
 
-  test("only a long busy processor warns, never bad, and an unknown load never warns", () => {
-    const cpu = (load: number | null, cores: number | null = 4) => ({
-      percent: 100,
-      cores,
-      load,
-    });
-    expect([0.5, 3.5, 3.6, 12].map((load) => cpuTone(cpu(load)))).toEqual([
+  test("the processor warns from a 5-minute average of 90 %, never bad, and an unknown average never warns", () => {
+    const cpu = (percent: number | null) => ({ percent, cores: 4, load: 1 });
+    expect([0, 89, 90, 100].map((percent) => cpuTone(cpu(percent)))).toEqual([
       "ok",
       "ok",
       "warn",
       "warn",
     ]);
     expect(cpuTone(cpu(null))).toBe("ok");
-    expect(cpuTone(cpu(12, null))).toBe("ok");
   });
 
-  test("the processor block: how busy now, its cores, and the hint", () => {
+  test("the processor block: its 5-minute average said as such, its cores, and the hint", () => {
     expect(cpuModel({ percent: 23, cores: 4, load: 0.8 }, cs)).toEqual({
       title: "Procesor Prostředí",
-      value: { strong: "23 %", rest: null, title: cs.cpuValueTitle },
+      value: {
+        strong: "23 %",
+        rest: "průměr za 5 min",
+        title: "Průměrné vytížení procesoru za posledních 5 minut",
+      },
       percent: 23,
       tone: "ok",
       parts: [{ text: "4 jádra", title: null }],
@@ -1768,7 +1767,7 @@ describe("the disk and the processor of Přehled", () => {
     });
     expect(cpuModel({ percent: 97, cores: 8, load: 9.1 }, en)).toMatchObject({
       title: "Environment CPU",
-      value: { strong: "97%" },
+      value: { strong: "97%", rest: "5-min average" },
       tone: "warn",
       parts: [{ text: "8 cores" }],
       hint: en.cpuHint,
@@ -1776,7 +1775,7 @@ describe("the disk and the processor of Přehled", () => {
     // Only the cores known: no value, no bar.
     expect(cpuModel({ percent: null, cores: 2, load: null }, cs)).toMatchObject(
       {
-        value: { strong: "" },
+        value: { strong: "", rest: null },
         percent: null,
         parts: [{ text: "2 jádra" }],
       },

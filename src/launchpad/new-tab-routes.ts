@@ -33,9 +33,9 @@ import {
   restoreTab,
 } from "./new-tab/hub-client";
 import {
-  createCpuReader,
   type EnvironmentCpu,
   type EnvironmentDisk,
+  readEnvironmentCpu,
   readEnvironmentDisk,
   type SystemSeams,
 } from "./new-tab/machine";
@@ -148,8 +148,8 @@ export type NewTabOverview = Readonly<{
   /** The root's space (and the home folder's on another file system);
    * null off Linux or when it cannot be read. */
   disk: EnvironmentDisk | null;
-  /** How busy the processor is, its cores and the 5-minute load; null off
-   * Linux. */
+  /** The processor's 5-minute load in percent of its cores, the cores and
+   * the load; null off Linux. */
   cpu: EnvironmentCpu | null;
   /** Null when which Modules run is not known. */
   modules: readonly OverviewModule[] | null;
@@ -271,9 +271,6 @@ export function createNewTabRoutes(
     return targetIdOf(value.tab) ?? response({ error: "invalid-tab" }, 400);
   }
 
-  // The processor's last reading lives as long as these routes (machine.ts).
-  const readCpu = createCpuReader({ readFile: input.host.readFile });
-
   /** The Launchpad's hold, recorded before the answer. */
   async function hold(tab: string): Promise<Response | null> {
     try {
@@ -300,7 +297,7 @@ export function createNewTabRoutes(
         return { running, reading };
       })(),
       readEnvironmentDisk(system).catch(() => null),
-      readCpu(system).catch(() => null),
+      readEnvironmentCpu(input.host.readFile, system).catch(() => null),
     ]);
     let tabs: OverviewTab[] | null = null;
     if (listed.kind === "tabs") {

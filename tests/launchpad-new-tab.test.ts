@@ -1458,8 +1458,8 @@ test("the overview adds the Environment's disk and processor (F47 point 7, its a
     free: left,
     home: null,
   });
-  // The same /proc/stat twice: no time passed, so how busy is unknown.
-  expect(answer.body.cpu).toEqual({ percent: null, cores: 2, load: 1.95 });
+  // The 5-minute load against the two cores, at most 100 %.
+  expect(answer.body.cpu).toEqual({ percent: 98, cores: 2, load: 1.95 });
   // Without the disk and the processor's readings (off Linux).
   const { call: elsewhere } = await routesWorld({
     hub: standardHub([fact(1)]),
