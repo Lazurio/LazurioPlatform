@@ -127,12 +127,20 @@ test("device admission and desktop handoff distinguish personal and Organization
       expect(manual).not.toContain(
         "V Přehledu Organizace zkontroluj oba počítače",
       );
-      // Decision 0243: in Lazurio's personal tailnet the person approves
-      // their own devices; no Personal Environment is without a tailnet.
+      // Who approves a device for a Personal Environment: in a Conglomerate
+      // today the host owner's reviewed change, as the target the
+      // Organization Admin (decision 0192); in Lazurio's personal tailnet the
+      // person, as the target (decision 0243). No Personal Environment is
+      // without a tailnet.
       expect(manual).toContain(
         locale === "cs"
-          ? "v osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0243)"
-          : "in Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0243)",
+          ? "cílově ho schvaluje Admin Organizace jako každé zařízení (decision 0192)"
+          : "as the target, the Organization Admin approves it like any device (decision 0192)",
+      );
+      expect(manual).toContain(
+        locale === "cs"
+          ? "V osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0243)"
+          : "In Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0243)",
       );
       expect(manual).not.toContain(
         locale === "cs"

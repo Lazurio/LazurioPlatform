@@ -177,9 +177,12 @@ migration implementation.
 
 Decided, not yet deployed. People enter every Environment only through a tailnet. A
 Personal Environment outside a Conglomerate is a node of Lazurio's personal tailnet,
-which Lazurio runs and which works like a Conglomerate's tailnet but has no Organization
-and no Organization Admin. This repository has no code for it yet, and today's Platform
-does not accept its names (issue #944).
+which runs on Lazurio's Personal Conglomerate Host, apart from Lazurio's own
+Conglomerate Host. The Personal Conglomerate Host works like a Conglomerate Host
+(Headscale, gateway and DNS-01 certificates), only for Personal Environments outside
+any Conglomerate, and its tailnet has no Organization and no Organization Admin. This
+repository has no code for it yet, and today's Platform does not accept its names
+(issue #944).
 
 - **People.** Each person is one network user there, signed in with the Lazurio
   account; the assignment of a Personal Environment, not membership of an Organization,
@@ -193,9 +196,10 @@ does not accept its names (issue #944).
 - **One tailnet.** An Environment belongs to exactly one tailnet, so the Personal
   Environment of a person who works in an Organization on Lazurio is a node of that
   Organization's Conglomerate, with the access described above.
-- **Names.** `<app>.<login>.personal.lazurio.io`, resolved only inside the tailnet,
-  with no address records in public DNS; certificates are issued by DNS-01 in the zone
-  `personal.lazurio.io` (decision 0235).
+- **Names.** `<app>.<login>.personal.lazurio.io`, resolved by the Personal
+  Conglomerate Host's Headscale only inside the tailnet, with no address records in
+  public DNS; certificates are issued by DNS-01 in the zone `personal.lazurio.io`
+  (decision 0235).
 - **Gateway.** The gateway still requires the Owner's sign-in through the
   Environment's own sign-in client (decisions 0157 and 0214), a second layer inside
   the tailnet.
@@ -204,8 +208,10 @@ does not accept its names (issue #944).
   Lazurio App pairs through the person's AI account (decision 0215).
 - **Not decided here.** What self-approval requires, how the tailnet is split for
   scale, key expiry, how a Personal Environment moves into a Conglomerate and whether
-  it may return, certificate rate limits and the Public Suffix List, and how the
-  operator administers the servers follow the plan of the personal tailnet.
+  it may return to the personal tailnet once it holds no grant into an Organization
+  (while it holds one, it does not return, decision 0207), certificate rate limits and
+  the Public Suffix List, and how the operator administers the servers follow the plan
+  of the personal tailnet.
 
 ## Retired: public-DNS mode (decisions 0213 and 0243)
 
