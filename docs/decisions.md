@@ -11631,8 +11631,12 @@ gateway every request.
    `{schema: "lazurio.folder.shared-applications.v1", kind: "shared-applications",
    agentEntry, sharedApplications, next_steps}`; switched off, the list is empty and
    `next_steps` names the Dashboard page where the person switches it on.
-2. **`lazurio apps open <module> --org <organization> [--host <login>]`** takes the list's
-   entry (`--host` where several colleagues share a Module of that name; never a guess),
+2. **`lazurio apps open <module> --org <organization> [--host <login>] [--origin <url>]`**
+   takes the list's entry, never a guess. Where several entries share the Module, `--host`
+   chooses by the colleague's login and, where that does not tell them apart (a host
+   without a login, or one colleague sharing it from two Environments), `--origin` by the
+   entry's exact `url`, which only selects among the list's entries (Pablo's review of
+   #948); `apps shared` prints, and `host-ambiguous` names, the one command for each. It
    asks for a hand-over through the relay (`POST /agent-entry/hand-over` with
    `{origin, generation}`: the entry's `url` and the assignment generation the receipt
    bound, `null` on a handover that is not auth-sourced) and opens Auth's answer exactly
@@ -11677,7 +11681,9 @@ body, no token from the Folder), its answered address opened unchanged in a new 
 by agent-browser's `open` in a bound one, the list's address never opened; the generation
 of a receipt and of a handover without one; every refusal code of the hand-over, a
 redirect, another success and seven wrong addresses opening nothing; `--host`, an unlisted
-application, no session, no relay and no browser asking nothing; and usage.
+application, no session, no relay and no browser asking nothing; every entry of a list with
+a host without a login and one login sharing from two origins opened by its own printed
+command, `--origin` not of the list or not an exact origin opening nothing; and usage.
 
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 

@@ -24,7 +24,10 @@ import {
   type RelayTransport,
   unixSocketTransport,
 } from "../organization-settings/relay";
-import type { AccountSharedApplication } from "../shell/contract";
+import {
+  type AccountSharedApplication,
+  isAccountApplicationOrigin,
+} from "../shell/contract";
 import {
   type CliContext,
   type CommandOutput,
@@ -50,15 +53,18 @@ export const appsHelp = `apps shared [--folder <absolute Folder>] [--json]
   "shared-applications", agentEntry, sharedApplications, next_steps};
   agentEntry "off" means the user switched agents in colleagues'
   applications off for this Environment, and the list is empty.
-apps open <module> --org <organization> [--host <login>] [--session <name>] [--folder <absolute Folder>] [--json]
+apps open <module> --org <organization> [--host <login>] [--origin <url>] [--session <name>] [--folder <absolute Folder>] [--json]
   Opens one application of that list in the calling thread's window of the
   Environment browser, as the user with their application role: it asks
   Lazurio Auth through the relay for a one-time hand-over for the entry's
-  application (--host chooses where several colleagues share a Module of
-  that name) with this Environment's assignment generation, and opens the
+  application with this Environment's assignment generation, and opens the
   answered address unchanged in the window (a new one when the thread has
-  none). It never composes an address, never opens the list's address
-  itself, and opens nothing without Auth's 200. The hand-over is valid for
+  none). Where several entries share the Module, --host chooses by the
+  colleague's login and --origin by the entry's exact url (only a selector
+  among the list's entries); apps shared prints, and a host-ambiguous
+  refusal names, the one command for each. It never composes an address,
+  never opens the list's address itself, and opens nothing without Auth's
+  200. The hand-over is valid for
   60 s and once, and is never printed. The session is found as for lazurio
   browser window. --json prints {schema, kind: "shared-application-opened",
   organization, module, name, url, role, session, targetId, link, command};
@@ -72,7 +78,7 @@ usage or refused, 10 this Environment has no relay or no Environment
 browser (nothing asked or opened), 1 failure.`;
 
 const synopsis =
-  "apps shared [--folder <absolute Folder>] [--json] | apps open <module> --org <organization> [--host <login>] [--session <name>] [--folder <absolute Folder>] [--json]";
+  "apps shared [--folder <absolute Folder>] [--json] | apps open <module> --org <organization> [--host <login>] [--origin <url>] [--session <name>] [--folder <absolute Folder>] [--json]";
 
 /** The Folder's list and every answer of these commands. */
 export const folderSharedApplicationsSchema =
@@ -164,7 +170,7 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "not-shared":
       "No colleague shares an application of that name in that Organization with the user.",
     "host-ambiguous":
-      "More than one colleague shares an application of that name in that Organization; nothing was asked.",
+      "More than one shared application of that name in that Organization matches; nothing was asked.",
     "assignment-pending":
       "This Environment is not assigned to anybody yet, so its agents act for nobody; nothing was asked.",
     "assignment-released":
@@ -233,7 +239,7 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "not-shared":
       "Aplikaci tohoto jména v této Organizaci uživateli žádný kolega nezpřístupnil.",
     "host-ambiguous":
-      "Aplikaci tohoto jména v této Organizaci zpřístupňuje víc kolegů; o nic se nežádalo.",
+      "Tomuto jménu v této Organizaci odpovídá víc zpřístupněných aplikací; o nic se nežádalo.",
     "assignment-pending":
       "Toto Prostředí zatím není nikomu přidělené, takže jeho agenti nejednají za nikoho; o nic se nežádalo.",
     "assignment-released":
@@ -344,8 +350,8 @@ function nextSteps(
       return [
         ...(input.choices ?? []),
         cs
-          ? "Vyber kolegu podle uživatele a spusť příkaz s jeho --host."
-          : "Choose the colleague the user means and run the command with their --host.",
+          ? "Podle uživatele vyber tu, kterou myslí, a spusť její příkaz výše."
+          : "Choose the one the user means and run its command above.",
       ];
     case "no-session":
       return [
@@ -366,8 +372,12 @@ const roleNames: Readonly<
 const same = (left: string | null | undefined, right: string) =>
   typeof left === "string" && left.toLowerCase() === right.toLowerCase();
 
-/** The command that opens `entry`, with `--host` where another entry of the
- * list has the same Organization and Module. */
+/** The command that opens exactly `entry` of `list` (Pablo's review of
+ * #948): the Module and Organization alone where no other entry shares
+ * them; `--host` where the colleague's login tells it apart from the
+ * others; else `--origin` with the entry's own `url`, which only selects
+ * among the list's entries, as where a host names no login or one
+ * colleague shares the same Module from two Environments. */
 function openCommand(
   entry: AccountSharedApplication,
   list: readonly AccountSharedApplication[],
@@ -378,9 +388,12 @@ function openCommand(
       same(other.module, entry.module),
   );
   const base = `lazurio apps open ${entry.module} --org ${entry.organization}`;
-  return shared.length > 1 && entry.host.login !== null
-    ? `${base} --host ${entry.host.login}`
-    : base;
+  if (shared.length <= 1) return base;
+  const login = entry.host.login;
+  return login !== null &&
+    shared.filter((other) => same(other.host.login, login)).length === 1
+    ? `${base} --host ${login}`
+    : `${base} --origin ${entry.url}`;
 }
 
 function hostLine(entry: AccountSharedApplication, locale: Locale): string {
@@ -435,6 +448,7 @@ type Parsed =
       module: string;
       organization: string;
       host: string | undefined;
+      origin: string | undefined;
       session: string | undefined;
     }>;
 
@@ -450,6 +464,7 @@ function parse(args: readonly string[]): Parsed | null {
         folder: { type: "string" },
         org: { type: "string" },
         host: { type: "string" },
+        origin: { type: "string" },
         session: { type: "string" },
       },
     });
@@ -470,6 +485,7 @@ function parse(args: readonly string[]): Parsed | null {
         positionals.length !== 1 ||
         values.org !== undefined ||
         values.host !== undefined ||
+        values.origin !== undefined ||
         values.session !== undefined
       )
         return null;
@@ -481,7 +497,8 @@ function parse(args: readonly string[]): Parsed | null {
       positionals[1] !== "" &&
       values.org !== undefined &&
       values.org !== "" &&
-      values.host !== ""
+      values.host !== "" &&
+      (values.origin === undefined || isAccountApplicationOrigin(values.origin))
     )
       return {
         action: "open",
@@ -489,6 +506,7 @@ function parse(args: readonly string[]): Parsed | null {
         module: positionals[1] as string,
         organization: values.org,
         host: values.host,
+        origin: values.origin,
         session: values.session,
       };
     return null;
@@ -626,22 +644,18 @@ export async function runAppsCommand(
         same(candidate.organization, request.organization) &&
         same(candidate.module, request.module),
     );
-    const chosen =
-      request.host === undefined
-        ? named
-        : named.filter((candidate) =>
-            same(candidate.host.login, request.host as string),
-          );
+    // `--origin` selects by the entry's exact `url`, never an address of
+    // its own: it must be one of the list's.
+    const chosen = named.filter(
+      (candidate) =>
+        (request.host === undefined ||
+          same(candidate.host.login, request.host)) &&
+        (request.origin === undefined || candidate.url === request.origin),
+    );
     if (chosen.length === 0) return blocked("not-shared", exitUsage);
     if (chosen.length > 1)
       return blocked("host-ambiguous", exitUsage, {
-        choices: chosen.flatMap((candidate) =>
-          candidate.host.login === null
-            ? []
-            : [
-                `lazurio apps open ${candidate.module} --org ${candidate.organization} --host ${candidate.host.login}`,
-              ],
-        ),
+        choices: chosen.map((candidate) => openCommand(candidate, named)),
       });
     const application = chosen[0] as AccountSharedApplication;
 

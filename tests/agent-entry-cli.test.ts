@@ -774,6 +774,127 @@ test.skipIf(process.platform === "win32" || uid === 0)(
   },
 );
 
+// Pablo's review of #948: two entries of one Module where one names no
+// host login, or two origins shared by the same login, must each be
+// selectable; a person could otherwise share an application their agent
+// can never open. `--host` where the login tells them apart, else
+// `--origin` with the entry's exact `url`, which is only a selector among
+// the list's entries.
+test.skipIf(process.platform === "win32" || uid === 0)(
+  "every listed application can be chosen: --host where its login tells it apart, --origin with the entry's url where it does not",
+  async () => {
+    const world = await environment(work());
+    const nobody = {
+      ...inspections,
+      url: "https://inspections.work04.example.lazurio.io",
+      host: { login: null },
+    };
+    const bobFirst = { ...warehouse };
+    const bobSecond = {
+      ...warehouse,
+      url: "https://warehouse.work05.example.lazurio.io",
+    };
+    const relay = await relayWith((request) =>
+      request.path === agentEntryRelayPaths.shared
+        ? listAnswer([inspections, nobody, bobFirst, bobSecond])
+        : handOverAnswer(JSON.parse(request.body).origin),
+    );
+    const asked = () =>
+      relay.requests
+        .filter((request) => request.method === "POST")
+        .map((request) => JSON.parse(request.body).origin);
+    const run = (args: readonly string[]) =>
+      runAppsCommand(
+        [...args, "--folder", world.folder, "--json"],
+        context(world, relay, windowSeams(world.sockets).seams),
+      );
+    const command = (line: string) =>
+      line.replace(/^lazurio apps /, "").split(" ");
+
+    // The list names one command per entry, each choosing exactly it.
+    const listed = await runAppsCommand(
+      ["shared", "--folder", world.folder],
+      context(world, relay),
+    );
+    const commands = (listed.stdout ?? "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("lazurio apps open"));
+    expect(commands).toEqual([
+      "lazurio apps open inspections --org example --host mira",
+      `lazurio apps open inspections --org example --origin ${nobody.url}`,
+      `lazurio apps open warehouse --org example --origin ${bobFirst.url}`,
+      `lazurio apps open warehouse --org example --origin ${bobSecond.url}`,
+    ]);
+    for (const [index, line] of commands.entries()) {
+      const opened = await run(command(line));
+      expect([line, opened.code]).toEqual([line, 0]);
+      expect(asked().at(-1)).toBe(
+        [inspections, nobody, bobFirst, bobSecond][index]?.url,
+      );
+    }
+
+    // A refusal for an ambiguous name gives the same commands.
+    const ambiguous = await run(["open", "inspections", "--org", "example"]);
+    expect(json(ambiguous).reason).toBe("host-ambiguous");
+    expect(json(ambiguous).next_steps).toEqual(
+      expect.arrayContaining(commands.slice(0, 2)),
+    );
+    const sameLogin = await run([
+      "open",
+      "warehouse",
+      "--org",
+      "example",
+      "--host",
+      "bob",
+    ]);
+    expect(json(sameLogin).reason).toBe("host-ambiguous");
+    expect(json(sameLogin).next_steps).toEqual(
+      expect.arrayContaining(commands.slice(2)),
+    );
+
+    // --origin is only a selector: an origin the list does not have opens
+    // nothing, and anything but an exact origin is a usage error.
+    const before = asked().length;
+    const unknown = await run([
+      "open",
+      "warehouse",
+      "--org",
+      "example",
+      "--origin",
+      "https://warehouse.work09.example.lazurio.io",
+    ]);
+    expect(json(unknown).reason).toBe("not-shared");
+    for (const origin of [
+      `${bobSecond.url}/`,
+      `${bobSecond.url}/path`,
+      "http://warehouse.work05.example.lazurio.io",
+      "warehouse.work05.example.lazurio.io",
+    ])
+      expect(
+        (
+          await run([
+            "open",
+            "warehouse",
+            "--org",
+            "example",
+            "--origin",
+            origin,
+          ])
+        ).code,
+      ).toBe(2);
+    expect(
+      (
+        await runAppsCommand(
+          ["shared", "--origin", bobSecond.url],
+          context(world, relay),
+        )
+      ).code,
+    ).toBe(2);
+    expect(asked().length).toBe(before);
+  },
+);
+
 test.skipIf(process.platform === "win32" || uid === 0)(
   "without the relay or the Environment browser nothing is asked or opened",
   async () => {
