@@ -178,23 +178,40 @@ for (const locale of ["cs", "en"] as const)
           await readFile(join(folder, "personalspace", "keep"), "utf8"),
         ).toBe("synthetic work");
 
-        // Identical handover, and one that only rewrote `installed`: nothing
-        // is written, the revision stays, the recorded binding stays.
+        // The identical handover: nothing is written, the revision stays, the
+        // recorded binding stays.
         const settled = await snapshot(folder);
-        for (const machine of [after, reapplied])
-          expect(await refreshMachineFolder(folder, machine)).toEqual({
-            code: 0,
-            result: { kind: "unchanged" },
-          });
+        expect(await refreshMachineFolder(folder, after)).toEqual({
+          code: 0,
+          result: { kind: "unchanged" },
+        });
         expect(await snapshot(folder)).toEqual(settled);
+        // One that only rewrote `installed` renders the same Folder and is
+        // recorded by its digest alone (issue #111).
+        expect(await refreshMachineFolder(folder, reapplied)).toEqual({
+          code: 0,
+          result: {
+            kind: "refreshed",
+            revision: 3,
+            bindingRebound: "handover-digest",
+          },
+        });
+        const rebound = await snapshot(folder);
+        for (const path of outputPaths)
+          expect(rebound.files[path]).toBe(settled.files[path]);
+        expect(await preferences(folder)).toEqual({
+          ...refreshed,
+          revision: 3,
+          machine: JSON.parse(JSON.stringify(reapplied)),
+        });
 
         // The refreshed binding is carried forward by a later profile change.
         const other = locale === "cs" ? "en" : "cs";
         expect(
-          await updateProfile(folder, 2, {
+          await updateProfile(folder, 3, {
             profile: { ...initial.profile, locale: other },
           }),
-        ).toEqual({ kind: "updated", revision: 3 });
+        ).toEqual({ kind: "updated", revision: 4 });
         expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
           workVmLine[other],
         );
@@ -447,33 +464,46 @@ test.skipIf(process.platform === "win32")(
         "manual/this-machine.md": "",
       });
       expect(rest(files)).toEqual(rest(plainFiles));
-      // The same handover again, or one that only rewrote `installed`.
+      // The same handover again is unchanged.
       const settled = await snapshot(folder);
-      for (const machine of [
-        pinned,
-        binding(personalHandover([laptop, assignedVm], "2026-09-23T00:00:00Z")),
-      ])
-        expect(await refreshMachineFolder(folder, machine)).toEqual({
-          code: 0,
-          result: { kind: "unchanged" },
-        });
+      expect(await refreshMachineFolder(folder, pinned)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
       expect(await snapshot(folder)).toEqual(settled);
+      // One that only rewrote `installed` is recorded by its digest alone
+      // (issue #111): the peer's members stay byte for byte.
+      const reapplied = binding(
+        personalHandover([laptop, assignedVm], "2026-09-23T00:00:00Z"),
+      );
+      expect(await refreshMachineFolder(folder, reapplied)).toEqual({
+        code: 0,
+        result: {
+          kind: "refreshed",
+          revision: 3,
+          bindingRebound: "handover-digest",
+        },
+      });
+      expect(await recordedMachine(folder)).toBe(
+        JSON.stringify({ ...pinned, contextDigest: reapplied.contextDigest }),
+      );
       // A profile change carries the recorded binding forward byte for byte.
       const { profile } = await preferences(folder);
       expect(
-        await updateProfile(folder, 2, {
+        await updateProfile(folder, 3, {
           profile: {
             ...profile,
             locale: profile.locale === "cs" ? "en" : "cs",
           },
         }),
-      ).toEqual({ kind: "updated", revision: 3 });
-      expect(await recordedMachine(folder)).toBe(JSON.stringify(pinned));
+      ).toEqual({ kind: "updated", revision: 4 });
+      expect(await recordedMachine(folder)).toBe(JSON.stringify(reapplied));
     } finally {
       await rm(parent, { recursive: true, force: true });
       await rm(plain.parent, { recursive: true, force: true });
     }
   },
+  30_000,
 );
 
 test.skipIf(process.platform === "win32")(

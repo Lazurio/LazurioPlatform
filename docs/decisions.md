@@ -1193,7 +1193,8 @@ re-renders with the recorded preset and profile through the one Folder change pl
 and transaction of `profile-update` (digest-checked edits refused by path, staged,
 archived, revision bumped, `profile-resume` recovery). A binding that renders the same
 bytes is `unchanged` and not recorded, so a re-apply that only rewrote `installed`
-never bumps the revision. A preset recorded as derived that the new assignment no
+never bumps the revision (superseded by the addendum of 2026-11-12 below: the refresh records
+the rewritten handover's digest). A preset recorded as derived that the new assignment no
 longer derives is `preset-derivation-changed`: the Operator chooses again. The
 Machines resident role calls it after every handover write on an existing Folder.
 The shared transaction (refresh and profile update alike) re-checks the claimed
@@ -1449,6 +1450,47 @@ recorded nothing.
 
 Authority: Matěj 2026-11-11, the rule exactly as stated in the first point; nothing else of the
 identity follows the handover.
+
+**Addendum 2026-11-12: the refresh records a rewritten handover's digest (issue #111, duplicate
+#193).** The binding's `contextDigest` names the handover the Folder was last checked against,
+and `doctor`'s `machine-binding` compares it with the live one: `handover-changed`, whose next
+step is `machine folder-refresh`. Machines rewrites the handover on every apply, often only
+where the Folder renders and records nothing (`installed`: the Machines release, the deployment
+head, the time of the apply). The refresh then answered `unchanged` and wrote nothing, as the
+amendment of 2026-09-23 specified, so the warning outlived every refresh and every apply since
+0.1.8; the canary of v0.1.21-rc.5 on a work Environment of LazurioExampleOrganization showed it
+on 2026-11-11 before and after the refresh.
+
+- `machine folder-refresh` answers `unchanged`, nothing written, only when the Folder already
+  records the live handover's digest and everything else `unchanged` requires holds. A handover
+  of the same Machine whose difference renders no byte and changes no other recorded fact is
+  recorded by its digest alone: one revision through the one planner and archived update
+  transaction of every refresh (the journal, `history/revision-<n>` and `profile-resume`
+  unchanged; like every transaction it stages and replaces each generated file, here with the
+  same bytes). The answer says so: `{"kind":"refreshed","revision":<n>,
+  "bindingRebound":"handover-digest"}`. Nothing else in the Folder changes, the Launchpad is not
+  restarted (its entry is the same), and the next `doctor` reports `machine-binding` `ok`.
+- `bindingRebound` is present exactly when the new revision differs from the previous one by
+  nothing but the binding's digest and the revision itself. The correction of 2026-11-11 records
+  its handover's digest with the corrected Owner Organization and still answers
+  `bindingCorrected` only; a change the Folder renders or records otherwise answers `refreshed`
+  without either.
+- Another Machine's handover stays `folder-binding-changed`, nothing written, its digest not
+  recorded. `profile-resume` validates a staged rebinding by regenerating it through the same
+  planner, as every other refresh.
+- A Folder now gains one revision and one history entry (the transaction's journal, a few
+  kilobytes, no copy of a generated file) per handover rewrite instead of none. Machines'
+  resident role already reads `refreshed` and `unchanged` alike as a current Folder.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `doctor` compares the identity and the rendered Folder instead of the digest | Doctor would re-render the Folder to tell a rewrite that matters from one that does not, and the digest would stop meaning anything; two truths instead of one; rejected |
+| Record the digest outside the transaction, without a revision | A second writer of `preferences.json` beside the one planner, journal and recovery; rejected |
+| The refresh records the digest in the one transaction (selected) | One revision per handover rewrite; nothing else changes |
+
+Authority: issue #111's recommended direction, assigned for v0.1.21-rc.6 on 2026-11-12; Matěj
+2026-11-12: the final v0.1.21 waits until the canary's `lazurio doctor` reports
+`machine-binding ok`.
 
 ## F11 — Hosted admission is not identity
 
