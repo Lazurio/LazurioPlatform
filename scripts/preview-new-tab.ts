@@ -36,6 +36,11 @@
 // here; its other sections say they could not be read. `team` makes the
 // Environment a Team Environment (its note). Synthetic names only; stop it
 // with Ctrl-C.
+//
+// The disk and the processor (F47 point 7, its addendum of 2026-11-12) are
+// this machine's own readings (`processNewTabHost`), null off Linux;
+// `/preview/set?system=full` swaps them for a disk with 40 MB left and a
+// high 5-minute load, `system=real` back.
 import {
   mkdir,
   mkdtemp,
@@ -61,6 +66,7 @@ import {
   createNewTabRoutes,
   type NewTabHost,
   newTabPageHeaders,
+  processNewTabHost,
 } from "../src/launchpad/new-tab-routes";
 import { pageRoutes } from "../src/launchpad/page";
 import type { ServiceManagerProcess } from "../src/modules/service-manager-process";
@@ -238,7 +244,7 @@ let next = 16;
 const closingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 // The failure switches of /preview/set.
-const switches = { hubDown: false, noBrowser: false };
+const switches = { hubDown: false, noBrowser: false, fullSystem: false };
 const hub = Bun.serve({
   hostname: "127.0.0.1",
   port: 0,
@@ -381,15 +387,30 @@ const run: ServiceManagerProcess = async (program, args) => {
 // About 85 % of 7.75 GiB in use: the warn tone.
 const meminfo =
   "MemTotal:        8130000 kB\nMemFree:          410000 kB\nMemAvailable:    1219500 kB\n";
+const realSystem =
+  processNewTabHost(process.env, process.platform).system ?? null;
+const fullSystem = {
+  home: null,
+  volume: async () => ({
+    device: 1,
+    total: 60 * 1024 * megabytes(1),
+    free: megabytes(40),
+  }),
+};
 const host: NewTabHost = {
   runtimeDirectory: runtime,
   run,
   readFile: (path) =>
     path === "/proc/meminfo"
       ? Promise.resolve(meminfo)
-      : readFile(path, "utf8"),
+      : path === "/proc/loadavg" && switches.fullSystem
+        ? Promise.resolve("95.00 94.00 80.00 90/900 1\n")
+        : readFile(path, "utf8"),
   bootClock: async () => null,
   log: () => undefined,
+  get system() {
+    return switches.fullSystem ? fullSystem : realSystem;
+  },
 };
 const holder = launchpadHolderOf(runtime, {
   bootClock: async () => null,
@@ -549,7 +570,7 @@ const indexPage =
 <li><a href="/new-tab">/new-tab</a> – standalone, as Codex Desktop's browser opens it: strip <code>launchpad</code>, no tools, the address bar takes the focus; a choice navigates this window to the tab's (synthetic, unreachable) view.</li>
 <li><a href="/host">/host</a> – inside <code>&lt;lazurio-new-tab&gt;</code> with T3 Code's tools and the strip <code>t3-x</code>; choices are logged, never navigated.</li>
 </ul><p>Everything here is fake: five tabs, memory at about 85 %, two running Modules. A close ends a tab after 8 s; Vrátit within them brings it back.</p>
-<p>Failures: the view's hub is <strong>${switches.hubDown ? "down" : "up"}</strong> (<a href="/preview/set?hub=down">down</a> · <a href="/preview/set?hub=up">up</a>); the Environment has <strong>${switches.noBrowser ? "no browser" : "its browser"}</strong> (<a href="/preview/set?browser=none">none</a> · <a href="/preview/set?browser=present">present</a>).</p></body></html>`;
+<p>Failures: the view's hub is <strong>${switches.hubDown ? "down" : "up"}</strong> (<a href="/preview/set?hub=down">down</a> · <a href="/preview/set?hub=up">up</a>); the Environment has <strong>${switches.noBrowser ? "no browser" : "its browser"}</strong> (<a href="/preview/set?browser=none">none</a> · <a href="/preview/set?browser=present">present</a>); the disk and the processor are <strong>${switches.fullSystem ? "full" : "this machine's"}</strong> (<a href="/preview/set?system=full">full</a> · <a href="/preview/set?system=real">real</a>).</p></body></html>`;
 
 const hostPage = `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nová karta – in a host</title>
 <script type="module" src="/.lazurio/shell.js"></script>
@@ -626,6 +647,9 @@ const server = Bun.serve({
     if (url.pathname === "/preview/set" && request.method === "GET") {
       const hubState = url.searchParams.get("hub");
       const browserState = url.searchParams.get("browser");
+      const systemState = url.searchParams.get("system");
+      if (systemState === "full" || systemState === "real")
+        switches.fullSystem = systemState === "full";
       if (hubState === "down" || hubState === "up")
         switches.hubDown = hubState === "down";
       if (browserState === "none" || browserState === "present")

@@ -15710,6 +15710,82 @@ joining, and in the preview (`scripts/preview-new-tab.ts`) the Bun row fetching 
 Deals waits, then fetched before Deals builds, and the finding for a pin that could not be
 read.
 
+**Addendum 2026-11-12: the disk and the processor in Přehled (Matěj, point 7).** Matěj
+2026-11-12: "it makes sense for the disk to be there too, and possibly CPU use". An Environment
+ran out of disk space (40 MB left) and nobody saw it until writes began to fail; Přehled showed
+only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTab.tsx`,
+`browser.ts` `diskOf`, `diskTone`, `cpuOf`, `cpuTone`).
+
+1. **What Přehled shows.** Under the memory, in its look (title, value, bar, parts, a hint with
+   the warning icon only when the tone is not ok, `aria-label` from the title), in this order:
+   Paměť, Disk, Procesor, then the tabs. Explanations stay in the titles (tooltips): the page
+   shows data and the hint, nothing else.
+   - **Disk Prostředí / Environment disk:** used of total and "Volno …" for the root file
+     system; when the home folder is on another file system (another device), one more part
+     "Domovská složka: volno …". Used is the size less what an unprivileged writer can still
+     write (`f_bavail`), so the blocks reserved for root count as used and a full bar means
+     writes fail. Sizes read like the memory up to 100 GB, then whole gigabytes, and terabytes
+     from 1000 GB (`formatDisk`).
+   - **Procesor Prostředí / Environment CPU:** the processor's load over the last 5 minutes
+     against its cores, in percent, said as an average beside the number ("23 % průměr za 5
+     min", "23% 5-min average"), the bar and the number of cores ("4 jádra", "8 cores"). Matěj
+     2026-11-12, when approving the page: the number is the 5-minute average, so that it agrees
+     with the warning; a reading of the last moment beside a 5-minute warning showed 2 % next to
+     "fully busy". The percent is the 5-minute load average against the cores, at most 100. It
+     is not how busy the cores were: Linux's load average is an exponentially weighted average
+     of the tasks running, ready to run and waiting uninterruptibly, mostly on the disk, so a
+     stalled disk raises it with idle cores, and it does not say that the cores were busy for
+     the whole 5 minutes. The page therefore calls it load ("zátěž"), never busy ("vytížení"):
+     the value's title says that it is a weighted average against the cores that also counts
+     tasks waiting for the disk, and the warning says the load is high and that it counts
+     waiting for the disk.
+2. **Thresholds.**
+   - The disk warns under 15 % or 8 GiB free and is bad under 5 % or 2 GiB, whichever comes
+     first: a small disk runs out by its gigabytes, a big one by its share. 8 GiB is the room
+     below which Machines no longer creates the guest's swap file (root decision 0195); under
+     2 GiB a single build or download can fail. With the home folder on a disk of its own, the
+     worse of the two is the tone. The warning says to delete files or ask for a bigger disk;
+     the bad state adds that writes will soon fail.
+   - The processor only warns, from 90 % of that same number. A short peak is how agents work
+     and moves the 5-minute average little, and a high load slows the Environment down without
+     failing anything, so it never shows red. The memory keeps the Dashboard's 80 and
+     90 %.
+3. **Where the data comes from.** `GET /api/new-tab/overview` answers two more fields,
+   `disk {total, used, free, home}` and `cpu {percent, cores, load}`
+   (`src/launchpad/new-tab/machine.ts`), read with the memory and the tabs:
+   - the disk: `statfs` and `stat` of `/` and, when the account's `HOME` is on another device,
+     of `HOME`. No walk of the disk on any reading, so no breakdown of the biggest folders;
+   - the processor: the 5-minute load average of `/proc/loadavg` and the count of the `cpuN`
+     lines of `/proc/stat`, one reading of each per overview, without state or a wait. The load
+     average counts tasks waiting on the disk too (Linux's uninterruptible sleep), so a disk
+     that stalls raises the load with idle cores. No daemon, no new service, nothing read while
+     nobody looks.
+   - Read only, never throwing: an unreadable part is null, and the page leaves out what it does
+     not know. Off Linux both are null (the host's `system` seam is absent), as an unknown
+     memory value is.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Percent thresholds only, as the memory's 80/90 % | On a 60 GB disk 90 % still leaves 6 GB, on a 1 TB disk 100 GB; neither says when writes fail. Rejected for share or gigabytes, whichever comes first |
+| The biggest folders of the disk | Needs a walk of the disk (`du`) on each reading or a cache kept by a job; not cheap and not safe every 5 s. Not now |
+| The processor's number from the last moment (two readings of `/proc/stat`), the first build of this addendum | It changed every 5 s and disagreed with the 5-minute warning (2 % beside "fully busy"); Matěj chose the 5-minute average for both. Replaced |
+| The processor's tone from the last moment | Every agent's build would turn it orange; the 5-minute load average says when it lasts |
+| A sampler service that keeps the history | A new daemon for a meter only seen while Nová karta is open; rejected |
+| One card "Prostředí" with three rows | Less room, but another look than the memory's box the wireframe and the brief keep; rejected |
+
+Tests: `tests/new-tab-machine.test.ts` (the cores of `/proc/stat`; the 5-minute load; the load
+against the cores in percent, at most 100; one file or both unreadable; the root, the home folder on the same and on another
+device, an unreadable root or home, free past the size; null off Linux and this Linux's real
+numbers), `tests/new-tab-view.test.ts` (the thresholds with a 60 GB, 1 TB and 20 GB disk and
+40 MB left, `formatDisk`, both blocks in Czech and English, the home folder's tone, the
+processor's 5-minute average said as such and its warning from 90 %, cores in Czech plural
+forms, the answer read field by field) and
+`tests/launchpad-new-tab.test.ts` (the overview's `disk` and `cpu`, and null without them).
+The page was checked in a browser at 1440, 700 and 390 px in Czech and English against the
+wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and processor are now the
+running machine's own readings (`processNewTabHost`; its memory and tabs stay fakes), with
+`/preview/set?system=full` for a disk with 40 MB left and a high 5-minute load.
+
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
 **Decided by the Operator 2026-10-11, replacing the unpublished per-Organization
