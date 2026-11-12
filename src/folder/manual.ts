@@ -1313,8 +1313,8 @@ const glossary: readonly Text[] = [
     "| Personal Conglomerate Host | The host of Lazurio's personal tailnet: it works like a Conglomerate Host (Headscale, gateway, DNS-01 certificates), only for Personal Environments outside any Conglomerate, with no Admin (decision 0243). |",
   ),
   t(
-    "| Tailnet | Headscale síť jednoho Conglomerate, nebo osobní tailnet Lazuria na Personal Conglomerate Hostu; jediná cesta do každého Environmentu (decisions 0154, 0243). Adresy `100.64.0.x` se opakují v každém tailnetu. |",
-    "| Tailnet | The Headscale network of one Conglomerate, or Lazurio's personal tailnet on the Personal Conglomerate Host; the only path into every Environment (decisions 0154, 0243). Addresses `100.64.0.x` repeat in every tailnet. |",
+    "| Tailnet | Headscale síť jednoho Conglomerate, nebo osobní tailnet Lazuria na Personal Conglomerate Hostu; cesta do Environmentů, cílově jediná (decisions 0154, 0243). Adresy `100.64.0.x` se opakují v každém tailnetu. |",
+    "| Tailnet | The Headscale network of one Conglomerate, or Lazurio's personal tailnet on the Personal Conglomerate Host; the way into Environments, as the target the only one (decisions 0154, 0243). Addresses `100.64.0.x` repeat in every tailnet. |",
   ),
   t(
     "| Osobní Remote Environment | Jediný osobní Remote Environment uživatele (decision 0153); preset `hosted-personal`, druh `personal-vm`. |",
