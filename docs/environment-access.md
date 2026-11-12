@@ -3,7 +3,10 @@
 Status: decision 0192 of the [decision register](decision-register.md), in force as
 the target model; the transition is not complete. Its amendments of 2026-10-26 and
 2026-11-01, decision 0202 and the access edges of decision 0224 are decided, not yet
-deployed; decision 0213 is decided and partly deployed; decision 0196 is in force;
+deployed; decision 0243 (every Environment only through a tailnet, Lazurio's personal
+tailnet) is decided, not yet deployed, and retires the public-DNS mode of decision 0213,
+which only the reference Organization runs until its return to its tailnet; decision
+0196 is in force;
 decision 0231 (application roles and what a Module receives) and decision 0234 (the
 names of access roles) are decided, not yet deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
@@ -24,9 +27,8 @@ working logins, integrations and existing remote access. The sharing user
 accepts this risk. Do not require sign-out, profile wiping, credential
 replacement, conversion to a Team/broker mode or another approval of the Organization Admin as
 a prerequisite. Active same-Organization membership and the Organization Admin's approval of
-the recipient's exact device remain mandatory, except in an Organization in
-public-DNS mode, which has no device approval (decision 0213, below); friends
-or family are not exceptions. Personalspace is outside this work-sharing
+the recipient's exact device remain mandatory; friends or family are not
+exceptions. Personalspace is outside this work-sharing
 feature.
 
 Explain this scope at the normal sharing action, with a clearly labelled
@@ -75,9 +77,9 @@ An organizational Environment and its apps require all three:
 
 1. Tailscale against the correct Headscale, with the Organization Admin's approval of the exact
    device before protected reachability. OIDC or another approved device is
-   not that approval. There is no public alternative to protected work URLs,
-   except the public-DNS mode an Organization may choose (decision 0213,
-   below), which drops this condition.
+   not that approval. There is no public alternative to protected work URLs
+   (decision 0243); the retired public-DNS mode (below) runs only for the
+   reference Organization until its return to its tailnet.
 2. Active Lazurio Organization membership, identified by immutable issuer
    and subject, not email, a GitHub login or the current tailnet user name.
 3. An exact full-Environment or named-app grant in the account authority.
@@ -90,7 +92,9 @@ device may carry approvals for several Organizations. Decided, not yet
 deployed (0192's amendment of 2026-11-01, with 0183 and 0205): the Organization Admin
 approves or removes a device in the Dashboard through a service on the
 Conglomerate Host, which applies it within tens of seconds; a person may
-remove their own lost device at once, and only an Organization Admin approves. Every action
+remove their own lost device at once, and in an Organization only its Organization Admin
+approves, while in Lazurio's personal tailnet the person approves their own devices
+(decision 0243, below). Every action
 is audited, and the service records each approval into the host owner's
 Deployment Repository automatically as an audit entry without review, a record
 and not an input. The rules (who may approve, and where an approved device
@@ -169,41 +173,50 @@ An Organization Admin manages who may enter a Team Environment. Until Auth grant
 it, membership of the Environment's GitHub Team decides entry as the marked
 migration implementation.
 
-## Public-DNS mode (decision 0213)
+## Lazurio's personal tailnet (decision 0243)
 
-Decided, partly deployed. People enter an Organization's Environments through its
-tailnet, which stays the default, or without a tailnet through public DNS. The
-gateways and the server's public entry that carry this mode belong to Machines; this
-repository has no code for it.
+Decided, not yet deployed. People enter every Environment only through a tailnet. A
+Personal Environment outside a Conglomerate is a node of Lazurio's personal tailnet,
+which Lazurio runs and which works like a Conglomerate's tailnet but has no Organization
+and no Organization Admin. This repository has no code for it yet, and today's Platform
+does not accept its names (issue #944).
 
-- **The switch.** The mode is one setting in the Organization's Deployment Repository,
-  the server's public entry on each server concerned. The Organization Admin turns
-  it on by a reviewed pull request that cites the Organization's own decision; it
-  requires mandatory two-factor authentication in the GitHub Organization and a DNS
-  zone delegated to the Organization. Admitting any Lazurio account stays reserved to
-  the reference Organization's shared visitors' Environment (decision 0204).
-- **Entry.** The server's entry reads only the server name from TLS without opening
-  the connection, passes only declared Environment names to their gateways and closes
-  any other name. A Lazurio account with active membership and a specific grant
-  replaces the device approved by the Organization Admin: condition 1 above and device approval do not
-  apply to people. From the internet only the entry into Environment gateways is
-  reachable, and every path behind it needs a Lazurio session.
-- **Revocation.** Every gateway refreshes the session at least every two minutes, so a
-  removed member is refused any new request or connection within two minutes, and it
-  ends every upgraded or long-open connection five minutes after it opened, so the
-  member loses everything within seven minutes.
-- **What people get.** Only the web interface (the Launchpad, chat, MausBot, Buddy):
-  no SSH for people, no native T3 pairing exception, no desktop T3 Code and no vault
-  from their devices. The Organization's vault stays reachable for people only inside
-  the tailnet; people see their Environment's vault on its Vault page.
-- **What stays.** The Environments stay server nodes of the Organization's tailnet,
-  with the same enrollment, default grants and SSH between Environments; agents reach
-  the vault over the tailnet, and the servers are managed through the Organization's
-  own Conglomerate Host. The services Environment that carries the public entry stays
-  outside the tailnet.
-- **Accepted risks.** A stolen session works from anywhere until it is ended, the Organization Admin
-  has no device list, and the gateways are visible on the internet. The tailnet stays
-  the backbone of security; public DNS is an Organization's choice, not the standard.
+- **People.** Each person is one network user there, signed in with the Lazurio
+  account; the assignment of a Personal Environment, not membership of an Organization,
+  admits the sign-in. People do not see each other.
+- **Reach.** A person's approved computer reaches only their own Personal Environment,
+  on HTTPS (443) and SSH (22), and a phone on HTTPS only. No other person's device and
+  no device of the operator has an edge into it.
+- **Devices.** The person approves and removes their own devices. Until that
+  self-approval is built, Lazurio's operator approves the first people's devices by
+  hand.
+- **One tailnet.** An Environment belongs to exactly one tailnet, so the Personal
+  Environment of a person who works in an Organization on Lazurio is a node of that
+  Organization's Conglomerate, with the access described above.
+- **Names.** `<app>.<login>.personal.lazurio.io`, resolved only inside the tailnet,
+  with no address records in public DNS; certificates are issued by DNS-01 in the zone
+  `personal.lazurio.io` (decision 0235).
+- **Gateway.** The gateway still requires the Owner's sign-in through the
+  Environment's own sign-in client (decisions 0157 and 0214), a second layer inside
+  the tailnet.
+- **Entry.** Lazurio App with its built-in tailnet node (decision 0241); until it is
+  released, the Tailscale app and the Environment's web interface. A phone without
+  Lazurio App pairs through the person's AI account (decision 0215).
+- **Not decided here.** What self-approval requires, how the tailnet is split for
+  scale, key expiry, how a Personal Environment moves into a Conglomerate and whether
+  it may return, certificate rate limits and the Public Suffix List, and how the
+  operator administers the servers follow the plan of the personal tailnet.
+
+## Retired: public-DNS mode (decisions 0213 and 0243)
+
+Decision 0243 retired entry without a tailnet on 2026-11-12: no Organization and no
+Personal Environment switches to it, and nothing further is built for it. Only the
+reference Organization still runs it, until its return to its tailnet (decision 0204),
+and decision 0213 keeps the contract of that entry until then. Every gateway, in any
+mode, refreshes the session at least every two minutes, so a removed member is refused
+any new request or connection within two minutes, and ends every upgraded or long-open
+connection five minutes after it opened, so the member loses everything within seven
+minutes.
 
 ## Module data: the Environment's ceiling (decision 0196)
 
@@ -380,8 +393,9 @@ by default.
   Organizations they belong to may meet, so Buddy may compose results from them for
   that person. In an Organization's context data never mix, and nothing moves from a
   Personal Environment into another Organization.
-- **Without a tailnet.** A Personal Environment in public-DNS mode (decision 0207) has
-  none of these routes.
+- **In Lazurio's personal tailnet.** A Personal Environment there (decision 0243) has
+  none of these routes; when its person starts working in an Organization on Lazurio,
+  it moves into that Organization's Conglomerate first.
 - **Replaced.** 0224 replaces decision 0158 and point 3 of decision 0182: an Environment
   reaches a person's device only by the access to a device above, which 0240 narrows
   for a personal Device to the channel the Device itself opened.
@@ -395,8 +409,8 @@ The key goes into the Environment account's `authorized_keys` and nowhere
 else; the host key reaches the computer over the signed-in page and is pinned.
 This is entry to the account, not to the network: reaching the Environment on
 TCP/22 from that device remains a separate grant the Organization Admin
-approves and Headscale enforces, and the Launchpad neither checks nor opens
-it. Under 0192's amendment of 2026-11-01 that grant comes with the approval of a
+approves (in Lazurio's personal tailnet, the person themselves, decision 0243) and
+Headscale enforces, and the Launchpad neither checks nor opens it. Under 0192's amendment of 2026-11-01 that grant comes with the approval of a
 computer; a phone has none (decided, not yet deployed). Removing a web grant or
 a device key does not remove the other. On a Team
 Environment every admitted user acts as the Team's account and may add or

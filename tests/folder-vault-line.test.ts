@@ -70,7 +70,7 @@ const words = {
       "no-vault":
         "Hlásí-li `unsupported` s důvodem `no-vault`, trezor tu zatím není, protože ho handover tohoto Prostředí nejmenuje;",
       "no-tailnet":
-        "s důvodem `no-tailnet` tu záměrně není, protože jde o Prostředí veřejné Organizace.",
+        "s důvodem `no-tailnet` tu záměrně není, protože Prostředí není v tailnetu trezoru.",
     },
     other:
       "Z jiné odpovědi, ani z `unsupported` s jiným důvodem, neusuzuj, že tu trezor není: může čekat na uživatele nebo teď nefungovat; řiď se tím, co `lazurio vault status` hlásí, včetně důvodu.",
@@ -93,7 +93,7 @@ const words = {
       "no-vault":
         "When it reports `unsupported` with the reason `no-vault`, there is no vault here yet, because this Environment's handover names none;",
       "no-tailnet":
-        "with `no-tailnet` there is none on purpose, because this is a public Organization's Environment.",
+        "with `no-tailnet` there is none on purpose, because the Environment is outside the vault's tailnet.",
     },
     other:
       "From any other answer, `unsupported` with another reason too, do not conclude that there is no vault: it may wait for a user or not work now; follow what `lazurio vault status` says, its reason included.",
