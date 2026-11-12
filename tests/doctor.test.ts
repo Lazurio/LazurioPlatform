@@ -997,6 +997,59 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32")(
+  "hosted: a handover rewritten only where nothing renders is the refresh's to record by its digest, then the binding is ok (#111)",
+  async () => {
+    const world = await createWorld({ hosted: true });
+    // A later Machines apply rewrote only `installed`: the Folder renders
+    // the same bytes, but the binding names an earlier handover.
+    const document = {
+      ...handoverDocument(),
+      installed: {
+        ...handoverDocument().installed,
+        recorded_at: "2026-11-12T06:17:00Z",
+      },
+    };
+    const live = async () => ({
+      context: document as never,
+      digest: digestOf(document),
+    });
+    const pending = await doctor(world, [], { machineContext: live });
+    expect(find(pending.json, "machine-binding")).toEqual({
+      id: "machine-binding",
+      outcome: "warn",
+      reason: "handover-changed",
+    });
+    const machine = machineBinding(
+      parseMachineContext(Buffer.from(JSON.stringify(document))),
+      digestOf(document),
+    );
+    expect(await refreshMachineFolder(world.folder, machine)).toMatchObject({
+      code: 0,
+      result: { kind: "refreshed", bindingRebound: "handover-digest" },
+    });
+    const rebound = await doctor(world, [], { machineContext: live });
+    expect(find(rebound.json, "machine-binding")).toEqual({
+      id: "machine-binding",
+      outcome: "ok",
+      context: { machineKind: "workspace-vm" },
+    });
+    // The same handover again: nothing to record, and the binding stays ok.
+    expect(await refreshMachineFolder(world.folder, machine)).toEqual({
+      code: 0,
+      result: { kind: "unchanged" },
+    });
+    const settled = await doctor(world, [], { machineContext: live });
+    expect(find(settled.json, "machine-binding")?.outcome).toBe("ok");
+    for (const result of [pending, rebound, settled]) {
+      expect(result.stdout).not.toContain(digestOf(document));
+      expect(result.human).not.toContain(digestOf(document));
+      expectTierOne(result.stdout, world);
+      expectSameAnswer(result.human, result.json);
+    }
+  },
+);
+
 test("without a Folder, an unreadable hosted context is named, not skipped as a workstation (#83)", async () => {
   const world = await createWorld();
   const run = (hostedFolder: () => Promise<string | undefined>) =>

@@ -115,10 +115,14 @@ refresh records it and adds "bindingCorrected":"owner-organization" to its
 answer (folder-init on that Folder answers already-adopted with
 "bindingCorrection":"owner-organization" and writes nothing). Prints
 {"kind":"refreshed","revision":<n>} after one
-archived update transaction, or {"kind":"unchanged"} when the current handover
-renders the same bytes (nothing is written, the revision stays). On a
-personal Remote Environment either answer then also writes, from the recorded
-binding's assigned Work Environments, ~/.ssh/config.d/lazurio-environments.conf
+archived update transaction, or {"kind":"unchanged"} when the Folder already
+records the current handover's digest and it renders the same bytes (nothing
+is written, the revision stays). A handover rewritten where nothing is
+rendered or recorded (installed, for example) is recorded by its digest alone,
+every generated file byte for byte the same, so doctor's machine-binding is ok
+after it: {"kind":"refreshed","revision":<n>,"bindingRebound":"handover-digest"}.
+On a personal Remote Environment either answer then also writes, from the
+recorded binding's assigned Work Environments, ~/.ssh/config.d/lazurio-environments.conf
 (0600), ~/.ssh/known_hosts_lazurio_environments (0644) and one Include line at
 the top of ~/.ssh/config, or removes the two files when there are none, and
 adds "environmentSsh": written, unchanged, removed, none, blocked (with reason
@@ -456,7 +460,9 @@ export async function initializeMachineFolder(
 // update transaction; the planner checks the identity again under its lock.
 // `preset` is the preset the handover now derives, taken with it (#107).
 // `organizationKey` is the handover's `owner.organization_key`: with it the
-// one correction of the identity is recorded (`bindingCorrected`).
+// one correction of the identity is recorded (`bindingCorrected`). A
+// rewritten handover that changes nothing else is recorded by its digest
+// alone (`bindingRebound`, issue #111).
 export async function refreshMachineFolder(
   folder: string,
   machine: MachineBinding,
