@@ -24795,12 +24795,17 @@ card that led to F49's page.
    Desktop on Mac and Windows, F49; T3 Code) and only where the handover
    records a peer that may open SSH into this Environment
    (`relationships.peers`, direction `inbound` or `both`; root decisions 0192
-   and 0224). It shows *Sem se připojíte z* with those peers, its own motion
-   graphic and *Nastavit SSH* to F49's page, unchanged. A handover without
-   `relationships` records nothing, so SSH is not offered there;
-   `/settings/ssh` stays reachable by its address. A phone never goes over
-   SSH: under 0240 nothing connects into a personal Device, and the Device
-   always opens the connection.
+   and 0224). It shows *Sem se připojíte z* with those peers and *Nastavit
+   SSH* to F49's page, unchanged, with a motion graphic only where the app's
+   steps are known: ChatGPT Desktop's (copy the prompt, open ChatGPT Desktop,
+   paste it to the agent, *Přidat do Codexu*). T3 Code's SSH way shows the
+   paths and *Nastavit SSH* without one until its steps are verified. A
+   handover without `relationships` records nothing, so SSH is not offered
+   there; `/settings/ssh` stays reachable by its address. The page offers no
+   SSH way for a phone, since F49 sets up a computer's key; a phone on the
+   Organization's AI keeps the Organization's own temporary path (SSH with a
+   password in the ChatGPT app), which this page does not set up. Either way
+   the Device opens the connection, as 0240 requires.
 5. **One motion template.** The system's frame (a phone or a computer), the
    app's screen with its mark and name, and five steps in turn, filled from
    `motionSteps(system, app, way)`. A new combination is data, not a new

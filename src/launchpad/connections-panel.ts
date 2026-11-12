@@ -98,6 +98,7 @@ export function createConnectionsPanel(
   const restartCancel = find<HTMLButtonElement>("#phone-restart-cancel");
   const oses = find<HTMLDivElement>("#connections-oses");
   const apps = find<HTMLDivElement>("#pair-apps");
+  const appStatus = find<HTMLParagraphElement>("#pair-app-status");
   const devicesGroup = find<HTMLElement>("#phone-devices-group");
   const devicesList = find<HTMLUListElement>("#phone-devices");
   const outGroup = find<HTMLElement>("#ssh-paths");
@@ -136,6 +137,9 @@ export function createConnectionsPanel(
   let confirming: string | null = null;
   let removing: string | null = null;
   let reading = 0;
+  // Whether the last restart was asked from the dialog: its failure is shown
+  // there.
+  let restartAsked = false;
   // The pairing open now: its Device's system, its app and the step shown.
   let os: DeviceOs = "iphone";
   let app: PairApp = "chatgpt";
@@ -464,6 +468,16 @@ export function createConnectionsPanel(
       note === "phoneRemoved" && busy === null ? "info" : "warning";
     renderOses(copy);
     renderApps(copy);
+    // A restart asked in the dialog says there how it goes and whether it
+    // failed; the page behind it says the same.
+    const restartLine =
+      busy === "restart"
+        ? copy.phoneRestarting
+        : note === "phoneFailed" && restartAsked
+          ? copy.phoneFailed
+          : null;
+    appStatus.textContent = restartLine ?? "";
+    appStatus.hidden = restartLine === null;
     renderDevices(copy, overview?.state === "ready" ? overview.devices : []);
     renderPaths(copy);
     drawStep();
@@ -602,6 +616,7 @@ export function createConnectionsPanel(
   /** A system's tile: the pairing opens at its apps. */
   function open(which: DeviceOs) {
     os = which;
+    restartAsked = false;
     sshOnly = false;
     ended = false;
     step = "app";
@@ -664,6 +679,7 @@ export function createConnectionsPanel(
 
   async function restart() {
     restartConfirm.hidden = true;
+    restartAsked = true;
     busy = "restart";
     note = null;
     render();

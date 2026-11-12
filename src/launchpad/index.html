@@ -630,12 +630,12 @@ button.os-tile { display: grid; justify-items: center; align-content: center; ga
 button.os-tile:hover { border-color: var(--fg); }
 button.os-tile:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 2px; }
 button.os-tile .icon { width: 30px; height: 30px; }
-.pair-apps { display: grid; gap: 8px; }
+.pair-apps { display: grid; gap: 8px; container-type: inline-size; }
 .pair-app { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: var(--card); text-align: left; }
 .pair-app .row-title { color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akce); }
 .pair-app .row-desc { grid-column: 2; }
 .pair-app .phone-actions { grid-column: 3; grid-row: 1 / span 2; justify-content: flex-end; }
-@container (max-width: 520px) { .pair-app { grid-template-columns: auto 1fr; } .pair-app .phone-actions { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; } }
+@container (max-width: 420px) { .pair-app { grid-template-columns: auto 1fr; } .pair-app .phone-actions { grid-column: 1 / -1; grid-row: auto; justify-content: flex-start; } }
 .pair-app[data-available="false"] .app-mark { opacity: 0.55; }
 #pair-where { text-align: center; color: var(--fg); }
 .app-card { display: grid; align-content: start; gap: 10px; padding: 16px 18px; }
@@ -2315,6 +2315,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <div id="pair-step-app" class="pair-step">
 <p id="pair-where" class="row-desc"></p>
 <div class="pair-apps" id="pair-apps"></div>
+<p id="pair-app-status" class="callout" data-kind="warning" role="status" aria-live="polite" hidden></p>
 <div id="phone-restart-confirm" class="callout" data-kind="warning" role="alert" hidden><p data-message="phoneRestartWarning">A restart ends the chats running in Codex. Restart now?</p><div class="phone-actions"><button type="button" id="phone-restart-cancel" data-message="phoneCancel">Cancel</button><button type="button" class="primary" id="phone-restart-yes" data-message="phoneRestartYes">Restart</button></div></div>
 </div>
 <div id="phone-dialog-pairing" class="phone-pairing" hidden>
