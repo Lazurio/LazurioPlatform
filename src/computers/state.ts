@@ -282,9 +282,10 @@ export function appDetails(
 }
 
 /** What a computer's application says it is, from its answer to
- * `initialize`: `_meta["io.lazurio/agent-desktop"]` first; before the
- * contract was fixed, `_meta["io.lazurio/app"]` (`version`, `os` or
- * `system`) and then `serverInfo.version`, which is the engine's. */
+ * `initialize`: `_meta["io.lazurio/agent-desktop"]`, else the shape from
+ * before the contract was fixed, `_meta["io.lazurio/app"]` (`version`, `os`
+ * or `system`). Never `serverInfo`: it is the engine's, and its version
+ * would read as the application's. */
 export function appOf(initResult: unknown): AppDetails {
   const record = (value: unknown) =>
     value !== null && typeof value === "object" && !Array.isArray(value)
@@ -295,11 +296,7 @@ export function appOf(initResult: unknown): AppDetails {
   const app = record(meta[appMetaKey]);
   const legacy = record(meta["io.lazurio/app"]);
   return appDetails({
-    version: [
-      app.appVersion,
-      legacy.version,
-      record(result.serverInfo).version,
-    ].find(versionLike),
+    version: [app.appVersion, legacy.version].find(versionLike),
     system: [app.os, legacy.os, legacy.system].find(labelLike),
     osVersion: app.osVersion,
     channel: app.updateChannel,

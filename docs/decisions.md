@@ -25202,8 +25202,9 @@ message, so that Executor and a harness keep a working server. Cancel on the pag
 **Aligned with the application's fixed contract (2026-11-12).** The application's
 answer to `initialize` carries `_meta["io.lazurio/agent-desktop"]` with `appVersion`, `os`,
 `osVersion` and `updateChannel`; `serverInfo` is its engine's. The broker writes them to the
-history on `connected` (the older `_meta["io.lazurio/app"]` and `serverInfo.version` only as a
-fallback), and Settings → Connections shows the version. The pairing's `result` also carries
+history on `connected` (the older `_meta["io.lazurio/app"]` only as a fallback; never
+`serverInfo.version`, which is the engine's and read as the application's in the first trial),
+and Settings → Connections shows the version. The pairing's `result` also carries
 `environment.name`, the Environment as the shell names it (its kind, and an Organization's
 slug), for the application's panel. The application serves two tools of its own on the same
 session, `lazurio_app_status` and `lazurio_app_update`. After `lazurio_app_update` the computer

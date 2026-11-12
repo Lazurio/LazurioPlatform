@@ -435,7 +435,7 @@ test.skipIf(!posix)(
     }),
 );
 
-test("the application says its version in _meta, else in serverInfo", async () => {
+test("the application says its version in _meta, never through its engine's serverInfo", async () => {
   const { appOf } = await import("../src/computers/state");
   // The fixed contract wins over the older shapes.
   expect(
@@ -463,7 +463,12 @@ test("the application says its version in _meta, else in serverInfo", async () =
       _meta: { "io.lazurio/app": { version: "v0.1.4", system: "windows" } },
     }),
   ).toEqual({ version: "v0.1.4", system: "windows" });
-  expect(appOf({ serverInfo: { name: "x", version: "0.1.2" } })).toEqual({
+  // The engine's version is not the application's (seen on 2026-11-12:
+  // an application without _meta read as its engine's 1.2.0).
+  expect(
+    appOf({ serverInfo: { name: "agent-desktop", version: "1.2.0" } }),
+  ).toEqual({});
+  expect(appOf({ _meta: { "io.lazurio/app": { version: "0.1.2" } } })).toEqual({
     version: "0.1.2",
   });
   // Nothing version-like, nothing at all.
