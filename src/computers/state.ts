@@ -232,7 +232,39 @@ export type AuditEntry = Readonly<{
   ms?: number;
   agent?: string;
   reason?: string;
+  /** On `connected`: the application's version and system, as the
+   * computer reports them (`appOf`). */
+  version?: string;
+  system?: string;
 }>;
+
+/** What a computer's application says it is, from its answer to
+ * `initialize`: `_meta["io.lazurio/app"]` (`version`, and `os` or
+ * `system`) first, else `serverInfo.version`. Only a short version-like
+ * label and a system label are kept; anything else is nothing. */
+export function appOf(
+  initResult: unknown,
+): Readonly<{ version?: string; system?: string }> {
+  const record = (value: unknown) =>
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const result = record(initResult);
+  const app = record(record(result._meta)["io.lazurio/app"]);
+  const version = [app.version, record(result.serverInfo).version].find(
+    (value): value is string =>
+      typeof value === "string" && /^v?\d[0-9A-Za-z.+-]{0,31}$/.test(value),
+  );
+  const rawSystem = app.os ?? app.system;
+  const system =
+    typeof rawSystem === "string" && /^[A-Za-z0-9 ._-]{1,40}$/.test(rawSystem)
+      ? rawSystem
+      : undefined;
+  return {
+    ...(version === undefined ? {} : { version }),
+    ...(system === undefined ? {} : { system }),
+  };
+}
 
 const maxAuditBytes = 4 * 1024 * 1024;
 
@@ -270,12 +302,21 @@ export async function appendAudit(
   });
 }
 
-/** Each computer's last line of the history: its time and event. Reads at
- * most the file's last 1 MiB. */
+/** What the history says of one computer: its last line's time and event,
+ * and the application's version and system from its last `connected`. */
+export type ComputerActivity = Readonly<{
+  ts: string;
+  event: string;
+  version?: string;
+  system?: string;
+}>;
+
+/** Each computer's activity from the history. Reads at most the file's
+ * last 1 MiB. */
 export async function lastActivity(
   home: string,
-): Promise<ReadonlyMap<string, Readonly<{ ts: string; event: string }>>> {
-  const result = new Map<string, Readonly<{ ts: string; event: string }>>();
+): Promise<ReadonlyMap<string, ComputerActivity>> {
+  const result = new Map<string, ComputerActivity>();
   let handle: Awaited<ReturnType<typeof open>>;
   try {
     handle = await open(
@@ -298,8 +339,34 @@ export async function lastActivity(
           typeof value.device === "string" &&
           typeof value.ts === "string" &&
           typeof value.event === "string"
-        )
-          result.set(value.device, { ts: value.ts, event: value.event });
+        ) {
+          const before = result.get(value.device);
+          // A connection names the application anew; any other line keeps
+          // what the last connection said.
+          const app =
+            value.event === "connected"
+              ? appOf({
+                  _meta: {
+                    "io.lazurio/app": {
+                      version: value.version,
+                      system: value.system,
+                    },
+                  },
+                })
+              : {
+                  ...(before?.version === undefined
+                    ? {}
+                    : { version: before.version }),
+                  ...(before?.system === undefined
+                    ? {}
+                    : { system: before.system }),
+                };
+          result.set(value.device, {
+            ts: value.ts,
+            event: value.event,
+            ...app,
+          });
+        }
       } catch {}
     }
   } finally {

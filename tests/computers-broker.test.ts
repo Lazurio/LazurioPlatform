@@ -39,6 +39,7 @@ function fakeComputer() {
         protocolVersion: "2025-06-18",
         capabilities: { tools: {} },
         serverInfo: { name: "agent-desktop", version: "1.0.0" },
+        _meta: { "io.lazurio/app": { version: "0.1.3", os: "macos" } },
       });
     else if (message.method === "tools/list")
       answer(message.id, {
@@ -183,6 +184,8 @@ test.skipIf(!posix)(
       // The computer received the arguments; the history did not.
       expect(JSON.stringify(computer.received)).toContain("secret password");
       expect(JSON.stringify(audit)).not.toContain("secret");
+      // The application's own version wins over its engine's.
+      expect(audit[0]).toMatchObject({ version: "0.1.3", system: "macos" });
       expect(audit.map((entry) => entry.event)).toEqual([
         "connected",
         "lease",
@@ -404,6 +407,25 @@ test.skipIf(!posix)(
     }),
 );
 
+test("the application says its version in _meta, else in serverInfo", async () => {
+  const { appOf } = await import("../src/computers/state");
+  expect(
+    appOf({
+      serverInfo: { version: "9.9.9" },
+      _meta: { "io.lazurio/app": { version: "v0.1.4", system: "windows" } },
+    }),
+  ).toEqual({ version: "v0.1.4", system: "windows" });
+  expect(appOf({ serverInfo: { name: "x", version: "0.1.2" } })).toEqual({
+    version: "0.1.2",
+  });
+  // Nothing version-like, nothing at all.
+  expect(appOf({ serverInfo: { version: "latest; rm -rf" } })).toEqual({});
+  expect(
+    appOf({ _meta: { "io.lazurio/app": { version: "<b>1</b>" } } }),
+  ).toEqual({});
+  expect(appOf(null)).toEqual({});
+});
+
 test.skipIf(!posix)("the history file is owner-only JSON lines", async () => {
   const home = await mkdtemp(join(tmpdir(), "lzc-"));
   try {
@@ -431,6 +453,33 @@ test.skipIf(!posix)("the history file is owner-only JSON lines", async () => {
       ts: "2026-11-12T10:05:00.000Z",
       event: "tool",
     });
+    // A connection that names the application: kept until the next one.
+    await appendAudit(home, process.getuid?.(), {
+      ts: "2026-11-12T11:00:00.000Z",
+      device: "alex-macbook",
+      event: "connected",
+      version: "0.1.3",
+      system: "macos",
+    });
+    await appendAudit(home, process.getuid?.(), {
+      ts: "2026-11-12T11:01:00.000Z",
+      device: "alex-macbook",
+      event: "disconnected",
+    });
+    expect((await lastActivity(home)).get("alex-macbook")).toEqual({
+      ts: "2026-11-12T11:01:00.000Z",
+      event: "disconnected",
+      version: "0.1.3",
+      system: "macos",
+    });
+    await appendAudit(home, process.getuid?.(), {
+      ts: "2026-11-12T12:00:00.000Z",
+      device: "alex-macbook",
+      event: "connected",
+    });
+    expect(
+      (await lastActivity(home)).get("alex-macbook")?.version,
+    ).toBeUndefined();
   } finally {
     await rm(home, { recursive: true, force: true });
   }

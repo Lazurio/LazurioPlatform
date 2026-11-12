@@ -25126,7 +25126,8 @@ the computer's applications through MCP. 0240 sets the boundary: nothing connect
 personal Device, it is used only over a channel it opened itself, and the switch is its owner's.
 0241 keeps it to the person's Personal Environment (Buddy) and their own Work Environment, never
 a Team Environment. The network path is the tailnet with the device approved by the
-Organization Admin (0192); nothing here opens it.
+Organization Admin (0192) or, in Lazurio's personal tailnet on its Personal Conglomerate Host, by its
+owner (0243); nothing here opens it.
 
 1. **Pairing through the Launchpad, signed in with the Lazurio account.** The application makes
    an ed25519 key whose private half never leaves the computer, listens once on

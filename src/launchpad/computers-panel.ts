@@ -17,6 +17,8 @@ export type ComputerItem = Readonly<{
   connected: boolean;
   lastActivity: string | null;
   agents: "executor" | "missing";
+  /** The application's version at its last connection, or null. */
+  appVersion: string | null;
 }>;
 
 /** The server's answer as the panel uses it, or null for anything else;
@@ -50,6 +52,11 @@ export function parseComputers(
           ? item.lastActivity
           : null,
       agents: item.agents === "executor" ? "executor" : "missing",
+      appVersion:
+        typeof item.appVersion === "string" &&
+        /^v?\d[0-9A-Za-z.+-]{0,31}$/.test(item.appVersion)
+          ? item.appVersion
+          : null,
     });
   }
   return { computers };
@@ -63,6 +70,12 @@ export function computerDetail(
 ): string {
   return [
     item.os === "macos" ? "macOS" : item.os === "windows" ? "Windows" : "",
+    // Which application it runs, so an old one shows ("v0.1.x").
+    item.appVersion === null
+      ? ""
+      : item.appVersion.startsWith("v")
+        ? item.appVersion
+        : `v${item.appVersion}`,
     item.connected ? copy.computersConnected : copy.computersDisconnected,
     item.lastActivity === null
       ? copy.computersNever

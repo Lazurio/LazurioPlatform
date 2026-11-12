@@ -2853,8 +2853,8 @@ function peopleComputers(): readonly Text[] {
       "- **When the computer is not connected:** the server answers “Computer <name> is not connected”. Tell the user: “Your computer <name> is not connected right now. Please switch control on for this Environment in Lazurio Agent Desktop and check that the computer is awake and online. Then let me know.” Do not reach the computer any other way and never work around the switch.",
     ),
     t(
-      "- **Nový počítač:** spáruje ho jen člověk sám v Lazurio Agent Desktop přihlášením účtem Lazurio. Spárované počítače a jejich odebrání jsou v Nastavení → Připojení. Síťovou cestu počítače (Tailscale a schválené zařízení) schvaluje Admin Organizace (rozhodnutí 0192).",
-      "- **A new computer:** only the person pairs it, in Lazurio Agent Desktop, by signing in with their Lazurio account. Paired computers and their removal are in Settings → Connections. The computer's network path (Tailscale and the approved device) is approved by the Organization Admin (decision 0192).",
+      "- **Nový počítač:** spáruje ho jen člověk sám v Lazurio Agent Desktop přihlášením účtem Lazurio. Spárované počítače a jejich odebrání jsou v Nastavení → Připojení. Síťovou cestu počítače (Tailscale a schválené zařízení) schvaluje Admin Organizace (rozhodnutí 0192), nebo v osobním tailnetu Lazuria na jeho Personal Conglomerate Hostu vlastník Prostředí (rozhodnutí 0243).",
+      "- **A new computer:** only the person pairs it, in Lazurio Agent Desktop, by signing in with their Lazurio account. Paired computers and their removal are in Settings → Connections. The computer's network path (Tailscale and the approved device) is approved by the Organization Admin (decision 0192) or, in Lazurio's personal tailnet on its Personal Conglomerate Host, by the Environment's owner (decision 0243).",
     ),
   ];
 }

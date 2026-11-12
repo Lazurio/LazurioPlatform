@@ -95,6 +95,10 @@ export type ComputerView = Readonly<{
   lastActivity: string | null;
   /** Whether Executor has its MCP server. */
   agents: "executor" | "missing";
+  /** The application's version and system at its last connection, as it
+   * reported them; null when it reported none. */
+  appVersion: string | null;
+  appSystem: string | null;
 }>;
 
 export type ComputersOverview =
@@ -143,6 +147,8 @@ export async function listComputers(
         fingerprint: key.fingerprint,
         connected,
         lastActivity: activity.get(key.device)?.ts ?? null,
+        appVersion: activity.get(key.device)?.version ?? null,
+        appSystem: activity.get(key.device)?.system ?? null,
         agents: record?.executor ? "executor" : "missing",
       };
     }),

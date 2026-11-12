@@ -219,7 +219,7 @@ export async function runComputerCommand(
             : overview.computers
                 .map(
                   (computer) =>
-                    `${computer.deviceId}  ${computer.name} (${computer.os ?? "?"}) · ${stateWord(computer)} · last activity ${computer.lastActivity ?? "none"} · ${computer.agents === "executor" ? "in Executor" : "not in Executor"}`,
+                    `${computer.deviceId}  ${computer.name} (${computer.os ?? "?"}) · ${computer.appVersion === null ? "version unknown" : `app ${computer.appVersion}`} · ${stateWord(computer)} · last activity ${computer.lastActivity ?? "none"} · ${computer.agents === "executor" ? "in Executor" : "not in Executor"}`,
                 )
                 .join("\n"),
       };

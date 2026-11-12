@@ -17,6 +17,7 @@ import {
 } from "./lines";
 import {
   type AuditEntry,
+  appOf,
   auditLabel,
   ensureComputersDirectory,
   socketPath,
@@ -392,7 +393,11 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   await chmod(path, 0o600).catch(() => undefined);
   const server_info = (initResult as { serverInfo?: { name?: unknown } } | null)
     ?.serverInfo;
-  await audit({ event: "connected", agent: auditLabel(server_info?.name) });
+  await audit({
+    event: "connected",
+    agent: auditLabel(server_info?.name),
+    ...appOf(initResult),
+  });
 
   // Liveness and removal, every `pingMs`.
   const timer = setInterval(() => {

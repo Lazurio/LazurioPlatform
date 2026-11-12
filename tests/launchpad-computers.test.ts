@@ -324,10 +324,11 @@ test("the list's line says what the person needs", () => {
         connected: true,
         lastActivity: "2026-11-12T10:05:00.000Z",
         agents: "executor",
+        appVersion: "0.1.3",
       },
       () => "12. 11. 2026 11:05",
     ),
-  ).toBe("macOS · Připojený · Poslední činnost 12. 11. 2026 11:05");
+  ).toBe("macOS · v0.1.3 · Připojený · Poslední činnost 12. 11. 2026 11:05");
   expect(
     parseComputers({ kind: "computers", supported: false, reason: "not-here" }),
   ).toEqual({
