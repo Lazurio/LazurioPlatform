@@ -127,7 +127,22 @@ test("device admission and desktop handoff distinguish personal and Organization
       expect(manual).not.toContain(
         "V Přehledu Organizace zkontroluj oba počítače",
       );
+      // Who approves a device for a Personal Environment: in a Conglomerate
+      // today the host owner's reviewed change, as the target the
+      // Organization Admin (decision 0192); in Lazurio's personal tailnet the
+      // person, as the target (decision 0243). No Personal Environment is
+      // without a tailnet.
       expect(manual).toContain(
+        locale === "cs"
+          ? "cílově ho schvaluje Admin Organizace jako každé zařízení (decision 0192)"
+          : "as the target, the Organization Admin approves it like any device (decision 0192)",
+      );
+      expect(manual).toContain(
+        locale === "cs"
+          ? "V osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0243)"
+          : "In Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0243)",
+      );
+      expect(manual).not.toContain(
         locale === "cs"
           ? "Osobní Prostředí bez tailnetu a SSH"
           : "A personal Environment without tailnet or SSH",
@@ -2741,17 +2756,18 @@ test("the remaining rules of the Root's inventory each have one place in the man
       en: "so a module with restricted rights always has a server part and the browser never reaches its store.",
     },
     {
-      // Decision 0213, where access is decided.
+      // Decision 0243, where access is decided; the public-DNS mode of 0213
+      // is retired.
       path: "manual/lazurio.md",
       on: every,
-      cs: "Organizace může své Environmenty přepnout z tailnetu na veřejné DNS (decision 0213, zčásti nasazené): lidé pak vstupují z internetu jen branou každého Environmentu, s Lazurio účtem, členstvím a grantem místo schváleného zařízení, a ze svých zařízení dostanou jen webové rozhraní (Launchpad, chat, Lazurio MausBot, Buddy), ne SSH, desktopové T3 Code ani trezor.",
-      en: "An Organization may switch its Environments from the tailnet to public DNS (decision 0213, partly deployed): people then enter from the internet, only through each Environment's gateway, with the Lazurio account, membership and a grant in place of an approved device, and from their devices they get only the web interface (the Launchpad, chat, Lazurio MausBot, Buddy), no SSH, desktop T3 Code or vault.",
+      cs: "Do každého Environmentu se vstupuje jen přes tailnet (decision 0243, rozhodnuté, zatím nenasazené): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám.",
+      en: "Every Environment is entered only through a tailnet (decision 0243, decided, not yet deployed): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices.",
     },
     {
       path: "manual/lazurio.md",
       on: every,
-      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše);",
-      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above);",
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, u referenční Organizace do jejího návratu do tailnetu i z internetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, and for the reference Organization until its return to its tailnet also from the internet (Who decides access above);",
     },
     {
       // Every rewrite of a branch, not only a fork's.
