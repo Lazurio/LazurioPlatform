@@ -2766,8 +2766,8 @@ test("the remaining rules of the Root's inventory each have one place in the man
     {
       path: "manual/lazurio.md",
       on: every,
-      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné jen z tailnetu (Kdo rozhoduje o přístupu výše);",
-      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable only from the tailnet (Who decides access above);",
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, u referenční Organizace do jejího návratu do tailnetu i z internetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, and for the reference Organization until its return to its tailnet also from the internet (Who decides access above);",
     },
     {
       // Every rewrite of a branch, not only a fork's.

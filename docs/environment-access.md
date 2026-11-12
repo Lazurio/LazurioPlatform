@@ -27,8 +27,9 @@ working logins, integrations and existing remote access. The sharing user
 accepts this risk. Do not require sign-out, profile wiping, credential
 replacement, conversion to a Team/broker mode or another approval of the Organization Admin as
 a prerequisite. Active same-Organization membership and the Organization Admin's approval of
-the recipient's exact device remain mandatory; friends or family are not
-exceptions. Personalspace is outside this work-sharing
+the recipient's exact device remain mandatory, except in the reference
+Organization's public-DNS mode until its return to its tailnet, which has no device
+approval (decision 0213, below); friends or family are not exceptions. Personalspace is outside this work-sharing
 feature.
 
 Explain this scope at the normal sharing action, with a clearly labelled
@@ -78,8 +79,9 @@ An organizational Environment and its apps require all three:
 1. Tailscale against the correct Headscale, with the Organization Admin's approval of the exact
    device before protected reachability. OIDC or another approved device is
    not that approval. There is no public alternative to protected work URLs
-   (decision 0243); the retired public-DNS mode (below) runs only for the
-   reference Organization until its return to its tailnet.
+   (decision 0243), except the retired public-DNS mode (below), which only the
+   reference Organization still runs until its return to its tailnet and which
+   drops this condition.
 2. Active Lazurio Organization membership, identified by immutable issuer
    and subject, not email, a GitHub login or the current tailnet user name.
 3. An exact full-Environment or named-app grant in the account authority.
@@ -218,11 +220,27 @@ repository has no code for it yet, and today's Platform does not accept its name
 Decision 0243 retired entry without a tailnet on 2026-11-12: no Organization and no
 Personal Environment switches to it, and nothing further is built for it. Only the
 reference Organization still runs it, until its return to its tailnet (decision 0204),
-and decision 0213 keeps the contract of that entry until then. Every gateway, in any
-mode, refreshes the session at least every two minutes, so a removed member is refused
-any new request or connection within two minutes, and ends every upgraded or long-open
-connection five minutes after it opened, so the member loses everything within seven
-minutes.
+and until then that entry keeps the contract of decision 0213. The gateways and the
+server's public entry that carry it belong to Machines; this repository has no code for
+it.
+
+- **Entry.** The server's entry reads only the server name from TLS without opening
+  the connection, passes only declared Environment names to their gateways and closes
+  any other name. A Lazurio account with active membership and a specific grant
+  replaces the device approved by the Organization Admin: condition 1 above and device
+  approval do not apply to people there.
+- **What people get.** Only the web interface (the Launchpad, chat, MausBot, Buddy):
+  no SSH for people, no native T3 pairing exception, no desktop T3 Code and no vault
+  from their devices. The Organization's vault stays reachable for people only inside
+  the tailnet; people see their Environment's vault on its Vault page.
+- **What stays.** The Environments stay server nodes of the Organization's tailnet,
+  with the same enrollment, default grants and SSH between Environments; the services
+  Environment that carries the public entry stays outside the tailnet.
+
+Every gateway, in any mode, refreshes the session at least every two minutes, so a
+removed member is refused any new request or connection within two minutes, and ends
+every upgraded or long-open connection five minutes after it opened, so the member
+loses everything within seven minutes.
 
 ## Module data: the Environment's ceiling (decision 0196)
 
