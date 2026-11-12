@@ -1122,7 +1122,7 @@ When a hosted Environment has proved that it lost access to a Module, Lazurio re
 ### 0233 — On a Work Environment the agents are the person's own: own instructions and a local Personalspace that belongs to the Organization
 
 - **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-06 (amended by 0242 on 2026-11-12)
-- **Related:** 0046, 0051, 0079, 0091, 0153, 0163, 0169, 0172, 0175, 0202, 0207, 0228, F10, F14, 0242
+- **Related:** 0046, 0051, 0079, 0091, 0153, 0163, 0169, 0172, 0175, 0202, 0207, 0228, 0242, F10, F14
 
 On a Work Environment assigned to one person the agents are that person's assistant: they work for the person, adapt to how the person works and reach the Organization only through the person's live rights. So that a colleague who works in one Organization needs no Personal Environment to have agents tuned to them, such a Work Environment carries a personal layer of two parts, the person's own instructions for agents and a local Personalspace. Neither widens access, a mandate, Publication, Release, secrets or the separation of Organizations.
 
