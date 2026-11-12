@@ -301,7 +301,13 @@ export function createComputersRoutes(
       agents: answer.agents,
     });
     const result = Buffer.from(
-      JSON.stringify({ deviceId: answer.deviceId, ssh: answer.ssh }),
+      JSON.stringify({
+        deviceId: answer.deviceId,
+        ...(answer.environment === null
+          ? {}
+          : { environment: answer.environment }),
+        ssh: answer.ssh,
+      }),
       "utf8",
     ).toString("base64url");
     const redirect =
@@ -317,6 +323,9 @@ export function createComputersRoutes(
       kind: answer.kind,
       outcome: answer.outcome,
       deviceId: answer.deviceId,
+      ...(answer.environment === null
+        ? {}
+        : { environment: answer.environment }),
       ssh: answer.ssh,
       agents: answer.agents,
       ...(redirect === null ? {} : { redirect }),

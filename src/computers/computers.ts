@@ -22,6 +22,7 @@ import {
   displayName,
   freeComputerId,
   isComputerOs,
+  isUpdating,
   lastActivity,
   readRecord,
   recordedIds,
@@ -55,6 +56,9 @@ export type ComputersHost = SshAccessHost &
     allowed: () => Promise<boolean>;
     /** The Folder's language, for Executor's server name. */
     locale: () => Promise<"cs" | "en">;
+    /** This Environment's name as Lazurio shows it, for the application's
+     * panel (`result.environment.name`); absent or null: none is sent. */
+    environmentName?: () => Promise<string | null>;
     version: string;
   }>;
 
@@ -99,6 +103,9 @@ export type ComputerView = Readonly<{
    * reported them; null when it reported none. */
   appVersion: string | null;
   appSystem: string | null;
+  /** Not attached because its application updates itself
+   * (`lazurio_app_update`), for about a minute. */
+  updating: boolean;
 }>;
 
 export type ComputersOverview =
@@ -134,9 +141,10 @@ export async function listComputers(
     return { kind: "computers", supported: false, reason: keys.refused };
   const computers = await Promise.all(
     keys.computers.map(async (key): Promise<ComputerView> => {
-      const [record, connected] = await Promise.all([
+      const [record, connected, updating] = await Promise.all([
         readRecord(host.home, key.device),
         socketAnswers(socketPath(host.home, key.device), 500),
+        isUpdating(host.home, key.device),
       ]);
       return {
         deviceId: key.device,
@@ -149,6 +157,7 @@ export async function listComputers(
         lastActivity: activity.get(key.device)?.ts ?? null,
         appVersion: activity.get(key.device)?.version ?? null,
         appSystem: activity.get(key.device)?.system ?? null,
+        updating: !connected && updating,
         agents: record?.executor ? "executor" : "missing",
       };
     }),
@@ -204,6 +213,8 @@ export type PairAnswer =
       deviceId: string;
       name: string;
       ssh: ComputerSsh;
+      /** This Environment's name for the application's panel, or null. */
+      environment: Readonly<{ name: string }> | null;
       /** Whether Executor now has the computer's MCP server. */
       agents: "executor" | "executor-unavailable" | "executor-failed";
     }>
@@ -371,11 +382,15 @@ export async function pairComputer(
     os: request.os,
     executor,
   });
+  const environmentName = displayName(
+    await (host.environmentName?.() ?? Promise.resolve(null)).catch(() => null),
+  );
   return {
     kind: "computer-paired",
     outcome: added.outcome,
     deviceId,
     name: request.name,
+    environment: environmentName === null ? null : { name: environmentName },
     ssh: {
       host: tailnet.dnsName,
       user: host.user,

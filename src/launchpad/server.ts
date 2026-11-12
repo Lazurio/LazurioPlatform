@@ -105,6 +105,7 @@ import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import type { ShellSetup } from "../shell/contract";
+import { kindLabel } from "../shell/kind-name";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
@@ -1387,6 +1388,20 @@ export async function startLaunchpad(
         allowed: async () => computersAllowed(current.preferences.preset.name),
         locale: async () =>
           current.preferences.profile.locale === "cs" ? "cs" : "en",
+        // As the shell names it: its kind, and an Organization's slug.
+        environmentName: async () => {
+          const preset = current.preferences.preset.name;
+          if (!Object.hasOwn(presetKinds, preset)) return null;
+          const machine = current.preferences.machine;
+          const kind = environmentKind(preset as PresetName, machine);
+          const label = kindLabel(
+            kind,
+            current.preferences.profile.locale === "cs" ? "cs" : "en",
+          );
+          return machine?.owner.kind === "organization"
+            ? `${label} · ${machine.owner.organization}`
+            : label;
+        },
         version: embeddedIdentity().version,
       };
     },

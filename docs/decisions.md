@@ -25199,6 +25199,21 @@ their own. The agents' server stays up while the computer is away, instead of ex
 message, so that Executor and a harness keep a working server. Cancel on the page returns
 `?state=<state>&error=cancelled` to the callback.
 
+**Aligned with the application's fixed contract (2026-11-12).** The application's
+answer to `initialize` carries `_meta["io.lazurio/agent-desktop"]` with `appVersion`, `os`,
+`osVersion` and `updateChannel`; `serverInfo` is its engine's. The broker writes them to the
+history on `connected` (the older `_meta["io.lazurio/app"]` and `serverInfo.version` only as a
+fallback), and Settings → Connections shows the version. The pairing's `result` also carries
+`environment.name`, the Environment as the shell names it (its kind, and an Organization's
+slug), for the application's panel. The application serves two tools of its own on the same
+session, `lazurio_app_status` and `lazurio_app_update`. After `lazurio_app_update` the computer
+is away for about a minute while it installs and restarts. The broker marks it as updating for
+up to three minutes, so the history says `updating` rather than a failure. An agent that asked
+hears that the update runs, any other call hears "the application is updating, try again in a
+moment", and Settings → Connections shows "Aktualizuje se". A refused update leaves no mark,
+and the next connection clears it. A system name with diacritics ("MacBook Pro Matěje") keeps
+its letters on the page and in the list; its id drops them (`macbook-pro-mateje`).
+
 **Open.** Through Executor every agent arrives as one client named by Executor, so the history
 and the lease name Executor and not the agent behind it, and two agents through Executor share
 one lease. Whether Executor keeps the stdio server running between calls, and whether it

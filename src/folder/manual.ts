@@ -2853,6 +2853,10 @@ function peopleComputers(): readonly Text[] {
       "- **When the computer is not connected:** the server answers “Computer <name> is not connected”. Tell the user: “Your computer <name> is not connected right now. Please switch control on for this Environment in Lazurio Agent Desktop and check that the computer is awake and online. Then let me know.” Do not reach the computer any other way and never work around the switch.",
     ),
     t(
+      "- **Aplikace a její aktualizace:** `lazurio_app_status` ukáže verzi aplikace, systém, kanál a dostupnou aktualizaci. `lazurio_app_update` aplikaci aktualizuje a restartuje: spusť ho jen na pokyn nebo se souhlasem člověka. Počítač je pak asi minutu odpojený a server odpovídá, že se aplikace aktualizuje. To je očekávané, ne chyba: chvíli počkej a zkus to znovu.",
+      "- **The application and its update:** `lazurio_app_status` shows the application's version, system, channel and available update. `lazurio_app_update` updates and restarts the application: run it only on the person's instruction or with their consent. The computer is then away for about a minute and the server answers that the application is updating. That is expected, not a failure: wait a moment and try again.",
+    ),
+    t(
       "- **Nový počítač:** spáruje ho jen člověk sám v Lazurio Agent Desktop přihlášením účtem Lazurio. Spárované počítače a jejich odebrání jsou v Nastavení → Připojení. Síťovou cestu počítače (Tailscale a schválené zařízení) schvaluje Admin Organizace (rozhodnutí 0192), nebo v osobním tailnetu Lazuria na jeho Personal Conglomerate Hostu vlastník Prostředí (rozhodnutí 0243).",
       "- **A new computer:** only the person pairs it, in Lazurio Agent Desktop, by signing in with their Lazurio account. Paired computers and their removal are in Settings → Connections. The computer's network path (Tailscale and the approved device) is approved by the Organization Admin (decision 0192) or, in Lazurio's personal tailnet on its Personal Conglomerate Host, by the Environment's owner (decision 0243).",
     ),

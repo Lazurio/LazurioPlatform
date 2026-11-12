@@ -1,6 +1,7 @@
 import { chmod, rm } from "node:fs/promises";
 import { createConnection, createServer, type Socket } from "node:net";
 import {
+  appUpdateTool,
   busyMessage,
   computerBusy,
   errorAnswer,
@@ -66,6 +67,13 @@ export type BrokerOptions = Readonly<{
   saveTools: (tools: readonly unknown[]) => Promise<void>;
   /** Whether the computer's key still allows it. */
   stillAllowed: () => Promise<boolean>;
+  /** The application's own update (`lazurio_app_update`): marks the
+   * computer as updating, clears the mark, and asks whether it is. */
+  updating?: Readonly<{
+    mark: () => Promise<void>;
+    clear: () => Promise<void>;
+    active: () => Promise<boolean>;
+  }>;
   now?: () => number;
   pingMs?: number;
   deadMs?: number;
@@ -124,6 +132,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   const path = socketPath(options.home, options.device);
   const audit = (entry: Omit<AuditEntry, "ts" | "device">) =>
     options.audit(entry).catch(() => undefined);
+  const updating = options.updating;
 
   if (!socketPathFits(options.home, options.device)) {
     options.stderr(
@@ -209,13 +218,17 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       pending.delete(id);
       if (entry.method === "tools/call") {
         const result = message.result as { isError?: unknown } | undefined;
+        const ok = message.error === undefined && result?.isError !== true;
         void audit({
           event: "tool",
           tool: entry.tool ?? "unknown",
-          ok: message.error === undefined && result?.isError !== true,
+          ok,
           ms: Math.max(0, now() - entry.started),
           agent: label(entry.client),
         });
+        // An update that did not start: the computer stays.
+        if (entry.tool === appUpdateTool && !ok)
+          void updating?.clear().catch(() => undefined);
         entry.client.lastCall = now();
       }
       write(entry.client, JSON.stringify({ ...message, id: entry.id }));
@@ -343,6 +356,12 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         (message.params as { name?: unknown } | undefined)?.name,
       );
       client.lastCall = now();
+      // The application updates itself and restarts: the computer will be
+      // away for about a minute, which is expected, not a failure.
+      if (tool === appUpdateTool) {
+        void updating?.mark().catch(() => undefined);
+        void audit({ event: "updating", agent: label(client) });
+      }
     }
     nextId++;
     const own = `c${nextId}`;
@@ -393,6 +412,8 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   await chmod(path, 0o600).catch(() => undefined);
   const server_info = (initResult as { serverInfo?: { name?: unknown } } | null)
     ?.serverInfo;
+  // Back after an update, or simply connected: no longer updating.
+  await updating?.clear().catch(() => undefined);
   await audit({
     event: "connected",
     agent: auditLabel(server_info?.name),
@@ -421,6 +442,14 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   for (const client of clients) client.socket.destroy();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await rm(path, { force: true }).catch(() => undefined);
-  await audit({ event: "disconnected", reason });
+  // Leaving to update is expected: the history says so, not a failure.
+  const leftToUpdate =
+    reason === "session-closed" || reason === "computer-silent"
+      ? await (updating?.active() ?? Promise.resolve(false)).catch(() => false)
+      : false;
+  await audit({
+    event: "disconnected",
+    reason: leftToUpdate ? "updating" : reason,
+  });
   return brokerExit.ended;
 }

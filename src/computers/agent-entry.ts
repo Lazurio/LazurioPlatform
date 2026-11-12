@@ -1,6 +1,7 @@
 import { stat } from "node:fs/promises";
 import { createConnection, type Socket } from "node:net";
 import {
+  appUpdateTool,
   awayMessage,
   computerAway,
   errorAnswer,
@@ -13,6 +14,8 @@ import {
   parseMessage,
   protocolVersion,
   resultAnswer,
+  updateStartedMessage,
+  updatingMessage,
 } from "./lines";
 
 // `lazurio computer mcp --device <id>` (decision F73, contract v0 section
@@ -43,6 +46,9 @@ export type AgentEntryOptions = Readonly<{
   /** What this server's process runs under (its parent's name), for the
    * history; null when unknown. */
   harness: string | null;
+  /** Whether the computer's application is updating itself now
+   * (`lazurio_app_update`); absent, never. */
+  updating?: () => Promise<boolean>;
   connect?: (path: string) => Socket;
   retryMs?: number;
 }>;
@@ -67,7 +73,10 @@ export async function runAgentEntry(
   let connecting: Promise<Socket | null> | null = null;
   let clientInfo: unknown = { name: "unknown", version: "0" };
   let agentInitialized = false;
-  const inFlight = new Set<JsonRpcId>();
+  // Each request sent to the computer, with the tool it calls.
+  const inFlight = new Map<JsonRpcId, string | null>();
+  const updating = () =>
+    (options.updating?.() ?? Promise.resolve(false)).catch(() => false);
 
   const reply = (line: string) => options.write(line);
 
@@ -111,9 +120,30 @@ export async function runAgentEntry(
             return;
           }
           if (upstream === socket) upstream = null;
-          for (const id of inFlight)
-            reply(errorAnswer(id, computerAway, awayMessage(options.name)));
+          const lostCalls = [...inFlight];
           inFlight.clear();
+          void updating().then((busy) => {
+            for (const [id, tool] of lostCalls)
+              reply(
+                tool === appUpdateTool
+                  ? // The session ends because the update runs.
+                    resultAnswer(id, {
+                      content: [
+                        {
+                          type: "text",
+                          text: updateStartedMessage(options.name),
+                        },
+                      ],
+                    })
+                  : errorAnswer(
+                      id,
+                      computerAway,
+                      busy
+                        ? updatingMessage(options.name)
+                        : awayMessage(options.name),
+                    ),
+              );
+          });
         };
         socket.once("close", lost);
         socket.once("error", () => socket.destroy());
@@ -148,16 +178,19 @@ export async function runAgentEntry(
       reply(resultAnswer(id, { tools: (await options.cachedTools()) ?? [] }));
       return;
     }
+    const text = (await updating())
+      ? updatingMessage(options.name)
+      : awayMessage(options.name);
     if (method === "tools/call") {
       reply(
         resultAnswer(id, {
-          content: [{ type: "text", text: awayMessage(options.name) }],
+          content: [{ type: "text", text }],
           isError: true,
         }),
       );
       return;
     }
-    reply(errorAnswer(id, computerAway, awayMessage(options.name)));
+    reply(errorAnswer(id, computerAway, text));
   };
 
   const fromAgent = async (line: string) => {
@@ -205,7 +238,12 @@ export async function runAgentEntry(
       await away(id, method);
       return;
     }
-    inFlight.add(id);
+    inFlight.set(
+      id,
+      method === "tools/call"
+        ? String((message.params as { name?: unknown } | undefined)?.name ?? "")
+        : null,
+    );
     socket.write(`${line}\n`);
   };
 

@@ -49,6 +49,8 @@ export const recordPath = (home: string, id: string) =>
   join(computersDirectory(home), `${id}.json`);
 export const toolsPath = (home: string, id: string) =>
   join(computersDirectory(home), `${id}.tools.json`);
+export const updatingPath = (home: string, id: string) =>
+  join(computersDirectory(home), `${id}.updating`);
 export const auditPath = (home: string) =>
   join(computersDirectory(home), "audit.jsonl");
 
@@ -177,6 +179,7 @@ export async function removeState(home: string, id: string): Promise<void> {
   if (!computerIdPattern.test(id)) return;
   await rm(recordPath(home, id), { force: true });
   await rm(toolsPath(home, id), { force: true });
+  await rm(updatingPath(home, id), { force: true });
 }
 
 /** The ids that have a record: a leftover's id is not reused either. */
@@ -226,7 +229,10 @@ export type AuditEntry = Readonly<{
     | "lease"
     | "release"
     | "busy"
-    | "tool";
+    | "tool"
+    /** An agent asked the application to update itself: the computer is
+     * away for about a minute, which is no failure. */
+    | "updating";
   tool?: string;
   ok?: boolean;
   ms?: number;
@@ -236,34 +242,68 @@ export type AuditEntry = Readonly<{
    * computer reports them (`appOf`). */
   version?: string;
   system?: string;
+  osVersion?: string;
+  channel?: string;
 }>;
 
+/** The key of the application's own details in its answer to
+ * `initialize` (`Lazurio/lazurio-agent-desktop`, contract fixed
+ * 2026-11-12): `appVersion`, `os`, `osVersion` and `updateChannel`. */
+export const appMetaKey = "io.lazurio/agent-desktop";
+
+/** What a computer's application says it is. */
+export type AppDetails = Readonly<{
+  version?: string;
+  system?: string;
+  osVersion?: string;
+  channel?: string;
+}>;
+
+const versionLike = (value: unknown): value is string =>
+  typeof value === "string" && /^v?\d[0-9A-Za-z.+-]{0,31}$/.test(value);
+const labelLike = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9 ._-]{1,40}$/.test(value);
+
+/** Only what is version-like or a short label; anything else is nothing. */
+export function appDetails(
+  input: Readonly<{
+    version?: unknown;
+    system?: unknown;
+    osVersion?: unknown;
+    channel?: unknown;
+  }>,
+): AppDetails {
+  return {
+    ...(versionLike(input.version) ? { version: input.version } : {}),
+    ...(labelLike(input.system) ? { system: input.system } : {}),
+    ...(versionLike(input.osVersion) ? { osVersion: input.osVersion } : {}),
+    ...(labelLike(input.channel) ? { channel: input.channel } : {}),
+  };
+}
+
 /** What a computer's application says it is, from its answer to
- * `initialize`: `_meta["io.lazurio/app"]` (`version`, and `os` or
- * `system`) first, else `serverInfo.version`. Only a short version-like
- * label and a system label are kept; anything else is nothing. */
-export function appOf(
-  initResult: unknown,
-): Readonly<{ version?: string; system?: string }> {
+ * `initialize`: `_meta["io.lazurio/agent-desktop"]` first; before the
+ * contract was fixed, `_meta["io.lazurio/app"]` (`version`, `os` or
+ * `system`) and then `serverInfo.version`, which is the engine's. */
+export function appOf(initResult: unknown): AppDetails {
   const record = (value: unknown) =>
     value !== null && typeof value === "object" && !Array.isArray(value)
       ? (value as Record<string, unknown>)
       : {};
   const result = record(initResult);
-  const app = record(record(result._meta)["io.lazurio/app"]);
-  const version = [app.version, record(result.serverInfo).version].find(
-    (value): value is string =>
-      typeof value === "string" && /^v?\d[0-9A-Za-z.+-]{0,31}$/.test(value),
-  );
-  const rawSystem = app.os ?? app.system;
-  const system =
-    typeof rawSystem === "string" && /^[A-Za-z0-9 ._-]{1,40}$/.test(rawSystem)
-      ? rawSystem
-      : undefined;
-  return {
-    ...(version === undefined ? {} : { version }),
-    ...(system === undefined ? {} : { system }),
-  };
+  const meta = record(result._meta);
+  const app = record(meta[appMetaKey]);
+  const legacy = record(meta["io.lazurio/app"]);
+  return appDetails({
+    version: [
+      app.appVersion,
+      legacy.version,
+      record(result.serverInfo).version,
+    ].find(versionLike),
+    system: [app.os, legacy.os, legacy.system].find(labelLike),
+    osVersion: app.osVersion,
+    channel: app.updateChannel,
+  });
 }
 
 const maxAuditBytes = 4 * 1024 * 1024;
@@ -304,12 +344,8 @@ export async function appendAudit(
 
 /** What the history says of one computer: its last line's time and event,
  * and the application's version and system from its last `connected`. */
-export type ComputerActivity = Readonly<{
-  ts: string;
-  event: string;
-  version?: string;
-  system?: string;
-}>;
+export type ComputerActivity = Readonly<{ ts: string; event: string }> &
+  AppDetails;
 
 /** Each computer's activity from the history. Reads at most the file's
  * last 1 MiB. */
@@ -345,22 +381,8 @@ export async function lastActivity(
           // what the last connection said.
           const app =
             value.event === "connected"
-              ? appOf({
-                  _meta: {
-                    "io.lazurio/app": {
-                      version: value.version,
-                      system: value.system,
-                    },
-                  },
-                })
-              : {
-                  ...(before?.version === undefined
-                    ? {}
-                    : { version: before.version }),
-                  ...(before?.system === undefined
-                    ? {}
-                    : { system: before.system }),
-                };
+              ? appDetails(value)
+              : appDetails(before ?? {});
           result.set(value.device, {
             ts: value.ts,
             event: value.event,
@@ -373,4 +395,57 @@ export async function lastActivity(
     await handle.close();
   }
   return result;
+}
+
+/** How long a computer counts as updating after an agent asked its
+ * application to update: it downloads, installs, restarts and reconnects in
+ * about a minute. */
+export const updatingMs = 3 * 60_000;
+
+/** Marks a computer as updating until `until` (milliseconds). */
+export async function markUpdating(
+  home: string,
+  uid: number | undefined,
+  id: string,
+  until: number,
+): Promise<void> {
+  const directory = await ensureComputersDirectory(home, uid);
+  await writeDurableFile(
+    directory,
+    `${id}.updating`,
+    Buffer.from(`${new Date(until).toISOString()}\n`, "utf8"),
+  );
+}
+
+export async function clearUpdating(home: string, id: string): Promise<void> {
+  if (computerIdPattern.test(id))
+    await rm(updatingPath(home, id), { force: true });
+}
+
+/** Whether the computer is still within its update's time. */
+export async function isUpdating(
+  home: string,
+  id: string,
+  now: number = Date.now(),
+): Promise<boolean> {
+  if (!computerIdPattern.test(id)) return false;
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(
+      updatingPath(home, id),
+      constants.O_RDONLY | constants.O_NOFOLLOW,
+    );
+  } catch {
+    return false;
+  }
+  try {
+    const until = Date.parse(
+      (await handle.readFile("utf8")).slice(0, 64).trim(),
+    );
+    return Number.isFinite(until) && until > now;
+  } catch {
+    return false;
+  } finally {
+    await handle.close();
+  }
 }

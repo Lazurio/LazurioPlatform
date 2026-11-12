@@ -19,6 +19,8 @@ export type ComputerItem = Readonly<{
   agents: "executor" | "missing";
   /** The application's version at its last connection, or null. */
   appVersion: string | null;
+  /** Away because its application updates itself. */
+  updating: boolean;
 }>;
 
 /** The server's answer as the panel uses it, or null for anything else;
@@ -57,6 +59,7 @@ export function parseComputers(
         /^v?\d[0-9A-Za-z.+-]{0,31}$/.test(item.appVersion)
           ? item.appVersion
           : null,
+      updating: item.updating === true,
     });
   }
   return { computers };
@@ -76,7 +79,11 @@ export function computerDetail(
       : item.appVersion.startsWith("v")
         ? item.appVersion
         : `v${item.appVersion}`,
-    item.connected ? copy.computersConnected : copy.computersDisconnected,
+    item.connected
+      ? copy.computersConnected
+      : item.updating
+        ? copy.computersUpdating
+        : copy.computersDisconnected,
     item.lastActivity === null
       ? copy.computersNever
       : copy.computersLast.replace(

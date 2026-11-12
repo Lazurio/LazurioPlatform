@@ -67,6 +67,7 @@ async function withRoutes(
     executor: null,
     allowed: async () => allowed,
     locale: async () => "cs",
+    environmentName: async () => "Osobní Prostředí",
     version: "test",
   };
   const routes = createComputersRoutes({
@@ -197,6 +198,7 @@ test.skipIf(!posix)(
       );
       expect(result).toEqual({
         deviceId: "alex-macbook",
+        environment: { name: "Osobní Prostředí" },
         ssh: {
           host: "alex-work.example.ts.example",
           user: "alex",
@@ -325,10 +327,29 @@ test("the list's line says what the person needs", () => {
         lastActivity: "2026-11-12T10:05:00.000Z",
         agents: "executor",
         appVersion: "0.1.3",
+        updating: false,
       },
       () => "12. 11. 2026 11:05",
     ),
   ).toBe("macOS · v0.1.3 · Připojený · Poslední činnost 12. 11. 2026 11:05");
+  expect(
+    computerDetail(
+      copy,
+      {
+        deviceId: "alex-macbook",
+        name: "Alex MacBook",
+        os: "windows",
+        connected: false,
+        lastActivity: null,
+        agents: "executor",
+        appVersion: "v0.1.4",
+        updating: true,
+      },
+      () => "",
+    ),
+  ).toBe(
+    "Windows · v0.1.4 · Aktualizuje se, asi za minutu bude zpět · Zatím bez činnosti",
+  );
   expect(
     parseComputers({ kind: "computers", supported: false, reason: "not-here" }),
   ).toEqual({
@@ -336,3 +357,51 @@ test("the list's line says what the person needs", () => {
   });
   expect(parseComputers({ kind: "other" })).toBeNull();
 });
+
+test.skipIf(!posix)(
+  "a system name with diacritics keeps its letters on the page and in the list",
+  () =>
+    withRoutes(true, async (routes) => {
+      const name = "MacBook Pro Matěje";
+      const url = pageUrl({ name });
+      const page = await routes.page(new Request(url), url);
+      const html = await page.text();
+      expect(html).toContain("MacBook Pro Matěje");
+      expect(html).toContain('name="name" value="MacBook Pro Matěje"');
+      for (const [sent, id, key] of [
+        [name, "macbook-pro-mateje", 1],
+        ["Matěj’s MacBook Air", "matej-s-macbook-air", 2],
+        ["Počítač Žofie Šťastné", "pocitac-zofie-stastne", 3],
+      ] as const) {
+        const answer = await routes.handle(
+          new Request("https://launchpad.example/api/computers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: sent,
+              os: "macos",
+              publicKey: keyOf(key),
+            }),
+          }),
+          new URL("https://launchpad.example/api/computers"),
+          person,
+        );
+        expect(await answer.json()).toMatchObject({ deviceId: id });
+      }
+      const list = await routes.handle(
+        new Request("https://launchpad.example/api/computers"),
+        new URL("https://launchpad.example/api/computers"),
+        person,
+      );
+      expect(
+        parseComputers(await list.json())?.computers?.map((item) => [
+          item.deviceId,
+          item.name,
+        ]),
+      ).toEqual([
+        ["macbook-pro-mateje", "MacBook Pro Matěje"],
+        ["matej-s-macbook-air", "Matěj’s MacBook Air"],
+        ["pocitac-zofie-stastne", "Počítač Žofie Šťastné"],
+      ]);
+    }),
+);

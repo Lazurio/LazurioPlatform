@@ -104,3 +104,18 @@ export function busyMessage(name: string, agent: string, since: Date): string {
   const time = since.toISOString().slice(11, 16);
   return `Počítač ${name} teď ovládá jiný agent (${agent}, od ${time} UTC). Zkuste to, až skončí. (Another agent, ${agent}, has controlled computer ${name} since ${time} UTC. Try again when it is done.)`;
 }
+
+/** The application's own tool that updates it; the computer is away for
+ * about a minute after it. */
+export const appUpdateTool = "lazurio_app_update";
+
+/** What an agent is told while the application updates itself. */
+export function updatingMessage(name: string): string {
+  return `Aplikace Lazurio Agent Desktop na počítači ${name} se aktualizuje. Zkuste to za chvíli, asi za minutu. (Lazurio Agent Desktop on computer ${name} is updating. Try again in about a minute.)`;
+}
+
+/** What the agent that asked for the update hears when the session ends
+ * before the application answered: the update runs. */
+export function updateStartedMessage(name: string): string {
+  return `Aktualizace aplikace na počítači ${name} běží. Počítač se asi za minutu připojí znovu. (The update of the application on computer ${name} is running. The computer reconnects in about a minute.)`;
+}

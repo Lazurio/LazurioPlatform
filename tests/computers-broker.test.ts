@@ -24,7 +24,7 @@ type Message = Record<string, unknown>;
 
 /** A computer on the far end of the SSH session: answers like Agent
  * Desktop's MCP server. A call of `hold` waits until `release`. */
-function fakeComputer() {
+function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
   const remote = new PassThrough();
   const received: Message[] = [];
   const held: (() => void)[] = [];
@@ -39,7 +39,14 @@ function fakeComputer() {
         protocolVersion: "2025-06-18",
         capabilities: { tools: {} },
         serverInfo: { name: "agent-desktop", version: "1.0.0" },
-        _meta: { "io.lazurio/app": { version: "0.1.3", os: "macos" } },
+        _meta: {
+          "io.lazurio/agent-desktop": {
+            appVersion: "0.1.3",
+            os: "macos",
+            osVersion: "26.1",
+            updateChannel: "beta",
+          },
+        },
       });
     else if (message.method === "tools/list")
       answer(message.id, {
@@ -51,7 +58,18 @@ function fakeComputer() {
       const done = () =>
         answer(message.id, { content: [{ type: "text", text: "done" }] });
       if (params.name === "hold") held.push(done);
-      else done();
+      else if (params.name === "lazurio_app_update") {
+        // The application answers (or not), then restarts.
+        if (update === "refuse")
+          answer(message.id, {
+            content: [{ type: "text", text: "no update" }],
+            isError: true,
+          });
+        else {
+          if (update === "answer") done();
+          setTimeout(() => remote.end(), 30);
+        }
+      } else done();
     }
   };
   return {
@@ -185,7 +203,12 @@ test.skipIf(!posix)(
       expect(JSON.stringify(computer.received)).toContain("secret password");
       expect(JSON.stringify(audit)).not.toContain("secret");
       // The application's own version wins over its engine's.
-      expect(audit[0]).toMatchObject({ version: "0.1.3", system: "macos" });
+      expect(audit[0]).toMatchObject({
+        version: "0.1.3",
+        system: "macos",
+        osVersion: "26.1",
+        channel: "beta",
+      });
       expect(audit.map((entry) => entry.event)).toEqual([
         "connected",
         "lease",
@@ -316,7 +339,11 @@ test.skipIf(!posix)("a silent computer's session ends", () =>
 
 /** The agents' MCP server on its own stdio, as a harness or Executor runs
  * it. */
-function entry(socket: string, cached: readonly unknown[] | null) {
+function entry(
+  socket: string,
+  cached: readonly unknown[] | null,
+  updating?: () => Promise<boolean>,
+) {
   const input = new PassThrough();
   const output: Message[] = [];
   const done = runAgentEntry({
@@ -328,6 +355,7 @@ function entry(socket: string, cached: readonly unknown[] | null) {
     cachedTools: async () => cached,
     harness: "claude",
     retryMs: 20,
+    ...(updating === undefined ? {} : { updating }),
   });
   const send = (message: Message) =>
     input.write(`${JSON.stringify(message)}\n`);
@@ -409,6 +437,26 @@ test.skipIf(!posix)(
 
 test("the application says its version in _meta, else in serverInfo", async () => {
   const { appOf } = await import("../src/computers/state");
+  // The fixed contract wins over the older shapes.
+  expect(
+    appOf({
+      serverInfo: { name: "agent-desktop", version: "0.4.0" },
+      _meta: {
+        "io.lazurio/agent-desktop": {
+          appVersion: "0.1.5",
+          os: "windows",
+          osVersion: "10.0.26100",
+          updateChannel: "stable",
+        },
+        "io.lazurio/app": { version: "0.0.1" },
+      },
+    }),
+  ).toEqual({
+    version: "0.1.5",
+    system: "windows",
+    osVersion: "10.0.26100",
+    channel: "stable",
+  });
   expect(
     appOf({
       serverInfo: { version: "9.9.9" },
@@ -484,3 +532,147 @@ test.skipIf(!posix)("the history file is owner-only JSON lines", async () => {
     await rm(home, { recursive: true, force: true });
   }
 });
+
+for (const mode of ["answer", "drop"] as const)
+  test.skipIf(!posix)(
+    `an update the application starts (${mode}) is expected: the computer is away and agents hear it updates`,
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "lzc-"));
+      const state = await import("../src/computers/state");
+      const uid = process.getuid?.();
+      const computer = fakeComputer(mode);
+      const audit: AuditEntry[] = [];
+      const done = runBroker({
+        home,
+        uid,
+        device: "alex-macbook",
+        name: "Alex MacBook",
+        version: "test",
+        remote: computer.remote,
+        send: computer.send,
+        stderr: () => undefined,
+        audit: async (entry) => {
+          audit.push({
+            ts: new Date().toISOString(),
+            device: "alex-macbook",
+            ...entry,
+          });
+        },
+        saveTools: async () => undefined,
+        stillAllowed: async () => true,
+        updating: {
+          mark: () =>
+            state.markUpdating(home, uid, "alex-macbook", Date.now() + 60_000),
+          clear: () => state.clearUpdating(home, "alex-macbook"),
+          active: () => state.isUpdating(home, "alex-macbook"),
+        },
+      });
+      try {
+        const path = socketPath(home, "alex-macbook");
+        await waitFor(() =>
+          stat(path).then(
+            () => true,
+            () => false,
+          ),
+        );
+        const server = entry(path, null, () =>
+          state.isUpdating(home, "alex-macbook"),
+        );
+        server.send({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {},
+        });
+        await server.answer(1);
+        server.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+        server.send({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/call",
+          params: { name: "lazurio_app_update", arguments: {} },
+        });
+        const started = await server.answer(2);
+        // Never an error for the agent that asked.
+        expect(started.error).toBeUndefined();
+        expect(
+          (started.result as { isError?: boolean }).isError,
+        ).toBeUndefined();
+        expect(await done).toBe(0);
+        expect(audit.map((line) => line.event)).toContain("updating");
+        expect(audit.at(-1)).toMatchObject({
+          event: "disconnected",
+          reason: "updating",
+        });
+        server.send({
+          jsonrpc: "2.0",
+          id: 3,
+          method: "tools/call",
+          params: { name: "desktop_snapshot", arguments: {} },
+        });
+        const later = (await server.answer(3)).result as {
+          content: { text: string }[];
+        };
+        expect(later.content[0]?.text).toContain(
+          "se aktualizuje. Zkuste to za chvíli",
+        );
+        server.input.end();
+        await server.done;
+      } finally {
+        computer.remote.end();
+        await done;
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(!posix)(
+  "an update the application refuses leaves no mark",
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), "lzc-"));
+    const state = await import("../src/computers/state");
+    const uid = process.getuid?.();
+    const computer = fakeComputer("refuse");
+    const done = runBroker({
+      home,
+      uid,
+      device: "alex-macbook",
+      name: "Alex MacBook",
+      version: "test",
+      remote: computer.remote,
+      send: computer.send,
+      stderr: () => undefined,
+      audit: async () => undefined,
+      saveTools: async () => undefined,
+      stillAllowed: async () => true,
+      updating: {
+        mark: () =>
+          state.markUpdating(home, uid, "alex-macbook", Date.now() + 60_000),
+        clear: () => state.clearUpdating(home, "alex-macbook"),
+        active: () => state.isUpdating(home, "alex-macbook"),
+      },
+    });
+    try {
+      const path = socketPath(home, "alex-macbook");
+      await waitFor(() =>
+        stat(path).then(
+          () => true,
+          () => false,
+        ),
+      );
+      const first = await agent(path, "claude-code");
+      const refused = await first.call("tools/call", {
+        name: "lazurio_app_update",
+      });
+      expect((refused.result as { isError?: boolean }).isError).toBe(true);
+      await waitFor(
+        async () => !(await state.isUpdating(home, "alex-macbook")),
+      );
+      first.close();
+    } finally {
+      computer.remote.end();
+      await done;
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);

@@ -21,10 +21,14 @@ import {
 } from "./computers";
 import {
   appendAudit,
+  clearUpdating,
   computerIdPattern,
+  isUpdating,
+  markUpdating,
   readRecord,
   readTools,
   socketPath,
+  updatingMs,
   writeTools,
 } from "./state";
 
@@ -134,6 +138,7 @@ export async function runComputerSession(
         process.stdout.write(`${line}\n`);
       },
       cachedTools: () => readTools(host.home, device),
+      updating: () => isUpdating(host.home, device),
       harness: await parentName(),
     });
   // attach: only a computer whose key this account still allows.
@@ -170,6 +175,12 @@ export async function runComputerSession(
       }),
     saveTools: (tools) => writeTools(host.home, host.uid, device, tools),
     stillAllowed: allowed,
+    updating: {
+      mark: () =>
+        markUpdating(host.home, host.uid, device, Date.now() + updatingMs),
+      clear: () => clearUpdating(host.home, device),
+      active: () => isUpdating(host.home, device),
+    },
   });
 }
 
@@ -219,7 +230,7 @@ export async function runComputerCommand(
             : overview.computers
                 .map(
                   (computer) =>
-                    `${computer.deviceId}  ${computer.name} (${computer.os ?? "?"}) · ${computer.appVersion === null ? "version unknown" : `app ${computer.appVersion}`} · ${stateWord(computer)} · last activity ${computer.lastActivity ?? "none"} · ${computer.agents === "executor" ? "in Executor" : "not in Executor"}`,
+                    `${computer.deviceId}  ${computer.name} (${computer.os ?? "?"}) · ${computer.appVersion === null ? "version unknown" : `app ${computer.appVersion}`} · ${computer.updating ? "updating" : stateWord(computer)} · last activity ${computer.lastActivity ?? "none"} · ${computer.agents === "executor" ? "in Executor" : "not in Executor"}`,
                 )
                 .join("\n"),
       };
