@@ -11685,6 +11685,44 @@ application, no session, no relay and no browser asking nothing; every entry of 
 a host without a login and one login sharing from two origins opened by its own printed
 command, `--origin` not of the list or not an exact origin opening nothing; and usage.
 
+**Addendum 2026-11-12 (2): the Folder's rule for colleagues' applications, and the switch in
+Settings (decision 0231, plan LZD-0009 M9).** Step 2 of LazurioPlatform in Lazurio Auth's
+contract `docs/agent-application-entry.md`.
+
+1. **The rule.** `manual/this-machine.md` gains the contract's rule word for word, "Aplikace
+   kolegů" / "Colleagues' applications", right after "Lazurio only in the user's own
+   browser" in the Environment browser's section: open a colleague's application only with
+   `lazurio apps open`, never compose its address or sign in there, use its WebMCP tools,
+   act with the user's role and never complete a Publication without the user's explicit
+   word (Module Standard MS-15), and on `agent_entry_off` tell the user where to switch it on
+   and never get around it. It renders on a Work Environment and a Personal Environment
+   with the Environment browser, the only ones that act for a person in a colleague's
+   application; a Team Environment and a public one (the Try overlay, a Team one to people
+   whatever preset it recorded) do not get it. Template revision `base-instructions-121`.
+2. **The switch in Settings → Tento Environment.** "Agenti v aplikacích kolegů" (Agents in
+   colleagues' applications) shows Zapnuto, Vypnuto or "Stav teď nejde zjistit" with one
+   sentence of what it means and the link "Změnit v Lazuriu" to the Dashboard page where the
+   person switches it (`agentEntrySwitchPage`: the Organization's Prostředí page, or the
+   Dashboard home for a Personal Environment). The Launchpad reads it through the relay as
+   the Environment (`POST /api/agent-entry`, the same read as `lazurio apps shared`, whose
+   `agentEntry` the issuer signed) and never as the person; a read that fails is unknown,
+   never off. It is shown only: the Environment can switch nothing, which the contract
+   requires (`an-environment-identity-cannot-switch-itself`). Where the Environment has no
+   relay, and on a Team Environment, it has no switch and the group stays hidden.
+3. **Unchanged.** The account's `sharedApplications` member and Apps' "Sdílené aplikace"
+   (the addendum of 2026-11-11 under F37) stay as they are.
+
+`bun scripts/preview-launchpad.ts hosted cs|en <port> owner agent-entry|agent-entry-off`
+shows it with a stand-in relay. Verified by `tests/agent-entry-settings.test.ts` (the rule
+in both languages and its place, not on a Team or public Environment or without the
+browser; the
+view's words; the route on, off, unreadable, without a relay, on a Team and a Personal
+Environment, asking only the relay's read path without the person's cookie or token) and
+the pinned digest of `tests/folder-template-revision.test.ts`; seen in the Environment
+browser on the preview in Czech (on) and English (off). Installed consumers receive it only
+through a qualified Platform release, and the state reads only once the relay's path
+(Machines step 2) and the Dashboard's read are deployed.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan

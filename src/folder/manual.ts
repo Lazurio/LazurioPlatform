@@ -12,6 +12,7 @@ import {
   githubIdentity,
   type PresetName,
   presetVersion,
+  visitorPreset,
   workspacePreset,
 } from "./presets";
 import {
@@ -2984,9 +2985,17 @@ function operatorClient(
 // How a page reaches the Operator is explained, client by client, and the way
 // is the agent's choice (F38 addendum of 2026-10-12). Rendered only where the
 // recorded entry has the view.
-function environmentBrowser(preset: PresetName): readonly Text[] {
+function environmentBrowser(
+  preset: PresetName,
+  // A public Environment (the Try overlay, decision F55), whatever preset it
+  // recorded, is a Team one to people and acts for nobody.
+  publicEnvironment: boolean,
+): readonly Text[] {
   const team = preset === "hosted-organization-team";
   const personal = workspacePreset(preset).personalspace === "present";
+  const acting =
+    !publicEnvironment &&
+    (preset === "hosted-personal" || preset === "hosted-organization-personal");
   return [
     t("## Prohlížeč Environmentu", "## The Environment browser"),
     t(
@@ -3074,6 +3083,18 @@ function environmentBrowser(preset: PresetName): readonly Text[] {
       "- **Lazurio jen ve vlastním prohlížeči uživatele.** Do Lazuria se v prohlížeči Environmentu nikdy nepřihlašuj a uživatele o to nežádej: přihlášení k Lazuriu (účet, Dashboard, jiné Environmenty) patří jen do jeho vlastního prohlížeče, a kdo se dívá do prohlížeče Environmentu, by s ním otevřel všechno, kam uživatel smí. Aplikace a moduly tohoto Environmentu se v něm otevřou bez přihlášení. Stránky účtu Lazurio prohlížeč zablokuje a pohled je uživateli nabídne otevřít v jeho prohlížeči; obejít to nezkoušej. Ověření přihlášení testovacím účtem (decision 0178) dělej ve vlastním Chromu s vlastním dočasným profilem (třeba `agent-browser` bez `--cdp 9222`), nikdy v prohlížeči Environmentu. Ke kterému účtu GitHubu je prohlížeč Environmentu přihlášený, ukáže `lazurio doctor` (`github=<login>`).",
       "- **Lazurio only in the user's own browser.** Never sign in to Lazurio in the Environment browser, and never ask the user to: the Lazurio sign-in (the account, the Dashboard, other Environments) belongs only in their own browser, and anyone who views the Environment browser could open everything the user may with it. This Environment's own apps and modules open in it without a sign-in. The browser blocks Lazurio account pages, and the view offers the user to open them in their own browser; never try to get around it. Check a sign-in with a test account (decision 0178) in a Chrome of your own with a temporary profile of its own (`agent-browser` without `--cdp 9222`, say), never in the Environment browser. `lazurio doctor` shows which GitHub account the Environment browser is signed in to (`github=<login>`).",
     ),
+    // Colleagues' applications (Lazurio Auth docs/agent-application-entry.md,
+    // plan LZD-0009 M9): the contract's rule word for word, on the person's
+    // own Work or Personal Environment, the only ones that act for a person
+    // in a colleague's application; a Team or public Environment does not.
+    ...(acting
+      ? [
+          t(
+            "- **Aplikace kolegů.** `lazurio apps shared --json` vypíše aplikace, které kolegové uživateli zpřístupnili. Otevírej je jen příkazem `lazurio apps open <modul> --org <organizace>`: otevře tuto jednu aplikaci v okně tvého prohlížeče jednorázovým předáním, jako uživatele s jeho rolí aplikace. Adresu takové aplikace nikdy neskládej ani nepiš sám a nikdy se v ní nepřihlašuj. Kde stránka nabízí nástroje WebMCP, používej je. Jednáš s rolí uživatele: Publikaci (odeslání, schválení, smazání nebo cokoli, co uvidí ostatní a nejde snadno vrátit) nikdy nedokončíš bez jeho výslovného pokynu v tomto vlákně. Odpověď `agent_entry_off` znamená, že uživatel tuto možnost pro toto Prostředí vypnul: řekni mu, kde ji zapne (jeho Prostředí v Lazuriu, Nastavení), a nikdy ji neobcházej.",
+            "- **Colleagues' applications.** `lazurio apps shared --json` lists the applications colleagues share with the user. Open one only with `lazurio apps open <module> --org <organization>`: it opens that one application in your browser window through a one-time hand-over, as the user with their application role. Never compose or type such an address yourself and never sign in there. Use the page's WebMCP tools where it offers them. You act with the user's role: never complete a Publication (sending, submitting, approving, deleting or anything others will see and cannot easily undo) without the user's explicit word in this thread. `agent_entry_off` means the user switched this off for this Environment: tell them where to switch it on (their Environment in Lazurio, Settings) and never get around it.",
+          ),
+        ]
+      : []),
     t(
       "- **`localhost`.** Prohlížeč Environmentu otevře i `localhost` tohoto Environmentu, takže rozpracovanou stránku uživatel uvidí v pohledu.",
       "- **`localhost`.** The Environment browser also opens this Environment's `localhost`, so the user sees work in progress in the view.",
@@ -3209,7 +3230,10 @@ function thisMachine(source: InstructionSource): string {
       ...(machine === null ? [] : [blank, ...operatorClient(preset, machine)]),
       ...(entry?.browserOrigin === undefined
         ? []
-        : [blank, ...environmentBrowser(preset)]),
+        : [
+            blank,
+            ...environmentBrowser(preset, visitorPreset(machine) !== null),
+          ]),
       blank,
       ...enabledToolsSection(
         agents.tools,

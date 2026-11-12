@@ -21,6 +21,11 @@ import { type AiReading, parseAiAnswer } from "../tools/ai";
 import type { ToolsOverview } from "../tools/overview";
 import { accountWriter, readAccount } from "./account";
 import {
+  type AgentEntryAnswer,
+  agentEntryView,
+  parseAgentEntryAnswer,
+} from "./agent-entry-view";
+import {
   aiSignInPlace,
   createAiSignIn,
   createReadingOrder,
@@ -1729,6 +1734,8 @@ const shell = createShell({
       readBackground();
       if (read && (route.section === "machine" || route.section === "start"))
         void content.refresh({ restore: false });
+      // The switch may have been changed in Lazurio meanwhile.
+      if (read && route.section === "machine") void readAgentEntry();
       if (route.section === "start") {
         if (read) void readAi();
         void readStartExtras();
@@ -1839,6 +1846,38 @@ function drawMachine() {
   controls.machine.replaceChildren(...factRows(facts));
   controls.machineSupport.hidden = support.length === 0;
   controls.machineSupportList.replaceChildren(...factRows(support));
+  drawAgentEntry();
+}
+// "Agenti v aplikacích kolegů" in Tento Environment (Lazurio Auth
+// docs/agent-application-entry.md, LZD-0009 M9): the switch as the
+// Environment's relay reads it and the link to the page in Lazurio where the
+// person changes it. Shown only, never a control here; hidden until read and
+// where the Environment has no switch.
+let agentEntry: AgentEntryAnswer | null = null;
+function drawAgentEntry() {
+  const group = document.querySelector<HTMLElement>("#agent-entry-group");
+  const heading = document.querySelector<HTMLElement>("#agent-entry-heading");
+  const state = document.querySelector<HTMLElement>("#agent-entry-state");
+  const hint = document.querySelector<HTMLElement>("#agent-entry-hint");
+  const link = document.querySelector<HTMLAnchorElement>("#agent-entry-link");
+  if (!group || !heading || !state || !hint || !link) return;
+  const view = agentEntryView(agentEntry, copy);
+  group.hidden = view === null;
+  if (view === null) return;
+  heading.textContent = view.title;
+  state.textContent = view.state;
+  hint.textContent = view.hint;
+  link.href = view.link.href;
+  link.textContent = view.link.text;
+}
+async function readAgentEntry() {
+  try {
+    const { value, ok } = await post("/api/agent-entry", {});
+    agentEntry = ok ? parseAgentEntryAnswer(value) : null;
+  } catch {
+    agentEntry = null;
+  }
+  drawAgentEntry();
 }
 // Every refused API route names Recovery mode (docs/update.md "Recovery
 // mode"): the page then becomes the Recovery page and stays it until reload.
@@ -2007,6 +2046,7 @@ function readBackground() {
   void tools.refresh();
   void content.refresh();
   void readAi();
+  void readAgentEntry();
 }
 /** Runs `task` once the page is idle, at the latest after two seconds. */
 function whenIdle(task: () => void) {

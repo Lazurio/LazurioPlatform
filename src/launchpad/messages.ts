@@ -1924,6 +1924,19 @@ const en = {
   machineKindUnknown: "Environment",
   machineTechnicalKind: "Technical kind",
   machineSupport: "For support",
+  // Agents in colleagues' applications (Lazurio Auth
+  // docs/agent-application-entry.md, LZD-0009 M9): the switch, shown only.
+  agentEntryTitle: "Agents in colleagues' applications",
+  agentEntryOn: "On",
+  agentEntryOff: "Off",
+  agentEntryUnknown: "The state cannot be read right now",
+  agentEntryOnHint:
+    "Agents of {this} may work for you in the applications colleagues share with you, with your application role. Sending, approving and every other Publication still waits for your word. You switch it in Lazurio, on the page of your Environment.",
+  agentEntryOffHint:
+    "Agents of {this} do not enter colleagues' applications. You can switch it on in Lazurio, on the page of your Environment.",
+  agentEntryUnknownHint:
+    "Lazurio did not answer just now. The state is always on the page of your Environment in Lazurio.",
+  agentEntryChange: "Change in Lazurio",
   browserToggle: "Browser",
   browserTitle: "Environment browser",
   browserReload: "Reload",
@@ -4109,6 +4122,17 @@ const cs: Record<MessageKey, string> = {
   machineKindUnknown: "Prostředí",
   machineTechnicalKind: "Technický druh",
   machineSupport: "Pro podporu",
+  agentEntryTitle: "Agenti v aplikacích kolegů",
+  agentEntryOn: "Zapnuto",
+  agentEntryOff: "Vypnuto",
+  agentEntryUnknown: "Stav teď nejde zjistit",
+  agentEntryOnHint:
+    "Agenti {tohoto} mohou za vás pracovat v aplikacích, které vám kolegové zpřístupnili, s vaší rolí aplikace. Odeslání, schválení a každá jiná Publikace dál čekají na váš pokyn. Přepínáte to v Lazuriu na stránce svého Prostředí.",
+  agentEntryOffHint:
+    "Agenti {tohoto} do aplikací kolegů nevstupují. Zapnout to můžete v Lazuriu na stránce svého Prostředí.",
+  agentEntryUnknownHint:
+    "Lazurio teď neodpovědělo. Stav najdete vždy na stránce svého Prostředí v Lazuriu.",
+  agentEntryChange: "Změnit v Lazuriu",
   browserToggle: "Prohlížeč",
   browserTitle: "Prohlížeč Prostředí",
   browserReload: "Načíst znovu",
