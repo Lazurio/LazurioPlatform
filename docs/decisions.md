@@ -15730,7 +15730,9 @@ numbers), `tests/new-tab-view.test.ts` (the thresholds with a 60 GB, 1 TB and 20
 processor's warning, cores in Czech plural forms, the answer read field by field) and
 `tests/launchpad-new-tab.test.ts` (the overview's `disk` and `cpu`, and null without them).
 The page was checked in a browser at 1440, 700 and 390 px in Czech and English against the
-wireframe, on a real Environment's readings.
+wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and processor are now the
+running machine's own readings (`processNewTabHost`; its memory and tabs stay fakes), with
+`/preview/set?system=full` for a disk with 40 MB left and a processor busy for minutes.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
