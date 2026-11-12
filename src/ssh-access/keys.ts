@@ -386,7 +386,10 @@ export async function listKeys(
   const read = await readKeys(location);
   if ("refused" in read) return read;
   return {
+    // A computer's restricted line (F73) is listed among the computers,
+    // not here.
     keys: lines(read.bytes).flatMap((entry) => {
+      if (parseComputerLine(entry.text) !== null) return [];
       const key = listed(entry.line);
       return key === null ? [] : [key];
     }),
@@ -523,5 +526,212 @@ export function removeDeviceKey(
       key: first,
       stillAllowed: own.length < matching.length,
     };
+  });
+}
+
+// A person's computer for agents (Lazurio Agent Desktop, root decisions 0240
+// and 0241, decision F73): the computer opens SSH into this Environment with
+// its own key, and that key may do exactly one thing, run the forced command
+// that hands the session to `lazurio computer attach`. Its line is
+//
+//   restrict,command="<entry> computer attach --device <id>" ssh-ed25519 <base64> lazurio-computer:<id>:<added-by>:<YYYY-MM-DD>
+//
+// `restrict` turns off every forwarding, the agent, X11 and the terminal;
+// `command` replaces whatever the client asks to run. `<entry>` is the
+// absolute path of the installed `lazurio`, because sshd runs the command
+// without `~/.profile`. Only a line of exactly this shape is a computer's:
+// it is listed and removed by its id, never by F49's page, and F49's list
+// leaves it out. Every other line stays as it is.
+
+/** The marker comment's first field of a computer's line. */
+export const computerMarkerPrefix = "lazurio-computer";
+
+const computerMarkerPattern =
+  /^lazurio-computer:([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?):([a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?):(\d{4}-\d{2}-\d{2})$/;
+const computerLinePattern =
+  /^restrict,command="(\/[A-Za-z0-9._/-]{1,512}) computer attach --device ([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?)" (ssh-ed25519) ([A-Za-z0-9+/]+={0,2}) (\S+)$/;
+const entryPattern = /^\/[A-Za-z0-9._/-]{1,512}$/;
+
+/** A computer's line as `authorized_keys` holds it. */
+export type ComputerKey = Readonly<{
+  device: string;
+  addedBy: string;
+  added: string;
+  fingerprint: string;
+  /** The absolute `lazurio` its forced command runs. */
+  entry: string;
+}>;
+
+/** The forced command of a computer's key. */
+export function computerCommand(entry: string, device: string): string {
+  if (!entryPattern.test(entry) || !namePattern.test(device))
+    throw new Error("A computer's command needs an absolute entry and an id");
+  return `${entry} computer attach --device ${device}`;
+}
+
+/** The whole line of a computer's key, without its newline. */
+export function computerKeyLine(
+  input: Readonly<{
+    key: Readonly<{ type: "ssh-ed25519"; key: string }>;
+    entry: string;
+    device: string;
+    addedBy: string;
+    date: string;
+  }>,
+): string {
+  if (
+    !addedByPattern.test(input.addedBy) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(input.date)
+  )
+    throw new Error("A computer's marker needs a label and a date");
+  return `restrict,command="${computerCommand(input.entry, input.device)}" ${input.key.type} ${input.key.key} ${computerMarkerPrefix}:${input.device}:${input.addedBy}:${input.date}`;
+}
+
+/** A computer's line, or null for any other line: the exact options, the
+ * same id in the command and the marker, an ed25519 key that decodes. */
+export function parseComputerLine(text: string): ComputerKey | null {
+  const match = computerLinePattern.exec(text.replace(/\r$/, "").trim());
+  if (match === null) return null;
+  const [
+    ,
+    entry = "",
+    commandDevice = "",
+    type = "",
+    field = "",
+    comment = "",
+  ] = match;
+  const marker = computerMarkerPattern.exec(comment);
+  if (marker === null || marker[1] !== commandDevice) return null;
+  const blob = decodeKey(field);
+  if (blob === null || !completeDeviceKey("ssh-ed25519", blob)) return null;
+  return {
+    device: commandDevice,
+    addedBy: marker[2] as string,
+    added: marker[3] as string,
+    fingerprint: fingerprintOf(`${type} ${field}`),
+    entry,
+  };
+}
+
+/** Every computer's line of the file, in its order. */
+export async function listComputerKeys(
+  location: KeysLocation,
+): Promise<
+  | Readonly<{ computers: readonly ComputerKey[] }>
+  | Readonly<{ refused: FileRefusal }>
+> {
+  const read = await readKeys(location);
+  if ("refused" in read) return read;
+  return {
+    computers: lines(read.bytes).flatMap((entry) => {
+      const computer = parseComputerLine(entry.text);
+      return computer === null ? [] : [computer];
+    }),
+  };
+}
+
+export type AddComputerResult =
+  | Readonly<{
+      kind: "computer-key-added";
+      outcome: "added" | "already-present";
+      key: ComputerKey;
+    }>
+  | Readonly<{
+      kind: "blocked";
+      /** `key-in-use`: the same key already signs in some other way, which
+       * sshd would reach first or which would outlive the computer. */
+      reason: FileRefusal | "key-in-use" | "device-taken";
+    }>;
+
+/** Adds a computer's restricted line. The same key on the same id is
+ * already present; the same key on any other line, or another key on the
+ * same id, is refused and nothing is written. */
+export function addComputerKey(
+  location: KeysLocation,
+  input: Readonly<{
+    key: Readonly<{ type: "ssh-ed25519"; key: string; fingerprint: string }>;
+    entry: string;
+    device: string;
+    addedBy: string;
+    date: string;
+  }>,
+): Promise<AddComputerResult> {
+  const directory = sshDirectory(location);
+  return serialized(join(directory, keysName), async () => {
+    const read = await readKeys(location);
+    if ("refused" in read) return { kind: "blocked", reason: read.refused };
+    for (const entry of lines(read.bytes)) {
+      const computer = parseComputerLine(entry.text);
+      if (computer !== null) {
+        if (computer.fingerprint === input.key.fingerprint)
+          return computer.device === input.device
+            ? {
+                kind: "computer-key-added",
+                outcome: "already-present",
+                key: computer,
+              }
+            : { kind: "blocked", reason: "key-in-use" };
+        if (computer.device === input.device)
+          return { kind: "blocked", reason: "device-taken" };
+        continue;
+      }
+      if (listed(entry.line)?.fingerprint === input.key.fingerprint)
+        return { kind: "blocked", reason: "key-in-use" };
+    }
+    const text = computerKeyLine({
+      key: input.key,
+      entry: input.entry,
+      device: input.device,
+      addedBy: input.addedBy,
+      date: input.date,
+    });
+    const added = parseComputerLine(text);
+    if (added === null) throw new Error("The written line is not a computer's");
+    const line = Buffer.from(`${text}\n`, "utf8");
+    const terminated =
+      read.bytes.length === 0 || read.bytes[read.bytes.length - 1] === 0x0a;
+    if (!read.directory) await mkdir(directory, { mode: 0o700 });
+    await writeDurableFile(
+      directory,
+      keysName,
+      terminated
+        ? Buffer.concat([read.bytes, line])
+        : Buffer.concat([line, read.bytes]),
+    );
+    return { kind: "computer-key-added", outcome: "added", key: added };
+  });
+}
+
+/** Removes every line of one computer, by its id; other lines stay byte
+ * for byte. */
+export function removeComputerKey(
+  location: KeysLocation,
+  device: string,
+): Promise<
+  | Readonly<{ kind: "computer-key-removed"; key: ComputerKey }>
+  | Readonly<{ kind: "blocked"; reason: FileRefusal | "not-found" }>
+> {
+  const directory = sshDirectory(location);
+  return serialized(join(directory, keysName), async () => {
+    const read = await readKeys(location);
+    if ("refused" in read) return { kind: "blocked", reason: read.refused };
+    const all = lines(read.bytes).map((entry) => ({
+      ...entry,
+      computer: parseComputerLine(entry.text),
+    }));
+    const own = all.filter((entry) => entry.computer?.device === device);
+    const first = own[0]?.computer;
+    if (first === undefined || first === null)
+      return { kind: "blocked", reason: "not-found" };
+    await writeDurableFile(
+      directory,
+      keysName,
+      Buffer.concat(
+        all
+          .filter((entry) => entry.computer?.device !== device)
+          .map((entry) => read.bytes.subarray(entry.start, entry.end)),
+      ),
+    );
+    return { kind: "computer-key-removed", key: first };
   });
 }

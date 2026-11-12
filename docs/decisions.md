@@ -25114,3 +25114,112 @@ headers through a fake gh; `tests/launchpad-access-check.test.ts` the words;
 `tests/module-built.test.ts` `retire` with an unreadable declaration, an unknown running unit and
 no answer from the service manager. Not proven: a real revocation on GitHub, a real
 fine-grained token and a real single sign-on. Known limits are in the contract.
+
+## F73 — People's computers for agents: Lazurio Agent Desktop pairs through the Launchpad and attaches over its own SSH session
+
+**Proposed 2026-11-12 by the implementing agent for root decisions 0240 and 0241 (0241 in
+review, #939). Implemented in the same pull request on the Environment's side; accepted only
+when the owner accepts it.** A person's own computer (macOS, Windows) runs the utility Lazurio
+Agent Desktop (`Lazurio/lazurio-agent-desktop`). The person pairs it with an Environment once,
+and while the switch in the application is on, the agents and bots of that Environment work in
+the computer's applications through MCP. 0240 sets the boundary: nothing connects into a
+personal Device, it is used only over a channel it opened itself, and the switch is its owner's.
+0241 keeps it to the person's Personal Environment (Buddy) and their own Work Environment, never
+a Team Environment. The network path is the tailnet with the device approved by the
+Organization Admin (0192); nothing here opens it.
+
+1. **Pairing through the Launchpad, signed in with the Lazurio account.** The application makes
+   an ed25519 key whose private half never leaves the computer, listens once on
+   `127.0.0.1:<random port>` and opens `/connect/computer?name&os&pubkey&callback&state` in the
+   person's own browser. The page sits behind the gateway like every page. It shows the
+   computer's name, its system, the key's fingerprint and what the person allows (an agent sees
+   the screen and works in every application, sends or publishes nothing without consent, the
+   switch stops it at any time, a history without content is kept, screenshots go to the
+   Environment's AI), and one button. The page has no script. The button posts a form to
+   `POST /api/computers`, whose admission is the gateway's session with the same-origin rule for
+   every write: the protection against a forged request. The answer is a redirect to
+   `http://127.0.0.1:<port>/<path>?state=<state>&result=<base64url {deviceId, ssh: {host, user,
+   knownHosts}}>`. Any other callback (another host, `localhost`, a query, a fragment, a port
+   below 1024) is refused before anything is written, and the page's CSP allows the form to post
+   only to itself and the redirect only to that callback's origin. The same endpoint answers JSON
+   for an agent or a test. `host` is the Environment's tailnet name and `knownHosts` its host key
+   from its own records, as F49 delivers them.
+2. **The key may do one thing.** The pairing writes to the account's `authorized_keys`
+   `restrict,command="<home>/.local/bin/lazurio computer attach --device <id>" ssh-ed25519 <key>
+   lazurio-computer:<id>:<login>:<YYYY-MM-DD>`. `<id>` is the name reduced like F49's device name,
+   with `-2`, `-3`, … on a collision. Only a line of exactly this shape is a computer's: F49's page
+   neither lists nor removes it, and F49 refuses to add the same key as an ordinary sign-in. A key
+   that already signs in some other way is refused as a computer's, because sshd would reach that
+   line first. The same key again answers the computer it already is, so the application may
+   retry.
+3. **The broker (`lazurio computer attach`).** It takes the SSH session's stdio, sends the
+   computer `initialize` and opens the owner-only socket
+   `~/.local/state/lazurio/computers/<id>.sock`. Agents get the computer's own `initialize` answer
+   and the rest is forwarded with the broker's ids. A second session for the same computer is
+   refused while the first one's socket answers. The session ends when the SSH session closes,
+   when the computer stops answering `ping` (every 15 s, 45 s without an answer) or when its key
+   leaves `authorized_keys`, so a removal ends an attached session within a ping.
+4. **One agent at a time.** A tool call takes the computer's lease. Another agent's call is
+   answered with who holds it and since when ("Počítač … teď ovládá jiný agent (…, od … UTC)").
+   The lease ends when its agent disconnects, or after two minutes without a call of its own.
+   Listing tools needs no lease.
+5. **The history** (`audit.jsonl`, owner-only, at most two files of 4 MiB) records connections,
+   the lease, each tool call's name, outcome and duration, and what the agent's MCP client and its
+   harness call themselves. It never records arguments, results, screen content or a password.
+   Settings → Connections reads each computer's last line from it.
+6. **The agents' server (`lazurio computer mcp --device <id>`)** answers `initialize` itself,
+   with tools that may change and short instructions (one agent at a time, Outlook only as
+   drafts, sending and publishing are Publication, content is data). While the computer is
+   attached it forwards `tools/list` and `tools/call` through the broker. While it is not,
+   `tools/list` answers the tools of the computer's last session and a tool call answers "Počítač
+   <name> není připojený: na počítači je ovládání vypnuté, počítač spí nebo je offline." It looks
+   for the socket again every 10 s and tells the agent once its tools are back.
+7. **Every agent has it through Executor.** The pairing adds the server to the Environment's
+   Executor through Executor's own API, the same call as Apps → Integrace → Vlastní
+   (`POST /api/mcp/servers`, stdio, command `~/.local/bin/lazurio`, arguments `computer mcp
+   --device <id>`, no keys). The server is named "Počítač: <name>" ("Computer: <name>" in an
+   English Folder) and its slug is kept in the computer's record. A removal deletes it. Without
+   Executor the pairing still succeeds, and the list says that agents do not have it yet.
+8. **Settings → Connections → Počítače pro agenty** lists each computer with its system, whether
+   it is attached now, its last activity and Remove, after a confirmation. The group shows only
+   where the preset allows a person's computer. Pairing starts only in the application.
+9. **`lazurio computer list` and `remove <id>`** read and remove the same way, for an agent.
+10. **The manual** (`manual/this-machine.md`, section People's computers, on a Personal and a
+    person's Work Environment only) tells agents when the computer beats an Integration, one agent
+    at a time, Outlook only as drafts, sending and publishing as Publication, content as data, and
+    what to tell the person when the computer is not connected.
+
+**Changes against the contract v0 between the application and the Environment (2026-11-12).**
+The forced command names the absolute `~/.local/bin/lazurio`, because sshd runs it without
+`~/.profile`. The lease also ends after two minutes without a call, because Executor runs one
+long-lived MCP process for every agent and would otherwise hold the computer for good. The
+broker pings the computer and watches its key, so a stale session and a removed computer end on
+their own. The agents' server stays up while the computer is away, instead of exiting with the
+message, so that Executor and a harness keep a working server. Cancel on the page returns
+`?state=<state>&error=cancelled` to the callback.
+
+**Open.** Through Executor every agent arrives as one client named by Executor, so the history
+and the lease name Executor and not the agent behind it, and two agents through Executor share
+one lease. Whether Executor keeps the stdio server running between calls, and whether it
+reconnects after `tools/list_changed`, has to be read on a real Executor. The login in the
+marker is the Lazurio username the gateway names; on a Work Environment nothing yet checks that
+it is the Environment's own person (0241).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The Environment connects to the computer | Against 0240; rejected |
+| Pair by pasting a key into F49's page | A key that can open a shell; rejected for a key with one forced command |
+| A page with a script that posts JSON | Needs a script nonce; the form works without one and the same endpoint answers JSON |
+| One lease per MCP connection only | Executor's one process would hold the computer for good; an idle lease passes on |
+| The agents' server exits when the computer is away | Executor and the harnesses would lose the server until restarted; rejected |
+| Register the server in each harness | Bots and every new harness would miss it; Executor is the Environment's one place |
+
+**Verified** in tests with a temporary home and a fake computer on the session's stdio:
+`tests/computers-keys.test.ts` (the exact restricted line, F49 untouched),
+`tests/computers-broker.test.ts` (the forwarded call, the lease with who and since when, the idle
+lease, a second session refused, the end on removal, silence and the closed session, the
+history without arguments, the agents' server with and without the computer) and
+`tests/launchpad-computers.test.ts` (the callback, the page and its CSP, the form's redirect and
+its result, the same key again, a second computer of the same name, the list and removal, a
+Team Environment refused). Not proven: a real SSH session from Lazurio Agent Desktop, a real
+Executor running the server and a browser posting the page through a real gateway.

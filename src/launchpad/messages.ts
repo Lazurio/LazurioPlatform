@@ -2341,6 +2341,48 @@ const en = {
   sshMissingHostKey:
     "{This} has no ed25519 host key (/etc/ssh/ssh_host_ed25519_key.pub).",
   sshMissingUser: "{This}'s account has no name an SSH config can use.",
+  computersTitle: "Computers for agents",
+  computersLead:
+    "Agents {in this} work in the apps of a computer whose owner switched control on in Lazurio Agent Desktop.",
+  computersEmpty:
+    "No computer is connected. Install Lazurio Agent Desktop on the computer and add {this} there.",
+  computersConnected: "Connected",
+  computersDisconnected: "Not connected",
+  computersLast: "Last activity {time}",
+  computersNever: "No activity yet",
+  computersAgentsMissing: "Agents do not have it in Executor yet.",
+  computersRemove: "Remove",
+  computersRemoveConfirm:
+    "Remove {name}? Agents lose it at once. To use it again, connect it again in Lazurio Agent Desktop.",
+  computersRemoveYes: "Remove computer",
+  computersCancel: "Cancel",
+  computersRemoveFailed: "The computer could not be removed. Try again.",
+  computersFailed: "The computers could not be read. Try again.",
+  connectComputerTitle: "Allow agents on this computer",
+  connectComputerLead:
+    "Lazurio Agent Desktop on {name} asks to let the agents of {this} work on it.",
+  connectComputerSystem: "System",
+  connectComputerFingerprint: "Key fingerprint",
+  connectComputerFingerprintNote:
+    "Check that Lazurio Agent Desktop shows the same fingerprint.",
+  connectComputerPromiseHeading: "What this allows",
+  connectComputerPromise1:
+    "An agent sees the screen and works in every app of this computer.",
+  connectComputerPromise2:
+    "It sends, publishes or pays for nothing without your consent.",
+  connectComputerPromise3:
+    "You can stop it at any time with the switch in Lazurio Agent Desktop.",
+  connectComputerPromise4:
+    "A history of what agents did is kept, without the content.",
+  connectComputerPromise5: "Screenshots go to the AI {this} uses.",
+  connectComputerAllow: "Allow agents on this computer",
+  connectComputerCancel: "Cancel",
+  connectComputerInvalid:
+    "This link is not a valid request from Lazurio Agent Desktop. Start connecting again in the app.",
+  connectComputerNotHere:
+    "Agents use a person's computer only from that person's Personal Environment or their own Work Environment, not from a Team Environment.",
+  connectComputerFailed:
+    "The computer could not be connected ({reason}). Try again in Lazurio Agent Desktop.",
 } as const;
 export type MessageKey = keyof typeof en;
 const cs: Record<MessageKey, string> = {
@@ -4533,6 +4575,48 @@ const cs: Record<MessageKey, string> = {
   sshMissingHostKey:
     "{Toto} nemá klíč hostu ed25519 (/etc/ssh/ssh_host_ed25519_key.pub).",
   sshMissingUser: "Účet {tohoto} nemá jméno, které by šlo použít v SSH config.",
+  computersTitle: "Počítače pro agenty",
+  computersLead:
+    "Agenti {v tomto} pracují v aplikacích počítače, na kterém jeho majitel zapnul ovládání v Lazurio Agent Desktop.",
+  computersEmpty:
+    "Žádný počítač není připojený. Nainstalujte na počítač Lazurio Agent Desktop a přidejte v něm {toto}.",
+  computersConnected: "Připojený",
+  computersDisconnected: "Odpojený",
+  computersLast: "Poslední činnost {time}",
+  computersNever: "Zatím bez činnosti",
+  computersAgentsMissing: "Agenti ho zatím nemají v Executoru.",
+  computersRemove: "Odebrat",
+  computersRemoveConfirm:
+    "Odebrat {name}? Agenti o něj hned přijdou. Abyste ho znovu používali, připojte ho znovu v Lazurio Agent Desktop.",
+  computersRemoveYes: "Odebrat počítač",
+  computersCancel: "Zrušit",
+  computersRemoveFailed: "Počítač se nepodařilo odebrat. Zkuste to znovu.",
+  computersFailed: "Počítače se nepodařilo načíst. Zkuste to znovu.",
+  connectComputerTitle: "Povolit agentům tento počítač",
+  connectComputerLead:
+    "Lazurio Agent Desktop na počítači {name} žádá, aby na něm mohli pracovat agenti {tohoto}.",
+  connectComputerSystem: "Systém",
+  connectComputerFingerprint: "Otisk klíče",
+  connectComputerFingerprintNote:
+    "Zkontrolujte, že Lazurio Agent Desktop ukazuje stejný otisk.",
+  connectComputerPromiseHeading: "Co tím povolíte",
+  connectComputerPromise1:
+    "Agent vidí obrazovku a pracuje ve všech aplikacích tohoto počítače.",
+  connectComputerPromise2:
+    "Nic neodešle, nezveřejní ani nezaplatí bez vašeho souhlasu.",
+  connectComputerPromise3:
+    "Kdykoli ho zastavíte vypínačem v Lazurio Agent Desktop.",
+  connectComputerPromise4:
+    "Ukládá se historie toho, co agenti dělali, bez obsahu.",
+  connectComputerPromise5: "Snímky obrazovky jdou k AI, kterou používá {toto}.",
+  connectComputerAllow: "Povolit agentům tento počítač",
+  connectComputerCancel: "Zrušit",
+  connectComputerInvalid:
+    "Tento odkaz není platná žádost z Lazurio Agent Desktop. Začněte připojení v aplikaci znovu.",
+  connectComputerNotHere:
+    "Počítač člověka používají agenti jen z jeho Osobního Prostředí nebo z jeho vlastního Pracovního Prostředí, ne z Týmového Prostředí.",
+  connectComputerFailed:
+    "Počítač se nepodařilo připojit ({reason}). Zkuste to znovu v Lazurio Agent Desktop.",
 };
 // A text about the Environment the page is in names its kind (decision F28's
 // addendum of 2026-10-18): the catalog writes it with a token of `inKind`

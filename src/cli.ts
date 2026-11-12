@@ -8,6 +8,11 @@ import {
 import { runViewService } from "./browser/people/serve";
 import { buddyHelp, runBuddyCommand } from "./buddy/cli";
 import {
+  computerHelp,
+  runComputerCommand,
+  runComputerSession,
+} from "./computers/cli";
+import {
   ContentUsageError,
   contentHelp,
   isContentCommand,
@@ -303,6 +308,16 @@ export async function runCli(args: string[]): Promise<number> {
     return runGithubLauncher(args.slice(2));
   if (args[0] === "github" && args[1] === "credential")
     return runGithubCredential(args.slice(2));
+  // A person's computer for agents (decision F73): `attach` and `mcp` speak
+  // MCP on stdin and stdout until the session ends, never followed by the
+  // update notice, and end the process themselves since stdin may stay open.
+  if (args[0] === "computer" && (args[1] === "attach" || args[1] === "mcp")) {
+    const code = await runComputerSession(args.slice(1), processContext());
+    await new Promise<void>((resolve) =>
+      process.stdout.write("", () => resolve()),
+    );
+    process.exit(code);
+  }
   if (args[0] === "--version") return emit(versionCommand(args.slice(1)));
   if (args[0] === "self-check")
     return emit(await selfCheckCommand(args.slice(1)));
@@ -378,6 +393,9 @@ async function runOtherCommand(args: string[]): Promise<number> {
         progress: (line) => console.error(line),
       }),
     );
+  // People's computers for agents (decision F73): the list and removal.
+  if (args[0] === "computer")
+    return emit(await runComputerCommand(args.slice(1), processContext()));
   // Executor of a Remote Environment (decision F44): setup's steps go to
   // stderr, the state to stdout.
   if (args[0] === "executor")
@@ -721,6 +739,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);
+    console.log(computerHelp);
     console.log(githubHelp);
     console.log(machineHelp);
     return 0;

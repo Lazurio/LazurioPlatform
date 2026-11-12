@@ -30,6 +30,7 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { computersAllowed, installedEntry } from "../computers/computers";
 import { processConnectionsHost } from "../connections/host";
 import {
   type ConnectionsHost,
@@ -188,6 +189,7 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createComputersRoutes } from "./computers-routes";
 import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
@@ -1369,6 +1371,40 @@ export async function startLaunchpad(
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // People's computers for agents (decision F73, Lazurio Agent Desktop):
+  // the pairing page, its API and the list in Settings → Connections, over
+  // F49's account and this account's Executor; journaled as the operation,
+  // the outcome and the computer's id.
+  const computers = createComputersRoutes({
+    host: async () => {
+      const current = await withFolderReadLock(state, () =>
+        readFolderState(state),
+      );
+      return {
+        ...sshHost,
+        entry: () => installedEntry(sshHost.home),
+        executor: integrationExecutor(),
+        allowed: async () => computersAllowed(current.preferences.preset.name),
+        locale: async () =>
+          current.preferences.profile.locale === "cs" ? "cs" : "en",
+        version: embeddedIdentity().version,
+      };
+    },
+    page: async () => {
+      const current = await withFolderReadLock(state, () =>
+        readFolderState(state),
+      );
+      const preset = current.preferences.preset.name;
+      return {
+        locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+        kind: Object.hasOwn(presetKinds, preset)
+          ? environmentKind(preset as PresetName, current.preferences.machine)
+          : null,
+      };
+    },
+    headers,
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
   // Settings → Connections → Telefon přes ChatGPT (decision F71): the
   // Codex daemon's remote control, one pending pairing in this process's
   // memory; journaled without any code.
@@ -1834,6 +1870,16 @@ export async function startLaunchpad(
             request,
             url.pathname.slice(guideVideoPath.length),
           );
+        // A computer's pairing page (decision F73): served here, behind the
+        // same admission as the page, never through the shell.
+        if (computers.handlesPage(url.pathname)) {
+          if (closing) return response({ error: "closing" }, 503);
+          try {
+            return await computers.page(request, url);
+          } catch {
+            return response({ error: "operation-failed" }, 500);
+          }
+        }
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
@@ -2549,6 +2595,16 @@ export async function startLaunchpad(
         server.timeout(request, 60);
         try {
           return await connectionRoutes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (computers.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // Pairing asks Executor to add the computer's server.
+        server.timeout(request, 90);
+        try {
+          return await computers.handle(request, url, person);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
