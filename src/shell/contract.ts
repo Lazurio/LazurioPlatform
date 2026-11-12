@@ -814,6 +814,38 @@ export type AccountFavourite = Readonly<{
   id: string;
 }>;
 
+/** One application a colleague made available to the person from their
+ * Work Environment (decision 0231, plan LZD-0009 M6; the shape Lazurio Auth
+ * proposed in its contract `docs/application-roles.md`, Interfaces,
+ * `AccountSharedApplication`, decided here). The person opens only its
+ * interface, as an Application Admin or Application User; it is never a
+ * Module of theirs: no source, no Chat and no entry into the hosting
+ * Environment. The list is display only; the hosting Environment's gateway
+ * decides every request. */
+export type AccountSharedApplication = Readonly<{
+  /** The Organization's Dashboard slug, one of the document's
+   * `organizations`. */
+  organization: string;
+  /** The Module's slug, as Auth keys it. */
+  module: string;
+  /** The Module's display name from the Organization's manifest. */
+  name: string;
+  /** The application's https origin on the hosting Environment,
+   * `https://<module>.<hosting Environment's host>`: an origin exactly, no
+   * path, query or trailing slash. Never one of the person's own
+   * Environments, which list their Modules themselves. */
+  url: string;
+  /** The person's application role there: `admin` the Application Admin,
+   * `user` the Application User (decision 0234). */
+  role: "admin" | "user";
+  /** Who made it available: their login and, where the Dashboard knows it,
+   * their name, for a "shared by" line. */
+  host: Readonly<{ login: string | null; name?: string }>;
+}>;
+
+/** At most this many shared applications in one account document. */
+export const accountSharedApplicationsMax = 64;
+
 export type ShellAccount = Readonly<{
   schema: typeof accountSchema;
   /** The language `name` and `who` are worded in. */
@@ -838,9 +870,80 @@ export type ShellAccount = Readonly<{
    * 0210 point 6), and leaves it out everywhere else. Its origin is that of
    * an Environment of kind `personal` the document lists. */
   buddy?: ShellBuddy;
+  /** The applications colleagues made available to the person (decision
+   * 0231, additive in v1): every effective availability of their
+   * Organizations that gives them entry to the application alone, in the
+   * Dashboard's order. Absent: none. Apps lists them as applications, never
+   * as Modules (`parseAccountSharedApplications`). */
+  sharedApplications?: readonly AccountSharedApplication[];
 }>;
 
 const accountPersonalSpace = "personal";
+
+/** An application's origin as the account names it: `https:`, and the
+ * origin exactly (`URL.origin`), so no credentials, path, query, fragment,
+ * trailing slash, default port or capitals. */
+export function isAccountApplicationOrigin(value: unknown): value is string {
+  if (!text(value, 512)) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.origin === value;
+  } catch {
+    return false;
+  }
+}
+
+/** The `sharedApplications` member of `lazurio.account.v1` (decision 0231):
+ * absent or null is none (`undefined`); otherwise a list of at most
+ * `accountSharedApplicationsMax` entries, each in its exact shape
+ * (`AccountSharedApplication`) and naming an Organization of
+ * `organizations` (by its slug, ignoring case) and an https origin
+ * (`isAccountApplicationOrigin`); `false` for anything else, which makes the
+ * whole document invalid, as `buddy` does. A host's name is display text
+ * only: a value that is no name is left out rather than refusing the entry,
+ * as the shell does with an Environment's `assigneeName`. Members it does
+ * not know are ignored. One reader for every consumer of the list: the
+ * shell's parser, Apps, and later the Folder's list for agents (plan
+ * LZD-0009 M9). */
+export function parseAccountSharedApplications(
+  value: unknown,
+  organizations: readonly Pick<ShellOrganization, "slug">[],
+): readonly AccountSharedApplication[] | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > accountSharedApplicationsMax)
+    return false;
+  const slugs = new Set(organizations.map((entry) => entry.slug.toLowerCase()));
+  const read: AccountSharedApplication[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) return false;
+    const { organization, module, name, url, role, host } = entry;
+    if (
+      typeof organization !== "string" ||
+      !slugs.has(organization.toLowerCase()) ||
+      !isShellSlug(module) ||
+      !text(name, 128) ||
+      !isAccountApplicationOrigin(url) ||
+      (role !== "admin" && role !== "user") ||
+      !isRecord(host) ||
+      !(host.login === null || isLogin(host.login))
+    )
+      return false;
+    read.push(
+      Object.freeze({
+        organization,
+        module,
+        name,
+        url,
+        role,
+        host: Object.freeze({
+          login: host.login as string | null,
+          ...(text(host.name, 128) ? { name: host.name } : {}),
+        }),
+      }),
+    );
+  }
+  return Object.freeze(read);
+}
 
 /** The account document, when the input is a valid `lazurio.account.v1`;
  * null otherwise, as a whole. The shared entries are read by the shell's own
@@ -848,11 +951,13 @@ const accountPersonalSpace = "personal";
  * Dashboard answers it to every Environment), so an Environment's Apps
  * address and an Organization's Dashboard page are absolute https URLs,
  * never paths. The account-only members may be absent (`last` none,
- * `lastBySpace` and `favourites` empty, `openApps` `tab`, `buddy` none);
- * present, they have their exact shape and name only listed Environments and
- * Organizations: `buddy`'s origin (`parseShellBuddy`) is that of a listed
- * Environment of kind `personal`. Members this version does not know are
- * ignored. */
+ * `lastBySpace` and `favourites` empty, `openApps` `tab`, `buddy` none,
+ * `sharedApplications` none); present, they have their exact shape and name
+ * only listed Environments and Organizations: `buddy`'s origin
+ * (`parseShellBuddy`) is that of a listed Environment of kind `personal`,
+ * and every shared application (`parseAccountSharedApplications`, at most
+ * `accountSharedApplicationsMax`) names a listed Organization and an https
+ * origin. Members this version does not know are ignored. */
 export function parseShellAccount(input: unknown): ShellAccount | null {
   if (!isRecord(input) || input.schema !== accountSchema) return null;
   const shared = entries(input);
@@ -954,6 +1059,14 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
   )
     return null;
 
+  // The applications colleagues made available (decision 0231): each of an
+  // Organization the document lists, at an https origin.
+  const sharedApplications = parseAccountSharedApplications(
+    input.sharedApplications,
+    shared.organizations,
+  );
+  if (sharedApplications === false) return null;
+
   return Object.freeze({
     schema: accountSchema,
     locale: shared.locale,
@@ -965,6 +1078,7 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     favourites: Object.freeze(favourites),
     preferences: Object.freeze({ openApps }),
     ...(buddy === undefined ? {} : { buddy }),
+    ...(sharedApplications === undefined ? {} : { sharedApplications }),
   });
 }
 

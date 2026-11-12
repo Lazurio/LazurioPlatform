@@ -11071,6 +11071,71 @@ a remembered account in another language replaced by the fresh one, Apps sharing
 read, a page without its document reading without a language and re-entering on `401`) and the page read's shared language in `tests/shell-account.test.ts`. Installed
 consumers receive it only through a qualified Platform release.
 
+### Addendum 2026-11-11 — the applications colleagues shared, and making one available (decision 0231)
+
+Plan LZD-0009 M6. A colleague signs in with their Lazurio account and sees an
+application another person made available from their Work Environment in Apps, as an
+application and never as a Module, and enters only its interface. Lazurio Auth's
+contract (`docs/application-roles.md` of HumanAndMachine-ai/Auth, Interfaces,
+`AccountSharedApplication`) proposed the account's member and left the decision here.
+
+1. **`sharedApplications`, additive in `lazurio.account.v1`.** A list of
+   `{organization, module, name, url, role, host: {login, name?}}`, exactly Auth's
+   shape (`AccountSharedApplication` in `src/shell/contract.ts`). Absent or null is
+   none; at most 64. An entry naming an Organization the document does not list, an
+   `url` that is not exactly an https origin (`isAccountApplicationOrigin`: no path,
+   query, fragment, trailing slash, credentials or default port), a `role` other than
+   `admin` or `user`, or any other shape makes the whole document invalid, as `buddy`
+   does. A host's name is display text and is left out when it is none, as an
+   Environment's `assigneeName`. One reader, `parseAccountSharedApplications`, serves
+   the shell's parser, Apps and later the Folder's list for agents (M9).
+2. **Apps lists them per Organization.** "Sdílené aplikace" (Shared applications)
+   follows the Organization's Workspace, or comes first where there is none: the
+   account's entries of that Organization's Dashboard slug, each origin once, without
+   this Environment's own (its Modules are its tiles). A tile is one link to the
+   origin, opened where the account says (`openApps`), with the name, who shares it and
+   the role by its name of decision 0234 (Admin aplikace or Uživatel aplikace;
+   Application Admin or Application User). It has no menu, favourite or overview, so
+   nothing offers source, Chat, entry into the hosting Environment or a Module's
+   actions. The list is display only; the hosting Environment's gateway decides every
+   request. An Organization this Folder does not hold lists its applications on the
+   person's Lazurio account.
+3. **Unknown says nothing.** Until the account is read, when it cannot be read, or when
+   it is not valid as a whole, Apps shows no section and never claims that nothing is
+   shared. The person at the browser (`operator.login`) is likewise taken only from a
+   valid document.
+4. **"Zpřístupnit kolegům" (Share with colleagues).** On a Work Environment, its
+   Assigned User (the account's login equal to the current Environment's `assignee`)
+   gets it in the "⋯" menu of an application's tile and beside "Otevřít aplikaci" on
+   the Module's overview: only for a Module of an Organization the Environment holds
+   whose application opens here, never in the personal space, for a guest Module, a
+   repository or a Module without an app or that cannot start. It opens the
+   Dashboard's page "Zpřístupnit aplikaci" (HumanAndMachine-ai/Dashboard#499, LZD-0009
+   M4) in the same window:
+   `/orgs/<Organization slug>/environments/<Environment id>/applications/<Module slug>?return=<address>`
+   on the origin of the Organization's Dashboard page the shell document names. The
+   Environment id is the shell's `current`, the base host of the Apps address; the
+   Module slug is one DNS label, as Auth records it. The Dashboard keeps `return` only
+   as an https address on exactly this Environment's Launchpad origin, at most 256
+   characters, so the Launchpad passes a short one: its Apps origin with the Module's
+   page (`/o/<org>/<module>`), or its root where that would be longer. One template
+   holds the path and parameter names (`availabilityPageTemplate` in
+   `src/launchpad/apps-view.ts`), filled by `availabilityUrl`. It grants nothing: the
+   Dashboard and Auth decide again. The round trip lands when Dashboard#499 is merged
+   and deployed.
+5. **Not here.** Nová karta's suggestions stay this Environment's own Modules: the
+   Environment browser never holds the person's Lazurio session, so a colleague's
+   application does not open there (decision 0231, "Not yet").
+
+Tests: `tests/account-shared-applications.test.ts` (the member valid, absent, an
+invalid origin, an unlisted Organization, over 64, other shapes, the reusable reader,
+the remembered account, Apps' read) and `tests/apps-shared-applications.test.ts` (the
+section in both languages, its place, unknown saying nothing, the action's visibility
+and its address). `bun scripts/preview-launchpad.ts hosted cs|en <port> steward
+shared-apps` shows both with a stand-in account relay. Installed consumers receive it
+only through a qualified Platform release, and colleagues reach an application only
+once the Dashboard, Auth and the gateway (LZD-0009 M3 to M5) are deployed.
+
 ## F38 — The Environment browser of a Remote Environment: one Chromium, a window per thread, a view behind the gateway
 
 **Decided by Matěj 2026-10-05 (plan DEV-6646, root decision 0191); implemented in this

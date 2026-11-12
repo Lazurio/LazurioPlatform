@@ -139,7 +139,17 @@
 // reaches Telegram. His gateway taking Telegram in is creating the file
 // `telegramStarted` of the JSON line, the person's Start in the bot creating
 // `telegramMessage`, and a Hermes that never had Telegram `telegramReset`
-// (decision F66). Synthetic names only; stop it with Ctrl-C.
+// (decision F66). With `shared-apps` anywhere after the mode, a hosted
+// preview's work Environment is assigned to its person, `example` (root
+// decision 0216), and the proxy stands in for the gateway's relay of the
+// person's Lazurio account (`/.lazurio/account/environments`, F37): a
+// `lazurio.account.v1` of `example` whose `sharedApplications` names two
+// applications colleagues made available from their Work Environments of the
+// example Organization and one of this Environment's own (decision 0231), so
+// Apps shows "Sdílené aplikace" and, beside each application here, the
+// Assigned User's "Zpřístupnit kolegům". Nothing serves the colleagues'
+// origins or the Dashboard's page they lead to. Synthetic names only; stop
+// it with Ctrl-C.
 import {
   chmod,
   mkdir,
@@ -289,6 +299,12 @@ const assignment =
         : process.argv.slice(3).includes("services")
           ? "services"
           : null;
+// The work Environment assigned to `example`, whose account the proxy
+// relays with the applications shared with them (decision 0231).
+const sharedApps =
+  mode === "hosted" &&
+  assignment === null &&
+  process.argv.slice(3).includes("shared-apps");
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -345,7 +361,7 @@ else {
               true,
               true,
               publicEnvironment,
-              assignment,
+              sharedApps ? "operator" : assignment,
             ),
           ),
     profile: presetProfile(preset, os, { locale }),
@@ -1375,6 +1391,64 @@ const app = await startLaunchpad(
   // otherwise this process's (the parameter's default).
   services?.newTabHost,
 );
+// The person's Lazurio account as the gateway relays it, with `shared-apps`
+// (decision 0231): `example`, assigned this work Environment, a member of
+// the example Organization, with what colleagues shared with them.
+const previewAccount = {
+  schema: "lazurio.account.v1",
+  locale,
+  operator: { initials: "E", login: "example", avatar: null },
+  environments: [
+    {
+      id: "vm-01.example",
+      kind: "work",
+      label: null,
+      organizations: ["example"],
+      assignee: "example",
+      apps: {
+        apps: `https://launchpad.${host}/`,
+        chat: `https://t3code.${host}/`,
+        automate: null,
+      },
+    },
+  ],
+  organizations: [
+    {
+      slug: "example",
+      name: "Example Company",
+      avatar: null,
+      dashboard: "https://dashboard.lazurio.ai/orgs/example",
+    },
+  ],
+  preferences: { openApps: "tab" },
+  sharedApplications: [
+    {
+      organization: "example",
+      module: "inspections",
+      name: "Inspections",
+      url: "https://inspections.vm-02.example.lazurio.io",
+      role: "user",
+      host: { login: "bob", name: "Bob Example" },
+    },
+    {
+      organization: "example",
+      module: "planner",
+      name: "Field planner",
+      url: "https://planner.vm-04.example.lazurio.io",
+      role: "admin",
+      host: { login: "cyril" },
+    },
+    // This Environment's own, whose Module is a tile here already.
+    {
+      organization: "example",
+      module: "deals",
+      name: "Deals",
+      url: `https://deals.${host}`,
+      role: "admin",
+      host: { login: "example" },
+    },
+  ],
+};
 let proxy: string | null = null;
 if (mode !== "local") {
   const origin = `https://launchpad.${host}`;
@@ -1383,6 +1457,14 @@ if (mode !== "local") {
     port: 0,
     async fetch(request) {
       const url = new URL(request.url);
+      if (
+        sharedApps &&
+        request.method === "GET" &&
+        url.pathname === "/.lazurio/account/environments"
+      )
+        return Response.json(previewAccount, {
+          headers: { "cache-control": "no-store" },
+        });
       const headers = new Headers(request.headers);
       headers.set("host", `launchpad.${host}`);
       headers.set("cookie", "__Secure-lazurio-workspace=preview");

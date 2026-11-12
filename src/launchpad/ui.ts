@@ -485,6 +485,10 @@ const catalog = createCatalogPanel({
     shellDocument?.organizations.find(
       (organization) => organization.slug.toLowerCase() === slug.toLowerCase(),
     )?.dashboard ?? null,
+  // This Environment as its shell document names it, for "Zpřístupnit
+  // kolegům" and the shared applications (decision 0231).
+  here: () =>
+    shellDocument === null ? null : currentEnvironment(shellDocument),
   // The switch as the column head draws it, for the personal space's starts
   // (root decision 0185's addendum of 2026-10-13): this Environment's own
   // apps, which the person's account never changes (src/shell/merge.ts).

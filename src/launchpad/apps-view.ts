@@ -8,6 +8,14 @@ import type {
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import {
+  type AccountSharedApplication,
+  dashboardSlug,
+  environmentIdOf,
+  isEnvironmentId,
+  isShellUrl,
+  type ShellEnvironment,
+} from "../shell/contract";
+import {
   appBaseTitle,
   type StoneKey,
   semanticAppIconKey,
@@ -430,6 +438,12 @@ export function appsTiles(
   };
 }
 
+/** The stone of a Module known here by its slug alone (a guest Module, a
+ * shared application): the org-agnostic fallback of its id, never an
+ * Organization's or a Module's name. */
+const slugStone = (module: string) =>
+  stoneOf(semanticAppIconKey({ module, id: null, tags: [], icon: null }));
+
 /** A guest Module's tile: its slot id as GitHub names the repository, the
  * org-agnostic sentence of its stone, and a click that opens its read-only
  * overview (decision F67's addendum of 2026-11-01). Its own
@@ -443,14 +457,7 @@ export function guestLook(
   stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
   description: string;
 }> {
-  const stone = stoneOf(
-    semanticAppIconKey({
-      module: guest.module,
-      id: null,
-      tags: [],
-      icon: null,
-    }),
-  );
+  const stone = slugStone(guest.module);
   const key = descriptionKeys[stone.key];
   return {
     stone,
@@ -691,9 +698,11 @@ export function personalStarts(
 
 /** What the Apps home of one group shows under its head, the first run's
  * line and the group's status, in this order (catalog-panel.ts draws it):
- * the plain sentence of an empty space, the sections, and in the personal
- * space its holder sees, the starts after everything else, never between
- * tiles (root decision 0185's addendum of 2026-10-13). */
+ * the plain sentence of an empty space, the sections with the Organization's
+ * shared applications right after its Workspace (before any other section
+ * where it has none), and in the personal space its holder sees, the starts
+ * after everything else, never between tiles (root decision 0185's addendum
+ * of 2026-10-13). */
 export type AppsHomePart =
   | Readonly<{ kind: "empty"; text: string }>
   | Readonly<{
@@ -703,6 +712,7 @@ export type AppsHomePart =
        * its Workspace (an Organization's or the personal one), else null. */
       offer: NewModuleOffer | null;
     }>
+  | Readonly<{ kind: "shared"; section: AppsSharedSection }>
   | Readonly<{
       kind: "starts";
       title: string;
@@ -736,6 +746,10 @@ export function appsHomeParts(
      * with the
      * muted tile (F36's addendum of 2026-11-05). */
     member?: boolean;
+    /** The group's shared applications (`sharedApplicationsSection`): null
+     * or absent while the account is not read, cannot be read or shares
+     * nothing here, so the home then says nothing about them. */
+    shared?: AppsSharedSection | null;
   }>,
 ): readonly AppsHomePart[] {
   const offer = newModuleOffer(group, {
@@ -784,17 +798,35 @@ export function appsHomeParts(
           },
         ]
       : []),
-    ...sections.map((section) => ({
-      kind: "section" as const,
-      section,
-      offer:
-        section.kind === "workspace" || section.kind === "personal"
-          ? offer
-          : null,
-    })),
+    ...withShared(
+      sections.map((section) => ({
+        kind: "section" as const,
+        section,
+        offer:
+          section.kind === "workspace" || section.kind === "personal"
+            ? offer
+            : null,
+      })),
+      input.shared ?? null,
+    ),
     ...(starts.length === 0
       ? []
       : [{ kind: "starts" as const, title: copy.appsStartsTitle, starts }]),
+  ];
+}
+
+/** The sections with the shared applications placed in them: right after
+ * the Workspace, or first where there is none. */
+function withShared(
+  parts: readonly Extract<AppsHomePart, { kind: "section" }>[],
+  shared: AppsSharedSection | null,
+): readonly AppsHomePart[] {
+  if (shared === null) return parts;
+  const at = parts.findIndex((part) => part.section.kind === "workspace") + 1;
+  return [
+    ...parts.slice(0, at),
+    { kind: "shared", section: shared },
+    ...parts.slice(at),
   ];
 }
 
@@ -924,6 +956,289 @@ export function moduleAccessTarget(
   )
     return null;
   return moduleAccessUrl(dashboard(slug), tile.entry.module.module);
+}
+
+// --- Shared applications (decision 0231, plan LZD-0009 M6) ---------------
+
+/** One application colleagues made available to the person, as Apps draws
+ * it in "Sdílené aplikace": its name, who shares it and the person's
+ * application role, opened at its origin with one click. Never a Module: no
+ * menu, no favourite, no overview, no source, Chat or entry into the hosting
+ * Environment. The list is display only; the hosting Environment's gateway
+ * decides every request. */
+export type SharedApplicationTile = Readonly<{
+  /** Its origin, unique in the section. */
+  key: string;
+  name: string;
+  /** The application's address: its origin, at its root. */
+  href: string;
+  /** Who shares it: "Sdílí Bob Novák". */
+  host: string;
+  /** The person's role by its name of decision 0234: "Admin aplikace",
+   * "Uživatel aplikace". */
+  role: string;
+  /** The account's value of that role. */
+  roleKey: AccountSharedApplication["role"];
+  stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
+}>;
+
+/** "Sdílené aplikace" of one Organization's Apps home: never empty. */
+export type AppsSharedSection = Readonly<{
+  title: string;
+  count: string;
+  tiles: readonly [SharedApplicationTile, ...SharedApplicationTile[]];
+}>;
+
+const sharedCountKeys = {
+  one: "appsSharedOne",
+  few: "appsSharedFew",
+  many: "appsSharedMany",
+} as const;
+
+/** The pattern of an Organization's Dashboard page path, `/orgs/<slug>`. */
+const organizationPagePath = /^\/orgs\/([a-z0-9-]+)$/;
+
+/** The Dashboard's slug of a group's Organization: the last segment of its
+ * Dashboard page as the shell document names it (`…/orgs/<slug>`), which is
+ * the Dashboard's own even where it disambiguated two of a person's
+ * Organizations; without such a page, the slug the Dashboard derives from
+ * the manifest's (`dashboardSlug`). Null for the personal space and an
+ * Organization the Folder cannot read. */
+export function groupDashboardSlug(
+  group: CatalogGroupEntry,
+  dashboard: (slug: string) => string | null,
+): string | null {
+  const slug = group.organization.organization;
+  if (group.sections === null || slug === null) return null;
+  const page = dashboard(slug);
+  if (page !== null)
+    try {
+      const own = organizationPagePath.exec(new URL(page).pathname)?.[1];
+      if (own !== undefined) return own;
+    } catch {}
+  return dashboardSlug(slug);
+}
+
+/** The shared applications an Organization's Apps home lists (decision
+ * 0231): those of the account's `sharedApplications` that name this
+ * Organization, in the account's order, each origin once, without any of
+ * this Environment's own (`current`), whose Modules are its tiles already.
+ * Null, so nothing is said, while the account is unknown or invalid
+ * (`shared` null), for the personal space, and where none is left: the home
+ * never claims that nothing is shared. An Organization this Folder does not
+ * hold lists its own in the person's Lazurio account (the Dashboard). */
+export function sharedApplicationsSection(
+  group: CatalogGroupEntry,
+  shared: readonly AccountSharedApplication[] | null,
+  copy: Copy,
+  input: Readonly<{
+    /** The Dashboard page of an Organization slug, as the shell document
+     * names it. */
+    dashboard: (slug: string) => string | null;
+    /** The id of this Environment (the shell document's `current`). */
+    current: string | null;
+  }>,
+): AppsSharedSection | null {
+  const slug =
+    shared === null ? null : groupDashboardSlug(group, input.dashboard);
+  if (shared === null || slug === null) return null;
+  const seen = new Set<string>();
+  const tiles: SharedApplicationTile[] = [];
+  for (const application of shared) {
+    if (
+      application.organization.toLowerCase() !== slug ||
+      seen.has(application.url) ||
+      (input.current !== null &&
+        environmentIdOf(application.url) === input.current)
+    )
+      continue;
+    seen.add(application.url);
+    const who = application.host.name ?? application.host.login;
+    tiles.push({
+      key: application.url,
+      name: application.name,
+      href: `${application.url}/`,
+      host:
+        who === null
+          ? copy.appsSharedBySomeone
+          : copy.appsSharedBy.replace("{name}", () => who),
+      role:
+        application.role === "admin" ? copy.appsRoleAdmin : copy.appsRoleUser,
+      roleKey: application.role,
+      stone: slugStone(application.module),
+    });
+  }
+  const [first, ...rest] = tiles;
+  if (first === undefined) return null;
+  return {
+    title: copy.appsSharedTitle,
+    count: copy[pluralKey(tiles.length, sharedCountKeys)].replace(
+      "{count}",
+      String(tiles.length),
+    ),
+    tiles: [first, ...rest],
+  };
+}
+
+// --- Zpřístupnit kolegům (decision 0231, plan LZD-0009 M6) ----------------
+
+/** The Dashboard's page "Zpřístupnit aplikaci" (HumanAndMachine-ai/Dashboard#499,
+ * plan LZD-0009 M4), on the Dashboard's origin: a Module's application on one
+ * Work Environment, by the Organization's Dashboard slug, the Environment's
+ * id (the shell's `current`, the base host of its Apps address,
+ * `<machine>.<org>`) and the Module's slug as Auth records it, with the
+ * address back to this Launchpad as `return`. The Dashboard's route table
+ * and its validation of `return` are the authority; `availabilityUrl` fills
+ * this and nothing else knows it. */
+export const availabilityPageTemplate =
+  "/orgs/{organization}/environments/{environment}/applications/{module}?return={return}";
+
+/** The longest `return` the Dashboard keeps (its `RETURN_MAX`); a longer one,
+ * like any it refuses, leads back to the bare Launchpad. */
+export const availabilityReturnMax = 256;
+
+/** A Module's slug as Auth records it and the Dashboard's route takes it:
+ * one lowercase DNS label. */
+const moduleSlug = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** The Dashboard's page where the Assigned User of the Work Environment
+ * `environment` (its id, `<machine>.<org>`) makes the application of
+ * `module` available to the Organization (decision 0231), and from which
+ * `returnTo`, an address of this Launchpad, brings them back. Its origin and
+ * the Organization's slug are those of `organizationPage`, the
+ * Organization's Dashboard page as the shell document names it
+ * (`https://…/orgs/<slug>`). Null (fail closed) for anything else: another
+ * page, an Environment id or Module slug the route does not take, or a
+ * `returnTo` the Dashboard would not keep (no https URL without credentials
+ * and fragment, or longer than `availabilityReturnMax`). Each value is
+ * encoded into its place of `availabilityPageTemplate`. */
+export function availabilityUrl(
+  organizationPage: string | null,
+  environment: string,
+  module: string,
+  returnTo: string,
+): string | null {
+  if (
+    organizationPage === null ||
+    !isEnvironmentId(environment) ||
+    !moduleSlug.test(module) ||
+    !isShellUrl(returnTo) ||
+    returnTo.length > availabilityReturnMax
+  )
+    return null;
+  let page: URL;
+  try {
+    page = new URL(organizationPage);
+  } catch {
+    return null;
+  }
+  const organization = organizationPagePath.exec(page.pathname)?.[1];
+  if (
+    page.protocol !== "https:" ||
+    page.search !== "" ||
+    page.hash !== "" ||
+    organization === undefined
+  )
+    return null;
+  const values: Readonly<Record<string, string>> = {
+    organization,
+    environment,
+    module,
+    return: returnTo,
+  };
+  const path = availabilityPageTemplate.replace(
+    /\{(organization|environment|module|return)\}/g,
+    (_, name: string) => encodeURIComponent(values[name] ?? ""),
+  );
+  return new URL(path, page.origin).href;
+}
+
+/** This Environment as "Zpřístupnit kolegům" needs it: the current
+ * Environment of the shell document. */
+export type ShareHere = Pick<
+  ShellEnvironment,
+  "id" | "kind" | "assignee" | "organizations" | "apps"
+>;
+
+/** What "Zpřístupnit kolegům" needs besides the Module. */
+export type ShareInput = Readonly<{
+  here: ShareHere | null;
+  /** The person at the browser: the account's login, null when unknown. */
+  viewer: string | null;
+  /** The Dashboard page of an Organization slug, as the shell document
+   * names it. */
+  dashboard: (slug: string) => string | null;
+}>;
+
+/** Where "Zpřístupnit kolegům" leads for one Module, or null where it is
+ * not offered (decision 0231: only the Assigned User of a Work Environment
+ * makes an application of it available). Offered only on a Work
+ * Environment (`here`, kind `work`) whose Assigned User is the person at the
+ * browser (`viewer`, the account's login: unknown is nobody), only for a
+ * Module of an Organization this Environment holds (never the personal
+ * space, a guest Module or a production repository), only for an
+ * application that runs here (its tile opens it on its own origin, so never
+ * a Module without an app or one that cannot start), and only where the
+ * shell document names the Organization's Dashboard page. The way back is
+ * short, as the Dashboard keeps it: this Launchpad's origin with `page`, the
+ * Module's page here (`/o/<org>/<module>`, a path without query or
+ * fragment), or the Launchpad's root where there is none or it would be
+ * longer than `availabilityReturnMax`. It grants nothing: the Dashboard and
+ * Auth decide again. */
+export function shareTarget(
+  group: CatalogGroupEntry | null,
+  module: CatalogModule,
+  target: TileTarget,
+  page: string | null,
+  input: ShareInput,
+): string | null {
+  const { here, viewer } = input;
+  const slug = group?.organization.organization ?? null;
+  if (
+    group === null ||
+    group.sections === null ||
+    slug === null ||
+    target.kind !== "hosted" ||
+    here === null ||
+    here.kind !== "work" ||
+    here.assignee === null ||
+    viewer === null ||
+    here.assignee.toLowerCase() !== viewer.toLowerCase() ||
+    !here.organizations.some(
+      (entry) => entry.toLowerCase() === slug.toLowerCase(),
+    ) ||
+    !isShellUrl(here.apps.apps)
+  )
+    return null;
+  const origin = new URL(here.apps.apps).origin;
+  const own =
+    page !== null && /^\/(?!\/)[^?#\\]*$/.test(page)
+      ? `${origin}${page}`
+      : null;
+  return availabilityUrl(
+    input.dashboard(slug),
+    here.id,
+    module.module,
+    own !== null && own.length <= availabilityReturnMax ? own : `${origin}/`,
+  );
+}
+
+/** "Zpřístupnit kolegům" of a tile (`shareTarget`): only a Module's tile
+ * that opens its application here, back to the Module's page (`info`). */
+export function tileShareTarget(
+  tile: AppsTile,
+  group: CatalogGroupEntry | null,
+  input: ShareInput,
+): string | null {
+  return tile.kind === "module" && tile.action.kind === "open"
+    ? shareTarget(
+        group,
+        tile.entry.module,
+        tile.action.target,
+        tile.info,
+        input,
+      )
+    : null;
 }
 
 /** The person's description in a prompt, last and word for word: nothing in
