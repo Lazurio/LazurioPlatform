@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat, statfs } from "node:fs/promises";
 import { readBootClock } from "../browser/contract/node";
 import type { TabFacts, TabOpener } from "../browser/contract/platform";
 import {
@@ -33,6 +33,13 @@ import {
   restoreTab,
 } from "./new-tab/hub-client";
 import {
+  createCpuReader,
+  type EnvironmentCpu,
+  type EnvironmentDisk,
+  readEnvironmentDisk,
+  type SystemSeams,
+} from "./new-tab/machine";
+import {
   type EnvironmentMemory,
   readEnvironmentMemory,
 } from "./new-tab/memory";
@@ -42,7 +49,7 @@ import type { ModuleUnit } from "./new-tab/modules";
 // 6-8), behind the admission of every `/api/*` route (the local token, or the
 // gateway's session and same origin for a write):
 //
-//   GET  /api/new-tab/overview   {hub, tabs, memory, modules}
+//   GET  /api/new-tab/overview   {hub, tabs, memory, disk, cpu, modules}
 //   POST /api/new-tab/open       {url, strip?}   201 {tab, view}
 //   POST /api/new-tab/hold       {tab}           200 {held: true}
 //   POST /api/new-tab/release    {tab}           200 {released: true}
@@ -69,6 +76,8 @@ export type NewTabHost = Readonly<{
   bootClock: () => Promise<BootTime | null>;
   /** One line of the Launchpad's journal: what happened, never a value. */
   log: (event: string) => void;
+  /** The disk and the processor (machine.ts); absent or null off Linux. */
+  system?: SystemSeams | null;
 }>;
 
 export function processNewTabHost(
@@ -86,6 +95,23 @@ export function processNewTabHost(
     bootClock: () => readBootClock(),
     log: (event: string) =>
       console.log(JSON.stringify({ scope: "new-tab", event })),
+    system:
+      platform === "linux"
+        ? Object.freeze({
+            volume: async (path: string) => {
+              const [space, node] = await Promise.all([
+                statfs(path),
+                stat(path),
+              ]);
+              return {
+                device: Number(node.dev),
+                total: Number(space.blocks) * Number(space.bsize),
+                free: Number(space.bavail) * Number(space.bsize),
+              };
+            },
+            home: env.HOME?.startsWith("/") === true ? env.HOME : null,
+          })
+        : null,
   });
 }
 
@@ -119,6 +145,12 @@ export type NewTabOverview = Readonly<{
   hub: "connected" | "unreachable";
   tabs: readonly OverviewTab[] | null;
   memory: EnvironmentMemory;
+  /** The root's space (and the home folder's on another file system);
+   * null off Linux or when it cannot be read. */
+  disk: EnvironmentDisk | null;
+  /** How busy the processor is, its cores and the 5-minute load; null off
+   * Linux. */
+  cpu: EnvironmentCpu | null;
   /** Null when which Modules run is not known. */
   modules: readonly OverviewModule[] | null;
 }>;
@@ -239,6 +271,9 @@ export function createNewTabRoutes(
     return targetIdOf(value.tab) ?? response({ error: "invalid-tab" }, 400);
   }
 
+  // The processor's last reading lives as long as these routes (machine.ts).
+  const readCpu = createCpuReader({ readFile: input.host.readFile });
+
   /** The Launchpad's hold, recorded before the answer. */
   async function hold(tab: string): Promise<Response | null> {
     try {
@@ -253,7 +288,8 @@ export function createNewTabRoutes(
   }
 
   async function overview(browser: BrowserEntry): Promise<NewTabOverview> {
-    const [listed, measured] = await Promise.all([
+    const system = input.host.system ?? null;
+    const [listed, measured, disk, cpu] = await Promise.all([
       listTabs(browser, { heap: true }),
       (async () => {
         const running = await input.modules().catch(() => null);
@@ -263,6 +299,8 @@ export function createNewTabRoutes(
         );
         return { running, reading };
       })(),
+      readEnvironmentDisk(system).catch(() => null),
+      readCpu(system).catch(() => null),
     ]);
     let tabs: OverviewTab[] | null = null;
     if (listed.kind === "tabs") {
@@ -317,6 +355,8 @@ export function createNewTabRoutes(
       hub: listed.kind === "tabs" ? "connected" : "unreachable",
       tabs,
       memory: reading.memory,
+      disk,
+      cpu,
       modules:
         running === null
           ? null
