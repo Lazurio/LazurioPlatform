@@ -15716,7 +15716,7 @@ only the memory. Wireframe: `LazurioDevelopment/prototypes-lazurio` #128 (`NewTa
    - the processor: the 5-minute load average of `/proc/loadavg` and the count of the `cpuN`
      lines of `/proc/stat`, one reading of each per overview, without state or a wait. The load
      average counts tasks waiting on the disk too (Linux's uninterruptible sleep), so a disk
-     that stalls also shows as a busy processor. No daemon, no new service, nothing read while
+     that stalls raises the load with idle cores. No daemon, no new service, nothing read while
      nobody looks.
    - Read only, never throwing: an unreadable part is null, and the page leaves out what it does
      not know. Off Linux both are null (the host's `system` seam is absent), as an unknown
@@ -15742,7 +15742,7 @@ forms, the answer read field by field) and
 The page was checked in a browser at 1440, 700 and 390 px in Czech and English against the
 wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and processor are now the
 running machine's own readings (`processNewTabHost`; its memory and tabs stay fakes), with
-`/preview/set?system=full` for a disk with 40 MB left and a processor busy for minutes.
+`/preview/set?system=full` for a disk with 40 MB left and a high 5-minute load.
 
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 

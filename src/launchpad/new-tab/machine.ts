@@ -89,7 +89,8 @@ export function parseLoadavg(text: string): number | null {
 }
 
 /** The 5-minute load against the cores in percent, at most 100: a load
- * past the cores is a full processor with work waiting. */
+ * past the cores means more tasks than cores, running, ready or waiting
+ * uninterruptibly (mostly on the disk), not that the cores were busy. */
 export function loadPercent(load: number, cores: number): number | null {
   if (!Number.isFinite(load) || load < 0 || cores <= 0) return null;
   return Math.min(100, Math.round((load / cores) * 100));

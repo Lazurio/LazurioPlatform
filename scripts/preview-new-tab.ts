@@ -40,7 +40,7 @@
 // The disk and the processor (F47 point 7, its addendum of 2026-11-12) are
 // this machine's own readings (`processNewTabHost`), null off Linux;
 // `/preview/set?system=full` swaps them for a disk with 40 MB left and a
-// processor busy for minutes, `system=real` back.
+// high 5-minute load, `system=real` back.
 import {
   mkdir,
   mkdtemp,
