@@ -22,6 +22,7 @@ import type { FolderProfile } from "./profile";
 import {
   accountText,
   agentTools,
+  aiSignInRouting,
   assignmentLine,
   buddyChatRouting,
   buddyPublicationRules,
@@ -2959,6 +2960,11 @@ function operatorClient(
     ...(origin === undefined
       ? []
       : launchpadRouting(preset, origin, githubIdentity(preset, machine))),
+    ...(origin === undefined
+      ? []
+      : [aiSignInRouting(origin, githubIdentity(preset, machine))].filter(
+          (line): line is NonNullable<typeof line> => line !== null,
+        )),
     ...(machine.entry?.buddyOrigin === undefined
       ? []
       : [buddyChatRouting(machine.entry.buddyOrigin)]),
