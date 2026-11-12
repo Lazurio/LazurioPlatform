@@ -226,9 +226,11 @@ it.
 
 - **Entry.** The server's entry reads only the server name from TLS without opening
   the connection, passes only declared Environment names to their gateways and closes
-  any other name. A Lazurio account with active membership and a specific grant
-  replaces the device approved by the Organization Admin: condition 1 above and device
-  approval do not apply to people there.
+  any other name. In the reference Organization's Environments a Lazurio account with
+  active membership and a specific grant replaces the device approved by the
+  Organization Admin: condition 1 above and device approval do not apply to people
+  there. Only its shared visitors' Environment, public for trying Lazurio, admits any
+  Lazurio account, with no membership or grant, until it is retired (decision 0204).
 - **What people get.** Only the web interface (the Launchpad, chat, MausBot, Buddy):
   no SSH for people, no native T3 pairing exception, no desktop T3 Code and no vault
   from their devices. The Organization's vault stays reachable for people only inside
