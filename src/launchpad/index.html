@@ -680,8 +680,8 @@ details.ssh-advanced[open] > summary { color: var(--fg); }
   .phone-motion-icon { width: 36px; height: 36px; font-size: 14px; }
   .phone-motion-dots { display: none; }
 }
-#phone-devices li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 12px 16px; }
-#phone-devices .phone-device-actions { display: flex; gap: 0.5rem; align-items: center; }
+#phone-devices li, #computers-list li { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 12px 16px; }
+#phone-devices .phone-device-actions, #computers-list .phone-device-actions { display: flex; gap: 0.5rem; align-items: center; }
 dialog.phone-dialog { width: min(26rem, calc(100vw - 2rem)); }
 .phone-pairing { display: grid; justify-items: center; gap: 12px; text-align: center; }
 .phone-qr-frame { padding: 8px; border: 1px solid var(--lz-line); border-radius: var(--radius-control); background: #fff; transition: opacity 0.2s; }
@@ -2178,6 +2178,12 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <div class="phone-actions"><a id="computer-connect" class="button primary" href="/settings/ssh" data-route data-message="computerConnect">Connect a computer</a></div>
 </div>
 </div>
+</section>
+<section class="group" id="computers-group" aria-labelledby="computers-heading" hidden>
+<div class="group-head"><h2 id="computers-heading" data-message="computersTitle">Computers for agents</h2></div>
+<p class="row-desc" data-message="computersLead">Agents in this Environment work in the apps of a computer whose owner switched control on in Lazurio Agent Desktop.</p>
+<p id="computers-state" class="row-status" role="status" aria-live="polite" hidden></p>
+<ul class="card" id="computers-list" aria-labelledby="computers-heading" hidden></ul>
 </section>
 </section>
 <section id="section-ssh" data-section="ssh" aria-labelledby="page-heading">

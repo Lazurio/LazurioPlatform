@@ -36,6 +36,11 @@ const nav = (...keys: readonly MessageKey[]): Text => ({
 });
 const phonePath = nav("settingsTitle", "connectionsTitle", "phoneTitle");
 const computerPath = nav("settingsTitle", "connectionsTitle", "computerTitle");
+const computersPath = nav(
+  "settingsTitle",
+  "connectionsTitle",
+  "computersTitle",
+);
 const aiPath = nav("settingsTitle", "startTitle", "startAiTitle");
 const integrationsPath = nav("integrationsTitle");
 const recoveryPath = nav("settingsTitle", "recoveryTitle");
@@ -53,6 +58,7 @@ export const quotedLaunchpadLabels: readonly MessageKey[] = Object.freeze([
   "phoneStateTeam",
   "computerTitle",
   "computerConnect",
+  "computersTitle",
   "sshTitle",
   "startTitle",
   "startAiTitle",
@@ -317,6 +323,10 @@ export const mechanisms: readonly Text[] = [
   t(
     `- **Počítač** s ChatGPT Desktopem připojí člověk v ${computerPath.cs} → ${ucs.computerConnect}: dostane prompt pro agenta na svém počítači. ${ucs.sshTitle} je pokročilá možnost.`,
     `- **A computer** with ChatGPT Desktop the person connects in ${computerPath.en} → ${uen.computerConnect}: they get a prompt for the agent on their computer. ${uen.sshTitle} is an advanced option.`,
+  ),
+  t(
+    `- **Počítač pro agenty:** aby agenti Prostředí pracovali v aplikacích počítače člověka (macOS, Windows), nainstaluje si člověk Lazurio Agent Desktop a spáruje v něm toto Prostředí přihlášením účtem Lazurio. Spárované počítače a jejich odebrání jsou v ${computersPath.cs}. Počítač se připojuje sám a jen když je v aplikaci zapnuté ovládání; z Prostředí do něj nic nevede (rozhodnutí 0240). Jde to jen z Osobního Prostředí a z vlastního Pracovního Prostředí, ne z Týmového (rozhodnutí 0241). Síťovou cestu počítače schvaluje Admin Organizace, v osobním tailnetu Lazuria vlastník Prostředí (rozhodnutí 0192, 0243).`,
+    `- **A computer for agents:** for the Environment's agents to work in the applications of a person's computer (macOS, Windows), the person installs Lazurio Agent Desktop and pairs this Environment in it by signing in with their Lazurio account. Paired computers and their removal are in ${computersPath.en}. The computer connects by itself, only while control is switched on in the application; nothing leads from the Environment into it (decision 0240). It works only from a Personal Environment and the person's own Work Environment, not from a Team Environment (decision 0241). The computer's network path is approved by the Organization Admin, in Lazurio's personal tailnet by the Environment's owner (decisions 0192, 0243).`,
   ),
   blank,
   t("## Zařízení a síť", "## Devices and the network"),

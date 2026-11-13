@@ -30,6 +30,14 @@ import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
+import { createComputerAttach } from "../computers/attach-ws";
+import {
+  type ComputersHost,
+  channelUrlOf,
+  computersAllowed,
+  installedEntry,
+  migrateSshComputers,
+} from "../computers/computers";
 import { processConnectionsHost } from "../connections/host";
 import {
   type ConnectionsHost,
@@ -103,7 +111,8 @@ import {
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
-import type { ShellSetup } from "../shell/contract";
+import { environmentIdOf, type ShellSetup } from "../shell/contract";
+import { kindLabel } from "../shell/kind-name";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
@@ -188,6 +197,7 @@ import {
   mintChatPairing,
   publicEntry,
 } from "./chat";
+import { createComputersRoutes } from "./computers-routes";
 import { createConnectionsRoutes } from "./connections-routes";
 import { createContentRoutes } from "./content-routes";
 import { prepareContext } from "./content-view";
@@ -1369,6 +1379,92 @@ export async function startLaunchpad(
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
+  // People's computers for agents (decision F73, Lazurio Agent Desktop):
+  // the pairing page, its API and the list in Settings → Connections, over
+  // F49's account and this account's Executor; journaled as the operation,
+  // the outcome and the computer's id.
+  const computersHost = async (): Promise<ComputersHost> => {
+    const current = await withFolderReadLock(state, () =>
+      readFolderState(state),
+    );
+    return {
+      ...sshHost,
+      // The computer's session goes to this Launchpad's own name, through
+      // the gateway's one exception for it (contract v1 section 2).
+      channelUrl: async () =>
+        entry === null ? null : channelUrlOf(entry.externalOrigin),
+      executorCommand: () => installedEntry(sshHost.home),
+      executor: integrationExecutor(),
+      allowed: async () => computersAllowed(current.preferences.preset.name),
+      locale: async () =>
+        current.preferences.profile.locale === "cs" ? "cs" : "en",
+      // As the shell names it: its kind, and an Organization's slug.
+      environmentName: async () => {
+        const preset = current.preferences.preset.name;
+        if (!Object.hasOwn(presetKinds, preset)) return null;
+        const machine = current.preferences.machine;
+        const kind = environmentKind(preset as PresetName, machine);
+        const label = kindLabel(
+          kind,
+          current.preferences.profile.locale === "cs" ? "cs" : "en",
+        );
+        return machine?.owner.kind === "organization"
+          ? `${label} · ${machine.owner.organization}`
+          : label;
+      },
+      version: embeddedIdentity().version,
+    };
+  };
+  // The computers of the old SSH path move into the registry once, as the
+  // installed Launchpad starts after an update (contract v1, Přechod z v0);
+  // journaled by id only. Only the installed one: any other Launchpad (a
+  // source checkout, a test) never writes the account's authorized_keys.
+  void (
+    installed === undefined
+      ? Promise.resolve({ moved: [], failed: [] })
+      : computersHost().then((host) => migrateSshComputers(host))
+  ).then(
+    (moved) => {
+      if (moved.moved.length > 0 || moved.failed.length > 0)
+        console.log(
+          JSON.stringify({
+            scope: "computers",
+            operation: "migrate-ssh",
+            moved: moved.moved.join(","),
+            failed: moved.failed.join(","),
+          }),
+        );
+    },
+    () => undefined,
+  );
+  // The computer's own session (contract v1 section 2): a WebSocket the
+  // computer proves itself on by its signature, never a browser session.
+  const computerAttach = createComputerAttach({
+    home: sshHost.home,
+    uid: sshHost.uid,
+    environmentId: () =>
+      (entry === null ? null : environmentIdOf(entry.externalOrigin)) ??
+      "local",
+    version: embeddedIdentity().version,
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
+  const computers = createComputersRoutes({
+    host: computersHost,
+    page: async () => {
+      const current = await withFolderReadLock(state, () =>
+        readFolderState(state),
+      );
+      const preset = current.preferences.preset.name;
+      return {
+        locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
+        kind: Object.hasOwn(presetKinds, preset)
+          ? environmentKind(preset as PresetName, current.preferences.machine)
+          : null,
+      };
+    },
+    headers,
+    journal: (line) => console.log(JSON.stringify(line)),
+  });
   // Settings → Connections → Telefon přes ChatGPT (decision F71): the
   // Codex daemon's remote control, one pending pairing in this process's
   // memory; journaled without any code.
@@ -1725,7 +1821,7 @@ export async function startLaunchpad(
   // default app runs, or the typed reason why not.
   async function answerEnsure(
     request: Request,
-    server: Server<undefined>,
+    server: Pick<Server<undefined>, "timeout">,
     encoded: string,
     mayStart: boolean,
   ): Promise<Response> {
@@ -1767,6 +1863,7 @@ export async function startLaunchpad(
     // its body through `readJsonBody`, bounded at 16 KiB.
     maxRequestBodySize: maxRequestBytes,
     ...(trust === null ? { routes: pageRoutes } : {}),
+    websocket: computerAttach.websocket,
     async fetch(request, server) {
       const origin = `http://127.0.0.1:${server.port}`;
       const url = new URL(request.url);
@@ -1777,6 +1874,24 @@ export async function startLaunchpad(
       // of the Environment's vault (decision F11's amendments of 2026-10-14
       // and 2026-10-16). Locally nobody is named.
       let person: AdmittedPerson = nobody;
+      // A computer's session (decision F73's addendum of 2026-11-13): the
+      // one route the gateway passes without a session, so answered before
+      // every admission; on a hosted Environment only on its own Host, and
+      // the computer proves itself by its signature over the WebSocket.
+      if (computerAttach.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        if (
+          trust !== null &&
+          request.headers.get("host") !==
+            new URL(trust.entry.externalOrigin).host
+        )
+          return response({ error: "denied", reason: "host-mismatch" }, 401);
+        return computerAttach.upgrade(
+          request,
+          server,
+          server.requestIP(request)?.address ?? null,
+        );
+      }
       const ensureRequest = ensureRoute.exec(url.pathname);
       // The readiness call of the gateway's loopback entry for the
       // Environment browser (#504): an `ensure` without a session, answered
@@ -1834,6 +1949,16 @@ export async function startLaunchpad(
             request,
             url.pathname.slice(guideVideoPath.length),
           );
+        // A computer's pairing page (decision F73): served here, behind the
+        // same admission as the page, never through the shell.
+        if (computers.handlesPage(url.pathname)) {
+          if (closing) return response({ error: "closing" }, 503);
+          try {
+            return await computers.page(request, url);
+          } catch {
+            return response({ error: "operation-failed" }, 500);
+          }
+        }
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
@@ -2549,6 +2674,16 @@ export async function startLaunchpad(
         server.timeout(request, 60);
         try {
           return await connectionRoutes.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (computers.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // Pairing asks Executor to add the computer's server.
+        server.timeout(request, 90);
+        try {
+          return await computers.handle(request, url, person);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
