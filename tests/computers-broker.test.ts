@@ -5,7 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { runAgentEntry } from "../src/computers/agent-entry";
-import { type BrokerOptions, runBroker } from "../src/computers/broker";
+import {
+  type BrokerOptions,
+  type BrokerTransport,
+  runBroker,
+} from "../src/computers/broker";
+import { lineSplitter } from "../src/computers/lines";
 import {
   type AuditEntry,
   readTools,
@@ -58,6 +63,22 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
       const done = () =>
         answer(message.id, { content: [{ type: "text", text: "done" }] });
       if (params.name === "hold") held.push(done);
+      else if (params.name === "locked")
+        // The application's own lock across Environments (contract v1 §1).
+        answer(message.id, {
+          content: [
+            {
+              type: "text",
+              text: "Počítač teď ovládá agent z Pracovní Prostředí. Zkuste to, až skončí.",
+            },
+          ],
+          isError: true,
+        });
+      else if (params.name === "lazurio_shell_run")
+        answer(message.id, {
+          content: [{ type: "text", text: "ok" }],
+          structuredContent: { exitCode: 3, stdout: "secret output" },
+        });
       else if (params.name === "lazurio_app_update") {
         // The application answers (or not), then restarts.
         if (update === "refuse")
@@ -79,6 +100,33 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
     release: () => {
       for (const done of held.splice(0)) done();
     },
+  };
+}
+
+/** The fake computer's lines as the broker's transport. */
+function lineTransport(computer: {
+  remote: PassThrough;
+  send: (line: string) => void;
+}): BrokerTransport {
+  let resolve: (reason: string) => void = () => undefined;
+  const closed = new Promise<string>((done) => {
+    resolve = done;
+  });
+  const listeners: ((line: string) => void)[] = [];
+  computer.remote.on(
+    "data",
+    lineSplitter((line) => {
+      for (const listener of listeners) listener(line);
+    }),
+  );
+  computer.remote.once("end", () => resolve("session-closed"));
+  return {
+    send: computer.send,
+    onMessage: (listener) => {
+      listeners.push(listener);
+    },
+    closed,
+    close: (reason) => resolve(reason),
   };
 }
 
@@ -149,8 +197,7 @@ async function withBroker(
     device: "alex-macbook",
     name: "Alex MacBook",
     version: "test",
-    remote: computer.remote,
-    send: computer.send,
+    transport: lineTransport(computer),
     stderr: () => undefined,
     audit: async (entry) => {
       audit.push({
@@ -290,8 +337,7 @@ test.skipIf(!posix)(
         device: "alex-macbook",
         name: "Alex MacBook",
         version: "test",
-        remote: other.remote,
-        send: other.send,
+        transport: lineTransport(other),
         stderr: () => undefined,
         audit: async () => undefined,
         saveTools: async () => undefined,
@@ -317,7 +363,7 @@ test.skipIf(!posix)(
 
 test.skipIf(!posix)("a removed computer's session ends at the next ping", () =>
   withBroker(
-    { pingMs: 20, stillAllowed: async () => false },
+    { checkMs: 20, stillAllowed: async () => false },
     async ({ audit, done }) => {
       expect(await done).toBe(0);
       expect(audit.at(-1)).toMatchObject({
@@ -326,15 +372,6 @@ test.skipIf(!posix)("a removed computer's session ends at the next ping", () =>
       });
     },
   ),
-);
-
-test.skipIf(!posix)("a silent computer's session ends", () =>
-  withBroker({ pingMs: 20, deadMs: 50 }, async ({ computer, audit, done }) => {
-    // From now on the computer answers nothing.
-    computer.remote.pause();
-    expect(await done).toBe(0);
-    expect(audit.at(-1)).toMatchObject({ reason: expect.any(String) });
-  }),
 );
 
 /** The agents' MCP server on its own stdio, as a harness or Executor runs
@@ -553,8 +590,7 @@ for (const mode of ["answer", "drop"] as const)
         device: "alex-macbook",
         name: "Alex MacBook",
         version: "test",
-        remote: computer.remote,
-        send: computer.send,
+        transport: lineTransport(computer),
         stderr: () => undefined,
         audit: async (entry) => {
           audit.push({
@@ -644,8 +680,7 @@ test.skipIf(!posix)(
       device: "alex-macbook",
       name: "Alex MacBook",
       version: "test",
-      remote: computer.remote,
-      send: computer.send,
+      transport: lineTransport(computer),
       stderr: () => undefined,
       audit: async () => undefined,
       saveTools: async () => undefined,
@@ -680,4 +715,36 @@ test.skipIf(!posix)(
       await rm(home, { recursive: true, force: true });
     }
   },
+);
+
+test.skipIf(!posix)(
+  "the application's own lock is an ordinary failed call; a shell command is kept with its exit code, never its output",
+  () =>
+    withBroker({}, async ({ path, audit }) => {
+      const first = await agent(path, "claude-code");
+      const locked = await first.call("tools/call", {
+        name: "locked",
+        arguments: {},
+      });
+      expect((locked.result as { isError?: boolean }).isError).toBe(true);
+      // The session stays: the next call works.
+      const shell = await first.call("tools/call", {
+        name: "lazurio_shell_run",
+        arguments: { command: "ls -la\n~/Documents", cwd: "~" },
+      });
+      expect(shell.result).toBeDefined();
+      await waitFor(
+        () => audit.filter((line) => line.event === "tool").length === 2,
+      );
+      const tools = audit.filter((line) => line.event === "tool");
+      expect(tools[0]).toMatchObject({ tool: "locked", ok: false });
+      expect(tools[1]).toMatchObject({
+        tool: "lazurio_shell_run",
+        command: "ls -la ~/Documents",
+        exitCode: 3,
+      });
+      expect(JSON.stringify(audit)).not.toContain("secret output");
+      expect(audit.map((line) => line.event)).not.toContain("disconnected");
+      first.close();
+    }),
 );

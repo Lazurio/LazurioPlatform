@@ -5,11 +5,13 @@ import {
   mkdtemp,
   readFile,
   rm,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ComputersHost } from "../src/computers/computers";
+import { readRegistry, registryPath } from "../src/computers/registry";
 import {
   computerDetail,
   parseComputers,
@@ -32,7 +34,6 @@ const wire = (bytes: Buffer) =>
   Buffer.concat([Buffer.from([0, 0, 0, bytes.length]), bytes]);
 const keyOf = (seed: number) =>
   `ssh-ed25519 ${Buffer.concat([wire(Buffer.from("ssh-ed25519")), wire(Buffer.alloc(32, seed))]).toString("base64")}`;
-const hostKey = keyOf(7).split(" ")[1] as string;
 const person: AdmittedPerson = { subject: null, username: "alex" };
 const callback = "http://127.0.0.1:53111/cb";
 const state = "s7d2Kq9xWm4Lr8Tp";
@@ -50,20 +51,14 @@ async function withRoutes(
   const entry = join(home, ".local", "bin", "lazurio");
   await writeFile(entry, "#!/bin/sh\n");
   await chmod(entry, 0o700);
-  const hostKeyPath = join(parent, "ssh_host_ed25519_key.pub");
-  await writeFile(hostKeyPath, `ssh-ed25519 ${hostKey} root@host\n`);
   const host: ComputersHost = {
     platform: "linux",
     home,
     uid: process.getuid?.(),
-    user: "alex",
     today: () => "2026-11-12",
-    hostKeyPath,
-    tailnet: async () => ({
-      state: "known",
-      dnsName: "alex-work.example.ts.example",
-    }),
-    entry: async () => entry,
+    channelUrl: async () =>
+      "wss://launchpad.alex-work.example/.lazurio/computers/attach",
+    executorCommand: async () => entry,
     executor: null,
     allowed: async () => allowed,
     locale: async () => "cs",
@@ -199,19 +194,30 @@ test.skipIf(!posix)(
       expect(result).toEqual({
         deviceId: "alex-macbook",
         environment: { name: "Osobní Prostředí" },
-        ssh: {
-          host: "alex-work.example.ts.example",
-          user: "alex",
-          knownHosts: `alex-work.example.ts.example ssh-ed25519 ${hostKey}`,
+        channel: {
+          url: "wss://launchpad.alex-work.example/.lazurio/computers/attach",
         },
       });
-      const keys = await readFile(
-        join(home, ".ssh", "authorized_keys"),
-        "utf8",
-      );
-      expect(keys).toBe(
-        `restrict,command="${home}/.local/bin/lazurio computer attach --device alex-macbook" ${keyOf(1)} lazurio-computer:alex-macbook:alex:2026-11-12\n`,
-      );
+      // The key goes to the registry, never to authorized_keys.
+      expect(
+        await readFile(join(home, ".ssh", "authorized_keys"), "utf8").catch(
+          () => "none",
+        ),
+      ).toBe("none");
+      const registry = await readRegistry(home, process.getuid?.());
+      expect("computers" in registry && registry.computers).toEqual([
+        {
+          deviceId: "alex-macbook",
+          name: "Alex MacBook",
+          os: "macos",
+          publicKey: keyOf(1),
+          fingerprint: expect.stringMatching(/^SHA256:/),
+          addedBy: "alex",
+          added: "2026-11-12",
+          executor: null,
+        },
+      ]);
+      expect((await stat(registryPath(home))).mode & 0o777).toBe(0o600);
 
       // The same key again (the application retries): the same computer.
       const again = await routes.handle(
@@ -281,9 +287,10 @@ test.skipIf(!posix)(
         deviceId: "alex-macbook",
         agents: "none",
       });
+      const after = await readRegistry(home, process.getuid?.());
       expect(
-        await readFile(join(home, ".ssh", "authorized_keys"), "utf8"),
-      ).not.toContain("--device alex-macbook ");
+        "computers" in after && after.computers.map((c) => c.deviceId),
+      ).toEqual(["alex-macbook-2"]);
     }),
 );
 
@@ -306,11 +313,8 @@ test.skipIf(!posix)("a form with a foreign callback pairs nothing", () =>
     );
     expect(answer.status).toBe(400);
     expect(answer.headers.get("Location")).toBeNull();
-    expect(
-      await readFile(join(home, ".ssh", "authorized_keys"), "utf8").catch(
-        () => "",
-      ),
-    ).toBe("");
+    const registry = await readRegistry(home, process.getuid?.());
+    expect("computers" in registry && registry.computers).toEqual([]);
   }),
 );
 

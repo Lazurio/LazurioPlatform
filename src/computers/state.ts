@@ -5,7 +5,6 @@ import {
   lstat,
   mkdir,
   open,
-  readdir,
   rename,
   rm,
 } from "node:fs/promises";
@@ -161,37 +160,13 @@ export async function readRecord(
   };
 }
 
-export async function writeRecord(
-  home: string,
-  uid: number | undefined,
-  record: ComputerRecord,
-): Promise<void> {
-  const directory = await ensureComputersDirectory(home, uid);
-  await writeDurableFile(
-    directory,
-    `${record.deviceId}.json`,
-    Buffer.from(`${JSON.stringify(record)}\n`, "utf8"),
-  );
-}
-
-/** Removes a computer's record and tool list; its socket is the broker's. */
+/** Removes a computer's state: its tool list, its update mark and the
+ * record of the old SSH path; its socket is the broker's. */
 export async function removeState(home: string, id: string): Promise<void> {
   if (!computerIdPattern.test(id)) return;
   await rm(recordPath(home, id), { force: true });
   await rm(toolsPath(home, id), { force: true });
   await rm(updatingPath(home, id), { force: true });
-}
-
-/** The ids that have a record: a leftover's id is not reused either. */
-export async function recordedIds(home: string): Promise<readonly string[]> {
-  try {
-    return (await readdir(computersDirectory(home)))
-      .filter((name) => name.endsWith(".json") && !name.endsWith(".tools.json"))
-      .map((name) => name.slice(0, -".json".length))
-      .filter((id) => computerIdPattern.test(id));
-  } catch {
-    return [];
-  }
 }
 
 /** The tool list a computer last offered: MCP's `tools` array, as it was. */
@@ -244,6 +219,9 @@ export type AuditEntry = Readonly<{
   system?: string;
   osVersion?: string;
   channel?: string;
+  /** On a shell tool: its command and exit code (contract v1 section 3). */
+  command?: string;
+  exitCode?: number;
 }>;
 
 /** The key of the application's own details in its answer to

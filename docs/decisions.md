@@ -25240,3 +25240,76 @@ history without arguments, the agents' server with and without the computer) and
 its result, the same key again, a second computer of the same name, the list and removal, a
 Team Environment refused). Not proven: a real SSH session from Lazurio Agent Desktop, a real
 Executor running the server and a browser posting the page through a real gateway.
+
+### F73 addendum — the computer's session over HTTPS; SSH is gone (2026-11-13)
+
+**Decided by Matěj on 2026-11-13 (contract v1 between Lazurio Agent Desktop and the
+Environment). Implemented on the Environment's side in the same pull request; the gateway's
+exception is its own change in Machines.** A computer connects only over HTTPS. Some
+Organizations' computers have no SSH, and one path is easier to keep than two. This addendum
+replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forced command
+`lazurio computer attach` and the stdio session), and the pairing's `ssh` result.
+
+1. **The registry.** A paired computer is an entry in
+   `~/.local/state/lazurio/computers/registry.json` (owner-only, written atomically). The entry
+   holds its id, name, system, ed25519 public key, fingerprint, who added it and when, and
+   Executor's server. The pairing writes it, and nothing goes to `authorized_keys`. The attach
+   endpoint, Settings → Connections, `lazurio computer list|remove`, Executor's server and the
+   history read it. Removing an entry ends an attached session at the next check (15 s).
+2. **The pairing's result** carries `channel: {url: "wss://<launchpad host>/.lazurio/computers/attach"}`
+   and `environment.name`; `ssh` is gone. The pairing page and its protections are unchanged.
+3. **The session** is `GET /.lazurio/computers/attach` with a WebSocket upgrade, served before
+   every admission and, behind the gateway, only on the Launchpad's own Host.
+   - The server sends `{type: "challenge", v: 1, environment, nonce, ts}`. `nonce` is 32 random
+     bytes and `environment` is the Environment's id.
+   - The computer answers `{type: "auth", v: 1, device, signature}`. The signature is ed25519
+     over `lazurio-computer-attach-v1\n<environment>\n<nonce>\n<ts>`, made with the key the
+     pairing recorded.
+   - The server checks the signature against the registry, that the challenge is at most 60 s
+     old, that the nonce is used once, that the computer is still paired and that it has no other
+     session. Then it answers `{type: "ready"}`, or `{type: "denied", reason}` and closes.
+   - After `ready` each text message is one JSON-RPC message. The broker is the same as before,
+     now independent of what carries it: the lease, the history, `_meta`, `lazurio_app_*` and
+     `updating`.
+   - A WebSocket ping goes every 15 s, and the session ends after 45 s without an answer.
+   - Attempts are limited to a few a minute per address, and to 60 a minute in all. Behind the
+     gateway the address is the last entry of `X-Forwarded-For`, because the gateway's Caddy has
+     no rate limit of its own.
+4. **The gateway** passes exactly `GET /.lazurio/computers/attach` with `Upgrade: websocket` on
+   the Launchpad's name without a browser session. It strips the cookie and every identity
+   header, and passes nothing else. It is a narrow exception of the same kind as T3's native
+   pairing in 0157, recorded as an amendment of 0241. Without it, a computer behind the gateway
+   is sent to the sign-in and never attaches.
+5. **The move from SSH.** As the Launchpad starts, every old `lazurio-computer:` line of
+   `authorized_keys` moves into the registry with its key, name, system and Executor's server.
+   The line leaves `authorized_keys`, and every other line stays byte for byte. The application
+   derives the `wss` address from the Launchpad address it remembers, so nobody pairs again.
+   `lazurio computer attach` only says that the SSH path is gone.
+6. **One agent across Environments** is the application's lock (contract v1 section 1). Its
+   refusal ("Počítač teď ovládá agent z …") is an ordinary failed tool call for the broker: the
+   session stays, and the history records `ok: false`.
+7. **Commands on the computer** (contract v1 section 3, built by the application later): the
+   broker forwards `lazurio_shell_*` unchanged. For `lazurio_shell_run` and
+   `lazurio_shell_start` the history keeps the command (one line, at most 500 characters) and
+   the exit code from `structuredContent.exitCode`, never the output. The manual's section
+   People's computers gains these tools once the application has them.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep SSH next to HTTPS | Two paths to keep, and some Organizations' computers have no SSH; rejected |
+| Authenticate the computer at the gateway | The gateway knows sessions, not computers' keys; the Launchpad holds the registry |
+| A bearer token from the pairing | A copyable secret on the computer; a signature over a fresh challenge proves the key without one |
+| Rate-limit at the gateway | Its Caddy has no rate limiter; the Launchpad limits per forwarded address instead |
+
+**Verified** in tests with a temporary home.
+- `tests/computers-attach.test.ts` runs a real server on loopback with a fake computer that
+  signs with its own key. It covers `ready` and an agent's call through the broker, a second
+  session, a wrong key, an unpaired computer, a mismatched device, an expired challenge, removal
+  while attached, the method, the upgrade and the attempt limit. A hosted Launchpad in the same
+  file answers the attach route without a session and keeps every other route behind it.
+- `tests/computers-keys.test.ts` covers the move from SSH.
+- `tests/computers-broker.test.ts` covers the broker over a transport, including the
+  application's lock and the shell history.
+- `tests/launchpad-computers.test.ts` covers the pairing into the registry with its `channel`.
+
+Not proven: a real gateway with the exception, and Lazurio Agent Desktop's own client.

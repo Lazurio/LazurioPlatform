@@ -308,9 +308,10 @@ export async function runCli(args: string[]): Promise<number> {
     return runGithubLauncher(args.slice(2));
   if (args[0] === "github" && args[1] === "credential")
     return runGithubCredential(args.slice(2));
-  // A person's computer for agents (decision F73): `attach` and `mcp` speak
-  // MCP on stdin and stdout until the session ends, never followed by the
-  // update notice, and end the process themselves since stdin may stay open.
+  // A person's computer for agents (decision F73): `mcp` speaks MCP on stdin
+  // and stdout until its agent leaves, never followed by the update notice,
+  // and ends the process itself since stdin may stay open. `attach`, the old
+  // SSH path, only says it is gone.
   if (args[0] === "computer" && (args[1] === "attach" || args[1] === "mcp")) {
     const code = await runComputerSession(args.slice(1), processContext());
     await new Promise<void>((resolve) =>

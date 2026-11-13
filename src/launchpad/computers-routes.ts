@@ -27,7 +27,7 @@ import { fill } from "./update-view";
 //   POST /api/computers    pairs the computer. A form (the page) is answered
 //                          by a redirect to the application's callback on
 //                          127.0.0.1 with `state` and `result`; JSON by
-//                          {kind: "computer-paired", deviceId, ssh, agents,
+//                          {kind: "computer-paired", deviceId, channel, agents,
 //                          redirect?}.
 //   GET  /api/computers    the paired computers (Settings → Connections)
 //   POST /api/computers/remove  {deviceId}
@@ -306,7 +306,7 @@ export function createComputersRoutes(
         ...(answer.environment === null
           ? {}
           : { environment: answer.environment }),
-        ssh: answer.ssh,
+        channel: answer.channel,
       }),
       "utf8",
     ).toString("base64url");
@@ -326,7 +326,7 @@ export function createComputersRoutes(
       ...(answer.environment === null
         ? {}
         : { environment: answer.environment }),
-      ssh: answer.ssh,
+      channel: answer.channel,
       agents: answer.agents,
       ...(redirect === null ? {} : { redirect }),
     });

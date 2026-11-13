@@ -57,10 +57,9 @@ export type BrokerOptions = Readonly<{
   /** The computer's name as the person sees it. */
   name: string;
   version: string;
-  /** Lines from the computer: the SSH session's stdin. */
-  remote: NodeJS.ReadableStream;
-  /** A line to the computer: the SSH session's stdout. */
-  send: (line: string) => void;
+  /** The computer's session (`./attach-ws`, a WebSocket): one JSON-RPC
+   * message per message. */
+  transport: BrokerTransport;
   stderr: (text: string) => void;
   audit: (entry: Omit<AuditEntry, "ts" | "device">) => Promise<void>;
   /** Keeps the tool list of this session for agents while it is away. */
@@ -75,11 +74,41 @@ export type BrokerOptions = Readonly<{
     active: () => Promise<boolean>;
   }>;
   now?: () => number;
-  pingMs?: number;
-  deadMs?: number;
+  /** How often the broker asks whether the computer is still paired. */
+  checkMs?: number;
   idleLeaseMs?: number;
   initTimeoutMs?: number;
 }>;
+
+/** The computer's session as the broker uses it, whatever carries it. The
+ * transport keeps it alive (a WebSocket's ping every 15 s, closed after 45 s
+ * without an answer) and says why it ended. */
+export type BrokerTransport = Readonly<{
+  send: (message: string) => void;
+  onMessage: (listener: (message: string) => void) => void;
+  /** Resolves once the session ended: `session-closed`, `computer-silent`,
+   * or the reason `close` was given. */
+  closed: Promise<string>;
+  close: (reason: string) => void;
+}>;
+
+/** The tools of the application that run commands on the computer (contract
+ * v1 section 3): the history keeps the command and its exit code. */
+const shellCommandTools: ReadonlySet<string> = new Set([
+  "lazurio_shell_run",
+  "lazurio_shell_start",
+]);
+
+/** A command as the history keeps it: one line, no control characters, at
+ * most 500 characters. */
+export function commandLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const command = value
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+/gu, " ")
+    .trim()
+    .slice(0, 500);
+  return command === "" ? undefined : command;
+}
 
 /** Exit statuses: 0 the session ended, 2 refused (already attached, or the
  * socket cannot be placed), 3 the computer never answered `initialize`. */
@@ -120,13 +149,14 @@ type Pending = Readonly<{
   id: JsonRpcId;
   method: string;
   tool: string | null;
+  /** A shell tool's command, for the history. */
+  command?: string;
   started: number;
 }>;
 
 export async function runBroker(options: BrokerOptions): Promise<number> {
   const now = options.now ?? Date.now;
-  const pingMs = options.pingMs ?? 15_000;
-  const deadMs = options.deadMs ?? 45_000;
+  const checkMs = options.checkMs ?? 15_000;
   const idleLeaseMs = options.idleLeaseMs ?? 120_000;
   const initTimeoutMs = options.initTimeoutMs ?? 30_000;
   const path = socketPath(options.home, options.device);
@@ -155,11 +185,9 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   }
   await rm(path, { force: true });
 
-  let lastHeard = now();
   let initResult: unknown = null;
   let toolsRequest = 0;
   let nextId = 0;
-  let pingId = 0;
   const pending = new Map<string, Pending>();
   const clients = new Set<Client>();
   let holder: Client | null = null;
@@ -174,7 +202,8 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     initialized = resolve;
   });
 
-  const send = (message: unknown) => options.send(JSON.stringify(message));
+  const send = (message: unknown) =>
+    options.transport.send(JSON.stringify(message));
   const write = (client: Client, line: string) => {
     if (client.closed) return;
     try {
@@ -195,7 +224,6 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
 
   // What the computer says.
   const fromComputer = (line: string) => {
-    lastHeard = now();
     const message = parseMessage(line);
     if (message === null) return;
     if (isResponse(message)) {
@@ -217,14 +245,24 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       if (entry === undefined) return;
       pending.delete(id);
       if (entry.method === "tools/call") {
-        const result = message.result as { isError?: unknown } | undefined;
+        // A refusal of the application's own lock across Environments
+        // ("Počítač teď ovládá agent z …", contract v1 section 1) is an
+        // ordinary failed call: the session stays.
+        const result = message.result as
+          | { isError?: unknown; structuredContent?: { exitCode?: unknown } }
+          | undefined;
         const ok = message.error === undefined && result?.isError !== true;
+        const exitCode = result?.structuredContent?.exitCode;
         void audit({
           event: "tool",
           tool: entry.tool ?? "unknown",
           ok,
           ms: Math.max(0, now() - entry.started),
           agent: label(entry.client),
+          ...(entry.command === undefined ? {} : { command: entry.command }),
+          ...(entry.command !== undefined && Number.isInteger(exitCode)
+            ? { exitCode: exitCode as number }
+            : {}),
         });
         // An update that did not start: the computer stays.
         if (entry.tool === appUpdateTool && !ok)
@@ -236,7 +274,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     }
     if (isRequest(message)) {
       const id = message.id as JsonRpcId;
-      options.send(
+      options.transport.send(
         message.method === "ping"
           ? resultAnswer(id, {})
           : errorAnswer(id, methodNotFound, "Not served by this Environment"),
@@ -253,15 +291,10 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     }
   };
 
-  const remoteData = lineSplitter(fromComputer);
-  options.remote.on("data", remoteData);
-  options.remote.once("end", () => {
+  options.transport.onMessage(fromComputer);
+  void options.transport.closed.then((why) => {
     initialized(false);
-    ended("session-closed");
-  });
-  options.remote.once("error", () => {
-    initialized(false);
-    ended("session-closed");
+    ended(why);
   });
 
   send({
@@ -280,7 +313,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   if (!ok) {
     options.stderr("The computer did not answer initialize.\n");
     await audit({ event: "refused", reason: "no-initialize" });
-    options.remote.removeListener("data", remoteData);
+    options.transport.close("no-initialize");
     return brokerExit.silent;
   }
   send({ jsonrpc: "2.0", method: "notifications/initialized" });
@@ -345,6 +378,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       return;
     }
     let tool: string | null = null;
+    let command: string | undefined;
     if (method === "tools/call") {
       const refused = lease(client);
       if (refused !== null) {
@@ -356,6 +390,11 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         (message.params as { name?: unknown } | undefined)?.name,
       );
       client.lastCall = now();
+      if (shellCommandTools.has(tool))
+        command = commandLabel(
+          (message.params as { arguments?: { command?: unknown } } | undefined)
+            ?.arguments?.command,
+        );
       // The application updates itself and restarts: the computer will be
       // away for about a minute, which is expected, not a failure.
       if (tool === appUpdateTool) {
@@ -365,7 +404,14 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     }
     nextId++;
     const own = `c${nextId}`;
-    pending.set(own, { client, id, method, tool, started: now() });
+    pending.set(own, {
+      client,
+      id,
+      method,
+      tool,
+      ...(command === undefined ? {} : { command }),
+      started: now(),
+    });
     send({ ...(message as JsonRpcMessage), id: own });
   };
 
@@ -405,7 +451,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   } catch {
     process.umask(previous);
     options.stderr("The computer's socket could not be opened.\n");
-    options.remote.removeListener("data", remoteData);
+    options.transport.close("socket-unavailable");
     return brokerExit.refused;
   }
   process.umask(previous);
@@ -420,25 +466,19 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     ...appOf(initResult),
   });
 
-  // Liveness and removal, every `pingMs`.
+  // Removal, every `checkMs`; the transport keeps the session alive.
   const timer = setInterval(() => {
-    if (now() - lastHeard > deadMs) {
-      ended("computer-silent");
-      return;
-    }
-    pingId++;
-    send({ jsonrpc: "2.0", id: `p${pingId}`, method: "ping" });
     void options.stillAllowed().then(
       (allowed) => {
         if (!allowed) ended("removed");
       },
       () => undefined,
     );
-  }, pingMs);
+  }, checkMs);
 
   const reason = await end;
   clearInterval(timer);
-  options.remote.removeListener("data", remoteData);
+  options.transport.close(reason);
   for (const client of clients) client.socket.destroy();
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await rm(path, { force: true }).catch(() => undefined);

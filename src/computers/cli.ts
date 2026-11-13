@@ -4,13 +4,11 @@ import { parseArgs } from "node:util";
 import { readFolderState } from "../folder/read-state";
 import { processExecutorEndpoint } from "../integrations/executor-client";
 import { processSshAccessHost } from "../ssh-access/host";
-import { listComputerKeys } from "../ssh-access/keys";
 import { toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
 import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runAgentEntry } from "./agent-entry";
-import { runBroker } from "./broker";
 import {
   type ComputersHost,
   type ComputerView,
@@ -19,18 +17,8 @@ import {
   listComputers,
   removeComputer,
 } from "./computers";
-import {
-  appendAudit,
-  clearUpdating,
-  computerIdPattern,
-  isUpdating,
-  markUpdating,
-  readRecord,
-  readTools,
-  socketPath,
-  updatingMs,
-  writeTools,
-} from "./state";
+import { registryEntry } from "./registry";
+import { computerIdPattern, isUpdating, readTools, socketPath } from "./state";
 
 /** `lazurio computer`: people's computers for agents (decision F73, Lazurio
  * Agent Desktop). */
@@ -39,17 +27,16 @@ export const computerHelp = `computer list [--json]
   Connections): each one's id, name, system, whether it is attached now and
   its last activity. Read locally; nothing is changed.
 computer remove <id> [--json]
-  Removes a paired computer: its key from authorized_keys (an attached
-  session ends within a minute), its MCP server from Executor and its
-  record. The history stays.
+  Removes a paired computer from the registry (an attached session ends
+  within a minute), its MCP server from Executor and its state. The history
+  stays.
 computer mcp --device <id>
   The MCP server of one computer for agents, on stdin and stdout; Executor
   runs it as "Počítač: <name>". While the computer is not attached it
   answers the tools of its last session and a tool call says why it cannot
   run. One agent controls the computer at a time.
-computer attach --device <id>
-  The forced command of a computer's key; the computer runs it over SSH
-  when its owner switches control on. Not for agents or people.`;
+The computer itself attaches over HTTPS: its application opens a WebSocket
+to the Launchpad's /.lazurio/computers/attach while its switch is on.`;
 
 /** Whether the preset of this Environment's Folder allows a person's
  * computer, and the Folder's language; a Folder that cannot be read allows
@@ -83,7 +70,9 @@ export function processComputersHost(context: CliContext): ComputersHost {
   };
   return {
     ...ssh,
-    entry: () => installedEntry(ssh.home),
+    // The CLI pairs nothing: the pairing is the Launchpad's.
+    channelUrl: async () => null,
+    executorCommand: () => installedEntry(ssh.home),
     executor: processExecutorEndpoint(context.env),
     allowed: async () => (await read()).allowed,
     locale: async () => (await read()).locale,
@@ -102,8 +91,8 @@ async function parentName(): Promise<string | null> {
   }
 }
 
-/** `attach` and `mcp` own this process's stdin and stdout until the session
- * ends; their exit status. */
+/** `mcp` owns this process's stdin and stdout until its agent leaves; its
+ * exit status. */
 export async function runComputerSession(
   args: readonly string[],
   context: CliContext,
@@ -125,62 +114,27 @@ export async function runComputerSession(
     process.stderr.write(`Usage: computer ${args[0]} --device <id>\n`);
     return exitUsage;
   }
-  const host = processComputersHost(context);
-  const record = await readRecord(host.home, device);
-  const name = record?.name ?? device;
-  if (args[0] === "mcp")
-    return runAgentEntry({
-      socket: socketPath(host.home, device),
-      name,
-      version: context.identity.version,
-      input: process.stdin,
-      write: (line) => {
-        process.stdout.write(`${line}\n`);
-      },
-      cachedTools: () => readTools(host.home, device),
-      updating: () => isUpdating(host.home, device),
-      harness: await parentName(),
-    });
-  // attach: only a computer whose key this account still allows.
-  const allowed = async () => {
-    const keys = await listComputerKeys(host);
-    return (
-      "computers" in keys && keys.computers.some((key) => key.device === device)
-    );
-  };
-  if (!(await allowed())) {
+  if (args[0] !== "mcp") {
+    // The SSH path is gone (contract v1): nothing attaches here any more.
     process.stderr.write(
-      "This computer is not paired with this Environment.\n",
+      "lazurio computer attach is gone: a computer attaches over HTTPS. Update Lazurio Agent Desktop.\n",
     );
     return exitUsage;
   }
-  return runBroker({
-    home: host.home,
-    uid: host.uid,
-    device,
+  const host = processComputersHost(context);
+  const entry = await registryEntry(host.home, host.uid, device);
+  const name = entry?.name ?? device;
+  return runAgentEntry({
+    socket: socketPath(host.home, device),
     name,
     version: context.identity.version,
-    remote: process.stdin,
-    send: (line) => {
+    input: process.stdin,
+    write: (line) => {
       process.stdout.write(`${line}\n`);
     },
-    stderr: (text) => {
-      process.stderr.write(text);
-    },
-    audit: (entry) =>
-      appendAudit(host.home, host.uid, {
-        ts: new Date().toISOString(),
-        device,
-        ...entry,
-      }),
-    saveTools: (tools) => writeTools(host.home, host.uid, device, tools),
-    stillAllowed: allowed,
-    updating: {
-      mark: () =>
-        markUpdating(host.home, host.uid, device, Date.now() + updatingMs),
-      clear: () => clearUpdating(host.home, device),
-      active: () => isUpdating(host.home, device),
-    },
+    cachedTools: () => readTools(host.home, device),
+    updating: () => isUpdating(host.home, device),
+    harness: await parentName(),
   });
 }
 
