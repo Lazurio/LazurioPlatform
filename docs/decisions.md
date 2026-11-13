@@ -6048,14 +6048,13 @@ of the old Launchpad and do them properly in the new Launchpad".
    of [section F](launchpad-parity.md#f-what-we-deliberately-do-not-carry-over) have
    no successor. Git is done by agents in T3 Code under the manual's worktree
    discipline, and click-derived state has no decision behind it.
-7. **Pull-request previews** (0167 addendum; H3 in direction). Worktree source (P9) is
-   off the switch line. A preview from the web T3 Code on a hosted Machine gets a
-   temporary Environment URL that the agent registers like a module's hostname, as a
-   lease that ends by itself and never accumulates (Matěj's examples: cleanup
-   after 24 hours and when the port disappears). The hosted Folder manual tells agents
-   how previews work so that they never send the operator a localhost link; until an
-   application has a hosted name, the handoff says so instead of a link. On a
-   workstation, worktree source is a later slice.
+7. **Pull-request previews** (replaced by Matěj on 2026-10-20 and confirmed on
+   2026-11-13; see the addendum below). Normal module addresses stay on stable
+   `main`, targeting built releases. A development version runs from its worktree on
+   a separate loopback port, and the user sees it in the Environment browser. The
+   former temporary-hostname lease direction (B14/P9/H3) is retired. See
+   [the complete contract](development-previews.md), including a missing browser,
+   productionspace and the distinction between instructions and rollout.
 8. **New Work Machines** (0167 point 6; H4): until content synchronization (P10), the
    agent in T3 Code clones their Organizations from the manual.
 9. **Team Environments** (0167 point 7, 0168; H6). Commits, pull requests and issues
@@ -6073,10 +6072,7 @@ switch draft follows it. H5: `launchpad.gen3.json` and `launchpad.gen3.local.jso
 with its planned slots and Personalspace owner have no successor, amending F15 point
 2; 0167 point 9 records it as a proposal Matěj neither confirmed nor
 questioned. H7: the command names `lazurio module …` and `lazurio organization …` are
-kept from the resident; recommended and implemented. The rules of the preview lease
-(time to live, renewal, end conditions, the cap per Machine;
-[B14](launchpad-parity.md#b14-worktree-previews-under-a-temporary-hostname-p9-proposal))
-are a proposal, not a decision. Implementation proceeds on the recommendations; H5
+kept from the resident; recommended and implemented. The preview lease proposal was retired on 2026-10-20; [B14](launchpad-parity.md#b14-development-previews-through-the-environment-browser-p9) now points to the Environment browser contract. Implementation proceeds on the recommendations; H5
 and H7 can still change before the first final release that contains P4 and P5,
 without migrating anything.
 
@@ -6105,6 +6101,32 @@ switch. The resident Launchpad serves every hosted Machine until the switch rele
 | Port the resident's code | Carries a Git client, a plan browser and click ranking nobody decided; rejected: concepts, not code |
 | Keep transition-only admission until an identity continuity proof | The proof has no owner; every migrated Organization would lose its applications at the switch; rejected (H1) |
 | Parity by concept, CLI first, one Machines apply (selected) | No new Folder state and no parallel run; the switch waits for Recovery mode and a qualified candidate |
+
+### F22 addendum of 2026-10-20: stable addresses on `main`, development previews in the Environment browser
+
+**Matěj's decision of 2026-10-20, confirmed on 2026-11-13** (pull request #549). The
+Environment browser became the place where the user reviews work in progress, so
+[stable applications and development previews](development-previews.md) is the
+current contract. It replaces point 7 above, B14/P9/H3 of the
+[parity report](launchpad-parity.md) and the preview advice of F14's addendum of
+2026-10-02, which sent work in progress to a module's `runtime.url` through
+`lazurio module start`, or to ChatGPT Desktop's own SSH tunnel. F38 and F39 still own
+the browser and its view; a preview adds no gateway hostname, lease or catalog entry.
+
+The agent opens a preview in a new tab or in the window of a session that has none
+yet, the "A new tab" point of the manual's Environment browser section. It never
+relies on `lazurio browser window --url` for a session that already has its window:
+that command returns the bound window and does not navigate it
+(`ensureThreadWindowLocked` in `src/browser/window.ts`), so the thread would hand
+over its previous page.
+
+The Folder's `AGENTS.md`, `manual/this-machine.md`, `manual/working-here.md` and the
+new-module skill carry the rule in both locales, as `base-instructions-122`. Stable
+module entry targets built releases: an app that declares its build starts from `main`
+as that build (F58), one without still runs its declared dev command, and qualifying
+the built entry for every module is separate work (issue #548), not a claim of
+production readiness. No deployed Environment changes by editing or merging these
+sources: a versioned Platform release and a Folder refresh deliver them.
 
 ## F23 — The operator's own checkout is read by ownership, not by permission bits or link count
 
