@@ -663,13 +663,15 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-// How the Operator sees an agent's work follows the handover, never a guess
-// (decision F14 addendum 2026-10-02). Only ChatGPT Desktop's built-in browser
-// reaches a `localhost` port of the Environment, through a tunnel it opens
-// itself and that OpenAI does not document; T3 Code and Lazurio MausBot
-// forward nothing. Without SSH no client reaches `localhost`; without recorded
-// peers the handover's silence is said. A workstation has no such section.
-test("previews follow how the Operator connects: only ChatGPT Desktop over SSH reaches localhost, and only through its built-in browser", () => {
+// How the user sees work in progress (F22 addendum of 2026-10-20): it runs
+// beside the stable application, never in its place, and the Environment
+// browser shows it where the entry routes one. Without that browser the
+// handover decides, never a guess (decision F14 addendum 2026-10-02): only
+// ChatGPT Desktop's built-in browser reaches a `localhost` port of the
+// Environment, through a tunnel it opens itself and that OpenAI does not
+// document; T3 Code and Lazurio MausBot forward nothing. A workstation has no
+// such section and opens the preview in its own browser.
+test("previews run beside the stable application: in the Environment browser where it is routed, otherwise as the user connects", () => {
   const { team: _, ...owner } = organization.owner;
   const gatewayOnly = binding({
     ...organization,
@@ -688,16 +690,32 @@ test("previews follow how the Operator connects: only ChatGPT Desktop over SSH r
       ],
     },
   });
-  const render = (machine: typeof bindings.related) =>
+  const render = (machine: typeof bindings.related | null) =>
     renderOutputs({
-      preset: "hosted-organization-personal",
+      preset: machine === null ? "local" : "hosted-organization-personal",
       machine,
-      profile: presetProfile("hosted-organization-personal", "linux"),
+      profile: presetProfile(
+        machine === null ? "local" : "hosted-organization-personal",
+        "linux",
+      ),
     });
+  const withBrowser = render(bindings.organizationBrowser);
+  expect(withBrowser["AGENTS.md"]).toContain(
+    "- Never run an application in progress in place of the stable one from `main` (its `runtime.url`): run it from the worktree on its own loopback port and show it in a new tab of the Environment browser (`manual/this-machine.md`).",
+  );
+  expect(withBrowser["manual/this-machine.md"]).toContain(
+    "as the point Development preview of the section The Environment browser below describes.",
+  );
+  expect(withBrowser["manual/this-machine.md"]).not.toContain(
+    "open the preview in its built-in browser",
+  );
+
   const overSsh = render(bindings.related);
   expect(overSsh["AGENTS.md"]).toContain(
-    "- The user connects here over SSH. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) opens `localhost` from here, through a tunnel it opens to the port itself; T3 Code and Lazurio MausBot forward no port.",
+    "run it from the worktree on its own loopback port; `manual/this-machine.md` says how to show it.",
   );
+  // The SSH line about `localhost` is gone: the Environment browser opens it.
+  expect(overSsh["AGENTS.md"]).not.toContain("connects here over SSH");
   const machine = overSsh["manual/this-machine.md"];
   for (const sentence of [
     "Per the handover, the user connects here over SSH.",
@@ -705,37 +723,44 @@ test("previews follow how the Operator connects: only ChatGPT Desktop over SSH r
     "the user may be working in another one meanwhile.",
     "OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
     "When you run in T3 Code or Lazurio MausBot, no port reaches the user.",
+    "- **Starting a preview.** Run work in progress from the worktree beside the stable application",
   ])
     expect(machine).toContain(sentence);
   // The claim the review rejected: forwarding is not a documented fact.
   expect(machine).not.toContain(
     "Codex forwards the port to the operator itself",
   );
-  const browserOnly = render(gatewayOnly);
-  expect(browserOnly["AGENTS.md"]).toContain(
-    "- The user does not connect here over SSH: they cannot open `localhost` from here and no port is forwarded.",
+  const browserOnly = render(gatewayOnly)["manual/this-machine.md"];
+  expect(browserOnly).toContain(
+    "the user does not connect here over SSH, so they cannot see `localhost` from here.",
   );
-  expect(browserOnly["manual/this-machine.md"]).toContain(
-    "the user cannot open them and no client forwards them.",
-  );
-  expect(browserOnly["manual/this-machine.md"]).not.toContain(
-    "built-in browser",
-  );
-  const unknown = render(bindings.organization);
-  expect(unknown["AGENTS.md"]).toContain(
-    "- `localhost` exists only here. Only the built-in browser of ChatGPT Desktop (formerly Codex Desktop) connected over SSH opens it",
-  );
-  expect(unknown["manual/this-machine.md"]).toContain(
+  expect(browserOnly).not.toContain("built-in browser");
+  expect(render(bindings.organization)["manual/this-machine.md"]).toContain(
     "The handover does not record where the user connects from.",
   );
-  for (const journey of journeys)
+  expect(render(null)["AGENTS.md"]).toContain(
+    "run it from the worktree on its own loopback port and open it in this computer's browser (`manual/working-here.md`).",
+  );
+  for (const journey of journeys) {
+    const outputs = renderOutputs({
+      preset: journey.preset,
+      machine: journey.machine,
+      profile: presetProfile(journey.preset, journey.os),
+    });
     expect(
-      renderManual({
-        preset: journey.preset,
-        machine: journey.machine,
-        profile: presetProfile(journey.preset, journey.os),
-      })["manual/this-machine.md"].includes("## How the user works with you"),
+      outputs["manual/this-machine.md"].includes(
+        "## How the user works with you",
+      ),
     ).toBe(journey.machine !== null);
+    expect(outputs["manual/working-here.md"]).toContain(
+      "## Stable applications and development previews",
+    );
+    // Work in progress never takes the stable application's place.
+    for (const text of Object.values(outputs))
+      expect(text).not.toContain(
+        "Start a module's application in progress (`lazurio module start`)",
+      );
+  }
 });
 
 // A work Environment belongs to the Organization and serves work only; the

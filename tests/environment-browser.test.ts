@@ -1373,6 +1373,102 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+// A development preview (F22 addendum of 2026-10-20) opens in a new tab or a
+// new session's window. `--url` applies only when `lazurio browser window`
+// creates the window, so a thread that already has one would hand over its
+// previous page (Pablo's review of #549). The rendered Folder's own command,
+// run for a thread whose window is open, must open the preview's address.
+test.skipIf(process.platform === "win32")(
+  "the rendered preview command opens the preview for a thread that already has its window",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const manual = await readFile(
+      join(folder, "manual", "this-machine.md"),
+      "utf8",
+    );
+    const point =
+      manual
+        .split("\n")
+        .find(
+          (line) =>
+            line.startsWith("- **Development preview.**") ||
+            line.startsWith("- **Vývojový náhled.**"),
+        ) ?? "";
+    expect(point).toContain("`preview_open`");
+    expect(point).toContain("`reuseExistingTab: false`");
+    expect(point).toMatch(/the point A new tab|bodu Nová záložka/);
+    expect(point).toContain("`created: false`");
+    // Never the thread's own session with an address.
+    expect(point).not.toMatch(/--session <(session|sezení)> --url/);
+    const command =
+      /`lazurio browser (window --session <(?:session|sezení)>-preview --url <[^>]+> --json)`/.exec(
+        point,
+      )?.[1];
+    expect(command).toBeDefined();
+
+    const socketDir = join(home, "sockets");
+    await mkdir(socketDir);
+    await writeFile(
+      join(socketDir, "codex-019a.target"),
+      JSON.stringify({ targetId: OPEN, url: "about:blank", pinned: true }),
+    );
+    const env = { HOME: home, CODEX_THREAD_ID: "019a" };
+    const preview = "http://127.0.0.1:5199/";
+
+    // The trap: the thread's own window comes back unmoved.
+    const own = windowSeams({ socketDir, targets: [OPEN] });
+    const reused = await runBrowserCommand(
+      ["window", "--url", preview, "--folder", folder, "--json"],
+      context(env, own.seams),
+    );
+    expect(JSON.parse(reused.stdout ?? "")).toMatchObject({
+      session: "codex-019a",
+      targetId: OPEN,
+      created: false,
+    });
+    expect(own.calls).toEqual([]);
+
+    // The manual's command opens a new window at the preview's address.
+    const args = (command ?? "")
+      .replace(/<(session|sezení)>/, "codex-019a")
+      .replace(/<[^>]+>/, preview)
+      .split(" ");
+    const fresh = windowSeams({ socketDir, targets: [OPEN] });
+    const opened = await runBrowserCommand(
+      [...args, "--folder", folder],
+      context(env, fresh.seams),
+    );
+    expect(opened.code).toBe(0);
+    expect(JSON.parse(opened.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-window",
+      session: "codex-019a-preview",
+      targetId: NEWTARGET,
+      created: true,
+      link: `${origin}/t/${NEWTARGET}`,
+      command: "agent-browser --cdp 9222 --session codex-019a-preview",
+    });
+    expect(fresh.calls[0]).toEqual([
+      "Target.createTarget",
+      { url: preview, newWindow: true, width: 1280, height: 900 },
+    ]);
+
+    // A preview session that has its window already says so, as the manual
+    // tells the agent to check.
+    await writeFile(
+      join(socketDir, "codex-019a-preview.target"),
+      JSON.stringify({ targetId: NEWTARGET, url: preview, pinned: true }),
+    );
+    const again = windowSeams({ socketDir, targets: [OPEN, NEWTARGET] });
+    const taken = await runBrowserCommand(
+      [...args, "--folder", folder],
+      context(env, again.seams),
+    );
+    expect(JSON.parse(taken.stdout ?? "")).toMatchObject({ created: false });
+    expect(again.calls).toEqual([]);
+  },
+);
+
 // Root decision 0191 point 28: letting go asks the session's own daemon on
 // that session's socket to shut down and never signals a process id (Pablo's
 // review of #348): a stale .pid whose number a live process named
