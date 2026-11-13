@@ -1,5 +1,4 @@
 import { parseArgs } from "node:util";
-import { appsHelp, runAppsCommand } from "./agent-entry/cli";
 import {
   browserCommandWithoutNotice,
   browserHelp,
@@ -362,12 +361,6 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // its view.
   if (args[0] === "browser")
     return emit(await runBrowserCommand(args.slice(1), processContext()));
-  // Colleagues' applications for agents (Lazurio Auth
-  // docs/agent-application-entry.md, plan LZD-0009 M9): the list through the
-  // Environment's relay, and one application opened in the thread's window
-  // of the Environment browser by its one-time hand-over.
-  if (args[0] === "apps")
-    return emit(await runAppsCommand(args.slice(1), processContext()));
   // The Environment's vault (decisions F43, F53): `vault env` prints the
   // shell exports alone on stdout, for `eval "$(lazurio vault env)"`;
   // setup's steps and every refusal go to stderr.
@@ -716,7 +709,6 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(buddyHelp);
     console.log(themeHelp);
     console.log(browserHelp);
-    console.log(appsHelp);
     console.log(filesHelp);
     console.log(integrationsHelp);
     console.log(vaultHelp);

@@ -52,10 +52,7 @@ export class BrowserWindowFailure extends Error {
     readonly reason:
       | "browser-unreachable"
       | "window-create-failed"
-      | "bind-failed"
-      // `openInThreadWindow`: agent-browser did not open the address in the
-      // thread's bound window.
-      | "navigate-failed",
+      | "bind-failed",
   ) {
     super(reason);
   }
@@ -289,16 +286,6 @@ async function ensureThreadWindowLocked(
       throw new BrowserWindowFailure("bind-failed");
     return Object.freeze({ session, targetId: shown, created: false });
   }
-  return createThreadWindow(session, url, seams);
-}
-
-/** A new window in the default context at `url`, bound to the session and
- * pinned (`ensureThreadWindow`). */
-async function createThreadWindow(
-  session: string,
-  url: string | undefined,
-  seams: WindowSeams,
-): Promise<ThreadWindow> {
   let created: unknown;
   try {
     created = (
@@ -317,40 +304,6 @@ async function createThreadWindow(
   if (!(await bindSession(session, targetId, seams)))
     throw new BrowserWindowFailure("bind-failed");
   return Object.freeze({ session, targetId, created: true });
-}
-
-/** A page the thread opens in its own window (a colleague's application
- * through its hand-over, Lazurio Auth docs/agent-application-entry.md,
- * LZD-0009 M9): unlike `ensureThreadWindow`, the address does move the
- * window. Without a bound window, a new one at `url`; with one, agent-
- * browser's own `open` navigates it there. Both are navigations the browser
- * starts itself (DevTools' `Target.createTarget` and `Page.navigate`), never
- * a page's link or form, which the hosting gateway's landing requires
- * (`Sec-Fetch-Site: none`). The address is opened exactly as given. Under
- * the account's window lock. */
-export async function openInThreadWindow(
-  session: string,
-  url: string,
-  seams: WindowSeams,
-): Promise<ThreadWindow> {
-  return underWindowLock(seams.env, async () => {
-    let existing: string | null;
-    try {
-      existing = await boundTarget(session, seams);
-    } catch {
-      throw new BrowserWindowFailure("browser-unreachable");
-    }
-    if (existing === null) return createThreadWindow(session, url, seams);
-    const opened = await agentBrowser(seams, [
-      "--session",
-      session,
-      "open",
-      url,
-    ]).catch(() => "timeout" as const);
-    if (opened === "timeout" || opened.exitCode !== 0)
-      throw new BrowserWindowFailure("navigate-failed");
-    return Object.freeze({ session, targetId: existing, created: false });
-  });
 }
 
 /** The real seams: the browser's loopback DevTools endpoint. */

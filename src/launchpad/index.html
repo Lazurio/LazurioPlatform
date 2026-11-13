@@ -446,9 +446,6 @@ button.access-check[aria-disabled="true"] { cursor: progress; }
    the link's blue (root decision 0209 point 6, prototypes-lazurio #71). */
 .tile[data-kind="repository"] .tile-mark .icon { width: 34px; height: 34px; }
 .tile-service { color: var(--link); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: 1.5; }
-/* A shared application's role (decision 0231): Admin aplikace or Uživatel
-   aplikace as a quiet label under who shares it. */
-.tile-role { align-self: flex-start; padding: 1px 7px; border-radius: 999px; background: var(--hover); color: var(--muted-fg); font-size: 12px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
 /* The personal space's starts (root decision 0185's addendum of 2026-10-13;
    the wireframe's .lp-starts, prototypes-lazurio c0fa0e92): after the
    modules under a quiet title, never a third section pill; a tile per start,
@@ -536,11 +533,6 @@ dialog.market-dialog .dialog-foot [role="status"]:empty { display: none; }
 .module-head-text { display: grid; gap: 2px; min-width: 0; }
 .module-meta { color: var(--muted-fg); font-size: 14px; }
 .module-open { margin-left: auto; height: 30px; padding: 0 12px; }
-/* "Zpřístupnit kolegům" (decision 0231): the Assigned User's quiet button
-   before the application's Open, both at the head's right end. */
-.module-share { margin-left: auto; }
-.module-share .icon { width: 14px; height: 14px; }
-.module-share + .module-open { margin-left: 0; }
 .command { display: block; margin-top: 8px; padding: 8px 10px; border-radius: var(--radius-control); background: var(--lz-ink); color: var(--lz-paper); font-size: 12.5px; user-select: all; overflow-wrap: anywhere; }
 
 /* Sections, cards and rows (T3 Code settingsLayout.tsx, Lazurio look). */
@@ -1211,7 +1203,7 @@ button.browser-toast-action { flex: none; margin-left: 4px; height: 28px; paddin
   .row { padding: 12px; }
   .files-row { padding: 10px 12px; }
   .module-head { flex-wrap: wrap; }
-  .module-open, .module-share { margin-left: 0; }
+  .module-open { margin-left: 0; }
 }
 
 /* The first run (root decision 0188; the wireframe's setup.css,
@@ -2101,13 +2093,6 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <div class="card" id="content-list"></div>
 </section>
 <dl id="machine" class="card" data-guide="machine-facts"></dl>
-<!-- "Agenti v aplikacích kolegů" (Lazurio Auth docs/agent-application-entry.md,
-     LZD-0009 M9): the switch, shown only, with the link to the page in
-     Lazurio where the person changes it; drawn by ui.ts. -->
-<section class="group" id="agent-entry-group" aria-labelledby="agent-entry-heading" hidden>
-<div class="group-head"><h2 id="agent-entry-heading"></h2></div>
-<div class="card"><div class="row"><div class="row-main"><div class="row-copy"><p class="row-title" id="agent-entry-state"></p><p class="row-status" id="agent-entry-hint"></p></div><div class="row-control"><a class="button" id="agent-entry-link" target="_blank" rel="noopener noreferrer"></a></div></div></div></div>
-</section>
 <details class="technical" id="machine-support" data-guide="machine-support" hidden><summary data-message="machineSupport">For support</summary><dl id="machine-support-list" class="card"></dl></details>
 </section>
 

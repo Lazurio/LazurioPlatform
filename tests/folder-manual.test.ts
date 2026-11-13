@@ -34,10 +34,8 @@ import {
 } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
-  aiSignInRouting,
   buddyChatRouting,
   buddyPublicationRules,
-  launchpadRouting,
   networkLine,
   ownSignInIdentity,
   publicationRules,
@@ -127,22 +125,7 @@ test("device admission and desktop handoff distinguish personal and Organization
       expect(manual).not.toContain(
         "V Přehledu Organizace zkontroluj oba počítače",
       );
-      // Who approves a device for a Personal Environment: in a Conglomerate
-      // today the host owner's reviewed change, as the target the
-      // Organization Admin (decision 0192); in Lazurio's personal tailnet the
-      // person, as the target (decision 0243). No Personal Environment is
-      // without a tailnet.
       expect(manual).toContain(
-        locale === "cs"
-          ? "cílově ho schvaluje Admin Organizace jako každé zařízení (decision 0192)"
-          : "as the target, the Organization Admin approves it like any device (decision 0192)",
-      );
-      expect(manual).toContain(
-        locale === "cs"
-          ? "V osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0243)"
-          : "In Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0243)",
-      );
-      expect(manual).not.toContain(
         locale === "cs"
           ? "Osobní Prostředí bez tailnetu a SSH"
           : "A personal Environment without tailnet or SSH",
@@ -925,12 +908,8 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
         );
         expect(text).toContain(
           cs
-            ? "a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá uživatel sám v Launchpadu" +
-                (github === "brokered" ? "" : " (AI v Začínáme)") +
-                "; o heslo, token ani kód nežádej."
-            : "and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The user makes sign-ins and connections in the Launchpad themselves" +
-                (github === "brokered" ? "" : " (AI in Začínáme)") +
-                "; never ask for a password, token or code.",
+            ? "a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlášení a napojení dělá uživatel sám v Launchpadu; o heslo, token ani kód nežádej."
+            : "and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The user makes sign-ins and connections in the Launchpad themselves; never ask for a password, token or code.",
         );
         expect(text).toContain(
           cs
@@ -1053,19 +1032,15 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
           const [line = ""] = naming;
           for (const sentence of contract[locale])
             expect(line).toContain(sentence);
-          // Right after the Launchpad's lines: the Launchpad, its GitHub
-          // line on the person's own sign-in and, in the manual, where AI
-          // signs in (AGENTS.md, at its byte budget, names Začínáme in the
-          // Launchpad's line instead).
+          // Right after the Launchpad's lines: the Launchpad, then its
+          // GitHub line on the person's own sign-in.
           const at = lines.indexOf(line);
-          const ai = path === "manual/this-machine.md" ? 1 : 0;
-          expect(lines[at - 2 - ai]).toStartWith(
+          expect(lines[at - 2]).toStartWith(
             locale === "cs"
               ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
               : "- This Environment's Launchpad (call it Lazurio towards users;",
           );
-          expect(lines[at - 1 - ai]).toStartWith("- GitHub: ");
-          if (ai === 1) expect(lines[at - 1]).toStartWith("- AI (");
+          expect(lines[at - 1]).toStartWith("- GitHub: ");
         }
         expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
         // His origin names his chat and nothing else: no other file of the
@@ -2756,18 +2731,17 @@ test("the remaining rules of the Root's inventory each have one place in the man
       en: "so a module with restricted rights always has a server part and the browser never reaches its store.",
     },
     {
-      // Decision 0243, where access is decided; the public-DNS mode of 0213
-      // is retired.
+      // Decision 0213, where access is decided.
       path: "manual/lazurio.md",
       on: every,
-      cs: "Do každého Environmentu se vstupuje jen přes tailnet (decision 0243, rozhodnuté, zatím nenasazené): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám.",
-      en: "Every Environment is entered only through a tailnet (decision 0243, decided, not yet deployed): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices.",
+      cs: "Organizace může své Environmenty přepnout z tailnetu na veřejné DNS (decision 0213, zčásti nasazené): lidé pak vstupují z internetu jen branou každého Environmentu, s Lazurio účtem, členstvím a grantem místo schváleného zařízení, a ze svých zařízení dostanou jen webové rozhraní (Launchpad, chat, Lazurio MausBot, Buddy), ne SSH, desktopové T3 Code ani trezor.",
+      en: "An Organization may switch its Environments from the tailnet to public DNS (decision 0213, partly deployed): people then enter from the internet, only through each Environment's gateway, with the Lazurio account, membership and a grant in place of an approved device, and from their devices they get only the web interface (the Launchpad, chat, Lazurio MausBot, Buddy), no SSH, desktop T3 Code or vault.",
     },
     {
       path: "manual/lazurio.md",
       on: every,
-      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, u referenční Organizace do jejího návratu do tailnetu i z internetu (Kdo rozhoduje o přístupu výše);",
-      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, and for the reference Organization until its return to its tailnet also from the internet (Who decides access above);",
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, s veřejným DNS i z internetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, with public DNS also from the internet (Who decides access above);",
     },
     {
       // Every rewrite of a branch, not only a fork's.
@@ -2894,41 +2868,4 @@ test("the remaining rules of the Root's inventory each have one place in the man
         environment.preset !== "hosted-personal",
       ]);
     }
-});
-
-// Where ChatGPT and Claude sign in (root decision 0201, F19's addendum of
-// 2026-10-15): an agent that read only the gh line sent the user to Tools,
-// which has no AI sign-in (2026-11-03). Every Environment with Začínáme says
-// it; a Team Environment, whose hosting prepares its AI, does not.
-test("the manual says AI signs in at Začínáme, never Tools, and AGENTS.md names Začínáme, where the Environment has Začínáme", () => {
-  const origin = "https://launchpad.example.lazurio.io";
-  for (const identity of ["own-sign-in", "persona-account"] as const) {
-    const ai = aiSignInRouting(origin, identity);
-    expect(ai?.cs).toContain(
-      `Nastavení → Začínáme \`${origin}/settings/start\``,
-    );
-    expect(ai?.cs).toContain("Nástroje přihlášení k AI nenabízejí");
-    expect(ai?.en).toContain(
-      `Settings → Začínáme \`${origin}/settings/start\``,
-    );
-    expect(ai?.en).toContain("Tools offers no AI sign-in");
-    const [launchpad] = launchpadRouting(
-      "hosted-organization-personal",
-      origin,
-      identity,
-    );
-    expect(launchpad?.cs).toContain("(AI v Začínáme)");
-    expect(launchpad?.en).toContain("(AI in Začínáme)");
-  }
-  // A Team Environment has no Začínáme: neither the line nor the hint.
-  for (const identity of ["brokered-organization", "none"] as const) {
-    expect(aiSignInRouting(origin, identity)).toBeNull();
-    const [launchpad] = launchpadRouting(
-      "hosted-organization-team",
-      origin,
-      identity,
-    );
-    expect(launchpad?.cs).not.toContain("Začínáme");
-    expect(launchpad?.en).not.toContain("Začínáme");
-  }
 });

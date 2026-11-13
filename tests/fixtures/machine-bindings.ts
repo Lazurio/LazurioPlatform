@@ -183,9 +183,8 @@ const { team: _, ...withoutTeam } = organization.owner;
 // Environment browser's view (root decision 0191), with `signOut` it names
 // the person's sign-out (Machines#358) and with `audience` it is a public
 // Environment (root decision 0204). With `assignment` it is instead the
-// Team's (`team`), a persona's Automated Environment (`automation`), the
-// services Environment of a server (`services`, root decision 0209) or the
-// work Environment assigned to its operator `example` (`operator`), its
+// Team's (`team`), a persona's Automated Environment (`automation`) or the
+// services Environment of a server (`services`, root decision 0209), its
 // Team kept, as the handover states it.
 export function organizationWithEntry(
   listenPort = 20000,
@@ -193,7 +192,7 @@ export function organizationWithEntry(
   browser = false,
   signOut = false,
   audience = false,
-  assignment: "operator" | "team" | "automation" | "services" | null = null,
+  assignment: "team" | "automation" | "services" | null = null,
 ) {
   const entry = handoverEntry(host, listenPort);
   const routed = browser ? withBrowser(entry, host) : entry;

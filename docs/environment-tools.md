@@ -679,8 +679,7 @@ pinned CLI, custody and one shared session stay). The account and the vault come
 the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
 which Machines writes only for a Platform that reads it; without it a work, Team or
 Automated Environment has no vault yet (`unsupported`, `no-vault`), and one whose
-handover names no tailnet either, which since root decision 0243 is only the reference
-Organization's before its return to its tailnet (root decision 0204), has
+handover names no tailnet either, a public Organization's (root decision 0204), has
 none by design (`no-tailnet`): a Lazurio Vaultwarden answers only inside its network
 ([F53's addendum of 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)). A personal
 Environment whose handover names no vault keeps its vault in its user's own
@@ -949,8 +948,8 @@ they claim no state of the vault ([F53's addendum of
 2026-10-18](decisions.md#f53-addendum-of-2026-10-18-the-agents-text-follows-lazurio-vault-status),
 issue #470): only `lazurio vault status` says whether there is one and in which
 state, `connected` is the vault its agents use on their own, only `unsupported` with
-`no-vault` (the handover names none yet) or `no-tailnet` (an Environment outside the
-vault's tailnet, which has none on purpose) is none here, any other answer, `unsupported`
+`no-vault` (the handover names none yet) or `no-tailnet` (a public Organization's
+Environment, which has none on purpose) is none here, any other answer, `unsupported`
 for another reason too, proves no absence and the agent follows what the status
 says, its reason included, and until the vault is connected secrets go where the
 user says.

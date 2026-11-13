@@ -43,25 +43,6 @@ const en = {
     "Launchpad, T3 Code, the Environment's gateway, agents and the system",
   memoryHint:
     "Memory is almost full. Close heavy tabs and stop Modules you do not need.",
-  diskTitle: "Environment disk",
-  diskFree: "Free {value}",
-  diskFreeTitle: "What apps and agents can still write",
-  diskHome: "Home folder: {value} free",
-  diskHomeTitle: "Your home folder is on a disk of its own",
-  diskHint:
-    "The disk is running out of space. Delete files you do not need or ask for a bigger disk.",
-  diskFullHint:
-    "The disk is almost full and writes will soon fail. Delete files you do not need or ask for a bigger disk.",
-  cpuTitle: "Environment CPU",
-  cpuPercent: "{value}%",
-  cpuAverage: "5-min average",
-  cpuValueTitle:
-    "Processor load over the last 5 minutes against its cores. It is a weighted average and also counts tasks waiting for the disk.",
-  cpuCoresOne: "{n} core",
-  cpuCoresFew: "{n} cores",
-  cpuCoresMany: "{n} cores",
-  cpuHint:
-    "The load over the last 5 minutes is high; apps and agents may slow down. The load also counts waiting for the disk.",
   tabsTitle: "Environment tabs",
   tabsEmpty:
     "No tab is open in the Environment browser. Enter an address above.",
@@ -213,25 +194,6 @@ const cs: Words = {
   memoryOtherTitle: "Lazurio, T3 Code, brána Prostředí, agenti a systém",
   memoryHint:
     "Paměť je skoro plná. Zavřete těžké záložky a zastavte Moduly, které nepotřebujete.",
-  diskTitle: "Disk Prostředí",
-  diskFree: "Volno {value}",
-  diskFreeTitle: "Kolik mohou aplikace a agenti ještě zapsat",
-  diskHome: "Domovská složka: volno {value}",
-  diskHomeTitle: "Vaše domovská složka je na samostatném disku",
-  diskHint:
-    "Na disku dochází místo. Smažte nepotřebné soubory nebo požádejte o větší disk.",
-  diskFullHint:
-    "Disk je téměř plný a zápisy brzy začnou selhávat. Smažte nepotřebné soubory nebo požádejte o větší disk.",
-  cpuTitle: "Procesor Prostředí",
-  cpuPercent: "{value} %",
-  cpuAverage: "průměr za 5 min",
-  cpuValueTitle:
-    "Zátěž procesoru za posledních 5 minut vůči počtu jader. Je to vážený průměr a počítá i úlohy, které čekají na disk.",
-  cpuCoresOne: "{n} jádro",
-  cpuCoresFew: "{n} jádra",
-  cpuCoresMany: "{n} jader",
-  cpuHint:
-    "Zátěž za posledních 5 minut je vysoká, aplikace a agenti mohou zpomalit. Zátěž počítá i čekání na disk.",
   tabsTitle: "Záložky Prostředí",
   tabsEmpty:
     "V prohlížeči Prostředí není otevřená žádná záložka. Zadejte adresu nahoře.",
@@ -443,22 +405,6 @@ export type NewTabMemory = Readonly<{
   rest: number | null;
 }>;
 
-/** A file system's space in bytes (machine.ts). */
-export type NewTabDiskSpace = Readonly<{
-  total: number;
-  used: number;
-  free: number;
-}>;
-
-export type NewTabDisk = NewTabDiskSpace &
-  Readonly<{ home: NewTabDiskSpace | null }>;
-
-export type NewTabCpu = Readonly<{
-  percent: number | null;
-  cores: number | null;
-  load: number | null;
-}>;
-
 export type NewTabModule = Readonly<{
   org: string;
   module: string;
@@ -477,9 +423,6 @@ export type NewTabOverview = Readonly<{
   /** Null while the hub does not answer. */
   tabs: readonly NewTabTab[] | null;
   memory: NewTabMemory;
-  /** Null off Linux, from a Launchpad that does not read it, or unread. */
-  disk: NewTabDisk | null;
-  cpu: NewTabCpu | null;
   /** Null when which Modules run is not known. */
   modules: readonly NewTabModule[] | null;
 }>;
@@ -582,37 +525,6 @@ function parseModule(value: unknown): NewTabModule | null {
   };
 }
 
-function parseDiskSpace(value: unknown): NewTabDiskSpace | null {
-  if (!isRecord(value)) return null;
-  const total = bytes(value.total);
-  const used = bytes(value.used);
-  const free = bytes(value.free);
-  return total === null || used === null || free === null || total === 0
-    ? null
-    : { total, used: Math.min(used, total), free: Math.min(free, total) };
-}
-
-function parseDisk(value: unknown): NewTabDisk | null {
-  const root = parseDiskSpace(value);
-  if (root === null || !isRecord(value)) return null;
-  return { ...root, home: parseDiskSpace(value.home) };
-}
-
-function parseCpu(value: unknown): NewTabCpu | null {
-  if (!isRecord(value)) return null;
-  const percent = bytes(value.percent);
-  const cores = bytes(value.cores);
-  const cpu = {
-    percent: percent === null ? null : Math.min(100, Math.round(percent)),
-    cores:
-      cores !== null && Number.isInteger(cores) && cores > 0 ? cores : null,
-    load: bytes(value.load),
-  };
-  return cpu.percent === null && cpu.cores === null && cpu.load === null
-    ? null
-    : cpu;
-}
-
 /** `GET /api/new-tab/overview`'s answer, read field by field; null when it
  * is not one. A tab or a Module of another shape is left out, a memory value
  * that is no byte count is unknown. */
@@ -640,8 +552,6 @@ export function parseOverview(value: unknown): NewTabOverview | null {
       modules: bytes(memory.modules),
       rest: bytes(memory.rest),
     },
-    disk: parseDisk(value.disk),
-    cpu: parseCpu(value.cpu),
     modules: Array.isArray(value.modules)
       ? value.modules.flatMap((module: unknown) => {
           const read = parseModule(module);
@@ -705,7 +615,7 @@ export function formatMemory(value: number, locale: "cs" | "en"): string {
 }
 
 /** The Dashboard's thresholds: 80 % warns, 90 % is bad. */
-export function memoryTone(percent: number): Tone {
+export function memoryTone(percent: number): "ok" | "warn" | "bad" {
   return percent >= 90 ? "bad" : percent >= 80 ? "warn" : "ok";
 }
 
@@ -772,147 +682,6 @@ export function memoryModel(
     tone,
     parts,
     hint: tone === "ok" ? null : copy.memoryHint,
-  };
-}
-
-// ---- Disk and processor (F47 point 7, its addendum of 2026-11-12) ----------
-
-export type Tone = "ok" | "warn" | "bad";
-
-const gib = 1024 * 1024 * 1024;
-
-/** A disk's tone by what can still be written: under 15 % or 8 GiB it
- * warns (Machines makes the swap file only while 8 GiB of the root stay
- * free), under 5 % or 2 GiB it is bad, as writes start failing within an
- * agent's run. Whichever comes first: a small disk runs out by its
- * gigabytes, a big one by its share. */
-export function diskTone(space: NewTabDiskSpace): Tone {
-  if (space.total <= 0) return "ok";
-  const share = space.free / space.total;
-  if (share < 0.05 || space.free < 2 * gib) return "bad";
-  if (share < 0.15 || space.free < 8 * gib) return "warn";
-  return "ok";
-}
-
-/** A disk's size: as the memory up to 100 GB, then whole gigabytes, and
- * terabytes from 1000 GB ("745 GB", "1,9 TB"). */
-export function formatDisk(value: number, locale: "cs" | "en"): string {
-  const gb = value / gib;
-  if (gb < 100) return formatMemory(value, locale);
-  if (gb < 1000) return `${Math.round(gb)} GB`;
-  const tb = String(Math.round((gb / 1024) * 10) / 10);
-  return `${locale === "cs" ? tb.replace(".", ",") : tb} TB`;
-}
-
-const worse = (a: Tone, b: Tone): Tone =>
-  a === "bad" || b === "bad"
-    ? "bad"
-    : a === "warn" || b === "warn"
-      ? "warn"
-      : "ok";
-
-/** One meter of Přehled other than the memory, in its look: the value, the
- * bar, the parts and a hint only when the tone is not ok. */
-export type MeterModel = Readonly<{
-  title: string;
-  value: Readonly<{
-    strong: string;
-    rest: string | null;
-    title: string | null;
-  }> | null;
-  percent: number | null;
-  tone: Tone;
-  parts: readonly Readonly<{ text: string; title: string | null }>[];
-  hint: string | null;
-}>;
-
-/** The disk block of Přehled: the root, and the home folder as a part when
- * it is on a disk of its own; the tone is the worse of the two. */
-export function diskModel(
-  disk: NewTabDisk | null,
-  copy: NewTabCopy,
-  locale: "cs" | "en",
-): MeterModel | null {
-  if (disk === null) return null;
-  const tone = worse(
-    diskTone(disk),
-    disk.home === null ? "ok" : diskTone(disk.home),
-  );
-  const parts = [
-    {
-      text: fill(copy.diskFree, { value: formatDisk(disk.free, locale) }),
-      title: copy.diskFreeTitle,
-    },
-  ];
-  if (disk.home !== null)
-    parts.push({
-      text: fill(copy.diskHome, {
-        value: formatDisk(disk.home.free, locale),
-      }),
-      title: copy.diskHomeTitle,
-    });
-  return {
-    title: copy.diskTitle,
-    value: {
-      strong: formatDisk(disk.used, locale),
-      rest: `${copy.memoryOf} ${formatDisk(disk.total, locale)}`,
-      title: null,
-    },
-    percent: Math.min(100, Math.round((disk.used / disk.total) * 100)),
-    tone,
-    parts,
-    hint:
-      tone === "bad"
-        ? copy.diskFullHint
-        : tone === "warn"
-          ? copy.diskHint
-          : null,
-  };
-}
-
-/** The processor's number is its 5-minute load average against its cores
- * (Matěj 2026-11-12), and it warns from 90 %. A short peak is how agents
- * work and moves the average little; a high load slows the Environment
- * down without failing anything, so it is never bad. */
-export function cpuTone(cpu: NewTabCpu): Tone {
-  return cpu.percent !== null && cpu.percent >= 90 ? "warn" : "ok";
-}
-
-/** "1 jádro", "2 jádra", "8 jader"; "1 core", "8 cores". */
-export function coresText(cores: number, copy: NewTabCopy): string {
-  const template =
-    cores === 1
-      ? copy.cpuCoresOne
-      : cores >= 2 && cores <= 4
-        ? copy.cpuCoresFew
-        : copy.cpuCoresMany;
-  return fill(template, { n: String(cores) });
-}
-
-/** The processor block of Přehled; null when nothing of it is known. */
-export function cpuModel(
-  cpu: NewTabCpu | null,
-  copy: NewTabCopy,
-): MeterModel | null {
-  if (cpu === null || (cpu.percent === null && cpu.cores === null)) return null;
-  const tone = cpuTone(cpu);
-  return {
-    title: copy.cpuTitle,
-    value: {
-      strong:
-        cpu.percent === null
-          ? ""
-          : fill(copy.cpuPercent, { value: String(cpu.percent) }),
-      rest: cpu.percent === null ? null : copy.cpuAverage,
-      title: copy.cpuValueTitle,
-    },
-    percent: cpu.percent,
-    tone,
-    parts:
-      cpu.cores === null
-        ? []
-        : [{ text: coresText(cpu.cores, copy), title: null }],
-    hint: tone === "ok" ? null : copy.cpuHint,
   };
 }
 

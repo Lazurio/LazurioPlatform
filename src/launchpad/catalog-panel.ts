@@ -8,7 +8,6 @@ import type {
   CatalogRepository,
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import type { AccountSharedApplication } from "../shell/contract";
 import { icon } from "../shell/icons";
 import { initialsOf, type SwitchTab } from "../shell/view";
 import {
@@ -29,7 +28,6 @@ import { appLinkTarget, startThenOpen } from "./app-opening";
 import {
   type AppsHomePart,
   type AppsSection,
-  type AppsSharedSection,
   type AppsTab,
   type AppsTile,
   appsHeading,
@@ -46,13 +44,7 @@ import {
   moduleStone,
   type NewModuleOffer,
   type PersonalStart,
-  type SharedApplicationTile,
-  type ShareHere,
-  type ShareInput,
-  sharedApplicationsSection,
-  shareTarget,
   type TileTarget,
-  tileShareTarget,
   tileTarget,
   workspaceTabsTarget,
 } from "./apps-view";
@@ -64,7 +56,6 @@ import {
   catalogStatus,
   guestFacts,
   moduleFacts,
-  moduleRoute,
   organizationName,
   organizationRoute,
   parseCatalog,
@@ -192,10 +183,6 @@ export function createCatalogPanel(
     /** The Dashboard page of an Organization slug, as the shell document
      * names it, or null. */
     dashboard: (slug: string) => string | null;
-    /** This Environment as the shell document names it (its current
-     * Environment), for "Zpřístupnit kolegům" and to leave its own
-     * applications out of the shared ones; null until it is read. */
-    here: () => ShareHere | null;
     /** The switch Chat · Apps · Automate of this Environment as the column
      * head draws it (`switchTabs`), for the personal space's starts; empty
      * until the shell document is read. */
@@ -259,17 +246,9 @@ export function createCatalogPanel(
   const maintainers = createOwnerAnswers();
   // The person's account (root decision 0185 S12, S18): undefined until it
   // is read once, null when it is unavailable (today's behaviour stays:
-  // favourites in this browser, apps in a new tab). With it, who is at the
-  // browser (for "Zpřístupnit kolegům") and the applications colleagues
-  // made available to them (decision 0231), null where the document is not
-  // valid as a whole.
+  // favourites in this browser, apps in a new tab).
   let account:
-    | Readonly<{
-        openApps: OpenApps;
-        favourites: AccountFavourites;
-        login: string | null;
-        sharedApplications: readonly AccountSharedApplication[] | null;
-      }>
+    | Readonly<{ openApps: OpenApps; favourites: AccountFavourites }>
     | null
     | undefined;
   void options
@@ -284,8 +263,6 @@ export function createCatalogPanel(
                 value.favourites,
                 options.writeAccount,
               ),
-              login: value.login,
-              sharedApplications: value.sharedApplications,
             };
     })
     .catch(() => {
@@ -293,13 +270,6 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
-  // "Zpřístupnit kolegům" (decision 0231): what shareTarget needs besides
-  // the Module and its page here, where the Dashboard leads back.
-  const shareInput = (): ShareInput => ({
-    here: options.here(),
-    viewer: account?.login ?? null,
-    dashboard: options.dashboard,
-  });
   let lifecycle: LifecycleState | null = null;
   // Why a tile's Open was refused, for the overview it then shows; taken once
   // (lifecycleShown).
@@ -784,21 +754,6 @@ export function createCatalogPanel(
       github.append(svg("external"), copy.appsInfoGuest);
       github.addEventListener("click", close);
       list.append(github);
-    }
-    // "Zpřístupnit kolegům" (decision 0231): the Assigned User of this Work
-    // Environment makes the application available in the Organization's
-    // Dashboard, in this window, and comes back to the Module's page. Right
-    // after the overview, before the access items, which may join the open
-    // menu later.
-    const share = tileShareTarget(item, group, shareInput());
-    if (share !== null) {
-      const link = element("a", "tile-menu-item");
-      link.href = share;
-      link.title = copy.appsShareHint;
-      link.setAttribute("role", "menuitem");
-      link.append(svg("key"), copy.appsShare);
-      link.addEventListener("click", close);
-      list.append(link);
     }
     // Whether the menu could ever offer it (a module, a Dashboard page),
     // before any Module Maintainer answer.
@@ -1365,68 +1320,15 @@ export function createCatalogPanel(
       tabs: options.tabs(),
       owner,
       member,
-      // Nothing about them until the account is read, and nothing when it
-      // cannot be (decision 0231).
-      shared: sharedApplicationsSection(
-        group,
-        account?.sharedApplications ?? null,
-        copy,
-        { dashboard: options.dashboard, current: options.here()?.id ?? null },
-      ),
     }))
       parts.push(
         part.kind === "empty"
           ? emptySpace(part.text, group)
           : part.kind === "section"
             ? section(part.section, group, owner, part.offer)
-            : part.kind === "shared"
-              ? sharedSection(part.section)
-              : startsSection(part),
+            : startsSection(part),
       );
     return parts;
-  }
-
-  // "Sdílené aplikace" (decision 0231, plan LZD-0009 M6): what colleagues
-  // made available from their Work Environments, as applications and never
-  // as Modules. A tile is one link to the application's origin, opened where
-  // the account says, as a module's app; it has no "⋯" menu, no star and no
-  // overview, so nothing leads to its source, a Chat or the hosting
-  // Environment. The gateway there decides every request.
-  function sharedSection(value: AppsSharedSection): HTMLElement {
-    const part = element("section", "apps-section");
-    part.dataset.section = "shared";
-    const top = element("div", "section-head");
-    top.append(
-      element("h2", "section-pill", value.title),
-      element("span", "section-count", value.count),
-    );
-    const grid = element("div", "tile-grid");
-    grid.append(...value.tiles.map(sharedTile));
-    part.append(top, grid);
-    return part;
-  }
-  function sharedTile(item: SharedApplicationTile): HTMLElement {
-    const copy = options.copy();
-    const mode = openMode();
-    const link = element("a", "tile");
-    link.dataset.kind = "shared";
-    link.dataset.role = item.roleKey;
-    link.href = item.href;
-    const where = appLinkTarget(mode);
-    if (where.target !== null) link.target = where.target;
-    link.rel = where.rel;
-    link.title = (
-      mode === "same" ? copy.appsSharedOpenSame : copy.appsSharedOpen
-    ).replace("{name}", () => item.name);
-    link.style.setProperty("--stone-accent", item.stone.accent);
-    const text = element("span", "tile-body");
-    text.append(
-      element("span", "tile-name", item.name),
-      element("span", "tile-desc", item.host),
-      element("span", "tile-role", item.role),
-    );
-    link.append(stoneImage(item.stone.src, 48, "tile-stone"), text);
-    return link;
   }
 
   // The sentence of an empty space, with Zkontrolovat přístupy where the
@@ -1585,22 +1487,6 @@ export function createCatalogPanel(
     );
     top.append(stoneImage(moduleStone(module).src, 64, "module-stone"), text);
     const target = tileTarget(value, organization, module, options.entry());
-    // Beside the application, its Assigned User's "Zpřístupnit kolegům"
-    // (decision 0231), before its primary Open.
-    const share = shareTarget(
-      scope,
-      module,
-      target,
-      moduleRoute(value, organization, module),
-      shareInput(),
-    );
-    if (share !== null) {
-      const link = element("a", "button module-share");
-      link.href = share;
-      link.title = copy.appsShareHint;
-      link.append(svg("key"), copy.appsShare);
-      top.append(link);
-    }
     if (target.kind === "hosted" || target.kind === "start") {
       const open = openLink(
         target,

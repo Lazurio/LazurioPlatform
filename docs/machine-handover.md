@@ -693,10 +693,7 @@ quiet notice, and Integrace, Trezor and Nastavení → Nástroje answer as absen
 ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
 It grants nothing; the gateway's admission decides who enters. Machines writes it only
 for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
-that reads it. Absent, the Environment is not public. Since root decision 0243 every
-Environment is entered only through a tailnet, so `audience` lives only until the
-reference Organization's shared visitors' Environment is retired (root decision 0204)
-and goes with it (issue #944).
+that reads it. Absent, the Environment is not public.
 
 `buddy` is optional and present only on a personal VM that declares Buddy (root
 decision 0210, Machines #811), as its last member: `{"external_origin":
@@ -714,9 +711,6 @@ Osobní Prostředí's own documents name no Buddy.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
-A Personal Environment in Lazurio's personal tailnet (root decision 0243) is to be
-named `https://launchpad.<login>.personal.lazurio.io`; this binding and the schema do
-not accept that form yet (issue #944).
 
 The binding records it one member to one, as `entry` next to the relationships:
 

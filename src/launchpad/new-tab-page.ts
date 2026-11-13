@@ -24,13 +24,10 @@ import {
   catalogModuleLook,
   closeOutcome,
   closeWarning,
-  cpuModel,
-  diskModel,
   fill,
   hideAnswered,
   hideAsked,
   isNoBrowser,
-  type MeterModel,
   type ModuleRow,
   memoryModel,
   moduleRows,
@@ -420,48 +417,6 @@ function updateItem(row: UpdateRow): HTMLLIElement {
   return item;
 }
 
-/** One meter of Přehled: the memory, the disk or the processor. Its title,
- * the value, the bar, the parts with their titles and a hint with the
- * warning icon only when the tone is not ok. */
-function meter(model: MeterModel): HTMLElement {
-  const box = element("section", "nto-memory");
-  box.dataset.tone = model.tone;
-  box.setAttribute("aria-label", model.title);
-  const head = element("div", "nto-memory-head");
-  head.append(element("span", "nto-memory-title", model.title));
-  if (model.value !== null && model.value.strong !== "") {
-    const value = element("span", "nto-memory-value");
-    value.append(element("strong", "", model.value.strong));
-    if (model.value.rest !== null) value.append(` ${model.value.rest}`);
-    if (model.value.title !== null) value.title = model.value.title;
-    head.append(value);
-  }
-  box.append(head);
-  if (model.percent !== null) {
-    const bar = element("span", "nto-bar");
-    bar.setAttribute("aria-hidden", "true");
-    const fillBar = element("span", "nto-bar-fill");
-    fillBar.style.width = `${Math.min(model.percent, 100)}%`;
-    bar.append(fillBar);
-    box.append(bar);
-  }
-  if (model.parts.length > 0) {
-    const line = element("div", "nto-memory-parts");
-    for (const part of model.parts) {
-      const span = element("span", "", part.text);
-      if (part.title !== null) span.title = part.title;
-      line.append(span);
-    }
-    box.append(line);
-  }
-  if (model.hint !== null) {
-    const hint = element("p", "nto-memory-hint");
-    hint.append(icon("warning"), model.hint);
-    box.append(hint);
-  }
-  return box;
-}
-
 function group(title: string, count: number | null): HTMLElement {
   const box = element("section", "nto-group");
   const head = element("h3", "nto-group-title", title);
@@ -478,9 +433,6 @@ function drawOverview(force = false) {
   const strip = mode === "hosted" ? (host?.strip ?? null) : null;
   const memory =
     overview === null ? null : memoryModel(overview.memory, copy, locale);
-  const disk =
-    overview === null ? null : diskModel(overview.disk, copy, locale);
-  const cpu = overview === null ? null : cpuModel(overview.cpu, copy);
   const tabs = overview?.tabs ?? null;
   const rows =
     tabs === null
@@ -510,8 +462,6 @@ function drawOverview(force = false) {
     overviewState,
     overview === null,
     memory,
-    disk,
-    cpu,
     rows,
     modules,
     [...stopping],
@@ -546,28 +496,45 @@ function drawOverview(force = false) {
     return;
   }
   if (failure !== null) parts.push(element("p", "nto-status", failure));
-  if (memory !== null)
-    parts.push(
-      meter({
-        title: copy.memoryTitle,
-        value:
-          memory.value === null
-            ? null
-            : {
-                strong: memory.value.used,
-                rest: `${copy.memoryOf} ${memory.value.total}`,
-                title: null,
-              },
-        percent: memory.percent,
-        tone: memory.tone,
-        parts: memory.parts,
-        hint: memory.hint,
-      }),
-    );
-  // The disk and the processor under the memory, in its look (F47 point 7,
-  // its addendum of 2026-11-12).
-  if (disk !== null) parts.push(meter(disk));
-  if (cpu !== null) parts.push(meter(cpu));
+  if (memory !== null) {
+    const box = element("section", "nto-memory");
+    box.dataset.tone = memory.tone;
+    box.setAttribute("aria-label", copy.memoryTitle);
+    const head = element("div", "nto-memory-head");
+    head.append(element("span", "nto-memory-title", copy.memoryTitle));
+    if (memory.value !== null) {
+      const value = element("span", "nto-memory-value");
+      value.append(
+        element("strong", "", memory.value.used),
+        ` ${copy.memoryOf} ${memory.value.total}`,
+      );
+      head.append(value);
+    }
+    box.append(head);
+    if (memory.percent !== null) {
+      const bar = element("span", "nto-bar");
+      bar.setAttribute("aria-hidden", "true");
+      const fillBar = element("span", "nto-bar-fill");
+      fillBar.style.width = `${memory.percent}%`;
+      bar.append(fillBar);
+      box.append(bar);
+    }
+    if (memory.parts.length > 0) {
+      const line = element("div", "nto-memory-parts");
+      for (const part of memory.parts) {
+        const span = element("span", "", part.text);
+        if (part.title !== null) span.title = part.title;
+        line.append(span);
+      }
+      box.append(line);
+    }
+    if (memory.hint !== null) {
+      const hint = element("p", "nto-memory-hint");
+      hint.append(icon("warning"), memory.hint);
+      box.append(hint);
+    }
+    parts.push(box);
+  }
   const tabsBox = group(copy.tabsTitle, rows === null ? null : rows.length);
   if (rows === null)
     tabsBox.append(element("p", "nto-empty", copy.hubUnreachable));

@@ -416,10 +416,7 @@ export async function readMachineHandover(
  * auth-sourced handover. The digest stays the handover's: the receipt's
  * facts a context takes are written once, at the first binding, except a
  * work assignee's current GitHub link, which a refresh records like any
- * other assignment. `generation` is the assignment generation the receipt
- * bound, which an agent's hand-over names (Lazurio Auth
- * docs/agent-application-entry.md, LZD-0009 M9); null for a handover that
- * is not auth-sourced (a `v2` Work Environment has none). */
+ * other assignment. */
 export async function readMachineContext(
   source: MachineContextSource = productionMachineContextSource,
 ) {
@@ -429,7 +426,6 @@ export async function readMachineContext(
       context: observed.context,
       digest: observed.digest,
       authSourced: false,
-      generation: null as number | null,
     });
   let receipt: Buffer | null;
   try {
@@ -442,20 +438,10 @@ export async function readMachineContext(
       throw new MachineContextError("machine-context-custody");
     receipt = null;
   }
-  const context = assignedMachineContext(observed.context, receipt);
-  // The receipt passed `assignedMachineContext`, so it is there and closed.
-  const { generation } = parseAssignmentReceipt(
-    parseUniqueJson(
-      new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-        receipt as Buffer,
-      ),
-    ),
-  );
   return Object.freeze({
-    context,
+    context: assignedMachineContext(observed.context, receipt),
     digest: observed.digest,
     authSourced: true,
-    generation: generation as number | null,
   });
 }
 

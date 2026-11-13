@@ -3,25 +3,17 @@ import {
   accountReadMs,
   pageAccountJson,
 } from "../shell/account";
-import {
-  type AccountSharedApplication,
-  parseShellAccount,
-} from "../shell/contract";
 import { parseFavorites } from "./favorites";
 
 // The person's Lazurio account as Apps reads it (root decision 0185 S12 and
 // S18, F37's account namespace): `GET /.lazurio/account/environments` on this
 // Environment's own origin, which the Environment's gateway answers from the
 // Dashboard with the person's own token (`lazurio.account.v1`). Apps reads
-// four things of it: where module apps open (`preferences.openApps`), the
+// two things of it: where module apps open (`preferences.openApps`) and the
 // favourites of this Environment's Organization (`favourites`, keyed by the
-// Organization slug), who is at the browser (`operator.login`) and the
-// applications colleagues made available to them (`sharedApplications`,
-// decision 0231). The last two only from a document the shell's own parser
-// takes whole (`parseShellAccount`): an invalid one names nobody and shares
-// nothing that is shown. Everything else in it (the spaces, the
-// Environments, the last one used) is the shell library's, which also makes
-// the page's one read cycle (`src/shell/account.ts`). Until the gateway relays the
+// Organization slug). Everything else in it (the spaces, the Environments,
+// the last one used) is the shell library's, which also makes the page's one
+// read cycle (`src/shell/account.ts`). Until the gateway relays the
 // namespace the read fails (404) and Apps keeps today's behaviour: favourites
 // in this browser, apps in a new tab. Nothing here holds a token: the
 // requests are plain same-origin ones, and the gateway adds the person's
@@ -39,16 +31,6 @@ export type Account = Readonly<{
    * Organization slug (lowercased), in the account's order. A missing slug
    * has none. */
   favourites: ReadonlyMap<string, readonly string[]>;
-  /** The login of the person at the browser (`operator.login`): null when
-   * the account does not name it or the document is not a valid
-   * `lazurio.account.v1` as a whole. A label for what Apps offers, never
-   * evidence: the Dashboard and the gateway decide again. */
-  login: string | null;
-  /** The applications colleagues made available to the person, in the
-   * account's order (decision 0231): empty when the document names none,
-   * null when it is not a valid `lazurio.account.v1` as a whole, so Apps
-   * never says that nothing is shared when it does not know. */
-  sharedApplications: readonly AccountSharedApplication[] | null;
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -74,11 +56,9 @@ function favouriteKeys(value: unknown): readonly string[] {
 }
 
 /** What Apps reads of an account document: null unless its `schema` is
- * `lazurio.account.v1`. Its preferences and favourites are read
- * defensively: an `openApps` other than `"same"` is `"tab"`, malformed
- * favourites are none, and members Apps does not use are ignored. The
- * person and the shared applications come from the shell's parser
- * (`parseShellAccount`), so only from a document valid as a whole. */
+ * `lazurio.account.v1`. Every other member is read defensively: an
+ * `openApps` other than `"same"` is `"tab"`, malformed favourites are none,
+ * and members Apps does not use are ignored. */
 export function parseAccount(input: unknown): Account | null {
   if (!isRecord(input) || input.schema !== accountSchema) return null;
   const preferences = isRecord(input.preferences) ? input.preferences : {};
@@ -89,13 +69,9 @@ export function parseAccount(input: unknown): Account | null {
       if (slug.trim() !== "" && !favourites.has(key))
         favourites.set(key, Object.freeze(favouriteKeys(list)));
     }
-  const whole = parseShellAccount(input);
   return Object.freeze({
     openApps: preferences.openApps === "same" ? "same" : "tab",
     favourites,
-    login: whole?.operator.login ?? null,
-    sharedApplications:
-      whole === null ? null : (whole.sharedApplications ?? Object.freeze([])),
   });
 }
 
@@ -105,9 +81,8 @@ type Fetch = (input: string, init: RequestInit) => Promise<Response>;
  * shell library's `pageAccountJson`, which the rail merges too, so the page
  * shares one bounded recovery cycle), or null when it is unavailable (no
  * gateway relay yet, a refusal, a sign-in redirect, a slow answer, anything else than
- * `lazurio.account.v1`). Never throws. Apps uses none of the words the
- * answer puts in its language (an Environment's `name` and `who`; a shared
- * application's name is the manifest's), but the read is shared: the page passes `read` asking in the Environment's
+ * `lazurio.account.v1`). Never throws. Apps uses no word of the answer, but
+ * the read is shared: the page passes `read` asking in the Environment's
  * language, as the rail does (F37's addendum of 2026-11-03), so whichever
  * reader asks first, the rail's names come in its language. */
 export async function readAccount(

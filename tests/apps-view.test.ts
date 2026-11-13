@@ -939,7 +939,7 @@ const homeView = (parts: readonly AppsHomePart[]) =>
   parts.map((part) =>
     part.kind === "empty"
       ? [part.kind, part.text]
-      : part.kind === "section" || part.kind === "shared"
+      : part.kind === "section"
         ? [part.kind, part.section.title, part.section.tiles.map((t) => t.name)]
         : [part.kind, part.title, part.starts.map((start) => start.key)],
   );

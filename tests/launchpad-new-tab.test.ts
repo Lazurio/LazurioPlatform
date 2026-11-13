@@ -45,7 +45,6 @@ import {
   openTab,
   restoreTab,
 } from "../src/launchpad/new-tab/hub-client";
-import type { SystemSeams } from "../src/launchpad/new-tab/machine";
 import {
   parseMeminfo,
   parseUnitsMemory,
@@ -240,9 +239,6 @@ function fakeHost(
     meminfo?: string | null;
     memory?: Readonly<Record<string, string>>;
     clock?: () => BootTime | null;
-    /** The disk and `/proc/stat` and `/proc/loadavg`; none by default. */
-    system?: SystemSeams;
-    proc?: Readonly<{ stat: string; loadavg: string }>;
   } = {},
 ): NewTabHost & { calls: string[][]; events: string[] } {
   const calls: string[][] = [];
@@ -267,8 +263,6 @@ function fakeHost(
     runtimeDirectory,
     run,
     readFile: async (path) => {
-      if (path === "/proc/stat" && options.proc) return options.proc.stat;
-      if (path === "/proc/loadavg" && options.proc) return options.proc.loadavg;
       if (path !== "/proc/meminfo") return readFile(path, "utf8");
       const text = options.meminfo === undefined ? meminfo : options.meminfo;
       if (text === null) throw new Error("ENOENT");
@@ -276,7 +270,6 @@ function fakeHost(
     },
     bootClock: async () => (options.clock ? options.clock() : at(1_000)),
     log: (event) => events.push(event),
-    ...(options.system === undefined ? {} : { system: options.system }),
     calls,
     events,
   };
@@ -1251,8 +1244,6 @@ async function routesWorld(
     holder?: boolean;
     modules?: readonly ModuleUnit[] | null;
     memory?: Readonly<Record<string, string>>;
-    system?: SystemSeams;
-    proc?: Readonly<{ stat: string; loadavg: string }>;
     runtime?: string;
     now?: () => number;
     served?: Parameters<typeof createNewTabRoutes>[0]["served"];
@@ -1261,8 +1252,6 @@ async function routesWorld(
   const runtime = options.runtime ?? (await temporary("new-tab-routes-"));
   const host = fakeHost(runtime, {
     ...(options.memory === undefined ? {} : { memory: options.memory }),
-    ...(options.system === undefined ? {} : { system: options.system }),
-    ...(options.proc === undefined ? {} : { proc: options.proc }),
     clock: () => at(100),
   });
   const holder =
@@ -1431,43 +1420,6 @@ test("the overview joins the hub's tabs, named by who opened them, with the memo
   expect(await call("GET", "/api/new-tab/overview?x=1")).toMatchObject({
     status: 400,
     body: { error: "invalid-query" },
-  });
-});
-
-test("the overview adds the Environment's disk and processor (F47 point 7, its addendum of 2026-11-12), and null where they cannot be read", async () => {
-  const GiB = 1024 * 1024 * 1024;
-  const left = 40 * 1024 * 1024;
-  const { call } = await routesWorld({
-    hub: standardHub([fact(1)]),
-    modules: [],
-    system: {
-      home: "/home/a",
-      // The home folder on the root's file system: not shown twice.
-      volume: async () => ({ device: 1, total: 60 * GiB, free: left }),
-    },
-    proc: {
-      stat: "cpu  100 0 0 900 0 0 0 0 0 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n",
-      loadavg: "1.90 1.95 1.80 3/200 9\n",
-    },
-  });
-  const answer = await call("GET", "/api/new-tab/overview");
-  expect(answer.status).toBe(200);
-  expect(answer.body.disk).toEqual({
-    total: 60 * GiB,
-    used: 60 * GiB - left,
-    free: left,
-    home: null,
-  });
-  // The 5-minute load against the two cores, at most 100 %.
-  expect(answer.body.cpu).toEqual({ percent: 98, cores: 2, load: 1.95 });
-  // Without the disk and the processor's readings (off Linux).
-  const { call: elsewhere } = await routesWorld({
-    hub: standardHub([fact(1)]),
-    modules: [],
-  });
-  expect((await elsewhere("GET", "/api/new-tab/overview")).body).toMatchObject({
-    disk: null,
-    cpu: null,
   });
 });
 
