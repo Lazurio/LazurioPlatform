@@ -1,6 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { generateKeyPairSync, type KeyObject, sign } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -393,7 +393,12 @@ test.skipIf(!posix)(
       profile: presetProfile(preset, executionOs(process.platform)),
     });
     const home = join(parent, "home");
-    await mkdir(home, { mode: 0o700 });
+    await mkdir(join(home, ".ssh"), { recursive: true, mode: 0o700 });
+    // A computer of the old SSH path: only an installed Launchpad moves it.
+    const oldLine = `restrict,command="/home/alex/.local/bin/lazurio computer attach --device alex-old" ${sshKey(generateKeyPairSync("ed25519").publicKey)} lazurio-computer:alex-old:alex:2026-11-12\n`;
+    await writeFile(join(home, ".ssh", "authorized_keys"), oldLine, {
+      mode: 0o600,
+    });
     const app = await startLaunchpad(
       folder,
       undefined,
@@ -445,6 +450,9 @@ test.skipIf(!posix)(
     });
     expect(first).toMatchObject({ type: "challenge", v: 1 });
     ws.close();
+    expect(await readFile(join(home, ".ssh", "authorized_keys"), "utf8")).toBe(
+      oldLine,
+    );
     // The same path without an upgrade is no page, and another Host no
     // answer; every other route still needs the session.
     expect(

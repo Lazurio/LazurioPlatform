@@ -1415,24 +1415,28 @@ export async function startLaunchpad(
       version: embeddedIdentity().version,
     };
   };
-  // The computers of the old SSH path move into the registry once, as this
-  // Launchpad starts (contract v1, Přechod z v0); journaled by id only.
-  void computersHost()
-    .then((host) => migrateSshComputers(host))
-    .then(
-      (moved) => {
-        if (moved.moved.length > 0 || moved.failed.length > 0)
-          console.log(
-            JSON.stringify({
-              scope: "computers",
-              operation: "migrate-ssh",
-              moved: moved.moved.join(","),
-              failed: moved.failed.join(","),
-            }),
-          );
-      },
-      () => undefined,
-    );
+  // The computers of the old SSH path move into the registry once, as the
+  // installed Launchpad starts after an update (contract v1, Přechod z v0);
+  // journaled by id only. Only the installed one: any other Launchpad (a
+  // source checkout, a test) never writes the account's authorized_keys.
+  void (
+    installed === undefined
+      ? Promise.resolve({ moved: [], failed: [] })
+      : computersHost().then((host) => migrateSshComputers(host))
+  ).then(
+    (moved) => {
+      if (moved.moved.length > 0 || moved.failed.length > 0)
+        console.log(
+          JSON.stringify({
+            scope: "computers",
+            operation: "migrate-ssh",
+            moved: moved.moved.join(","),
+            failed: moved.failed.join(","),
+          }),
+        );
+    },
+    () => undefined,
+  );
   // The computer's own session (contract v1 section 2): a WebSocket the
   // computer proves itself on by its signature, never a browser session.
   const computerAttach = createComputerAttach({

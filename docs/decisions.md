@@ -25280,11 +25280,14 @@ replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forc
    header, and passes nothing else. It is a narrow exception of the same kind as T3's native
    pairing in 0157, recorded as an amendment of 0241. Without it, a computer behind the gateway
    is sent to the sign-in and never attaches.
-5. **The move from SSH.** As the Launchpad starts, every old `lazurio-computer:` line of
-   `authorized_keys` moves into the registry with its key, name, system and Executor's server.
+5. **The move from SSH.** As the installed Launchpad starts after the update, every old
+   `lazurio-computer:` line of `authorized_keys` moves into the registry with its key, name, system and Executor's server.
    The line leaves `authorized_keys`, and every other line stays byte for byte. The application
    derives the `wss` address from the Launchpad address it remembers, so nobody pairs again.
-   `lazurio computer attach` only says that the SSH path is gone.
+   `lazurio computer attach` only says that the SSH path is gone. Only the installed Launchpad
+   moves anything: a Launchpad from a source checkout or a test never writes the account's
+   `authorized_keys`. Before this guard, a Launchpad test with the account's real home moved a
+   trial computer's line on a development station, which is how the guard was found.
 6. **One agent across Environments** is the application's lock (contract v1 section 1). Its
    refusal ("Počítač teď ovládá agent z …") is an ordinary failed tool call for the broker: the
    session stays, and the history records `ok: false`.
