@@ -658,6 +658,18 @@ function workingHere(
       "When the meaning is unclear, briefly say what you found and ask a specific question. A missing checkout, missing access and an unclear term are different situations. Likewise, a business record about a service is not the act of provisioning that service: first establish what the user means, then check the rights it requires. Do not refuse a task because of the rights for a different operation. A useful clarification belongs in the owning Organization's glossary or instructions through its normal review process; do not copy it into the generated Folder files or another company.",
     ),
     blank,
+    // Stable applications and development previews (Matěj's decision of
+    // 2026-10-20, F22 addendum): work in progress never takes the stable
+    // application's place; how it reaches the user depends on where it runs.
+    t(
+      "## Stabilní aplikace a vývojový náhled",
+      "## Stable applications and development previews",
+    ),
+    t(
+      `Stabilní aplikace modulu běží z \`main\`, cílově jako sestavené vydání, a lidé se k její adrese vracejí a pracují v ní. Rozpracovanou verzi proto nikdy nespouštěj místo ní: změnu modulu, prototyp, jinou branch i vývoj aplikace v productionspace spusť z worktree jako samostatný proces na vlastním volném portu na loopbacku (\`http://127.0.0.1:<port>\` nebo \`http://localhost:<port>\`). \`lazurio module start\` dnes spouští primární checkout, ne tvůj worktree. Hlavní aplikaci kvůli náhledu nezastavuj, nepřebírej její port ani službu a nezakládej nový hostname. Pamatuj si, který proces jsi spustil, a po skončení ukonči jen ten. ${machine === null ? "Na tomto počítači náhled otevři přímo v jeho prohlížeči a uživateli dej místní adresu a branch." : "Jak náhled spustit a ukázat uživateli v prohlížeči Prostředí, popisuje `manual/this-machine.md`."}`,
+      `A module's stable application runs from \`main\`, ultimately as a built release, and people return to its address to keep working. So never start work in progress in its place: run a module change, a prototype, another branch or application development in productionspace from the worktree as a separate process on a free loopback port of its own (\`http://127.0.0.1:<port>\` or \`http://localhost:<port>\`). Today \`lazurio module start\` starts the primary checkout, not your worktree. For a preview, never stop the main application, take its port or service, or create another hostname. Keep track of the process you started and, when finished, stop only that one. ${machine === null ? "On this computer, open the preview directly in its browser and give the user the local address and branch." : "`manual/this-machine.md` describes how to start the preview and show it to the user in the Environment browser."}`,
+    ),
+    blank,
     // "Draft" is no Lazurio term: it collides with GitHub's Draft PR (decision
     // F14's addendum of 2026-10-24). The work is a pull request for code and
     // the unsent state inside an external application, whose own draft (an
@@ -1701,8 +1713,8 @@ function moduleApplications(hosted: boolean): readonly Text[] {
     ),
     hosted
       ? t(
-          "- Na tomhle Remote Environmentu je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Environmentu ji ukončí a její výstup jde do journalu. Odkaz pro uživatele je jen `runtime.url` (`manual/this-machine.md`).",
-          "- In this Remote Environment an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The link for the user is only `runtime.url` (`manual/this-machine.md`).",
+          "- Na tomhle Remote Environmentu je aplikace přechodná systemd user služba: běží dál i po restartu Launchpadu, restart Environmentu ji ukončí a její výstup jde do journalu. Odkaz na stabilní aplikaci je `runtime.url`; vývojový náhled z worktree běží zvlášť (`manual/this-machine.md`).",
+          "- In this Remote Environment an application is a transient systemd user service: it keeps running when the Launchpad restarts, ends with a reboot, and its output goes to the journal. The stable application's link is `runtime.url`; a development preview from a worktree runs separately (`manual/this-machine.md`).",
         )
       : t(
           "- Na Linuxu s uživatelským správcem služeb je aplikace přechodná systemd user služba (přežije restart Launchpadu, výstup jde do journalu). Na macOS je aplikace potomkem relace Launchpadu: spouštěj, zastavuj a otevírej ji v Launchpadu; CLI odpoví `launchpad-required` a výstup se neuchovává.",
@@ -2827,10 +2839,8 @@ function deviceSsh(machine: MachineBinding): readonly Text[] {
 // several at once: ChatGPT Desktop over SSH, T3 Code on the web or in its
 // desktop app, and Lazurio MausBot.
 // Whether they connect over SSH is a fact of the handover's peers, never a
-// guess. Only ChatGPT Desktop's built-in browser reaches a `localhost` port of
-// this Environment, through an SSH tunnel it opens itself (undocumented by
-// OpenAI, see openai/codex#44385); T3 Code and Lazurio MausBot forward
-// nothing. Work products go to the Operator's Documents folder, and where the
+// guess. Work in progress reaches them through the Environment browser where
+// the entry routes one (see `previews` below). Work products go to the Operator's Documents folder, and where the
 // Folder records a hosted entry they travel through the Launchpad's Files
 // page (decision F35), and the agent sends the Operator to the Launchpad for
 // every sign-in and connection (decision F19 addendum 2026-10-04). Where the
@@ -2862,32 +2872,50 @@ function operatorClient(
     `Uživatel sedí u svého počítače a pracuje s tebou v klientech, které mu vyhovují, klidně ve více zároveň: v ChatGPT Desktopu (dřív Codex Desktop) přes SSH, v T3 Code na webu nebo v desktopové aplikaci a v Lazurio MausBotu. ${fact.cs} Ve kterém klientovi právě běžíš ty, poznáš podle svého harnessu; uživatel mezitím může pracovat i v jiném. Tvůj shell, soubory a procesy jsou tady, ne u uživatele.`,
     `The user sits at their own computer and works with you in the clients they prefer, possibly several at once: ChatGPT Desktop (formerly Codex Desktop) over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot. ${fact.en} Your harness tells you which client you run in; the user may be working in another one meanwhile. Your shell, files and processes are here, not on the user's computer.`,
   );
-  const previews: readonly Text[] =
-    ssh === false
+  // Work in progress (Matěj's decision of 2026-10-20, F22 addendum): its own
+  // process beside the stable application, shown in the Environment browser
+  // where the entry routes one. Without it, only ChatGPT Desktop's built-in
+  // browser reaches a `localhost` port here, through an SSH tunnel it opens
+  // itself (undocumented by OpenAI, see openai/codex#44385); T3 Code and
+  // Lazurio MausBot forward nothing.
+  const start = t(
+    "- **Spuštění náhledu.** Rozpracovanou verzi spusť z worktree vedle stabilní aplikace (`manual/working-here.md`, Stabilní aplikace a vývojový náhled). V owning repozitáři ověř cestu worktree, příkaz a jak dostává host a port. Použij vlastní volný port a bind na loopback; Modulu předej deklarované `LAZURIO_RUNTIME_LISTENER_<ID>_*`. Neznámý proces na obsazeném portu nech být a zvol jiný port. Data a přihlášení náhledu řeš podle pravidel owning repozitáře; chybějící závislost nepřipojuj odhadem.",
+    "- **Starting a preview.** Run work in progress from the worktree beside the stable application (`manual/working-here.md`, Stable applications and development previews). In the owning repository, verify the worktree path, the command and how it takes its host and port. Use a free port of its own bound to loopback; pass a Module its declared `LAZURIO_RUNTIME_LISTENER_<ID>_*`. Leave an unknown process on an occupied port alone and choose another port. Handle the preview's data and sign-ins under the owning repository's rules; do not guess a missing dependency.",
+  );
+  const show: readonly Text[] =
+    machine.entry?.browserOrigin !== undefined
       ? [
           t(
-            "- **Náhledy.** `localhost` a `127.0.0.1` existují jen tady; uživatel je neotevře a žádný klient je k němu nepřesměruje. Rozpracovanou aplikaci modulu spusť (`lazurio module start`) a pošli její `runtime.url`; jinou stránku předej jako soubor.",
-            "- **Previews.** `localhost` and `127.0.0.1` exist only here; the user cannot open them and no client forwards them. Start a module's application in progress (`lazurio module start`) and send its `runtime.url`; hand over any other page as a file.",
+            "- **Náhled uživateli.** Ukaž ho v nové záložce prohlížeče Prostředí, jak popisuje bod Vývojový náhled v oddílu Prohlížeč Environmentu níž. Holý odkaz na `localhost` do chatu nepiš: otevřel by se na počítači uživatele, ne tady. Stabilní `runtime.url` náhled nezastupuje.",
+            "- **The preview for the user.** Show it in a new tab of the Environment browser, as the point Development preview of the section The Environment browser below describes. Never write a bare `localhost` link into the chat: it would open on the user's computer, not here. The stable `runtime.url` does not stand for the preview.",
           ),
         ]
-      : [
-          t(
-            "- **Náhledy.** `localhost` a `127.0.0.1` existují jen tady; holý odkaz na ně do chatu nepiš.",
-            "- **Previews.** `localhost` and `127.0.0.1` exist only here; never write a bare link to them into the chat.",
-          ),
-          t(
-            "  - Běžíš-li v ChatGPT Desktopu přes SSH, otevři rozpracovanou stránku v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port počítače uživatele. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
-            "  - When you run in ChatGPT Desktop over SSH, open work in progress in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the user's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
-          ),
-          t(
-            "  - Běžíš-li v T3 Code nebo Lazurio MausBotu, port se k uživateli nepřesměruje. Rozpracovanou aplikaci modulu spusť (`lazurio module start`) a pošli její `runtime.url`; jinou stránku předej jako soubor.",
-            "  - When you run in T3 Code or Lazurio MausBot, no port reaches the user. Start a module's application in progress (`lazurio module start`) and send its `runtime.url`; hand over any other page as a file.",
-          ),
-        ];
+      : ssh === false
+        ? [
+            t(
+              "- **Náhled uživateli.** Toto Prostředí nemá prohlížeč Prostředí a uživatel se sem nepřipojuje přes SSH, takže `localhost` odsud neuvidí. Řekni mu to, uveď místní adresu a branch a co zůstalo neověřené. Stabilní adresu kvůli náhledu nepřesměruj a port nevystavuj přes bránu.",
+              "- **The preview for the user.** This Environment has no Environment browser and the user does not connect here over SSH, so they cannot see `localhost` from here. Tell them so, give the local address and branch and what remains unverified. Never redirect the stable address for the preview or expose the port through the gateway.",
+            ),
+          ]
+        : [
+            t(
+              "- **Náhled uživateli.** Toto Prostředí nemá prohlížeč Prostředí. Holý odkaz na `localhost` do chatu nepiš: otevřel by se na počítači uživatele, ne tady.",
+              "- **The preview for the user.** This Environment has no Environment browser. Never write a bare `localhost` link into the chat: it would open on the user's computer, not here.",
+            ),
+            t(
+              "  - Běžíš-li v ChatGPT Desktopu přes SSH, otevři náhled v jeho integrovaném prohlížeči. Aktuální verze si k portu samy otevřou SSH tunel na náhodný port počítače uživatele. OpenAI to nedokumentuje a starší verze to neumí, proto ověř, že se stránka opravdu načetla.",
+              "  - When you run in ChatGPT Desktop over SSH, open the preview in its built-in browser. Current versions open an SSH tunnel to the port themselves, on a random port of the user's computer. OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
+            ),
+            t(
+              "  - Běžíš-li v T3 Code nebo Lazurio MausBotu, port se k uživateli nepřesměruje. Řekni mu to, uveď místní adresu a branch a co zůstalo neověřené. Stabilní adresu kvůli náhledu nepřesměruj a port nevystavuj přes bránu.",
+              "  - When you run in T3 Code or Lazurio MausBot, no port reaches the user. Tell them so, give the local address and branch and what remains unverified. Never redirect the stable address for the preview or expose the port through the gateway.",
+            ),
+          ];
+  const previews: readonly Text[] = [start, ...show];
   const links = organization
     ? t(
-        "- **Odkazy na aplikace.** Aplikace modulu má hostované jméno přes bránu tohohle Environmentu (decision 0146), které funguje v běžném prohlížeči uživatele v síti Organizace. Ber ho přesně z `runtime.url` v `lazurio module status <Org>/<modul> --json` nebo z Launchpadu, nikdy ho neskládej podle konvence; je-li `runtime` `null`, aplikace hostované jméno nemá a napiš to místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
-        "- **Application links.** A module's application has a hosted name through this Environment's gateway (decision 0146) that works in the user's normal browser on the Organization's network. Take it exactly from `runtime.url` in `lazurio module status <Org>/<module> --json` or from the Launchpad, never compose it from a naming convention; when `runtime` is `null`, the application has no hosted name, so say that instead of a link. `lazurio chat link` prints the link into this Environment's T3 Code.",
+        "- **Odkazy na aplikace.** Stabilní aplikace modulu z `main` má hostované jméno přes bránu tohohle Environmentu (decision 0146), které funguje v běžném prohlížeči uživatele v síti Organizace. Ber ho přesně z `runtime.url` v `lazurio module status <Org>/<modul> --json` nebo z Launchpadu, nikdy ho neskládej podle konvence; je-li `runtime` `null`, aplikace hostované jméno nemá a napiš to místo odkazu. `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
+        "- **Application links.** A module's stable application from `main` has a hosted name through this Environment's gateway (decision 0146) that works in the user's normal browser on the Organization's network. Take it exactly from `runtime.url` in `lazurio module status <Org>/<module> --json` or from the Launchpad, never compose it from a naming convention; when `runtime` is `null`, the application has no hosted name, so say that instead of a link. `lazurio chat link` prints the link into this Environment's T3 Code.",
       )
     : t(
         "- **Odkazy.** `lazurio chat link` vypíše odkaz do T3 Code tohohle Environmentu.",
@@ -3102,9 +3130,13 @@ function environmentBrowser(
           ),
         ]
       : []),
+    // A development preview (F22 addendum of 2026-10-20) opens in a new tab or
+    // a new session's window: `lazurio browser window --url` never moves the
+    // window a session already has (`ensureThreadWindowLocked`), so the thread
+    // would hand over its previous page (review of #549).
     t(
-      "- **`localhost`.** Prohlížeč Environmentu otevře i `localhost` tohoto Environmentu, takže rozpracovanou stránku uživatel uvidí v pohledu.",
-      "- **`localhost`.** The Environment browser also opens this Environment's `localhost`, so the user sees work in progress in the view.",
+      "- **Vývojový náhled.** Prohlížeč Prostředí otevře i `localhost` tohoto Prostředí, takže rozpracovanou aplikaci z worktree (bod Spuštění náhledu výš) uživatel uvidí v pohledu. Otevři ji v nové záložce podle bodu Nová záložka, nikdy ve svém okně: `--url` okno, které už máš, nikam nepřevede a uživatel by dostal odkaz na předchozí stránku. V T3 Code použij `preview_open` s `reuseExistingTab: false` a adresou náhledu. Mimo T3 Code otevři náhled v okně sezení, které ještě okno nemá: `lazurio browser window --session <sezení>-preview --url <localhost-adresa> --json`. Odpoví-li `created: false`, sezení okno už mělo a adresa se v něm neotevřela: zvol jiné jméno sezení. Ověř vykreslení i hlavní cestu, pak do chatu dej odkaz na tu záložku (`https://browser.…/t/<id>`), označ ho jako vývojový náhled a uveď místní adresu a branch. Odkaz na záložku není nová adresa aplikace. Po skončení ukonči jen svůj dev server a okno náhledu pusť (`lazurio browser done --session <sezení>-preview`); konec záložky dev server neukončí.",
+      "- **Development preview.** The Environment browser also opens this Environment's `localhost`, so the user sees work in progress from a worktree (the point Starting a preview above) in the view. Open it in a new tab as the point A new tab describes, never in your own window: `--url` never moves the window you already have, and the user would get a link to its previous page. In T3 Code, use `preview_open` with `reuseExistingTab: false` and the preview's address. Outside T3 Code, open the preview in the window of a session that has none yet: `lazurio browser window --session <session>-preview --url <localhost-address> --json`. When it answers `created: false`, the session had its window already and the address did not open in it: choose another session name. Verify rendering and the main journey, then send the link to that tab (`https://browser.…/t/<id>`) into the chat, label it as a development preview and give the local address and branch. A tab link is not a new address of the application. When finished, stop only your own dev server and let go of the preview's window (`lazurio browser done --session <session>-preview`); the end of a tab does not stop the dev server.",
     ),
     t(
       "- **Po ztrátě záložky nebo restartu.** Prohlížeč má vlastní limit paměti (decision 0195). Když ho překročí, jádro ukončí jednu záložku, nebo se prohlížeč restartuje a staré záložky už sám neotevře. Stránku, která přestala odpovídat, otevři znovu (`open <adresa>`). Když agent-browser odpoví `tab_gone`, tvoje okno zaniklo: spusť znovu `lazurio browser window` (případně `--url <adresa>`), otevře ti nové, a uživateli pošli jeho nový odkaz. Prohlížeč kvůli tomu nerestartuj a okna ostatních vláken nezavírej.",

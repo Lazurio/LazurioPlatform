@@ -897,6 +897,8 @@ Until 2026-11-01 this paragraph called the change a required amendment that rema
 open; the table of [required amendments](decisions.md#required-amendments-before-production-implementation)
 keeps that record.
 
+**Preview boundary (2026-10-20).** Normal module entry remains on stable `main`; development runs use separate loopback ports through the Environment browser. The target for stable entry is a built release: an app that declares its build starts from `main` as that build (F58), and one without still runs its declared dev command. See [the current contract](development-previews.md); do not replace this service to show a worktree.
+
 **What this does not mean.** It does not authorize installing units on any real
 Machine, does not make applications production deployments, does not make a service
 definition an access grant, and does not remove the functional-qualification
