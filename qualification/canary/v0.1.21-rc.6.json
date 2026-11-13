@@ -1,0 +1,44 @@
+{
+  "schema": "lazurio.canary.v2",
+  "candidate": "v0.1.21-rc.6",
+  "start": "2026-11-13T09:22:26Z",
+  "end": "2026-11-13T09:32:56Z",
+  "machines": [
+    {
+      "machine": "4cb47f16810a7edb",
+      "kind": "work",
+      "active": "0.1.21-rc.6",
+      "health": "healthy"
+    },
+    {
+      "machine": "7d3f2189170e39ea",
+      "kind": "work",
+      "active": "0.1.21-rc.6",
+      "health": "healthy"
+    },
+    {
+      "machine": "9289bc065828421b",
+      "kind": "work",
+      "active": "0.1.21-rc.6",
+      "health": "healthy"
+    },
+    {
+      "machine": "c04fe553256c9e52",
+      "kind": "work",
+      "active": "0.1.21-rc.6",
+      "health": "healthy"
+    },
+    {
+      "machine": "a6afa18b46790817",
+      "kind": "personal",
+      "active": "0.1.21-rc.6",
+      "health": "healthy"
+    }
+  ],
+  "smoke": {
+    "account": "owner",
+    "result": "green"
+  },
+  "reviewer": "immakermatty",
+  "pullRequest": "https://github.com/Lazurio/LazurioPlatform/pull/954"
+}
