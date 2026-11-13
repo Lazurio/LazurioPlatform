@@ -25115,7 +25115,7 @@ headers through a fake gh; `tests/launchpad-access-check.test.ts` the words;
 no answer from the service manager. Not proven: a real revocation on GitHub, a real
 fine-grained token and a real single sign-on. Known limits are in the contract.
 
-## F73 — People's computers for agents: Lazurio Agent Desktop pairs through the Launchpad and attaches over its own SSH session
+## F73 — People's computers for agents: Lazurio Agent Desktop pairs through the Launchpad and attaches over HTTPS
 
 **Proposed 2026-11-12 by the implementing agent for root decisions 0240 and 0241 (0241 in
 review, #939). Implemented in the same pull request on the Environment's side; accepted only
@@ -25241,7 +25241,7 @@ its result, the same key again, a second computer of the same name, the list and
 Team Environment refused). Not proven: a real SSH session from Lazurio Agent Desktop, a real
 Executor running the server and a browser posting the page through a real gateway.
 
-### F73 addendum — the computer's session over HTTPS; SSH is gone (2026-11-13)
+### F73 addendum of 2026-11-13: the computer's session over HTTPS; SSH is gone
 
 **Decided by Matěj on 2026-11-13 (contract v1 between Lazurio Agent Desktop and the
 Environment). Implemented on the Environment's side in the same pull request; the gateway's
@@ -25278,7 +25278,7 @@ replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forc
 4. **The gateway** passes exactly `GET /.lazurio/computers/attach` with `Upgrade: websocket` on
    the Launchpad's name without a browser session. It strips the cookie and every identity
    header, and passes nothing else. It is a narrow exception of the same kind as T3's native
-   pairing in 0157, recorded as an amendment of 0241. Without it, a computer behind the gateway
+   pairing in 0157, recorded as the amendment of 2026-11-13 of 0241. Without it, a computer behind the gateway
    is sent to the sign-in and never attaches.
 5. **The move from SSH.** As the installed Launchpad starts after the update, every old
    `lazurio-computer:` line of `authorized_keys` moves into the registry with its key, name, system and Executor's server.
@@ -25291,11 +25291,14 @@ replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forc
 6. **One agent across Environments** is the application's lock (contract v1 section 1). Its
    refusal ("Počítač teď ovládá agent z …") is an ordinary failed tool call for the broker: the
    session stays, and the history records `ok: false`.
-7. **Commands on the computer** (contract v1 section 3, built by the application later): the
-   broker forwards `lazurio_shell_*` unchanged. For `lazurio_shell_run` and
-   `lazurio_shell_start` the history keeps the command (one line, at most 500 characters) and
-   the exit code from `structuredContent.exitCode`, never the output. The manual's section
-   People's computers gains these tools once the application has them.
+7. **Commands on the computer** (contract v1 section 3) have their own switch in the
+   application for each Environment, off by default, and the person confirms the first
+   switch-on on the computer. The broker forwards `lazurio_shell_*` unchanged. For
+   `lazurio_shell_run` and `lazurio_shell_start` the history keeps the command (one line, at
+   most 500 characters) and the exit code, never the output. The exit code is `exitCode` of
+   the result's `structuredContent` or, as Lazurio Agent Desktop answers, of the JSON object in
+   the result's one text part. The manual's section People's computers gains these tools once
+   the application with them is released.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -25312,7 +25315,17 @@ replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forc
   file answers the attach route without a session and keeps every other route behind it.
 - `tests/computers-keys.test.ts` covers the move from SSH.
 - `tests/computers-broker.test.ts` covers the broker over a transport, including the
-  application's lock and the shell history.
+  application's lock and the shell history with the exit code in either form.
 - `tests/launchpad-computers.test.ts` covers the pairing into the registry with its `channel`.
 
-Not proven: a real gateway with the exception, and Lazurio Agent Desktop's own client.
+**A trial on 2026-11-13** ran this branch's computer routes and attach endpoint on two
+Environments, without the gateway: each Launchpad listened on loopback, and the computers
+reached it through an SSH tunnel (`ws://`). After the move from SSH, Lazurio Agent Desktop
+0.1.0-pilot.6 on macOS 27 and on Windows 11 attached over the WebSocket without pairing again.
+The move removed only the computer's line from `authorized_keys`, and every other line stayed
+byte for byte. With the Mac paired to both Environments, the application's lock refused the
+second Environment's call with "Počítač teď ovládá agent z …", and `lazurio_app_status` named
+the first Environment in `controlledBy`. `lazurio_shell_run` on the Mac ended with exit code 0.
+The history kept its command but not the code, because the application answers the code only in
+its JSON text, so the broker now reads it there too (point 7). The Calculator gave 42 on both
+systems. Not proven: a real gateway with the exception.
