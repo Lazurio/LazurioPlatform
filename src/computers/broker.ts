@@ -110,6 +110,43 @@ export function commandLabel(value: unknown): string | undefined {
   return command === "" ? undefined : command;
 }
 
+/** The longest text of a shell tool's result that is read for its exit code
+ * (the application keeps 64 KiB of each output). */
+const maxShellResultText = 4 * 1024 * 1024;
+
+/** A shell tool's exit code for the history: `exitCode` of the result's
+ * `structuredContent` or, as Lazurio Agent Desktop answers, of the JSON object
+ * in the result's one text part. Nothing else of the result is read or kept. */
+export function shellExitCode(result: unknown): number | undefined {
+  if (typeof result !== "object" || result === null) return undefined;
+  const { structuredContent, content } = result as {
+    structuredContent?: unknown;
+    content?: unknown;
+  };
+  const integer = (value: unknown) =>
+    Number.isInteger(value) ? (value as number) : undefined;
+  if (typeof structuredContent === "object" && structuredContent !== null) {
+    const code = integer(
+      (structuredContent as { exitCode?: unknown }).exitCode,
+    );
+    if (code !== undefined) return code;
+  }
+  if (!Array.isArray(content) || content.length !== 1) return undefined;
+  const part = content[0] as { type?: unknown; text?: unknown } | null;
+  if (part?.type !== "text" || typeof part.text !== "string") return undefined;
+  if (part.text.length > maxShellResultText) return undefined;
+  const text = part.text.trim();
+  if (!text.startsWith("{")) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return typeof parsed === "object" && parsed !== null
+      ? integer((parsed as { exitCode?: unknown }).exitCode)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Exit statuses: 0 the session ended, 2 refused (already attached, or the
  * socket cannot be placed), 3 the computer never answered `initialize`. */
 export const brokerExit = Object.freeze({
@@ -248,11 +285,12 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         // A refusal of the application's own lock across Environments
         // ("Počítač teď ovládá agent z …", contract v1 section 1) is an
         // ordinary failed call: the session stays.
-        const result = message.result as
-          | { isError?: unknown; structuredContent?: { exitCode?: unknown } }
-          | undefined;
+        const result = message.result as { isError?: unknown } | undefined;
         const ok = message.error === undefined && result?.isError !== true;
-        const exitCode = result?.structuredContent?.exitCode;
+        const exitCode =
+          entry.command === undefined
+            ? undefined
+            : shellExitCode(message.result);
         void audit({
           event: "tool",
           tool: entry.tool ?? "unknown",
@@ -260,9 +298,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
           ms: Math.max(0, now() - entry.started),
           agent: label(entry.client),
           ...(entry.command === undefined ? {} : { command: entry.command }),
-          ...(entry.command !== undefined && Number.isInteger(exitCode)
-            ? { exitCode: exitCode as number }
-            : {}),
+          ...(exitCode === undefined ? {} : { exitCode }),
         });
         // An update that did not start: the computer stays.
         if (entry.tool === appUpdateTool && !ok)

@@ -9,6 +9,7 @@ import {
   type BrokerOptions,
   type BrokerTransport,
   runBroker,
+  shellExitCode,
 } from "../src/computers/broker";
 import { lineSplitter } from "../src/computers/lines";
 import {
@@ -59,7 +60,10 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
       });
     else if (message.method === "ping") answer(message.id, {});
     else if (message.method === "tools/call") {
-      const params = message.params as { name: string };
+      const params = message.params as {
+        name: string;
+        arguments?: { command?: unknown };
+      };
       const done = () =>
         answer(message.id, { content: [{ type: "text", text: "done" }] });
       if (params.name === "hold") held.push(done);
@@ -75,10 +79,34 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
           isError: true,
         });
       else if (params.name === "lazurio_shell_run")
-        answer(message.id, {
-          content: [{ type: "text", text: "ok" }],
-          structuredContent: { exitCode: 3, stdout: "secret output" },
-        });
+        answer(
+          message.id,
+          params.arguments?.command === "uname -a"
+            ? // As Lazurio Agent Desktop answers: its JSON as the one text.
+              {
+                content: [
+                  {
+                    type: "text",
+                    text: JSON.stringify(
+                      {
+                        exitCode: 0,
+                        timedOut: false,
+                        stdout: "secret output",
+                        stderr: "",
+                        truncated: false,
+                      },
+                      null,
+                      2,
+                    ),
+                  },
+                ],
+                isError: false,
+              }
+            : {
+                content: [{ type: "text", text: "ok" }],
+                structuredContent: { exitCode: 3, stdout: "secret output" },
+              },
+        );
       else if (params.name === "lazurio_app_update") {
         // The application answers (or not), then restarts.
         if (update === "refuse")
@@ -733,8 +761,14 @@ test.skipIf(!posix)(
         arguments: { command: "ls -la\n~/Documents", cwd: "~" },
       });
       expect(shell.result).toBeDefined();
+      // The application's own answer carries the exit code in its JSON text.
+      const text = await first.call("tools/call", {
+        name: "lazurio_shell_run",
+        arguments: { command: "uname -a" },
+      });
+      expect(text.result).toBeDefined();
       await waitFor(
-        () => audit.filter((line) => line.event === "tool").length === 2,
+        () => audit.filter((line) => line.event === "tool").length === 3,
       );
       const tools = audit.filter((line) => line.event === "tool");
       expect(tools[0]).toMatchObject({ tool: "locked", ok: false });
@@ -743,8 +777,52 @@ test.skipIf(!posix)(
         command: "ls -la ~/Documents",
         exitCode: 3,
       });
+      expect(tools[2]).toMatchObject({
+        tool: "lazurio_shell_run",
+        ok: true,
+        command: "uname -a",
+        exitCode: 0,
+      });
       expect(JSON.stringify(audit)).not.toContain("secret output");
       expect(audit.map((line) => line.event)).not.toContain("disconnected");
       first.close();
     }),
 );
+
+test("a shell command's exit code comes from structuredContent or the application's one JSON text, and from nothing else", () => {
+  const text = (value: string) => ({ type: "text", text: value });
+  expect(
+    shellExitCode({
+      structuredContent: { exitCode: 3 },
+      content: [text('{"exitCode":4}')],
+    }),
+  ).toBe(3);
+  expect(
+    shellExitCode({
+      content: [text('{\n  "exitCode": 0,\n  "stdout": "Darwin"\n}')],
+    }),
+  ).toBe(0);
+  expect(
+    shellExitCode({
+      structuredContent: { exitCode: "1" },
+      content: [text('{"exitCode":2}')],
+    }),
+  ).toBe(2);
+  // A command still running or stopped by its time limit has no code.
+  expect(
+    shellExitCode({ content: [text('{"exitCode":null,"timedOut":true}')] }),
+  ).toBeUndefined();
+  expect(shellExitCode({ content: [text("exit 0")] })).toBeUndefined();
+  expect(
+    shellExitCode({ content: [text('{"exitCode":1.5}')] }),
+  ).toBeUndefined();
+  expect(shellExitCode({ content: [text("[0]")] })).toBeUndefined();
+  expect(
+    shellExitCode({ content: [text('{"exitCode":1}'), text("more")] }),
+  ).toBeUndefined();
+  expect(
+    shellExitCode({ content: [{ type: "image", data: '{"exitCode":1}' }] }),
+  ).toBeUndefined();
+  expect(shellExitCode(undefined)).toBeUndefined();
+  expect(shellExitCode("0")).toBeUndefined();
+});
