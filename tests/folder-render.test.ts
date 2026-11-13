@@ -375,8 +375,7 @@ test("the Steward preset renders the persona, its bot team and the publication r
         "/lazurio publish",
       ])
         expect(output).not.toContain(marker);
-      // General naming rules mention QA on every preset without granting its role.
-      expect(output).toContain("Rupert");
+      expect(output).not.toMatch(/\bperson(a|y|ou)\b/);
     }
 });
 
