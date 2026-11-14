@@ -28,6 +28,7 @@ import {
   browserViewUrl,
   navigableAddress,
   stripAppOf,
+  targetIdOf,
   threadOfWindow,
   threadSession,
 } from "./contract/pure";
@@ -141,7 +142,40 @@ export type BrowserContext = CliContext &
     openTab?: typeof openTab | undefined;
     /** Tests only: the hub's loopback list behind `tabs`. */
     listTabs?: typeof listTabs | undefined;
+    /** Tests only: the page titles the browser reports behind `tabs`. */
+    pageTitles?: (() => Promise<ReadonlyMap<string, string>>) | undefined;
   }>;
+
+/** The titles the browser reports for its pages on its loopback DevTools
+ * endpoint (`/json/list`), by target id: the hub reads a page's own title
+ * only while someone views it, and an agent's window mostly has no viewer.
+ * Empty when the browser does not answer within 3 s. */
+async function browserPageTitles(): Promise<ReadonlyMap<string, string>> {
+  const titles = new Map<string, string>();
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${browserBounds.devtoolsPort}/json/list`,
+      { signal: AbortSignal.timeout(3_000) },
+    );
+    const list = (await response.json()) as unknown;
+    if (Array.isArray(list))
+      for (const item of list) {
+        const { id, type, title, url } = (item ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const target = targetIdOf(id);
+        if (
+          type === "page" &&
+          target !== null &&
+          typeof title === "string" &&
+          title !== url
+        )
+          titles.set(target, title.slice(0, browserBounds.titleLength));
+      }
+  } catch {}
+  return titles;
+}
 
 const text = {
   en: {
@@ -574,6 +608,9 @@ export async function runBrowserCommand(
           stderr: copy["tabs-unreachable"],
         });
       const facts = new Map(listed.tabs.map((tab) => [tab.id, tab]));
+      const titles = listed.tabs.some((tab) => tab.title === "")
+        ? await (context.pageTitles ?? browserPageTitles)()
+        : new Map<string, string>();
       const windows = sessions.flatMap(
         ({ session, targetId }): BrowserThreadWindow[] => {
           const tab = targetId === null ? undefined : facts.get(targetId);
@@ -583,7 +620,7 @@ export async function runBrowserCommand(
               session,
               targetId: tab.id,
               url: tab.url,
-              title: tab.title,
+              title: tab.title === "" ? (titles.get(tab.id) ?? "") : tab.title,
               link: browserViewUrl(browser.origin, tab.id),
               held: tab.agents.includes(session),
               viewers: tab.viewers,

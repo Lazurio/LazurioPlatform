@@ -11745,6 +11745,46 @@ browser on the preview in Czech (on) and English (off). Installed consumers rece
 through a qualified Platform release, and the state reads only once the relay's path
 (Machines step 2) and the Dashboard's read are deployed.
 
+**Addendum 2026-11-14: a thread's windows, listed and let go together, and at most five
+at once (point 28 of root decision 0191).** An agent that works through the CLI, Codex in
+ChatGPT Desktop above all, could not tell its windows from other threads': agent-browser's
+`tab list` lists every tab of the Environment without an owner, and `done` lets go of one
+session's window while nothing said which of `<session>`, `<session>-2`, … the thread still
+held. In one thread an agent said it would close its tabs and did not, and the person lost
+their way among dozens of tabs.
+
+1. **A thread's windows.** They are its session's window and its further windows
+   `<session>-2` to `<session>-999` and `<session>-preview` (`threadOfWindow` and
+   `isThreadWindow`, C2): `t3-a-2` is `t3-a`'s, while `t3-a-02`, `t3-a-1`, `t3-a-1000` and
+   the last group of a UUID are names of their own. No other name is taken apart.
+2. **`lazurio browser tabs`** lists them and no other thread's: for each its session, tab,
+   address, title, the person's link, whether the thread's daemon holds it (`held`), how
+   many people view it, whether it sleeps and when the hub ends it. The windows come from
+   agent-browser's bindings (C7), their facts from the hub's loopback list (C11). Its answer
+   is the new kind `browser-tabs` of C13.
+3. **`lazurio browser done --all`** lets go of every window of the thread whose daemon may
+   run, each as `done` does; its answer keeps the kind `browser-done`, with the thread as
+   `session`, the worst outcome as `outcome` and each session's in `sessions`. An agent
+   checks with `tabs` before it tells the person its windows are closed: a window let go
+   that the person views stays for them.
+4. **At most five windows** whose daemon runs and whose tab is open: past that `lazurio
+   browser window` opens none, exits 1 and names the windows the thread holds; the window a
+   session has already is never refused. *Open:* no decision sets the number. Five is
+   provisional, derived from the 28 tabs the reference Environment carried without losing a
+   renderer (F57 point 6), every remote tab being a window of its own (0191 point 11), and
+   from what one agent needs: its window, one for helper pages, a preview and two more.
+5. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-123`)
+   tells agents to list their windows with `tabs` and never with `tab list`, to read helper
+   pages one after another in one window, to check with `tabs` before saying the windows are
+   closed, and, in ChatGPT Desktop, to keep one window whose link the person has in the
+   right panel and to say what a further window's new link shows.
+
+Unchanged: no tab is closed for everyone, the hub, its graces and the holder files. C2 and
+C13 only grow within v1 (F50 point 3). Verified by `tests/environment-browser.test.ts`
+(another thread's sessions never read, listed or let go; `done --all`'s outcomes; the
+limit's refusal and the window a session keeps) and the vectors of `strips.json` and
+`cli.json`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan

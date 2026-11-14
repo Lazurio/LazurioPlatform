@@ -2367,9 +2367,15 @@ test.skipIf(process.platform === "win32")(
       ],
     };
     const listTabs = async () => listed;
+    // The hub has no title for a tab nobody views: the browser's is taken.
+    const pageTitles = async () =>
+      new Map([
+        [TAB_B, "From the browser"],
+        [TAB_D, "Another thread's page"],
+      ]);
     const tabs = await runBrowserCommand(
       ["tabs", "--folder", folder, "--json"],
-      { ...context(env), listTabs },
+      { ...context(env), listTabs, pageTitles },
     );
     expect(tabs.code).toBe(0);
     expect(JSON.parse(tabs.stdout ?? "")).toEqual({
@@ -2393,7 +2399,7 @@ test.skipIf(process.platform === "win32")(
           session: "codex-019a-2",
           targetId: TAB_B,
           url: "https://example.com/2B",
-          title: "",
+          title: "From the browser",
           link: `${origin}/t/${TAB_B}`,
           held: true,
           viewers: 1,
@@ -2416,13 +2422,14 @@ test.skipIf(process.platform === "win32")(
     // A further window's session lists the same thread.
     const fromFurther = await runBrowserCommand(
       ["tabs", "--session", "codex-019a-2", "--folder", folder, "--json"],
-      { ...context(env), listTabs },
+      { ...context(env), listTabs, pageTitles },
     );
     expect(JSON.parse(fromFurther.stdout ?? "").session).toBe("codex-019a");
     // As text: each window with its link and state, and the reminder to
     // check before telling the user.
     const text = await runBrowserCommand(["tabs", "--folder", folder], {
       ...context(env),
+      pageTitles,
       listTabs: async () => ({
         kind: "tabs" as const,
         tabs: [tabFacts(TAB_C, { grace })],
@@ -2439,6 +2446,7 @@ test.skipIf(process.platform === "win32")(
     );
     const empty = await runBrowserCommand(["tabs", "--folder", folder], {
       ...context(env),
+      pageTitles,
       listTabs: async () => ({ kind: "tabs" as const, tabs: [] }),
     });
     expect(empty.stdout).toBe(
@@ -2449,6 +2457,7 @@ test.skipIf(process.platform === "win32")(
       ["tabs", "--folder", folder, "--json"],
       {
         ...context(env),
+        pageTitles,
         listTabs: async () =>
           ({ kind: "refused", reason: "hub-unreachable" }) as const,
       },
