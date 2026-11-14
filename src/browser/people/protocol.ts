@@ -39,6 +39,42 @@ export type TouchPoint = Readonly<{ x: number; y: number; id: number }>;
  * were, or Data saver, smaller frames for a slow connection. */
 export type Picture = "standard" | "saver";
 
+/** The pop-ups of a page's own controls that Chrome draws outside the page
+ * (decision F39's addendum of 2026-11-14, #970): a screencast never shows
+ * them, so the view shows its own in their place. */
+export const pickerKinds = [
+  "select",
+  "datalist",
+  "date",
+  "time",
+  "datetime-local",
+  "month",
+  "week",
+  "color",
+] as const;
+export type PickerKind = (typeof pickerKinds)[number];
+
+/** One choice of a picker: for a `<select>` an option by its index among the
+ * select's options (`i`), its group (`group`, an index into the picker's
+ * `groups`, -1 for none); for a datalist a suggestion, whose `value` the
+ * field takes and `label` describes it. */
+export type PickerItem = Readonly<{
+  i: number;
+  text: string;
+  value: string;
+  label?: string;
+  disabled?: boolean;
+  group?: number;
+}>;
+
+/** Where the control is on the remote page: CSS pixels of its viewport. */
+export type PickerRect = Readonly<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}>;
+
 /** From the page to the service. Coordinates are CSS pixels of the remote
  * page's viewport, already mapped by the page from the frame it shows. */
 export type ClientMessage =
@@ -108,6 +144,18 @@ export type ClientMessage =
   | Readonly<{ t: "dialog"; accept: boolean; text?: string }>
   /** The person dismissed the file chooser without picking a file. */
   | Readonly<{ t: "files-cancel"; token: string }>
+  /** The person chose in the view's own picker: an option of a `<select>`
+   * by its index and, to find it again in a page that changed its options
+   * meanwhile, its value and text; or a value for the field. */
+  | Readonly<{
+      t: "pick";
+      token: string;
+      index?: number;
+      value?: string;
+      text?: string;
+    }>
+  /** The person closed the picker without choosing (Esc, outside). */
+  | Readonly<{ t: "pick-cancel"; token: string }>
   /** Close this remote tab (a pop-up's close button). */
   | Readonly<{ t: "close" }>;
 
@@ -144,6 +192,26 @@ export type ServerMessage =
   /** The page asked for files: upload them with `POST /t/<id>/files?token=`. */
   | Readonly<{ t: "files"; multiple: boolean; token: string }>
   | Readonly<{ t: "files-closed"; token: string }>
+  /** A page's control would open a pop-up Chrome draws outside the page
+   * (#970): the view shows its own, at the control, for the person who
+   * acted. `items` for a select and a datalist, `groups` and `selected` for
+   * a select, `value`, `min`, `max` and `step` for the fields. */
+  | Readonly<{
+      t: "picker";
+      token: string;
+      kind: PickerKind;
+      rect: PickerRect;
+      name: string;
+      items?: readonly PickerItem[];
+      groups?: readonly Readonly<{ label: string; disabled: boolean }>[];
+      selected?: number;
+      value?: string;
+      min?: string;
+      max?: string;
+      step?: string;
+    }>
+  /** The picker is no longer wanted: the page went away or changed. */
+  | Readonly<{ t: "picker-closed"; token: string }>
   /** The tab no longer exists. The socket closes after this. */
   | Readonly<{ t: "closed" }>
   /** The service lost the browser and reconnects, or found it again. */
@@ -329,6 +397,17 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         ? (m as ClientMessage)
         : null;
     case "files-cancel":
+      return text(m.token, 64) ? (m as ClientMessage) : null;
+    case "pick":
+      return text(m.token, 64) &&
+        (m.index === undefined ||
+          (Number.isSafeInteger(m.index) && finite(m.index, 0, 100_000))) &&
+        (m.value === undefined || text(m.value, 10_000)) &&
+        (m.text === undefined || text(m.text, 10_000)) &&
+        (m.index !== undefined || m.value !== undefined)
+        ? (m as ClientMessage)
+        : null;
+    case "pick-cancel":
       return text(m.token, 64) ? (m as ClientMessage) : null;
     case "close":
       return m as ClientMessage;
