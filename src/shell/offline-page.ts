@@ -216,7 +216,7 @@ const style = `
 [hidden]{display:none!important}
 body{margin:0;background:#fff;color:var(--ink);font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .rail{position:fixed;inset:0 auto 0 0;display:flex;width:64px;flex-direction:column;align-items:center;padding:12px 0;background:var(--paper)}
-.home{display:grid;width:40px;height:40px;place-items:center;border-radius:10px}
+.home{display:grid;width:40px;height:40px;place-items:center;border-radius:50%}
 a.home:hover{background:var(--line-faint)}
 .disc{display:grid;width:32px;height:32px;place-items:center;border-radius:50%;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 .disc svg{width:20px;height:20px}
