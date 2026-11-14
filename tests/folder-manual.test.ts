@@ -2957,3 +2957,54 @@ test("the manual says AI signs in at Začínáme, never Tools, and AGENTS.md nam
     expect(launchpad?.en).not.toContain("Začínáme");
   }
 });
+
+// F39's addendum of 2026-11-14: the browser declines payments and Chrome's
+// other windows over the page; agents read it right after the sign-in point,
+// wherever the Environment has the view.
+test("the browser section says, right after sign-in, that payments and Chrome's windows over the page are declined, and how to save a PDF", () => {
+  const heads = {
+    cs: {
+      point: "- **Platby a okna Chromu.**",
+      before: "- **Přihlášení a ověření.**",
+      pdf: "`agent-browser --cdp 9222 --session <sezení> pdf <soubor>`",
+      publication: "Platba je Publikace",
+    },
+    en: {
+      point: "- **Payments and Chrome's windows.**",
+      before: "- **Sign-in and verification.**",
+      pdf: "`agent-browser --cdp 9222 --session <session> pdf <file>`",
+      publication: "A payment is a Publication",
+    },
+  } as const;
+  for (const locale of ["cs", "en"] as const) {
+    const words = heads[locale];
+    const manualOf = (
+      preset:
+        | "hosted-organization-personal"
+        | "hosted-personal"
+        | "hosted-organization-team",
+      machine: typeof bindings.organizationBrowser,
+    ) =>
+      renderManual({
+        preset,
+        machine,
+        profile: presetProfile(preset, "linux", { locale }),
+      })["manual/this-machine.md"] as string;
+    for (const [preset, machine] of [
+      ["hosted-organization-personal", bindings.organizationBrowser],
+      ["hosted-personal", bindings.personalBrowser],
+      ["hosted-organization-team", bindings.teamBrowser],
+    ] as const) {
+      const lines = manualOf(preset, machine).split("\n");
+      const at = lines.findIndex((line) => line.startsWith(words.point));
+      expect(at).toBeGreaterThan(0);
+      expect(lines[at - 1]?.startsWith(words.before)).toBe(true);
+      expect(lines[at]).toContain(words.pdf);
+      expect(lines[at]).toContain(words.publication);
+    }
+    // No view, no point.
+    expect(
+      manualOf("hosted-organization-personal", bindings.organization),
+    ).not.toContain(words.point);
+  }
+});
