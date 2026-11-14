@@ -1255,19 +1255,22 @@ test("<lazurio-buddy> makes its shadow root only through the guide's layer or th
   expect(view).not.toContain("credentialless");
 });
 
-test("the launcher stands in the same corner in every app with Buddy's figure at 40 x 44 px, the page keeps that corner free while it is drawn, and full screen covers the window (F60's addendum of 2026-10-25)", () => {
-  // The prototype's place and figure: 22 px from the right and bottom edges
-  // in the Launchpad, Chat and Automate alike, the figure inside the 58 px
-  // disc with its pixels kept sharp rather than filling it.
+test("the launcher starts in the same corner in every app with Buddy's figure free at 48 x 52 px, the page keeps that corner free while it is drawn, and full screen covers the window (F60's addenda of 2026-10-25 and 2026-11-14)", () => {
+  // The prototype's corner: 22 px from the right and bottom edges in the
+  // Launchpad, Chat and Automate alike, the launcher's box 58 px; his figure
+  // stands free in it, no disc, with its pixels kept sharp.
   expect(buddyLauncherSize).toBe(58);
   expect(buddyLauncherOffset).toEqual({ right: 22, bottom: 22 });
-  expect(buddyLauncherFigure).toEqual({ width: 40, height: 44 });
+  expect(buddyLauncherFigure).toEqual({ width: 48, height: 52 });
   expect(buddyBubbleCss).not.toContain("data-app");
   expect(buddyBubbleCss).toContain(
     ".bubble { --buddy-right: var(--lazurio-buddy-right, 22px); --buddy-bottom: var(--lazurio-buddy-bottom, 22px);",
   );
   expect(buddyBubbleCss).toContain(
-    ".launcher img { display: block; width: 40px; height: 44px; object-fit: contain; image-rendering: pixelated; pointer-events: none; }",
+    ".launcher img { display: block; width: 48px; height: 52px; object-fit: contain; image-rendering: pixelated; pointer-events: none;",
+  );
+  expect(buddyBubbleCss).toContain(
+    "background: transparent; color: var(--lz-ink); cursor: grab; touch-action: none;",
   );
   // Full screen covers the whole window; the frame keeps its own reading
   // width, and nothing is left around it to dim or click.
@@ -1342,7 +1345,8 @@ test("the launcher's corner follows the host's `hidden` too: hidden, the clearan
   const elements = await readFile("src/shell/elements.ts", "utf8");
   const view = await readFile("src/shell/buddy-element.ts", "utf8");
   expect(elements).toContain('static observedAttributes = ["lang", "hidden"];');
-  expect(view).toContain("clearance(launcherOnPage(model, host));");
+  expect(view).toContain("onPage = launcherOnPage(model, host);");
+  expect(view).toContain('clearance(onPage && place === "home");');
 });
 
 // ---- Before the person met Buddy (F60's addendum of 2026-10-26) -------------

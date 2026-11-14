@@ -678,7 +678,10 @@ link. Sharing an app from a Work Environment is a separate delivery path.
 The release has a tag, an exact commit and green CI. The deployment declaration
 pins that tag and commit to exactly one Application host on one server.
 Every publication and every newly deployed version requires the Organization
-Admin's approval by merging a reviewed Deployment Repo pull request; the rollout
+Admin's approval. In the target the Admin approves in the Dashboard, Lazurio opens
+the pull request to the Organization's Deployment Repo and Machines verifies the
+approval in Lazurio before it applies it; until that is deployed, the Admin approves
+by merging a reviewed Deployment Repo pull request (decisions 0239 and 0245). The rollout
 still obeys its Plan, Permit, branch rules and readback gates. Releasing the Module
 as a Module Maintainer does not itself authorize deployment.
 
@@ -915,9 +918,10 @@ lazurio module create personalspace/<module> --stack <stack> [--name <name>] [--
 - `--dry-run` checks everything a real run would and prints the plan with its
   digest; nothing is written. The agent shows the plan to the user, and only after
   they confirm it does `--confirm <plan>` create exactly that plan.
-- An Organization's Module is created by the Organization Admin, until decision
-  0228 is deployed an active Organization Owner on GitHub (its `admin`
-  organization role), never from a Team Environment, from a task worktree of the Organization root on
+- An Organization's Module is created by the Organization Admin; until the Admin
+  role in Lazurio Auth is deployed (decision 0245), an active Organization Owner on
+  GitHub (its `admin`
+  organization role) creates it, which gives that Owner no access to any Environment, never from a Team Environment, from a task worktree of the Organization root on
   a branch of its own. The run creates the private repository, grants Write (`push`,
   the Module Contributor) to each Team of `--teams`, places the Module in `workspace/<module>`, pushes `main`
   and declares the slot in the worktree's `modules.manifest.json`; merging the

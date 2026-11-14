@@ -238,7 +238,7 @@ that recorded the Automated preset explicitly (Platform #106, before #277) keeps
 A public Environment is a work VM of the public reference Organization whose gateway
 admits any Lazurio account (root decision 0204,
 [decision F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to));
-try-01 is the one there is. What it means inside the app is the **Try overlay preset**
+try-01 is the one there is, and it is the last: entry without a tailnet is retired (decision 0246), the reference Organization is to have no public Environment and no Environment that admits any Lazurio account (decision 0204), and nothing further is built on this overlay, which goes when try-01 is retired. What it means inside the app is the **Try overlay preset**
 (`tryPreset` in `src/folder/presets.ts`,
 [F55's addendum of 2026-10-20](decisions.md#addendum-of-2026-10-20-the-try-overlay-preset)):
 one frozen record that a reviewer reads in one place.
