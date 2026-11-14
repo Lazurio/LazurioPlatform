@@ -1,10 +1,15 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
-import { agentBrowserSocketDirectory, holderDirectory } from "./contract/node";
+import {
+  agentBrowserSocketDirectory,
+  holderDirectory,
+  processAlive,
+} from "./contract/node";
 import {
   browserBounds,
+  isThreadWindow,
   parseHolder,
   stripAppOf,
   targetIdOf,
@@ -38,6 +43,8 @@ export type WindowSeams = Readonly<{
   /** The page targets with their addresses, for "no duplicate opens"
    * (decision F57, `threadPage`); absent: a window is never shared. */
   pages?: () => Promise<ReadonlyMap<string, string>>;
+  /** Tests only: whether a daemon's process runs (`processAlive`). */
+  alive?: (pid: number) => boolean;
 }>;
 
 export type ThreadWindow = Readonly<{
@@ -59,6 +66,129 @@ export class BrowserWindowFailure extends Error {
   ) {
     super(reason);
   }
+}
+
+/** One session of a thread as agent-browser's files record it (C7): its
+ * bound target, when its binding names one, and whether its daemon runs
+ * (its `.pid` names a running process, or cannot be read, which counts as
+ * running as the hub counts it), or may be asked to stop (`.sock`). */
+export type ThreadSession = Readonly<{
+  session: string;
+  targetId: string | null;
+  running: boolean;
+  socket: boolean;
+}>;
+
+/** The sessions of the thread's windows (`isThreadWindow`) that have any
+ * of agent-browser's files, sorted by name with numbers in order. Another
+ * thread's sessions are never read. Empty where there is no socket
+ * directory or it does not exist. */
+export async function readThreadSessions(
+  thread: string,
+  env: Readonly<Record<string, string | undefined>>,
+  alive: (pid: number) => boolean = processAlive,
+): Promise<readonly ThreadSession[]> {
+  const directory = agentBrowserSocketDirectory(env);
+  if (directory === undefined) return [];
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const files = new Map<string, Set<string>>();
+  for (const name of names) {
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0) continue;
+    const session = name.slice(0, dot);
+    const kind = name.slice(dot + 1);
+    if (
+      (kind !== "target" && kind !== "pid" && kind !== "sock") ||
+      !isThreadWindow(thread, session)
+    )
+      continue;
+    const kinds = files.get(session) ?? new Set<string>();
+    kinds.add(kind);
+    files.set(session, kinds);
+  }
+  const sessions = [...files.keys()].sort((a, b) =>
+    a.localeCompare(b, "en", { numeric: true }),
+  );
+  return Promise.all(
+    sessions.map(async (session) => {
+      const kinds = files.get(session) as Set<string>;
+      let targetId: string | null = null;
+      if (kinds.has("target"))
+        try {
+          targetId = targetIdOf(
+            (
+              JSON.parse(
+                await readFile(join(directory, `${session}.target`), "utf8"),
+              ) as { targetId?: unknown } | null
+            )?.targetId,
+          );
+        } catch {}
+      let running = false;
+      if (kinds.has("pid"))
+        try {
+          const digits = (
+            await readFile(join(directory, `${session}.pid`), "utf8")
+          ).trim();
+          const pid = /^[0-9]{1,10}$/.test(digits)
+            ? Number(digits)
+            : Number.NaN;
+          running = !(Number.isSafeInteger(pid) && pid >= 2) || alive(pid);
+        } catch (error) {
+          // Gone between the listing and the read: not running. Anything
+          // else is unclear, and unclear counts as running.
+          running = (error as NodeJS.ErrnoException).code !== "ENOENT";
+        }
+      return Object.freeze({
+        session,
+        targetId,
+        running,
+        socket: kinds.has("sock"),
+      });
+    }),
+  );
+}
+
+/** One window the thread's agent-browser still holds, with the address its
+ * page shows (empty where the browser did not say). */
+export type HeldThreadWindow = Readonly<{
+  session: string;
+  targetId: string;
+  url: string;
+}>;
+
+/** The windows the thread still holds: the distinct open pages its running
+ * sessions are bound to, each with the first of its sessions and its
+ * address. No number limits them (decided on 2026-11-14): `lazurio browser
+ * window` names them when it opens another, so the agent lets go of those it
+ * no longer needs. A window let go (`done`, or agent-browser's idle timeout
+ * of 1 h) is not held, even while a person keeps it open. */
+export async function heldThreadWindows(
+  thread: string,
+  seams: Pick<WindowSeams, "env" | "targets" | "pages" | "alive">,
+): Promise<readonly HeldThreadWindow[]> {
+  const sessions = await readThreadSessions(thread, seams.env, seams.alive);
+  const pages =
+    seams.pages === undefined
+      ? new Map([...(await seams.targets())].map((id) => [id, ""]))
+      : await seams.pages();
+  const held = new Map<string, HeldThreadWindow>();
+  for (const { session, targetId, running } of sessions) {
+    const url = targetId === null ? undefined : pages.get(targetId);
+    if (
+      running &&
+      targetId !== null &&
+      url !== undefined &&
+      !held.has(targetId)
+    )
+      held.set(targetId, Object.freeze({ session, targetId, url }));
+  }
+  return [...held.values()];
 }
 
 const commandTimeoutMs = 30_000;

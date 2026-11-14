@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import { openTab } from "../launchpad/new-tab/hub-client";
+import { listTabs, openTab } from "../launchpad/new-tab/hub-client";
 import {
   LaunchpadStartRefused,
   readStartState,
@@ -20,12 +20,16 @@ import { browserHandoverUrl } from "./contract/platform";
 import {
   type BrowserCliAnswer,
   type BrowserCliKind,
+  type BrowserDoneOutcome,
+  type BrowserThreadWindow,
   browserBounds,
   browserCliExit,
   browserCliText,
   browserViewUrl,
   navigableAddress,
   stripAppOf,
+  targetIdOf,
+  threadOfWindow,
   threadSession,
 } from "./contract/pure";
 import { browserEntryOf } from "./view";
@@ -34,6 +38,9 @@ import {
   bindThreadWindow,
   cdpSeams,
   ensureThreadWindow,
+  type HeldThreadWindow,
+  heldThreadWindows,
+  readThreadSessions,
   type WindowSeams,
 } from "./window";
 
@@ -49,7 +56,24 @@ export const browserHelp = `browser window [--session <name>] [--url <url>] [--f
   the users' view (https://browser.…/t/<id>), where the user works in
   the same tab, and the agent-browser command to work in it. --json prints
   {schema: "lazurio.browser-cli.v1", kind: "browser-window", session,
-  targetId, created, link, command}.
+  targetId, created, link, command}. A further window of the same thread is
+  --session <session>-2, -3, … (or <session>-preview): each session name has
+  a window of its own and a new link for the user. No number limits a
+  thread's windows: when window opens a new one while the thread holds
+  others, it names them on stderr (session and address) and reminds you to
+  let go of those you no longer need (done --session <session>, or done
+  --all). It refuses nothing for it and still exits 0.
+browser tabs [--session <name>] [--folder <absolute Folder>] [--json]
+  The calling thread's windows and nobody else's: those of the session
+  (named as for window) and of its further windows <session>-2, … and
+  <session>-preview. For each its session, tab, address, title, the user's
+  link, whether your agent-browser still holds it and whether someone views
+  it. Run it before you tell the user that your windows are closed: a
+  window you let go that the user still views stays for them. --json prints
+  {schema: "lazurio.browser-cli.v1", kind: "browser-tabs", session (the
+  thread), windows: [{session, targetId, url, title, link, held, viewers,
+  sleeping, endsAt}]}. Exit status: 0 listed, 10 no Environment
+  browser, 2 usage, 1 the view's hub did not answer.
 browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--json]
   The link for the user: with a session, the Launchpad's hand-over to that
   session's tab; with --url, a new tab at that address that nobody holds,
@@ -58,17 +82,19 @@ browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--js
   {schema: "lazurio.browser-cli.v1", kind: "browser-link", session, link},
   with targetId for --url. Neither command opens an address on the view
   host of an Environment browser (browser.….lazurio.io).
-browser done [--session <name>] [--folder <absolute Folder>] [--json]
+browser done [--session <name>] [--all] [--folder <absolute Folder>] [--json]
   Lets go of the calling thread's window when its work there is done (root
   decision 0191 point 28): its agent-browser daemon stops, and the tab ends
   once nothing holds it and nobody views it. A user who has it open keeps
   it. It asks the session's own agent-browser daemon on its socket to shut
-  down; it never signals a process. --json prints {schema:
-  "lazurio.browser-cli.v1", kind: "browser-done", session, outcome}, outcome
-  being stopped, none (no daemon listens),
+  down; it never signals a process. --all lets go of every window of the
+  thread at once (the sessions tabs lists), each the same way. --json
+  prints {schema: "lazurio.browser-cli.v1", kind: "browser-done", session,
+  outcome}, outcome being stopped, none (no daemon listens),
   refused (the daemon did not shut down; nothing changed) or unconfirmed
   (no answer, or the daemon has not exited within 5 s: it may still hold the
-  window; run done again).
+  window; run done again); with --all, session is the thread, outcome the
+  worst of its sessions' and sessions [{session, outcome}] each one's.
   Exit status: 0 done, 10 this Environment has no Environment browser (with
   --json, {schema, kind, available: false}, the command's own kind), 2
   usage, 1 failure.
@@ -91,7 +117,7 @@ browser serve --port <loopback port> --origin <https://browser.…>
   until it is stopped. Not for agents.`;
 
 const synopsis =
-  "browser window|link|done [--session <name>] [--url <url>] [--folder <absolute Folder>] [--json] | browser open <http(s) address> [--folder <absolute Folder>] [--json]";
+  "browser window|link|done|tabs [--session <name>] [--url <url>] [--all] [--folder <absolute Folder>] [--json] | browser open <http(s) address> [--folder <absolute Folder>] [--json]";
 
 /** The commands that run inside other programs, the view service the unit
  * runs and the default browser a CLI's BROWSER or xdg-open runs: they end
@@ -115,7 +141,42 @@ export type BrowserContext = CliContext &
     daemonSeams?: DaemonSeams | undefined;
     /** Tests only: the hub's loopback request behind `link --url`. */
     openTab?: typeof openTab | undefined;
+    /** Tests only: the hub's loopback list behind `tabs`. */
+    listTabs?: typeof listTabs | undefined;
+    /** Tests only: the page titles the browser reports behind `tabs`. */
+    pageTitles?: (() => Promise<ReadonlyMap<string, string>>) | undefined;
   }>;
+
+/** The titles the browser reports for its pages on its loopback DevTools
+ * endpoint (`/json/list`), by target id: the hub reads a page's own title
+ * only while someone views it, and an agent's window mostly has no viewer.
+ * Empty when the browser does not answer within 3 s. */
+async function browserPageTitles(): Promise<ReadonlyMap<string, string>> {
+  const titles = new Map<string, string>();
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${browserBounds.devtoolsPort}/json/list`,
+      { signal: AbortSignal.timeout(3_000) },
+    );
+    const list = (await response.json()) as unknown;
+    if (Array.isArray(list))
+      for (const item of list) {
+        const { id, type, title, url } = (item ?? {}) as Record<
+          string,
+          unknown
+        >;
+        const target = targetIdOf(id);
+        if (
+          type === "page" &&
+          target !== null &&
+          typeof title === "string" &&
+          title !== url
+        )
+          titles.set(target, title.slice(0, browserBounds.titleLength));
+      }
+  } catch {}
+  return titles;
+}
 
 const text = {
   en: {
@@ -157,6 +218,32 @@ const text = {
       "Opened in the Environment browser, in this thread's panel",
     "open-unbound":
       "This thread's panel does not show it: agent-browser did not bind the thread's session to the tab.",
+    "window-others": "This thread's other windows in the Environment browser:",
+    "window-others-next":
+      "Let go of those you no longer need right away: lazurio browser done --session <session> lets go of one, lazurio browser done --all of every window of the thread, this one too. lazurio browser tabs lists them.",
+    "tabs-unreachable":
+      "The users' view of the Environment browser did not list its tabs, so this thread's windows are unknown. Run lazurio doctor.",
+    "tabs-none": "This thread has no window in the Environment browser.",
+    "tabs-count-one": "This thread holds {count} window.",
+    "tabs-count-few": "This thread holds {count} windows.",
+    "tabs-count-other": "This thread holds {count} windows.",
+    "tabs-link": "The user's link",
+    "tabs-held": "your agent-browser holds it",
+    "tabs-released": "let go",
+    "tabs-viewed": "the user views it ({viewers}): it stays for them",
+    "tabs-unviewed": "nobody views it",
+    "tabs-sleeping": "asleep",
+    "tabs-ends": "ends at {time} unless held or viewed again",
+    "tabs-next":
+      "Before you tell the user your windows are closed, run lazurio browser tabs again: a window you let go that the user views stays for them.",
+    "done-all-none":
+      "This thread has no running agent-browser: nothing to let go.",
+    "done-all-stopped": "let go",
+    "done-all-none-one": "nothing ran",
+    "done-all-refused": "refused to shut down; nothing changed",
+    "done-all-unconfirmed": "not confirmed; it may still hold the window",
+    "done-check":
+      "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
   },
   cs: {
     "not-declared":
@@ -194,6 +281,31 @@ const text = {
     "opened-thread": "Otevřeno v prohlížeči Prostředí, v panelu tohoto vlákna",
     "open-unbound":
       "Panel tohoto vlákna stránku neukáže: agent-browser k záložce nepřipojil sezení vlákna.",
+    "window-others": "Další okna tohoto vlákna v prohlížeči Prostředí:",
+    "window-others-next":
+      "Ta, která už nepotřebuješ, hned pusť: jedno pustí lazurio browser done --session <sezení>, všechna okna vlákna i s tímto lazurio browser done --all. Vypíše je lazurio browser tabs.",
+    "tabs-unreachable":
+      "Pohled prohlížeče Prostředí nevypsal své záložky, takže okna tohoto vlákna nejsou známá. Spusť lazurio doctor.",
+    "tabs-none": "Toto vlákno nemá v prohlížeči Prostředí žádné okno.",
+    "tabs-count-one": "Toto vlákno drží {count} okno.",
+    "tabs-count-few": "Toto vlákno drží {count} okna.",
+    "tabs-count-other": "Toto vlákno drží {count} oken.",
+    "tabs-link": "Odkaz pro uživatele",
+    "tabs-held": "drží ho tvůj agent-browser",
+    "tabs-released": "puštěné",
+    "tabs-viewed": "uživatel se na něj dívá ({viewers}): zůstane mu",
+    "tabs-unviewed": "nikdo se na něj nedívá",
+    "tabs-sleeping": "spí",
+    "tabs-ends": "skončí v {time}, pokud ho nikdo znovu nedrží ani neotevře",
+    "tabs-next":
+      "Než uživateli řekneš, že jsou tvoje okna zavřená, spusť znovu lazurio browser tabs: puštěné okno, na které se uživatel dívá, mu zůstane.",
+    "done-all-none": "Toto vlákno nemá spuštěný agent-browser: není co pustit.",
+    "done-all-stopped": "puštěné",
+    "done-all-none-one": "nic neběželo",
+    "done-all-refused": "odmítl se ukončit; nic se nezměnilo",
+    "done-all-unconfirmed": "nepotvrdil konec; okno možná pořád drží",
+    "done-check":
+      "Co zůstalo, ověř za pár sekund příkazem lazurio browser tabs: okno skončí 8 s po puštění, pokud se na něj uživatel nedívá.",
   },
 } as const;
 
@@ -218,14 +330,101 @@ export const browserCommand = (session: string) =>
  * beside its `kind`. */
 const answered = (answer: BrowserCliAnswer) => browserCliText(answer);
 
-type Action = "window" | "link" | "done" | "open";
+type Action = "window" | "link" | "done" | "open" | "tabs";
 
 const kindOf: Readonly<Record<Action, BrowserCliKind>> = {
   window: "browser-window",
   link: "browser-link",
   done: "browser-done",
   open: "browser-open",
+  tabs: "browser-tabs",
 };
+
+/** `{name}` in a text, each replaced by its value. */
+const fill = (template: string, values: Readonly<Record<string, string>>) =>
+  template.replace(/\{(\w+)\}/g, (all, name: string) => values[name] ?? all);
+
+/** The worst of the outcomes of `done --all`: one that may still hold a
+ * window, then one that refused, then one let go, else none. */
+const outcomeOrder: readonly BrowserDoneOutcome[] = [
+  "unconfirmed",
+  "refused",
+  "stopped",
+  "none",
+];
+const worstOutcome = (outcomes: readonly BrowserDoneOutcome[]) =>
+  outcomeOrder.find((outcome) => outcomes.includes(outcome)) ?? "none";
+
+/** One window of `tabs` as text: its session, address and title, the
+ * user's link, and its state. */
+function windowText(
+  window: BrowserThreadWindow,
+  copy: (typeof text)[keyof typeof text],
+): string {
+  const state = [
+    window.held ? copy["tabs-held"] : copy["tabs-released"],
+    window.viewers > 0
+      ? fill(copy["tabs-viewed"], { viewers: String(window.viewers) })
+      : copy["tabs-unviewed"],
+    ...(window.sleeping ? [copy["tabs-sleeping"]] : []),
+    ...(window.endsAt !== null && !window.held && window.viewers === 0
+      ? [fill(copy["tabs-ends"], { time: window.endsAt })]
+      : []),
+  ].join("; ");
+  const title = window.title === "" ? "" : ` „${window.title}“`;
+  return [
+    `- ${window.session}: ${window.url}${title}`,
+    `  ${copy["tabs-link"]}: ${window.link}`,
+    `  ${state}`,
+  ].join("\n");
+}
+
+/** How many windows the thread holds, in the plural form of the language
+ * (Czech: 1 okno, 2–4 okna, 5 oken). */
+function countText(
+  count: number,
+  locale: keyof typeof text,
+  copy: (typeof text)[keyof typeof text],
+): string {
+  const form = new Intl.PluralRules(locale).select(count);
+  const key =
+    form === "one" || form === "few"
+      ? (`tabs-count-${form}` as const)
+      : "tabs-count-other";
+  return fill(copy[key], { count: String(count) });
+}
+
+/** The note `window` writes to stderr when it opened a new window while the
+ * thread holds others (decided on 2026-11-14 in place of a limit): their
+ * sessions and addresses, and how to let go of them. Nothing when there are
+ * none, or when they cannot be read: the note never fails the window. */
+async function otherWindowsNote(
+  session: string,
+  targetId: string,
+  seams: WindowSeams,
+  copy: (typeof text)[keyof typeof text],
+): Promise<string | undefined> {
+  let others: readonly HeldThreadWindow[];
+  try {
+    others = (
+      await heldThreadWindows(threadOfWindow(session) ?? session, seams)
+    ).filter(
+      (other) => other.session !== session && other.targetId !== targetId,
+    );
+  } catch {
+    return undefined;
+  }
+  if (others.length === 0) return undefined;
+  return [
+    copy["window-others"],
+    ...others.map((other) =>
+      other.url === ""
+        ? `- ${other.session}`
+        : `- ${other.session}: ${other.url}`,
+    ),
+    copy["window-others-next"],
+  ].join("\n");
+}
 
 /** The default browser's address (root decision 0201 point 5): http or
  * https only, as given. A file, a script, another app's scheme or a bare
@@ -308,6 +507,7 @@ export async function runBrowserCommand(
     session?: string | undefined;
     url?: string | undefined;
     folder?: string | undefined;
+    all?: boolean | undefined;
   };
   let action: Action;
   // `open`'s address: the one argument BROWSER and xdg-open pass.
@@ -323,6 +523,7 @@ export async function runBrowserCommand(
         session: { type: "string" },
         url: { type: "string" },
         folder: { type: "string" },
+        all: { type: "boolean" },
       },
     });
     values = parsed.values;
@@ -336,6 +537,7 @@ export async function runBrowserCommand(
         new Set(names).size !== names.length ||
         values.url !== undefined ||
         values.session !== undefined ||
+        values.all !== undefined ||
         (values.folder !== undefined &&
           (!isAbsolute(values.folder) ||
             resolve(values.folder) !== values.folder))
@@ -346,8 +548,11 @@ export async function runBrowserCommand(
       parsed.positionals.length !== 1 ||
       (positional !== "window" &&
         positional !== "link" &&
-        positional !== "done") ||
+        positional !== "done" &&
+        positional !== "tabs") ||
       new Set(names).size !== names.length ||
+      (values.all !== undefined && positional !== "done") ||
+      (positional === "tabs" && values.url !== undefined) ||
       (positional === "link" &&
         values.url !== undefined &&
         values.session !== undefined) ||
@@ -445,6 +650,111 @@ export async function runBrowserCommand(
           : link,
       });
     }
+    if (action === "tabs") {
+      const thread = threadOfWindow(named) as string;
+      const sessions = await readThreadSessions(thread, context.env);
+      const listed = await (context.listTabs ?? listTabs)(browser, {
+        heap: false,
+      });
+      if (listed.kind !== "tabs")
+        return Object.freeze({
+          code: browserCliExit.failure,
+          stderr: copy["tabs-unreachable"],
+        });
+      const facts = new Map(listed.tabs.map((tab) => [tab.id, tab]));
+      const titles = listed.tabs.some((tab) => tab.title === "")
+        ? await (context.pageTitles ?? browserPageTitles)()
+        : new Map<string, string>();
+      const windows = sessions.flatMap(
+        ({ session, targetId }): BrowserThreadWindow[] => {
+          const tab = targetId === null ? undefined : facts.get(targetId);
+          if (tab === undefined) return [];
+          return [
+            Object.freeze({
+              session,
+              targetId: tab.id,
+              url: tab.url,
+              title: tab.title === "" ? (titles.get(tab.id) ?? "") : tab.title,
+              link: browserViewUrl(browser.origin, tab.id),
+              held: tab.agents.includes(session),
+              viewers: tab.viewers,
+              sleeping: tab.sleeping !== undefined,
+              endsAt: tab.closing ?? tab.grace?.endsAt ?? null,
+            }),
+          ];
+        },
+      );
+      return Object.freeze({
+        code: browserCliExit.done,
+        stdout: json
+          ? answered({
+              kind: "browser-tabs",
+              session: thread,
+              windows,
+            })
+          : windows.length === 0
+            ? copy["tabs-none"]
+            : [
+                countText(
+                  windows.filter((entry) => entry.held).length,
+                  locale,
+                  copy,
+                ),
+                ...windows.map((window) => windowText(window, copy)),
+                copy["tabs-next"],
+              ].join("\n"),
+      });
+    }
+    if (action === "done" && values.all === true) {
+      const thread = threadOfWindow(named) as string;
+      const sockets = agentBrowserSocketDirectory(context.env);
+      // Only a session whose daemon may run is asked: one with a socket or
+      // a running process. A binding alone holds nothing.
+      const running =
+        sockets === undefined
+          ? []
+          : (await readThreadSessions(thread, context.env)).filter(
+              (entry) => entry.socket || entry.running,
+            );
+      const outcomes = await Promise.all(
+        running.map(async ({ session }) => ({
+          session,
+          outcome: await stopSessionDaemon(
+            sockets as string,
+            session,
+            context.daemonSeams,
+          ),
+        })),
+      );
+      const outcome = worstOutcome(outcomes.map((entry) => entry.outcome));
+      const words: Readonly<Record<BrowserDoneOutcome, string>> = {
+        stopped: copy["done-all-stopped"],
+        none: copy["done-all-none-one"],
+        refused: copy["done-all-refused"],
+        unconfirmed: copy["done-all-unconfirmed"],
+      };
+      const lines = outcomes.map(
+        (entry) => `- ${entry.session}: ${words[entry.outcome]}`,
+      );
+      const failed = outcome === "refused" || outcome === "unconfirmed";
+      return Object.freeze({
+        code: failed ? browserCliExit.failure : browserCliExit.done,
+        ...(json
+          ? {
+              stdout: answered({
+                kind: "browser-done",
+                session: thread,
+                outcome,
+                sessions: outcomes,
+              }),
+            }
+          : outcomes.length === 0
+            ? { stdout: copy["done-all-none"] }
+            : failed
+              ? { stderr: [...lines, copy["done-check"]].join("\n") }
+              : { stdout: [...lines, copy["done-check"]].join("\n") }),
+      });
+    }
     if (action === "done") {
       const session = named as string;
       const sockets = agentBrowserSocketDirectory(context.env);
@@ -460,7 +770,7 @@ export async function runBrowserCommand(
         ...(json
           ? { stdout: answered({ kind: "browser-done", session, outcome }) }
           : outcome === "stopped"
-            ? { stdout: copy.stopped }
+            ? { stdout: `${copy.stopped}\n${copy["done-check"]}` }
             : outcome === "none"
               ? { stdout: copy["no-daemon"] }
               : {
@@ -474,13 +784,17 @@ export async function runBrowserCommand(
       });
     }
     const session = named as string;
-    const window = await ensureThreadWindow(
-      session,
-      address,
-      context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
-    );
+    const seams =
+      context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess);
+    const window = await ensureThreadWindow(session, address, seams);
     const command = browserCommand(session);
     const link = browserViewUrl(browser.origin, window.targetId);
+    // A new window while the thread holds others: they are named on stderr,
+    // which a caller of --json does not read (T3 Code reads stdout).
+    const note = window.created
+      ? await otherWindowsNote(session, window.targetId, seams, copy)
+      : undefined;
+    const noted = note === undefined ? {} : { stderr: note };
     if (json)
       return Object.freeze({
         code: browserCliExit.done,
@@ -492,6 +806,7 @@ export async function runBrowserCommand(
           link,
           command,
         }),
+        ...noted,
       });
     return Object.freeze({
       code: browserCliExit.done,
@@ -501,6 +816,7 @@ export async function runBrowserCommand(
         `${copy.view}: ${link}`,
         `${copy.use}: ${command} <command>`,
       ].join("\n"),
+      ...noted,
     });
   } catch (error) {
     const copy = text[locale];

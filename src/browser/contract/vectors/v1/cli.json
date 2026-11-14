@@ -649,6 +649,393 @@
         }
       ],
       "expect": null
+    },
+    {
+      "name": "tabs' answer",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 1,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 1,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "done --all's answer names each session",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "unconfirmed",
+          "sessions": [
+            {
+              "session": "codex-1",
+              "outcome": "stopped"
+            },
+            {
+              "session": "codex-1-2",
+              "outcome": "unconfirmed"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "unconfirmed",
+          "sessions": [
+            {
+              "session": "codex-1",
+              "outcome": "stopped"
+            },
+            {
+              "session": "codex-1-2",
+              "outcome": "unconfirmed"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "without a browser, tabs answers with its own kind",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-tabs",
+          "available": false
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-tabs",
+          "available": false
+        }
+      }
+    },
+    {
+      "name": "tabs' answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [
+          {
+            "session": "codex-1-2",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "held": true,
+            "viewers": 1,
+            "sleeping": false,
+            "endsAt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "tabs without a window",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": []
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": []
+      }
+    },
+    {
+      "name": "a window of tabs whose id is in lower case is given in upper case",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [
+          {
+            "session": "codex-1-2",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "held": true,
+            "viewers": 1,
+            "sleeping": false,
+            "endsAt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "tabs whose window lacks a member is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ]
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs whose windows are no list is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": {}
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs with a member it does not know reads without it",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ],
+            "note": "ignored"
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [
+          {
+            "session": "codex-1-2",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "held": true,
+            "viewers": 1,
+            "sleeping": false,
+            "endsAt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "tabs whose viewers are negative is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": -1,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ]
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs without a browser",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "available": false
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "available": false
+      }
+    },
+    {
+      "name": "done --all's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "unconfirmed",
+            "sessions": [
+              {
+                "session": "codex-1",
+                "outcome": "stopped"
+              },
+              {
+                "session": "codex-1-2",
+                "outcome": "unconfirmed"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "unconfirmed",
+        "sessions": [
+          {
+            "session": "codex-1",
+            "outcome": "stopped"
+          },
+          {
+            "session": "codex-1-2",
+            "outcome": "unconfirmed"
+          }
+        ]
+      }
+    },
+    {
+      "name": "done --all with another outcome of a session is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "unconfirmed",
+            "sessions": [
+              {
+                "session": "codex-1",
+                "outcome": "closed"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": null
     }
   ]
 }

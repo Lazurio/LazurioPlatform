@@ -44,6 +44,8 @@ import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   BrowserWindowFailure,
   ensureThreadWindow,
+  heldThreadWindows,
+  readThreadSessions,
   type WindowSeams,
 } from "../src/browser/window";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
@@ -2206,3 +2208,480 @@ test.skipIf(process.platform === "win32")(
     }
   },
 );
+
+// ---- A thread's windows: tabs, done --all and the note of window ------------
+
+// An agent sees which windows of the Environment browser are its own thread's
+// (`<session>`, `<session>-2`, …, `<session>-preview`), never another
+// thread's, and lets go of them all at once. No number limits them (decided
+// on 2026-11-14): a new window opens however many the thread holds, and
+// `window` names the others so the agent lets go of those it no longer
+// needs. The bindings and daemons are agent-browser's files (C7); the tabs
+// are the hub's loopback list.
+const TAB_A = "2A".repeat(16);
+const TAB_B = "2B".repeat(16);
+const TAB_C = "2C".repeat(16);
+const TAB_D = "2D".repeat(16);
+const TAB_E = "2E".repeat(16);
+
+async function bindSessionFiles(
+  socketDir: string,
+  session: string,
+  targetId: string,
+  files: Readonly<{ pid?: string; sock?: boolean }> = {},
+) {
+  await writeFile(
+    join(socketDir, `${session}.target`),
+    JSON.stringify({ targetId, url: "about:blank", pinned: true }),
+  );
+  if (files.pid !== undefined)
+    await writeFile(join(socketDir, `${session}.pid`), files.pid);
+  if (files.sock === true)
+    await writeFile(join(socketDir, `${session}.sock`), "");
+}
+
+const tabFacts = (
+  id: string,
+  facts: Readonly<{
+    agents?: string[];
+    viewers?: number;
+    url?: string;
+    title?: string;
+    grace?: { kind: "release" | "viewer" | "unviewed"; endsAt: string } | null;
+  }> = {},
+) => ({
+  id,
+  url: facts.url ?? `https://example.com/${id.slice(0, 2)}`,
+  title: facts.title ?? "",
+  favicon: null,
+  openedAt: "2026-11-14T10:00:00.000Z",
+  usedAt: "2026-11-14T10:00:00.000Z",
+  opener: { kind: "unknown" } as const,
+  agents: facts.agents ?? [],
+  holders: [],
+  viewers: facts.viewers ?? 0,
+  closing: null,
+  grace: facts.grace ?? null,
+});
+
+test("a thread's sessions are its own and its further windows', never another thread's; it holds those whose daemon runs, and no number limits them", async () => {
+  const socketDir = await temporary("browser-thread-");
+  const running = String(process.pid);
+  await bindSessionFiles(socketDir, "codex-1", TAB_A, { pid: running });
+  await bindSessionFiles(socketDir, "codex-1-2", TAB_B, { pid: running });
+  // Let go: its binding stays, no daemon runs.
+  await bindSessionFiles(socketDir, "codex-1-3", TAB_C);
+  await bindSessionFiles(socketDir, "codex-1-preview", TAB_E, {
+    pid: running,
+  });
+  // Another thread whose name starts alike, and a further window of it.
+  await bindSessionFiles(socketDir, "codex-12", TAB_D, { pid: running });
+  await bindSessionFiles(socketDir, "codex-12-2", TAB_D, { pid: running });
+  const env = { HOME: "/home/operator", AGENT_BROWSER_SOCKET_DIR: socketDir };
+  expect(
+    (await readThreadSessions("codex-1", env)).map(
+      ({ session, targetId, running }) => [session, targetId, running],
+    ),
+  ).toEqual([
+    ["codex-1", TAB_A, true],
+    ["codex-1-2", TAB_B, true],
+    ["codex-1-3", TAB_C, false],
+    ["codex-1-preview", TAB_E, true],
+  ]);
+  // A daemon whose process ended no longer holds its window.
+  expect(
+    (await readThreadSessions("codex-1", env, () => false)).map(
+      (entry) => entry.running,
+    ),
+  ).toEqual([false, false, false, false]);
+  expect(await readThreadSessions("codex-1", { HOME: "/nowhere" })).toEqual([]);
+
+  const open = [TAB_A, TAB_B, TAB_C, TAB_D, TAB_E];
+  const addresses = new Map(
+    open.map((id) => [id, `https://example.com/${id.slice(0, 2)}`]),
+  );
+  // The windows it holds: a running daemon bound to an open page, with its
+  // address. codex-1-3 was let go; another thread's are never named.
+  const full = windowSeams({ socketDir, targets: open });
+  expect(
+    await heldThreadWindows("codex-1", {
+      ...full.seams,
+      pages: async () => addresses,
+    }),
+  ).toEqual([
+    { session: "codex-1", targetId: TAB_A, url: "https://example.com/2A" },
+    { session: "codex-1-2", targetId: TAB_B, url: "https://example.com/2B" },
+    {
+      session: "codex-1-preview",
+      targetId: TAB_E,
+      url: "https://example.com/2E",
+    },
+  ]);
+  // Without the pages' addresses, the open targets; a closed page is no
+  // longer held.
+  expect(
+    await heldThreadWindows(
+      "codex-1",
+      windowSeams({ socketDir, targets: [TAB_A, TAB_D] }).seams,
+    ),
+  ).toEqual([{ session: "codex-1", targetId: TAB_A, url: "" }]);
+  // No number limits them: a new window opens however many the thread
+  // holds, and the window a session has already stays its own.
+  expect(
+    await ensureThreadWindow("codex-1-4", undefined, full.seams),
+  ).toMatchObject({ session: "codex-1-4", created: true });
+  expect(await ensureThreadWindow("codex-1-2", undefined, full.seams)).toEqual({
+    session: "codex-1-2",
+    targetId: TAB_B,
+    created: false,
+  });
+});
+
+test.skipIf(process.platform === "win32")(
+  "lazurio browser tabs lists only the calling thread's windows; done --all lets go of every one; a new window names the thread's others",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const socketDir = join(home, "sockets");
+    await mkdir(socketDir);
+    const running = String(process.pid);
+    await bindSessionFiles(socketDir, "codex-019a", TAB_A, {
+      pid: running,
+      sock: true,
+    });
+    await bindSessionFiles(socketDir, "codex-019a-2", TAB_B, { sock: true });
+    // Let go, and the user still views it.
+    await bindSessionFiles(socketDir, "codex-019a-3", TAB_C);
+    // Its tab is gone.
+    await bindSessionFiles(socketDir, "codex-019a-4", "3F".repeat(16));
+    // Another thread's window is never listed nor let go.
+    await bindSessionFiles(socketDir, "codex-other", TAB_D, {
+      pid: running,
+      sock: true,
+    });
+    const env = {
+      HOME: home,
+      CODEX_THREAD_ID: "019a",
+      AGENT_BROWSER_SOCKET_DIR: socketDir,
+    };
+    const grace = {
+      kind: "viewer" as const,
+      endsAt: "2026-11-14T10:05:00.000Z",
+    };
+    const listed = {
+      kind: "tabs" as const,
+      tabs: [
+        tabFacts(TAB_A, { agents: ["codex-019a"], title: "Pull request" }),
+        tabFacts(TAB_B, { agents: ["codex-019a-2"], viewers: 1 }),
+        tabFacts(TAB_C, { viewers: 2 }),
+        tabFacts(TAB_D, { agents: ["codex-other"], viewers: 1 }),
+      ],
+    };
+    const listTabs = async () => listed;
+    // The hub has no title for a tab nobody views: the browser's is taken.
+    const pageTitles = async () =>
+      new Map([
+        [TAB_B, "From the browser"],
+        [TAB_D, "Another thread's page"],
+      ]);
+    const tabs = await runBrowserCommand(
+      ["tabs", "--folder", folder, "--json"],
+      { ...context(env), listTabs, pageTitles },
+    );
+    expect(tabs.code).toBe(0);
+    expect(JSON.parse(tabs.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-tabs",
+      session: "codex-019a",
+      windows: [
+        {
+          session: "codex-019a",
+          targetId: TAB_A,
+          url: "https://example.com/2A",
+          title: "Pull request",
+          link: `${origin}/t/${TAB_A}`,
+          held: true,
+          viewers: 0,
+          sleeping: false,
+          endsAt: null,
+        },
+        {
+          session: "codex-019a-2",
+          targetId: TAB_B,
+          url: "https://example.com/2B",
+          title: "From the browser",
+          link: `${origin}/t/${TAB_B}`,
+          held: true,
+          viewers: 1,
+          sleeping: false,
+          endsAt: null,
+        },
+        {
+          session: "codex-019a-3",
+          targetId: TAB_C,
+          url: "https://example.com/2C",
+          title: "",
+          link: `${origin}/t/${TAB_C}`,
+          held: false,
+          viewers: 2,
+          sleeping: false,
+          endsAt: null,
+        },
+      ],
+    });
+    // A further window's session lists the same thread.
+    const fromFurther = await runBrowserCommand(
+      ["tabs", "--session", "codex-019a-2", "--folder", folder, "--json"],
+      { ...context(env), listTabs, pageTitles },
+    );
+    expect(JSON.parse(fromFurther.stdout ?? "").session).toBe("codex-019a");
+    // As text: each window with its link and state, and the reminder to
+    // check before telling the user.
+    const text = await runBrowserCommand(["tabs", "--folder", folder], {
+      ...context(env),
+      pageTitles,
+      listTabs: async () => ({
+        kind: "tabs" as const,
+        tabs: [tabFacts(TAB_C, { grace })],
+      }),
+    });
+    expect(text.stdout).toBe(
+      [
+        "This thread holds 0 windows.",
+        "- codex-019a-3: https://example.com/2C",
+        `  The user's link: ${origin}/t/${TAB_C}`,
+        "  let go; nobody views it; ends at 2026-11-14T10:05:00.000Z unless held or viewed again",
+        "Before you tell the user your windows are closed, run lazurio browser tabs again: a window you let go that the user views stays for them.",
+      ].join("\n"),
+    );
+    const empty = await runBrowserCommand(["tabs", "--folder", folder], {
+      ...context(env),
+      pageTitles,
+      listTabs: async () => ({ kind: "tabs" as const, tabs: [] }),
+    });
+    expect(empty.stdout).toBe(
+      "This thread has no window in the Environment browser.",
+    );
+    // The hub did not answer: unknown, a failure.
+    const unreachable = await runBrowserCommand(
+      ["tabs", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        pageTitles,
+        listTabs: async () =>
+          ({ kind: "refused", reason: "hub-unreachable" }) as const,
+      },
+    );
+    expect(unreachable.code).toBe(1);
+    expect(unreachable.stderr).toContain("did not list its tabs");
+
+    // done --all asks every session of the thread whose daemon may run.
+    const asked: string[] = [];
+    const done = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        daemonSeams: {
+          ask: async (socketPath: string) => {
+            asked.push(socketPath);
+            return { kind: "reply", line: '{"success":true}' } as const;
+          },
+          exists: async () => false,
+        },
+      },
+    );
+    expect(done.code).toBe(0);
+    expect(JSON.parse(done.stdout ?? "")).toEqual({
+      schema: "lazurio.browser-cli.v1",
+      kind: "browser-done",
+      session: "codex-019a",
+      outcome: "stopped",
+      sessions: [
+        { session: "codex-019a", outcome: "stopped" },
+        { session: "codex-019a-2", outcome: "stopped" },
+      ],
+    });
+    expect(asked.sort()).toEqual([
+      join(socketDir, "codex-019a-2.sock"),
+      join(socketDir, "codex-019a.sock"),
+    ]);
+    // One that has not confirmed: a failure, named, the others let go.
+    const partial = await runBrowserCommand(
+      ["done", "--all", "--folder", folder],
+      {
+        ...context(env),
+        daemonSeams: {
+          ask: async (socketPath: string) =>
+            socketPath.endsWith("codex-019a-2.sock")
+              ? ({ kind: "no-answer" } as const)
+              : ({ kind: "reply", line: '{"success":true}' } as const),
+          exists: async () => false,
+        },
+      },
+    );
+    expect(partial.code).toBe(1);
+    expect(partial.stderr).toBe(
+      [
+        "- codex-019a: let go",
+        "- codex-019a-2: not confirmed; it may still hold the window",
+        "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
+      ].join("\n"),
+    );
+    // A thread with nothing running: nothing to let go, and done.
+    const nothing = await runBrowserCommand(
+      ["done", "--all", "--session", "claude-x", "--folder", folder, "--json"],
+      context(env),
+    );
+    expect(nothing.code).toBe(0);
+    expect(JSON.parse(nothing.stdout ?? "")).toMatchObject({
+      session: "claude-x",
+      outcome: "none",
+      sessions: [],
+    });
+    // --all belongs to done only; tabs takes no address.
+    for (const args of [
+      ["window", "--all"],
+      ["link", "--all"],
+      ["tabs", "--all"],
+      ["tabs", "--url", "https://example.com/"],
+      ["open", "https://example.com/", "--all"],
+    ])
+      expect(
+        (await runBrowserCommand([...args, "--folder", folder], context(env)))
+          .code,
+      ).toBe(2);
+
+    // A sixth window while the thread holds five: it opens and exits 0, and
+    // stderr names the five with their addresses and how to let go of them.
+    for (const n of [3, 4, 5])
+      await bindSessionFiles(socketDir, `codex-019a-${n}`, `4${n}`.repeat(16), {
+        pid: running,
+      });
+    await bindSessionFiles(socketDir, "codex-019a-2", TAB_B, { pid: running });
+    const held = [
+      TAB_A,
+      TAB_B,
+      "43".repeat(16),
+      "44".repeat(16),
+      "45".repeat(16),
+      TAB_D,
+    ];
+    const pages = async () =>
+      new Map(held.map((id) => [id, `https://example.com/${id.slice(0, 2)}`]));
+    const note = [
+      "This thread's other windows in the Environment browser:",
+      "- codex-019a: https://example.com/2A",
+      "- codex-019a-2: https://example.com/2B",
+      "- codex-019a-3: https://example.com/43",
+      "- codex-019a-4: https://example.com/44",
+      "- codex-019a-5: https://example.com/45",
+      "Let go of those you no longer need right away: lazurio browser done --session <session> lets go of one, lazurio browser done --all of every window of the thread, this one too. lazurio browser tabs lists them.",
+    ].join("\n");
+    const sixth = windowSeams({ socketDir, targets: held });
+    const opened = await runBrowserCommand(
+      [
+        "window",
+        "--session",
+        "codex-019a-6",
+        "--url",
+        "https://example.com/",
+        "--folder",
+        folder,
+      ],
+      context(env, { ...sixth.seams, pages }),
+    );
+    expect(opened.code).toBe(0);
+    expect(opened.stdout?.split("\n")[0]).toBe("Your window is open.");
+    expect(opened.stderr).toBe(note);
+    expect(sixth.calls[0]).toEqual([
+      "Target.createTarget",
+      expect.objectContaining({ url: "https://example.com/", newWindow: true }),
+    ]);
+    // With --json the answer on stdout is the same as ever, and the note
+    // stays on stderr.
+    const seventh = windowSeams({ socketDir, targets: held });
+    const json = await runBrowserCommand(
+      ["window", "--session", "codex-019a-7", "--folder", folder, "--json"],
+      context(env, { ...seventh.seams, pages }),
+    );
+    expect(json.code).toBe(0);
+    expect(JSON.parse(json.stdout ?? "")).toMatchObject({
+      kind: "browser-window",
+      session: "codex-019a-7",
+      created: true,
+    });
+    expect(json.stderr).toBe(note);
+    // The window a session has already, and a thread that holds no other
+    // window: no note.
+    const reused = await runBrowserCommand(
+      ["window", "--session", "codex-019a-2", "--folder", folder],
+      context(env, {
+        ...windowSeams({ socketDir, targets: held }).seams,
+        pages,
+      }),
+    );
+    expect(reused.code).toBe(0);
+    expect(reused.stderr).toBeUndefined();
+    const alone = await runBrowserCommand(
+      ["window", "--session", "claude-alone", "--folder", folder],
+      context(env, {
+        ...windowSeams({ socketDir, targets: held }).seams,
+        pages,
+      }),
+    );
+    expect(alone.code).toBe(0);
+    expect(alone.stderr).toBeUndefined();
+    // Nor when the thread's windows cannot be read: the window is open all
+    // the same.
+    const unread = windowSeams({ socketDir, targets: held });
+    const unknown = await runBrowserCommand(
+      ["window", "--session", "codex-019a-8", "--folder", folder],
+      context(env, {
+        ...unread.seams,
+        pages: async () => {
+          throw new Error("the browser did not answer");
+        },
+      }),
+    );
+    expect(unknown.code).toBe(0);
+    expect(unknown.stderr).toBeUndefined();
+  },
+);
+
+// An agent lists its own windows, reads helper pages in one window, lets go
+// of all of them and checks before it tells the user; in ChatGPT Desktop the
+// user has one window's link in the right panel, and a further window is a
+// new link the agent explains.
+test("the Folder tells an agent to list its own windows, keep them few and check before saying they are closed", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const point = (start: string) =>
+      text.split("\n").find((line) => line.startsWith(start)) ?? "";
+    const cs = locale === "cs";
+    const windows = point(cs ? "- **Tvoje okna.**" : "- **Your windows.**");
+    expect(windows).toContain("`lazurio browser tabs`");
+    expect(windows).toContain("`agent-browser … tab list`");
+    // No limit: the agent keeps track of its windows and lets go of them.
+    expect(windows).not.toMatch(cs ? /nejvýš \d/ : /at most \d/);
+    expect(windows).toContain("`lazurio browser window`");
+    expect(windows).toContain(cs ? "hned pusť" : "as soon as you no longer");
+    const desktop = point(
+      cs
+        ? "- **Okna v ChatGPT Desktopu.**"
+        : "- **Windows in ChatGPT Desktop.**",
+    );
+    expect(desktop).toContain("`https://browser.…/t/<id>`");
+    expect(desktop).toContain("--session <");
+    const done = point(cs ? "- **Konec.**" : "- **When done.**");
+    expect(done).toContain("`lazurio browser done --all`");
+    expect(done).toContain("`lazurio browser tabs`");
+    expect(point(cs ? "- **Nová záložka.**" : "- **A new tab.**")).toContain(
+      cs ? "v jednom takovém okně" : "in one such window",
+    );
+  }
+});
