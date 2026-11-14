@@ -100,6 +100,10 @@ export class FileDrop {
   private readonly veil: HTMLElement;
   private readonly note: HTMLElement;
   private noteTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Hides the veil once no `dragover` came for a while: a browser sends
+   * them all the time a drag is over the page, still or not, and a drag
+   * that ends elsewhere (Escape, another window) may say nothing here. */
+  private overTimer: ReturnType<typeof setTimeout> | null = null;
   private busy = false;
 
   constructor(private readonly seams: FileDropSeams) {
@@ -114,7 +118,10 @@ export class FileDrop {
     const hint = document.createElement("p");
     hint.className = "drop-hint";
     hint.textContent = say.dropHint;
-    this.veil.append(title, hint);
+    const label = document.createElement("div");
+    label.className = "drop-label";
+    label.append(title, hint);
+    this.veil.append(label);
     this.note = document.createElement("div");
     this.note.className = "transfer";
     this.note.setAttribute("role", "status");
@@ -126,12 +133,10 @@ export class FileDrop {
       // Only leaving the box, not moving between what is in it.
       const into = event.relatedTarget;
       if (into instanceof Node && box.contains(into)) return;
-      this.veil.hidden = true;
+      this.hideVeil();
     });
     box.addEventListener("drop", (event) => void this.dropped(event));
-    window.addEventListener("dragend", () => {
-      this.veil.hidden = true;
-    });
+    window.addEventListener("dragend", () => this.hideVeil());
   }
 
   /** A paste in the view: files go to the page as files and true is
@@ -165,13 +170,21 @@ export class FileDrop {
     event.preventDefault();
     if (event.dataTransfer !== null) event.dataTransfer.dropEffect = "copy";
     this.veil.hidden = false;
+    if (this.overTimer !== null) clearTimeout(this.overTimer);
+    this.overTimer = setTimeout(() => this.hideVeil(), 1_000);
+  }
+
+  private hideVeil(): void {
+    if (this.overTimer !== null) clearTimeout(this.overTimer);
+    this.overTimer = null;
+    this.veil.hidden = true;
   }
 
   private async dropped(event: DragEvent): Promise<void> {
     const data = event.dataTransfer;
     if (!hasFiles(data) || data === null) return;
     event.preventDefault();
-    this.veil.hidden = true;
+    this.hideVeil();
     const at = this.seams.point(event);
     // The items are readable only while the event runs: their entries and
     // files are taken now, a folder's contents read after.
