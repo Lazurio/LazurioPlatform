@@ -1,11 +1,12 @@
 import type { Rect } from "./input-map";
-import type {
-  ClientMessage,
-  FrameHeader,
-  PickerItem,
-  PickerKind,
-  PickerRect,
-  ServerMessage,
+import {
+  type ClientMessage,
+  type FrameHeader,
+  modifierBits,
+  type PickerItem,
+  type PickerKind,
+  type PickerRect,
+  type ServerMessage,
 } from "./protocol";
 import type { Words } from "./words";
 
@@ -381,10 +382,16 @@ export class PickerView {
         case "Enter":
           return chooseActive();
         case "Escape":
-        case "Tab":
           event.preventDefault();
           this.answer(null);
           return;
+        case "Tab": {
+          // As a native list: the active choice stays, and the focus moves on
+          // from the control in the direction asked for.
+          chooseActive();
+          this.tab(event.shiftKey);
+          return;
+        }
       }
       // A space chooses, unless it is part of a name being typed.
       if (event.key === " " && !this.typing()) return chooseActive();
@@ -419,6 +426,23 @@ export class PickerView {
     return this.typed !== "" && performance.now() - this.typedAt < 1_000;
   }
 
+  /** A Tab to the page after the answer, as the person would press it: the
+   * page moves its focus on from the control, backwards with Shift. */
+  private tab(back: boolean): void {
+    const modifiers = back ? modifierBits.shift : 0;
+    for (const type of ["keyDown", "keyUp"] as const)
+      this.options.send({
+        t: "key",
+        type,
+        key: "Tab",
+        code: "Tab",
+        keyCode: 9,
+        modifiers,
+        location: 0,
+        repeat: false,
+      });
+  }
+
   private choose(item: PickerItem): void {
     if (this.options.message.kind === "select")
       this.answer({ index: item.i, value: item.value, text: item.text });
@@ -432,6 +456,10 @@ export class PickerView {
     const form = el("form", "picker-form");
     const input = el("input", "picker-field");
     input.type = message.kind;
+    // Without `min`, the steps start at the page's `value` attribute: the copy
+    // keeps it as its own, so a value valid on the page is valid here.
+    if ((message.min ?? "") === "" && (message.base ?? "") !== "")
+      input.setAttribute("value", message.base ?? "");
     input.value = message.value ?? "";
     if ((message.min ?? "") !== "") input.min = message.min ?? "";
     if ((message.max ?? "") !== "") input.max = message.max ?? "";

@@ -195,7 +195,7 @@ export type ServerMessage =
   /** A page's control would open a pop-up Chrome draws outside the page
    * (#970): the view shows its own, at the control, for the person who
    * acted. `items` for a select and a datalist, `groups` and `selected` for
-   * a select, `value`, `min`, `max` and `step` for the fields. */
+   * a select, `value`, `min`, `max`, `step` and `base` for the fields. */
   | Readonly<{
       t: "picker";
       token: string;
@@ -209,6 +209,9 @@ export type ServerMessage =
       min?: string;
       max?: string;
       step?: string;
+      /** The control's `value` attribute: where its steps start when it
+       * has no `min`. */
+      base?: string;
     }>
   /** The picker is no longer wanted: the page went away or changed. */
   | Readonly<{ t: "picker-closed"; token: string }>

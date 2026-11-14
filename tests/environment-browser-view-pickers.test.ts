@@ -140,7 +140,26 @@ describe("the page's description of a control", () => {
       min: "2026-01-01",
       max: "2026-12-31",
       step: "7",
+      base: "",
     });
+  });
+  test("a field without min keeps its value attribute, where its steps start", () => {
+    // <input type=date value=2026-11-11 step=7>: valid on the page only
+    // when the copy counts its weeks from 2026-11-11, not from the epoch.
+    expect(
+      readPicker({
+        kind: "date",
+        name: "",
+        value: "2026-11-18",
+        min: "",
+        max: "",
+        step: "7",
+        base: "2026-11-11",
+      }),
+    ).toMatchObject({ value: "2026-11-18", min: "", step: "7", base: "2026-11-11" });
+    expect(
+      readPicker({ kind: "time", name: "", value: "", min: "", max: "", step: "" }),
+    ).toMatchObject({ base: "" });
   });
   test("an unknown kind or a broken list is nothing", () => {
     expect(readPicker({ kind: "password", value: "secret" })).toBeNull();

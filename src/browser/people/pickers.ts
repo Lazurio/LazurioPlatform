@@ -89,14 +89,16 @@ const findScript = `function (trigger) {
   if (el.tagName === "OPTION" || el.tagName === "OPTGROUP") el = el.closest("select") || el;
   if (el.tagName === "IFRAME" || el.tagName === "FRAME") return { frame: true };
   const cut = (s, n) => String(s == null ? "" : s).replace(/\\s+/g, " ").trim().slice(0, n);
+  // Disabled as the page sees it: its own attribute or a disabled fieldset around it.
+  const off = (e) => e.disabled || e.matches(":disabled");
   let kind = null;
   if (el.tagName === "SELECT") {
-    if (el.multiple || el.size > 1 || el.disabled) return null;
+    if (el.multiple || el.size > 1 || off(el)) return null;
     try { if (getComputedStyle(el).appearance === "base-select") return null; } catch (e) {}
     kind = "select";
   } else if (el.tagName === "INPUT") {
     const type = el.type;
-    if (el.disabled || el.readOnly || type === "password") return null;
+    if (off(el) || el.readOnly || type === "password") return null;
     if (["date", "time", "datetime-local", "month", "week", "color"].includes(type)) kind = type;
     else if (["text", "search", "url", "tel", "email", "number"].includes(type) && el.list && el.list.options.length > 0) kind = "datalist";
     else return null;
@@ -156,6 +158,8 @@ const findScript = `function (trigger) {
     out.min = String(el.min).slice(0, 100);
     out.max = String(el.max).slice(0, 100);
     out.step = String(el.step).slice(0, 100);
+    // Without min, the value attribute is where the steps start.
+    out.base = String(el.getAttribute("value") ?? "").slice(0, 100);
   }
   return out;
 }`;
@@ -172,8 +176,10 @@ const applyScript = `function (pick) {
     el.dispatchEvent(new Event("change", { bubbles: true }));
   };
   if (!el.isConnected) return "gone";
+  // Disabled now, also by a fieldset that became disabled while the picker was open.
+  if (el.disabled || el.matches(":disabled")) return "disabled";
   if (pick.kind === "select") {
-    if (el.tagName !== "SELECT" || el.disabled) return "gone";
+    if (el.tagName !== "SELECT") return "gone";
     const same = (o) => o && String(o.value).slice(0, ${pickerLimits.value}) === pick.value && cut(o.label || o.text, ${pickerLimits.text}) === pick.text;
     let index = same(el.options[pick.index]) ? pick.index : -1;
     if (index < 0) for (let i = 0; i < el.options.length; i++) if (same(el.options[i])) { index = i; break; }
@@ -186,7 +192,7 @@ const applyScript = `function (pick) {
     fire();
     return "ok";
   }
-  if (el.tagName !== "INPUT" || el.disabled || el.readOnly || el.type === "password") return "gone";
+  if (el.tagName !== "INPUT" || el.readOnly || el.type === "password") return "gone";
   if (pick.kind === "datalist" ? !el.list : el.type !== pick.kind) return "gone";
   el.focus({ preventScroll: true });
   if (el.value === pick.value) return "ok";
@@ -295,6 +301,7 @@ export function readPicker(
   out.min = str(v.min, 100);
   out.max = str(v.max, 100);
   out.step = str(v.step, 100);
+  out.base = str(v.base, 100);
   return out;
 }
 
