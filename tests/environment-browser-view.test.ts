@@ -1476,8 +1476,10 @@ test("a file chooser is answered with the person's files; without a viewer it is
   if (set === undefined) throw new Error("no setFileInputFiles");
   expect(set.params.backendNodeId).toBe(42);
   const [path] = set.params.files as string[];
-  // Only the base name survives, so a name cannot leave the upload folder.
-  expect(path?.endsWith("/0/x.pdf")).toBe(true);
+  // The path separators go, so a name cannot leave the upload's own folder;
+  // the rest of the name stays the person's (#973).
+  expect(path?.endsWith("/0/faktura ..x.pdf")).toBe(true);
+  expect(path?.startsWith(join(root ?? "", "uploads"))).toBe(true);
   expect(await readFile(path as string, "utf8")).toBe("obsah faktury");
   await until(() => view.of("files-closed").length > 0);
   // The token is single-use.
