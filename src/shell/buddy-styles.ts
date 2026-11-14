@@ -81,6 +81,7 @@ const bubbleCss = `
 :host([hidden]) { display: none; }
 .bubble { ${offset(buddyLauncherOffset)} --buddy-x: calc(var(--buddy-right) + env(safe-area-inset-right, 0px)); --buddy-y: calc(var(--buddy-bottom) + env(safe-area-inset-bottom, 0px)); }
 .launcher { position: fixed; inset: auto var(--buddy-x) var(--buddy-y) auto; z-index: ${buddyLayer}; display: grid; width: ${buddyLauncherSize}px; height: ${buddyLauncherSize}px; margin: 0; padding: 0 0 3px; place-items: end center; overflow: visible; border: 0; border-radius: 50%; background: transparent; color: var(--lz-ink); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.corner { position: fixed; inset: auto var(--buddy-x) var(--buddy-y) auto; width: ${buddyLauncherSize}px; height: ${buddyLauncherSize}px; visibility: hidden; pointer-events: none; }
 .launcher::before { position: absolute; bottom: 0; left: 50%; width: 34px; height: 7px; border-radius: 50%; background: rgb(0 0 0 / 0.16); content: ""; transform: translateX(-50%); transition: width 0.2s ease-out, opacity 0.2s ease-out; }
 .launcher:focus-visible { outline: 2px solid var(--shell-focus); outline-offset: 3px; }
 .figure { display: grid; place-items: end center; transform-origin: 50% 100%; transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.2); }

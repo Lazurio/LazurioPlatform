@@ -133,11 +133,10 @@ export function createBuddyBubbleView(
     width: buddyLauncherSize,
     height: buddyLauncherSize,
   });
-  // His place in this app, his corner as last measured there, whether the
-  // launcher is on the page, the drag under way, and until when a click is
-  // the end of a drag rather than the person's.
+  // His place in this app, whether the launcher is on the page, the drag
+  // under way, and until when a click is the end of a drag rather than the
+  // person's.
   let place: BuddyPlace = readBuddyPlace(options.store);
-  let home: BuddyBox | null = null;
   let onPage = false;
   let drag: {
     id: number;
@@ -158,16 +157,18 @@ export function createBuddyBubbleView(
     const r = element.getBoundingClientRect();
     return { left: r.left, top: r.top, width: r.width, height: r.height };
   };
-  /** His corner as measured there, else as the defaults place it. */
+  /** His corner in the window as it is now: an invisible box the
+   * stylesheet places as it places the launcher there, the host's offsets
+   * and the safe area included; before it is drawn, the defaults. */
   const homeBox = (): BuddyBox => {
+    const measured = parts === null ? null : boxOf(parts.corner);
+    if (measured !== null && measured.width > 0) return measured;
     const { width, height } = view();
-    return (
-      home ?? {
-        left: width - buddyLauncherOffset.right - size.width,
-        top: height - buddyLauncherOffset.bottom - size.height,
-        ...size,
-      }
-    );
+    return {
+      left: width - buddyLauncherOffset.right - size.width,
+      top: height - buddyLauncherOffset.bottom - size.height,
+      ...size,
+    };
   };
 
   /** Puts the launcher at his place, the panel beside him, and the page's
@@ -180,7 +181,6 @@ export function createBuddyBubbleView(
       for (const side of ["left", "top", "right", "bottom"])
         launcher.style.removeProperty(side);
       delete launcher.dataset.moved;
-      if (launcher.getBoundingClientRect().width > 0) home = boxOf(launcher);
     } else {
       const box = buddyBoxOf(place, size, view(), homeBox());
       launcher.style.left = `${box.left}px`;
@@ -242,7 +242,6 @@ export function createBuddyBubbleView(
     launcher.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || launcher.dataset.spot !== undefined) return;
       const at = boxOf(launcher);
-      if (place === "home") home = at;
       drag = {
         id: event.pointerId,
         x: event.clientX,
@@ -431,11 +430,16 @@ export function createBuddyBubbleView(
     );
     meet.append(head, talk, action);
     dialog.append(meet);
-    bubble.append(dialog, launcher);
+    // His corner, measured where the person moved him away from it.
+    const corner = document.createElement("span");
+    corner.className = "corner";
+    corner.setAttribute("aria-hidden", "true");
+    bubble.append(corner, dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
     return {
       bubble,
+      corner,
       dialog,
       launcher,
       figure,

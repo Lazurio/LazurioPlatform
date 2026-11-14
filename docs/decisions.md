@@ -22127,7 +22127,9 @@ page keeping the corner free); the corner stays where he starts.
    8 px to an edge. Dropped within 40 px of his corner he is back in it. While he has the
    focus the arrows move him by 16 px (64 px with Shift), out of his corner too: their steps
    never snap, and only a step that lands exactly on the corner is home. Home takes him back
-   to his corner. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
+   to his corner. His corner is measured in the window as it is now (an invisible box the stylesheet
+   places as it places him there, the host's offsets and the safe area included), so a
+   resized window snaps him to its own corner, never to where the corner was. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
    not moved.
 2. **Each app remembers his place.** The shell runs on each app's origin, so the place is
    kept in that origin's `localStorage` (`lazurio.buddy.place`): the Launchpad, Chat and
