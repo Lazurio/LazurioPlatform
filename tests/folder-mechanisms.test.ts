@@ -129,8 +129,8 @@ test("every decision the chapters and the skill cite is in the register, and a s
       number,
       statusOf.has(number) || pendingInRegister.has(number),
     ]).toEqual([number, true]);
-  // "(decision 0228, not yet deployed)", "(decision 0229, not yet deployed)",
-  // "(decision 0192, target model)".
+  // "(decision 0239, not yet deployed)", "(decision 0229, not yet deployed)",
+  // "(decision 0245, target model)".
   const claims = [
     ...text.matchAll(
       /decisions? (\d{4}), (not yet deployed|proposed|target model)/g,

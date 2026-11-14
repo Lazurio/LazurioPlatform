@@ -52,8 +52,9 @@ export const contentHelp = `organization install <github-login> [--role module-c
   one that does not; root-not-found or root-ambiguous after the scan). The scope follows the user's role in the Organization, as
   the resident CLI's: without --role it is the Organization Admin's
   installation, the full one, and runs only when GitHub confirms through gh
-  an active Organization Owner membership (the Organization Admin until the
-  role in Lazurio Auth is deployed, root decision 0228); --role
+  an active Organization Owner membership (it stands for the Organization
+  Admin's installation scope until the role in Lazurio Auth is deployed and
+  gives no access to an Environment, decision 0245); --role
   module-contributor, --role module-maintainer or --role module-reader
   installs everything except the restricted (Organization Admin only) slots
   and the slots below them, reported excluded_by_role_scope and never asked
