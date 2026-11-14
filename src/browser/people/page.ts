@@ -140,6 +140,31 @@ body {
 }
 .status { top: 50%; transform: translate(-50%, -50%); padding: 7px 14px; color: var(--muted); }
 .banner { z-index: 4; top: 10px; transform: translateX(-50%); padding: 6px 12px; font-size: 12px; }
+/* Files dragged over the page area (#973): an outline round the page, which
+   stays visible so the person sees where they drop, and what happens at its
+   top; the upload's status under the page. Neither takes the pointer, so the
+   drag stays the page's. */
+.drop-veil {
+  position: absolute; inset: 6px; z-index: 1; display: flex; justify-content: center;
+  align-items: flex-start; padding: 10px; border: 2px dashed var(--accent); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); pointer-events: none;
+  animation: drop-in 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.drop-label {
+  max-width: 100%; padding: 8px 14px; border-radius: 12px; background: var(--panel);
+  box-shadow: var(--shadow); text-align: center;
+}
+.drop-title { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.drop-hint { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+@keyframes drop-in { from { opacity: 0; } }
+.transfer {
+  position: absolute; z-index: 4; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: calc(100% - 24px); transform: translateX(-50%); padding: 7px 14px;
+  border-radius: 16px; background: var(--panel); box-shadow: var(--shadow);
+  text-align: center; overflow-wrap: anywhere; pointer-events: none;
+}
+.transfer.failed { color: var(--error); }
+@media (prefers-reduced-motion: reduce) { .drop-veil { animation: none; } }
 .popups { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
 .popup {
   grid-area: 1 / 1; display: flex; flex-direction: column; overflow: hidden;

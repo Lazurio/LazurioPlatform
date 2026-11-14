@@ -12405,6 +12405,54 @@ cookies alike, kept the module's and github.com's, named `octocat`, and in publi
 github.com's session too. The Machines policy, the real loopback entry and an Environment are
 checked after Machines delivers them.
 
+**Addendum 2026-11-14: files from the person's computer, also into frames of other sites**
+(proposed by the agent on Matěj's approval of #973's scope the same day; open for the Admin's
+review). Point 7's file choosers were measured on Chrome 156 against a page on two origins: a
+file input in a cross-origin frame was not intercepted (Chrome opened its own "Open File" window
+on the Environment's screen, which nobody in the view sees), names were rewritten to ASCII
+(`Výpis z OR – 2026.pdf` reached the page as `V_pis_z_OR___2026.pdf`), `accept` and a folder
+input never reached the view, `showOpenFilePicker()` ended as a failed upload, and a dropped or
+pasted file reached nothing.
+
+1. **Frames of other sites.** Chrome runs such a frame as a target of its own. The hub
+   auto-attaches each page's session to its frames (`Target.setAutoAttach`, flattened, frames
+   only, never paused) and each frame's session to the frames under it, and intercepts their
+   file choosers there. A chooser is answered on the session it came on. A frame's session is
+   used only for its choosers and for a paste; the page's address, loading, navigations and
+   input (decision F57) stay the main frame's. Chrome reports a frame's JavaScript dialogs and
+   `beforeunload` on the page's own session (measured), so point 7's dialogs already cover them.
+   (`src/browser/people/frame-sessions.ts`)
+2. **The person's names.** A file keeps its name: Unicode and spaces arrive unchanged. Only path
+   separators, control characters and leading dots go, and a name is cut to 255 bytes of UTF-8 at
+   a whole character, before its extension. Files are still written owner-only, each upload in a
+   folder of its own. (`src/browser/people/files.ts`)
+3. **What the input asks for.** The view's chooser takes the input's `accept` and folder mode
+   (`webkitdirectory`). A folder is uploaded with each file's place and given to the input as one
+   folder, so the page gets each file's `webkitRelativePath`. A chooser without an input
+   (`showOpenFilePicker` and its kind) cannot take files: Chrome tells the page the choice was
+   cancelled (`AbortError`, measured), and the view tells the person why and suggests dropping
+   the files on the page.
+4. **Drop and paste.** Files dragged over the page area show an outline that keeps the page
+   visible. On a drop the view uploads them with its viewer's token (`upload-token`, good while
+   that socket views the tab) and the hub drops them at that point (`Input.dispatchDragEvent` with
+   the files), into a frame of another site too; a file input there takes them as its own drop. A
+   paste of files (a copied file, a screenshot) goes to the page as a `paste` event with the files
+   at the focused element, through frames of other sites. A paste of text stays text, and so does
+   text that brings a picture of itself (a spreadsheet's copy). Every failure is said in the view.
+   (`src/browser/people/uploads.ts`, `src/browser/people/file-drop.ts`)
+
+**Not decided here.** Answering `showOpenFilePicker` with files (Chrome's protocol has no command
+for it). A paste the page leaves to the browser to insert by itself (a picture into an editable
+area without a script of its own): the view's `paste` event carries the files, but no browser
+inserts anything for an event a script sent. How long uploaded files stay: still an hour, so a
+form sent later than that no longer finds them (#976).
+
+Tests: `tests/environment-browser-view-files.test.ts` (names, the upload's form, the chooser's
+ask, the frames' sessions and the hub against a scripted DevTools peer: a frame's chooser on its
+own session, its navigations leaving the tab alone, nested frames, a folder, a chooser without an
+input, a drop, a paste into a frame, the tokens). Checked live on 2026-11-14 against the
+Environment browser (Chrome 156) with the view of this revision on a port of its own.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public

@@ -1,6 +1,3 @@
-import { randomBytes } from "node:crypto";
-import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
 import { type Hold, type Holds, noHolds } from "../contract/node";
 import type {
   AwakeReason,
@@ -19,6 +16,8 @@ import {
 } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
 import type { CookieSweep } from "./cookies";
+import type { Upload } from "./files";
+import { FrameSessions, frameAutoAttach } from "./frame-sessions";
 import {
   type PressureReading,
   pressureOrder,
@@ -54,6 +53,15 @@ import {
   sleepTimes,
   unsavedInputScript,
 } from "./sleep";
+import {
+  answerChooser,
+  type Chooser,
+  deliverFiles,
+  newToken,
+  readChooserAsk,
+  sweepUploads,
+  ViewerTokens,
+} from "./uploads";
 
 /** The view service's hold on the Environment browser (decision F39): every
  * page target with one DevTools session each, the people who view which tab,
@@ -334,12 +342,6 @@ const selfNavigations: ReadonlySet<string> = new Set([
   "reload",
 ]);
 
-type FileChooser = {
-  targetId: string;
-  backendNodeId: number;
-  multiple: boolean;
-};
-
 const viewWorld = "lazurio-view";
 // The page side of copy and cut (F39 point 6): the remote selection, read in
 // an isolated world the page's own scripts cannot reach, whenever it may have
@@ -480,7 +482,11 @@ export class BrowserHub {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly tabs = new Map<string, Tab>();
   private readonly bySession = new Map<string, string>();
-  private readonly fileChoosers = new Map<string, FileChooser>();
+  private readonly fileChoosers = new Map<string, Chooser>();
+  /** The sessions of the tabs' frames of other sites (#973), and the tokens
+   * viewers drop and paste files with. */
+  private readonly frames = new FrameSessions();
+  private readonly uploadTokens = new ViewerTokens<Viewer>();
   /** Page targets discovery reported on the current connection. */
   private seen = new Set<string>();
   private discovered = false;
@@ -1106,6 +1112,10 @@ export class BrowserHub {
     const sleeper = this.sleeping.get(id) ?? this.reopenable(id);
     if (sleeper !== undefined && sleeper.falling === null) {
       this.waitFor(sleeper, viewer);
+      viewer.send({
+        t: "upload-token",
+        token: this.uploadTokens.issue(viewer),
+      });
       const { record } = sleeper;
       viewer.send({
         t: "info",
@@ -1127,6 +1137,7 @@ export class BrowserHub {
     tab.usedAt = Date.now();
     if (this.shown(viewer)) tab.viewedAt = tab.usedAt;
     this.review(tab);
+    viewer.send({ t: "upload-token", token: this.uploadTokens.issue(viewer) });
     viewer.send({
       t: "browser",
       state:
@@ -1145,6 +1156,7 @@ export class BrowserHub {
   }
 
   detach(id: string, viewer: Viewer): void {
+    this.uploadTokens.forget(viewer);
     const waiting = this.waiting.get(viewer);
     if (waiting !== undefined) {
       this.waiting.delete(viewer);
@@ -1356,54 +1368,135 @@ export class BrowserHub {
     }
   }
 
-  /** Puts uploaded files on the input that asked for them. False when the
-   * token is unknown or the browser refused. */
-  async upload(
-    id: string,
-    token: string,
-    files: readonly File[],
-  ): Promise<boolean> {
-    const chooser = this.fileChoosers.get(token);
+  /** Gives the page the files a person uploaded (#973): to the input whose
+   * chooser the token names, or, with a viewer's token, as that viewer's
+   * drop or paste. False when the token is unknown, the upload does not fit
+   * or the browser refused. A chooser's token is good once. */
+  async upload(id: string, token: string, upload: Upload): Promise<boolean> {
     const tab = this.resolve(id);
     const cdp = this.cdp;
-    if (
-      chooser === undefined ||
-      tab === undefined ||
-      chooser.targetId !== tab.targetId ||
-      tab === undefined ||
-      tab.sessionId === null ||
-      cdp === null ||
-      files.length === 0 ||
-      (!chooser.multiple && files.length > 1)
-    )
+    if (tab === undefined || cdp === null || tab.sessionId === null)
       return false;
-    this.fileChoosers.delete(token);
-    await this.sweepUploads();
-    const directory = join(this.seams.uploadDirectory, token);
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    const paths: string[] = [];
-    for (const [index, file] of files.entries()) {
-      const name = basename(file.name).replace(/[^\w.@+-]/g, "_") || "file";
-      const folder = join(directory, String(index));
-      await mkdir(folder, { mode: 0o700 });
-      const path = join(folder, name.slice(0, 200));
-      await writeFile(path, new Uint8Array(await file.arrayBuffer()), {
-        mode: 0o600,
+    const send = (
+      method: string,
+      params?: Readonly<Record<string, unknown>>,
+      sessionId?: string,
+    ) => cdp.send(method, params, sessionId);
+    const root = this.seams.uploadDirectory;
+    const log = (line: string) => this.seams.log(line);
+    const chooser = this.fileChoosers.get(token);
+    if (chooser !== undefined) {
+      // Its session is the page's, or its frame's while that frame lives.
+      if (
+        upload.delivery.kind !== "chooser" ||
+        chooser.targetId !== tab.targetId ||
+        (chooser.session !== tab.sessionId &&
+          this.frames.get(chooser.session)?.tab !== tab.targetId)
+      )
+        return false;
+      this.fileChoosers.delete(token);
+      await sweepUploads(root);
+      const done = await answerChooser(send, chooser, upload, root, log);
+      if (done) this.broadcast(tab, { t: "files-closed", token });
+      return done;
+    }
+    const viewer = this.uploadTokens.viewer(token);
+    if (viewer === undefined || !tab.viewers.has(viewer)) return false;
+    this.acted(tab, viewer);
+    await sweepUploads(root);
+    return deliverFiles(
+      send,
+      {
+        session: tab.sessionId,
+        mainFrameId: tab.mainFrameId,
+        frameSession: (frameId) =>
+          this.frames.ofFrame(tab.targetId, frameId)?.session,
+      },
+      upload,
+      root,
+      log,
+    );
+  }
+
+  /** A page or one of its frames asked for files (F39 point 7). Nobody
+   * views it: dropped, never Chrome's own window. No input (#973): nothing
+   * can take files, Chrome tells the page the choice was cancelled, and the
+   * viewers are told why. Else the input's ask is read on the session the
+   * chooser came on, which also answers it. */
+  private chooserOpened(
+    tab: Tab,
+    session: string,
+    p: Readonly<Record<string, unknown>>,
+  ): void {
+    if (tab.viewers.size === 0) {
+      this.seams.log(`file chooser on ${tab.targetId} with no viewer`);
+      return;
+    }
+    const backendNodeId = p.backendNodeId;
+    if (typeof backendNodeId !== "number") {
+      this.seams.log(`file chooser without an input on ${tab.targetId}`);
+      this.broadcast(tab, { t: "files-refused", reason: "no-input" });
+      return;
+    }
+    const cdp = this.cdp;
+    if (cdp === null) return;
+    void readChooserAsk(
+      (method, params, sessionId) => cdp.send(method, params, sessionId),
+      session,
+      backendNodeId,
+      p.mode,
+    ).then((ask) => {
+      if (this.tabs.get(tab.targetId) !== tab) return;
+      const token = newToken();
+      this.fileChoosers.set(token, {
+        targetId: tab.targetId,
+        session,
+        backendNodeId,
+        ask,
       });
-      paths.push(path);
+      this.broadcast(tab, {
+        t: "files",
+        multiple: ask.multiple,
+        token,
+        ...(ask.accept === null ? {} : { accept: ask.accept }),
+        ...(ask.directory ? { directory: true } : {}),
+      });
+    });
+  }
+
+  /** A frame of another site attached under a page's session or a frame's
+   * (#973): its file choosers are the view's too, and so are its frames'. */
+  private frameAttached(
+    parent: string,
+    p: Readonly<Record<string, unknown>>,
+  ): void {
+    const cdp = this.cdp;
+    const info = p.targetInfo as { type?: unknown; targetId?: unknown };
+    const session = p.sessionId;
+    if (cdp === null || typeof session !== "string" || info?.type !== "iframe")
+      return;
+    const tab = this.frames.get(parent)?.tab ?? this.bySession.get(parent);
+    if (tab === undefined || typeof info.targetId !== "string") {
+      void cdp
+        .send("Target.detachFromTarget", { sessionId: session })
+        .catch(() => undefined);
+      return;
     }
-    try {
-      await cdp.send(
-        "DOM.setFileInputFiles",
-        { files: paths, backendNodeId: chooser.backendNodeId },
-        tab.sessionId,
-      );
-    } catch (error) {
-      this.seams.log(`setFileInputFiles failed: ${String(error)}`);
-      return false;
-    }
-    this.broadcast(tab, { t: "files-closed", token });
-    return true;
+    this.frames.add(tab, parent, session, info.targetId);
+    void (async () => {
+      try {
+        await cdp.send("Page.enable", {}, session);
+        await cdp.send(
+          "Page.setInterceptFileChooserDialog",
+          { enabled: true },
+          session,
+        );
+        await cdp.send("Target.setAutoAttach", frameAutoAttach, session);
+      } catch (error) {
+        if (this.frames.get(session) !== undefined)
+          this.seams.log(`frame ${info.targetId} incomplete: ${String(error)}`);
+      }
+    })();
   }
 
   // ---- The connection ------------------------------------------------------
@@ -1523,6 +1616,7 @@ export class BrowserHub {
   private lost(): void {
     this.seams.log("browser connection lost");
     this.bySession.clear();
+    this.frames.clear();
     for (const tab of this.tabs.values()) {
       // A page asked to close meanwhile: the reconnect tells whether it
       // fell asleep (decision F57); the request's answer cannot wait.
@@ -1566,7 +1660,14 @@ export class BrowserHub {
       case "Target.targetDestroyed":
         this.gone(String(p.targetId));
         return;
+      case "Target.attachedToTarget":
+        // Only the frames this hub's sessions auto-attach (#973); a session
+        // of the browser's own (`Target.attachToTarget`) names none.
+        if (event.sessionId !== undefined)
+          this.frameAttached(event.sessionId, p);
+        return;
       case "Target.detachedFromTarget": {
+        this.frames.remove(String(p.sessionId));
         const targetId = this.bySession.get(String(p.sessionId));
         this.bySession.delete(String(p.sessionId));
         const tab =
@@ -1575,11 +1676,20 @@ export class BrowserHub {
           tab.sessionId = null;
           tab.screencast = null;
           this.forgetAcks(tab);
+          this.frames.removeTab(tab.targetId);
         }
         return;
       }
     }
     if (event.sessionId === undefined) return;
+    const frame = this.frames.get(event.sessionId);
+    if (frame !== undefined) {
+      // A frame's session says only its file choosers (frame-sessions.ts).
+      const owner = this.tabs.get(frame.tab);
+      if (owner !== undefined && event.method === "Page.fileChooserOpened")
+        this.chooserOpened(owner, event.sessionId, p);
+      return;
+    }
     const targetId = this.bySession.get(event.sessionId);
     const tab = targetId === undefined ? undefined : this.tabs.get(targetId);
     if (tab === undefined) return;
@@ -1745,6 +1855,8 @@ export class BrowserHub {
       // left to Chrome's own windows (F39 point 7).
       await call("Page.enable");
       await call("Page.setInterceptFileChooserDialog", { enabled: true });
+      // Its frames of other sites are targets of their own (#973).
+      await call("Target.setAutoAttach", frameAutoAttach);
       const tree = await call("Page.getFrameTree");
       const frame = (tree.frameTree as { frame?: { id?: unknown } })?.frame;
       tab.mainFrameId = typeof frame?.id === "string" ? frame.id : null;
@@ -2237,25 +2349,10 @@ export class BrowserHub {
         tab.dialog = null;
         this.broadcast(tab, { t: "dialog-closed" });
         return;
-      case "Page.fileChooserOpened": {
-        if (tab.viewers.size === 0) {
-          // Nobody to pick a file: dropped, never Chrome's own window.
-          this.seams.log(`file chooser on ${tab.targetId} with no viewer`);
-          return;
-        }
-        const token = randomBytes(12).toString("hex");
-        this.fileChoosers.set(token, {
-          targetId: tab.targetId,
-          backendNodeId: Number(p.backendNodeId),
-          multiple: p.mode === "selectMultiple",
-        });
-        this.broadcast(tab, {
-          t: "files",
-          multiple: p.mode === "selectMultiple",
-          token,
-        });
+      case "Page.fileChooserOpened":
+        if (event.sessionId !== undefined)
+          this.chooserOpened(tab, event.sessionId, p);
         return;
-      }
     }
   }
 
@@ -3434,6 +3531,7 @@ export class BrowserHub {
     if (this.byId.get(tab.id) === targetId) this.byId.delete(tab.id);
     this.publishTabs();
     if (tab.sessionId !== null) this.bySession.delete(tab.sessionId);
+    this.frames.removeTab(targetId);
     for (const [token, chooser] of this.fileChoosers)
       if (chooser.targetId === targetId) this.fileChoosers.delete(token);
     if (fellAsleep && sleeper !== undefined) {
@@ -3495,19 +3593,5 @@ export class BrowserHub {
 
   private sendInfo(tab: Tab, viewer: Viewer): void {
     viewer.send({ t: "info", ...tab.info });
-  }
-
-  /** Removes upload folders older than an hour. */
-  private async sweepUploads(): Promise<void> {
-    const root = this.seams.uploadDirectory;
-    await mkdir(root, { recursive: true, mode: 0o700 }).catch(() => undefined);
-    const names = await readdir(root).catch(() => [] as string[]);
-    const old = Date.now() - 3_600_000;
-    for (const name of names) {
-      const path = join(root, name);
-      const info = await stat(path).catch(() => null);
-      if (info !== null && info.mtimeMs < old)
-        await rm(path, { recursive: true, force: true }).catch(() => undefined);
-    }
   }
 }
