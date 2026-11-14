@@ -12680,8 +12680,10 @@ stands.
    `false`, rejects `show()` with `NotSupportedError` ("Payments through the browser are not
    available in the Environment browser. Choose another way to pay."), and answers
    `PaymentRequest.securePaymentConfirmationAvailability()` with
-   `unavailable-feature-not-enabled`. A page that hears no payment app is ready offers its other
-   ways: a card form, or PayPal's pop-up, which the view shows (point 4). Three reasons, each
+   `unavailable-feature-not-enabled`. A page that hears no payment app is ready may offer its
+   other ways, a card form or PayPal's pop-up, which the view shows (point 4); the extension
+   cannot promise that it does. A site that offers only a wallet cannot take the payment in the
+   Environment browser, and the person pays in their own browser. Three reasons, each
    enough: the window cannot be shown and blocks the page; a payment is a Publication the person
    makes; and in an Organization's Environment the browser and its sign-ins belong to the
    Organization, not to the person's own wallet. In a Personal Environment the third reason does
@@ -12711,7 +12713,8 @@ stands.
    addresses (`match_origin_as_fallback`), not only in `about:blank` and `srcdoc` ones: a
    `blob:` frame printed before. This covers the passkey script as well.
 4. **Agents** read in the Folder's browser section that the browser declines payments and these
-   windows, that the page then offers another way to pay, that the payment stays the user's
+   windows, that the page may then offer another way to pay but nothing promises it, that when
+   it offers none the user pays in their own browser, that the payment stays the user's
    Publication, and how to save a page as a PDF (`agent-browser … pdf`); template revision
    `base-instructions-125`.
 

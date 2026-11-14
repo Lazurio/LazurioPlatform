@@ -2968,12 +2968,19 @@ test("the browser section says, right after sign-in, that payments and Chrome's 
       before: "- **Přihlášení a ověření.**",
       pdf: "`agent-browser --cdp 9222 --session <sezení> pdf <soubor>`",
       publication: "Platba je Publikace",
+      // Pablo's review of #984: no site is promised to offer another way.
+      may: "Stránka pak může nabídnout jiný způsob platby",
+      fallback: "zaplatí ve vlastním prohlížeči",
+      promise: "Stránka pak nabídne",
     },
     en: {
       point: "- **Payments and Chrome's windows.**",
       before: "- **Sign-in and verification.**",
       pdf: "`agent-browser --cdp 9222 --session <session> pdf <file>`",
       publication: "A payment is a Publication",
+      may: "The page may then offer another way to pay",
+      fallback: "they pay in their own browser",
+      promise: "The page then offers",
     },
   } as const;
   for (const locale of ["cs", "en"] as const) {
@@ -3001,6 +3008,9 @@ test("the browser section says, right after sign-in, that payments and Chrome's 
       expect(lines[at - 1]?.startsWith(words.before)).toBe(true);
       expect(lines[at]).toContain(words.pdf);
       expect(lines[at]).toContain(words.publication);
+      expect(lines[at]).toContain(words.may);
+      expect(lines[at]).toContain(words.fallback);
+      expect(lines[at]).not.toContain(words.promise);
     }
     // No view, no point.
     expect(
