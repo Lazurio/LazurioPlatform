@@ -47,6 +47,7 @@ import {
   viewSize,
   wheelDelta,
 } from "./input-map";
+import { controlRect, type PickerMessage, PickerView } from "./picker-view";
 import {
   type ClientMessage,
   decodeFrame,
@@ -364,6 +365,8 @@ class Viewer {
   private frameRequest = 0;
   private readonly touches = new Map<number, Touch>();
   private dialog: HTMLDialogElement | null = null;
+  /** The view's own picker for a page's control (#970), while open. */
+  private picker: PickerView | null = null;
   private chooser: Readonly<{
     dialog: HTMLDialogElement;
     token: string;
@@ -412,6 +415,7 @@ class Viewer {
     socket?.close();
     this.closeDialog();
     this.closeChooser(null);
+    this.picker?.close();
     this.showStatus();
   }
 
@@ -514,6 +518,12 @@ class Viewer {
         return;
       case "files-closed":
         this.closeChooser(message.token);
+        return;
+      case "picker":
+        this.showPicker(message);
+        return;
+      case "picker-closed":
+        if (this.picker?.token === message.token) this.picker.close();
         return;
       case "browser":
         banner.hidden = message.state !== "reconnecting";
@@ -1127,6 +1137,39 @@ class Viewer {
     this.chooser = { dialog, token, abort };
     this.showModal(dialog);
     input.focus();
+  }
+
+  /** A page's control would have opened a pop-up Chrome draws outside the
+   * page (#970): the view's own picker at the control. Its keys are the
+   * picker's until it closes; then they go to the page again, except on a
+   * touch screen, where that would open the keyboard. */
+  private showPicker(message: PickerMessage): void {
+    this.picker?.close();
+    const bitmap = this.bitmap;
+    const header = this.header;
+    const drawn =
+      bitmap === null
+        ? null
+        : containRect(
+            { width: this.box.clientWidth, height: this.box.clientHeight },
+            bitmap,
+          );
+    const picker = new PickerView({
+      message,
+      box: this.box,
+      control:
+        drawn === null || header === null
+          ? null
+          : controlRect(message.rect, drawn, header),
+      say,
+      send: (answer) => this.send(answer),
+      closed: () => {
+        if (this.picker !== picker) return;
+        this.picker = null;
+        if (!matchMedia("(pointer: coarse)").matches) this.focus();
+      },
+    });
+    this.picker = picker;
   }
 
   /** Closes the file chooser: any, or only the one of `token` (it was
