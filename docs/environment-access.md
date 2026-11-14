@@ -8,9 +8,10 @@ decisions 0192, 0202, 0224, 0243 and 0244, whose numbers stay in the register as
 superseded. Their paragraphs that begin "In GEN4 only" apply to GEN4 only: the
 Organization Admin as a role that Lazurio Auth holds, the Deployment Repo as the
 holder of all boundaries of trust, short-lived credentials from Auth for every
-entry, and the service entry through the recording entry point. This document
-marks those as "in GEN4"; everything else holds for GEN3 and GEN4. Each of the
-three ends with "What runs today"; where this document describes today's
+entry, and the service entry through the recording entry point, among others. This
+document marks as "in GEN4" the statements this revision touches; for the scope
+of any other statement the register's paragraph it comes from decides. Each of
+the three ends with "What runs today"; where this document describes today's
 mechanism instead of the target, it says so. The public-DNS mode of
 decision 0213 is retired (0246) and only the reference Organization runs it until its
 return to its tailnet; decision 0196 is in force;
@@ -418,17 +419,19 @@ hidden UI action or process-only promise is not proof of this boundary.
 
 ## Access edges in a Conglomerate (decisions 0246 and 0247): decided, not yet deployed
 
-A Conglomerate is one tailnet of befriended Organizations; each Organization has its
-own server with only its own Environments, and a Personal Environment is a node of
-exactly one Conglomerate. The table lists every access between people, devices and
-Environments. Access runs one way only, and an edge that is not in it does not exist
+A Conglomerate is one tailnet of befriended Organizations; in GEN4 each Organization
+has its own server with only its own Environments. A Personal Environment is a node
+of exactly one tailnet: of one Conglomerate while it holds a grant into an
+Organization there, otherwise of Lazurio's personal tailnet, where it has none of
+these routes (decision 0246). The table lists every access between people, devices
+and Environments. Access runs one way only, and an edge that is not in it does not exist
 by default.
 
 | Access | From → to | Derived from | How |
 | --- | --- | --- | --- |
 | Work access | A Personal Environment → the Work Environments assigned to its owner in every Organization of its Conglomerate | The assignment and live membership | Automatically, SSH, this direction only |
-| Team Environments through a Work Environment | A person's Work Environment → the Team Environments of that person's Teams in the same Organization | Team membership | Automatically. Today SSH with the Work Environment's own key; in GEN4 a short-lived certificate from Lazurio Auth in its place (decision 0247). From the Personal Environment in two `ssh` steps through the person's own Work Environment, never directly and without forwarding a key |
-| Administration (decision 0247) | An Organization Admin's Work Environment, the administrative station → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services; never a Personal Environment, another Organization, the Conglomerate Host or the servers under the Environments | The Organization Admin role and, until the service entry is deployed, a named exception that declares the station as a boundary of trust; no key or edge is derived from the role | Today SSH with the station's one key, from the Organization Admin's Personal Environment in two steps through that Work Environment. In GEN4 a service entry: opened with a reason and for a bounded time, through the recording entry point of the host's holder, with a short-lived credential from Lazurio Auth; observing without root by default, a repair from Lazurio's catalog, or full access with the Organization Owner's confirmation |
+| Team Environments through a Work Environment | A person's Work Environment → the Team Environments of that person's Teams in the same Organization | Team membership | Automatically. Today SSH with the Work Environment's own key; in GEN4 a short-lived certificate from Lazurio Auth in its place (decision 0247). In GEN4, from the Personal Environment in two `ssh` steps through the person's own Work Environment, never directly and without forwarding a key |
+| Administration (decision 0247) | An Organization Admin's Work Environment, the administrative station → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services; never a Personal Environment, another Organization, the Conglomerate Host or the servers under the Environments | The Organization Admin role. Until the service entry is deployed, also a named exception that declares the station as a boundary of trust, and in that time no key or edge is derived from the role alone; in GEN4 the service entry follows from the role | Today SSH with the station's one key, from the Organization Admin's Personal Environment in two steps through that Work Environment. In GEN4 a service entry: opened with a reason and for a bounded time, through the recording entry point of the host's holder, with a short-lived credential from Lazurio Auth; observing without root by default, a repair from Lazurio's catalog, or full access with the Organization Owner's confirmation |
 | From a device | A person's approved device → that person's Environments | The Organization Admin's approval of the device (0245) | Automatically after the approval: 443 and 22, a phone 443 |
 | To a device | An Environment → one specific computer (decision 0240) | The consent of the device's owner: a person for their own computer, the Organization Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable. A Device of the Organization: SSH from the Environment. A personal Device: never SSH into it; only over the channel the Device itself opened into the Environment, while its owner has it switched on, ending at once when switched off |
 | Exceptions | Anything else | A reviewed pull request with its reason and owner to the Organization's own Deployment Repo, today to the host owner's deployment repository; in GEN4 Machines applies it only with proof of its approval (0245) | Exceptionally |
@@ -436,7 +439,8 @@ by default.
 - **No reverse edges.** No edge exists as the reverse of another: neither Work →
   Personal nor Team → Work, and the target of administration does not reach the
   Organization Admin's Environments by it. Two Organization Admins of one Organization reach each other's Work
-  Environments, each from their own role. Nothing of the source Environment is
+  Environments, each from their own role: until the service entry is deployed, each
+  through their own named station, and in GEN4 each by their own service entry. Nothing of the source Environment is
   forwarded, neither its key today nor, in GEN4, its certificate: the step from a
   Work Environment into a Team Environment is a second `ssh` run in the Work
   Environment with that Environment's own credential, today its own key.
