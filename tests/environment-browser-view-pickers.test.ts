@@ -5,6 +5,7 @@ import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
 import { BrowserHub, type Viewer } from "../src/browser/people/hub";
 import {
   controlRect,
+  fieldAttributes,
   folded,
   placePanel,
   stepChoice,
@@ -141,6 +142,36 @@ describe("the page's description of a control", () => {
       max: "2026-12-31",
       step: "7",
       base: "",
+    });
+  });
+  test("the view's copy of a field keeps the value attribute also beside an invalid min", () => {
+    // <input type=date min=invalid value=2026-11-11 step=7>: Chrome counts the
+    // weeks from the value attribute, so the copy must carry it (#972 review).
+    expect(
+      fieldAttributes({
+        value: "2026-11-18",
+        min: "invalid",
+        max: "",
+        step: "7",
+        base: "2026-11-11",
+      }),
+    ).toEqual({
+      attributes: { value: "2026-11-11", min: "invalid", step: "7" },
+      value: "2026-11-18",
+    });
+    // Without a value attribute nothing invents one; a valid min still
+    // stands, and the browser prefers it.
+    expect(
+      fieldAttributes({
+        value: "",
+        min: "2026-01-01",
+        max: "2026-12-31",
+        step: "",
+        base: "",
+      }),
+    ).toEqual({
+      attributes: { min: "2026-01-01", max: "2026-12-31" },
+      value: "",
     });
   });
   test("a field without min keeps its value attribute, where its steps start", () => {

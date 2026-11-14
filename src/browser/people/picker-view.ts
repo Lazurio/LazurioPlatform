@@ -211,6 +211,29 @@ const el = <K extends keyof HTMLElementTagNameMap>(
   return node;
 };
 
+/** The attributes the view's copy of a field takes from the page's, and the
+ * value it starts with. The copy keeps the page's `value` attribute
+ * whenever the page has one: the browser counts the steps from a valid `min`
+ * and otherwise from that attribute, also when `min` is set but invalid, so
+ * a value valid on the page stays valid in the copy (#972). */
+export function fieldAttributes(
+  message: Readonly<{
+    value?: string;
+    min?: string;
+    max?: string;
+    step?: string;
+    base?: string;
+  }>,
+): Readonly<{ attributes: Readonly<Record<string, string>>; value: string }> {
+  const attributes: Record<string, string> = {};
+  if ((message.base ?? "") !== "") attributes.value = message.base ?? "";
+  for (const name of ["min", "max", "step"] as const) {
+    const given = message[name] ?? "";
+    if (given !== "") attributes[name] = given;
+  }
+  return { attributes, value: message.value ?? "" };
+}
+
 /** One open picker in a viewer's box. `close` takes it away without an
  * answer (the page went away); the person's own Esc answers `pick-cancel`. */
 export class PickerView {
@@ -456,14 +479,10 @@ export class PickerView {
     const form = el("form", "picker-form");
     const input = el("input", "picker-field");
     input.type = message.kind;
-    // Without `min`, the steps start at the page's `value` attribute: the copy
-    // keeps it as its own, so a value valid on the page is valid here.
-    if ((message.min ?? "") === "" && (message.base ?? "") !== "")
-      input.setAttribute("value", message.base ?? "");
-    input.value = message.value ?? "";
-    if ((message.min ?? "") !== "") input.min = message.min ?? "";
-    if ((message.max ?? "") !== "") input.max = message.max ?? "";
-    if ((message.step ?? "") !== "") input.step = message.step ?? "";
+    const field = fieldAttributes(message);
+    for (const [name, value] of Object.entries(field.attributes))
+      input.setAttribute(name, value);
+    input.value = field.value;
     input.setAttribute("aria-label", pickerTitle(message, say));
     const error = el("p", "picker-error");
     error.hidden = true;
