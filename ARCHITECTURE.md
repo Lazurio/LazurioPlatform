@@ -379,7 +379,10 @@ people enter only through a tailnet, with a Lazurio account, active membership, 
 device approved by the Organization Admin and a grant to the Environment or to an
 app. In GEN4 the Organization's Deployment Repo holds the boundaries of trust and
 Lazurio Auth holds their use, and every entry, by SSH or in the browser, is a
-short-lived credential that Auth issues and records.
+short-lived credential that Auth issues and records. The one exception is the
+break-glass entry of the host's holder: its credential is kept in the host's
+custody and does not come from Auth, so it works when Auth or its key vault is
+unavailable.
 Until that is deployed, entries keep their present ways and the existing GitHub Team
 gates are the marked migration implementation; no second access list is created.
 An external implementer may help a customer deploy Lazurio for that customer's own

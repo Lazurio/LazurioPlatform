@@ -8,7 +8,8 @@ decisions 0192, 0202, 0224, 0243 and 0244, whose numbers stay in the register as
 superseded. Their paragraphs that begin "In GEN4 only" apply to GEN4 only: the
 Organization Admin as a role that Lazurio Auth holds, the Deployment Repo as the
 holder of all boundaries of trust, short-lived credentials from Auth for every
-entry, and the service entry through the recording entry point, among others. This
+entry except the break-glass entry of the host's holder, and the service entry
+through the recording entry point, among others. This
 document marks as "in GEN4" the statements this revision touches; for the scope
 of any other statement the register's paragraph it comes from decides. Each of
 the three ends with "What runs today"; where this document describes today's
@@ -146,7 +147,10 @@ Environments derives from assignments, approved devices and live Organization Ad
   certificate authority that Lazurio Auth issues for minutes, for one target
   Environment and only from the address the entry comes from, and the authority
   also signs the Environments' host keys, so nobody holds a standing key and no
-  host key is pinned. Until those certificates are deployed, and in GEN3: every SSH edge
+  host key is pinned. The one exception is the break-glass entry of the host's
+  holder, with a credential kept in the host's custody that does not come from
+  Auth, so it works when Auth or its key vault is unavailable. Until those
+  certificates are deployed, and in GEN3: every SSH edge
   between Environments needs both the network grant and the
   source Environment's own key, which the target accepts only from the
   source's address and for the assigned account; both appear and disappear
@@ -452,7 +456,8 @@ by default.
 - **How it is applied.** In GEN4 (decision 0247) Lazurio Auth decides each entry
   from these facts at the moment of entry and issues a short-lived credential for
   it; a normal entry goes straight to the Environment and is recorded at issuance,
-  a service entry goes through the recording entry point. Until that is deployed,
+  a service entry goes through the recording entry point; the holder's break-glass
+  entry is the one entry Auth does not issue. Until that is deployed,
   and in GEN3: the service on the Conglomerate Host that approves devices
   derives the edges from these facts: it delivers the source Environment's key to the
   target account, accepted only from the source's address and never forwarded, and
