@@ -22125,8 +22125,9 @@ page keeping the corner free); the corner stays where he starts.
    than 5 px is a click and opens his window as before, and a drag never clicks. The pointer
    is held from the press on, so a quick flick still drags him. He never stands nearer than
    8 px to an edge. Dropped within 40 px of his corner he is back in it. While he has the
-   focus the arrows move him by 16 px (64 px with Shift) and Home takes him back to his
-   corner. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
+   focus the arrows move him by 16 px (64 px with Shift), out of his corner too: their steps
+   never snap, and only a step that lands exactly on the corner is home. Home takes him back
+   to his corner. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
    not moved.
 2. **Each app remembers his place.** The shell runs on each app's origin, so the place is
    kept in that origin's `localStorage` (`lazurio.buddy.place`): the Launchpad, Chat and
@@ -22162,7 +22163,8 @@ page keeping the corner free); the corner stays where he starts.
 
 **Verified by:**
 - `tests/shell-buddy-place.test.ts`: the place by the nearest edges, kept on a resized window,
-  inside the window, back in the corner within 40 px, the arrows' steps, the panel above,
+  inside the window, back in the corner within 40 px of a drop, single arrow steps out of the
+  corner and back, the panel above,
   below and beside him and on a phone, the remembered place and anything unreadable as the
   corner.
 - `tests/shell-buddy.test.ts`: the figure's size and look, and the clearance only in the

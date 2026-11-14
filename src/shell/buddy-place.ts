@@ -72,18 +72,22 @@ export function buddyBoxOf(
   });
 }
 
-/** The place of a launcher dropped at `left`, `top`: home near his corner,
- * else by its nearest edges, inside the window. */
+/** The place of a launcher dropped at `left`, `top`: home near his corner
+ * (`snap`), else by its nearest edges, inside the window. The arrows' steps
+ * do not snap, so a single step leaves the corner; only a step that lands
+ * exactly on it is home. */
 export function buddyPlaceOf(
   left: number,
   top: number,
   size: Size,
   view: Viewport,
   home: BuddyBox,
+  snap = true,
 ): BuddyPlace {
   const l = clamp(left, buddyEdge, view.width - size.width - buddyEdge);
   const t = clamp(top, buddyEdge, view.height - size.height - buddyEdge);
-  if (Math.hypot(l - home.left, t - home.top) <= buddySnap) return "home";
+  if (Math.hypot(l - home.left, t - home.top) <= (snap ? buddySnap : 0))
+    return "home";
   const right = view.width - l - size.width;
   const bottom = view.height - t - size.height;
   const onLeft = l + size.width / 2 < view.width / 2;
@@ -106,7 +110,7 @@ export function buddyNudge(
   home: BuddyBox,
 ): BuddyPlace {
   const box = buddyBoxOf(place, size, view, home);
-  return buddyPlaceOf(box.left + dx, box.top + dy, size, view, home);
+  return buddyPlaceOf(box.left + dx, box.top + dy, size, view, home, false);
 }
 
 /** Where something of `want` stands beside the launcher, `gap` from it;

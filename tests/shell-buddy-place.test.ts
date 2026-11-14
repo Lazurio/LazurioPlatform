@@ -75,10 +75,21 @@ test("he never leaves the window, however far he is dragged or however small the
   expect(phone.left + size.width).toBeLessThanOrEqual(390 - buddyEdge);
 });
 
-test("the arrows move him by steps and back home when they bring him near his corner", () => {
-  const left = buddyNudge("home", -4 * buddyStep, 0, size, view, home);
-  expect(buddyBoxOf(left, size, view, home).left).toBe(home.left - 64);
-  expect(buddyNudge(left, 3 * buddyStep, 0, size, view, home)).toBe("home");
+test("single arrow steps move him out of his corner and keep moving him; a step back onto it, or Home, is home", () => {
+  const left = buddyNudge("home", -buddyStep, 0, size, view, home);
+  expect(left).not.toBe("home");
+  expect(buddyBoxOf(left, size, view, home).left).toBe(home.left - buddyStep);
+  const up = buddyNudge("home", 0, -buddyStep, size, view, home);
+  expect(buddyBoxOf(up, size, view, home).top).toBe(home.top - buddyStep);
+  const twice = buddyNudge(left, -buddyStep, 0, size, view, home);
+  expect(buddyBoxOf(twice, size, view, home).left).toBe(
+    home.left - 2 * buddyStep,
+  );
+  expect(buddyNudge(left, buddyStep, 0, size, view, home)).toBe("home");
+  // A drop still snaps within the corner's reach.
+  expect(buddyPlaceOf(home.left - buddyStep, home.top, size, view, home)).toBe(
+    "home",
+  );
 });
 
 test("his panel opens beside him on the side with more room, and beside him where above and below are short", () => {
