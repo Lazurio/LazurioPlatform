@@ -30,8 +30,8 @@ export const adminRequest: readonly Text[] = [
     "1. **Name one thing.** What exactly the user wants, for which Environment, device or module, and why. Check against the table Who does what in `manual/mechanisms.md` whether they can do it alone: a phone with an own account, an AI sign-in off the pool or their own Integration they do in Settings, and no request is needed. Show them where.",
   ),
   t(
-    "2. **Ověř roli.** Když je uživatel Admin Organizace, žádost nepiš: pokračuj podle `manual/admin.md` a skillu Organizace pro danou věc.",
-    "2. **Check the role.** When the user is the Organization Admin, write no request: continue by `manual/admin.md` and the Organization's skill for the matter.",
+    "2. **Ověř roli.** Když je uživatel Admin Organizace, žádost nepiš: pokračuj podle `manual/admin.md` a skillu Organizace pro danou věc. Totéž platí pod dosavadní autoritou `owner` pro ověřeného aktivního Vlastníka Organizace u správních úkonů, které mu do nasazení role připadají (schvalování zařízení, zdroj AI, odpovědi na žádosti, role aplikací); vstup do Prostředí mu to nedává.",
+    "2. **Check the role.** When the user is the Organization Admin, write no request: continue by `manual/admin.md` and the Organization's skill for the matter. The same holds under the current `owner` authority for a verified active Organization Owner, for the administrative acts that fall to them until the role is deployed (the approval of devices, the AI source, the answers to requests, the roles of applications); it gives them no entry to an Environment.",
   ),
   ...roleCheck.map((line) =>
     line.cs === "" ? line : { cs: `   ${line.cs}`, en: `   ${line.en}` },
