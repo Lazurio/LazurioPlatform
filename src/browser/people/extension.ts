@@ -12,9 +12,10 @@ import { writeDurableFile } from "../../update/durable-file";
  * - until the Environment's Bitwarden holds its passkeys (0191 point 17), a
  *   WebAuthn request is declined at once, so Chrome's own passkey window,
  *   which the view cannot show and which blocks the page, never opens;
- * - a payment through the browser (Google Pay, Apple Pay, Chrome's payment
- *   window) is declined, so the page offers its other ways (F39's addendum
- *   of 2026-11-14);
+ * - a payment through the browser (`PaymentRequest`: Google Pay and the
+ *   other payment apps Chrome opens a window for) is declined: the page hears
+ *   that no payment app is ready and `show()` is refused. What the page
+ *   offers then is the site's (F39's addendum of 2026-11-14);
  * - Chrome's other windows over the page never open either: the print
  *   preview, the picker of a screen to share, a sign-in through an identity
  *   provider's button (FedCM's active mode), a digital wallet, the chooser of
@@ -116,13 +117,14 @@ const webauthn = `// Lazurio (decision F39, root decision 0191 point 17): until 
 `;
 
 const payment = `// Lazurio (decision F39 point 7, addendum of 2026-11-14): a payment through
-// the browser is declined. Chrome's own payment window (Google Pay, Apple Pay,
-// a card Chrome keeps, Secure Payment Confirmation) opens outside the page,
+// the browser (PaymentRequest) is declined. Chrome's own payment window (Google
+// Pay, a card Chrome keeps, Secure Payment Confirmation) opens outside the page,
 // where the people's view cannot show it, and the page takes no input until it
 // is closed. A payment is also a Publication the person makes, and this
-// browser belongs to the Environment, not to the person's own wallet. A page
-// that hears no payment app is ready offers its other ways: a card form, or
-// PayPal's pop-up, which the view shows.
+// browser belongs to the Environment, not to the person's own wallet. This
+// script only answers the page's questions; what the page offers then is the
+// site's own: it may offer a card form or PayPal's pop-up, which the view
+// shows, or nothing.
 (() => {
   const Request = globalThis.PaymentRequest;
   if (!Request) return;

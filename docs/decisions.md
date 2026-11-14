@@ -12726,7 +12726,7 @@ every thread closes, as for every new extension. Nothing in the Environment need
 | --- | --- |
 | A page caught the original method before the script ran | Not possible from the page: the scripts run at `document_start`, before the page's own scripts, in every frame |
 | A page prints from a frame of another scheme the extension cannot reach (the PDF viewer) | The preview opens and blocks as before; #243 |
-| A site offers only a wallet | The page says it cannot take a payment here; the person pays in their own browser |
+| A site offers only a wallet | What the page shows is the site's own (an error, or nothing); the extension only declines the wallet. The person pays in their own browser |
 | A site relies on FedCM's active mode alone | Its sign-in fails as if the person closed the dialog; the site's fallback or the person's own browser |
 
 **Variants considered.**
