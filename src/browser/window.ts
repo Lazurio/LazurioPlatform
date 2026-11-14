@@ -13,7 +13,6 @@ import {
   parseHolder,
   stripAppOf,
   targetIdOf,
-  threadOfWindow,
 } from "./contract/pure";
 import { addressKey } from "./people/sleep";
 import { browserCdpPort } from "./units";
@@ -68,30 +67,6 @@ export class BrowserWindowFailure extends Error {
     super(reason);
   }
 }
-
-/** `ensureThreadWindow` with a limit: the thread holds as many windows as
- * it may already, `windows` being their sessions, so no new one opens. */
-export class ThreadWindowLimit extends Error {
-  constructor(
-    readonly limit: number,
-    readonly windows: readonly string[],
-  ) {
-    super("window-limit");
-  }
-}
-
-/** How many windows one thread may hold at once (`lazurio browser window`):
- * its own session's and its further windows' (`<session>-2`, …,
- * `<session>-preview`) whose agent-browser daemon runs. PROVISIONAL, an
- * open decision: no decision sets a number. Five keeps a few threads that
- * each hold all theirs under the 28 tabs the reference Environment (4 vCPU,
- * 8 GiB) carried without losing a renderer on 2026-10-20 (`pressure.ts`,
- * decision F57 point 6), where every remote tab is a window of its own (root
- * decision 0191 point 11), and still leaves an agent its own window, one
- * for a page it works in beside it, a preview and two more. A window let go
- * (`done`, or agent-browser's idle timeout of 1 h) no longer counts, even
- * while a person keeps it open. */
-export const threadWindowLimit = 5;
 
 /** One session of a thread as agent-browser's files record it (C7): its
  * bound target, when its binding names one, and whether its daemon runs
@@ -179,23 +154,40 @@ export async function readThreadSessions(
   );
 }
 
-/** The thread's windows that count against its limit: the distinct open
- * targets its running sessions are bound to, with their sessions. */
-async function heldThreadWindows(
+/** One window the thread's agent-browser still holds, with the address its
+ * page shows (empty where the browser did not say). */
+export type HeldThreadWindow = Readonly<{
+  session: string;
+  targetId: string;
+  url: string;
+}>;
+
+/** The windows the thread still holds: the distinct open pages its running
+ * sessions are bound to, each with the first of its sessions and its
+ * address. No number limits them (decided on 2026-11-14): `lazurio browser
+ * window` names them when it opens another, so the agent lets go of those it
+ * no longer needs. A window let go (`done`, or agent-browser's idle timeout
+ * of 1 h) is not held, even while a person keeps it open. */
+export async function heldThreadWindows(
   thread: string,
-  seams: WindowSeams,
-): Promise<readonly string[]> {
+  seams: Pick<WindowSeams, "env" | "targets" | "pages" | "alive">,
+): Promise<readonly HeldThreadWindow[]> {
   const sessions = await readThreadSessions(thread, seams.env, seams.alive);
-  const open = await seams.targets();
-  const held = new Map<string, string>();
-  for (const { session, targetId, running } of sessions)
+  const pages =
+    seams.pages === undefined
+      ? new Map([...(await seams.targets())].map((id) => [id, ""]))
+      : await seams.pages();
+  const held = new Map<string, HeldThreadWindow>();
+  for (const { session, targetId, running } of sessions) {
+    const url = targetId === null ? undefined : pages.get(targetId);
     if (
       running &&
       targetId !== null &&
-      open.has(targetId) &&
+      url !== undefined &&
       !held.has(targetId)
     )
-      held.set(targetId, session);
+      held.set(targetId, Object.freeze({ session, targetId, url }));
+  }
   return [...held.values()];
 }
 
@@ -304,13 +296,9 @@ export async function ensureThreadWindow(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
-  /** With a limit (`lazurio browser window`), a new window is refused as
-   * `ThreadWindowLimit` once the session's thread (`threadOfWindow`) holds that
-   * many; the window a session has already is never refused. */
-  limit?: number,
 ): Promise<ThreadWindow> {
   return underWindowLock(seams.env, () =>
-    ensureThreadWindowLocked(session, url, seams, limit),
+    ensureThreadWindowLocked(session, url, seams),
   );
 }
 
@@ -412,7 +400,6 @@ async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
-  limit: number | undefined,
 ): Promise<ThreadWindow> {
   let existing: string | null;
   try {
@@ -431,16 +418,6 @@ async function ensureThreadWindowLocked(
     if (!(await bindSession(session, shown, seams)))
       throw new BrowserWindowFailure("bind-failed");
     return Object.freeze({ session, targetId: shown, created: false });
-  }
-  if (limit !== undefined) {
-    const thread = threadOfWindow(session) ?? session;
-    let held: readonly string[];
-    try {
-      held = await heldThreadWindows(thread, seams);
-    } catch {
-      throw new BrowserWindowFailure("browser-unreachable");
-    }
-    if (held.length >= limit) throw new ThreadWindowLimit(limit, held);
   }
   return createThreadWindow(session, url, seams);
 }

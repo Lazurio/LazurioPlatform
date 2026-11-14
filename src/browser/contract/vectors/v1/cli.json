@@ -669,8 +669,7 @@
               "sleeping": false,
               "endsAt": null
             }
-          ],
-          "limit": 5
+          ]
         }
       ],
       "expect": {
@@ -690,8 +689,7 @@
               "sleeping": false,
               "endsAt": null
             }
-          ],
-          "limit": 5
+          ]
         }
       }
     },
@@ -772,8 +770,7 @@
                 "sleeping": false,
                 "endsAt": null
               }
-            ],
-            "limit": 5
+            ]
           }
         }
       ],
@@ -792,8 +789,7 @@
             "sleeping": false,
             "endsAt": null
           }
-        ],
-        "limit": 5
+        ]
       }
     },
     {
@@ -805,16 +801,14 @@
             "schema": "lazurio.browser-cli.v1",
             "kind": "browser-tabs",
             "session": "codex-1",
-            "windows": [],
-            "limit": 5
+            "windows": []
           }
         }
       ],
       "expect": {
         "kind": "browser-tabs",
         "session": "codex-1",
-        "windows": [],
-        "limit": 5
+        "windows": []
       }
     },
     {
@@ -837,8 +831,7 @@
                 "sleeping": false,
                 "endsAt": null
               }
-            ],
-            "limit": 5
+            ]
           }
         }
       ],
@@ -857,8 +850,7 @@
             "sleeping": false,
             "endsAt": null
           }
-        ],
-        "limit": 5
+        ]
       }
     },
     {
@@ -880,8 +872,7 @@
                 "sleeping": false,
                 "endsAt": null
               }
-            ],
-            "limit": 5
+            ]
           }
         }
       ],
@@ -895,15 +886,14 @@
           "$json": {
             "kind": "browser-tabs",
             "session": "codex-1",
-            "windows": {},
-            "limit": 5
+            "windows": {}
           }
         }
       ],
       "expect": null
     },
     {
-      "name": "tabs without a limit is none",
+      "name": "tabs with a member it does not know reads without it",
       "call": "parseBrowserCliAnswer",
       "args": [
         {
@@ -922,11 +912,28 @@
                 "sleeping": false,
                 "endsAt": null
               }
-            ]
+            ],
+            "note": "ignored"
           }
         }
       ],
-      "expect": null
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [
+          {
+            "session": "codex-1-2",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "held": true,
+            "viewers": 1,
+            "sleeping": false,
+            "endsAt": null
+          }
+        ]
+      }
     },
     {
       "name": "tabs whose viewers are negative is none",
@@ -948,8 +955,7 @@
                 "sleeping": false,
                 "endsAt": null
               }
-            ],
-            "limit": 5
+            ]
           }
         }
       ],

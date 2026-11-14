@@ -44,9 +44,8 @@ import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   BrowserWindowFailure,
   ensureThreadWindow,
+  heldThreadWindows,
   readThreadSessions,
-  ThreadWindowLimit,
-  threadWindowLimit,
   type WindowSeams,
 } from "../src/browser/window";
 import { initializeHandoverFolder } from "../src/folder/initialize-folder";
@@ -2210,12 +2209,14 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
-// ---- A thread's windows: tabs, done --all and the limit ----------------------
+// ---- A thread's windows: tabs, done --all and the note of window ------------
 
 // An agent sees which windows of the Environment browser are its own thread's
 // (`<session>`, `<session>-2`, …, `<session>-preview`), never another
-// thread's, lets go of them all at once, and opens no more than the thread's
-// limit. The bindings and daemons are agent-browser's files (C7); the tabs
+// thread's, and lets go of them all at once. No number limits them (decided
+// on 2026-11-14): a new window opens however many the thread holds, and
+// `window` names the others so the agent lets go of those it no longer
+// needs. The bindings and daemons are agent-browser's files (C7); the tabs
 // are the hub's loopback list.
 const TAB_A = "2A".repeat(16);
 const TAB_B = "2B".repeat(16);
@@ -2263,7 +2264,7 @@ const tabFacts = (
   grace: facts.grace ?? null,
 });
 
-test("a thread's sessions are its own and its further windows', never another thread's; past the limit no new window opens", async () => {
+test("a thread's sessions are its own and its further windows', never another thread's; it holds those whose daemon runs, and no number limits them", async () => {
   const socketDir = await temporary("browser-thread-");
   const running = String(process.pid);
   await bindSessionFiles(socketDir, "codex-1", TAB_A, { pid: running });
@@ -2296,39 +2297,48 @@ test("a thread's sessions are its own and its further windows', never another th
   expect(await readThreadSessions("codex-1", { HOME: "/nowhere" })).toEqual([]);
 
   const open = [TAB_A, TAB_B, TAB_C, TAB_D, TAB_E];
-  // Three held windows (codex-1-3 was let go): a fourth is refused at three…
+  const addresses = new Map(
+    open.map((id) => [id, `https://example.com/${id.slice(0, 2)}`]),
+  );
+  // The windows it holds: a running daemon bound to an open page, with its
+  // address. codex-1-3 was let go; another thread's are never named.
   const full = windowSeams({ socketDir, targets: open });
-  const refused = await ensureThreadWindow(
-    "codex-1-4",
-    "https://example.com/",
-    full.seams,
-    3,
-  ).catch((error: unknown) => error);
-  expect(refused).toBeInstanceOf(ThreadWindowLimit);
-  expect((refused as ThreadWindowLimit).windows).toEqual([
-    "codex-1",
-    "codex-1-2",
-    "codex-1-preview",
+  expect(
+    await heldThreadWindows("codex-1", {
+      ...full.seams,
+      pages: async () => addresses,
+    }),
+  ).toEqual([
+    { session: "codex-1", targetId: TAB_A, url: "https://example.com/2A" },
+    { session: "codex-1-2", targetId: TAB_B, url: "https://example.com/2B" },
+    {
+      session: "codex-1-preview",
+      targetId: TAB_E,
+      url: "https://example.com/2E",
+    },
   ]);
-  expect(full.calls).toEqual([]);
-  // …the window a session has already is never refused…
+  // Without the pages' addresses, the open targets; a closed page is no
+  // longer held.
   expect(
-    await ensureThreadWindow("codex-1-2", undefined, full.seams, 1),
-  ).toEqual({ session: "codex-1-2", targetId: TAB_B, created: false });
-  // …and under the limit it opens. A closed tab no longer counts either.
-  const room = windowSeams({ socketDir, targets: open });
+    await heldThreadWindows(
+      "codex-1",
+      windowSeams({ socketDir, targets: [TAB_A, TAB_D] }).seams,
+    ),
+  ).toEqual([{ session: "codex-1", targetId: TAB_A, url: "" }]);
+  // No number limits them: a new window opens however many the thread
+  // holds, and the window a session has already stays its own.
   expect(
-    await ensureThreadWindow("codex-1-4", undefined, room.seams, 4),
+    await ensureThreadWindow("codex-1-4", undefined, full.seams),
   ).toMatchObject({ session: "codex-1-4", created: true });
-  const closed = windowSeams({ socketDir, targets: [TAB_A, TAB_D] });
-  expect(
-    await ensureThreadWindow("codex-1-5", undefined, closed.seams, 2),
-  ).toMatchObject({ session: "codex-1-5", created: true });
-  expect(threadWindowLimit).toBe(5);
+  expect(await ensureThreadWindow("codex-1-2", undefined, full.seams)).toEqual({
+    session: "codex-1-2",
+    targetId: TAB_B,
+    created: false,
+  });
 });
 
 test.skipIf(process.platform === "win32")(
-  "lazurio browser tabs lists only the calling thread's windows; done --all lets go of every one; window refuses past the limit",
+  "lazurio browser tabs lists only the calling thread's windows; done --all lets go of every one; a new window names the thread's others",
   async () => {
     const { home, folder } = await folderWith(bindings.organizationBrowser);
     const socketDir = join(home, "sockets");
@@ -2382,7 +2392,6 @@ test.skipIf(process.platform === "win32")(
       schema: "lazurio.browser-cli.v1",
       kind: "browser-tabs",
       session: "codex-019a",
-      limit: 5,
       windows: [
         {
           session: "codex-019a",
@@ -2437,7 +2446,7 @@ test.skipIf(process.platform === "win32")(
     });
     expect(text.stdout).toBe(
       [
-        "This thread holds 0 of at most 5 windows.",
+        "This thread holds 0 windows.",
         "- codex-019a-3: https://example.com/2C",
         `  The user's link: ${origin}/t/${TAB_C}`,
         "  let go; nobody views it; ends at 2026-11-14T10:05:00.000Z unless held or viewed again",
@@ -2541,23 +2550,34 @@ test.skipIf(process.platform === "win32")(
           .code,
       ).toBe(2);
 
-    // window past the limit: refused, naming the windows the thread holds.
+    // A sixth window while the thread holds five: it opens and exits 0, and
+    // stderr names the five with their addresses and how to let go of them.
     for (const n of [3, 4, 5])
       await bindSessionFiles(socketDir, `codex-019a-${n}`, `4${n}`.repeat(16), {
         pid: running,
       });
     await bindSessionFiles(socketDir, "codex-019a-2", TAB_B, { pid: running });
-    const { seams, calls } = windowSeams({
-      socketDir,
-      targets: [
-        TAB_A,
-        TAB_B,
-        "43".repeat(16),
-        "44".repeat(16),
-        "45".repeat(16),
-      ],
-    });
-    const limited = await runBrowserCommand(
+    const held = [
+      TAB_A,
+      TAB_B,
+      "43".repeat(16),
+      "44".repeat(16),
+      "45".repeat(16),
+      TAB_D,
+    ];
+    const pages = async () =>
+      new Map(held.map((id) => [id, `https://example.com/${id.slice(0, 2)}`]));
+    const note = [
+      "This thread's other windows in the Environment browser:",
+      "- codex-019a: https://example.com/2A",
+      "- codex-019a-2: https://example.com/2B",
+      "- codex-019a-3: https://example.com/43",
+      "- codex-019a-4: https://example.com/44",
+      "- codex-019a-5: https://example.com/45",
+      "Let go of those you no longer need right away: lazurio browser done --session <session> lets go of one, lazurio browser done --all of every window of the thread, this one too. lazurio browser tabs lists them.",
+    ].join("\n");
+    const sixth = windowSeams({ socketDir, targets: held });
+    const opened = await runBrowserCommand(
       [
         "window",
         "--session",
@@ -2567,13 +2587,63 @@ test.skipIf(process.platform === "win32")(
         "--folder",
         folder,
       ],
-      context(env, seams),
+      context(env, { ...sixth.seams, pages }),
     );
-    expect(limited.code).toBe(1);
-    expect(limited.stderr).toBe(
-      "This thread holds 5 windows of the Environment browser already (codex-019a, codex-019a-2, codex-019a-3, codex-019a-4, codex-019a-5), so no new one opens. Let go of the windows you no longer need (lazurio browser tabs lists them, lazurio browser done --session <session> lets go of one, done --all of all), or go on in one you have: agent-browser --cdp 9222 --session <session> open <address>.",
+    expect(opened.code).toBe(0);
+    expect(opened.stdout?.split("\n")[0]).toBe("Your window is open.");
+    expect(opened.stderr).toBe(note);
+    expect(sixth.calls[0]).toEqual([
+      "Target.createTarget",
+      expect.objectContaining({ url: "https://example.com/", newWindow: true }),
+    ]);
+    // With --json the answer on stdout is the same as ever, and the note
+    // stays on stderr.
+    const seventh = windowSeams({ socketDir, targets: held });
+    const json = await runBrowserCommand(
+      ["window", "--session", "codex-019a-7", "--folder", folder, "--json"],
+      context(env, { ...seventh.seams, pages }),
     );
-    expect(calls).toEqual([]);
+    expect(json.code).toBe(0);
+    expect(JSON.parse(json.stdout ?? "")).toMatchObject({
+      kind: "browser-window",
+      session: "codex-019a-7",
+      created: true,
+    });
+    expect(json.stderr).toBe(note);
+    // The window a session has already, and a thread that holds no other
+    // window: no note.
+    const reused = await runBrowserCommand(
+      ["window", "--session", "codex-019a-2", "--folder", folder],
+      context(env, {
+        ...windowSeams({ socketDir, targets: held }).seams,
+        pages,
+      }),
+    );
+    expect(reused.code).toBe(0);
+    expect(reused.stderr).toBeUndefined();
+    const alone = await runBrowserCommand(
+      ["window", "--session", "claude-alone", "--folder", folder],
+      context(env, {
+        ...windowSeams({ socketDir, targets: held }).seams,
+        pages,
+      }),
+    );
+    expect(alone.code).toBe(0);
+    expect(alone.stderr).toBeUndefined();
+    // Nor when the thread's windows cannot be read: the window is open all
+    // the same.
+    const unread = windowSeams({ socketDir, targets: held });
+    const unknown = await runBrowserCommand(
+      ["window", "--session", "codex-019a-8", "--folder", folder],
+      context(env, {
+        ...unread.seams,
+        pages: async () => {
+          throw new Error("the browser did not answer");
+        },
+      }),
+    );
+    expect(unknown.code).toBe(0);
+    expect(unknown.stderr).toBeUndefined();
   },
 );
 
@@ -2596,7 +2666,10 @@ test("the Folder tells an agent to list its own windows, keep them few and check
     const windows = point(cs ? "- **Tvoje okna.**" : "- **Your windows.**");
     expect(windows).toContain("`lazurio browser tabs`");
     expect(windows).toContain("`agent-browser … tab list`");
-    expect(windows).toContain("5");
+    // No limit: the agent keeps track of its windows and lets go of them.
+    expect(windows).not.toMatch(cs ? /nejvýš \d/ : /at most \d/);
+    expect(windows).toContain("`lazurio browser window`");
+    expect(windows).toContain(cs ? "hned pusť" : "as soon as you no longer");
     const desktop = point(
       cs
         ? "- **Okna v ChatGPT Desktopu.**"

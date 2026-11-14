@@ -927,12 +927,11 @@ export type BrowserCliAnswer =
       outcome: BrowserDoneOutcome;
       sessions?: readonly BrowserDoneSession[];
     }>
-  /** The calling thread's windows and how many it may hold at once. */
+  /** The calling thread's windows (`session` is the thread). */
   | Readonly<{
       kind: "browser-tabs";
       session: string;
       windows: readonly BrowserThreadWindow[];
-      limit: number;
     }>
   /** The default browser's page (root decision 0201 point 5): its tab and
    * link, and the thread whose session it is bound to, so its app shows it;
@@ -1089,11 +1088,8 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
     }
     case "browser-tabs": {
       const windows = everyOf(value.windows, threadWindowOf);
-      return session !== null &&
-        windows !== null &&
-        isCount(value.limit) &&
-        value.limit > 0
-        ? Object.freeze({ kind, session, windows, limit: value.limit })
+      return session !== null && windows !== null
+        ? Object.freeze({ kind, session, windows })
         : null;
     }
     case "browser-open": {

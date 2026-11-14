@@ -38,9 +38,9 @@ import {
   bindThreadWindow,
   cdpSeams,
   ensureThreadWindow,
+  type HeldThreadWindow,
+  heldThreadWindows,
   readThreadSessions,
-  ThreadWindowLimit,
-  threadWindowLimit,
   type WindowSeams,
 } from "./window";
 
@@ -58,10 +58,11 @@ export const browserHelp = `browser window [--session <name>] [--url <url>] [--f
   {schema: "lazurio.browser-cli.v1", kind: "browser-window", session,
   targetId, created, link, command}. A further window of the same thread is
   --session <session>-2, -3, … (or <session>-preview): each session name has
-  a window of its own and a new link for the user. A thread holds at most
-  ${threadWindowLimit} windows at once: past that, window opens none and exits 1, naming
-  the windows it holds; let go of those you no longer need (done) or go on
-  in one you have.
+  a window of its own and a new link for the user. No number limits a
+  thread's windows: when window opens a new one while the thread holds
+  others, it names them on stderr (session and address) and reminds you to
+  let go of those you no longer need (done --session <session>, or done
+  --all). It refuses nothing for it and still exits 0.
 browser tabs [--session <name>] [--folder <absolute Folder>] [--json]
   The calling thread's windows and nobody else's: those of the session
   (named as for window) and of its further windows <session>-2, … and
@@ -71,7 +72,7 @@ browser tabs [--session <name>] [--folder <absolute Folder>] [--json]
   window you let go that the user still views stays for them. --json prints
   {schema: "lazurio.browser-cli.v1", kind: "browser-tabs", session (the
   thread), windows: [{session, targetId, url, title, link, held, viewers,
-  sleeping, endsAt}], limit}. Exit status: 0 listed, 10 no Environment
+  sleeping, endsAt}]}. Exit status: 0 listed, 10 no Environment
   browser, 2 usage, 1 the view's hub did not answer.
 browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--json]
   The link for the user: with a session, the Launchpad's hand-over to that
@@ -217,12 +218,15 @@ const text = {
       "Opened in the Environment browser, in this thread's panel",
     "open-unbound":
       "This thread's panel does not show it: agent-browser did not bind the thread's session to the tab.",
-    "window-limit":
-      "This thread holds {limit} windows of the Environment browser already ({windows}), so no new one opens. Let go of the windows you no longer need (lazurio browser tabs lists them, lazurio browser done --session <session> lets go of one, done --all of all), or go on in one you have: agent-browser --cdp 9222 --session <session> open <address>.",
+    "window-others": "This thread's other windows in the Environment browser:",
+    "window-others-next":
+      "Let go of those you no longer need right away: lazurio browser done --session <session> lets go of one, lazurio browser done --all of every window of the thread, this one too. lazurio browser tabs lists them.",
     "tabs-unreachable":
       "The users' view of the Environment browser did not list its tabs, so this thread's windows are unknown. Run lazurio doctor.",
     "tabs-none": "This thread has no window in the Environment browser.",
-    "tabs-count": "This thread holds {count} of at most {limit} windows.",
+    "tabs-count-one": "This thread holds {count} window.",
+    "tabs-count-few": "This thread holds {count} windows.",
+    "tabs-count-other": "This thread holds {count} windows.",
     "tabs-link": "The user's link",
     "tabs-held": "your agent-browser holds it",
     "tabs-released": "let go",
@@ -277,12 +281,15 @@ const text = {
     "opened-thread": "Otevřeno v prohlížeči Prostředí, v panelu tohoto vlákna",
     "open-unbound":
       "Panel tohoto vlákna stránku neukáže: agent-browser k záložce nepřipojil sezení vlákna.",
-    "window-limit":
-      "Toto vlákno už drží {limit} oken prohlížeče Prostředí ({windows}), další se neotevře. Pusť okna, která už nepotřebuješ (vypíše je lazurio browser tabs, jedno pustí lazurio browser done --session <sezení>, všechna done --all), nebo pokračuj v okně, které máš: agent-browser --cdp 9222 --session <sezení> open <adresa>.",
+    "window-others": "Další okna tohoto vlákna v prohlížeči Prostředí:",
+    "window-others-next":
+      "Ta, která už nepotřebuješ, hned pusť: jedno pustí lazurio browser done --session <sezení>, všechna okna vlákna i s tímto lazurio browser done --all. Vypíše je lazurio browser tabs.",
     "tabs-unreachable":
       "Pohled prohlížeče Prostředí nevypsal své záložky, takže okna tohoto vlákna nejsou známá. Spusť lazurio doctor.",
     "tabs-none": "Toto vlákno nemá v prohlížeči Prostředí žádné okno.",
-    "tabs-count": "Toto vlákno drží {count} z nejvýš {limit} oken.",
+    "tabs-count-one": "Toto vlákno drží {count} okno.",
+    "tabs-count-few": "Toto vlákno drží {count} okna.",
+    "tabs-count-other": "Toto vlákno drží {count} oken.",
     "tabs-link": "Odkaz pro uživatele",
     "tabs-held": "drží ho tvůj agent-browser",
     "tabs-released": "puštěné",
@@ -369,6 +376,53 @@ function windowText(
     `- ${window.session}: ${window.url}${title}`,
     `  ${copy["tabs-link"]}: ${window.link}`,
     `  ${state}`,
+  ].join("\n");
+}
+
+/** How many windows the thread holds, in the plural form of the language
+ * (Czech: 1 okno, 2–4 okna, 5 oken). */
+function countText(
+  count: number,
+  locale: keyof typeof text,
+  copy: (typeof text)[keyof typeof text],
+): string {
+  const form = new Intl.PluralRules(locale).select(count);
+  const key =
+    form === "one" || form === "few"
+      ? (`tabs-count-${form}` as const)
+      : "tabs-count-other";
+  return fill(copy[key], { count: String(count) });
+}
+
+/** The note `window` writes to stderr when it opened a new window while the
+ * thread holds others (decided on 2026-11-14 in place of a limit): their
+ * sessions and addresses, and how to let go of them. Nothing when there are
+ * none, or when they cannot be read: the note never fails the window. */
+async function otherWindowsNote(
+  session: string,
+  targetId: string,
+  seams: WindowSeams,
+  copy: (typeof text)[keyof typeof text],
+): Promise<string | undefined> {
+  let others: readonly HeldThreadWindow[];
+  try {
+    others = (
+      await heldThreadWindows(threadOfWindow(session) ?? session, seams)
+    ).filter(
+      (other) => other.session !== session && other.targetId !== targetId,
+    );
+  } catch {
+    return undefined;
+  }
+  if (others.length === 0) return undefined;
+  return [
+    copy["window-others"],
+    ...others.map((other) =>
+      other.url === ""
+        ? `- ${other.session}`
+        : `- ${other.session}: ${other.url}`,
+    ),
+    copy["window-others-next"],
   ].join("\n");
 }
 
@@ -637,15 +691,15 @@ export async function runBrowserCommand(
               kind: "browser-tabs",
               session: thread,
               windows,
-              limit: threadWindowLimit,
             })
           : windows.length === 0
             ? copy["tabs-none"]
             : [
-                fill(copy["tabs-count"], {
-                  count: String(windows.filter((entry) => entry.held).length),
-                  limit: String(threadWindowLimit),
-                }),
+                countText(
+                  windows.filter((entry) => entry.held).length,
+                  locale,
+                  copy,
+                ),
                 ...windows.map((window) => windowText(window, copy)),
                 copy["tabs-next"],
               ].join("\n"),
@@ -730,14 +784,17 @@ export async function runBrowserCommand(
       });
     }
     const session = named as string;
-    const window = await ensureThreadWindow(
-      session,
-      address,
-      context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
-      threadWindowLimit,
-    );
+    const seams =
+      context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess);
+    const window = await ensureThreadWindow(session, address, seams);
     const command = browserCommand(session);
     const link = browserViewUrl(browser.origin, window.targetId);
+    // A new window while the thread holds others: they are named on stderr,
+    // which a caller of --json does not read (T3 Code reads stdout).
+    const note = window.created
+      ? await otherWindowsNote(session, window.targetId, seams, copy)
+      : undefined;
+    const noted = note === undefined ? {} : { stderr: note };
     if (json)
       return Object.freeze({
         code: browserCliExit.done,
@@ -749,6 +806,7 @@ export async function runBrowserCommand(
           link,
           command,
         }),
+        ...noted,
       });
     return Object.freeze({
       code: browserCliExit.done,
@@ -758,17 +816,10 @@ export async function runBrowserCommand(
         `${copy.view}: ${link}`,
         `${copy.use}: ${command} <command>`,
       ].join("\n"),
+      ...noted,
     });
   } catch (error) {
     const copy = text[locale];
-    if (error instanceof ThreadWindowLimit)
-      return Object.freeze({
-        code: browserCliExit.failure,
-        stderr: fill(copy["window-limit"], {
-          limit: String(error.limit),
-          windows: error.windows.join(", "),
-        }),
-      });
     if (error instanceof BrowserWindowFailure)
       return Object.freeze({
         code: browserCliExit.failure,
