@@ -773,8 +773,11 @@ async function bindSession(
   // records its tab when it is done, after this reading (measured on 0.37:
   // the foreign tab 8 s after a timeout).
   const unanswered = bound === "timeout" || pinned === "timeout";
+  // An unreadable binding says nothing about where the daemon is, so two
+  // unreadable readings are not "unchanged".
+  const stayed = after === before && after !== "unreadable";
   const settled =
-    (!unanswered && (after === targetId || after === before)) ||
+    (!unanswered && (after === targetId || stayed)) ||
     (await releaseBinding(
       directory,
       session,

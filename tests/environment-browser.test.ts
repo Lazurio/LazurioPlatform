@@ -1487,6 +1487,44 @@ test("a binding the clean-up cannot remove: window does not report the session a
   expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(false);
 });
 
+test("a binding unreadable before and after a failed command proves nothing: the session is not let off as bound to no other tab, its mark stays, and window refuses it while its daemon runs (#974, second review of #986)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    unresponsive: [NEWTARGET],
+  });
+  world.hooks.shutdown = "refuse";
+  // A directory in place of the binding: unreadable before the command and
+  // after it, whatever the daemon is on.
+  const target = join(world.sockets, "t3-thread.target");
+  await mkdir(target);
+  await writeFile(join(target, "in-the-way"), "");
+  // The daemon answers its failure but cannot record its tab there: the
+  // binding reads the same before and after, and says nothing about where
+  // the running daemon is.
+  const seams = {
+    ...world.seams,
+    run: (async (...args: Parameters<typeof world.seams.run>) =>
+      world.seams
+        .run(...args)
+        .catch(() => ({ exitCode: 1, stdout: "" }))) as typeof world.seams.run,
+  };
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  await world.quiet();
+  expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(true);
+  const created = createdWindows(world.calls);
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(createdWindows(world.calls)).toBe(created);
+});
+
 // A `window` killed while it bound the session (the harness's own timeout):
 // its mark stays, so the binding the fresh daemon recorded meanwhile is not
 // believed by `window`, `apps open` or `browser open`.
