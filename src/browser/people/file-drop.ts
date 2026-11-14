@@ -3,6 +3,7 @@ import {
   maxUploadBytes,
   maxUploadFiles,
   pasteIsFiles,
+  placeField,
   uploadFields,
 } from "./files";
 import type { Words } from "./words";
@@ -32,6 +33,8 @@ export type FileDropSeams = Readonly<{
   say: Words;
 }>;
 
+/** A file and its path in a folder dropped on the view, from the folder's
+ * own name on; empty for a file on its own. */
 type Entry = Readonly<{ file: File; path: string }>;
 
 /** `POST /t/<id>/files?token=` with an upload's form: true when the hub gave
@@ -235,7 +238,7 @@ export class FileDrop {
     }
     for (const { file, path } of entries) {
       form.append(uploadFields.file, file);
-      form.append(uploadFields.path, path);
+      form.append(uploadFields.path, placeField(file.name, path));
     }
     this.busy = true;
     this.say(say.uploading, false);

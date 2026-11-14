@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   type ChooserAsk,
   chooserAsk,
+  FolderNames,
   type Upload,
   type UploadEntry,
   uploadName,
@@ -95,25 +96,15 @@ export type Written = Readonly<{
   given: readonly string[];
 }>;
 
-/** `name` in `place`, or `name (2)`, `name (3)`… before its extension when
- * the upload has that place already. */
-function freePlace(place: string, name: string, taken: ReadonlySet<string>) {
-  let target = join(place, name);
-  const dot = name.lastIndexOf(".");
-  const [stem, extension] =
-    dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
-  for (let n = 2; taken.has(target); n++)
-    target = join(place, `${stem} (${n})${extension}`);
-  return target;
-}
-
 /** Writes an upload into a new folder of its own under `root`, owner-only
  * (0700, files 0600). A file on its own lands in `<n>/<name>`, so two files
  * of one name both arrive under their own names; a folder's files at their
- * places under `tree/`. The names are the person's (`uploadName`); a place
- * that comes twice (two names that clean to one) takes the next free
- * `name (2).ext`, so a valid folder never fails on its own names. Throws when
- * the disk refuses; nothing half-written is given to the page. */
+ * places under `tree/`. The names are the person's (`uploadName`), and the
+ * places theirs too (`FolderNames`): one folder of the person is one folder
+ * here, and two places of one folder whose names clean to one, files or
+ * folders, take `name`, then `name (2).ext`, within 255 bytes, so a valid
+ * folder never fails on its own names. Throws when the disk refuses;
+ * nothing half-written is given to the page. */
 export async function writeUpload(
   root: string,
   entries: readonly UploadEntry[],
@@ -124,27 +115,27 @@ export async function writeUpload(
   const files: string[] = [];
   const folders: string[] = [];
   const given: string[] = [];
-  const taken = new Set<string>();
+  const names = new FolderNames();
   try {
-    for (const [index, { file, path }] of entries.entries()) {
+    for (const [index, { file, place }] of entries.entries()) {
       let target: string;
-      if (path === null || path.length === 1) {
-        const place = join(folder, String(index));
-        await mkdir(place, { mode: 0o700 });
-        target = join(place, path?.[0] ?? uploadName(file.name));
+      if (place.length === 1) {
+        const own = join(folder, String(index));
+        await mkdir(own, { mode: 0o700 });
+        target = join(own, uploadName(place[0] as string));
         given.push(target);
       } else {
-        const top = join(folder, "tree", path[0] as string);
+        const named = names.of(place);
+        const top = join(folder, "tree", named[0] as string);
         if (!folders.includes(top)) {
           folders.push(top);
           given.push(top);
         }
-        const place = join(folder, "tree", ...path.slice(0, -1));
-        await mkdir(place, { recursive: true, mode: 0o700 });
-        target = freePlace(place, path[path.length - 1] as string, taken);
+        const parent = join(folder, "tree", ...named.slice(0, -1));
+        await mkdir(parent, { recursive: true, mode: 0o700 });
+        target = join(parent, named[named.length - 1] as string);
       }
-      taken.add(target);
-      // `wx`: a place that came twice is refused, never overwritten.
+      // `wx`: a place is never overwritten; `FolderNames` gives each its own.
       await writeFile(target, new Uint8Array(await file.arrayBuffer()), {
         mode: 0o600,
         flag: "wx",
@@ -336,7 +327,10 @@ export async function answerChooser(
   // A chooser of files takes them by name only, never into folders.
   const entries = chooser.ask.directory
     ? upload.entries
-    : upload.entries.map(({ file }) => ({ file, path: null }));
+    : upload.entries.map(({ file, place }) => ({
+        file,
+        place: place.slice(-1),
+      }));
   let written: Written;
   try {
     written = await writeUpload(root, entries);

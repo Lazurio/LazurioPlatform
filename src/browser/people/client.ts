@@ -29,7 +29,7 @@ import {
   pictureOf,
 } from "./bar";
 import { FileDrop, postFiles } from "./file-drop";
-import { maxUploadBytes, uploadFields } from "./files";
+import { maxUploadBytes, placeField, uploadFields } from "./files";
 import { FramePump } from "./frames";
 import {
   buttonBit,
@@ -1113,8 +1113,12 @@ class Viewer {
       const files = [...(input.files ?? [])];
       for (const file of files) {
         form.append(uploadFields.file, file);
-        // A folder's files with their places in it.
-        if (directory) form.append(uploadFields.path, file.webkitRelativePath);
+        // Each file's place as the person has it: a folder's files with
+        // their places in it, every name exactly as it is.
+        form.append(
+          uploadFields.path,
+          placeField(file.name, directory ? file.webkitRelativePath : ""),
+        );
       }
       if (files.reduce((sum, file) => sum + file.size, 0) > maxUploadBytes) {
         error.textContent = say.tooLarge;

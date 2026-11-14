@@ -12422,14 +12422,21 @@ pasted file reached nothing.
    input (decision F57) stay the main frame's. Chrome reports a frame's JavaScript dialogs and
    `beforeunload` on the page's own session (measured), so point 7's dialogs already cover them.
    (`src/browser/people/frame-sessions.ts`)
-2. **The person's names.** A file keeps its name: Unicode, spaces and a leading dot (`.env`) arrive
-   unchanged. Only path separators and control characters go, `.` and `..` name nothing, and a
-   name is cut to 255 bytes of UTF-8 at a whole character, before its extension. Two places of
-   one folder that clean to one name take the next free `name (2).ext`, so a valid folder never
-   fails on its own names. Files are still written owner-only, each upload in a folder of its
-   own, and a chooser stays answerable until its files are on its input: an upload that fails
-   leaves the person's chooser open to choose again. (`src/browser/people/files.ts`,
-   `src/browser/people/uploads.ts`)
+2. **The person's names.** A file keeps its name: Unicode, spaces, quotes and a leading dot
+   (`.env`) arrive unchanged. The view sends each file's place as the person has it, its folders
+   and its name, as JSON, because a form turns a line break in its text into CR LF and a browser
+   writes `"` in a file's name as `%22` (measured on Chrome 148). On the Environment only path
+   separators and control characters go, `.` and `..` name nothing (a name of nothing else is
+   `file`, or `folder`), and a name is cut to 255 bytes of UTF-8 at a whole character, before its
+   extension. Places are told apart by the person's own names: one folder of the person is one
+   folder on the Environment, and two places of one folder, files or folders, whose names clean to
+   one take `name` and `name (2).ext`, the stem giving way so that the number and the extension
+   stay within the 255 bytes. A valid folder neither fails nor merges on its own names. Chrome
+   itself reports a `\` in a name inside a chosen folder as `/` in `webkitRelativePath`
+   (measured), so such a file arrives one folder deeper; a dropped folder keeps the name. Files
+   are still written owner-only, each upload in a folder of its own, and a chooser stays
+   answerable until its files are on its input: an upload that fails leaves the person's chooser
+   open to choose again. (`src/browser/people/files.ts`, `src/browser/people/uploads.ts`)
 3. **What the input asks for.** The view's chooser takes the input's `accept` and folder mode
    (`webkitdirectory`). A folder is uploaded with each file's place and given to the input as one
    folder, so the page gets each file's `webkitRelativePath`. A chooser without an input
@@ -12453,9 +12460,11 @@ form sent later than that no longer finds them (#976).
 
 Tests: `tests/environment-browser-view-files.test.ts` (names, the upload's form, the chooser's
 ask, the frames' sessions and the hub against a scripted DevTools peer: a frame's chooser on its
-own session, its navigations leaving the tab alone, nested frames, a folder, a chooser without an
-input, a drop, a paste into a frame, the tokens). Checked live on 2026-11-14 against the
-Environment browser (Chrome 156) with the view of this revision on a port of its own.
+own session, its navigations leaving the tab alone, nested frames, a folder, a folder whose names
+clean to one, a chooser without an input, a drop, a paste into a frame, the tokens). Checked live
+on 2026-11-14 against the Environment browser (Chrome 156) with the view of this revision on a
+port of its own; the names of point 2 were checked the same day with two Chromium 148 browsers of
+the check's own, through the view's folder chooser and a drop.
 
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 

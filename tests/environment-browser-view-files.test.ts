@@ -1,18 +1,28 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm, stat } from "node:fs/promises";
+import {
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  stat,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { noHolds } from "../src/browser/contract/node";
 import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
 import {
   chooserAsk,
+  FolderNames,
+  freeName,
   maxNameBytes,
   maxPathDepth,
   pasteIsFiles,
+  placeField,
   readUpload,
   uploadFields,
   uploadName,
-  uploadSegments,
+  uploadPlace,
 } from "../src/browser/people/files";
 import { FrameSessions } from "../src/browser/people/frame-sessions";
 import type { ServerMessage } from "../src/browser/people/protocol";
@@ -83,22 +93,91 @@ test("a long name is cut to 255 bytes of UTF-8 at a whole character, before its 
   expect(uploadName(short)).toBe(short);
 });
 
-test("a place in a folder keeps its segments and drops what would climb out", () => {
-  expect(uploadSegments("Složka s mezerou/pod/b č.txt")).toEqual([
+test("a place keeps the person's own names and drops what would climb out", () => {
+  expect(uploadPlace(["Složka s mezerou", "pod", "b č.txt"])).toEqual([
     "Složka s mezerou",
     "pod",
     "b č.txt",
   ]);
-  expect(uploadSegments("a/../b/./c")).toEqual(["a", "b", "c"]);
-  expect(uploadSegments("projekt/.env")).toEqual(["projekt", ".env"]);
-  expect(uploadSegments("/a//b/")).toEqual(["a", "b"]);
-  expect(uploadSegments("../..")).toBeNull();
-  expect(uploadSegments("")).toBeNull();
+  // The names stay the person's: cleaning is the writer's (`FolderNames`).
+  expect(uploadPlace(["a\\b", "c\u0001.txt"])).toEqual(["a\\b", "c\u0001.txt"]);
+  expect(uploadPlace(["a", "..", "b", ".", "", "c"])).toEqual(["a", "b", "c"]);
+  expect(uploadPlace(["projekt", ".env"])).toEqual(["projekt", ".env"]);
+  // A file's own name is always its last segment; `..` is never a folder.
+  expect(uploadPlace(["..", ".."])).toEqual([".."]);
+  // Written, such a place names nothing but itself: no segment climbs.
+  expect(new FolderNames().of([".."])).toEqual(["file"]);
+  expect(new FolderNames().of(["..", ".", "x"])).toEqual([
+    "folder",
+    "folder",
+    "x",
+  ]);
+  expect(uploadPlace([])).toBeNull();
   expect(
-    uploadSegments(
-      Array.from({ length: maxPathDepth + 1 }, () => "d").join("/"),
-    ),
+    uploadPlace(Array.from({ length: maxPathDepth + 1 }, () => "d")),
   ).toBeNull();
+  expect(
+    uploadPlace(Array.from({ length: 14 }, () => "é".repeat(120))),
+  ).toBeNull();
+  expect(
+    uploadPlace(Array.from({ length: 11 }, () => "é".repeat(120))),
+  ).not.toBeNull();
+});
+
+test("a name that is taken takes the next number, still within 255 bytes at a whole character", () => {
+  expect(freeName("a.txt", new Set())).toBe("a.txt");
+  expect(freeName("a.txt", new Set(["a.txt"]))).toBe("a (2).txt");
+  expect(freeName("a.txt", new Set(["a.txt", "a (2).txt"]))).toBe("a (3).txt");
+  expect(freeName(".env", new Set([".env"]))).toBe(".env (2)");
+  // Pablo's review of #975: 254 bytes, then the same with a backslash.
+  const long = "a".repeat(254);
+  expect(uploadName(`${long}\\`)).toBe(long);
+  const second = freeName(long, new Set([long]));
+  expect(second).toBe(`${"a".repeat(251)} (2)`);
+  expect(utf8(second)).toBe(maxNameBytes);
+  // Two bytes a character: the stem gives way by whole characters only.
+  const czech = "č".repeat(127);
+  const numbered = freeName(czech, new Set([czech]));
+  expect(numbered).toBe(`${"č".repeat(125)} (2)`);
+  expect(utf8(numbered)).toBeLessThanOrEqual(maxNameBytes);
+  // The extension stays.
+  const pdf = `${"ř".repeat(125)}.pdf`;
+  const taken = new Set([pdf]);
+  const next = freeName(pdf, taken);
+  expect(next.endsWith(" (2).pdf")).toBe(true);
+  expect(utf8(next)).toBeLessThanOrEqual(maxNameBytes);
+  taken.add(next);
+  for (let n = 3; n <= 12; n++) {
+    const more = freeName(pdf, taken);
+    expect(more.endsWith(` (${n}).pdf`)).toBe(true);
+    expect(utf8(more)).toBeLessThanOrEqual(maxNameBytes);
+    expect(
+      new TextDecoder("utf-8", { fatal: true }).decode(
+        new TextEncoder().encode(more),
+      ),
+    ).toBe(more);
+    taken.add(more);
+  }
+});
+
+test("places are told apart by the person's names: one folder stays one, two places never share a name", () => {
+  const names = new FolderNames();
+  // A file `a\b` and a folder `ab` clean to one name: both keep a place.
+  expect(names.of(["D", "a\\b"])).toEqual(["D", "ab"]);
+  expect(names.of(["D", "ab", "c.txt"])).toEqual(["D", "ab (2)", "c.txt"]);
+  // Two folders `x\y` and `xy`: never one folder.
+  expect(names.of(["D", "x\\y", "1.txt"])).toEqual(["D", "xy", "1.txt"]);
+  expect(names.of(["D", "xy", "1.txt"])).toEqual(["D", "xy (2)", "1.txt"]);
+  // The same folder of the person is the same folder, whenever it comes.
+  expect(names.of(["D", "x\\y", "2.txt"])).toEqual(["D", "xy", "2.txt"]);
+  expect(names.of(["D", "ab", "d.txt"])).toEqual(["D", "ab (2)", "d.txt"]);
+  // Two files whose names clean to one.
+  expect(names.of(["D", "n\\m.txt"])).toEqual(["D", "nm.txt"]);
+  expect(names.of(["D", "nm.txt"])).toEqual(["D", "nm (2).txt"]);
+  // Top folders too (a drop of two folders).
+  expect(names.of(["D\\", "e.txt"])).toEqual(["D (2)", "e.txt"]);
+  // A folder of nothing but what goes still has a name.
+  expect(names.of(["D", "\u0001", "f.txt"])).toEqual(["D", "folder", "f.txt"]);
 });
 
 // ---- The upload's form ----------------------------------------------------------
@@ -119,17 +198,24 @@ test("the upload's form names its files, their places and how the page gets them
   const a = new File(["a"], "a.txt");
   const b = new File(["b"], "b.txt");
   expect(readUpload(formOf([a]))).toEqual({
-    entries: [{ file: expect.any(File), path: null }],
+    entries: [{ file: expect.any(File), place: ["a.txt"] }],
     delivery: { kind: "chooser" },
   });
   expect(
     readUpload(
-      formOf([a, b], { path: ["Složka/a.txt", "Složka/pod/b.txt"] }),
-    )?.entries.map((entry) => entry.path),
+      formOf([a, b], {
+        path: [
+          placeField("a.txt", "Složka/a.txt"),
+          placeField("b.txt", "Složka/pod/b.txt"),
+        ],
+      }),
+    )?.entries.map((entry) => entry.place),
   ).toEqual([
     ["Složka", "a.txt"],
     ["Složka", "pod", "b.txt"],
   ]);
+  expect(placeField("a.txt")).toBe('["a.txt"]');
+  expect(placeField("b.txt", "/Složka/b.txt")).toBe('["Složka","b.txt"]');
   expect(
     readUpload(formOf([a], { deliver: "drop", x: "120", y: "48.5" }))?.delivery,
   ).toEqual({ kind: "drop", x: 120, y: 48.5 });
@@ -143,11 +229,38 @@ test("the upload's form names its files, their places and how the page gets them
   expect(
     readUpload(formOf([a], { deliver: "drop", x: "NaN", y: "1" })),
   ).toBeNull();
-  expect(readUpload(formOf([a, b], { path: ["x/a.txt"] }))).toBeNull();
-  expect(readUpload(formOf([a], { path: "../.." }))).toBeNull();
+  expect(
+    readUpload(formOf([a, b], { path: [placeField("a.txt", "x/a.txt")] })),
+  ).toBeNull();
+  for (const path of ["Složka/a.txt", "", "[]", "[1]", '{"0":"a"}', "nul"])
+    expect(readUpload(formOf([a], { path }))).toBeNull();
   const text = new FormData();
   text.append(uploadFields.file, "not a file");
   expect(readUpload(text)).toBeNull();
+});
+
+test("the form carries every name exactly, line breaks and quotes too", async () => {
+  // A browser writes `"` of a file's name as `%22`, and a form's text turns
+  // a line break into CR LF: the place in JSON keeps both as they are.
+  const form = new FormData();
+  for (const [name, path] of [
+    ['Nabídka "Léto".pdf', ""],
+    ["a.txt", "Složka/a\nb/a.txt"],
+    ["a.txt", "Složka/a\r\nb/a.txt"],
+  ] as const) {
+    form.append(uploadFields.file, new File(["x"], name));
+    form.append(uploadFields.path, placeField(name, path));
+  }
+  const sent = new Request("http://view.invalid/", {
+    method: "POST",
+    body: form,
+  });
+  const upload = readUpload(await sent.formData());
+  expect(upload?.entries.map((entry) => entry.place)).toEqual([
+    ['Nabídka "Léto".pdf'],
+    ["Složka", "a\nb", "a.txt"],
+    ["Složka", "a\r\nb", "a.txt"],
+  ]);
 });
 
 test("a chooser asks for what its input says: several files, its types, a folder", () => {
@@ -205,10 +318,10 @@ test("an upload is written owner-only in a folder of its own, a folder's files a
   root = await realpath(await mkdtemp(join(tmpdir(), "view-files-")));
   const uploads = join(root, "uploads");
   const written = await writeUpload(uploads, [
-    { file: new File(["1"], "Výpis z OR – 2026.pdf"), path: null },
-    { file: new File(["2"], "Výpis z OR – 2026.pdf"), path: null },
-    { file: new File(["a"], "a.txt"), path: ["Složka", "a.txt"] },
-    { file: new File(["b"], "b č.txt"), path: ["Složka", "pod", "b č.txt"] },
+    { file: new File(["1"], "x"), place: ["Výpis z OR – 2026.pdf"] },
+    { file: new File(["2"], "x"), place: ["Výpis z OR – 2026.pdf"] },
+    { file: new File(["a"], "x"), place: ["Složka", "a.txt"] },
+    { file: new File(["b"], "x"), place: ["Složka", "pod", "b č.txt"] },
   ]);
   expect(written.files).toHaveLength(4);
   // Two files of one name both arrive under it.
@@ -229,13 +342,13 @@ test("an upload is written owner-only in a folder of its own, a folder's files a
   expect((await stat(uploads)).mode & 0o777).toBe(0o700);
   expect((await stat(written.folder)).mode & 0o777).toBe(0o700);
   expect((await stat(written.files[3] as string)).mode & 0o777).toBe(0o600);
-  // A place that comes twice (two names that clean to one) takes the next
-  // free name; `.env` and `env` are two places anyway.
+  // A file that comes twice at one place still keeps both; `.env` and `env`
+  // are two places anyway.
   const twice = await writeUpload(uploads, [
-    { file: new File(["x"], "x"), path: ["D", "x.txt"] },
-    { file: new File(["y"], "x"), path: ["D", "x.txt"] },
-    { file: new File(["e"], ".env"), path: ["D", ".env"] },
-    { file: new File(["f"], "env"), path: ["D", "env"] },
+    { file: new File(["x"], "x"), place: ["D", "x.txt"] },
+    { file: new File(["y"], "x"), place: ["D", "x.txt"] },
+    { file: new File(["e"], ".env"), place: ["D", ".env"] },
+    { file: new File(["f"], "env"), place: ["D", "env"] },
   ]);
   expect(twice.files.map((file) => file.slice(twice.folder.length))).toEqual([
     "/tree/D/x.txt",
@@ -246,6 +359,47 @@ test("an upload is written owner-only in a folder of its own, a folder's files a
   expect(
     await readFile(join(twice.folder, "tree", "D", "x (2).txt"), "utf8"),
   ).toBe("y");
+});
+
+test("places whose names clean to one are written apart on disk, files and folders, within 255 bytes", async () => {
+  root = await realpath(await mkdtemp(join(tmpdir(), "view-files-")));
+  const long = "a".repeat(254);
+  const written = await writeUpload(join(root, "uploads"), [
+    { file: new File(["soubor a\\b"], "x"), place: ["P", "a\\b"] },
+    { file: new File(["c"], "x"), place: ["P", "ab", "c.txt"] },
+    { file: new File(["1"], "x"), place: ["P", "x\\y", "1.txt"] },
+    { file: new File(["2"], "x"), place: ["P", "xy", "1.txt"] },
+    { file: new File(["3"], "x"), place: ["P", "x\\y", "3.txt"] },
+    { file: new File(["n\\m"], "x"), place: ["P", "n\\m.txt"] },
+    { file: new File(["nm"], "x"), place: ["P", "nm.txt"] },
+    { file: new File(["254"], "x"), place: ["P", long] },
+    { file: new File(["255"], "x"), place: ["P", `${long}\\`] },
+  ]);
+  const top = join(written.folder, "tree", "P");
+  expect(written.given).toEqual([top]);
+  expect((await readdir(top)).sort()).toEqual(
+    [
+      "ab",
+      "ab (2)",
+      "xy",
+      "xy (2)",
+      "nm.txt",
+      "nm (2).txt",
+      long,
+      `${"a".repeat(251)} (2)`,
+    ].sort(),
+  );
+  const read = (...place: string[]) => readFile(join(top, ...place), "utf8");
+  expect(await read("ab")).toBe("soubor a\\b");
+  expect(await read("ab (2)", "c.txt")).toBe("c");
+  expect((await readdir(join(top, "xy"))).sort()).toEqual(["1.txt", "3.txt"]);
+  expect(await read("xy", "1.txt")).toBe("1");
+  expect(await read("xy", "3.txt")).toBe("3");
+  expect(await read("xy (2)", "1.txt")).toBe("2");
+  expect(await read("nm.txt")).toBe("n\\m");
+  expect(await read("nm (2).txt")).toBe("nm");
+  expect(await read(long)).toBe("254");
+  expect(await read(`${"a".repeat(251)} (2)`)).toBe("255");
 });
 
 test("a chooser takes one folder for a folder, its files otherwise", () => {
@@ -649,7 +803,10 @@ test("a folder chooser gets one folder whose files keep their places", async () 
     base,
     again,
     formOf([new File(["a"], "a.txt"), new File(["b"], "b č.txt")], {
-      path: ["Složka s mezerou/a.txt", "Složka s mezerou/pod/b č.txt"],
+      path: [
+        placeField("a.txt", "Složka s mezerou/a.txt"),
+        placeField("b č.txt", "Složka s mezerou/pod/b č.txt"),
+      ],
     }),
   );
   expect(done.status).toBe(204);
@@ -689,7 +846,10 @@ test("a failed answer keeps its chooser: the person chooses again on the same to
     base,
     token,
     formOf([new File(["e"], ".env"), new File(["f"], "env")], {
-      path: ["projekt/.env", "projekt/env"],
+      path: [
+        placeField(".env", "projekt/.env"),
+        placeField("env", "projekt/env"),
+      ],
     }),
   );
   expect(done.status).toBe(204);
@@ -702,9 +862,76 @@ test("a failed answer keeps its chooser: the person chooses again on the same to
   const late = await post(
     base,
     token,
-    formOf([new File(["z"], "z.txt")], { path: ["p/z.txt"] }),
+    formOf([new File(["z"], "z.txt")], {
+      path: placeField("z.txt", "p/z.txt"),
+    }),
   );
   expect(late.status).toBe(409);
+  view.socket.close();
+});
+
+test("a folder chooser takes a folder whose names clean to one: every file arrives at a place of its own", async () => {
+  const browser = new FakeBrowser();
+  const { base } = await serve(browser);
+  const view = await person(base, page);
+  browser.inputs.set(`${pageSession} 17`, [
+    "type",
+    "file",
+    "webkitdirectory",
+    "",
+  ]);
+  browser.emit(
+    "Page.fileChooserOpened",
+    { frameId: "F", mode: "selectSingle", backendNodeId: 17 },
+    pageSession,
+  );
+  await until(() => view.of("files").length > 0);
+  const token = view.of("files")[0]?.token ?? "";
+  // A valid Linux folder (Pablo's review of #975): a file `a\b` next to a
+  // folder `ab`, folders `x\y` and `xy`, files `n\m.txt` and `nm.txt`, and
+  // a name of 254 bytes next to the same with a backslash.
+  const long = "a".repeat(254);
+  const folder: readonly (readonly [string, string])[] = [
+    ["projekt/a\\b", "soubor a\\b"],
+    ["projekt/ab/c.txt", "c"],
+    ["projekt/x\\y/1.txt", "x\\y"],
+    ["projekt/xy/1.txt", "xy"],
+    ["projekt/n\\m.txt", "n\\m"],
+    ["projekt/nm.txt", "nm"],
+    [`projekt/${long}`, "254"],
+    [`projekt/${long}\\`, "255"],
+  ];
+  const done = await post(
+    base,
+    token,
+    formOf(
+      folder.map(
+        ([path, text]) => new File([text], path.split("/").pop() ?? ""),
+      ),
+      {
+        path: folder.map(([path]) =>
+          placeField(path.split("/").pop() ?? "", path),
+        ),
+      },
+    ),
+  );
+  expect(done.status).toBe(204);
+  const files = browser.called("DOM.setFileInputFiles")[0]?.params
+    .files as string[];
+  expect(files).toHaveLength(1);
+  const top = files[0] as string;
+  expect(top.endsWith("/tree/projekt")).toBe(true);
+  const read = (...place: string[]) => readFile(join(top, ...place), "utf8");
+  expect(await read("ab")).toBe("soubor a\\b");
+  expect(await read("ab (2)", "c.txt")).toBe("c");
+  expect(await read("xy", "1.txt")).toBe("x\\y");
+  expect(await read("xy (2)", "1.txt")).toBe("xy");
+  expect(await read("nm.txt")).toBe("n\\m");
+  expect(await read("nm (2).txt")).toBe("nm");
+  expect(await read(long)).toBe("254");
+  expect(await read(`${"a".repeat(251)} (2)`)).toBe("255");
+  expect((await readdir(top)).length).toBe(8);
+  await until(() => view.of("files-closed").length > 0);
   view.socket.close();
 });
 
@@ -741,7 +968,11 @@ test("a drop puts the files on the page at the person's point, as a drag from th
         new File(["b"], "b.txt"),
       ],
       {
-        path: ["", "Složka/a.txt", "Složka/b.txt"],
+        path: [
+          placeField("Výpis z OR – 2026.pdf"),
+          placeField("a.txt", "Složka/a.txt"),
+          placeField("b.txt", "Složka/b.txt"),
+        ],
         deliver: "drop",
         x: "310",
         y: "212",
