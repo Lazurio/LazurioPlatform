@@ -156,9 +156,21 @@ describe("the page's description of a control", () => {
         step: "7",
         base: "2026-11-11",
       }),
-    ).toMatchObject({ value: "2026-11-18", min: "", step: "7", base: "2026-11-11" });
+    ).toMatchObject({
+      value: "2026-11-18",
+      min: "",
+      step: "7",
+      base: "2026-11-11",
+    });
     expect(
-      readPicker({ kind: "time", name: "", value: "", min: "", max: "", step: "" }),
+      readPicker({
+        kind: "time",
+        name: "",
+        value: "",
+        min: "",
+        max: "",
+        step: "",
+      }),
     ).toMatchObject({ base: "" });
   });
   test("an unknown kind or a broken list is nothing", () => {
