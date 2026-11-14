@@ -843,13 +843,47 @@ export type BrowserCliKind =
   | "browser-window"
   | "browser-link"
   | "browser-done"
-  | "browser-open";
+  | "browser-open"
+  | "browser-tabs";
 
 /** What letting go of a window came to (`stopSessionDaemon`). */
 export type BrowserDoneOutcome = "stopped" | "none" | "refused" | "unconfirmed";
 
-/** An answer of `lazurio browser window`, `link`, `done` or `open` with
- * `--json`;
+/** One window of the calling thread, as `lazurio browser tabs` lists it:
+ * its session, its tab and the person's link to it, its address and title,
+ * whether the thread's agent-browser daemon holds it (`held`), how many
+ * people view it now, whether it sleeps (decision F57), and when the hub
+ * ends it unless something holds or views it again (`endsAt`, null while
+ * nothing counts down). */
+export type BrowserThreadWindow = Readonly<{
+  session: string;
+  targetId: string;
+  url: string;
+  title: string;
+  link: string;
+  held: boolean;
+  viewers: number;
+  sleeping: boolean;
+  endsAt: string | null;
+}>;
+
+/** One session's outcome of `done --all`. */
+export type BrowserDoneSession = Readonly<{
+  session: string;
+  outcome: BrowserDoneOutcome;
+}>;
+
+// A thread's windows are those `lazurio browser window` recorded for it when
+// it opened them (F38, addendum of 2026-11-14), never a name taken apart:
+// session names are free, so `team-2` may be a window of `team` or a thread
+// of its own. A session the record cannot confirm as the thread's is
+// `ambiguous`: `tabs` names it apart, by its session only, and `done --all`
+// never lets go of it. A record that cannot be read names no thread, so its
+// window is ambiguous for every thread; while any session is ambiguous, the
+// thread's list is not complete.
+
+/** An answer of `lazurio browser window`, `link`, `done`, `open` or `tabs`
+ * with `--json`;
  * each command answers with its own `kind`, also where the Environment has
  * no browser (`available: false`, exit 10). */
 export type BrowserCliAnswer =
@@ -868,10 +902,28 @@ export type BrowserCliAnswer =
       /** The new tab of `link --url`. */
       targetId?: string;
     }>
+  /** `done` lets go of one session's window; `done --all` of every window
+   * of the thread: then `session` is the thread, `sessions` each one's
+   * outcome, `ambiguous` the sessions it left because their record does not
+   * confirm the thread (the thread may still hold them), and `outcome` the
+   * worst (unconfirmed, refused, stopped, none), unconfirmed when any was
+   * left. */
   | Readonly<{
       kind: "browser-done";
       session: string;
       outcome: BrowserDoneOutcome;
+      sessions?: readonly BrowserDoneSession[];
+      ambiguous?: readonly string[];
+    }>
+  /** The calling thread's windows (`session` is the thread), and the
+   * sessions that may be its windows but whose record does not confirm it
+   * (`ambiguous`), among them any whose record cannot be read. `windows` is
+   * complete only while `ambiguous` names none. */
+  | Readonly<{
+      kind: "browser-tabs";
+      session: string;
+      windows: readonly BrowserThreadWindow[];
+      ambiguous?: readonly string[];
     }>
   /** The default browser's page (root decision 0201 point 5): its tab and
    * link, and the thread whose session it is bound to, so its app shows it;
@@ -894,6 +946,7 @@ const cliKinds: readonly string[] = [
   "browser-link",
   "browser-done",
   "browser-open",
+  "browser-tabs",
 ];
 const doneOutcomes: readonly string[] = [
   "stopped",
@@ -901,6 +954,67 @@ const doneOutcomes: readonly string[] = [
   "refused",
   "unconfirmed",
 ];
+
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+/** One window of `tabs`, or null when a member is missing or of another
+ * shape. */
+function threadWindowOf(value: unknown): BrowserThreadWindow | null {
+  if (!isRecord(value)) return null;
+  const targetId = targetIdOf(value.targetId);
+  const { session, url, title, link, held, viewers, sleeping, endsAt } = value;
+  return isStrip(session) &&
+    targetId !== null &&
+    typeof url === "string" &&
+    typeof title === "string" &&
+    typeof link === "string" &&
+    typeof held === "boolean" &&
+    isCount(viewers) &&
+    typeof sleeping === "boolean" &&
+    (endsAt === null || typeof endsAt === "string")
+    ? Object.freeze({
+        session,
+        targetId,
+        url,
+        title,
+        link,
+        held,
+        viewers,
+        sleeping,
+        endsAt,
+      })
+    : null;
+}
+
+/** One session's outcome of `done --all`, or null. */
+function doneSessionOf(value: unknown): BrowserDoneSession | null {
+  return isRecord(value) &&
+    isStrip(value.session) &&
+    doneOutcomes.includes(value.outcome as string)
+    ? Object.freeze({
+        session: value.session,
+        outcome: value.outcome as BrowserDoneOutcome,
+      })
+    : null;
+}
+
+/** A session's name as a list element, or null. */
+const stripOf = (value: unknown): string | null =>
+  isStrip(value) ? value : null;
+
+/** Every element read by `read`, or null when the value is no list or one
+ * element is none. */
+function everyOf<T>(
+  value: unknown,
+  read: (element: unknown) => T | null,
+): readonly T[] | null {
+  if (!Array.isArray(value)) return null;
+  const elements = value.map(read);
+  return elements.every((element) => element !== null)
+    ? Object.freeze(elements as T[])
+    : null;
+}
 
 /** An answer as a caller reads it (T3 Code reads `window` and `link`): of
  * one of these kinds with its members, `schema` absent or v1; members it
@@ -952,14 +1066,43 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
           })
         : null;
     }
-    case "browser-done":
-      return session !== null && doneOutcomes.includes(value.outcome as string)
+    case "browser-done": {
+      const sessions =
+        value.sessions === undefined
+          ? undefined
+          : everyOf(value.sessions, doneSessionOf);
+      const ambiguous =
+        value.ambiguous === undefined
+          ? undefined
+          : everyOf(value.ambiguous, stripOf);
+      return session !== null &&
+        doneOutcomes.includes(value.outcome as string) &&
+        sessions !== null &&
+        ambiguous !== null
         ? Object.freeze({
             kind,
             session,
             outcome: value.outcome as BrowserDoneOutcome,
+            ...(sessions === undefined ? {} : { sessions }),
+            ...(ambiguous === undefined ? {} : { ambiguous }),
           })
         : null;
+    }
+    case "browser-tabs": {
+      const windows = everyOf(value.windows, threadWindowOf);
+      const ambiguous =
+        value.ambiguous === undefined
+          ? undefined
+          : everyOf(value.ambiguous, stripOf);
+      return session !== null && windows !== null && ambiguous !== null
+        ? Object.freeze({
+            kind,
+            session,
+            windows,
+            ...(ambiguous === undefined ? {} : { ambiguous }),
+          })
+        : null;
+    }
     case "browser-open": {
       const targetId = targetIdOf(value.targetId);
       return (session !== null || value.session === null) &&
