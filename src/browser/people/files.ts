@@ -46,15 +46,13 @@ function fitBytes(name: string, max: number): string {
   return stem + extension;
 }
 
-/** One segment as the Environment keeps it: the person's own text, Unicode
- * and spaces as they are; only what cannot be part of one name or would hide
- * the file goes (path separators, control characters, leading dots, which
- * also make `.` and `..` nothing). Empty when nothing is left. */
+/** One segment as the Environment keeps it: the person's own text, Unicode,
+ * spaces and leading dots (`.env`) as they are; only what cannot be part of
+ * one name goes (path separators, control characters), and `.` and `..`,
+ * which name no file, are nothing. Empty when nothing is left. */
 function cleanSegment(segment: string): string {
-  return fitBytes(
-    segment.replace(unsafe, "").replace(/^\.+/, ""),
-    maxNameBytes,
-  );
+  const clean = fitBytes(segment.replace(unsafe, ""), maxNameBytes);
+  return clean === "." || clean === ".." ? "" : clean;
 }
 
 /** A file's name as the page gets it (#973): `Výpis z OR – 2026.pdf` stays

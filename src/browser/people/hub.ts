@@ -483,6 +483,8 @@ export class BrowserHub {
   private readonly tabs = new Map<string, Tab>();
   private readonly bySession = new Map<string, string>();
   private readonly fileChoosers = new Map<string, Chooser>();
+  /** The chooser tokens whose upload is being answered right now. */
+  private readonly answering = new Set<string>();
   /** The sessions of the tabs' frames of other sites (#973), and the tokens
    * viewers drop and paste files with. */
   private readonly frames = new FrameSessions();
@@ -1394,11 +1396,21 @@ export class BrowserHub {
           this.frames.get(chooser.session)?.tab !== tab.targetId)
       )
         return false;
-      this.fileChoosers.delete(token);
-      await sweepUploads(root);
-      const done = await answerChooser(send, chooser, upload, root, log);
-      if (done) this.broadcast(tab, { t: "files-closed", token });
-      return done;
+      // One answer at a time; the token stays until the files are on the
+      // input, so a person whose upload failed can choose again and retry.
+      if (this.answering.has(token)) return false;
+      this.answering.add(token);
+      try {
+        await sweepUploads(root);
+        const done = await answerChooser(send, chooser, upload, root, log);
+        if (done && this.fileChoosers.get(token) === chooser) {
+          this.fileChoosers.delete(token);
+          this.broadcast(tab, { t: "files-closed", token });
+        }
+        return done;
+      } finally {
+        this.answering.delete(token);
+      }
     }
     const viewer = this.uploadTokens.viewer(token);
     if (viewer === undefined || !tab.viewers.has(viewer)) return false;

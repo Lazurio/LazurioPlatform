@@ -95,12 +95,25 @@ export type Written = Readonly<{
   given: readonly string[];
 }>;
 
+/** `name` in `place`, or `name (2)`, `name (3)`… before its extension when
+ * the upload has that place already. */
+function freePlace(place: string, name: string, taken: ReadonlySet<string>) {
+  let target = join(place, name);
+  const dot = name.lastIndexOf(".");
+  const [stem, extension] =
+    dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+  for (let n = 2; taken.has(target); n++)
+    target = join(place, `${stem} (${n})${extension}`);
+  return target;
+}
+
 /** Writes an upload into a new folder of its own under `root`, owner-only
  * (0700, files 0600). A file on its own lands in `<n>/<name>`, so two files
  * of one name both arrive under their own names; a folder's files at their
- * places under `tree/`. The names are the person's (`uploadName`). Throws
- * when a place comes twice or the disk refuses; nothing half-written is
- * given to the page. */
+ * places under `tree/`. The names are the person's (`uploadName`); a place
+ * that comes twice (two names that clean to one) takes the next free
+ * `name (2).ext`, so a valid folder never fails on its own names. Throws when
+ * the disk refuses; nothing half-written is given to the page. */
 export async function writeUpload(
   root: string,
   entries: readonly UploadEntry[],
@@ -111,6 +124,7 @@ export async function writeUpload(
   const files: string[] = [];
   const folders: string[] = [];
   const given: string[] = [];
+  const taken = new Set<string>();
   try {
     for (const [index, { file, path }] of entries.entries()) {
       let target: string;
@@ -127,8 +141,9 @@ export async function writeUpload(
         }
         const place = join(folder, "tree", ...path.slice(0, -1));
         await mkdir(place, { recursive: true, mode: 0o700 });
-        target = join(place, path[path.length - 1] as string);
+        target = freePlace(place, path[path.length - 1] as string, taken);
       }
+      taken.add(target);
       // `wx`: a place that came twice is refused, never overwritten.
       await writeFile(target, new Uint8Array(await file.arrayBuffer()), {
         mode: 0o600,

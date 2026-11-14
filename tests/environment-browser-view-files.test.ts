@@ -48,14 +48,17 @@ test("a file keeps the person's name: Unicode and spaces arrive unchanged", () =
   expect(uploadName("  mezery  .txt")).toBe("  mezery  .txt");
 });
 
-test("only path separators, control characters and leading dots go", () => {
-  expect(uploadName("../../etc/passwd")).toBe("etcpasswd");
+test("only path separators and control characters go; a leading dot stays", () => {
+  expect(uploadName("../../etc/passwd")).toBe("....etcpasswd");
   expect(uploadName("C:\\fakepath\\scan.png")).toBe("C:fakepathscan.png");
   expect(uploadName("a\u0000b\u0007c\u001bd\u007fe\u0085f.txt")).toBe(
     "abcdef.txt",
   );
-  expect(uploadName(".bashrc")).toBe("bashrc");
-  expect(uploadName("...tajné")).toBe("tajné");
+  // A dotfile is a name of its own (Pablo's review of #975): `.env` and
+  // `env` stay two files.
+  expect(uploadName(".bashrc")).toBe(".bashrc");
+  expect(uploadName(".env")).toBe(".env");
+  expect(uploadName("...tajné")).toBe("...tajné");
   expect(uploadName("smlouva.v2.pdf")).toBe("smlouva.v2.pdf");
   for (const nothing of ["", ".", "..", "/", "\u0000", "./"])
     expect(uploadName(nothing)).toBe("file");
@@ -87,6 +90,7 @@ test("a place in a folder keeps its segments and drops what would climb out", ()
     "b č.txt",
   ]);
   expect(uploadSegments("a/../b/./c")).toEqual(["a", "b", "c"]);
+  expect(uploadSegments("projekt/.env")).toEqual(["projekt", ".env"]);
   expect(uploadSegments("/a//b/")).toEqual(["a", "b"]);
   expect(uploadSegments("../..")).toBeNull();
   expect(uploadSegments("")).toBeNull();
@@ -225,13 +229,23 @@ test("an upload is written owner-only in a folder of its own, a folder's files a
   expect((await stat(uploads)).mode & 0o777).toBe(0o700);
   expect((await stat(written.folder)).mode & 0o777).toBe(0o700);
   expect((await stat(written.files[3] as string)).mode & 0o777).toBe(0o600);
-  // A place that comes twice is refused and nothing stays.
-  await expect(
-    writeUpload(uploads, [
-      { file: new File(["x"], "x"), path: ["D", "x"] },
-      { file: new File(["y"], "x"), path: ["D", "x"] },
-    ]),
-  ).rejects.toThrow();
+  // A place that comes twice (two names that clean to one) takes the next
+  // free name; `.env` and `env` are two places anyway.
+  const twice = await writeUpload(uploads, [
+    { file: new File(["x"], "x"), path: ["D", "x.txt"] },
+    { file: new File(["y"], "x"), path: ["D", "x.txt"] },
+    { file: new File(["e"], ".env"), path: ["D", ".env"] },
+    { file: new File(["f"], "env"), path: ["D", "env"] },
+  ]);
+  expect(twice.files.map((file) => file.slice(twice.folder.length))).toEqual([
+    "/tree/D/x.txt",
+    "/tree/D/x (2).txt",
+    "/tree/D/.env",
+    "/tree/D/env",
+  ]);
+  expect(
+    await readFile(join(twice.folder, "tree", "D", "x (2).txt"), "utf8"),
+  ).toBe("y");
 });
 
 test("a chooser takes one folder for a folder, its files otherwise", () => {
@@ -646,6 +660,51 @@ test("a folder chooser gets one folder whose files keep their places", async () 
   expect(
     await readFile(join(files[0] as string, "pod", "b č.txt"), "utf8"),
   ).toBe("b");
+  view.socket.close();
+});
+
+test("a failed answer keeps its chooser: the person chooses again on the same token and it arrives", async () => {
+  const browser = new FakeBrowser();
+  const { base } = await serve(browser);
+  const view = await person(base, page);
+  browser.inputs.set(`${pageSession} 17`, [
+    "type",
+    "file",
+    "webkitdirectory",
+    "",
+  ]);
+  browser.emit(
+    "Page.fileChooserOpened",
+    { frameId: "F", mode: "selectSingle", backendNodeId: 17 },
+    pageSession,
+  );
+  await until(() => view.of("files").length > 0);
+  const token = view.of("files")[0]?.token ?? "";
+  // Loose files for a folder fail; the token is not spent.
+  const loose = await post(base, token, formOf([new File(["a"], "a.txt")]));
+  expect(loose.status).toBe(409);
+  expect(view.of("files-closed")).toHaveLength(0);
+  // The same chooser takes a folder with `.env` and `env`, both arriving.
+  const done = await post(
+    base,
+    token,
+    formOf([new File(["e"], ".env"), new File(["f"], "env")], {
+      path: ["projekt/.env", "projekt/env"],
+    }),
+  );
+  expect(done.status).toBe(204);
+  const files = browser.called("DOM.setFileInputFiles")[0]?.params
+    .files as string[];
+  expect(await readFile(join(files[0] as string, ".env"), "utf8")).toBe("e");
+  expect(await readFile(join(files[0] as string, "env"), "utf8")).toBe("f");
+  await until(() => view.of("files-closed").length > 0);
+  // Answered, the token is spent.
+  const late = await post(
+    base,
+    token,
+    formOf([new File(["z"], "z.txt")], { path: ["p/z.txt"] }),
+  );
+  expect(late.status).toBe(409);
   view.socket.close();
 });
 

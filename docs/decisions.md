@@ -12422,10 +12422,14 @@ pasted file reached nothing.
    input (decision F57) stay the main frame's. Chrome reports a frame's JavaScript dialogs and
    `beforeunload` on the page's own session (measured), so point 7's dialogs already cover them.
    (`src/browser/people/frame-sessions.ts`)
-2. **The person's names.** A file keeps its name: Unicode and spaces arrive unchanged. Only path
-   separators, control characters and leading dots go, and a name is cut to 255 bytes of UTF-8 at
-   a whole character, before its extension. Files are still written owner-only, each upload in a
-   folder of its own. (`src/browser/people/files.ts`)
+2. **The person's names.** A file keeps its name: Unicode, spaces and a leading dot (`.env`) arrive
+   unchanged. Only path separators and control characters go, `.` and `..` name nothing, and a
+   name is cut to 255 bytes of UTF-8 at a whole character, before its extension. Two places of
+   one folder that clean to one name take the next free `name (2).ext`, so a valid folder never
+   fails on its own names. Files are still written owner-only, each upload in a folder of its
+   own, and a chooser stays answerable until its files are on its input: an upload that fails
+   leaves the person's chooser open to choose again. (`src/browser/people/files.ts`,
+   `src/browser/people/uploads.ts`)
 3. **What the input asks for.** The view's chooser takes the input's `accept` and folder mode
    (`webkitdirectory`). A folder is uploaded with each file's place and given to the input as one
    folder, so the page gets each file's `webkitRelativePath`. A chooser without an input
