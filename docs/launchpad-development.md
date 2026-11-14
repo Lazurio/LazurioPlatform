@@ -1150,18 +1150,21 @@ the origin nothing changes: the neutral guide stays as F56 draws it.
   receiver), `buddy-element.ts` draws it in the element's shadow root (one `<dialog>`
   holds the frame: `show()` for the panel, `showModal()` for full screen), and
   `buddy-styles.ts` places it: z-index 45, 22 px from the window's right and bottom
-  edges in every app, Buddy's figure 40 × 44 px in the 58 px disc (F60's addendum of
-  2026-10-25, as the prototype). While the launcher is drawn the view sets
-  `--lazurio-buddy-clearance` on the document, the width of its corner at the right
-  edge. `elements.ts` wires it: the bubble only in the last connected
+  edges in every app where he starts, Buddy's figure 48 × 52 px standing free in the
+  58 px launcher (F60's addendum of 2026-11-14). The person drags him anywhere and each
+  app remembers the place (`buddy-place.ts`, `localStorage` `lazurio.buddy.place`); his
+  panel opens beside him. While the launcher is drawn in its corner the view sets
+  `--lazurio-buddy-clearance` on the document, the width of that corner at the right
+  edge, and removes it while he stands anywhere else. `elements.ts` wires it: the bubble only in the last connected
   `<lazurio-buddy>`, the page's message, path and colour-scheme listeners only while the
   frame exists.
 - **A host moves it** with `--lazurio-buddy-right` and `--lazurio-buddy-bottom` on its
   `:root` (lengths; the panel follows), or hides it with `hidden`.
-- **A page makes room for it** where its own controls reach the corner: T3 Code's and
-  MausBot's composers keep `padding-right: var(--lazurio-buddy-clearance, 0px)` (or
-  add it to their own), which is set only while the launcher is drawn, so a page
-  without Buddy keeps its full width.
+- **A page may make room for it** where its own controls reach the corner: MausBot's
+  composer keeps `padding-right: var(--lazurio-buddy-clearance, 0px)`, which is set
+  only while the launcher is drawn in its corner, so a page without Buddy, or with
+  Buddy moved away, keeps its full width. T3 Code's composer keeps T3's own place
+  (F60's addendum of 2026-11-14): the person moves Buddy off it.
 - **Check it in a browser** (root decision 0178): `bun scripts/preview-launchpad.ts
   personal cs <port> owner buddy` names Buddy's origin `https://buddy.example.lazurio.io`
   in the personal preview's entry; a browser automation routes
