@@ -11,6 +11,7 @@ import {
 } from "../contract/pure";
 import { viewScript } from "./bundle" with { type: "macro" };
 import { browserSocketUrl, type CdpConnection, connectCdp } from "./cdp";
+import { maxUploadBytes, readUpload, type Upload } from "./files";
 import { BrowserHub, type HubSeams, type Viewer } from "./hub";
 import { viewPage } from "./page";
 import { parseClientMessage } from "./protocol";
@@ -40,7 +41,6 @@ export type ViewServiceOptions = Readonly<{
 type SocketData = { targetId: string; viewer: Viewer | null };
 
 const script = viewScript();
-const maxUploadBytes = 256 * 1024 * 1024;
 
 /** How long a page waits for its Environment's identity: the Launchpad's
  * page waits as long for its boot document. */
@@ -298,17 +298,15 @@ export function startViewService(options: ViewServiceOptions): ViewService {
           const token = new URL(request.url).searchParams.get("token") ?? "";
           if (!/^[0-9a-f]{24}$/.test(token))
             return json({ error: "invalid-request" }, 400);
-          let files: File[];
+          let upload: Upload | null;
           try {
-            const form = await request.formData();
-            files = form
-              .getAll("file")
-              .filter((value): value is File => value instanceof File);
+            upload = readUpload(await request.formData());
           } catch {
-            return json({ error: "invalid-request" }, 400);
+            upload = null;
           }
+          if (upload === null) return json({ error: "invalid-request" }, 400);
           const done = await hub
-            .upload(decision.targetId, token, files)
+            .upload(decision.targetId, token, upload)
             .catch(() => false);
           return done
             ? new Response(null, { status: 204 })

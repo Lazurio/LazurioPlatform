@@ -141,9 +141,26 @@ export type ServerMessage =
       defaultPrompt: string;
     }>
   | Readonly<{ t: "dialog-closed" }>
-  /** The page asked for files: upload them with `POST /t/<id>/files?token=`. */
-  | Readonly<{ t: "files"; multiple: boolean; token: string }>
+  /** The page asked for files: upload them with `POST /t/<id>/files?token=`
+   * (`files.ts`). `accept` is the input's, as the page wrote it, for the
+   * view's own chooser; `directory` asks for a folder (`webkitdirectory`),
+   * uploaded with each file's place in it. Both absent: any files. */
+  | Readonly<{
+      t: "files";
+      multiple: boolean;
+      token: string;
+      accept?: string;
+      directory?: boolean;
+    }>
   | Readonly<{ t: "files-closed"; token: string }>
+  /** The page asked for files without an input (`showOpenFilePicker` and
+   * its kind, #973): nothing can take them, Chrome tells the page the choice
+   * was cancelled, and the view tells the person why. */
+  | Readonly<{ t: "files-refused"; reason: "no-input" }>
+  /** This viewer's token for the files it drops on the page or pastes into
+   * it (#973): `POST /t/<id>/files?token=` with `deliver`. Sent once, when
+   * the socket attaches; good while it views the tab. */
+  | Readonly<{ t: "upload-token"; token: string }>
   /** The tab no longer exists. The socket closes after this. */
   | Readonly<{ t: "closed" }>
   /** The service lost the browser and reconnects, or found it again. */
