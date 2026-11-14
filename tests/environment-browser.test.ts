@@ -2576,3 +2576,39 @@ test.skipIf(process.platform === "win32")(
     expect(calls).toEqual([]);
   },
 );
+
+// An agent lists its own windows, reads helper pages in one window, lets go
+// of all of them and checks before it tells the user; in ChatGPT Desktop the
+// user has one window's link in the right panel, and a further window is a
+// new link the agent explains.
+test("the Folder tells an agent to list its own windows, keep them few and check before saying they are closed", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const text = renderManual({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationBrowser,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+    })["manual/this-machine.md"];
+    const point = (start: string) =>
+      text.split("\n").find((line) => line.startsWith(start)) ?? "";
+    const cs = locale === "cs";
+    const windows = point(cs ? "- **Tvoje okna.**" : "- **Your windows.**");
+    expect(windows).toContain("`lazurio browser tabs`");
+    expect(windows).toContain("`agent-browser … tab list`");
+    expect(windows).toContain("5");
+    const desktop = point(
+      cs
+        ? "- **Okna v ChatGPT Desktopu.**"
+        : "- **Windows in ChatGPT Desktop.**",
+    );
+    expect(desktop).toContain("`https://browser.…/t/<id>`");
+    expect(desktop).toContain("--session <");
+    const done = point(cs ? "- **Konec.**" : "- **When done.**");
+    expect(done).toContain("`lazurio browser done --all`");
+    expect(done).toContain("`lazurio browser tabs`");
+    expect(point(cs ? "- **Nová záložka.**" : "- **A new tab.**")).toContain(
+      cs ? "v jednom takovém okně" : "in one such window",
+    );
+  }
+});
