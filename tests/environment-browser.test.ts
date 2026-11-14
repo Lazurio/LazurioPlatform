@@ -450,7 +450,14 @@ test("installed only for a hosted operator whose handover routes the view; the b
     (
       await readdir(join(root ?? "", ".local/share/lazurio-browser/extension"))
     ).sort(),
-  ).toEqual(["background.js", "manifest.json", "menu.js", "webauthn.js"]);
+  ).toEqual([
+    "background.js",
+    "manifest.json",
+    "menu.js",
+    "payment.js",
+    "sheets.js",
+    "webauthn.js",
+  ]);
   const written = await stat(join(directory, browserUnit));
 
   // Repeated with the same entry: nothing rewritten, no reload, no restart;
