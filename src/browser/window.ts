@@ -1,13 +1,19 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
-import { agentBrowserSocketDirectory, holderDirectory } from "./contract/node";
+import {
+  agentBrowserSocketDirectory,
+  holderDirectory,
+  processAlive,
+} from "./contract/node";
 import {
   browserBounds,
+  isThreadWindow,
   parseHolder,
   stripAppOf,
   targetIdOf,
+  threadOfWindow,
 } from "./contract/pure";
 import { addressKey } from "./people/sleep";
 import { browserCdpPort } from "./units";
@@ -38,6 +44,8 @@ export type WindowSeams = Readonly<{
   /** The page targets with their addresses, for "no duplicate opens"
    * (decision F57, `threadPage`); absent: a window is never shared. */
   pages?: () => Promise<ReadonlyMap<string, string>>;
+  /** Tests only: whether a daemon's process runs (`processAlive`). */
+  alive?: (pid: number) => boolean;
 }>;
 
 export type ThreadWindow = Readonly<{
@@ -59,6 +67,136 @@ export class BrowserWindowFailure extends Error {
   ) {
     super(reason);
   }
+}
+
+/** `ensureThreadWindow` with a limit: the thread holds as many windows as
+ * it may already, `windows` being their sessions, so no new one opens. */
+export class ThreadWindowLimit extends Error {
+  constructor(
+    readonly limit: number,
+    readonly windows: readonly string[],
+  ) {
+    super("window-limit");
+  }
+}
+
+/** How many windows one thread may hold at once (`lazurio browser window`):
+ * its own session's and its further windows' (`<session>-2`, …,
+ * `<session>-preview`) whose agent-browser daemon runs. PROVISIONAL, an
+ * open decision: no decision sets a number. Five keeps a few threads that
+ * each hold all theirs under the 28 tabs the reference Environment (4 vCPU,
+ * 8 GiB) carried without losing a renderer on 2026-10-20 (`pressure.ts`,
+ * decision F57 point 6), where every remote tab is a window of its own (root
+ * decision 0191 point 11), and still leaves an agent its own window, one
+ * for a page it works in beside it, a preview and two more. A window let go
+ * (`done`, or agent-browser's idle timeout of 1 h) no longer counts, even
+ * while a person keeps it open. */
+export const threadWindowLimit = 5;
+
+/** One session of a thread as agent-browser's files record it (C7): its
+ * bound target, when its binding names one, and whether its daemon runs
+ * (its `.pid` names a running process, or cannot be read, which counts as
+ * running as the hub counts it), or may be asked to stop (`.sock`). */
+export type ThreadSession = Readonly<{
+  session: string;
+  targetId: string | null;
+  running: boolean;
+  socket: boolean;
+}>;
+
+/** The sessions of the thread's windows (`isThreadWindow`) that have any
+ * of agent-browser's files, sorted by name with numbers in order. Another
+ * thread's sessions are never read. Empty where there is no socket
+ * directory or it does not exist. */
+export async function readThreadSessions(
+  thread: string,
+  env: Readonly<Record<string, string | undefined>>,
+  alive: (pid: number) => boolean = processAlive,
+): Promise<readonly ThreadSession[]> {
+  const directory = agentBrowserSocketDirectory(env);
+  if (directory === undefined) return [];
+  let names: string[];
+  try {
+    names = await readdir(directory);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+  const files = new Map<string, Set<string>>();
+  for (const name of names) {
+    const dot = name.lastIndexOf(".");
+    if (dot <= 0) continue;
+    const session = name.slice(0, dot);
+    const kind = name.slice(dot + 1);
+    if (
+      (kind !== "target" && kind !== "pid" && kind !== "sock") ||
+      !isThreadWindow(thread, session)
+    )
+      continue;
+    const kinds = files.get(session) ?? new Set<string>();
+    kinds.add(kind);
+    files.set(session, kinds);
+  }
+  const sessions = [...files.keys()].sort((a, b) =>
+    a.localeCompare(b, "en", { numeric: true }),
+  );
+  return Promise.all(
+    sessions.map(async (session) => {
+      const kinds = files.get(session) as Set<string>;
+      let targetId: string | null = null;
+      if (kinds.has("target"))
+        try {
+          targetId = targetIdOf(
+            (
+              JSON.parse(
+                await readFile(join(directory, `${session}.target`), "utf8"),
+              ) as { targetId?: unknown } | null
+            )?.targetId,
+          );
+        } catch {}
+      let running = false;
+      if (kinds.has("pid"))
+        try {
+          const digits = (
+            await readFile(join(directory, `${session}.pid`), "utf8")
+          ).trim();
+          const pid = /^[0-9]{1,10}$/.test(digits)
+            ? Number(digits)
+            : Number.NaN;
+          running = !(Number.isSafeInteger(pid) && pid >= 2) || alive(pid);
+        } catch (error) {
+          // Gone between the listing and the read: not running. Anything
+          // else is unclear, and unclear counts as running.
+          running = (error as NodeJS.ErrnoException).code !== "ENOENT";
+        }
+      return Object.freeze({
+        session,
+        targetId,
+        running,
+        socket: kinds.has("sock"),
+      });
+    }),
+  );
+}
+
+/** The thread's windows that count against its limit: the distinct open
+ * targets its running sessions are bound to, with their sessions. */
+async function heldThreadWindows(
+  thread: string,
+  seams: WindowSeams,
+): Promise<readonly string[]> {
+  const sessions = await readThreadSessions(thread, seams.env, seams.alive);
+  const open = await seams.targets();
+  const held = new Map<string, string>();
+  for (const { session, targetId, running } of sessions)
+    if (
+      running &&
+      targetId !== null &&
+      open.has(targetId) &&
+      !held.has(targetId)
+    )
+      held.set(targetId, session);
+  return [...held.values()];
 }
 
 const commandTimeoutMs = 30_000;
@@ -166,9 +304,13 @@ export async function ensureThreadWindow(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
+  /** With a limit (`lazurio browser window`), a new window is refused as
+   * `ThreadWindowLimit` once the session's thread (`threadOfWindow`) holds that
+   * many; the window a session has already is never refused. */
+  limit?: number,
 ): Promise<ThreadWindow> {
   return underWindowLock(seams.env, () =>
-    ensureThreadWindowLocked(session, url, seams),
+    ensureThreadWindowLocked(session, url, seams, limit),
   );
 }
 
@@ -270,6 +412,7 @@ async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
+  limit: number | undefined,
 ): Promise<ThreadWindow> {
   let existing: string | null;
   try {
@@ -288,6 +431,16 @@ async function ensureThreadWindowLocked(
     if (!(await bindSession(session, shown, seams)))
       throw new BrowserWindowFailure("bind-failed");
     return Object.freeze({ session, targetId: shown, created: false });
+  }
+  if (limit !== undefined) {
+    const thread = threadOfWindow(session) ?? session;
+    let held: readonly string[];
+    try {
+      held = await heldThreadWindows(thread, seams);
+    } catch {
+      throw new BrowserWindowFailure("browser-unreachable");
+    }
+    if (held.length >= limit) throw new ThreadWindowLimit(limit, held);
   }
   return createThreadWindow(session, url, seams);
 }

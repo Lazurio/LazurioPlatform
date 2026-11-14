@@ -103,6 +103,31 @@ export function threadSession(
   return null;
 }
 
+// A further window of a thread (decision F38): `<session>-<n>`, n from 2 to
+// 999 without a leading zero, or `<session>-preview`, the development
+// preview's window the Folder's manual names. Three digits at most, so the
+// last group of a UUID (twelve characters) is never read as one.
+const threadWindowSuffix = /^(.+)-(?:[2-9]|[1-9][0-9]{1,2}|preview)$/;
+
+/** The thread a session's window belongs to: the session with the suffix of
+ * a further window (`-2` … `-999`, `-preview`) taken off, otherwise the
+ * session itself; null for anything that is no strip's name. `t3-a-2` is a
+ * further window of `t3-a`; `t3-a-02`, `t3-a-1` and `t3-a-1000` are their
+ * own threads. */
+export function threadOfWindow(session: unknown): string | null {
+  if (!isStrip(session)) return null;
+  const found = threadWindowSuffix.exec(session);
+  return found !== null && isStrip(found[1]) ? (found[1] as string) : session;
+}
+
+/** True when `session` names one of the thread's windows: the thread's own
+ * session, or a further window of it (`threadOfWindow`). Every other name,
+ * another thread's above all, is not the thread's. */
+export function isThreadWindow(thread: unknown, session: unknown): boolean {
+  if (!isStrip(thread) || !isStrip(session)) return false;
+  return session === thread || threadOfWindow(session) === thread;
+}
+
 // ---- Environments and the addresses of their views (C3) ---------------------
 
 // The identity of an Environment (F37's addendum of 2026-10-04): its base
@@ -843,13 +868,38 @@ export type BrowserCliKind =
   | "browser-window"
   | "browser-link"
   | "browser-done"
-  | "browser-open";
+  | "browser-open"
+  | "browser-tabs";
 
 /** What letting go of a window came to (`stopSessionDaemon`). */
 export type BrowserDoneOutcome = "stopped" | "none" | "refused" | "unconfirmed";
 
-/** An answer of `lazurio browser window`, `link`, `done` or `open` with
- * `--json`;
+/** One window of the calling thread, as `lazurio browser tabs` lists it:
+ * its session, its tab and the person's link to it, its address and title,
+ * whether the thread's agent-browser daemon holds it (`held`), how many
+ * people view it now, whether it sleeps (decision F57), and when the hub
+ * ends it unless something holds or views it again (`endsAt`, null while
+ * nothing counts down). */
+export type BrowserThreadWindow = Readonly<{
+  session: string;
+  targetId: string;
+  url: string;
+  title: string;
+  link: string;
+  held: boolean;
+  viewers: number;
+  sleeping: boolean;
+  endsAt: string | null;
+}>;
+
+/** One session's outcome of `done --all`. */
+export type BrowserDoneSession = Readonly<{
+  session: string;
+  outcome: BrowserDoneOutcome;
+}>;
+
+/** An answer of `lazurio browser window`, `link`, `done`, `open` or `tabs`
+ * with `--json`;
  * each command answers with its own `kind`, also where the Environment has
  * no browser (`available: false`, exit 10). */
 export type BrowserCliAnswer =
@@ -868,10 +918,21 @@ export type BrowserCliAnswer =
       /** The new tab of `link --url`. */
       targetId?: string;
     }>
+  /** `done` lets go of one session's window; `done --all` of every window
+   * of the thread: then `session` is the thread, `outcome` the worst of
+   * theirs (unconfirmed, refused, stopped, none) and `sessions` each one's. */
   | Readonly<{
       kind: "browser-done";
       session: string;
       outcome: BrowserDoneOutcome;
+      sessions?: readonly BrowserDoneSession[];
+    }>
+  /** The calling thread's windows and how many it may hold at once. */
+  | Readonly<{
+      kind: "browser-tabs";
+      session: string;
+      windows: readonly BrowserThreadWindow[];
+      limit: number;
     }>
   /** The default browser's page (root decision 0201 point 5): its tab and
    * link, and the thread whose session it is bound to, so its app shows it;
@@ -894,6 +955,7 @@ const cliKinds: readonly string[] = [
   "browser-link",
   "browser-done",
   "browser-open",
+  "browser-tabs",
 ];
 const doneOutcomes: readonly string[] = [
   "stopped",
@@ -901,6 +963,63 @@ const doneOutcomes: readonly string[] = [
   "refused",
   "unconfirmed",
 ];
+
+const isCount = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+
+/** One window of `tabs`, or null when a member is missing or of another
+ * shape. */
+function threadWindowOf(value: unknown): BrowserThreadWindow | null {
+  if (!isRecord(value)) return null;
+  const targetId = targetIdOf(value.targetId);
+  const { session, url, title, link, held, viewers, sleeping, endsAt } = value;
+  return isStrip(session) &&
+    targetId !== null &&
+    typeof url === "string" &&
+    typeof title === "string" &&
+    typeof link === "string" &&
+    typeof held === "boolean" &&
+    isCount(viewers) &&
+    typeof sleeping === "boolean" &&
+    (endsAt === null || typeof endsAt === "string")
+    ? Object.freeze({
+        session,
+        targetId,
+        url,
+        title,
+        link,
+        held,
+        viewers,
+        sleeping,
+        endsAt,
+      })
+    : null;
+}
+
+/** One session's outcome of `done --all`, or null. */
+function doneSessionOf(value: unknown): BrowserDoneSession | null {
+  return isRecord(value) &&
+    isStrip(value.session) &&
+    doneOutcomes.includes(value.outcome as string)
+    ? Object.freeze({
+        session: value.session,
+        outcome: value.outcome as BrowserDoneOutcome,
+      })
+    : null;
+}
+
+/** Every element read by `read`, or null when the value is no list or one
+ * element is none. */
+function everyOf<T>(
+  value: unknown,
+  read: (element: unknown) => T | null,
+): readonly T[] | null {
+  if (!Array.isArray(value)) return null;
+  const elements = value.map(read);
+  return elements.every((element) => element !== null)
+    ? Object.freeze(elements as T[])
+    : null;
+}
 
 /** An answer as a caller reads it (T3 Code reads `window` and `link`): of
  * one of these kinds with its members, `schema` absent or v1; members it
@@ -952,14 +1071,31 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
           })
         : null;
     }
-    case "browser-done":
-      return session !== null && doneOutcomes.includes(value.outcome as string)
+    case "browser-done": {
+      const sessions =
+        value.sessions === undefined
+          ? undefined
+          : everyOf(value.sessions, doneSessionOf);
+      return session !== null &&
+        doneOutcomes.includes(value.outcome as string) &&
+        sessions !== null
         ? Object.freeze({
             kind,
             session,
             outcome: value.outcome as BrowserDoneOutcome,
+            ...(sessions === undefined ? {} : { sessions }),
           })
         : null;
+    }
+    case "browser-tabs": {
+      const windows = everyOf(value.windows, threadWindowOf);
+      return session !== null &&
+        windows !== null &&
+        isCount(value.limit) &&
+        value.limit > 0
+        ? Object.freeze({ kind, session, windows, limit: value.limit })
+        : null;
+    }
     case "browser-open": {
       const targetId = targetIdOf(value.targetId);
       return (session !== null || value.session === null) &&

@@ -285,6 +285,174 @@
         {}
       ],
       "expect": null
+    },
+    {
+      "name": "a thread's own session is its thread",
+      "call": "threadOfWindow",
+      "args": [
+        "codex-019a"
+      ],
+      "expect": "codex-019a"
+    },
+    {
+      "name": "a further window is its thread's",
+      "call": "threadOfWindow",
+      "args": [
+        "codex-019a-2"
+      ],
+      "expect": "codex-019a"
+    },
+    {
+      "name": "a further window with two digits",
+      "call": "threadOfWindow",
+      "args": [
+        "codex-019a-12"
+      ],
+      "expect": "codex-019a"
+    },
+    {
+      "name": "a further window with three digits",
+      "call": "threadOfWindow",
+      "args": [
+        "codex-019a-999"
+      ],
+      "expect": "codex-019a"
+    },
+    {
+      "name": "the preview's window is its thread's",
+      "call": "threadOfWindow",
+      "args": [
+        "claude-1-preview"
+      ],
+      "expect": "claude-1"
+    },
+    {
+      "name": "-1 is a thread of its own",
+      "call": "threadOfWindow",
+      "args": [
+        "t3-a-1"
+      ],
+      "expect": "t3-a-1"
+    },
+    {
+      "name": "a leading zero is a thread of its own",
+      "call": "threadOfWindow",
+      "args": [
+        "t3-a-02"
+      ],
+      "expect": "t3-a-02"
+    },
+    {
+      "name": "four digits are a thread of their own",
+      "call": "threadOfWindow",
+      "args": [
+        "t3-a-1000"
+      ],
+      "expect": "t3-a-1000"
+    },
+    {
+      "name": "a UUID's last group is no window number",
+      "call": "threadOfWindow",
+      "args": [
+        "t3-26ca636a-6de5-45cf-af50-0c85c4b7bce1"
+      ],
+      "expect": "t3-26ca636a-6de5-45cf-af50-0c85c4b7bce1"
+    },
+    {
+      "name": "a UUID thread's further window",
+      "call": "threadOfWindow",
+      "args": [
+        "t3-26ca636a-6de5-45cf-af50-0c85c4b7bce1-3"
+      ],
+      "expect": "t3-26ca636a-6de5-45cf-af50-0c85c4b7bce1"
+    },
+    {
+      "name": "a bare suffix is a thread of its own",
+      "call": "threadOfWindow",
+      "args": [
+        "-2"
+      ],
+      "expect": "-2"
+    },
+    {
+      "name": "a name outside the grammar is none",
+      "call": "threadOfWindow",
+      "args": [
+        "a/b-2"
+      ],
+      "expect": null
+    },
+    {
+      "name": "the thread's own session",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-1"
+      ],
+      "expect": true
+    },
+    {
+      "name": "a further window of the thread",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-1-2"
+      ],
+      "expect": true
+    },
+    {
+      "name": "the preview's window of the thread",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-1-preview"
+      ],
+      "expect": true
+    },
+    {
+      "name": "another thread that starts alike is not",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-12"
+      ],
+      "expect": false
+    },
+    {
+      "name": "another thread's further window is not",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-2-2"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a further window of a further window is not",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-1-2-2"
+      ],
+      "expect": false
+    },
+    {
+      "name": "the thread of a further window is not its window",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1-2",
+        "codex-1"
+      ],
+      "expect": false
+    },
+    {
+      "name": "a name outside the grammar is not",
+      "call": "isThreadWindow",
+      "args": [
+        "codex-1",
+        "codex-1/2"
+      ],
+      "expect": false
     }
   ]
 }
