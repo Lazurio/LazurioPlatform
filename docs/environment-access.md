@@ -1,12 +1,14 @@
 # Lazurio account entry and delegated access — approved target
 
-Status: decision 0192 of the [decision register](decision-register.md), in force as
-the target model; the transition is not complete. Its amendments of 2026-10-26 and
-2026-11-01, decision 0202 and the access edges of decision 0224 are decided, not yet
-deployed; decision 0243 (every Environment only through a tailnet, Lazurio's personal
-tailnet) is decided, not yet deployed, and retires the public-DNS mode of decision 0213,
-which only the reference Organization runs until its return to its tailnet; decision
-0196 is in force;
+Status: decisions 0245 (who is who: the Organization's Deployment Repo holds the
+boundaries of trust and Lazurio Auth their use), 0246 (the network) and 0247 (entry
+into an Environment and its record) of the [decision register](decision-register.md),
+in force as the target model; the transition is not complete. They consolidate
+decisions 0192, 0202, 0224, 0243 and 0244, whose numbers stay in the register as
+superseded. Each of the three ends with "What runs today"; where this document
+describes today's mechanism instead of the target, it says so. The public-DNS mode of
+decision 0213 is retired (0246) and only the reference Organization runs it until its
+return to its tailnet; decision 0196 is in force;
 decision 0231 (application roles and what a Module receives) and decision 0234 (the
 names of access roles) are decided, not yet deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
@@ -79,7 +81,7 @@ An organizational Environment and its apps require all three:
 1. Tailscale against the correct Headscale, with the Organization Admin's approval of the exact
    device before protected reachability. OIDC or another approved device is
    not that approval. There is no public alternative to protected work URLs
-   (decision 0243), except the retired public-DNS mode (below), which only the
+   (decision 0246), except the retired public-DNS mode (below), which only the
    reference Organization still runs until its return to its tailnet and which
    drops this condition.
 2. Active Lazurio Organization membership, identified by immutable issuer
@@ -90,26 +92,28 @@ An organizational Environment and its apps require all three:
 account and one target Organization. On a tailnet that serves several
 Organizations, the Organization Admin of each Organization approves entry into that
 Organization; an approval for one Organization never opens another, and one
-device may carry approvals for several Organizations. Decided, not yet
-deployed (0192's amendment of 2026-11-01, with 0183 and 0205): the Organization Admin
-approves or removes a device in the Dashboard through a service on the
-Conglomerate Host, which applies it within tens of seconds; a person may
-remove their own lost device at once, and in an Organization only its Organization Admin
-approves, while in Lazurio's personal tailnet the person approves their own devices
-(decision 0243, below). Every action
-is audited, and the service records each approval into the host owner's
-Deployment Repository automatically as an audit entry without review, a record
-and not an input. The rules (who may approve, and where an approved device
-reaches) stay in that repository and change only by a reviewed pull request.
-Until the service runs, an approval is a reviewed change in the host owner's
-Deployment Repository, enforced by Machines (Plan, Permit, readback). The
-Dashboard never rewrites approvals by writing to Headscale directly. Moving the
-record to Auth is a separate migration with no period of two writers.
+device may carry approvals for several Organizations. Target (decision 0245):
+approving a device is a change within the Organization's boundaries of trust,
+so the Organization Admin approves or removes it in the Dashboard, Lazurio Auth
+records it and it takes effect within minutes; a person may remove their own
+lost device at once, and in Lazurio's personal tailnet the person approves their
+own devices (decision 0246, below). The rules (who may approve, and where an
+approved device reaches) are a boundary of trust: they live in the
+Organization's own Deployment Repo and change only by a pull request that
+Machines applies with proof of its approval. Until that is deployed, the rules
+change by a reviewed pull request to the host owner's deployment repository.
+The service on the Conglomerate Host through which the Organization Admin
+approves or removes a device within tens of seconds, and which records each
+approval into that repository automatically as an audit entry without review,
+a record and not an input, is decided and not deployed everywhere; where it
+does not run, an approval is a reviewed change in that repository, enforced by
+Machines (Plan, Permit, readback). The Dashboard never rewrites approvals by
+writing to Headscale directly. In the target the record of an approval is
+Auth's; moving it there is a separate migration with no period of two writers.
 
 **Reach derived from one truth.** Reach between people, devices and
 Environments derives from assignments, approved devices and live Organization Admin roles
-(0192 with its amendment of 2026-10-07; the amendments of 2026-10-26 and
-2026-11-01 are decided, not yet deployed).
+(decision 0246, the target model; the transition is not complete).
 
 - An approved computer reaches its person's Environments on HTTPS (443) and SSH
   (22); a phone reaches them on HTTPS only. SSH from an approved device into a
@@ -119,21 +123,33 @@ Environments derives from assignments, approved devices and live Organization Ad
 - A Personal Environment, which is not a device, always reaches the Work
   Environments assigned to its owner in the same tailnet over SSH, without a
   device approval.
-- An Organization Admin's Work Environment is the Organization's administrative station
-  (decision 0202).
+- An Organization Admin reaches the other Environments of the Organization only by a
+  service entry (decision 0247): opened with a reason, through the recording entry
+  point that the holder of the host runs, with a short-lived credential from Lazurio
+  Auth. Until that is deployed, the Admin's way in is an administrative station, a
+  named exception declared as a boundary of trust: it names the person, the
+  Organization and the Admin role it stands for, the station, the Environments it
+  reaches, the reason and the decision of the Organization's Owner it rests on. No
+  key or edge is derived from the Admin role in the meantime, and the Owner role
+  alone gives no station (decision 0245).
 - No edge runs in the opposite direction of another. Every access between
-  Environments is listed in [Access edges in a Conglomerate](#access-edges-in-a-conglomerate-decision-0224-decided-not-yet-deployed)
+  Environments is listed in [Access edges in a Conglomerate](#access-edges-in-a-conglomerate-decisions-0246-and-0247-decided-not-yet-deployed)
   below.
-- Every SSH edge between Environments needs both the network grant and the
+- Target (decision 0247): every SSH entry is a certificate from the Conglomerate's
+  certificate authority that Lazurio Auth issues for minutes, for one target
+  Environment and only from the address the entry comes from, and the authority
+  also signs the Environments' host keys, so nobody holds a standing key and no
+  host key is pinned. What runs today, until that is deployed: every SSH edge
+  between Environments needs both the network grant and the
   source Environment's own key, which the target accepts only from the
   source's address and for the assigned account; both appear and disappear
   with the facts they derive from. The source takes each target's host key
   from the records of the Organization that owns the target, never from the
-  first connection; a changed host key stops the connection until those
-  records confirm it; and no edge forwards the agent or ports, so no path
+  first connection, and a changed host key stops the connection until those
+  records confirm it. In both, no edge forwards the agent or ports, so no path
   leads back from a Work Environment into a Personal one.
 
-The Platform's part is the source side of the edges
+The Platform's part today is the source side of these key-based edges
 ([decision F70](decisions.md#f70--a-source-environments-routes-come-from-its-home-access-service-its-own-key-registered-targets-pinned-and-with-their-deadline)).
 Every source Environment has one key, `~/.ssh/lazurio-environment-ed25519`, created inside
 it and never copied out. Where the handover declares the home Conglomerate Host's access
@@ -149,9 +165,15 @@ writes from the home host only while that host switches the service on
 (HumanAndMachine-ai/Machines#1040, [machine handover](machine-handover.md#the-home-access-service-decision-f70)). The network grants, the keys accepted on the
 targets and the service itself belong to Machines and Headscale.
 
-Auth owns membership, assignments and grants. Dashboard manages that
-canonical authority; Machines/infra own technical deployment and derived
-network/gateway enforcement. Platform consumes the qualified entry contract,
+The Organization's Deployment Repo holds the boundaries of trust and Lazurio Auth
+holds their use (decision 0245). Who is a member and who is an Organization Admin is
+declared in that repository and applied by Machines, and Auth follows what Machines
+applied; assignments, Team membership, application roles and a person's own devices
+are set in the Dashboard within those boundaries and recorded in Auth. Removing a
+member, an Admin, a device or a grant takes effect in Auth at once, and the
+repository follows. Machines also owns technical deployment and the derived
+network/gateway enforcement. Until this is deployed, live membership of the GitHub
+Organization mirrors membership for accounts linked to GitHub. Platform consumes the qualified entry contract,
 never trusts arbitrary forwarded identity headers and never stores a second
 editable ACL. The Environment's own vault adds the user its gateway admits
 as a Správce, named by the gateway's own answer to the admission and never by
@@ -175,7 +197,7 @@ An Organization Admin manages who may enter a Team Environment. Until Auth grant
 it, membership of the Environment's GitHub Team decides entry as the marked
 migration implementation.
 
-## Lazurio's personal tailnet (decision 0243)
+## Lazurio's personal tailnet (decision 0246)
 
 Decided, not yet deployed. People enter every Environment only through a tailnet. A
 Personal Environment outside a Conglomerate is a node of Lazurio's personal tailnet,
@@ -195,9 +217,15 @@ repository has no code for it yet, and today's Platform does not accept its name
 - **Devices.** The person approves and removes their own devices. Until that
   self-approval is built, Lazurio's operator approves the first people's devices by
   hand.
-- **One tailnet.** An Environment belongs to exactly one tailnet, so the Personal
-  Environment of a person who works in an Organization on Lazurio is a node of that
-  Organization's Conglomerate, with the access described above.
+- **One tailnet.** An Environment belongs to exactly one tailnet. A Personal
+  Environment that is to get its first grant into an Organization on Lazurio moves
+  into that Organization's Conglomerate before it gets the grant, only with its
+  person's consent and by a change of that Organization's boundaries, and has the
+  access described above there. While it holds grants there, an Organization in
+  another Conglomerate gives it none; once it holds no grant into any Organization,
+  it returns to the personal tailnet. Machines carries out both moves (decisions
+  0245 and 0246). The person still administers their Personal Environment, and no
+  Organization Admin enters it.
 - **Names.** `<app>.<login>.personal.lazurio.io`, resolved by the Personal
   Conglomerate Host's Headscale only inside the tailnet, with no address records in
   public DNS; certificates are issued by DNS-01 in the zone `personal.lazurio.io`
@@ -209,15 +237,14 @@ repository has no code for it yet, and today's Platform does not accept its name
   released, the Tailscale app and the Environment's web interface. A phone without
   Lazurio App pairs through the person's AI account (decision 0215).
 - **Not decided here.** What self-approval requires, how the tailnet is split for
-  scale, key expiry, how a Personal Environment moves into a Conglomerate and whether
-  it may return to the personal tailnet once it holds no grant into an Organization
-  (while it holds one, it does not return, decision 0207), certificate rate limits and
+  scale, key expiry, the steps of Machines' move of a Personal Environment into a
+  Conglomerate and back, certificate rate limits and
   the Public Suffix List, and how the operator administers the servers follow the plan
   of the personal tailnet.
 
-## Retired: public-DNS mode (decisions 0213 and 0243)
+## Retired: public-DNS mode (decisions 0213 and 0246)
 
-Decision 0243 retired entry without a tailnet on 2026-11-12: no Organization and no
+Entry without a tailnet was retired on 2026-11-12 (decision 0246): no Organization and no
 Personal Environment switches to it, and nothing further is built for it. Only the
 reference Organization still runs it, until its return to its tailnet (decision 0204),
 and until then that entry keeps the contract of decision 0213. The gateways and the
@@ -332,8 +359,12 @@ Application User (the module kit's `appRole` `admin` and `user`).
 
 ## Sharing and remote operations
 
-An Organization Admin manages membership, initial assignments, device admission and
-cross-user links within their scope. An Assigned User may share their work
+An Organization Admin manages initial assignments, device admission, Teams,
+application roles and cross-user links within the Organization's boundaries of
+trust, in the Dashboard. Who is a member is itself a boundary, declared in the
+Organization's Deployment Repo: a change of it is a pull request there, which
+Lazurio opens for a request clicked in the Dashboard and Machines applies with proof
+of its approval (decision 0245). An Assigned User may share their work
 Environment or selected apps with people who have an active membership of the same
 Organization without another click of the Organization Admin. This cannot invite outsiders,
 approve devices, create membership or assign someone else's Environment.
@@ -362,7 +393,7 @@ shared session cookie is not an application grant; the gateway checks every
 target separately ([F40](decisions.md#f40--lazurio-account-entry-approved-devices-and-internal-environment-sharing)
 point 3). A Work Environment is never handed to
 another person: after an export period it is removed (decision 0191), so its
-browser profile and sign-ins never pass to someone else; 0192 only removes
+browser profile and sign-ins never pass to someone else; decision 0245 only removes
 forced sign-out for ordinary sharing.
 
 An A → B link includes a destination account, allowed remote operations and
@@ -378,7 +409,7 @@ Before admitting this cohort, broker/provider protections must deny the
 Environment's own approval, merge and direct protected-branch writes. A
 hidden UI action or process-only promise is not proof of this boundary.
 
-## Access edges in a Conglomerate (decision 0224): decided, not yet deployed
+## Access edges in a Conglomerate (decisions 0246 and 0247): decided, not yet deployed
 
 A Conglomerate is one tailnet of befriended Organizations; each Organization has its
 own server with only its own Environments, and a Personal Environment is a node of
@@ -390,10 +421,10 @@ by default.
 | --- | --- | --- | --- |
 | Work access | A Personal Environment → the Work Environments assigned to its owner in every Organization of its Conglomerate | The assignment and live membership | Automatically, SSH, this direction only |
 | Team Environments through a Work Environment | A person's Work Environment → the Team Environments of that person's Teams in the same Organization | Team membership | Automatically, SSH with the Work Environment's key. From the Personal Environment in two `ssh` steps through the person's own Work Environment, never directly and without forwarding its key |
-| Administration (decision 0202) | An Organization Admin's Work Environment → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services | The live Organization Admin role | Automatically, SSH with the station's one key. From the Organization Admin's Personal Environment in two steps through that Work Environment |
-| From a device | A person's approved device → that person's Environments | The Organization Admin's approval of the device (0192) | Automatically after the approval: 443 and 22, a phone 443 |
+| Administration, a service entry (decision 0247) | An Organization Admin → every other Environment of the Organization: Organization Members' Work and Team Environments, other Organization Admins' Work Environments, Henry and the server services; never a Personal Environment, another Organization, the Conglomerate Host or the servers under the Environments | The Organization Admin role in Lazurio Auth, to which an Organization Owner appoints in the Organization's Deployment Repo (0245) | Target: opened with a reason and for a bounded time, through the recording entry point of the host's holder, with a short-lived credential from Auth; observing without root by default, a repair from Lazurio's catalog, or full access with the Organization Owner's confirmation. Until that is deployed: only from an administrative station that a named exception declares, with the station's one key; no key or edge is derived from the role |
+| From a device | A person's approved device → that person's Environments | The Organization Admin's approval of the device (0245) | Automatically after the approval: 443 and 22, a phone 443 |
 | To a device | An Environment → one specific computer (decision 0240) | The consent of the device's owner: a person for their own computer, the Organization Admin for the Organization's computer, choosing which Environments may reach it | Optional, per device, revocable. A Device of the Organization: SSH from the Environment. A personal Device: never SSH into it; only over the channel the Device itself opened into the Environment, while its owner has it switched on, ending at once when switched off |
-| Exceptions | Anything else | A reviewed pull request to the Deployment Repository with its reason and owner | Exceptionally |
+| Exceptions | Anything else | A pull request to the Organization's own Deployment Repo with its reason and owner, which Machines applies only with proof of its approval (0245); today a reviewed pull request to the host owner's deployment repository | Exceptionally |
 
 - **No reverse edges.** No edge exists as the reverse of another: neither Work →
   Personal nor Team → Work, and the target of administration does not reach the
@@ -403,8 +434,14 @@ by default.
   `ssh` run in the Work Environment with its own key.
 - **Who grants it.** The Organization Admin, through their decisions: assigning an
   Environment, putting a person into a Team, approving a device; the Organization
-  Owner, by naming an Organization Admin. A device's owner switches on access to that device. No separate SSH grant is created.
-- **How it is applied.** The service on the Conglomerate Host that approves devices
+  Owner, by appointing an Organization Admin in the Organization's Deployment Repo,
+  each appointment confirmed afresh in Lazurio, never by a direct write into Auth
+  from the Dashboard (decision 0245). A device's owner switches on access to that device. No separate SSH grant is created.
+- **How it is applied.** Target (decision 0247): Lazurio Auth decides each entry
+  from these facts at the moment of entry and issues a short-lived credential for
+  it; a normal entry goes straight to the Environment and is recorded at issuance,
+  a service entry goes through the recording entry point. What runs today, until
+  that is deployed: the service on the Conglomerate Host that approves devices
   derives the edges from these facts: it delivers the source Environment's key to the
   target account, accepted only from the source's address and never forwarded, and
   gives the source its targets with host keys pinned from the Organization's records,
@@ -412,17 +449,19 @@ by default.
   removed, new connections fail within five minutes, while sessions already running
   may finish; nothing supervises running sessions. The use of a personal Device is the
   exception (0240): switched off by its owner, the Device closes its channel at once and
-  the agent's use ends with it. Git holds only the exceptions no rule derives.
+  the agent's use ends with it. Git holds the boundaries of trust and the exceptions
+  no rule derives (decision 0245).
 - **Agents** use only the routes Lazurio gives an Environment and say so when a route
   is missing.
 - **Data in the personal context.** In a person's personal context the data of the
   Organizations they belong to may meet, so Buddy may compose results from them for
   that person. In an Organization's context data never mix, and nothing moves from a
   Personal Environment into another Organization.
-- **In Lazurio's personal tailnet.** A Personal Environment there (decision 0243) has
-  none of these routes; when its person starts working in an Organization on Lazurio,
-  it moves into that Organization's Conglomerate first.
-- **Replaced.** 0224 replaces decision 0158 and point 3 of decision 0182: an Environment
+- **In Lazurio's personal tailnet.** A Personal Environment there (decision 0246) has
+  none of these routes; before it gets its first grant into an Organization on Lazurio,
+  it moves into that Organization's Conglomerate, with its person's consent, and it
+  returns once it holds no grant into any Organization.
+- **Replaced.** Decision 0246, which consolidates 0224, replaces decision 0158 and point 3 of decision 0182: an Environment
   reaches a person's device only by the access to a device above, which 0240 narrows
   for a personal Device to the channel the Device itself opened.
 
@@ -433,10 +472,14 @@ Environment's Launchpad Settings → SSH from your devices
 ([decision F49](decisions.md#f49--ssh-from-the-persons-devices-is-registered-in-launchpad-settings)).
 The key goes into the Environment account's `authorized_keys` and nowhere
 else; the host key reaches the computer over the signed-in page and is pinned.
+This is what runs today: under decision 0247 a short-lived certificate that
+Lazurio Auth issues at the moment of entry takes the place of a registered key,
+the certificate authority's host certificate takes the place of a pinned host
+key, and no person keeps a standing key into an Environment.
 This is entry to the account, not to the network: reaching the Environment on
 TCP/22 from that device remains a separate grant the Organization Admin
-approves (in Lazurio's personal tailnet, the person themselves, decision 0243) and
-Headscale enforces, and the Launchpad neither checks nor opens it. Under 0192's amendment of 2026-11-01 that grant comes with the approval of a
+approves (in Lazurio's personal tailnet, the person themselves, decision 0246) and
+Headscale enforces, and the Launchpad neither checks nor opens it. Under decision 0246 that grant comes with the approval of a
 computer; a phone has none (decided, not yet deployed). Removing a web grant or
 a device key does not remove the other. On a Team
 Environment every admitted user acts as the Team's account and may add or

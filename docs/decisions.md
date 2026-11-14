@@ -58,7 +58,7 @@ is initially the whole-system overview/reasoning surface, not control authority.
 no parallel truth and grants no access. A future Dashboard-originated change must write
 through to the natural owner and be applied locally on the target Machine by the shared local core exposed by CLI and Launchpad.
 
-GitHub remains connected-Organization access authority. Machine facts stay local;
+GitHub remains connected-Organization access authority. *(Narrowed on 2026-11-14, register decisions 0245, 0246 and 0247: GitHub is the authority for a connected Organization's repositories and Publication; entry to Environments is Lazurio's.)* Machine facts stay local;
 Personalspace, credentials and private content are not centralized or crossed. Machines
 share a versioned environment contract and conventions/interfaces, not a live shared
 directory or identical state.
@@ -1499,7 +1499,7 @@ The Launchpad does not trust forwarded identity headers and revalidates the brow
 session against the gateway's configured auth endpoint. Lazurio Account login (OIDC) is
 added when the Launchpad needs a named person or managed-service enrollment; it
 identifies the service user and neither admits to a workspace nor supplies repository
-rights. GitHub stays the only access authority. Self-hosted needs neither Account nor
+rights. GitHub stays the only access authority. *(Narrowed on 2026-11-14: GitHub stays the authority for repository operations; entry to Environments follows F40 and register decisions 0245, 0246 and 0247.)* Self-hosted needs neither Account nor
 Dashboard. The loopback protocol gets an explicit hosted request adapter as required
 work. Contract: [hosted entry](hosted-entry.md).
 
@@ -4002,6 +4002,12 @@ by Machines, applied to Headscale. The Dashboard is the one place where a person
 composes the graph: a change opens a pull request into infra (an Owner or an agent may
 open the same pull request by hand); the Dashboard never writes Headscale directly.
 The Launchpad reflects what the Dashboard shows.
+*Refined on 2026-11-14 (register decisions 0245 and 0246): the Organization's
+Deployment Repo holds the boundaries of trust and the exceptions no rule derives,
+the edges themselves are derived from facts (assignments, Team membership, the Admin
+role, approved devices), and Lazurio Auth holds the use of the boundaries. Only the
+Organization's Owners and named machines see that repository; an Admin's change is a
+request in the Dashboard, for which Lazurio opens the pull request.*
 
 **One Lazurio Account ties it together.** The same Account signs into the Dashboard and
 into the Launchpad of every Machine. It decides which Machines and applications a
@@ -12415,6 +12421,14 @@ every visitor to GitHub/Team membership or every sharing action to their
 personal infra PR no longer define the target. Local loopback use stays
 independent. No behavior, schema, credential or live access changes here.
 
+*Superseded in part on 2026-11-14 (register decision 0245): the Organization's
+Deployment Repo holds the boundaries of trust (who is a member, who is an
+Organization Admin, the Devices of the Organization, access outside roles, the rule
+of approval) and Lazurio Auth holds their use; the Dashboard sets only what lies
+within those boundaries, and Machines applies a change of them only with proof of
+its approval. What stands of the paragraph below is the rejection of duplicate
+Dashboard ACLs and of a GitHub-only visitor identity.*
+
 Choose one Auth authority with Dashboard management and infra enforcement
 over duplicate Dashboard ACLs or GitHub-only visitor identity: it supports
 users without GitHub, routine internal sharing and mandatory Admin approval
@@ -16132,7 +16146,11 @@ implied by writing this contract.
 
 ## F49 — SSH from the person's devices is registered in Launchpad Settings
 
-**Decided by the Operator 2026-10-12; implemented in this revision.** A person connects
+**Decided by the Operator 2026-10-12; implemented in this revision.** *This is what
+runs today (register decision 0247, 2026-11-14): in the target no person keeps a
+standing key into an Environment, a short-lived certificate that Lazurio Auth issues
+at the moment of entry takes the place of a registered device key, and the
+certificate authority's host certificate takes the place of the pinned host key.* A person connects
 SSH from their own computer into their Environment without touching a console inside
 it. They give the agent on their computer (Codex on macOS or Windows, which drives its
 own browser panel and runs commands there) the prompt the page offers. The agent opens
@@ -16305,6 +16323,11 @@ Environment, a node of its home tailnet only (root decision 0155), belongs to th
 Conglomerate Host owner's reviewed change. Fresh Headscale readback is the
 evidence for both devices, not a device list in the Organization overview. A
 personal Environment without tailnet or SSH (root decision 0207) gains no path.
+*Superseded on 2026-11-14 (register decision 0246): in Lazurio's personal tailnet the
+person approves and removes their own Devices (until self-approval is built, Lazurio's
+operator approves the first people's Devices by hand), and in a Conglomerate the
+Organization's Admin approves Devices. A Personal Environment without a tailnet is no
+longer a target, because the public entry of Personal Environments is retired.*
 
 The chapter covers identity discovery, existing clients and headless sockets,
 explicit hostname at enrollment, fresh client and administrator readback,
@@ -19112,6 +19135,12 @@ Trezor with the request listed, and in English an unknown id saying the request 
 exist.
 
 ## F55 — A public Environment: a demo onboarding, a quiet notice that it is public, nothing to sign in to
+
+*Retired as a path on 2026-11-12 (register decisions 0246 and 0204): entry without a
+tailnet is retired, and the reference Organization is to have no public Environment
+and no Environment that admits any Lazurio account. This decision describes the one
+shared visitors' Environment that keeps running until it is retired; nothing further
+is built on it.*
 
 **Decided by Matěj (Organization Admin) on 2026-10-16 (root decision 0204 points 3, 4 and
 6 and its line on 0201, plan DEV-6668 slice 1); the handover member is
@@ -24583,7 +24612,14 @@ between the Environments of a Conglomerate from facts, in one service on the Con
 Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
 Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
 (a Work Environment to the Team Environments of its person's Teams) and Správcovský
-přístup (an Admin's Work Environment to every other Environment of the Organization). The
+přístup (an Admin's Work Environment to every other Environment of the Organization).
+*Register decision 0247 (2026-11-14) makes this what runs today: the target is a
+short-lived certificate from Lazurio Auth in place of the source's key and the
+certificate authority's host certificates in place of pinned host keys. Správcovský
+přístup is not derived from the Admin role in the meantime: an Admin's station is a
+named exception, declared as a boundary of trust, until the service entry through the
+recording entry point replaces it. The Platform keeps writing only what the service
+answers.* The
 service knows its caller by the tailnet source address; there are no tokens on guests. Its
 two calls for a source are `PUT /v1/source-key` and `GET /v1/targets`. Until now the
 Platform wrote a personal Environment's SSH config only from the handover's assigned
