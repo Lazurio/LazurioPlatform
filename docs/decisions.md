@@ -12665,6 +12665,98 @@ on 2026-11-14 against the Environment browser (Chrome 156) with the view of this
 port of its own; the names of point 2 were checked the same day with two Chromium 148 browsers of
 the check's own, through the view's folder chooser and a drop.
 
+**Addendum 2026-11-14: the browser declines payments and Chrome's other windows over the page**
+(requested on 2026-11-14 after a payment window blocked a page in the view; the payment part as
+asked, the list of other windows proposed by the agent from the audit below and open for review;
+LazurioPlatform#984). A person clicked Google Pay on a page with a Stripe payment form in the view,
+and from then on the page took no click and no wheel. `PaymentRequest.show()` had opened Google
+Pay's window (`pay.google.com`) outside the page. The view's screencast never shows such a window,
+and the tab takes no input until it closes; only a reload of the page ends it. Point 7 promised
+that nothing outside the page blocks the view. This addendum adds to point 7; the rest of F39
+stands.
+
+1. **A payment through the browser is declined.** The extension's `payment.js`, in the page's
+   world like `webauthn.js`, answers `canMakePayment()` and `hasEnrolledInstrument()` with
+   `false`, rejects `show()` with `NotSupportedError` ("Payments through the browser are not
+   available in the Environment browser. Choose another way to pay."), and answers
+   `PaymentRequest.securePaymentConfirmationAvailability()` with
+   `unavailable-feature-not-enabled`. A page that hears no payment app is ready may offer its
+   other ways, a card form or PayPal's pop-up, which the view shows (point 4); the extension
+   cannot promise that it does. A site that offers only a wallet cannot take the payment in the
+   Environment browser, and the person pays in their own browser. Three reasons, each
+   enough: the window cannot be shown and blocks the page; a payment is a Publication the person
+   makes; and in an Organization's Environment the browser and its sign-ins belong to the
+   Organization, not to the person's own wallet. In a Personal Environment the third reason does
+   not hold and the first two do, so the extension, which is the same everywhere, declines there
+   too. `--disable-blink-features=PaymentRequest` does not turn the stable API off.
+2. **Chrome's other windows over the page are answered as when a person closes them**
+   (`sheets.js`, in the page's world). Measured on Chrome for Testing 156 with the browser
+   unit's flags (`--deny-permission-prompts`, the extension), in a Chrome of its own with a
+   temporary profile, never in the Environment browser. "Blocks" means a click sent as the hub
+   sends it no longer reached the page.
+
+   | Window | Without this addendum | Now |
+   | --- | --- | --- |
+   | `PaymentRequest.show()` (Google Pay) | window outside the page; blocks until it closes | `NotSupportedError`, no window (point 1) |
+   | `window.print()`, also from an `about:blank`, `srcdoc`, `blob:` or `data:` frame | print preview; the renderer stops | does nothing |
+   | `Ctrl+P` (the view sends `Cmd+P` as `Ctrl+P`) | print preview; blocks | kept from Chrome in the capture phase on the window; the page's own handlers still run |
+   | `getDisplayMedia()` | picker of a screen, window or tab; blocks | `NotAllowedError` |
+   | FedCM's active mode (an identity provider's button) | account chooser over the page; blocks | `NetworkError` "Error retrieving a token.", what Chrome gives the page when a person closes the dialog (measured with `FedCm.dismissDialog`) |
+   | Digital Credentials (`navigator.credentials` with `digital`) | "Do you trust this site with your data?"; blocks | `NotAllowedError`; `DigitalCredential.userAgentAllowsProtocol()` answers `false` |
+   | WebUSB, Web Serial, WebHID, Web Bluetooth choosers | a bubble the screencast does not show, with no device on a server; the next click closes it | an empty choice at once: `NotFoundError` (HID: an empty list). Bluetooth has no API in this Chrome on Linux and is covered where it has one |
+   | `EyeDropper.open()` | a loupe outside the page that the view's clicks never reach | `AbortError`, as on Esc |
+   | FedCM's passive mode (a prompt in the window's corner) | a corner the screencast does not show; the page stays usable | unchanged; showing it in the view is LazurioPlatform#985 |
+   | `showOpenFilePicker()`, `showSaveFilePicker()`, `showDirectoryPicker()` | the hub's file-chooser interception (point 7) answers `AbortError` on every page; without it, a GTK window on the screen | unchanged; the view says why nothing opened (the addendum above, LazurioPlatform#975) |
+   | The PDF viewer's own print button | print preview; blocks. No content script runs in Chrome's PDF viewer, and `Target.closeTarget` on the `chrome://print/` target answers success but leaves it | unchanged; LazurioPlatform#243 item 2 |
+   | WebOTP, `getUserMedia()`, notifications and other permissions, a password credential | nothing on the screen: no SMS receiver, no camera, `--deny-permission-prompts` | unchanged |
+3. **Every frame.** All content scripts also run in frames made from `blob:` and `data:`
+   addresses (`match_origin_as_fallback`), not only in `about:blank` and `srcdoc` ones: a
+   `blob:` frame printed before. This covers the passkey script as well.
+4. **Agents** read in the Folder's browser section that the browser declines payments and these
+   windows, that the page may then offer another way to pay but nothing promises it, that when
+   it offers none the user pays in their own browser, that the payment stays the user's
+   Publication, and how to save a page as a PDF (`agent-browser … pdf`); template revision
+   `base-instructions-125`.
+
+**Rollout.** The extension's digest is part of the browser unit's text, so the release that ships
+this addendum restarts the browser on `install` and `update` (point 10), and every window of
+every thread closes, as for every new extension. Nothing in the Environment needs another step.
+
+| Failure | What happens |
+| --- | --- |
+| A page caught the original method before the script ran | Not possible from the page: the scripts run at `document_start`, before the page's own scripts, in every frame |
+| A page prints from a frame of another scheme the extension cannot reach (the PDF viewer) | The preview opens and blocks as before; #243 |
+| A site offers only a wallet | What the page shows is the site's own (an error, or nothing); the extension only declines the wallet. The person pays in their own browser |
+| A site relies on FedCM's active mode alone | Its sign-in fails as if the person closed the dialog; the site's fallback or the person's own browser |
+
+**Variants considered.**
+
+| Alternative | Disposition |
+| --- | --- |
+| `--disable-blink-features=PaymentRequest` | Has no effect on the stable API; rejected |
+| Chrome policies in the policy Machines manages (`PaymentMethodQueryEnabled`, `PrintingEnabled`, `ScreenCaptureAllowed`, the `Default…GuardSetting` of devices) | No policy stops `PaymentRequest.show()`, the others need the Machines release and root on each Environment, and `PrintingEnabled` may also take `Page.printToPDF` from agents (unchecked). Still the one way to the PDF viewer's button; left to #243 |
+| Close the window from the hub (`Target.closeTarget`, a reload) | The print preview survives `closeTarget`, and a reload loses the page's state; rejected |
+| Show the payment window in the view | A payment through the Environment's browser is not the person's to make there (point 1); rejected |
+| Scripts in the page's world in the existing extension (selected) | The pattern of the passkey script: one place, no permission, every frame, before the page |
+
+**Not decided here.** FedCM's dialogs in the view (#985), a PDF of the page offered in the view
+and the PDF viewer's print button (#243 item 2), and whether a Personal Environment should ever
+offer a visible payment path.
+
+Tests: `tests/environment-browser-view.test.ts` (each script against stand-ins for the page's
+globals: what is declined, what still reaches the browser, the three scripts together, the
+`Ctrl+P` keys, and the manifest with `match_origin_as_fallback`);
+`tests/environment-browser.test.ts` (the files written next to the profile). Checked live on
+2026-11-14 with the extension written from this revision, in a Chrome for Testing 156 of its own
+(own display, port and temporary profile): every row of the table, from a click sent as the hub
+sends it, with a later click reaching the page each time and no new window or `chrome://print`
+target. On Stripe's public demo in test mode (`checkout.stripe.dev`), the page renders the same
+with and without this addendum (Checkout: Apple Pay and the card; the Express Checkout Element:
+Link and Amazon Pay). Stripe offered Google Pay to neither, because the profile has no Google
+account, so the hidden Google Pay button itself was seen only on the test page. Stripe's Apple
+Pay button in Chrome is Stripe's own, not a Payment Request, and stays; the demo's button does
+nothing on a click, so what it opens on a real checkout was not checked.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public

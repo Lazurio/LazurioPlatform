@@ -2794,6 +2794,312 @@ test("the extension declines passkeys and leaves other credentials alone", async
   );
 });
 
+/** Runs one of the extension's scripts of the page's world against a scope
+ * that stands for the page's globals. */
+const runPageScript = (name: string, scope: object) =>
+  new Function(
+    "globalThis",
+    "window",
+    "DOMException",
+    browserExtensionFiles[name] as string,
+  )(scope, scope, DOMException);
+
+const reason = (promise: Promise<unknown>) =>
+  promise.then(
+    (value) => ({ resolved: value }),
+    (error: DOMException) => ({ name: error.name, message: error.message }),
+  );
+
+test("the extension declines payments through the browser: no payment app is ready and show() is refused", async () => {
+  const original: string[] = [];
+  class PaymentRequest {
+    static securePaymentConfirmationAvailability() {
+      original.push("spc");
+      return Promise.resolve("available");
+    }
+    canMakePayment() {
+      original.push("canMakePayment");
+      return Promise.resolve(true);
+    }
+    hasEnrolledInstrument() {
+      original.push("hasEnrolledInstrument");
+      return Promise.resolve(true);
+    }
+    show() {
+      original.push("show");
+      return Promise.resolve({ methodName: "https://google.com/pay" });
+    }
+    abort() {
+      original.push("abort");
+      return Promise.resolve();
+    }
+  }
+  runPageScript("payment.js", { PaymentRequest });
+  const request = new PaymentRequest();
+  expect(await request.canMakePayment()).toBe(false);
+  expect(await request.hasEnrolledInstrument()).toBe(false);
+  const shown = await reason(request.show());
+  expect(shown).toMatchObject({ name: "NotSupportedError" });
+  expect((shown as { message: string }).message).toContain(
+    "Choose another way to pay",
+  );
+  expect(await PaymentRequest.securePaymentConfirmationAvailability()).toBe(
+    "unavailable-feature-not-enabled",
+  );
+  // What does not open a window stays the browser's.
+  await request.abort();
+  expect(original).toEqual(["abort"]);
+});
+
+test("the extension's payment script adds nothing a browser does not have", () => {
+  // No Payment Request at all: nothing to do, nothing thrown.
+  expect(() => runPageScript("payment.js", {})).not.toThrow();
+  // A browser without hasEnrolledInstrument or Secure Payment Confirmation
+  // gets neither.
+  class PaymentRequest {
+    canMakePayment() {
+      return Promise.resolve(true);
+    }
+    show() {
+      return Promise.resolve({});
+    }
+  }
+  runPageScript("payment.js", { PaymentRequest });
+  expect("hasEnrolledInstrument" in PaymentRequest.prototype).toBe(false);
+  expect("securePaymentConfirmationAvailability" in PaymentRequest).toBe(false);
+});
+
+/** What the window script reads of a key event. */
+type KeyLike = {
+  key: string;
+  code: string;
+  keyCode: number;
+  ctrlKey: boolean;
+  shiftKey: boolean;
+  altKey: boolean;
+  preventDefault: () => void;
+};
+
+/** The page's globals as Chrome 156 has them, each recording what reached
+ * the browser itself. */
+function chromeGlobals() {
+  const original: string[] = [];
+  const listeners: {
+    type: string;
+    listener: (event: KeyLike) => void;
+    capture: boolean;
+  }[] = [];
+  class MediaDevices {
+    getDisplayMedia() {
+      original.push("getDisplayMedia");
+      return Promise.resolve("display");
+    }
+    getUserMedia() {
+      original.push("getUserMedia");
+      return Promise.resolve("camera");
+    }
+  }
+  class CredentialsContainer {
+    get(options: unknown) {
+      original.push(`get ${JSON.stringify(options)}`);
+      return Promise.resolve("credential");
+    }
+    create(options: unknown) {
+      original.push(`create ${JSON.stringify(options)}`);
+      return Promise.resolve("created");
+    }
+  }
+  const DigitalCredential = {
+    userAgentAllowsProtocol: (_protocol: string) => true,
+  };
+  class USB {
+    requestDevice() {
+      original.push("usb");
+      return Promise.resolve("device");
+    }
+    getDevices() {
+      original.push("usb getDevices");
+      return Promise.resolve([]);
+    }
+  }
+  class Serial {
+    requestPort() {
+      original.push("serial");
+      return Promise.resolve("port");
+    }
+  }
+  class HID {
+    requestDevice() {
+      original.push("hid");
+      return Promise.resolve(["device"]);
+    }
+  }
+  class Bluetooth {
+    requestDevice() {
+      original.push("bluetooth");
+      return Promise.resolve("device");
+    }
+  }
+  class EyeDropper {
+    open() {
+      original.push("eyedropper");
+      return Promise.resolve({ sRGBHex: "#000000" });
+    }
+  }
+  const scope = {
+    print: () => original.push("print"),
+    addEventListener: (
+      type: string,
+      listener: (event: KeyLike) => void,
+      capture?: boolean,
+    ) => listeners.push({ type, listener, capture: capture === true }),
+    MediaDevices,
+    CredentialsContainer,
+    DigitalCredential,
+    USB,
+    Serial,
+    HID,
+    Bluetooth,
+    EyeDropper,
+  };
+  return { original, listeners, scope };
+}
+
+test("the extension answers Chrome's windows over the page as a person's close, and leaves the rest to the browser", async () => {
+  const { original, listeners, scope } = chromeGlobals();
+  runPageScript("sheets.js", scope);
+  const { MediaDevices, CredentialsContainer, USB, Serial, HID } = scope;
+  const { Bluetooth, EyeDropper, DigitalCredential } = scope;
+
+  // The print preview: print() does nothing.
+  scope.print();
+
+  // A screen to share is refused; a camera is the browser's (no window).
+  const devices = new MediaDevices();
+  expect(await reason(devices.getDisplayMedia())).toMatchObject({
+    name: "NotAllowedError",
+  });
+  expect(await devices.getUserMedia()).toBe("camera");
+
+  // A sign-in through an identity provider's button, FedCM's active mode
+  // (once "button"), ends as when a person closes Chrome's dialog: Chrome 156
+  // gives the page NetworkError "Error retrieving a token." then.
+  const credentials = new CredentialsContainer();
+  const provider = { configURL: "https://idp.example/fedcm.json" };
+  for (const mode of ["active", "button"])
+    expect(
+      await reason(
+        credentials.get({ identity: { mode, providers: [provider] } }),
+      ),
+    ).toEqual({ name: "NetworkError", message: "Error retrieving a token." });
+  // FedCM's passive mode shows a corner that leaves the page usable: the
+  // browser's.
+  expect(await credentials.get({ identity: { providers: [provider] } })).toBe(
+    "credential",
+  );
+  // A digital wallet is refused, both ways; a password stays the browser's.
+  const digital = { digital: { requests: [] } };
+  expect(await reason(credentials.get(digital))).toMatchObject({
+    name: "NotAllowedError",
+  });
+  expect(await reason(credentials.create(digital))).toMatchObject({
+    name: "NotAllowedError",
+  });
+  expect(DigitalCredential.userAgentAllowsProtocol("openid4vp-v1")).toBe(false);
+  expect(await credentials.get({ password: true })).toBe("credential");
+
+  // A device to choose: an empty choice, as when a person closes the
+  // chooser. Devices already granted are the browser's.
+  expect(await reason(new USB().requestDevice())).toMatchObject({
+    name: "NotFoundError",
+  });
+  expect(await reason(new Serial().requestPort())).toMatchObject({
+    name: "NotFoundError",
+  });
+  expect(await new HID().requestDevice()).toEqual([]);
+  expect(await reason(new Bluetooth().requestDevice())).toMatchObject({
+    name: "NotFoundError",
+  });
+  await new USB().getDevices();
+
+  // The eyedropper: cancelled.
+  expect(await reason(new EyeDropper().open())).toMatchObject({
+    name: "AbortError",
+  });
+
+  expect(original).toEqual([
+    "getUserMedia",
+    `get ${JSON.stringify({ identity: { providers: [provider] } })}`,
+    `get {"password":true}`,
+    "usb getDevices",
+  ]);
+  expect(listeners.map(({ type, capture }) => ({ type, capture }))).toEqual([
+    { type: "keydown", capture: true },
+  ]);
+});
+
+test("the extension keeps Ctrl+P (and the view's Cmd+P) from Chrome's print preview, and every other key from nothing", () => {
+  const { listeners, scope } = chromeGlobals();
+  runPageScript("sheets.js", scope);
+  const keydown = listeners.find(({ type }) => type === "keydown");
+  // Bun has no KeyboardEvent: the fields the script reads, as Chrome sets
+  // them, and the one method it calls.
+  const press = (init: {
+    key: string;
+    code: string;
+    ctrlKey?: boolean;
+    shiftKey?: boolean;
+    altKey?: boolean;
+  }) => {
+    let prevented = false;
+    keydown?.listener({
+      ctrlKey: false,
+      shiftKey: false,
+      altKey: false,
+      keyCode: init.code === "KeyP" ? 80 : 0,
+      ...init,
+      preventDefault: () => {
+        prevented = true;
+      },
+    });
+    return prevented;
+  };
+  expect(press({ key: "p", code: "KeyP", ctrlKey: true })).toBe(true);
+  // With Shift, Chrome's system print dialog; another layout's letter on the
+  // same key still has its code.
+  expect(press({ key: "P", code: "KeyP", ctrlKey: true, shiftKey: true })).toBe(
+    true,
+  );
+  expect(press({ key: "з", code: "KeyP", ctrlKey: true })).toBe(true);
+  expect(press({ key: "p", code: "KeyP" })).toBe(false);
+  expect(press({ key: "o", code: "KeyO", ctrlKey: true })).toBe(false);
+  // AltGr is Ctrl+Alt on Linux: a character, not a shortcut.
+  expect(press({ key: "p", code: "KeyP", ctrlKey: true, altKey: true })).toBe(
+    false,
+  );
+});
+
+test("the extension's passkey, payment and window scripts run together: each declines its own and leaves the others' to the browser", async () => {
+  const { original, scope } = chromeGlobals();
+  const page = { ...scope, PublicKeyCredential: undefined };
+  runPageScript("webauthn.js", page);
+  runPageScript("payment.js", page);
+  runPageScript("sheets.js", page);
+  const credentials = new scope.CredentialsContainer();
+  expect(
+    await reason(
+      credentials.get({ publicKey: { challenge: new Uint8Array(1) } }),
+    ),
+  ).toMatchObject({ name: "NotAllowedError" });
+  expect(
+    await reason(
+      credentials.get({ identity: { mode: "active", providers: [] } }),
+    ),
+  ).toMatchObject({ name: "NetworkError" });
+  expect(await credentials.get({ password: true })).toBe("credential");
+  expect(original).toEqual([`get {"password":true}`]);
+});
+
 test("the extension turns Chrome's own context menu off even when the page stops the event, and the page's own menu still opens", () => {
   // A small model of DOM dispatch on one target under the window: capture
   // listeners of the window first, then the target's, then the window's
@@ -2875,19 +3181,33 @@ test("the extension is written next to the profile and only when it differs", as
     permissions?: unknown;
     content_scripts: { js: string[]; world?: string; run_at: string }[];
   };
-  // No permission at all, and the passkey script runs before the page.
+  // No permission at all, and the passkey, payment and window scripts run
+  // in the page's world before the page, in every frame: also one made from
+  // a blob: or data: address, where a page can print or pay as well
+  // (measured on Chrome 156: such a frame printed without the fallback).
   expect(manifest.permissions).toBeUndefined();
   expect(manifest.content_scripts[0]).toMatchObject({
-    js: ["webauthn.js"],
+    js: ["webauthn.js", "payment.js", "sheets.js"],
     world: "MAIN",
     run_at: "document_start",
+    all_frames: true,
+    match_about_blank: true,
+    match_origin_as_fallback: true,
   });
   // The menu script runs in the extension's own world, at the start too.
   expect(manifest.content_scripts[1]).toMatchObject({
     js: ["menu.js"],
     run_at: "document_start",
+    all_frames: true,
+    match_origin_as_fallback: true,
   });
   expect(manifest.content_scripts[1]?.world).toBeUndefined();
+  // Every script the manifest names is written.
+  expect(manifest.content_scripts.flatMap(({ js }) => js).sort()).toEqual(
+    Object.keys(browserExtensionFiles)
+      .filter((name) => name.endsWith(".js") && name !== "background.js")
+      .sort(),
+  );
 });
 
 test("serve takes exactly a loopback port and an origin", () => {
