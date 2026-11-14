@@ -28,7 +28,7 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
       "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
       "manual/this-machine.md": "2a369f77eba8c591f3bbd59a65de4c10a607b21366069dc6610b947cbd16fb83",
       "manual/troubleshooting.md": "3053df5967d19ae2f92fea943d6bcc1c7178c0c5f172d2630e7149ef177ea092",
-      "manual/working-here.md": "8b11eb7dbb2b07eac2d03094d685ec5a6c59b00672ecdb148d81332a4684a423",
+      "manual/working-here.md": "7ceeb28f6762e84703054e4d147b99bbb813565e5d1afceaa7bb4e886ff886c4",
     },
     "en": {
       ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -49,7 +49,7 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
       "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
       "manual/this-machine.md": "4cb772159924c898f1a0ac743188ca64b857985e1a66fc5a79285fe3c6e9fa6a",
       "manual/troubleshooting.md": "d0c19a83c89cdd6d68c43794accf5f48f4060313c9885c37a81c95bcbccc1820",
-      "manual/working-here.md": "9d057db01616b21ab324810ff7afefd9d7dad4fa340ef7e744021a505d440991",
+      "manual/working-here.md": "52ad7399d599eb5d43f296bc0b5a82e33b8ccb3b657ae82877eb33bad18f8d4d",
     },
   },
   "githubIdentity": "own-sign-in",
@@ -166,7 +166,7 @@ exports[`golden: team-01, a Team Environment with the broker renders, derives, o
       "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
       "manual/this-machine.md": "51972a6946e464d794014cccce18f857c5471f06033c54c9ab4e037e7f9c7268",
       "manual/troubleshooting.md": "22803b8a19346bb7cb4c8793a0219e4dadfa3973d821beb6481a7825f2e53bc9",
-      "manual/working-here.md": "41b9858f876a097e475ed52bc7c6ad40a84f6b28ca04a6281ab7fc24ecff318c",
+      "manual/working-here.md": "d96c732ba91d1f727c77582be6975d3c41fd643eb88c03a41ba771220591f2f7",
     },
     "en": {
       ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -187,7 +187,7 @@ exports[`golden: team-01, a Team Environment with the broker renders, derives, o
       "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
       "manual/this-machine.md": "3f71573b2d16e546ac0b0d0915efbfced01ae5153e993d7fb0658875f4b747c4",
       "manual/troubleshooting.md": "3c7a88c65feddfb33a7502823d3281c1a037e3e904ba1734e1d0b10dc487fb1a",
-      "manual/working-here.md": "7bfbe5cf87b6b7f941da1b404467e17a39778dc173bc64206e5e37f7c70fd0e9",
+      "manual/working-here.md": "c4f56b45bfa33a6061ad6c03a5d4b8bb001a5d143546e741771fea2954bde9c9",
     },
   },
   "githubIdentity": "brokered-organization",
@@ -304,7 +304,7 @@ exports[`golden: services-01, the services Environment of a server renders, deri
       "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
       "manual/this-machine.md": "8ec3fc284a2eb7bf9dd034918d4357e4ff23b2a90f3911f00c9d79933432b14b",
       "manual/troubleshooting.md": "22803b8a19346bb7cb4c8793a0219e4dadfa3973d821beb6481a7825f2e53bc9",
-      "manual/working-here.md": "41b9858f876a097e475ed52bc7c6ad40a84f6b28ca04a6281ab7fc24ecff318c",
+      "manual/working-here.md": "d96c732ba91d1f727c77582be6975d3c41fd643eb88c03a41ba771220591f2f7",
     },
     "en": {
       ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -325,7 +325,7 @@ exports[`golden: services-01, the services Environment of a server renders, deri
       "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
       "manual/this-machine.md": "fa953a6470a7374bca6d920f0b31d2a022b7d373c68dffe285123fc8e7a0f06a",
       "manual/troubleshooting.md": "3c7a88c65feddfb33a7502823d3281c1a037e3e904ba1734e1d0b10dc487fb1a",
-      "manual/working-here.md": "7bfbe5cf87b6b7f941da1b404467e17a39778dc173bc64206e5e37f7c70fd0e9",
+      "manual/working-here.md": "c4f56b45bfa33a6061ad6c03a5d4b8bb001a5d143546e741771fea2954bde9c9",
     },
   },
   "githubIdentity": "brokered-organization",
@@ -442,7 +442,7 @@ exports[`golden: henry-01, a Steward Environment renders, derives, offers and is
       "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
       "manual/this-machine.md": "198cfe66a3de5f37478056584dc1a660b988a5002fca0447eda6551de03db257",
       "manual/troubleshooting.md": "3053df5967d19ae2f92fea943d6bcc1c7178c0c5f172d2630e7149ef177ea092",
-      "manual/working-here.md": "2222cc64d6e536d8827ca6d3711b889be9434520c82d4935fa4f6dafba84e899",
+      "manual/working-here.md": "dc864a22337a3c11f400438bf91aa21525681fefe3baf6a9cad074be70241053",
     },
     "en": {
       ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -463,7 +463,7 @@ exports[`golden: henry-01, a Steward Environment renders, derives, offers and is
       "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
       "manual/this-machine.md": "bb4084048c9ea9da63edae95b805f69ee17353a6f01dc18f0b2f82df9bb72c34",
       "manual/troubleshooting.md": "d0c19a83c89cdd6d68c43794accf5f48f4060313c9885c37a81c95bcbccc1820",
-      "manual/working-here.md": "61e4bbd08f5e6d85e63b343c06cc3bceaf4f87f8889f49ae3acaa2a0ccf6ceea",
+      "manual/working-here.md": "3a65f54ed659218400de902c80c9358fa7f99e659f8325b8ba1b0e2fcacbca84",
     },
   },
   "githubIdentity": "persona-account",
@@ -573,7 +573,7 @@ exports[`golden: try-01 recorded hosted-organization-personal renders as before 
     "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
     "manual/this-machine.md": "03484a86bb7594652ad68c15b533b1d563988513a52a0d00ab6c007b2e896675",
     "manual/troubleshooting.md": "3053df5967d19ae2f92fea943d6bcc1c7178c0c5f172d2630e7149ef177ea092",
-    "manual/working-here.md": "0be9c8f2b05e9c8fad27891ef28424b7deb81c34175a775d3efa5abd9668f681",
+    "manual/working-here.md": "958df7b181b7c767882a98bc922342a7139470b8fc229e5336dfe98e1f4ff35b",
   },
   "en": {
     ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -594,7 +594,7 @@ exports[`golden: try-01 recorded hosted-organization-personal renders as before 
     "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
     "manual/this-machine.md": "ff2150d0c9ed8a920f75cd2c5d2e4a4cf26f790ae032b4db30d2005c523d1220",
     "manual/troubleshooting.md": "d0c19a83c89cdd6d68c43794accf5f48f4060313c9885c37a81c95bcbccc1820",
-    "manual/working-here.md": "fb55ab6b205294ae3a460adb5400e643aa5af55f728d723b30d7c7f4c044bbd3",
+    "manual/working-here.md": "e74b8c47d5056a35b7b19bf7db744e11cf1e9a1a7dba613cbef0931af20b355d",
   },
 }
 `;
@@ -620,7 +620,7 @@ exports[`golden: try-01 recorded hosted-organization-personal with vault renders
     "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
     "manual/this-machine.md": "03484a86bb7594652ad68c15b533b1d563988513a52a0d00ab6c007b2e896675",
     "manual/troubleshooting.md": "3053df5967d19ae2f92fea943d6bcc1c7178c0c5f172d2630e7149ef177ea092",
-    "manual/working-here.md": "0be9c8f2b05e9c8fad27891ef28424b7deb81c34175a775d3efa5abd9668f681",
+    "manual/working-here.md": "958df7b181b7c767882a98bc922342a7139470b8fc229e5336dfe98e1f4ff35b",
   },
   "en": {
     ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -641,7 +641,7 @@ exports[`golden: try-01 recorded hosted-organization-personal with vault renders
     "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
     "manual/this-machine.md": "ff2150d0c9ed8a920f75cd2c5d2e4a4cf26f790ae032b4db30d2005c523d1220",
     "manual/troubleshooting.md": "d0c19a83c89cdd6d68c43794accf5f48f4060313c9885c37a81c95bcbccc1820",
-    "manual/working-here.md": "fb55ab6b205294ae3a460adb5400e643aa5af55f728d723b30d7c7f4c044bbd3",
+    "manual/working-here.md": "e74b8c47d5056a35b7b19bf7db744e11cf1e9a1a7dba613cbef0931af20b355d",
   },
 }
 `;
@@ -667,7 +667,7 @@ exports[`golden: try-01 recorded hosted-organization-team renders as before 1`] 
     "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
     "manual/this-machine.md": "2546a8c429940a3234889bca2917a4b4c2c20e954542911e1ab6f5d7331a4e48",
     "manual/troubleshooting.md": "22803b8a19346bb7cb4c8793a0219e4dadfa3973d821beb6481a7825f2e53bc9",
-    "manual/working-here.md": "e7fe3235f8c04584def86cdd82b40ad14dc3f2270d4220a7b78ffbb39c65e78b",
+    "manual/working-here.md": "60b379c578d421ea8a726dc68a3b10a3c4c8ea23b840c7f3c8d91060bca4e3d2",
   },
   "en": {
     ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -688,7 +688,7 @@ exports[`golden: try-01 recorded hosted-organization-team renders as before 1`] 
     "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
     "manual/this-machine.md": "e3206903e390a81368760ecc22395d80ba4c2c4d24a3ddbe49958f57af3c9ccb",
     "manual/troubleshooting.md": "3c7a88c65feddfb33a7502823d3281c1a037e3e904ba1734e1d0b10dc487fb1a",
-    "manual/working-here.md": "a5e99ff74c8b5fa6508e38bdbb46f69f445e8c93a39c1eccc057c4d0c173b71a",
+    "manual/working-here.md": "cb40532ee1dc254f29d7a5d0db8be828836ea1428227388902faef22e6e4ce41",
   },
 }
 `;
@@ -714,7 +714,7 @@ exports[`golden: try-01 recorded hosted-organization-team with vault renders as 
     "manual/roles.md": "1b28a5695f6a8e6d3451d63b6596c5304fff73515a78f871a1b6bc763f031869",
     "manual/this-machine.md": "2546a8c429940a3234889bca2917a4b4c2c20e954542911e1ab6f5d7331a4e48",
     "manual/troubleshooting.md": "22803b8a19346bb7cb4c8793a0219e4dadfa3973d821beb6481a7825f2e53bc9",
-    "manual/working-here.md": "e7fe3235f8c04584def86cdd82b40ad14dc3f2270d4220a7b78ffbb39c65e78b",
+    "manual/working-here.md": "60b379c578d421ea8a726dc68a3b10a3c4c8ea23b840c7f3c8d91060bca4e3d2",
   },
   "en": {
     ".agents/skills/admin-request/SKILL.md": "92fa0f897b089ae797747e65abb397a84cf91275183b30cb5e86793ffba5df1f",
@@ -735,7 +735,7 @@ exports[`golden: try-01 recorded hosted-organization-team with vault renders as 
     "manual/roles.md": "0abbe7dbe82e81d1f13ad1ce7390fcc26ad4d8a54a395b6bc3804ea981ee1687",
     "manual/this-machine.md": "e3206903e390a81368760ecc22395d80ba4c2c4d24a3ddbe49958f57af3c9ccb",
     "manual/troubleshooting.md": "3c7a88c65feddfb33a7502823d3281c1a037e3e904ba1734e1d0b10dc487fb1a",
-    "manual/working-here.md": "a5e99ff74c8b5fa6508e38bdbb46f69f445e8c93a39c1eccc057c4d0c173b71a",
+    "manual/working-here.md": "cb40532ee1dc254f29d7a5d0db8be828836ea1428227388902faef22e6e4ce41",
   },
 }
 `;
