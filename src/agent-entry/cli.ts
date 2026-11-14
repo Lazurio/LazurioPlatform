@@ -183,6 +183,8 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
       "The Environment browser did not open a window. The hand-over was not used and expires within a minute.",
     "bind-failed":
       "A window opened at the hand-over, but agent-browser did not bind the session to it.",
+    "binding-unverified":
+      "The thread's session is not bound to a window it can verify: a failed binding left its agent-browser running, or its binding could not be checked or removed, so the binding may name another agent's tab, and nothing more is opened through it. The hand-over expires within a minute.",
     "navigate-failed":
       "agent-browser did not open the hand-over in the thread's window. The hand-over expires within a minute.",
   },
@@ -252,6 +254,8 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
       "Prohlížeč Prostředí neotevřel okno. Předání se nepoužilo a do minuty vyprší.",
     "bind-failed":
       "Okno s předáním se otevřelo, ale agent-browser k němu sezení nepřipojil.",
+    "binding-unverified":
+      "Sezení vlákna není připojené k oknu, které jde ověřit: nepovedené připojení nechalo jeho agent-browser běžet, nebo jeho vazbu nešlo ověřit či smazat, takže vazba může ukazovat na záložku jiného agenta a nic dalšího se přes ni neotevře. Předání do minuty vyprší.",
     "navigate-failed":
       "agent-browser předání v okně vlákna neotevřel. Předání do minuty vyprší.",
   },
@@ -287,6 +291,7 @@ function nextSteps(
     case "browser-unreachable":
     case "window-create-failed":
     case "bind-failed":
+    case "binding-unverified":
     case "navigate-failed":
       return [again];
     case "relay-answer-invalid":

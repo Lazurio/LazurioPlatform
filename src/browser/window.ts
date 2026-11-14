@@ -41,7 +41,12 @@ import { browserCdpPort } from "./units";
  * agent-browser's probe within its 3 + 10 s, leaves the session bound to
  * another agent's tab, which `window` would then hand out and T3 Code would
  * take into the thread's strip. Such a session is let go as `done` lets go of
- * one, and the binding the failure left is removed (`releaseFailedBinding`). */
+ * one, and the binding the failure left is removed once its daemon has ended
+ * (`releaseBinding`). Until then the binding is not believed at all: the
+ * session is marked unverified before the first command and stays so until
+ * the binding is read back after commands that answered, or its daemon has
+ * ended and the binding is settled (Pablo's review of #986, `markUnverified`,
+ * `settleUnverified`). */
 
 export type CdpCall = (
   method: string,
@@ -89,6 +94,11 @@ export class BrowserWindowFailure extends Error {
       | "browser-unreachable"
       | "window-create-failed"
       | "bind-failed"
+      // The session's binding cannot be verified (Pablo's review of #986):
+      // a failed binding left its daemon running, or its binding could not
+      // be removed, so the binding may name another agent's tab. Nothing is
+      // opened through the session until that is settled.
+      | "binding-unverified"
       // `openInThreadWindow`: agent-browser did not open the address in the
       // thread's bound window.
       | "navigate-failed",
@@ -200,6 +210,106 @@ async function readWindowRecord(
   }
 }
 
+// ---- A binding Lazurio has not verified (Pablo's review of #986) -------------
+//
+// agent-browser records a session's tab in `<session>.target` after every
+// command, a failed one too, and a command that did not answer in time goes
+// on and records its tab when it ends, however late (#974). So from the first
+// command of a binding until Lazurio has read the binding back after commands
+// that answered, or until the session's daemon has ended, the binding is no
+// evidence of the session's window. `bindSession` marks the session before
+// its first command, in a file of Lazurio's own beside the window records:
+// `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json`, with the tabs
+// the binding may keep naming (the one asked for, the one bound before). A
+// `window` killed meanwhile leaves the mark too. While it is there, `window`,
+// `apps open` and `browser open` never take the binding as the session's
+// window: they settle it first (`settleUnverified`), and when its daemon has
+// not ended or the binding cannot be removed they fail and run no command in
+// the session. `tabs` and `done --all` never count such a session as a
+// confirmed window of the thread. agent-browser's own files are never
+// changed but for removing a binding, its own way to reset one.
+
+/** Where `lazurio browser window` marks a session's binding as not verified,
+ * one file per session, beside the window records. Undefined without an
+ * absolute runtime directory, which an Environment always has (F50 point 2):
+ * then nothing is marked, and a binding left unverified is reported but
+ * cannot be remembered past the call. */
+export function unverifiedBindingDirectory(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "lazurio-browser", "unverified")
+    : undefined;
+}
+
+const unverifiedSchema = "lazurio.browser-unverified-binding.v1";
+
+/** The tabs a session's binding may keep naming once its daemon has ended:
+ * the one the binding asked for and the one it named before. Anything else
+ * the daemon left there is removed. */
+type KeptBinding = Readonly<{ targetId: string | null; before: string | null }>;
+
+/** A session's mark: none, the mark, or one that is there but cannot be read
+ * (`unknown`, which settles nothing and keeps the session unverified). A
+ * mark whose text is not a mark of this session keeps no tab. */
+async function readUnverified(
+  directory: string | undefined,
+  session: string,
+): Promise<KeptBinding | "none" | "unknown"> {
+  if (directory === undefined || !isStrip(session)) return "none";
+  let text: string;
+  try {
+    text = await readFile(join(directory, `${session}.json`), "utf8");
+  } catch (error) {
+    // No file, or no directory there to hold one: no mark.
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" || code === "ENOTDIR" ? "none" : "unknown";
+  }
+  try {
+    const value = JSON.parse(text) as Record<string, unknown> | null;
+    if (value?.schema === unverifiedSchema && value.session === session)
+      return Object.freeze({
+        targetId: targetIdOf(value.targetId),
+        before: targetIdOf(value.before),
+      });
+  } catch {}
+  return Object.freeze({ targetId: null, before: null });
+}
+
+/** Marks the session's binding as not verified, owner-only and atomically.
+ * False when it could not be written. */
+async function markUnverified(
+  directory: string,
+  session: string,
+  kept: KeptBinding,
+): Promise<boolean> {
+  if (!isStrip(session)) return false;
+  try {
+    await replaceOwnerFile(
+      join(directory, `${session}.json`),
+      `${JSON.stringify({ schema: unverifiedSchema, session, ...kept })}\n`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Removes the session's mark; true once it is gone. */
+async function clearUnverified(
+  directory: string | undefined,
+  session: string,
+): Promise<boolean> {
+  if (directory === undefined || !isStrip(session)) return true;
+  try {
+    await rm(join(directory, `${session}.json`), { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** The tab a session's binding names (`<session>.target`, C7); null when
  * there is none or it cannot be read. */
 async function bindingOf(
@@ -262,10 +372,16 @@ export async function sessionHoldMayRemain(
 
 /** Why a window of a thread is not confirmed as the thread's: its record
  * cannot be read or is no record of it (`unreadable`: it names no thread, so
- * the window may be any thread's), its binding no longer names the tab it
- * was recorded with (`rebound`), or the thread's own session was recorded
- * for another thread (`recorded-elsewhere`). */
-export type ThreadWindowDoubt = "unreadable" | "rebound" | "recorded-elsewhere";
+ * the window may be any thread's), its binding is not verified since a
+ * binding of `window` failed or did not finish, so it may name another
+ * agent's tab (`unverified`, Pablo's review of #986), its binding no longer
+ * names the tab it was recorded with (`rebound`), or the thread's own
+ * session was recorded for another thread (`recorded-elsewhere`). */
+export type ThreadWindowDoubt =
+  | "unreadable"
+  | "unverified"
+  | "rebound"
+  | "recorded-elsewhere";
 
 /** One window of a thread as agent-browser's files record it (C7): its
  * bound target, when its binding names one; whether its daemon runs (its
@@ -301,6 +417,8 @@ export type ThreadSession = Readonly<{
  *   remains and `done --all` succeed while it may still be held; every
  *   thread therefore sees it, as not confirmed, until its daemon has ended
  *   and its binding names no open tab.
+ * A session of the thread whose binding is marked unverified is never
+ * confirmed either (`unverified`): its binding may name another agent's tab.
  * No other session is read as the thread's: no record, or a record of
  * another thread, whatever its name. Empty where there is no socket
  * directory or it does not exist. */
@@ -334,6 +452,7 @@ export async function readThreadSessions(
     files.set(session, kinds);
   }
   const records = windowRecordDirectory(env);
+  const marks = unverifiedBindingDirectory(env);
   const sessions = [...files.keys()].sort((a, b) =>
     a.localeCompare(b, "en", { numeric: true }),
   );
@@ -349,16 +468,19 @@ export async function readThreadSessions(
         : null;
       const running =
         kinds.has("pid") && (await daemonMayRun(directory, session, alive));
+      const unverified = (await readUnverified(marks, session)) !== "none";
       const doubt: ThreadWindowDoubt | null =
         record === "unreadable"
           ? "unreadable"
-          : own
-            ? record === "none" || recorded
-              ? null
-              : "recorded-elsewhere"
-            : typeof record === "object" && record.targetId === targetId
-              ? null
-              : "rebound";
+          : unverified
+            ? "unverified"
+            : own
+              ? record === "none" || recorded
+                ? null
+                : "recorded-elsewhere"
+              : typeof record === "object" && record.targetId === targetId
+                ? null
+                : "rebound";
       return Object.freeze({
         session,
         targetId,
@@ -440,10 +562,12 @@ const commandTimeoutMs = 30_000;
 // How long a daemon busy with a command that did not answer in time is waited
 // for after it was asked to shut down (#974): as long as a command may take.
 const daemonEndMs = commandTimeoutMs;
-// Longer than one creation: a CDP call (10 s), two agent-browser commands (30 s
-// each) or, after a failed binding, one command, the daemon's shutdown (5 s)
-// and the wait for its end (#974).
-const windowLockTimeoutMs = 120_000;
+// Longer than one creation: settling an unverified binding first (one shutdown
+// asked, 5 s for its answer and 5 s for the daemon's end), a CDP call (15 s
+// with its endpoint), two agent-browser commands (30 s each) and, after a
+// failed binding, the wait for the daemon's end with its last shutdown (40 s)
+// (#974, Pablo's review of #986).
+const windowLockTimeoutMs = 150_000;
 
 /** One lock for every window check-and-create of this account: the CLI
  * (`lazurio browser window`) and the Launchpad's view (a T3 thread's panel)
@@ -544,7 +668,9 @@ async function underWindowLock<T>(
  * the window of `options.thread` (`recordThreadWindow`). Checked and created
  * under the account's window lock (`windowLockPath`). A window the session
  * has already is never recorded anew: a name another thread opened stays
- * that thread's. */
+ * that thread's. A binding marked unverified is settled first and never
+ * taken as the session's window; while it cannot be settled, this fails
+ * with `binding-unverified` and opens nothing. */
 export async function ensureThreadWindow(
   session: string,
   url: string | undefined,
@@ -585,24 +711,42 @@ async function readBinding(
   }
 }
 
+/** What a binding came to: `bound`, verified; `failed`, the session left
+ * where it was, on the tab asked for, or let go and its binding settled;
+ * `unverified`, a failure whose clean-up could not finish (its daemon has
+ * not ended, or the binding it left could not be removed), so the session's
+ * binding may still name, or come to name, another agent's tab. */
+type Binding = "bound" | "failed" | "unverified";
+
 /** Binds the session to the tab with agent-browser's own commands and pins
  * it with a command that changes nothing: its agent works there next, and an
  * app that follows the session's binding shows it (T3 Code records a tab its
- * thread's session newly binds, F47 point 4). True only when both commands
- * succeeded and the session's binding file then names the tab (#974). When
- * the binding fails and leaves the session on another tab than it was on
- * before, or when a command did not answer in time, the session is let go
- * (`releaseFailedBinding`), which keeps a binding to where it was before. A
- * session a failure that did answer left where it was (its own earlier
- * window, a binding to a tab that is gone) is left as it is, daemon and
- * all. */
+ * thread's session newly binds, F47 point 4). The session is marked
+ * unverified before the first command (`markUnverified`); when the mark
+ * cannot be written, no command runs and the binding fails. `bound` only
+ * when both commands succeeded and the session's binding file then names the
+ * tab (#974). After commands that answered, a binding that names the tab
+ * asked for or what it named before is verified, so the mark goes and a
+ * session such a failure left where it was (its own earlier window, a
+ * binding to a tab that is gone) is left as it is, daemon and all. A failure
+ * that left the session on another tab, or a command that did not answer in
+ * time, lets the session go and settles its binding (`releaseBinding`); the
+ * mark goes only once that is done, else the binding is `unverified`. The
+ * caller has settled any earlier mark (`settleUnverified`). */
 async function bindSession(
   session: string,
   targetId: string,
   seams: Pick<WindowSeams, "env" | "run" | "daemon" | "alive" | "endWithinMs">,
-): Promise<boolean> {
+): Promise<Binding> {
   const directory = agentBrowserSocketDirectory(seams.env);
+  const marks = unverifiedBindingDirectory(seams.env);
   const before = await readBinding(directory, session);
+  const kept: KeptBinding = {
+    targetId,
+    before: before === "none" || before === "unreadable" ? null : before,
+  };
+  if (marks !== undefined && !(await markUnverified(marks, session, kept)))
+    return "failed";
   const ok = (result: Awaited<ReturnType<ProcessRunner>> | null) =>
     result !== null && result !== "timeout" && result.exitCode === 0;
   const bound = await agentBrowser(seams, [
@@ -625,59 +769,102 @@ async function bindSession(
       ]).catch(() => "timeout" as const)
     : null;
   const after = await readBinding(directory, session);
-  if (ok(bound) && ok(pinned) && after === targetId) return true;
   // A command that did not answer in time is not over: its daemon goes on and
   // records its tab when it is done, after this reading (measured on 0.37:
   // the foreign tab 8 s after a timeout).
   const unanswered = bound === "timeout" || pinned === "timeout";
-  if (after !== targetId && (after !== before || unanswered))
-    await releaseFailedBinding(directory, session, targetId, before, seams);
-  return false;
+  const settled =
+    (!unanswered && (after === targetId || after === before)) ||
+    (await releaseBinding(
+      directory,
+      session,
+      kept,
+      seams,
+      seams.endWithinMs ?? daemonEndMs,
+    ));
+  if (!settled) return "unverified";
+  // Verified or settled, so the mark goes. A mark that cannot be removed
+  // keeps the session unverified for `tabs` until the next `window` settles
+  // it again, which keeps this binding.
+  await clearUnverified(marks, session);
+  return ok(bound) && ok(pinned) && after === targetId ? "bound" : "failed";
 }
 
-/** Lets go of a session whose binding to `targetId` failed and left it, or
- * may yet leave it, on another tab than it was on before (#974). Its daemon
- * is asked to shut down as `lazurio browser done` asks it
- * (`stopSessionDaemon`). One busy with the command that did not answer
- * records its tab when that command ends, and 0.37 drops a shutdown asked
- * meanwhile (0.43 takes it afterwards), so it is asked again until it has
- * ended, refused or `daemonEndMs` passed. Only then is the binding file
- * removed, unless it names `targetId` or what it named before:
- * agent-browser's own way to reset a session's binding (its errors say to
- * delete the file), which takes the session off the tab for `window`, the
- * hub and T3 Code. Never `close` or `tab close`, which would close the tab
- * for the agent and the people whose tab it is; the tab is left as it is. A
- * daemon still running after that may keep the tab as its own; the binding
- * goes all the same, and the next `window` binds the session to a window of
- * its own. */
-async function releaseFailedBinding(
+/** Lets go of a session whose binding failed or did not finish and left it,
+ * or may yet leave it, on another tab (#974). Its daemon is asked to shut
+ * down as `lazurio browser done` asks it (`stopSessionDaemon`). One busy with
+ * the command that did not answer records its tab when that command ends,
+ * and 0.37 drops a shutdown asked meanwhile (0.43 takes it afterwards), so it
+ * is asked again until it has ended, refused or `withinMs` passed. Only once
+ * it has ended, so that nothing can record a tab any more, is the binding
+ * file removed, unless it names a tab of `kept`: agent-browser's own way to
+ * reset a session's binding (its errors say to delete the file), which takes
+ * the session off the tab for `window`, the hub and T3 Code. Never `close`
+ * or `tab close`, which would close the tab for the agent and the people
+ * whose tab it is; the tab is left as it is. True when the daemon has ended
+ * and the binding is settled; false when the daemon may still run, which
+ * leaves the binding as it is, or when the binding could not be removed
+ * (Pablo's review of #986). */
+async function releaseBinding(
   directory: string | undefined,
   session: string,
-  targetId: string,
-  before: BindingReading,
-  seams: Pick<WindowSeams, "daemon" | "alive" | "endWithinMs">,
-): Promise<void> {
-  if (directory === undefined || !isStrip(session)) return;
+  kept: KeptBinding,
+  seams: Pick<WindowSeams, "daemon" | "alive">,
+  withinMs: number,
+): Promise<boolean> {
+  if (directory === undefined || !isStrip(session)) return false;
+  const alive = seams.alive ?? processAlive;
   const stop = () =>
     stopSessionDaemon(directory, session, seams.daemon).catch(
       () => "unconfirmed" as const,
     );
-  const deadline = Date.now() + (seams.endWithinMs ?? daemonEndMs);
+  const deadline = Date.now() + withinMs;
   let outcome = await stop();
   while (
     outcome !== "stopped" &&
     outcome !== "refused" &&
     Date.now() < deadline &&
-    (await daemonMayRun(directory, session, seams.alive ?? processAlive))
+    (await daemonMayRun(directory, session, alive))
   ) {
     await new Promise((resolve) => setTimeout(resolve, 250));
     outcome = await stop();
   }
+  if (await daemonMayRun(directory, session, alive)) return false;
   const now = await readBinding(directory, session);
-  if (now === "none" || now === targetId || now === before) return;
-  await rm(join(directory, `${session}.target`), { force: true }).catch(
-    () => undefined,
-  );
+  if (now === "none" || now === kept.targetId || now === kept.before)
+    return true;
+  try {
+    await rm(join(directory, `${session}.target`), { force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Settles a session marked unverified (`markUnverified`) before anything
+ * takes its binding as its window: its daemon is asked once more to shut
+ * down, and once it has ended, the binding it left is removed unless it names
+ * a tab the mark keeps, and the mark goes. `pending` while its daemon may
+ * run, or when its mark, its binding or the socket directory cannot be read
+ * or removed: the session's binding is then not believed and nothing runs in
+ * the session. `settled` at once without a mark. */
+async function settleUnverified(
+  session: string,
+  seams: Pick<WindowSeams, "env" | "daemon" | "alive">,
+): Promise<"settled" | "pending"> {
+  const marks = unverifiedBindingDirectory(seams.env);
+  const kept = await readUnverified(marks, session);
+  if (kept === "none") return "settled";
+  if (kept === "unknown") return "pending";
+  return (await releaseBinding(
+    agentBrowserSocketDirectory(seams.env),
+    session,
+    kept,
+    seams,
+    0,
+  )) && (await clearUnverified(marks, session))
+    ? "settled"
+    : "pending";
 }
 
 /** The default browser's page becomes the thread's window (root decision
@@ -686,15 +873,20 @@ async function releaseFailedBinding(
  * the same moment converges on it. The thread's earlier window stays as long
  * as something holds it. False when it could not be bound: the session then
  * stays on its earlier window, or, where the failure moved it to another tab,
- * is let go (`bindSession`), and the page stays open. */
+ * is let go (`bindSession`), and the page stays open. False too, with no
+ * command run in the session, while an earlier binding of it is not verified
+ * (`settleUnverified`). */
 export async function bindThreadWindow(
   session: string,
   targetId: string,
   seams: Pick<WindowSeams, "env" | "run" | "daemon" | "alive" | "endWithinMs">,
 ): Promise<boolean> {
   try {
-    return await underWindowLock(seams.env, () =>
-      bindSession(session, targetId, seams),
+    return await underWindowLock(
+      seams.env,
+      async () =>
+        (await settleUnverified(session, seams)) === "settled" &&
+        (await bindSession(session, targetId, seams)) === "bound",
     );
   } catch {
     return false;
@@ -749,6 +941,10 @@ async function ensureThreadWindowLocked(
   seams: WindowSeams,
   options: WindowOptions,
 ): Promise<ThreadWindow> {
+  // A binding that is not verified is never the session's window, and
+  // nothing runs in the session until it is settled.
+  if ((await settleUnverified(session, seams)) === "pending")
+    throw new BrowserWindowFailure("binding-unverified");
   let existing: string | null;
   try {
     existing = await boundTarget(session, seams);
@@ -763,11 +959,20 @@ async function ensureThreadWindowLocked(
       ? null
       : await threadPage(session, url, seams).catch(() => null);
   if (shown !== null) {
-    if (!(await bindSession(session, shown, seams)))
-      throw new BrowserWindowFailure("bind-failed");
+    bindingFailure(await bindSession(session, shown, seams));
     return Object.freeze({ session, targetId: shown, created: false });
   }
   return createThreadWindow(session, url, seams, options);
+}
+
+/** A binding that failed, as `window` fails: `bind-failed` when the session
+ * was left on no other tab, `binding-unverified` when that could not be
+ * verified (Pablo's review of #986). */
+function bindingFailure(binding: Binding): void {
+  if (binding === "bound") return;
+  throw new BrowserWindowFailure(
+    binding === "unverified" ? "binding-unverified" : "bind-failed",
+  );
 }
 
 /** A new window in the default context at `url`, bound to the session and
@@ -777,11 +982,12 @@ async function ensureThreadWindowLocked(
  * tab nobody holds or views, and `window` never closes it, as `done` never
  * does. A retry would start yet another daemon that takes the first live tab
  * of the browser as its own while the account's window lock keeps every
- * other thread waiting, and
- * the usual failure, a page that does not answer agent-browser's probe within
- * 13 s, would mostly repeat; the agent runs `window` again instead, and the
- * session, now bound to no other tab, gets a new window. Nothing is
- * recorded. */
+ * other thread waiting, and the usual failure, a page that does not answer
+ * agent-browser's probe within 13 s, would mostly repeat; the agent runs
+ * `window` again instead, and the session, now bound to no other tab, gets a
+ * new window. Nothing is recorded. Where the clean-up of the failure could
+ * not finish, `window` says so (`binding-unverified`) and the next one
+ * settles it before anything else. */
 async function createThreadWindow(
   session: string,
   url: string | undefined,
@@ -803,8 +1009,7 @@ async function createThreadWindow(
   }
   const targetId = targetIdOf(created);
   if (targetId === null) throw new BrowserWindowFailure("window-create-failed");
-  if (!(await bindSession(session, targetId, seams)))
-    throw new BrowserWindowFailure("bind-failed");
+  bindingFailure(await bindSession(session, targetId, seams));
   if (options.thread === undefined)
     return Object.freeze({ session, targetId, created: true });
   const recorded = await recordThreadWindow(seams.env, {
@@ -824,7 +1029,9 @@ async function createThreadWindow(
  * a page's link or form, which the hosting gateway's landing requires
  * (`Sec-Fetch-Site: none`). The address is opened exactly as given. A new
  * window is recorded as the window of `options.thread` when one is given
- * (`recordThreadWindow`). Under the account's window lock. */
+ * (`recordThreadWindow`). Under the account's window lock. A session whose
+ * binding is not verified gets nothing, and its bound tab is never navigated
+ * (`settleUnverified`, Pablo's review of #986). */
 export async function openInThreadWindow(
   session: string,
   url: string,
@@ -832,6 +1039,8 @@ export async function openInThreadWindow(
   options: WindowOptions = {},
 ): Promise<ThreadWindow> {
   return underWindowLock(seams.env, async () => {
+    if ((await settleUnverified(session, seams)) === "pending")
+      throw new BrowserWindowFailure("binding-unverified");
     let existing: string | null;
     try {
       existing = await boundTarget(session, seams);
