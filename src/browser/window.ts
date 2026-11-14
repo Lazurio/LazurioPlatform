@@ -1,4 +1,4 @@
-import { readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
@@ -6,10 +6,11 @@ import {
   agentBrowserSocketDirectory,
   holderDirectory,
   processAlive,
+  replaceOwnerFile,
 } from "./contract/node";
 import {
   browserBounds,
-  isThreadWindow,
+  isStrip,
   parseHolder,
   stripAppOf,
   targetIdOf,
@@ -52,7 +53,16 @@ export type ThreadWindow = Readonly<{
   targetId: string;
   /** False when the session's bound window was there already. */
   created: boolean;
+  /** With `thread` (`WindowOptions`), on a new window only: whether it was
+   * recorded as that thread's (`recordThreadWindow`). */
+  recorded?: boolean;
 }>;
+
+/** What opening a window records: the thread whose window it is (its
+ * identity, `threadSession` of its harness, or the session named when it has
+ * none). Absent: nothing is recorded, as for the Launchpad's panel, whose
+ * session is the T3 Code thread's own. */
+export type WindowOptions = Readonly<{ thread?: string | undefined }>;
 
 export class BrowserWindowFailure extends Error {
   constructor(
@@ -68,28 +78,204 @@ export class BrowserWindowFailure extends Error {
   }
 }
 
-/** One session of a thread as agent-browser's files record it (C7): its
- * bound target, when its binding names one, and whether its daemon runs
- * (its `.pid` names a running process, or cannot be read, which counts as
- * running as the hub counts it), or may be asked to stop (`.sock`). */
+// ---- A thread's windows (F38, addendum of 2026-11-14) -------------------------
+//
+// A session's name is no evidence of its thread (Pablo's review of #971):
+// session names are free, so `team-2` may be a further window of `team` or a
+// thread of its own. Only the thread that opened a window knows, so
+// `lazurio browser window` records it when it opens one, beside the holder
+// files: `$XDG_RUNTIME_DIR/lazurio-browser/windows/<session>.json`. Nothing
+// else holds this fact: agent-browser's binding names a session's tab, a
+// holder file the tabs a place keeps (T3 Code's `t3-<thread>.json` only the
+// tabs its thread's own session binds, F47 point 4), and a Codex or Claude
+// Code thread has no holder file at all. The hub never reads a record: it
+// changes no hold and no tab's life, only which windows `tabs`, `done
+// --all` and the note of `window` take as the thread's.
+
+/** Where `lazurio browser window` records which thread opened a window, one
+ * file per session. Beside the holder files in the runtime directory, so a
+ * record goes at a reboot as agent-browser's bindings there do. Undefined
+ * without an absolute runtime directory: nothing is recorded, and a thread's
+ * windows are its own session's only. */
+export function windowRecordDirectory(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "lazurio-browser", "windows")
+    : undefined;
+}
+
+const windowRecordSchema = "lazurio.browser-window.v1";
+
+/** What `lazurio browser window` records when it opens a window: the
+ * session, the thread whose window it is, and the tab it bound the session
+ * to. */
+export type WindowRecord = Readonly<{
+  session: string;
+  thread: string;
+  targetId: string;
+}>;
+
+/** Records which thread opened the session's window, owner-only and
+ * atomically. False when it could not be recorded (no runtime directory, a
+ * name outside the grammar, a write that failed): the window then counts as
+ * the thread's only where its session is the thread's own. */
+export async function recordThreadWindow(
+  env: Readonly<Record<string, string | undefined>>,
+  record: WindowRecord,
+): Promise<boolean> {
+  const directory = windowRecordDirectory(env);
+  const targetId = targetIdOf(record.targetId);
+  if (
+    directory === undefined ||
+    targetId === null ||
+    !isStrip(record.session) ||
+    !isStrip(record.thread)
+  )
+    return false;
+  try {
+    await replaceOwnerFile(
+      join(directory, `${record.session}.json`),
+      `${JSON.stringify({
+        schema: windowRecordSchema,
+        session: record.session,
+        thread: record.thread,
+        targetId,
+      })}\n`,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A session's record: none, one that cannot be read or is no record of
+ * this session, or the record. */
+type RecordReading = WindowRecord | "none" | "unreadable";
+
+async function readWindowRecord(
+  directory: string | undefined,
+  session: string,
+): Promise<RecordReading> {
+  if (directory === undefined) return "none";
+  let text: string;
+  try {
+    text = await readFile(join(directory, `${session}.json`), "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? "none"
+      : "unreadable";
+  }
+  try {
+    const value = JSON.parse(text) as Record<string, unknown> | null;
+    const targetId = targetIdOf(value?.targetId);
+    return value?.schema === windowRecordSchema &&
+      value.session === session &&
+      isStrip(value.thread) &&
+      targetId !== null
+      ? Object.freeze({ session, thread: value.thread, targetId })
+      : "unreadable";
+  } catch {
+    return "unreadable";
+  }
+}
+
+/** The tab a session's binding names (`<session>.target`, C7); null when
+ * there is none or it cannot be read. */
+async function bindingOf(
+  directory: string,
+  session: string,
+): Promise<string | null> {
+  try {
+    return targetIdOf(
+      (
+        JSON.parse(
+          await readFile(join(directory, `${session}.target`), "utf8"),
+        ) as { targetId?: unknown } | null
+      )?.targetId,
+    );
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a session's daemon may still run, as the hub counts it
+ * (`readHolds`): its `.pid` names a running process, or cannot be read or
+ * understood. One that is gone, or names a process that ended, does not. */
+async function daemonMayRun(
+  directory: string,
+  session: string,
+  alive: (pid: number) => boolean,
+): Promise<boolean> {
+  let digits: string;
+  try {
+    digits = (await readFile(join(directory, `${session}.pid`), "utf8")).trim();
+  } catch (error) {
+    // Gone: not running. Anything else is unclear, and unclear runs.
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
+  }
+  const pid = /^[0-9]{1,10}$/.test(digits) ? Number(digits) : Number.NaN;
+  return !(Number.isSafeInteger(pid) && pid >= 2) || alive(pid);
+}
+
+/** Whether the hub may still count an agent as working in the session's
+ * window after nothing answered on its socket (`readHolds`, F47 point 5): a
+ * binding is there (read or not) and its daemon may run. A `.pid` naming a
+ * running process with a missing or refused socket is such a case: the
+ * window is not let go until that hold is gone. */
+export async function sessionHoldMayRemain(
+  env: Readonly<Record<string, string | undefined>>,
+  session: string,
+  alive: (pid: number) => boolean = processAlive,
+): Promise<boolean> {
+  const directory = agentBrowserSocketDirectory(env);
+  if (directory === undefined || !isStrip(session)) return false;
+  let bound: boolean;
+  try {
+    await access(join(directory, `${session}.target`));
+    bound = true;
+  } catch (error) {
+    bound = (error as NodeJS.ErrnoException).code !== "ENOENT";
+  }
+  return bound && (await daemonMayRun(directory, session, alive));
+}
+
+/** One window of a thread as agent-browser's files record it (C7): its
+ * bound target, when its binding names one; whether its daemon runs (its
+ * `.pid` names a running process, or cannot be read, which counts as running
+ * as the hub counts it) or may be asked to stop (`.sock`); and whether the
+ * thread's record confirms it as the thread's (`confirmed`). One that is not
+ * confirmed may be the thread's or not: `tabs` names it apart and `done
+ * --all` never lets go of it. */
 export type ThreadSession = Readonly<{
   session: string;
   targetId: string | null;
   running: boolean;
   socket: boolean;
+  confirmed: boolean;
 }>;
 
-/** The sessions of the thread's windows (`isThreadWindow`) that have any
- * of agent-browser's files, sorted by name with numbers in order. Another
- * thread's sessions are never read. Empty where there is no socket
- * directory or it does not exist. */
+/** The windows of the thread (its identity, `threadSession` of its harness,
+ * or the session named when it has none) that have any of agent-browser's
+ * files, sorted by name with numbers in order:
+ * - its own session, the one named by the thread itself: the thread's, and
+ *   confirmed unless a record says another thread opened it or cannot be
+ *   read;
+ * - a session `lazurio browser window` recorded for the thread: confirmed
+ *   while its binding names the tab it was opened with; when the binding
+ *   names another tab or none, the session is the thread's by its record
+ *   only, which may be stale, so it is not confirmed.
+ * No other session is read as the thread's: no record, a record of another
+ * thread, or one that cannot be read, whatever its name. Empty where there is
+ * no socket directory or it does not exist. */
 export async function readThreadSessions(
   thread: string,
   env: Readonly<Record<string, string | undefined>>,
   alive: (pid: number) => boolean = processAlive,
 ): Promise<readonly ThreadSession[]> {
   const directory = agentBrowserSocketDirectory(env);
-  if (directory === undefined) return [];
+  if (directory === undefined || !isStrip(thread)) return [];
   let names: string[];
   try {
     names = await readdir(directory);
@@ -105,53 +291,68 @@ export async function readThreadSessions(
     const kind = name.slice(dot + 1);
     if (
       (kind !== "target" && kind !== "pid" && kind !== "sock") ||
-      !isThreadWindow(thread, session)
+      !isStrip(session)
     )
       continue;
     const kinds = files.get(session) ?? new Set<string>();
     kinds.add(kind);
     files.set(session, kinds);
   }
+  const records = windowRecordDirectory(env);
   const sessions = [...files.keys()].sort((a, b) =>
     a.localeCompare(b, "en", { numeric: true }),
   );
-  return Promise.all(
-    sessions.map(async (session) => {
+  const read = await Promise.all(
+    sessions.map(async (session): Promise<ThreadSession | null> => {
+      const record = await readWindowRecord(records, session);
+      const own = session === thread;
+      const recorded = typeof record === "object" && record.thread === thread;
+      if (!own && !recorded) return null;
       const kinds = files.get(session) as Set<string>;
-      let targetId: string | null = null;
-      if (kinds.has("target"))
-        try {
-          targetId = targetIdOf(
-            (
-              JSON.parse(
-                await readFile(join(directory, `${session}.target`), "utf8"),
-              ) as { targetId?: unknown } | null
-            )?.targetId,
-          );
-        } catch {}
-      let running = false;
-      if (kinds.has("pid"))
-        try {
-          const digits = (
-            await readFile(join(directory, `${session}.pid`), "utf8")
-          ).trim();
-          const pid = /^[0-9]{1,10}$/.test(digits)
-            ? Number(digits)
-            : Number.NaN;
-          running = !(Number.isSafeInteger(pid) && pid >= 2) || alive(pid);
-        } catch (error) {
-          // Gone between the listing and the read: not running. Anything
-          // else is unclear, and unclear counts as running.
-          running = (error as NodeJS.ErrnoException).code !== "ENOENT";
-        }
+      const targetId = kinds.has("target")
+        ? await bindingOf(directory, session)
+        : null;
+      const running =
+        kinds.has("pid") && (await daemonMayRun(directory, session, alive));
+      const confirmed = own
+        ? record === "none" || recorded
+        : typeof record === "object" && record.targetId === targetId;
       return Object.freeze({
         session,
         targetId,
         running,
         socket: kinds.has("sock"),
+        confirmed,
       });
     }),
   );
+  return read.filter((entry): entry is ThreadSession => entry !== null);
+}
+
+/** Which thread a session named on purpose (`tabs --session`, `done --all
+ * --session`) is a window of: the thread its record names while the record
+ * confirms it (its binding names the recorded tab, or the record names the
+ * session itself), or the session itself, which names its own thread, when
+ * it has no record. `ambiguous` when its record cannot be read or no longer
+ * confirms it: then the thread cannot be told. */
+export async function threadOfSession(
+  session: string,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<
+  Readonly<{ kind: "thread"; thread: string }> | Readonly<{ kind: "ambiguous" }>
+> {
+  const record = await readWindowRecord(windowRecordDirectory(env), session);
+  if (record === "none")
+    return Object.freeze({ kind: "thread", thread: session });
+  if (record === "unreadable") return Object.freeze({ kind: "ambiguous" });
+  if (record.thread === session)
+    return Object.freeze({ kind: "thread", thread: session });
+  const directory = agentBrowserSocketDirectory(env);
+  const bound =
+    directory === undefined ? null : await bindingOf(directory, session);
+  return bound === record.targetId
+    ? Object.freeze({ kind: "thread", thread: record.thread })
+    : Object.freeze({ kind: "ambiguous" });
 }
 
 /** One window the thread's agent-browser still holds, with the address its
@@ -162,8 +363,8 @@ export type HeldThreadWindow = Readonly<{
   url: string;
 }>;
 
-/** The windows the thread still holds: the distinct open pages its running
- * sessions are bound to, each with the first of its sessions and its
+/** The windows the thread still holds: the distinct open pages its confirmed
+ * running sessions are bound to, each with the first of its sessions and its
  * address. No number limits them (decided on 2026-11-14): `lazurio browser
  * window` names them when it opens another, so the agent lets go of those it
  * no longer needs. A window let go (`done`, or agent-browser's idle timeout
@@ -178,9 +379,10 @@ export async function heldThreadWindows(
       ? new Map([...(await seams.targets())].map((id) => [id, ""]))
       : await seams.pages();
   const held = new Map<string, HeldThreadWindow>();
-  for (const { session, targetId, running } of sessions) {
+  for (const { session, targetId, running, confirmed } of sessions) {
     const url = targetId === null ? undefined : pages.get(targetId);
     if (
+      confirmed &&
       running &&
       targetId !== null &&
       url !== undefined &&
@@ -290,15 +492,19 @@ async function underWindowLock<T>(
 
 /** The session's window: the bound one while it is open, otherwise a new
  * window in the default context bound to the session, pinned, at the
- * thread window's size (which is also the view's viewport). Checked and
- * created under the account's window lock (`windowLockPath`). */
+ * thread window's size (which is also the view's viewport), and recorded as
+ * the window of `options.thread` (`recordThreadWindow`). Checked and created
+ * under the account's window lock (`windowLockPath`). A window the session
+ * has already is never recorded anew: a name another thread opened stays
+ * that thread's. */
 export async function ensureThreadWindow(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
+  options: WindowOptions = {},
 ): Promise<ThreadWindow> {
   return underWindowLock(seams.env, () =>
-    ensureThreadWindowLocked(session, url, seams),
+    ensureThreadWindowLocked(session, url, seams, options),
   );
 }
 
@@ -400,6 +606,7 @@ async function ensureThreadWindowLocked(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
+  options: WindowOptions,
 ): Promise<ThreadWindow> {
   let existing: string | null;
   try {
@@ -419,15 +626,17 @@ async function ensureThreadWindowLocked(
       throw new BrowserWindowFailure("bind-failed");
     return Object.freeze({ session, targetId: shown, created: false });
   }
-  return createThreadWindow(session, url, seams);
+  return createThreadWindow(session, url, seams, options);
 }
 
 /** A new window in the default context at `url`, bound to the session and
- * pinned (`ensureThreadWindow`). */
+ * pinned (`ensureThreadWindow`), and recorded as the window of
+ * `options.thread` when one is given. */
 async function createThreadWindow(
   session: string,
   url: string | undefined,
   seams: WindowSeams,
+  options: WindowOptions,
 ): Promise<ThreadWindow> {
   let created: unknown;
   try {
@@ -446,7 +655,14 @@ async function createThreadWindow(
   if (targetId === null) throw new BrowserWindowFailure("window-create-failed");
   if (!(await bindSession(session, targetId, seams)))
     throw new BrowserWindowFailure("bind-failed");
-  return Object.freeze({ session, targetId, created: true });
+  if (options.thread === undefined)
+    return Object.freeze({ session, targetId, created: true });
+  const recorded = await recordThreadWindow(seams.env, {
+    session,
+    thread: options.thread,
+    targetId,
+  });
+  return Object.freeze({ session, targetId, created: true, recorded });
 }
 
 /** A page the thread opens in its own window (a colleague's application
@@ -456,12 +672,14 @@ async function createThreadWindow(
  * browser's own `open` navigates it there. Both are navigations the browser
  * starts itself (DevTools' `Target.createTarget` and `Page.navigate`), never
  * a page's link or form, which the hosting gateway's landing requires
- * (`Sec-Fetch-Site: none`). The address is opened exactly as given. Under
- * the account's window lock. */
+ * (`Sec-Fetch-Site: none`). The address is opened exactly as given. A new
+ * window is recorded as the window of `options.thread` when one is given
+ * (`recordThreadWindow`). Under the account's window lock. */
 export async function openInThreadWindow(
   session: string,
   url: string,
   seams: WindowSeams,
+  options: WindowOptions = {},
 ): Promise<ThreadWindow> {
   return underWindowLock(seams.env, async () => {
     let existing: string | null;
@@ -470,7 +688,8 @@ export async function openInThreadWindow(
     } catch {
       throw new BrowserWindowFailure("browser-unreachable");
     }
-    if (existing === null) return createThreadWindow(session, url, seams);
+    if (existing === null)
+      return createThreadWindow(session, url, seams, options);
     const opened = await agentBrowser(seams, [
       "--session",
       session,

@@ -670,6 +670,10 @@ export async function runAppsCommand(
         session,
         handOver.url,
         context.windowSeams ?? cdpSeams(context.env, context.run ?? runProcess),
+        // A new window is recorded as the calling thread's, so `lazurio
+        // browser tabs` and `done --all` take it (F38, addendum of
+        // 2026-11-14).
+        { thread: threadSession(undefined, context.env) ?? session },
       );
     } catch (error) {
       if (error instanceof BrowserWindowFailure)

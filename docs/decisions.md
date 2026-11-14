@@ -11824,39 +11824,69 @@ lets go of one session's window while nothing said which of `<session>`, `<sessi
 the thread still held. In one thread an agent said it would close its tabs and did not,
 and the person lost their way among dozens of tabs.
 
-1. **A thread's windows.** They are its session's window and its further windows
-   `<session>-2` to `<session>-999` and `<session>-preview` (`threadOfWindow` and
-   `isThreadWindow`, C2): `t3-a-2` is `t3-a`'s, while `t3-a-02`, `t3-a-1`, `t3-a-1000` and
-   the last group of a UUID are names of their own. No other name is taken apart.
+1. **A thread's windows, by record, never by name.** A session's name is no evidence of its
+   thread: names are free, so `team-2` may be a window of `team` or a thread of its own, and
+   reading `-2` as a further window let one thread list and let go of another's (Pablo's
+   review of this pull request). A thread's windows are its own session (the one its
+   harness names, `threadSession`) and the windows `lazurio browser window` and `lazurio
+   apps open` opened for it. On creating a window they record the calling thread's identity
+   (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` or `CLAUDE_CODE_SESSION_ID`, else the session
+   named) with the session and the tab it bound, in
+   `$XDG_RUNTIME_DIR/lazurio-browser/windows/<session>.json` (mode 0600, replaced
+   atomically, gone at a reboot like agent-browser's bindings in the runtime directory). No
+   other file held this fact: agent-browser's binding names a session's tab, a holder file
+   the tabs a place keeps (T3 Code's only those its thread's own session binds), and a
+   Codex or Claude Code thread has no holder file. The hub never reads a record, so holds
+   and the tabs' lives are unchanged. A window the session has already is never recorded
+   anew, so a name another thread opened stays that thread's.
+   - A recorded window is confirmed while its binding names the recorded tab. One rebound
+     since, a record that cannot be read, or the thread's own session recorded by another
+     thread is ambiguous: it may be the thread's or not, so `tabs` names it apart and
+     `done --all` never lets go of it and fails. A session without a record is no window of
+     another thread, whatever its name.
+   - `--session` on `tabs` and `done --all` names one window of the thread, which must be
+     the calling thread's where its harness names one; otherwise, or when its thread cannot
+     be told, the command lists and lets go of nothing and fails.
 2. **`lazurio browser tabs`** lists them and no other thread's: for each its session, tab,
    address, title, the person's link, whether the thread's daemon holds it (`held`), how
-   many people view it, whether it sleeps and when the hub ends it. The windows come from
-   agent-browser's bindings (C7), their facts from the hub's loopback list (C11). Its answer
-   is the new kind `browser-tabs` of C13.
-3. **`lazurio browser done --all`** lets go of every window of the thread whose daemon may
-   run, each as `done` does; its answer keeps the kind `browser-done`, with the thread as
-   `session`, the worst outcome as `outcome` and each session's in `sessions`. An agent
+   many people view it, whether it sleeps and when the hub ends it; the ambiguous windows
+   apart (`ambiguous`). The windows come from agent-browser's bindings (C7) and the records,
+   their facts from the hub's loopback list (C11). Its answer is the new kind `browser-tabs`
+   of C13.
+3. **`lazurio browser done --all`** lets go of every confirmed window of the thread whose
+   daemon may run, each as `done` does; its answer keeps the kind `browser-done`, with the
+   thread as `session`, each session's outcome in `sessions`, the windows it left in
+   `ambiguous` and the worst outcome as `outcome`, `unconfirmed` when it left any. A window
+   whose daemon's process runs while nothing answers on its socket (missing or refused) is
+   not let go: the hub still counts the process and the binding as a hold, so `done` and
+   `done --all` answer `unconfirmed` and fail, never `none` (the same review). An agent
    checks with `tabs` before it tells the person its windows are closed: a window let go
    that the person views stays for them.
 4. **No limit; an overview instead** (decided by Matěj on 2026-11-14). No number limits a
    thread's windows: its agent needs an overview of them, works with them, lets go of those
    it no longer needs and does its work well. When `lazurio browser window` opens a new
-   window while the thread holds others (a daemon that runs, bound to an open page), it
-   names them on stderr with their addresses and reminds the agent of `done --session
-   <session>` and `done --all`; it refuses nothing and exits 0. A limit of five windows,
+   window while the thread holds others (a confirmed daemon that runs, bound to an open
+   page), it names them on stderr with their addresses and reminds the agent of `done
+   --session <session>` and `done --all`; it refuses nothing and exits 0. A window it could
+   not record is said to be invisible to `tabs` and `done --all`. A limit of five windows,
    proposed in the same pull request, was dropped before it was published.
 5. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-124`)
-   tells agents to list their windows with `tabs` and never with `tab list`, to read helper
+   tells agents to list their windows with `tabs` and never with `tab list`, that a window
+   is theirs by `lazurio browser window`'s record and never by its name, to read helper
    pages one after another in one window, to let go of a window as soon as they no longer
    need it, to check with `tabs` before saying the windows are closed, and, in ChatGPT
    Desktop, to keep one window whose link the person has in the right panel and to say what
    a further window's new link shows.
 
-Unchanged: no tab is closed for everyone, the hub, its graces and the holder files. C2 and
-C13 only grow within v1 (F50 point 3). Verified by `tests/environment-browser.test.ts`
-(another thread's sessions never read, listed or let go; `done --all`'s outcomes; the
-note of `window` naming the thread's other windows, and none for the window a session
-keeps) and the vectors of `strips.json` and `cli.json`.
+Unchanged: no tab is closed for everyone, the hub, its graces, the holder files and C2's
+names. C13 only grows within v1 (F50 point 3); `stopSessionDaemon` keeps its outcomes, and
+the CLI reads a `none` against the hub's rule for a hold. Verified by
+`tests/environment-browser.test.ts` (independent sessions `team`, `team-2` and `team-3` of
+different threads, with and without a harness's identity, and `t3-a-1`, `t3-a-2` and
+`t3-a-1000` each only its own thread's; another thread's sessions never listed or let go; a
+rebound or unreadable record ambiguous; `done --all`'s outcomes; a live `.pid` with a
+missing or refused socket unconfirmed; the note of `window` naming the thread's other
+windows, and none for the window a session keeps) and the vectors of `cli.json`.
 
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
