@@ -241,19 +241,28 @@ export async function sessionHoldMayRemain(
   return bound && (await daemonMayRun(directory, session, alive));
 }
 
+/** Why a window of a thread is not confirmed as the thread's: its record
+ * cannot be read or is no record of it (`unreadable`: it names no thread, so
+ * the window may be any thread's), its binding no longer names the tab it
+ * was recorded with (`rebound`), or the thread's own session was recorded
+ * for another thread (`recorded-elsewhere`). */
+export type ThreadWindowDoubt = "unreadable" | "rebound" | "recorded-elsewhere";
+
 /** One window of a thread as agent-browser's files record it (C7): its
  * bound target, when its binding names one; whether its daemon runs (its
  * `.pid` names a running process, or cannot be read, which counts as running
  * as the hub counts it) or may be asked to stop (`.sock`); and whether the
- * thread's record confirms it as the thread's (`confirmed`). One that is not
- * confirmed may be the thread's or not: `tabs` names it apart and `done
- * --all` never lets go of it. */
+ * thread's record confirms it as the thread's (`confirmed`), else why not
+ * (`doubt`). One that is not confirmed may be the thread's or not: `tabs`
+ * names it apart, never with its address or title, and `done --all` never
+ * lets go of it. */
 export type ThreadSession = Readonly<{
   session: string;
   targetId: string | null;
   running: boolean;
   socket: boolean;
   confirmed: boolean;
+  doubt: ThreadWindowDoubt | null;
 }>;
 
 /** The windows of the thread (its identity, `threadSession` of its harness,
@@ -265,10 +274,17 @@ export type ThreadSession = Readonly<{
  * - a session `lazurio browser window` recorded for the thread: confirmed
  *   while its binding names the tab it was opened with; when the binding
  *   names another tab or none, the session is the thread's by its record
- *   only, which may be stale, so it is not confirmed.
- * No other session is read as the thread's: no record, a record of another
- * thread, or one that cannot be read, whatever its name. Empty where there is
- * no socket directory or it does not exist. */
+ *   only, which may be stale, so it is not confirmed;
+ * - any session whose record cannot be read or is no record of it, never
+ *   confirmed (Pablo's review of #971): such a record names no thread, and a
+ *   session's name proves none, so the window may be this thread's as much
+ *   as any other's. Leaving it out would let `tabs` say that no window
+ *   remains and `done --all` succeed while it may still be held; every
+ *   thread therefore sees it, as not confirmed, until its daemon has ended
+ *   and its binding names no open tab.
+ * No other session is read as the thread's: no record, or a record of
+ * another thread, whatever its name. Empty where there is no socket
+ * directory or it does not exist. */
 export async function readThreadSessions(
   thread: string,
   env: Readonly<Record<string, string | undefined>>,
@@ -307,22 +323,30 @@ export async function readThreadSessions(
       const record = await readWindowRecord(records, session);
       const own = session === thread;
       const recorded = typeof record === "object" && record.thread === thread;
-      if (!own && !recorded) return null;
+      if (!own && !recorded && record !== "unreadable") return null;
       const kinds = files.get(session) as Set<string>;
       const targetId = kinds.has("target")
         ? await bindingOf(directory, session)
         : null;
       const running =
         kinds.has("pid") && (await daemonMayRun(directory, session, alive));
-      const confirmed = own
-        ? record === "none" || recorded
-        : typeof record === "object" && record.targetId === targetId;
+      const doubt: ThreadWindowDoubt | null =
+        record === "unreadable"
+          ? "unreadable"
+          : own
+            ? record === "none" || recorded
+              ? null
+              : "recorded-elsewhere"
+            : typeof record === "object" && record.targetId === targetId
+              ? null
+              : "rebound";
       return Object.freeze({
         session,
         targetId,
         running,
         socket: kinds.has("sock"),
-        confirmed,
+        confirmed: doubt === null,
+        doubt,
       });
     }),
   );

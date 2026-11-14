@@ -11840,19 +11840,29 @@ and the person lost their way among dozens of tabs.
    and the tabs' lives are unchanged. A window the session has already is never recorded
    anew, so a name another thread opened stays that thread's.
    - A recorded window is confirmed while its binding names the recorded tab. One rebound
-     since, a record that cannot be read, or the thread's own session recorded by another
-     thread is ambiguous: it may be the thread's or not, so `tabs` names it apart and
-     `done --all` never lets go of it and fails. A session without a record is no window of
-     another thread, whatever its name.
+     since, or the thread's own session recorded by another thread, is ambiguous: it may be
+     the thread's or not, so `tabs` names it apart and `done --all` never lets go of it and
+     fails. A session without a record is no window of another thread, whatever its name.
+   - A record that cannot be read or is no valid record names no thread, and the session's
+     name proves none, so its window may be any thread's: it is ambiguous for every thread
+     while its daemon may run or its binding names an open tab (Pablo's review on
+     `54e2fefd`: leaving it out let `tabs` say no window remains and `done --all` succeed
+     while it may still be held). No other evidence tells its thread: the binding names
+     only the tab, and the daemon `lazurio browser window` starts carries no thread's
+     identity. `tabs` names an ambiguous window by its session only, never its address or
+     title, and says that its list is not complete; `done --all` lets go of the confirmed
+     windows, leaves the ambiguous ones and fails naming them. A broken record is rare (the
+     record is replaced atomically), so the price, every thread's answer incomplete until
+     that window's daemon ends, buys never claiming a complete answer that may not be.
    - `--session` on `tabs` and `done --all` names one window of the thread, which must be
      the calling thread's where its harness names one; otherwise, or when its thread cannot
      be told, the command lists and lets go of nothing and fails.
 2. **`lazurio browser tabs`** lists them and no other thread's: for each its session, tab,
    address, title, the person's link, whether the thread's daemon holds it (`held`), how
    many people view it, whether it sleeps and when the hub ends it; the ambiguous windows
-   apart (`ambiguous`). The windows come from agent-browser's bindings (C7) and the records,
-   their facts from the hub's loopback list (C11). Its answer is the new kind `browser-tabs`
-   of C13.
+   apart (`ambiguous`), and while it names any, its list is not complete. The windows come
+   from agent-browser's bindings (C7) and the records, their facts from the hub's loopback
+   list (C11). Its answer is the new kind `browser-tabs` of C13.
 3. **`lazurio browser done --all`** lets go of every confirmed window of the thread whose
    daemon may run, each as `done` does; its answer keeps the kind `browser-done`, with the
    thread as `session`, each session's outcome in `sessions`, the windows it left in
@@ -11884,7 +11894,9 @@ the CLI reads a `none` against the hub's rule for a hold. Verified by
 `tests/environment-browser.test.ts` (independent sessions `team`, `team-2` and `team-3` of
 different threads, with and without a harness's identity, and `t3-a-1`, `t3-a-2` and
 `t3-a-1000` each only its own thread's; another thread's sessions never listed or let go; a
-rebound or unreadable record ambiguous; `done --all`'s outcomes; a live `.pid` with a
+rebound record ambiguous; a neighbour window whose record does not parse, lacks a member,
+cannot be read or is a directory ambiguous for every thread, named by its session only,
+`tabs` not complete and `done --all` failing; `done --all`'s outcomes; a live `.pid` with a
 missing or refused socket unconfirmed; the note of `window` naming the thread's other
 windows, and none for the window a session keeps) and the vectors of `cli.json`.
 

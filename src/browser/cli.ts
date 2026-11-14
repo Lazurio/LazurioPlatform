@@ -41,6 +41,7 @@ import {
   heldThreadWindows,
   readThreadSessions,
   sessionHoldMayRemain,
+  type ThreadSession,
   threadOfSession,
   type WindowSeams,
 } from "./window";
@@ -74,13 +75,16 @@ browser tabs [--session <name>] [--folder <absolute Folder>] [--json]
   own. --session names one window of the thread, which must be the calling
   thread's where its harness names one. For each window its session, tab,
   address, title, the user's link, whether your agent-browser still holds it
-  and whether someone views it; a window whose record does not confirm the
-  thread (it cannot be read, or the window changed since window opened it)
-  is listed apart as ambiguous. Run it before you tell the user that your
-  windows are closed: a window you let go that the user still views stays
-  for them. --json prints {schema: "lazurio.browser-cli.v1", kind:
+  and whether someone views it. A window whose record does not confirm the
+  thread is named apart as ambiguous, by its session only: one window
+  opened for the thread whose window changed since, and any window whose
+  record cannot be read, which may be any thread's. While any is named, the
+  list is not complete and says so. Run it before you tell the user that
+  your windows are closed: a window you let go that the user still views
+  stays for them. --json prints {schema: "lazurio.browser-cli.v1", kind:
   "browser-tabs", session (the thread), windows: [{session, targetId, url,
-  title, link, held, viewers, sleeping, endsAt}], ambiguous: [session]}.
+  title, link, held, viewers, sleeping, endsAt}], ambiguous: [session]};
+  windows is complete only while ambiguous is empty.
   Exit status: 0 listed, 10 no Environment browser, 2 usage, 1 the view's
   hub did not answer, or --session names a window of another thread or one
   whose thread cannot be told.
@@ -99,7 +103,8 @@ browser done [--session <name>] [--all] [--folder <absolute Folder>] [--json]
   it. It asks the session's own agent-browser daemon on its socket to shut
   down; it never signals a process. --all lets go of every window of the
   thread at once (the windows tabs lists), each the same way; a window
-  whose record does not confirm the thread is never let go, only named.
+  whose record does not confirm the thread (tabs' ambiguous ones) is never
+  let go, only named, and done --all then fails.
   --json prints {schema: "lazurio.browser-cli.v1", kind: "browser-done",
   session, outcome}, outcome being stopped, none (no daemon listens and
   none holds the window), refused (the daemon did not shut down; nothing
@@ -240,6 +245,8 @@ const text = {
     "tabs-unreachable":
       "The users' view of the Environment browser did not list its tabs, so this thread's windows are unknown. Run lazurio doctor.",
     "tabs-none": "This thread has no window in the Environment browser.",
+    "tabs-none-confirmed":
+      "This thread has no confirmed window in the Environment browser.",
     "tabs-count-one": "This thread holds {count} window.",
     "tabs-count-few": "This thread holds {count} windows.",
     "tabs-count-other": "This thread holds {count} windows.",
@@ -267,9 +274,15 @@ const text = {
     "thread-other":
       "{session} is not a window of this thread: lazurio browser window did not open it for this thread, and tabs and done --all take only this thread's windows. If it is yours, let go of it alone with lazurio browser done --session {session}.",
     "tabs-ambiguous":
-      "Maybe this thread's, but their record does not confirm it (it cannot be read, or the window changed since lazurio browser window opened it), so done --all leaves them; let go of one that is yours with lazurio browser done --session <session>:",
+      "This list is not complete: these windows may be this thread's, but their record does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
     "done-all-ambiguous":
-      "Left alone, since their record does not confirm this thread (it cannot be read, or the window changed since lazurio browser window opened it); let go of one that is yours with lazurio browser done --session <session>:",
+      "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+    "doubt-unreadable":
+      "its record cannot be read, so it may be any thread's window",
+    "doubt-rebound":
+      "its window changed since lazurio browser window opened it",
+    "doubt-recorded-elsewhere":
+      "lazurio browser window opened it for another thread",
     "done-all-lingering":
       "its process still runs, but nothing answers on its socket: it may still hold the window",
     "daemon-lingering":
@@ -317,6 +330,8 @@ const text = {
     "tabs-unreachable":
       "Pohled prohlížeče Prostředí nevypsal své záložky, takže okna tohoto vlákna nejsou známá. Spusť lazurio doctor.",
     "tabs-none": "Toto vlákno nemá v prohlížeči Prostředí žádné okno.",
+    "tabs-none-confirmed":
+      "Toto vlákno nemá v prohlížeči Prostředí žádné potvrzené okno.",
     "tabs-count-one": "Toto vlákno drží {count} okno.",
     "tabs-count-few": "Toto vlákno drží {count} okna.",
     "tabs-count-other": "Toto vlákno drží {count} oken.",
@@ -343,9 +358,15 @@ const text = {
     "thread-other":
       "{session} není okno tohoto vlákna: lazurio browser window ho pro toto vlákno neotevřel a tabs i done --all berou jen okna tohoto vlákna. Je-li tvoje, pusť ho samotné příkazem lazurio browser done --session {session}.",
     "tabs-ambiguous":
-      "Možná okna tohoto vlákna, ale jejich záznam to nepotvrzuje (nejde přečíst, nebo se okno od otevření příkazem lazurio browser window změnilo), takže je done --all nechá být; to, které je tvoje, pusť příkazem lazurio browser done --session <sezení>:",
+      "Výpis není úplný: tato okna můžou patřit tomuto vláknu, ale jejich záznam to nepotvrzuje, takže je done --all nechá být. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
     "done-all-ambiguous":
-      "Nechané být, protože jejich záznam nepotvrzuje toto vlákno (nejde přečíst, nebo se okno od otevření příkazem lazurio browser window změnilo); to, které je tvoje, pusť příkazem lazurio browser done --session <sezení>:",
+      "Tato okna done --all nepustil a toto vlákno je možná pořád drží: jejich záznam nepotvrzuje, že patří tomuto vláknu. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
+    "doubt-unreadable":
+      "jeho záznam nejde přečíst, takže může patřit kterémukoli vláknu",
+    "doubt-rebound":
+      "jeho okno se od otevření příkazem lazurio browser window změnilo",
+    "doubt-recorded-elsewhere":
+      "lazurio browser window ho otevřel pro jiné vlákno",
     "done-all-lingering":
       "jeho proces pořád běží, ale na socketu nic neodpovídá: okno možná pořád drží",
     "daemon-lingering":
@@ -422,6 +443,13 @@ function windowText(
     `  ${state}`,
   ].join("\n");
 }
+
+/** A window whose record does not confirm the thread, as text: its session
+ * and why, never its address or title (it may be another thread's). */
+const doubtText = (
+  { session, doubt }: ThreadSession,
+  copy: (typeof text)[keyof typeof text],
+) => `- ${session}: ${copy[`doubt-${doubt ?? "unreadable"}`]}`;
 
 /** How many windows the thread holds, in the plural form of the language
  * (Czech: 1 okno, 2–4 okna, 5 oken). */
@@ -791,16 +819,17 @@ export async function runBrowserCommand(
         },
       );
       // Not confirmed, and a window or a daemon that may hold one: named
-      // apart, never as the thread's.
-      const ambiguous = sessions
-        .filter(
-          (entry) =>
-            !entry.confirmed &&
-            (entry.socket ||
-              entry.running ||
-              (entry.targetId !== null && facts.has(entry.targetId))),
-        )
-        .map((entry) => entry.session);
+      // apart by its session only, never as the thread's, and the list is
+      // not complete while any is (a record that cannot be read names no
+      // thread, so its window may be this one's).
+      const doubtful = sessions.filter(
+        (entry) =>
+          !entry.confirmed &&
+          (entry.socket ||
+            entry.running ||
+            (entry.targetId !== null && facts.has(entry.targetId))),
+      );
+      const ambiguous = doubtful.map((entry) => entry.session);
       return Object.freeze({
         code: browserCliExit.done,
         stdout: json
@@ -811,23 +840,27 @@ export async function runBrowserCommand(
               ambiguous,
             })
           : [
-              ...(windows.length === 0
-                ? [copy["tabs-none"]]
-                : [
+              ...(windows.length > 0
+                ? [
                     countText(
                       windows.filter((entry) => entry.held).length,
                       locale,
                       copy,
                     ),
                     ...windows.map((window) => windowText(window, copy)),
-                  ]),
-              ...(ambiguous.length === 0
+                  ]
+                : doubtful.length === 0
+                  ? [copy["tabs-none"]]
+                  : [copy["tabs-none-confirmed"]]),
+              ...(doubtful.length === 0
                 ? []
                 : [
                     copy["tabs-ambiguous"],
-                    ...ambiguous.map((session) => `- ${session}`),
+                    ...doubtful.map((entry) => doubtText(entry, copy)),
                   ]),
-              ...(windows.length === 0 ? [] : [copy["tabs-next"]]),
+              ...(windows.length === 0 && doubtful.length === 0
+                ? []
+                : [copy["tabs-next"]]),
             ].join("\n"),
       });
     }
@@ -853,10 +886,10 @@ export async function runBrowserCommand(
               await readThreadSessions(thread, context.env, context.alive)
             ).filter((entry) => entry.socket || entry.running);
       // A window whose record does not confirm the thread is never let go:
-      // it may be another thread's.
-      const ambiguous = running
-        .filter((entry) => !entry.confirmed)
-        .map((entry) => entry.session);
+      // it may be another thread's. It is named, and the thread may still
+      // hold it, so done --all fails.
+      const doubtful = running.filter((entry) => !entry.confirmed);
+      const ambiguous = doubtful.map((entry) => entry.session);
       const results = await Promise.all(
         running
           .filter((entry) => entry.confirmed)
@@ -883,11 +916,11 @@ export async function runBrowserCommand(
         };
       const lines = [
         ...results.map((entry) => `- ${entry.session}: ${words[entry.result]}`),
-        ...(ambiguous.length === 0
+        ...(doubtful.length === 0
           ? []
           : [
               copy["done-all-ambiguous"],
-              ...ambiguous.map((session) => `- ${session}`),
+              ...doubtful.map((entry) => doubtText(entry, copy)),
             ]),
       ];
       const failed = outcome === "refused" || outcome === "unconfirmed";

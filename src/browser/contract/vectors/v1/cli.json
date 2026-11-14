@@ -700,6 +700,31 @@
       }
     },
     {
+      "name": "tabs without a confirmed window is not complete while it names an ambiguous session, one whose record cannot be read too",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [],
+          "ambiguous": [
+            "notes"
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [],
+          "ambiguous": [
+            "notes"
+          ]
+        }
+      }
+    },
+    {
       "name": "done --all's answer names each session",
       "call": "browserCliText",
       "args": [
@@ -737,6 +762,43 @@
             }
           ],
           "ambiguous": []
+        }
+      }
+    },
+    {
+      "name": "done --all that left a window whose record does not confirm the thread is unconfirmed",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "unconfirmed",
+          "sessions": [
+            {
+              "session": "codex-1",
+              "outcome": "stopped"
+            }
+          ],
+          "ambiguous": [
+            "notes"
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-done",
+          "session": "codex-1",
+          "outcome": "unconfirmed",
+          "sessions": [
+            {
+              "session": "codex-1",
+              "outcome": "stopped"
+            }
+          ],
+          "ambiguous": [
+            "notes"
+          ]
         }
       }
     },
@@ -865,6 +927,31 @@
         ],
         "ambiguous": [
           "codex-1-5"
+        ]
+      }
+    },
+    {
+      "name": "tabs without a confirmed window and with an ambiguous session",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "ambiguous": [
+              "notes"
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [],
+        "ambiguous": [
+          "notes"
         ]
       }
     },

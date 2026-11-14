@@ -877,7 +877,10 @@ export type BrowserDoneSession = Readonly<{
 // it opened them (F38, addendum of 2026-11-14), never a name taken apart:
 // session names are free, so `team-2` may be a window of `team` or a thread
 // of its own. A session the record cannot confirm as the thread's is
-// `ambiguous`: `tabs` names it apart and `done --all` never lets go of it.
+// `ambiguous`: `tabs` names it apart, by its session only, and `done --all`
+// never lets go of it. A record that cannot be read names no thread, so its
+// window is ambiguous for every thread; while any session is ambiguous, the
+// thread's list is not complete.
 
 /** An answer of `lazurio browser window`, `link`, `done`, `open` or `tabs`
  * with `--json`;
@@ -902,8 +905,9 @@ export type BrowserCliAnswer =
   /** `done` lets go of one session's window; `done --all` of every window
    * of the thread: then `session` is the thread, `sessions` each one's
    * outcome, `ambiguous` the sessions it left because their record does not
-   * confirm the thread, and `outcome` the worst (unconfirmed, refused,
-   * stopped, none), unconfirmed when any was left. */
+   * confirm the thread (the thread may still hold them), and `outcome` the
+   * worst (unconfirmed, refused, stopped, none), unconfirmed when any was
+   * left. */
   | Readonly<{
       kind: "browser-done";
       session: string;
@@ -913,7 +917,8 @@ export type BrowserCliAnswer =
     }>
   /** The calling thread's windows (`session` is the thread), and the
    * sessions that may be its windows but whose record does not confirm it
-   * (`ambiguous`). */
+   * (`ambiguous`), among them any whose record cannot be read. `windows` is
+   * complete only while `ambiguous` names none. */
   | Readonly<{
       kind: "browser-tabs";
       session: string;

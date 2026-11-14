@@ -2398,7 +2398,8 @@ test("a recorded window is confirmed while its binding names the recorded tab; t
   // Bound to another tab since it was opened: maybe stale, not confirmed.
   await openedWindow(env, "codex-1-5", "codex-1", TAB_D, running);
   await bindSessionFiles(socketDir, "codex-1-5", TAB_E, running);
-  // A record that cannot be read says nothing.
+  // A record that cannot be read names no thread: the window may be any
+  // thread's, this one's too, so it is never left out and never confirmed.
   await bindSessionFiles(socketDir, "codex-1-preview", TAB_E, running);
   await writeFile(
     join(
@@ -2411,25 +2412,31 @@ test("a recorded window is confirmed while its binding names the recorded tab; t
   );
   expect(
     (await readThreadSessions("codex-1", env)).map(
-      ({ session, targetId, running, confirmed }) => [
+      ({ session, targetId, running, confirmed, doubt }) => [
         session,
         targetId,
         running,
         confirmed,
+        doubt,
       ],
     ),
   ).toEqual([
-    ["codex-1", TAB_A, true, true],
-    ["codex-1-2", TAB_B, true, true],
-    ["codex-1-5", TAB_E, true, false],
-    ["notes", TAB_C, false, true],
+    ["codex-1", TAB_A, true, true, null],
+    ["codex-1-2", TAB_B, true, true, null],
+    ["codex-1-5", TAB_E, true, false, "rebound"],
+    ["codex-1-preview", TAB_E, true, false, "unreadable"],
+    ["notes", TAB_C, false, true, null],
+  ]);
+  // Another thread sees it too, as not confirmed, and none of codex-1's.
+  expect(await sessionsOf("codex-2", env)).toEqual([
+    ["codex-1-preview", false],
   ]);
   // A daemon whose process ended no longer runs.
   expect(
     (await readThreadSessions("codex-1", env, () => false)).map(
       (entry) => entry.running,
     ),
-  ).toEqual([false, false, false, false]);
+  ).toEqual([false, false, false, false, false]);
   expect(await threadOfSession("codex-1-5", env)).toEqual({
     kind: "ambiguous",
   });
@@ -2781,8 +2788,8 @@ test.skipIf(process.platform === "win32")(
       [
         "- codex-019a: let go",
         "- codex-019a-2: let go",
-        "Left alone, since their record does not confirm this thread (it cannot be read, or the window changed since lazurio browser window opened it); let go of one that is yours with lazurio browser done --session <session>:",
-        "- codex-019a-5",
+        "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+        "- codex-019a-5: its window changed since lazurio browser window opened it",
         "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
       ].join("\n"),
     );
@@ -3133,6 +3140,271 @@ test.skipIf(process.platform === "win32")(
     );
     expect(single.code).toBe(0);
     expect(JSON.parse(single.stdout ?? "").outcome).toBe("none");
+  },
+);
+
+// A record that cannot be read names no thread, and a session's name proves
+// none (Pablo's review of #971 on 54e2fefd): its window may be any thread's,
+// the caller's too. Dropping it let tabs say no window remains and done
+// --all succeed while it may still be held; every thread's answer now names
+// it apart, by its session only, and says it is not complete.
+test.skipIf(process.platform === "win32")(
+  "a neighbour window whose record cannot be read is never left out: every thread's tabs names it by its session only and is not complete, and done --all leaves it and fails",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const socketDir = join(home, "sockets");
+    await mkdir(socketDir);
+    const running = String(process.pid);
+    const env = {
+      HOME: home,
+      CODEX_THREAD_ID: "019c",
+      AGENT_BROWSER_SOCKET_DIR: socketDir,
+      XDG_RUNTIME_DIR: join(home, "run"),
+    };
+    const lonely = { ...env, CODEX_THREAD_ID: "lonely" };
+    await bindSessionFiles(socketDir, "codex-019c", TAB_A, {
+      pid: running,
+      sock: true,
+    });
+    await openedWindow(env, "codex-019c-2", "codex-019c", TAB_B, {
+      sock: true,
+    });
+    // Another thread's window with a record that reads: never named.
+    await openedWindow(env, "team", "codex-other", TAB_D, {
+      pid: running,
+      sock: true,
+    });
+    const records = join(env.XDG_RUNTIME_DIR, "lazurio-browser", "windows");
+    const neighbour = join(records, "preview.json");
+    const listed = {
+      kind: "tabs" as const,
+      tabs: [
+        tabFacts(TAB_A, { agents: ["codex-019c"] }),
+        tabFacts(TAB_B, { agents: ["codex-019c-2"] }),
+        tabFacts(TAB_D, { agents: ["team"], title: "Another thread's page" }),
+        tabFacts(TAB_E, {
+          agents: ["preview"],
+          url: "https://example.com/neighbour",
+          title: "The neighbour's page",
+        }),
+      ],
+    };
+    const listTabs = async () => listed;
+    const pageTitles = async () => new Map<string, string>();
+    const acknowledging = (asked: string[]) => ({
+      ask: async (socketPath: string) => {
+        asked.push(socketPath);
+        return { kind: "reply", line: '{"success":true}' } as const;
+      },
+      exists: async () => false,
+    });
+    const neverShown = (output: string | undefined) => {
+      for (const fact of [
+        TAB_E,
+        "example.com/neighbour",
+        "The neighbour's page",
+        TAB_D,
+        "Another thread's page",
+      ])
+        expect(output ?? "").not.toContain(fact);
+    };
+    const broken: readonly (readonly [string, () => Promise<void>])[] = [
+      ["a JSON that does not parse", () => writeFile(neighbour, "{")],
+      [
+        "a record without its thread",
+        () =>
+          writeFile(
+            neighbour,
+            JSON.stringify({
+              schema: "lazurio.browser-window.v1",
+              session: "preview",
+              targetId: TAB_E,
+            }),
+          ),
+      ],
+      [
+        "a record naming a thread but without its tab",
+        () =>
+          writeFile(
+            neighbour,
+            JSON.stringify({
+              schema: "lazurio.browser-window.v1",
+              session: "preview",
+              thread: "codex-other",
+            }),
+          ),
+      ],
+      ["a directory in its place", () => mkdir(neighbour)],
+      // Root reads a file of any mode; elsewhere one of mode 000 cannot be
+      // read.
+      ...(process.getuid?.() === 0
+        ? []
+        : [
+            [
+              "a file that cannot be read",
+              async () => {
+                await writeFile(neighbour, "{}");
+                await chmod(neighbour, 0o000);
+              },
+            ] as const,
+          ]),
+    ];
+    for (const [form, write] of broken) {
+      await rm(neighbour, { recursive: true, force: true });
+      await bindSessionFiles(socketDir, "preview", TAB_E, {
+        pid: running,
+        sock: true,
+      });
+      await write();
+
+      // The calling thread: its confirmed windows, and the neighbour apart.
+      const tabs = await runBrowserCommand(
+        ["tabs", "--folder", folder, "--json"],
+        { ...context(env), listTabs, pageTitles },
+      );
+      expect([form, tabs.code]).toEqual([form, 0]);
+      const answer = JSON.parse(tabs.stdout ?? "");
+      expect([
+        form,
+        answer.windows.map((window: { session: string }) => window.session),
+        answer.ambiguous,
+      ]).toEqual([form, ["codex-019c", "codex-019c-2"], ["preview"]]);
+      neverShown(tabs.stdout);
+      // Another thread sees it too: a record that cannot be read names no
+      // thread, so its window may be any thread's.
+      const other = await runBrowserCommand(
+        ["tabs", "--folder", folder, "--json"],
+        {
+          ...context({ ...env, CODEX_THREAD_ID: "other" }),
+          listTabs,
+          pageTitles,
+        },
+      );
+      expect(JSON.parse(other.stdout ?? "")).toMatchObject({
+        session: "codex-other",
+        ambiguous: ["preview"],
+      });
+      const text = await runBrowserCommand(["tabs", "--folder", folder], {
+        ...context(env),
+        listTabs,
+        pageTitles,
+      });
+      expect(text.code).toBe(0);
+      expect(text.stdout?.split("\n").slice(-3)).toEqual([
+        "This list is not complete: these windows may be this thread's, but their record does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+        "- preview: its record cannot be read, so it may be any thread's window",
+        "Before you tell the user your windows are closed, run lazurio browser tabs again: a window you let go that the user views stays for them.",
+      ]);
+      neverShown(text.stdout);
+      // A thread with no confirmed window never hears that none remains.
+      const none = await runBrowserCommand(["tabs", "--folder", folder], {
+        ...context(lonely),
+        listTabs,
+        pageTitles,
+      });
+      expect(none.stdout?.split("\n")[0]).toBe(
+        "This thread has no confirmed window in the Environment browser.",
+      );
+      expect(none.stdout).not.toContain(
+        "This thread has no window in the Environment browser.",
+      );
+      expect(none.stdout).toContain("This list is not complete");
+
+      // done --all lets go of the thread's confirmed windows, never of the
+      // neighbour, and fails naming it.
+      const asked: string[] = [];
+      const done = await runBrowserCommand(
+        ["done", "--all", "--folder", folder, "--json"],
+        { ...context(env), daemonSeams: acknowledging(asked) },
+      );
+      expect([form, done.code]).toEqual([form, 1]);
+      expect(JSON.parse(done.stdout ?? "")).toEqual({
+        schema: "lazurio.browser-cli.v1",
+        kind: "browser-done",
+        session: "codex-019c",
+        outcome: "unconfirmed",
+        sessions: [
+          { session: "codex-019c", outcome: "stopped" },
+          { session: "codex-019c-2", outcome: "stopped" },
+        ],
+        ambiguous: ["preview"],
+      });
+      expect(asked.sort()).toEqual([
+        join(socketDir, "codex-019c-2.sock"),
+        join(socketDir, "codex-019c.sock"),
+      ]);
+      const doneText = await runBrowserCommand(
+        ["done", "--all", "--folder", folder],
+        { ...context(env), daemonSeams: acknowledging([]) },
+      );
+      expect(doneText.code).toBe(1);
+      expect(doneText.stdout).toBeUndefined();
+      expect(doneText.stderr).toBe(
+        [
+          "- codex-019c: let go",
+          "- codex-019c-2: let go",
+          "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+          "- preview: its record cannot be read, so it may be any thread's window",
+          "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
+        ].join("\n"),
+      );
+      // A thread with nothing of its own to let go does not succeed either.
+      const lonelyAsked: string[] = [];
+      const lonelyDone = await runBrowserCommand(
+        ["done", "--all", "--folder", folder, "--json"],
+        { ...context(lonely), daemonSeams: acknowledging(lonelyAsked) },
+      );
+      expect(lonelyDone.code).toBe(1);
+      expect(JSON.parse(lonelyDone.stdout ?? "")).toMatchObject({
+        session: "codex-lonely",
+        outcome: "unconfirmed",
+        sessions: [],
+        ambiguous: ["preview"],
+      });
+      expect(lonelyAsked).toEqual([]);
+      // Named on purpose, its thread cannot be told: nothing listed.
+      const named = await runBrowserCommand(
+        ["tabs", "--session", "preview", "--folder", folder],
+        { ...context(env), listTabs, pageTitles },
+      );
+      expect(named.code).toBe(1);
+      expect(named.stdout).toBeUndefined();
+      expect(named.stderr).toContain(
+        "It cannot be told which thread preview is a window of",
+      );
+      await chmod(neighbour, 0o700).catch(() => undefined);
+    }
+
+    // Once its daemon has ended, nothing holds it: done --all succeeds, and
+    // tabs names it only while its binding names a tab the hub still lists.
+    await rm(join(socketDir, "preview.pid"));
+    await rm(join(socketDir, "preview.sock"));
+    const released = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      { ...context(env), daemonSeams: acknowledging([]) },
+    );
+    expect(released.code).toBe(0);
+    expect(JSON.parse(released.stdout ?? "")).toMatchObject({
+      outcome: "stopped",
+      ambiguous: [],
+    });
+    const viewed = await runBrowserCommand(
+      ["tabs", "--folder", folder, "--json"],
+      { ...context(env), listTabs, pageTitles },
+    );
+    expect(JSON.parse(viewed.stdout ?? "").ambiguous).toEqual(["preview"]);
+    const gone = await runBrowserCommand(
+      ["tabs", "--folder", folder, "--json"],
+      {
+        ...context(env),
+        listTabs: async () => ({
+          ...listed,
+          tabs: listed.tabs.filter((tab) => tab.id !== TAB_E),
+        }),
+        pageTitles,
+      },
+    );
+    expect(JSON.parse(gone.stdout ?? "").ambiguous).toEqual([]);
   },
 );
 
