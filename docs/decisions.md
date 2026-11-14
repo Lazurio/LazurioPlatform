@@ -12704,7 +12704,7 @@ stands.
    | WebUSB, Web Serial, WebHID, Web Bluetooth choosers | a bubble the screencast does not show, with no device on a server; the next click closes it | an empty choice at once: `NotFoundError` (HID: an empty list). Bluetooth has no API in this Chrome on Linux and is covered where it has one |
    | `EyeDropper.open()` | a loupe outside the page that the view's clicks never reach | `AbortError`, as on Esc |
    | FedCM's passive mode (a prompt in the window's corner) | a corner the screencast does not show; the page stays usable | unchanged; showing it in the view is LazurioPlatform#985 |
-   | `showOpenFilePicker()`, `showSaveFilePicker()`, `showDirectoryPicker()` | the hub's file-chooser interception (point 7) answers `AbortError` on every page; without it, a GTK window on the screen | unchanged; what the view says is LazurioPlatform#975 |
+   | `showOpenFilePicker()`, `showSaveFilePicker()`, `showDirectoryPicker()` | the hub's file-chooser interception (point 7) answers `AbortError` on every page; without it, a GTK window on the screen | unchanged; the view says why nothing opened (the addendum above, LazurioPlatform#975) |
    | The PDF viewer's own print button | print preview; blocks. No content script runs in Chrome's PDF viewer, and `Target.closeTarget` on the `chrome://print/` target answers success but leaves it | unchanged; LazurioPlatform#243 item 2 |
    | WebOTP, `getUserMedia()`, notifications and other permissions, a password credential | nothing on the screen: no SMS receiver, no camera, `--deny-permission-prompts` | unchanged |
 3. **Every frame.** All content scripts also run in frames made from `blob:` and `data:`
