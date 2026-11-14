@@ -13,14 +13,17 @@ import {
 } from "node:fs/promises";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import {
   browserCommand,
   browserCommandWithoutNotice,
   browserLink,
   runBrowserCommand,
 } from "../src/browser/cli";
-import { stopSessionDaemon } from "../src/browser/contract/node";
+import {
+  agentBrowserSocketDirectory,
+  stopSessionDaemon,
+} from "../src/browser/contract/node";
 import {
   browserCliExit,
   browserViewUrl,
@@ -43,6 +46,7 @@ import {
 import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   BrowserWindowFailure,
+  bindThreadWindow,
   ensureThreadWindow,
   heldThreadWindows,
   readThreadSessions,
@@ -751,6 +755,24 @@ const STARTUP_BLANK = "1A".repeat(16);
 const OTHER_THREAD = "1B".repeat(16);
 const BEFORE_RESTART = "1C".repeat(16);
 
+/** What agent-browser leaves of a `tab <id>` that succeeded: the session's
+ * binding names the tab (`<socket dir>/<session>.target`, C7). */
+async function bindAs(
+  command: readonly string[],
+  failed: boolean,
+  env: Readonly<Record<string, string | undefined>>,
+) {
+  const tab = command.indexOf("tab");
+  const sockets = agentBrowserSocketDirectory(env);
+  if (failed || tab < 1 || command[tab - 1] !== "--no-pin-tab") return;
+  if (sockets === undefined) return;
+  await mkdir(sockets, { recursive: true });
+  await writeFile(
+    join(sockets, `${command[command.indexOf("--session") + 1]}.target`),
+    JSON.stringify({ targetId: command[tab + 1], url: "", pinned: false }),
+  );
+}
+
 function windowSeams(
   input: Readonly<{
     socketDir: string;
@@ -769,12 +791,12 @@ function windowSeams(
     },
     run: async (command) => {
       calls.push([...command]);
-      return {
-        exitCode: (input.failing ?? []).some((word) => command.includes(word))
-          ? 1
-          : 0,
-        stdout: "",
-      };
+      const failed = (input.failing ?? []).some((word) =>
+        command.includes(word),
+      );
+      // agent-browser records the tab `tab <id>` bound the session to.
+      await bindAs(command, failed, seams.env);
+      return { exitCode: failed ? 1 : 0, stdout: "" };
     },
     targets: async () => new Set(input.targets),
     cdp: async (method, params) => {
@@ -1006,6 +1028,266 @@ test("two simultaneous requests for one thread's window create it once and both 
   expect(
     JSON.parse(await readFile(join(socketDir, "t3-new.target"), "utf8")),
   ).toEqual({ targetId: only });
+});
+
+// ---- A binding that fails (#974) ---------------------------------------------
+
+const FOREIGN = "2A".repeat(16);
+const EARLIER = "2B".repeat(16);
+const SECOND = "2C".repeat(16);
+const STRIP_TAB = "2D".repeat(16);
+
+/** agent-browser 0.37 and 0.43 as #974 found them on the Environment
+ * browser: a daemon that starts takes up its session's binding while that
+ * tab is open, else makes the first live tab of `Target.getTargets` its own,
+ * whoever's it is; `tab <id>` fails on a page that does not answer its probe
+ * within 3 + 10 s (`unresponsive`), or answers success without moving
+ * (`misreported`), or outlasts the runner (`late`: the runner gives up, the
+ * daemon goes on, fails and only then records its tab, and, as 0.37 does,
+ * drops a shutdown asked meanwhile); and after every command, a failed one
+ * too, the daemon
+ * records its tab in the session's binding. A shutdown asked on the session's
+ * socket ends the daemon. */
+async function foreignWorld(
+  input: Readonly<{
+    first: string;
+    open: readonly string[];
+    unresponsive?: readonly string[];
+    misreported?: readonly string[];
+    late?: readonly string[];
+    pages?: Readonly<Record<string, string>>;
+  }>,
+) {
+  const runtime = await temporary("browser-window-974-");
+  const sockets = join(runtime, "agent-browser");
+  await mkdir(sockets, { recursive: true, mode: 0o700 });
+  const open = [...input.open];
+  const unresponsive = new Set(input.unresponsive ?? []);
+  const misreported = new Set(input.misreported ?? []);
+  const late = new Set(input.late ?? []);
+  const busy = new Map<string, Promise<void>>();
+  const fresh = [NEWTARGET, SECOND];
+  const active = new Map<string, string>();
+  const calls: unknown[] = [];
+  const binding = async (session: string): Promise<unknown> => {
+    try {
+      return JSON.parse(
+        await readFile(join(sockets, `${session}.target`), "utf8"),
+      );
+    } catch {
+      return null;
+    }
+  };
+  const seams: WindowSeams = {
+    env: { HOME: "/home/operator", XDG_RUNTIME_DIR: runtime },
+    run: async (command) => {
+      calls.push([...command]);
+      const session = command[command.indexOf("--session") + 1] as string;
+      if (!active.has(session)) {
+        const bound = ((await binding(session)) as { targetId?: unknown })
+          ?.targetId;
+        active.set(
+          session,
+          typeof bound === "string" && open.includes(bound)
+            ? bound
+            : input.first,
+        );
+        await writeFile(join(sockets, `${session}.pid`), `${process.pid}\n`);
+      }
+      const record = () =>
+        writeFile(
+          join(sockets, `${session}.target`),
+          JSON.stringify({
+            targetId: active.get(session),
+            url: "",
+            pinned: command.includes("--pin-tab"),
+          }),
+        );
+      const tab = command.indexOf("tab");
+      let exitCode = 0;
+      if (tab !== -1) {
+        const id = command[tab + 1] as string;
+        if (late.has(id)) {
+          busy.set(
+            session,
+            (async () => {
+              await new Promise((resolve) => setTimeout(resolve, 50));
+              await record();
+              busy.delete(session);
+            })(),
+          );
+          return "timeout";
+        }
+        if (!open.includes(id) || unresponsive.has(id)) exitCode = 1;
+        else if (!misreported.has(id)) active.set(session, id);
+      }
+      await record();
+      return { exitCode, stdout: "" };
+    },
+    targets: async () => new Set(open),
+    pages: async () =>
+      new Map(open.map((id) => [id, input.pages?.[id] ?? "about:blank"])),
+    cdp: async (method, params) => {
+      calls.push([method, params]);
+      const id = fresh.shift() as string;
+      open.push(id);
+      return { targetId: id };
+    },
+    daemon: {
+      ask: async (socketPath) => {
+        const session = basename(socketPath, ".sock");
+        calls.push(["shutdown", session]);
+        // Busy with a command: no answer, and the request is dropped.
+        if (busy.has(session)) return { kind: "no-answer" };
+        active.delete(session);
+        await rm(join(sockets, `${session}.pid`), { force: true });
+        return { kind: "reply", line: '{"success":true}' };
+      },
+    },
+    endWithinMs: 2_000,
+  };
+  /** Every argument and DevTools method used: never a close of a tab. */
+  const words = () =>
+    calls.flatMap((call) => (Array.isArray(call) ? (call as unknown[]) : []));
+  return { runtime, sockets, seams, calls, binding, unresponsive, words };
+}
+
+// #974: a thread asked for its first window at a page that did not answer;
+// agent-browser's `tab <id>` failed after 13 s and left the thread's session
+// bound to the tab another agent (`upload-fix`) worked in. `window` failed,
+// but the next one handed out that tab and T3 Code took it into the thread.
+test("a binding that fails and leaves the session on another agent's tab: the session is let go and that binding removed, no tab is closed, nothing is recorded, and the next window is a new one of the session's own (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    unresponsive: [NEWTARGET],
+  });
+  const other = JSON.stringify({
+    targetId: FOREIGN,
+    url: "http://127.0.0.1:8701/index.html",
+    pinned: true,
+  });
+  await writeFile(join(world.sockets, "upload-fix.target"), other);
+  await expect(
+    ensureThreadWindow("t3-thread", "https://example.com/", world.seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  // The session is bound to no tab, and its daemon was asked to end as
+  // `done` asks it.
+  expect(await world.binding("t3-thread")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-thread"]);
+  // The other agent's binding is untouched, and no tab was closed: neither
+  // agent-browser's `close` nor `tab close`, nor DevTools.
+  expect(await readFile(join(world.sockets, "upload-fix.target"), "utf8")).toBe(
+    other,
+  );
+  expect(world.words()).not.toContain("close");
+  expect(world.words()).not.toContain("Target.closeTarget");
+  // Nothing of the session is left for `tabs` or `done --all`.
+  expect(await readThreadSessions("t3-thread", world.seams.env)).toEqual([]);
+  // The next window: a new one of its own, never the other agent's tab.
+  world.unresponsive.clear();
+  expect(
+    await ensureThreadWindow("t3-thread", "https://example.com/", world.seams, {
+      thread: "t3-thread",
+    }),
+  ).toEqual({
+    session: "t3-thread",
+    targetId: SECOND,
+    created: true,
+    recorded: true,
+  });
+});
+
+test("a binding counts only once the session's binding names the tab: an answer of success that left the session elsewhere is a failure, and the session is let go (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    misreported: [NEWTARGET],
+  });
+  await expect(
+    ensureThreadWindow("codex-a", undefined, world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("codex-a")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "codex-a"]);
+});
+
+test("a binding whose command outlasts the runner: the daemon goes on and records another agent's tab later, so it is waited for until it ends and that binding removed (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    late: [NEWTARGET],
+  });
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("t3-thread")).toBeNull();
+  // Asked again once that command was over, the daemon has ended, so
+  // nothing records the tab again.
+  expect(
+    world.calls.filter((call) =>
+      Bun.deepEquals(call, ["shutdown", "t3-thread"]),
+    ).length,
+  ).toBeGreaterThan(1);
+  await expect(stat(join(world.sockets, "t3-thread.pid"))).rejects.toThrow();
+});
+
+test("browser open's binding that fails: the thread's session stays on its earlier window; one the failure moved to another tab is let go; the page stays open (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN, EARLIER, STRIP_TAB],
+    unresponsive: [STRIP_TAB],
+  });
+  // The thread works in its earlier window.
+  expect(await bindThreadWindow("t3-thread", EARLIER, world.seams)).toBe(true);
+  // The hub's new tab does not answer: the session stays where it worked,
+  // and its daemon goes on.
+  expect(await bindThreadWindow("t3-thread", STRIP_TAB, world.seams)).toBe(
+    false,
+  );
+  expect(await world.binding("t3-thread")).toMatchObject({
+    targetId: EARLIER,
+  });
+  expect(world.calls).not.toContainEqual(["shutdown", "t3-thread"]);
+  // A session with no window yet that the failure left on another agent's
+  // tab is let go.
+  expect(await bindThreadWindow("t3-other", STRIP_TAB, world.seams)).toBe(
+    false,
+  );
+  expect(await world.binding("t3-other")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-other"]);
+  expect(world.words()).not.toContain("close");
+  expect(world.words()).not.toContain("Target.closeTarget");
+});
+
+test("a page the thread shows already that cannot be bound: bind-failed, the session let go, the page left in the strip, no window created (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN, STRIP_TAB],
+    unresponsive: [STRIP_TAB],
+    pages: { [STRIP_TAB]: "https://vault.example.com/#/vault" },
+  });
+  const holders = join(world.runtime, "lazurio-browser", "holders");
+  await mkdir(holders, { recursive: true });
+  const strip = JSON.stringify({
+    strip: "t3-thread",
+    label: "t3-thread",
+    tabs: [STRIP_TAB],
+  });
+  await writeFile(join(holders, "t3-thread.json"), strip);
+  await expect(
+    ensureThreadWindow(
+      "t3-thread",
+      "https://vault.example.com/#/send",
+      world.seams,
+    ),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("t3-thread")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-thread"]);
+  expect(world.words()).not.toContain("Target.createTarget");
+  expect(world.words()).not.toContain("close");
+  expect(await readFile(join(holders, "t3-thread.json"), "utf8")).toBe(strip);
 });
 
 // ---- The recorded entry ------------------------------------------------------

@@ -1,12 +1,14 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ProcessRunner } from "../update/self-check";
 import {
   agentBrowserSocketDirectory,
+  type DaemonSeams,
   holderDirectory,
   processAlive,
   replaceOwnerFile,
+  stopSessionDaemon,
 } from "./contract/node";
 import {
   browserBounds,
@@ -28,7 +30,18 @@ import { browserCdpPort } from "./units";
  * `Target.createTarget` with `newWindow`), and binds the thread's session to
  * it with agent-browser's own commands (`tab <targetId>`, then pinned). Kept
  * until agent-browser opens a pinned session's tab in a new window of the
- * default context itself. */
+ * default context itself.
+ *
+ * A binding counts only once the session's binding file names the tab
+ * (#974): agent-browser's answer alone proves nothing. A fresh daemon attaches
+ * to every tab and makes the first live one of `Target.getTargets` its own
+ * (any thread's, pinned or not), and it records its tab in `<session>.target`
+ * after every command, a failed one too (agent-browser 0.37 and 0.43). So a
+ * `tab <targetId>` that fails, say on a new window whose page does not answer
+ * agent-browser's probe within its 3 + 10 s, leaves the session bound to
+ * another agent's tab, which `window` would then hand out and T3 Code would
+ * take into the thread's strip. Such a session is let go as `done` lets go of
+ * one, and the binding the failure left is removed (`releaseFailedBinding`). */
 
 export type CdpCall = (
   method: string,
@@ -46,6 +59,12 @@ export type WindowSeams = Readonly<{
   pages?: () => Promise<ReadonlyMap<string, string>>;
   /** Tests only: whether a daemon's process runs (`processAlive`). */
   alive?: (pid: number) => boolean;
+  /** Tests only: how a session's daemon is asked to shut down after a
+   * failed binding (`stopSessionDaemon`). */
+  daemon?: DaemonSeams;
+  /** Tests only: how long a daemon busy with a command that did not answer
+   * is waited for after it was asked to shut down (`daemonEndMs`). */
+  endWithinMs?: number;
 }>;
 
 export type ThreadWindow = Readonly<{
@@ -418,8 +437,13 @@ export async function heldThreadWindows(
 }
 
 const commandTimeoutMs = 30_000;
-// Longer than one creation (a CDP call and two agent-browser commands).
-const windowLockTimeoutMs = 90_000;
+// How long a daemon busy with a command that did not answer in time is waited
+// for after it was asked to shut down (#974): as long as a command may take.
+const daemonEndMs = commandTimeoutMs;
+// Longer than one creation: a CDP call (10 s), two agent-browser commands (30 s
+// each) or, after a failed binding, one command, the daemon's shutdown (5 s)
+// and the wait for its end (#974).
+const windowLockTimeoutMs = 120_000;
 
 /** One lock for every window check-and-create of this account: the CLI
  * (`lazurio browser window`) and the Launchpad's view (a T3 thread's panel)
@@ -532,18 +556,55 @@ export async function ensureThreadWindow(
   );
 }
 
+/** What a session's binding file (`<session>.target`, C7) says: there is
+ * none, it cannot be read or names no target id, or the target id it names,
+ * open or not. */
+type BindingReading = string | "none" | "unreadable";
+
+async function readBinding(
+  directory: string | undefined,
+  session: string,
+): Promise<BindingReading> {
+  if (directory === undefined) return "unreadable";
+  let text: string;
+  try {
+    text = await readFile(join(directory, `${session}.target`), "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? "none"
+      : "unreadable";
+  }
+  try {
+    return (
+      targetIdOf(
+        (JSON.parse(text) as { targetId?: unknown } | null)?.targetId,
+      ) ?? "unreadable"
+    );
+  } catch {
+    return "unreadable";
+  }
+}
+
 /** Binds the session to the tab with agent-browser's own commands and pins
  * it with a command that changes nothing: its agent works there next, and an
  * app that follows the session's binding shows it (T3 Code records a tab its
- * thread's session newly binds, F47 point 4). False when either command
- * failed. */
+ * thread's session newly binds, F47 point 4). True only when both commands
+ * succeeded and the session's binding file then names the tab (#974). When
+ * the binding fails and leaves the session on another tab than it was on
+ * before, or when a command did not answer in time, the session is let go
+ * (`releaseFailedBinding`), which keeps a binding to where it was before. A
+ * session a failure that did answer left where it was (its own earlier
+ * window, a binding to a tab that is gone) is left as it is, daemon and
+ * all. */
 async function bindSession(
   session: string,
   targetId: string,
-  seams: Pick<WindowSeams, "env" | "run">,
+  seams: Pick<WindowSeams, "env" | "run" | "daemon" | "alive" | "endWithinMs">,
 ): Promise<boolean> {
-  const ok = (result: Awaited<ReturnType<ProcessRunner>>) =>
-    result !== "timeout" && result.exitCode === 0;
+  const directory = agentBrowserSocketDirectory(seams.env);
+  const before = await readBinding(directory, session);
+  const ok = (result: Awaited<ReturnType<ProcessRunner>> | null) =>
+    result !== null && result !== "timeout" && result.exitCode === 0;
   const bound = await agentBrowser(seams, [
     "--session",
     session,
@@ -554,26 +615,82 @@ async function bindSession(
   // Pinned with a command that changes nothing. The page keeps the window's
   // size, which the people's view sets to the person's page area (F39 point
   // 3); a fixed viewport served only the dashboard's pointer mapping.
-  if (!ok(bound)) return false;
-  const pinned = await agentBrowser(seams, [
-    "--session",
-    session,
-    "--pin-tab",
-    "get",
-    "url",
-  ]).catch(() => "timeout" as const);
-  return ok(pinned);
+  const pinned = ok(bound)
+    ? await agentBrowser(seams, [
+        "--session",
+        session,
+        "--pin-tab",
+        "get",
+        "url",
+      ]).catch(() => "timeout" as const)
+    : null;
+  const after = await readBinding(directory, session);
+  if (ok(bound) && ok(pinned) && after === targetId) return true;
+  // A command that did not answer in time is not over: its daemon goes on and
+  // records its tab when it is done, after this reading (measured on 0.37:
+  // the foreign tab 8 s after a timeout).
+  const unanswered = bound === "timeout" || pinned === "timeout";
+  if (after !== targetId && (after !== before || unanswered))
+    await releaseFailedBinding(directory, session, targetId, before, seams);
+  return false;
+}
+
+/** Lets go of a session whose binding to `targetId` failed and left it, or
+ * may yet leave it, on another tab than it was on before (#974). Its daemon
+ * is asked to shut down as `lazurio browser done` asks it
+ * (`stopSessionDaemon`). One busy with the command that did not answer
+ * records its tab when that command ends, and 0.37 drops a shutdown asked
+ * meanwhile (0.43 takes it afterwards), so it is asked again until it has
+ * ended, refused or `daemonEndMs` passed. Only then is the binding file
+ * removed, unless it names `targetId` or what it named before:
+ * agent-browser's own way to reset a session's binding (its errors say to
+ * delete the file), which takes the session off the tab for `window`, the
+ * hub and T3 Code. Never `close` or `tab close`, which would close the tab
+ * for the agent and the people whose tab it is; the tab is left as it is. A
+ * daemon still running after that may keep the tab as its own; the binding
+ * goes all the same, and the next `window` binds the session to a window of
+ * its own. */
+async function releaseFailedBinding(
+  directory: string | undefined,
+  session: string,
+  targetId: string,
+  before: BindingReading,
+  seams: Pick<WindowSeams, "daemon" | "alive" | "endWithinMs">,
+): Promise<void> {
+  if (directory === undefined || !isStrip(session)) return;
+  const stop = () =>
+    stopSessionDaemon(directory, session, seams.daemon).catch(
+      () => "unconfirmed" as const,
+    );
+  const deadline = Date.now() + (seams.endWithinMs ?? daemonEndMs);
+  let outcome = await stop();
+  while (
+    outcome !== "stopped" &&
+    outcome !== "refused" &&
+    Date.now() < deadline &&
+    (await daemonMayRun(directory, session, seams.alive ?? processAlive))
+  ) {
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    outcome = await stop();
+  }
+  const now = await readBinding(directory, session);
+  if (now === "none" || now === targetId || now === before) return;
+  await rm(join(directory, `${session}.target`), { force: true }).catch(
+    () => undefined,
+  );
 }
 
 /** The default browser's page becomes the thread's window (root decision
  * 0201 point 5): the session is bound to the tab the hub opened, under the
  * account's window lock, so a `lazurio browser window` of the same thread at
  * the same moment converges on it. The thread's earlier window stays as long
- * as something holds it. False when it could not be bound. */
+ * as something holds it. False when it could not be bound: the session then
+ * stays on its earlier window, or, where the failure moved it to another tab,
+ * is let go (`bindSession`), and the page stays open. */
 export async function bindThreadWindow(
   session: string,
   targetId: string,
-  seams: Pick<WindowSeams, "env" | "run">,
+  seams: Pick<WindowSeams, "env" | "run" | "daemon" | "alive" | "endWithinMs">,
 ): Promise<boolean> {
   try {
     return await underWindowLock(seams.env, () =>
@@ -655,7 +772,16 @@ async function ensureThreadWindowLocked(
 
 /** A new window in the default context at `url`, bound to the session and
  * pinned (`ensureThreadWindow`), and recorded as the window of
- * `options.thread` when one is given. */
+ * `options.thread` when one is given. A window that could not be bound is
+ * let go, not retried (#974): nothing holds it, so the hub ends it like any
+ * tab nobody holds or views, and `window` never closes it, as `done` never
+ * does. A retry would start yet another daemon that takes the first live tab
+ * of the browser as its own while the account's window lock keeps every
+ * other thread waiting, and
+ * the usual failure, a page that does not answer agent-browser's probe within
+ * 13 s, would mostly repeat; the agent runs `window` again instead, and the
+ * session, now bound to no other tab, gets a new window. Nothing is
+ * recorded. */
 async function createThreadWindow(
   session: string,
   url: string | undefined,
