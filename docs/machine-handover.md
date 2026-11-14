@@ -453,9 +453,9 @@ Organization that only its Organization Admins enter (decisions 0209 and 0245; M
 `docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
 `{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
 grants scope its brokered identity. Admission is the gateway's and is not in the handover. Only the Organization's Admins
-enter, and an Organization Owner who is not an appointed Admin does not (decisions 0209 and 0245):
+enter, and an Organization Owner who is not an Admin does not (decision 0209). In GEN4
 the Owner role never stands in for the Admin role for access, not even until the Admin role in
-Lazurio Auth is deployed. Where the gateway still admits the Organization's `Owner` role in Lazurio Auth,
+Lazurio Auth is deployed (decision 0245). Where the gateway still admits the Organization's `Owner` role in Lazurio Auth,
 that is a deviation from these decisions which ends when the Admin role is deployed; the Platform derives nothing from it.
 Machines writes the assignment, together with `services`, only for a pinned Platform
 that reads them; until then it writes neither and the guest keeps the resident
@@ -537,8 +537,8 @@ for agents, Buddy and Delegace (point (e)). Machines #948 (released in v0.12.211
 [above](#one-upstream-contract)) carries what that needs in the peers of the
 personal VM's `relationships`: three optional members that come only together.
 
-This is what runs today. Under decision 0247 a short-lived certificate from Lazurio
-Auth takes the place of the source Environment's key and the certificate authority's
+This is what runs today. In GEN4, under decision 0247, a short-lived certificate from
+Lazurio Auth takes the place of the source Environment's key and the certificate authority's
 host certificates take the place of host keys from the records; plain `ssh` keeps
 working through the configuration Lazurio generates. Until that is deployed, the
 members below and the files written from them stay as described.
@@ -840,7 +840,7 @@ the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
 
 ## The home access service (decision F70)
 
-Today's SSH edges between Environments are derived from facts by the home Conglomerate Host's access service (decision 0246) with the source's own key, until the short-lived certificates of decision 0247 replace them. Where that service answers is
+Today's SSH edges between Environments are derived from facts by the home Conglomerate Host's access service (decision 0246) with the source's own key, until the short-lived certificates that decision 0247 describes for GEN4 replace them. Where that service answers is
 only ever the handover's to say. Machines writes it on both branches, from the home
 host the lane already reads, only while that host switches the service on and its
 service would recognize this Machine as a caller, and only for a pinned Platform at

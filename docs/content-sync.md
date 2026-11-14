@@ -446,7 +446,7 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
 
    | Role | Identifier | GitHub confirms it by |
    | --- | --- | --- |
-   | Organization Admin | `organization-admin` | an active Organization Owner membership (`GET /user/memberships/orgs/<org>`, GitHub's organization role `admin`, as `organization-owner.ts` reads it); the Organization Admin is a role of Lazurio that Lazurio Auth holds (decision 0245); until it is deployed, an active Organization Owner membership stands only for this installation scope and for the Admin's administrative acts (the approval of devices, the AI source, the answers to requests and the roles of applications) and never for the Admin's access to Environments |
+   | Organization Admin | `organization-admin` | an active Organization Owner membership (`GET /user/memberships/orgs/<org>`, GitHub's organization role `admin`, as `organization-owner.ts` reads it); in GEN4 the Organization Admin is a role of Lazurio that Lazurio Auth holds (decision 0245); until it is deployed, an active Organization Owner membership stands only for this installation scope and for the Admin's administrative acts (the approval of devices, the AI source, the answers to requests and the roles of applications) and never for access to Environments (decision 0234) |
    | Module Maintainer | `module-maintainer` | `maintain` on the root repository (the grant `module-maintainer.ts` reads), or `write` on it where it cannot have branch rules |
    | Module Contributor | `module-contributor` | `write` on it where it can have branch rules, or where GitHub does not say (the resident's `builder` gate reads WRITE) |
    | Module Reader | `module-reader` | `read` or `triage` on it together with an active membership (any role, not pending) |
@@ -486,7 +486,7 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    core, and under the JSON key `admins` the active Organization Owners as GitHub lists
    them: until the Organization Admin role in Lazurio Auth is deployed, the Admin's
    administrative acts fall to them and a request for the Admin reaches them, and the
-   list says nothing about who may enter an Environment (decision 0245). The role decides scope only, never access, and nothing is
+   list says nothing about who may enter an Environment (decisions 0234 and 0245). The role decides scope only, never access, and nothing is
    recorded. A Module Reader's clones are ordinary clones: they are read-only because GitHub
    refuses the account's pushes, and nothing in installation, the product update or
    the doctor asks for write on a repository (pulling a clean checkout with

@@ -375,10 +375,11 @@ user; a self-hoster may supply their own qualified gateway configuration
 ([hosted entry](docs/hosted-entry.md)). GitHub is the authority for source permissions
 and publication (repository grants, Team capabilities, branch rules). Target entry into
 Environments follows decisions 0245, 0246 and 0247 ([Environment access](docs/environment-access.md)):
-the Organization's Deployment Repo holds the boundaries of trust and Lazurio Auth
-holds their use; people enter only through a tailnet, with a Lazurio account, active
-membership, a device approved by the Organization Admin and a grant; and every entry,
-by SSH or in the browser, is a short-lived credential that Auth issues and records.
+people enter only through a tailnet, with a Lazurio account, active membership, a
+device approved by the Organization Admin and a grant to the Environment or to an
+app. In GEN4 the Organization's Deployment Repo holds the boundaries of trust and
+Lazurio Auth holds their use, and every entry, by SSH or in the browser, is a
+short-lived credential that Auth issues and records.
 Until that is deployed, entries keep their present ways and the existing GitHub Team
 gates are the marked migration implementation; no second access list is created.
 An external implementer may help a customer deploy Lazurio for that customer's own
@@ -428,11 +429,11 @@ Validate supported combinations from the release manifest. Unknown combinations
 fail before mutation. Keep legacy machine enums as migration input, not guessed
 aliases. Roles such as Organization Admin, Module Maintainer or Module Contributor
 ([decision 0234](docs/decision-register.md#0234--the-names-of-access-roles-one-vocabulary-for-every-text-screen-and-agent))
-remain per Organization. The Module roles are verified live at the provider. The
-Organization Admin is a role of Lazurio that Lazurio Auth holds, not the Owner role of
-the GitHub Organization (decision 0245); until it is deployed, an active Organization
-Owner performs only the Admin's administrative acts and gets no access to
-Environments by them. They are not Machine kinds or independent distributions.
+remain per Organization. The Module roles are verified live at the provider. In GEN4
+the Organization Admin is a role of Lazurio that Lazurio Auth holds, not the Owner
+role of the GitHub Organization (decision 0245); until it is deployed, an active
+Organization Owner performs the Admin's administrative acts and gets no access to
+Environments by them (decision 0234). They are not Machine kinds or independent distributions.
 
 A hosted human environment is one of two first-class kinds (decision F2, upstream
 decisions 0147–0149). A **private hosted workspace** is dedicated to one named

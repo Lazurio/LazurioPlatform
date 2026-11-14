@@ -4002,7 +4002,7 @@ by Machines, applied to Headscale. The Dashboard is the one place where a person
 composes the graph: a change opens a pull request into infra (an Owner or an agent may
 open the same pull request by hand); the Dashboard never writes Headscale directly.
 The Launchpad reflects what the Dashboard shows.
-*Refined on 2026-11-14 (register decisions 0245 and 0246): the Organization's
+*Refined on 2026-11-14, for GEN4 (register decisions 0245 and 0246): the Organization's
 Deployment Repo holds the boundaries of trust and the exceptions no rule derives,
 the edges themselves are derived from facts (assignments, Team membership, the Admin
 role, approved devices), and Lazurio Auth holds the use of the boundaries. Only the
@@ -12421,7 +12421,7 @@ every visitor to GitHub/Team membership or every sharing action to their
 personal infra PR no longer define the target. Local loopback use stays
 independent. No behavior, schema, credential or live access changes here.
 
-*Superseded in part on 2026-11-14 (register decision 0245): the Organization's
+*Superseded in part on 2026-11-14, for GEN4 (register decision 0245): the Organization's
 Deployment Repo holds the boundaries of trust (who is a member, who is an
 Organization Admin, the Devices of the Organization, access outside roles, the rule
 of approval) and Lazurio Auth holds their use; the Dashboard sets only what lies
@@ -16147,7 +16147,7 @@ implied by writing this contract.
 ## F49 — SSH from the person's devices is registered in Launchpad Settings
 
 **Decided by the Operator 2026-10-12; implemented in this revision.** *This is what
-runs today (register decision 0247, 2026-11-14): in the target no person keeps a
+runs today (register decision 0247, 2026-11-14): in GEN4 no person keeps a
 standing key into an Environment, a short-lived certificate that Lazurio Auth issues
 at the moment of entry takes the place of a registered device key, and the
 certificate authority's host certificate takes the place of the pinned host key.* A person connects
@@ -16327,7 +16327,8 @@ personal Environment without tailnet or SSH (root decision 0207) gains no path.
 person approves and removes their own Devices (until self-approval is built, Lazurio's
 operator approves the first people's Devices by hand), and in a Conglomerate the
 Organization's Admin approves Devices. A Personal Environment without a tailnet is no
-longer a target, because the public entry of Personal Environments is retired.*
+longer a target, because the public entry of Personal Environments is retired; until
+its removal is deployed, that entry still runs.*
 
 The chapter covers identity discovery, existing clients and headless sockets,
 explicit hostname at enrollment, fresh client and administrator readback,
@@ -24613,7 +24614,7 @@ Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SER
 Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
 (a Work Environment to the Team Environments of its person's Teams) and Správcovský
 přístup (an Admin's Work Environment to every other Environment of the Organization).
-*Register decision 0247 (2026-11-14) makes this what runs today: the target is a
+*Register decision 0247 (2026-11-14) makes this what runs today: the target in GEN4 is a
 short-lived certificate from Lazurio Auth in place of the source's key and the
 certificate authority's host certificates in place of pinned host keys. Správcovský
 přístup is not derived from the Admin role in the meantime: an Admin's station is a
