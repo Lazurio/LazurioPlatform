@@ -3012,6 +3012,10 @@ of routes for an Environment other than this Osobní Prostředí:
    after the first dot), he steps into it with a nested command, `ssh <station> '…'`, and goes on by
    its `AGENTS.md`: as an Admin's administration station it reaches colleagues' Work and Team
    Environments and Henry. Work there goes to a bot in the target Environment when possible;
+   *(Register decision 0247, 2026-11-14: this step exists only where a named exception
+   declares that Work Environment as an administrative station. In the target Buddy's
+   entry into a colleague's Environment is an agent's service entry: the Admin confirms
+   each entry, and it passes the recording entry point.)*
 3. else, or when that leads nowhere, he tells the user in a sentence or two, without technical
    words, that he cannot reach it yet, because no route leads there from this Osobní Prostředí.
 
@@ -3651,7 +3655,11 @@ cited by the public register:
   the tests and on restructuring (0173) render on a personal Remote Environment too, where
   personal modules are built, without the Organization's Mission Control.
 - **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
-  and the workshop names say so. The glossary's GEN3 row no longer names the Module
+  and the workshop names say so. *Superseded on
+  2026-11-12 (register decisions 0213 as retired and 0246): no Organization and no
+  Personal Environment switches to public DNS, every Environment is entered only
+  through a tailnet, and only the reference Organization still runs the retired mode
+  until its return to its tailnet.* The glossary's GEN3 row no longer names the Module
   Standard as GEN3-only (0225).
 - **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
   tense that fixes a gender (0199): a custom voice replaces the default voice that said
@@ -3747,7 +3755,17 @@ What changes:
   entry, colleagues' requests, the procedures for the AI source, devices, a new colleague,
   access and Integrations, and what the Admin does not do. The Organization keeps its own
   facts (its Admins, its station, temporary paths such as a pull request to its Deployment
-  Repo) in its repository and skills; this chapter holds the model.
+  Repo) in its repository and skills; this chapter holds the model. *Since
+  register decisions 0245 and 0247 (2026-11-14) that model is: the Admin's way into
+  another person's Environment is a service entry, opened with a reason, through the
+  recording entry point of the host's holder, with a short-lived credential from
+  Lazurio Auth, in three levels (observing without root, a repair from Lazurio's
+  catalog, full access with the Organization Owner's confirmation). Until it is
+  deployed, a station is a named exception declared as a boundary of trust, and no
+  key or edge is derived from the Admin role or from the Owner role. A break-glass
+  entry belongs to the holder of the host, never to the Admin. In the target the Admin
+  makes changes in the Dashboard and does not work in the Deployment Repo; until the
+  Dashboard carries them, the Admin works there as before.*
 - **The skill `admin-request`**, in the Folder's locale, byte-identical for both harnesses:
   check that the matter is the Admin's and the role live, collect what the Admin needs, find
   an open request first, then file one issue in the Organization's root repository titled
@@ -3759,6 +3777,12 @@ What changes:
   Getting started (root decision 0229).
 - **The role, until Lazurio Auth reports it (root decision 0228):** an active Owner of the
   GitHub Organization counts as the Admin, as `src/content/role.ts` already reads it.
+  *Superseded on 2026-11-14 (register decision 0245): the Owner role never stands in for
+  the Admin role for access. Until the role in Lazurio Auth is deployed, only the Admin's
+  administrative acts, the approval of devices, the AI source, the answers to requests and
+  the roles of applications, fall to an active Owner of the GitHub Organization, as
+  `src/content/role.ts` reads the membership; they give that Owner no access to any
+  Environment and no administrative station.*
 - **`roles.md`** describes the Organization Admin by root decision 0228 and points to both
   chapters. **`AGENTS.md`** gains one sentence at the end of the missing-rights line, so an
   agent finds the chapter and the skill also where its harness lists no Folder skills; the
@@ -3891,6 +3915,47 @@ the request per preset in both languages, and that no generated text says the pr
 synchronize or recommends Neon. Not proven: that agents in every harness follow the text, and
 the real journey of a member's request ending in a module. The muted tile of root decision 0179's
 amendment of 2026-11-05 and its dialog are the Launchpad's own later change.
+
+**Addendum 2026-11-14 (register decisions 0245, 0246 and 0247): the generated texts follow
+the access model decided that day.** The register consolidated its access model into three
+entries, who is who (0245), the network (0246) and entry into an Environment and its record
+(0247), and the decisions of the same day changed four things the Folder told agents. The
+manual's chapters, the skill `admin-request`, Buddy's layer and the help of
+`lazurio organization role` and `lazurio organization install` now say the same as the
+register, and each states the target and what holds until it is deployed:
+
+- **An Organization Owner is never counted as the Organization Admin.** The Admin is a role
+  of Lazurio that an Organization Owner appoints in the Organization's Deployment Repo and
+  Lazurio Auth holds. Until it is deployed, only the Admin's administrative acts fall to an
+  active Organization Owner, and they give no entry to an Environment and no station. The
+  answer `organization-admin` of `lazurio organization role` keeps its value and its help
+  says what it stands for today.
+- **The Deployment Repo holds the boundaries of trust.** As the target only the Organization's
+  Owners and named machines see and change it, and the Admin makes changes in the
+  Organization's Dashboard; until that is deployed, the Admin works in the repository as
+  before. A member's agent proposes nothing in `infra` and hands the change to the Admin
+  with the skill `admin-request`, where two sentences of the manual sent it to the
+  repository itself.
+- **An administrative station is a named exception** until the service entry through the
+  recording entry point is deployed. No key or route is derived from the Admin role, and the
+  Conglomerate Host and the servers stay with their holder, never with the Admin role and
+  never from a station. Service entry is described as the target (a reason, the entry point,
+  three levels, the Admin's confirmation of an agent's entry) with today's way beside it.
+- **Production applications, the AI source and changes of servers** name both states: the
+  Admin's approval in the Dashboard as the target, the merge of the deployment pull request
+  as today's path.
+
+Citations of the superseded entries 0154, 0155, 0192, 0202, 0224, 0228 and 0243 move to
+0245, 0246 and 0247 by what each sentence is about. A citation that states a status uses a
+form the register's Status line carries, such as "(decision 0245, target model)". The lines
+of `AGENTS.md` change a number only, so its size does not change. The notes marked
+*Superseded* above in this decision point here; the dated addenda themselves stay as written.
+
+Template revision `base-instructions-123`. Verified by `tests/folder-mechanisms.test.ts`
+(every cited decision exists in the register and each stated status is in its Status line),
+`tests/folder-manual.test.ts`, `tests/folder-buddy.test.ts`, `tests/public-environment.test.ts`
+and the pinned digest. Not proven: that agents in every harness follow the text, and nothing
+here deploys the Admin role, the service entry or the Dashboard's requests.
 
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 

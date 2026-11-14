@@ -32,15 +32,16 @@ import { shown } from "./cli";
 export const roleHelp = `organization role <Organization> [--folder <absolute Folder>] [--json]
   The role GitHub confirms now in the Organization named by its GitHub login
   for the account gh is signed in with here (root decision 0234):
-  organization-admin (an active Organization Owner, counted as the
-  Organization Admin until the role in Lazurio Auth is deployed, root
-  decision 0228), or the Module role on the Organization's root repository
+  organization-admin (today an active Organization Owner: until the
+  Organization Admin role in Lazurio Auth is deployed, only the Admin's
+  administrative acts fall to that Owner, never access to an Environment,
+  decision 0245), or the Module role on the Organization's root repository
   as root decision 0232 maps its permission: module-maintainer (maintain,
   or write where the root cannot have branch rules), module-contributor
   (write where it can, or where GitHub does not say) or module-reader (an
   active member of the Organization who reads it). A Module's own
-  repository may give the account another Module role. Then the
-  Organization Admins, as GitHub lists its active Organization Owners,
+  repository may give the account another Module role. Then the active
+  Organization Owners as GitHub lists them, to whom those acts fall,
   without bot accounts. The root is
   the one the Folder holds, otherwise the one GitHub declares, as for content
   install; the Folder is --folder, otherwise the supervised unit's or the
