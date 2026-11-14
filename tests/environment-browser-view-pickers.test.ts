@@ -317,7 +317,7 @@ class Peer {
       )
         await this.gate;
       this.calls.push(call);
-      return this.answer(method, call.params);
+      return this.answer(method, call.params, sessionId);
     },
     onEvent: (listener) => {
       this.listeners.push(listener);
@@ -338,7 +338,19 @@ class Peer {
   private answer(
     method: string,
     params: Record<string, unknown>,
+    sessionId?: string,
   ): Record<string, unknown> {
+    // A frame of another process at (100, 300): its own target, whose
+    // select sits at (80, 20) of its viewport, 280 px down the page.
+    if (sessionId === "S-OOP")
+      switch (method) {
+        case "DOM.getNodeForLocation":
+          return params.x === 80 && params.y === 20
+            ? { backendNodeId: 77, frameId: "OOP" }
+            : { backendNodeId: 6, frameId: "OOP" };
+        case "Page.createIsolatedWorld":
+          return { executionContextId: 12 };
+      }
     switch (method) {
       case "Target.setDiscoverTargets":
         queueMicrotask(() =>
@@ -360,18 +372,28 @@ class Peer {
       case "Page.getNavigationHistory":
         return { currentIndex: 0, entries: [{ id: 1 }] };
       case "Page.createIsolatedWorld":
+        if (params.frameId === "OOP")
+          throw new Error(
+            "Page.createIsolatedWorld: No frame for given id found",
+          );
         return { executionContextId: 9 };
       case "DOM.getNodeForLocation":
         if (params.x === 100 && params.y === 50)
           return { backendNodeId: 77, frameId: frame };
+        if (params.x === 100 && params.y === 300)
+          return { backendNodeId: 90, frameId: frame };
         return { backendNodeId: 5, frameId: frame };
       case "DOM.resolveNode":
         return {
           object: { objectId: `node-${params.backendNodeId}` },
         };
       case "DOM.describeNode":
-        return { node: { backendNodeId: 77 } };
+        return params.objectId === "node-90"
+          ? { node: { backendNodeId: 90, frameId: "OOP" } }
+          : { node: { backendNodeId: 77 } };
       case "DOM.getBoxModel":
+        if (params.objectId === "node-90")
+          return { model: { content: [20, 280, 420, 280, 420, 420, 20, 420] } };
         return { model: { border: [90, 40, 210, 40, 210, 60, 90, 60] } };
       case "Runtime.evaluate":
         if (params.expression === "document.activeElement")
@@ -384,6 +406,8 @@ class Peer {
       case "Runtime.callFunctionOn": {
         const script = String(params.functionDeclaration);
         if (script.includes("__lazurioPickerGuards")) {
+          if (params.objectId === "node-90")
+            return { result: { value: { frame: true } } };
           if (params.objectId !== "node-77") return { result: { value: null } };
           return {
             result: {
@@ -557,6 +581,36 @@ describe("the hub shows the view's picker for a person's input", () => {
     // Once answered, the token is spent.
     await one.say({ t: "pick", token, index: 1 });
     expect(applies()).toHaveLength(1);
+    hub.stop();
+  });
+
+  test("a select in a frame of another process is found in that frame's own target", async () => {
+    const peer = new Peer();
+    const hub = await hubWith(peer);
+    const one = viewer(hub);
+    hub.attach(page, one.v);
+    await one.say(press(100, 300));
+    expect(one.of("picker")[0]?.rect).toEqual({
+      x: 110,
+      y: 320,
+      width: 120,
+      height: 20,
+    });
+    expect(
+      peer
+        .called("Target.attachToTarget")
+        .some((c) => c.params.targetId === "OOP"),
+    ).toBe(true);
+    // The choice is written in that frame.
+    await one.say({
+      t: "pick",
+      token: one.of("picker")[0]?.token ?? "",
+      index: 1,
+    });
+    const apply = peer
+      .called("Runtime.callFunctionOn")
+      .find((c) => String(c.params.functionDeclaration).includes('"gone"'));
+    expect(apply?.sessionId).toBe("S-OOP");
     hub.stop();
   });
 

@@ -200,7 +200,6 @@ body {
 @media (prefers-reduced-motion: reduce) { .picker, .sheet .picker { animation: none; } }
 .picker-title { flex: none; padding: 14px 16px 8px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
 .picker-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px; outline: none; font-size: 14px; }
-.picker-list:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
 .picker-group-label { padding: 6px 10px 2px; color: var(--muted); font-size: 12px; font-weight: 600; }
 .picker-item {
   display: flex; align-items: baseline; gap: 8px; min-height: 30px; padding: 6px 10px;

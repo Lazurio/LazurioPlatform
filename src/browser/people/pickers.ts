@@ -387,7 +387,18 @@ export class Pickers {
             dx,
             dy,
           );
-          return found === "frame" ? null : found;
+          if (found === null || !("frame" in found)) return found;
+          // The element of a frame whose page is in another process: looked
+          // in there.
+          const child = await this.childFrame(send, tab, session, found.frame);
+          if (child === null || !child.oopif) return null;
+          session = child.session;
+          root = child.frameId;
+          px -= child.left;
+          py -= child.top;
+          dx += child.left;
+          dy += child.top;
+          continue;
         }
         // Nothing in this process at the point: a frame of another process
         // covers it. Found from the frame's root down, then looked in.
@@ -452,8 +463,8 @@ export class Pickers {
           dx,
           dy,
         );
-        if (found !== "frame") return found;
-        const child = await this.childFrame(send, tab, session, objectId);
+        if (found === null || !("frame" in found)) return found;
+        const child = await this.childFrame(send, tab, session, found.frame);
         if (child === null) return null;
         session = child.session;
         frame = child.frameId;
@@ -623,7 +634,7 @@ export class Pickers {
   }
 
   /** Runs `findScript` on a node in its frame's world, and for a control
-   * reads its place. "frame" for a frame to look into. */
+   * reads its place. For a frame element, its object to look into. */
   private async describe(
     send: Send,
     tab: PickerTab,
@@ -633,7 +644,7 @@ export class Pickers {
     trigger: Trigger,
     dx: number,
     dy: number,
-  ): Promise<FoundPicker | "frame" | null> {
+  ): Promise<FoundPicker | { frame: string } | null> {
     for (let attempt = 0; attempt < 2; attempt++) {
       const world = await this.world(send, session, frameId, tab.targetId);
       if (world === null) return null;
@@ -670,7 +681,7 @@ export class Pickers {
           value !== null &&
           (value as { frame?: unknown }).frame === true
         )
-          return "frame";
+          return { frame: objectId };
         if (value === null || value === undefined) return null;
         const key = `${session} ${frameId} ${tab.targetId}`;
         const armed = this.armed.get(tab.targetId) ?? new Set<string>();
