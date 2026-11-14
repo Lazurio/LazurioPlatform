@@ -22109,6 +22109,75 @@ address `buddy.<login>` showed the same error. This amends point 1 of the addend
 - A T3 Code that stops while the person has his window open shows the gateway's error until
   the page reads the document again.
 
+### F60 addendum of 2026-11-14: the person moves Buddy anywhere, he stands free and moves a little
+
+**Decided by Matěj (Organization Admin) on 2026-11-14**, who approved the prototype of
+LazurioDevelopment/prototypes-lazurio #131 ("Schvaluji, pokračuj"). In Chat the launcher in
+the bottom-right corner covered a part of the screen he works in (the right panel's
+controls), and the composer moved left and narrowed to keep the corner free. He asked for
+Buddy to be moved anywhere by dragging, as a pet on the screen, and to be an animated figure
+rather than a picture in a disc; and for T3 Code's composer to keep its own place. This
+amends point 4 of F60 and the addendum of 2026-10-25 (one place, the figure in the disc, the
+page keeping the corner free); the corner stays where he starts.
+
+1. **Moved by the person** (`src/shell/buddy-place.ts`, `buddy-element.ts`). A drag of the
+   launcher with a mouse, a pen or a finger puts him anywhere on the window; a move shorter
+   than 5 px is a click and opens his window as before, and a drag never clicks. The pointer
+   is held from the press on, so a quick flick still drags him. He never stands nearer than
+   8 px to an edge. Dropped within 40 px of his corner he is back in it. While he has the
+   focus the arrows move him by 16 px (64 px with Shift) and Home takes him back to his
+   corner. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
+   not moved.
+2. **Each app remembers his place.** The shell runs on each app's origin, so the place is
+   kept in that origin's `localStorage` (`lazurio.buddy.place`): the Launchpad, Chat and
+   Automate each have their own, and a new app starts in the corner. The place keeps the
+   edges he is nearest to, so a narrower or wider window keeps him by the same edge; his
+   corner is stored as nothing. Unreadable storage is the corner.
+3. **His panel opens beside him.** Away from his corner the panel (about 400 × 600) opens
+   above or below him, where there is more room, aligned with his outer side; where neither
+   has its height, to his left or right where it fits whole; always inside the window. In his
+   corner, and in full screen, everything is as before. The guide's figure leaps from where
+   he stands (`home`, as before), and the launcher keeps its 58 px box.
+4. **The corner is kept free only while he is in it.** `--lazurio-buddy-clearance` is set on
+   the document while the launcher is drawn in its corner, and removed while he stands
+   anywhere else, so a page that reads it gets its corner back once he moved. The property
+   and its value are as the addendum of 2026-10-25 has them; interface v1 is unchanged. T3
+   Code stops reading it (its composer keeps T3's own place, a change in Lazurio/t3code);
+   MausBot keeps reading it.
+5. **He stands free and moves a little** (`buddy-styles.ts`, as the prototype). His figure
+   at 48 × 52 px with its pixels kept sharp, no disc, a soft shadow on the ground under his
+   feet. He breathes, rises under the pointer, lifts and leans the way he is pulled while
+   dragged, lands where he is put, hops now and then while his "1" waits, and his ground is
+   ringed in ink while his window shows. While he is out with the guide only his ground
+   stays, dashed. Without his picture the neutral guide's mark keeps its white disc. Less
+   motion keeps him still: no breathing, hop, landing or lean.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the corner and only shrink the composer more | The corner still covers the right panel's controls and the composer stays narrowed; rejected for moving him |
+| One place for every app, kept by the Launchpad | Needs a writer behind the gateway and a reading on every page; the person asked for each app's own; not now |
+| Snap him to the nearest edge | A pet stays where it is put; only his corner snaps, so he can always go back |
+| Remove `--lazurio-buddy-clearance` | Interface v1 only grows, and MausBot reads it; kept, set only in the corner |
+| Frame-by-frame animation (blinking, waving) | Needs drawn frames of each character from his origin; an animated `avatar.webp` shows as it is, without a change here; not now |
+
+**Verified by:**
+- `tests/shell-buddy-place.test.ts`: the place by the nearest edges, kept on a resized window,
+  inside the window, back in the corner within 40 px, the arrows' steps, the panel above,
+  below and beside him and on a phone, the remembered place and anything unreadable as the
+  corner.
+- `tests/shell-buddy.test.ts`: the figure's size and look, and the clearance only in the
+  corner.
+- In a browser: the personal preview with Buddy (`bun scripts/preview-launchpad.ts personal
+  cs <port> buddy`) at 1280 × 800 in headless Chromium: the drag, the clearance removed and
+  the place kept across a reload, the click after a drag opening the panel beside him, Home
+  back to the corner with the clearance written again, Enter opening the panel above him.
+
+**Honest limits.** Checked in headless Chromium only; Safari, Firefox and touch on a real
+phone are not. The preview's stand-in frame does not answer Escape, so Escape inside an open
+frame was not checked there. Before this change reaches an Environment, T3 Code's composer
+still reads the clearance; with the change and an older T3 Code the composer narrows only
+while Buddy is in his corner.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210
