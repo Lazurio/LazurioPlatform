@@ -49,9 +49,10 @@
 // stands without them and its messages with Buddy's frame
 // (buddy-protocol.ts, versioned on its own) are not promised. F60's
 // addendum of 2026-10-25 added `--lazurio-buddy-clearance`, which
-// `<lazurio-buddy>` sets on the document while its launcher is drawn, as the
-// rail sets `--lazurio-rail-width`: how wide the launcher's corner at the
-// window's right edge is, so a page keeps its own controls out of it.
+// `<lazurio-buddy>` sets on the document while its launcher is drawn in its
+// corner (since the addendum of 2026-11-14, which lets the person move him),
+// as the rail sets `--lazurio-rail-width`: how wide the launcher's corner at
+// the window's right edge is, so a page keeps its own controls out of it.
 export const shellElementInterface = Object.freeze({
   version: 1,
   /** The script an app loads, on its own origin. */

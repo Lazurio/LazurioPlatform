@@ -1,6 +1,6 @@
 # Hosted entry: admission versus identity
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Status: **accepted direction of Matěj (2026-09-19); the adapter for the hosted
 VM path is implemented (`src/launchpad/hosted-trust.ts`, the entry recorded on the
@@ -280,7 +280,7 @@ Environment. It answers `{"kind":"chat-pairing","credential":"…","expiresAt":"
 with `Cache-Control: no-store`; the credential rides only in that response body, which
 the script of the same origin reads, never in a URL. It sits behind the
 whole-Environment admission: an app-only session
-([root 0192](environment-access.md#platform-consumer-qualification)) must be refused
+([decision 0245](environment-access.md#platform-consumer-qualification)) must be refused
 here. T3 Code's own pairing page and its sessions stay T3's.
 
 **Buddy's own T3 Code pairs itself the same way ([F61's addendum of

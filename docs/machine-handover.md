@@ -1,6 +1,6 @@
 # Machines handover consumer — limited Linux pilot
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Machines owns provisioning, networking, firewall, SSH and the infrastructure
 gateway. Platform owns the environment inside the delivered Machine. This boundary
@@ -32,7 +32,7 @@ changed nothing else, taken byte for byte from its merge commit
 Machines **v0.12.211** (tag commit `a8726744ba1e5d9cf28f3045782e85a1f77564f6`, which
 carries the merge of pull request **#948**, `44e9002e5f6e03d0b85227b4c5d360a13d97e68d`;
 SHA-256 `ca5cdb767888826fe028e589ea120628a6d830552256cc0d141c0681e038addc`; root
-decision 0192, addendum of 2026-10-26, plan DEV-6676), which added only a peer's
+decision 0192, addendum of 2026-10-26, now in decisions 0246 and 0247, plan DEV-6676), which added only a peer's
 optional `environment`, `access` and `ssh.host_keys`
 ([below](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) to the schema of
 v0.12.191 and changed nothing else. Before it, the pin was
@@ -124,8 +124,8 @@ through [`folder-refresh`](#refresh-after-a-handover-rewrite):
 - **`relationships`** — `{zone, peers[]}`: this Machine's tailnet peers from its own
   point of view, derived by Machines only from the home Conglomerate Host grants that
   name its Headscale node; omitted when the Deployment Repo declares no home
-  Conglomerate Host. `zone` is the zone of the branch (`work` / `personal`, upstream
-  decision 0155). Each peer is `{name, kind, zone, organization, ssh, https}`: the
+  Conglomerate Host. `zone` is the zone of the branch (`work` / `personal`,
+  decision 0246). Each peer is `{name, kind, zone, organization, ssh, https}`: the
   Headscale node name; `personal-vm` | `workspace-vm` | `client-device` |
   `conglomerate-host`; the peer's zone or `null`; its lowercase Organization login or
   `null`; `ssh` as `{host, user, direction}` (MagicDNS name, OS account or `null`,
@@ -431,7 +431,7 @@ decision 0163: open questions go to GitHub Issues and do not stop the work, and
 review findings are taken with judgment), with a pointer to the Organization's `AGENTS.md`
 and to the agent manual in `manual/` ([decision F14](decisions.md#f14--agent-manuals-live-in-the-lazurio-folder)):
 six documents in the Folder locale (`cs` or `en`, amendment of 2026-09-24) rendered from the same inputs, of which `this-machine.md`
-carries the Machine, its preset and the zones of upstream decision 0155. Its
+carries the Machine, its preset and the zones of decision 0246. Its
 `Relationships` section is rendered only when the recorded binding carries the
 handover's `relationships`: one line per peer with kind, zone, Organization, SSH
 host, account and direction, and HTTPS hostnames, plus one sentence that Lazurio
@@ -449,12 +449,14 @@ ordinary preview → apply flow.
 
 Every Proxmox server of an Organization has one services Environment `services-NN`,
 to users **Služby serveru** ("Server services"): a work Environment of the
-Organization that only its Organization Admins enter (decision 0228; Machines
+Organization that only its Organization Admins enter (decisions 0209 and 0245; Machines
 `docs/server-services.md` §2, DEV-6674). Its handover states `owner.assignment`
 `{kind: "services"}`, which names nobody; its `owner.team` is the GitHub Team whose
-grants scope its brokered identity. Admission is the gateway's and is not in the handover: until the Organization Admin
-role in Lazurio Auth is deployed, it admits the Organization's `Owner` role in Lazurio Auth,
-which today's Organization Owners and Organization Admins hold; the Platform derives nothing from it.
+grants scope its brokered identity. Admission is the gateway's and is not in the handover. Only the Organization's Admins
+enter, and an Organization Owner who is not an Admin does not (decision 0209). In GEN4
+the Owner role never stands in for the Admin role for access, not even until the Admin role in
+Lazurio Auth is deployed (decision 0245). Where the gateway still admits the Organization's `Owner` role in Lazurio Auth,
+that is a deviation from these decisions which ends when the Admin role is deployed; the Platform derives nothing from it.
 Machines writes the assignment, together with `services`, only for a pinned Platform
 that reads them; until then it writes neither and the guest keeps the resident
 Launchpad ([decision F10, amendment of 2026-10-19](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
@@ -534,6 +536,12 @@ first connection (point (d)), and Lazurio writes these Environments' names into 
 for agents, Buddy and Delegace (point (e)). Machines #948 (released in v0.12.211, see
 [above](#one-upstream-contract)) carries what that needs in the peers of the
 personal VM's `relationships`: three optional members that come only together.
+
+This is what runs today. In GEN4, under decision 0247, a short-lived certificate from
+Lazurio Auth takes the place of the source Environment's key and the certificate authority's
+host certificates take the place of host keys from the records; plain `ssh` keeps
+working through the configuration Lazurio generates. Until that is deployed, the
+members below and the files written from them stay as described.
 
 - **`environment`**: the peer's Environment id `<machine>.<organization>`, two slugs
   joined by one dot, at most 96 characters.
@@ -693,7 +701,7 @@ quiet notice, and Integrace, Trezor and Nastavení → Nástroje answer as absen
 ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
 It grants nothing; the gateway's admission decides who enters. Machines writes it only
 for a pinned Platform at least its `PLATFORM_ENTRY_AUDIENCE_MINIMUM`, the first release
-that reads it. Absent, the Environment is not public. Since root decision 0243 every
+that reads it. Absent, the Environment is not public. Since decision 0246 every
 Environment is entered only through a tailnet, so `audience` lives only until the
 reference Organization's shared visitors' Environment is retired (root decision 0204)
 and goes with it (issue #944).
@@ -714,7 +722,7 @@ Osobní Prostředí's own documents name no Buddy.
 
 On a personal VM the Machine hostname has no Organization label
 (`https://launchpad.<login>.lazurio.io`, `https://{module}.<login>.lazurio.io`).
-A Personal Environment in Lazurio's personal tailnet (root decision 0243) is to be
+A Personal Environment in Lazurio's personal tailnet (decision 0246) is to be
 named `https://launchpad.<login>.personal.lazurio.io`; this binding and the schema do
 not accept that form yet (issue #944).
 
@@ -832,7 +840,7 @@ the vault's host (`<vault-account>`, `<vault-name>`, `<hostname-n>`).
 
 ## The home access service (decision F70)
 
-Where the home Conglomerate Host's access service answers (root decision 0224) is
+Today's SSH edges between Environments are derived from facts by the home Conglomerate Host's access service (decision 0246) with the source's own key, until the short-lived certificates that decision 0247 describes for GEN4 replace them. Where that service answers is
 only ever the handover's to say. Machines writes it on both branches, from the home
 host the lane already reads, only while that host switches the service on and its
 service would recognize this Machine as a caller, and only for a pinned Platform at

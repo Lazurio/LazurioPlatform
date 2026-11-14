@@ -1,6 +1,6 @@
 # Environment tools and user sign-ins
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 Proposed bounded pilot procedure under accepted decision 0144. Apart from the curated
 installation and login of three catalog tools (decision F19, below), the
@@ -679,7 +679,7 @@ pinned CLI, custody and one shared session stay). The account and the vault come
 the handover's member `vault: {server_url, account, name}` (DEV-6631 contract C2),
 which Machines writes only for a Platform that reads it; without it a work, Team or
 Automated Environment has no vault yet (`unsupported`, `no-vault`), and one whose
-handover names no tailnet either, which since root decision 0243 is only the reference
+handover names no tailnet either, which since decision 0246 is only the reference
 Organization's before its return to its tailnet (root decision 0204), has
 none by design (`no-tailnet`): a Lazurio Vaultwarden answers only inside its network
 ([F53's addendum of 2026-10-17](decisions.md#f53-addendum-of-2026-10-17-an-environment-without-a-vault-explains-the-vault)). A personal

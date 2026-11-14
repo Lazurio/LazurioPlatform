@@ -129,18 +129,18 @@ test("device admission and desktop handoff distinguish personal and Organization
       );
       // Who approves a device for a Personal Environment: in a Conglomerate
       // today the host owner's reviewed change, as the target the
-      // Organization Admin (decision 0192); in Lazurio's personal tailnet the
-      // person, as the target (decision 0243). No Personal Environment is
+      // Organization Admin (decision 0245); in Lazurio's personal tailnet the
+      // person, as the target (decision 0246). No Personal Environment is
       // without a tailnet.
       expect(manual).toContain(
         locale === "cs"
-          ? "cílově ho schvaluje Admin Organizace jako každé zařízení (decision 0192)"
-          : "as the target, the Organization Admin approves it like any device (decision 0192)",
+          ? "cílově ho schvaluje Admin Organizace jako každé zařízení (decision 0245)"
+          : "as the target, the Organization Admin approves it like any device (decision 0245)",
       );
       expect(manual).toContain(
         locale === "cs"
-          ? "V osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0243)"
-          : "In Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0243)",
+          ? "V osobním tailnetu Lazuria si zařízení cílově schvaluje jeho uživatel sám (decision 0246)"
+          : "In Lazurio's personal tailnet, as the target, its user approves their own devices (decision 0246)",
       );
       expect(manual).not.toContain(
         locale === "cs"
@@ -2781,12 +2781,12 @@ test("the remaining rules of the Root's inventory each have one place in the man
       en: "so a module with restricted rights always has a server part and the browser never reaches its store.",
     },
     {
-      // Decision 0243, where access is decided; the public-DNS mode of 0213
-      // is retired.
+      // Decision 0246 (it consolidates 0243), where access is decided; the
+      // public-DNS mode of 0213 is retired.
       path: "manual/lazurio.md",
       on: every,
-      cs: "Do každého Environmentu se vstupuje jen přes tailnet (decision 0243, rozhodnuté, zatím nenasazené): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám.",
-      en: "Every Environment is entered only through a tailnet (decision 0243, decided, not yet deployed): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices.",
+      cs: "Do každého Environmentu se vstupuje jen přes tailnet (decision 0246, cílový model; přechod není dokončený): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám.",
+      en: "Every Environment is entered only through a tailnet (decision 0246, target model; the transition is not complete): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices.",
     },
     {
       path: "manual/lazurio.md",

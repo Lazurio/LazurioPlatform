@@ -7,8 +7,9 @@ import { ownerAnswerMs } from "./owner-answer";
 // addendum of 2026-10-04 and addendum of 2026-11-05): GitHub's own, live
 // answer, read with the Environment's `gh` (`gh api
 // user/memberships/orgs/<login>`): the role of an active membership, `admin`
-// (an Organization Owner, who counts as the Organization Admin until the
-// role in Lazurio Auth is deployed) or `member` (an Organization Member).
+// (an Organization Owner, to whom the Organization Admin's administrative
+// acts fall until the role in Lazurio Auth is deployed, with no access to an
+// Environment by it, decision 0245) or `member` (an Organization Member).
 // It decides only what the Apps home offers as "+ Nový modul": the
 // Organization Admin founds a module, an Organization Member asks the
 // Organization Admin; it grants nothing, and no local rule stands in for it. A Team

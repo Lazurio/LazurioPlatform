@@ -58,7 +58,7 @@ is initially the whole-system overview/reasoning surface, not control authority.
 no parallel truth and grants no access. A future Dashboard-originated change must write
 through to the natural owner and be applied locally on the target Machine by the shared local core exposed by CLI and Launchpad.
 
-GitHub remains connected-Organization access authority. Machine facts stay local;
+GitHub remains connected-Organization access authority. *(Narrowed on 2026-11-14, register decisions 0245, 0246 and 0247: GitHub is the authority for a connected Organization's repositories and Publication; entry to Environments is Lazurio's.)* Machine facts stay local;
 Personalspace, credentials and private content are not centralized or crossed. Machines
 share a versioned environment contract and conventions/interfaces, not a live shared
 directory or identical state.
@@ -1499,7 +1499,7 @@ The Launchpad does not trust forwarded identity headers and revalidates the brow
 session against the gateway's configured auth endpoint. Lazurio Account login (OIDC) is
 added when the Launchpad needs a named person or managed-service enrollment; it
 identifies the service user and neither admits to a workspace nor supplies repository
-rights. GitHub stays the only access authority. Self-hosted needs neither Account nor
+rights. GitHub stays the only access authority. *(Narrowed on 2026-11-14: GitHub stays the authority for repository operations; entry to Environments follows F40 and register decisions 0245, 0246 and 0247.)* Self-hosted needs neither Account nor
 Dashboard. The loopback protocol gets an explicit hosted request adapter as required
 work. Contract: [hosted entry](hosted-entry.md).
 
@@ -3012,6 +3012,10 @@ of routes for an Environment other than this Osobní Prostředí:
    after the first dot), he steps into it with a nested command, `ssh <station> '…'`, and goes on by
    its `AGENTS.md`: as an Admin's administration station it reaches colleagues' Work and Team
    Environments and Henry. Work there goes to a bot in the target Environment when possible;
+   *(Register decision 0247, 2026-11-14: this step exists only where a named exception
+   declares that Work Environment as an administrative station. In the target Buddy's
+   entry into a colleague's Environment is an agent's service entry: the Admin confirms
+   each entry, and it passes the recording entry point.)*
 3. else, or when that leads nowhere, he tells the user in a sentence or two, without technical
    words, that he cannot reach it yet, because no route leads there from this Osobní Prostředí.
 
@@ -3651,7 +3655,11 @@ cited by the public register:
   the tests and on restructuring (0173) render on a personal Remote Environment too, where
   personal modules are built, without the Organization's Mission Control.
 - **`lazurio.md`.** Who decides access: an Organization may switch to public DNS (0213),
-  and the workshop names say so. The glossary's GEN3 row no longer names the Module
+  and the workshop names say so. *Superseded on
+  2026-11-12 (register decisions 0213 as retired and 0246): no Organization and no
+  Personal Environment switches to public DNS, every Environment is entered only
+  through a tailnet, and only the reference Organization still runs the retired mode
+  until its return to its tailnet.* The glossary's GEN3 row no longer names the Module
   Standard as GEN3-only (0225).
 - **`AGENTS.md`.** The formal address line gains imperatives in the plural and no past
   tense that fixes a gender (0199): a custom voice replaces the default voice that said
@@ -3747,7 +3755,17 @@ What changes:
   entry, colleagues' requests, the procedures for the AI source, devices, a new colleague,
   access and Integrations, and what the Admin does not do. The Organization keeps its own
   facts (its Admins, its station, temporary paths such as a pull request to its Deployment
-  Repo) in its repository and skills; this chapter holds the model.
+  Repo) in its repository and skills; this chapter holds the model. *Since
+  register decisions 0245 and 0247 (2026-11-14) that model is: the Admin's way into
+  another person's Environment is a service entry, opened with a reason, through the
+  recording entry point of the host's holder, with a short-lived credential from
+  Lazurio Auth, in three levels (observing without root, a repair from Lazurio's
+  catalog, full access with the Organization Owner's confirmation). Until it is
+  deployed, a station is a named exception declared as a boundary of trust, and no
+  key or edge is derived from the Admin role or from the Owner role. A break-glass
+  entry belongs to the holder of the host, never to the Admin. In the target the Admin
+  makes changes in the Dashboard and does not work in the Deployment Repo; until the
+  Dashboard carries them, the Admin works there as before.*
 - **The skill `admin-request`**, in the Folder's locale, byte-identical for both harnesses:
   check that the matter is the Admin's and the role live, collect what the Admin needs, find
   an open request first, then file one issue in the Organization's root repository titled
@@ -3759,6 +3777,12 @@ What changes:
   Getting started (root decision 0229).
 - **The role, until Lazurio Auth reports it (root decision 0228):** an active Owner of the
   GitHub Organization counts as the Admin, as `src/content/role.ts` already reads it.
+  *Superseded on 2026-11-14 (register decision 0245): the Owner role never stands in for
+  the Admin role for access. Until the role in Lazurio Auth is deployed, only the Admin's
+  administrative acts, the approval of devices, the AI source, the answers to requests and
+  the roles of applications, fall to an active Owner of the GitHub Organization, as
+  `src/content/role.ts` reads the membership; they give that Owner no access to any
+  Environment and no administrative station.*
 - **`roles.md`** describes the Organization Admin by root decision 0228 and points to both
   chapters. **`AGENTS.md`** gains one sentence at the end of the missing-rights line, so an
   agent finds the chapter and the skill also where its harness lists no Folder skills; the
@@ -3892,6 +3916,47 @@ synchronize or recommends Neon. Not proven: that agents in every harness follow 
 the real journey of a member's request ending in a module. The muted tile of root decision 0179's
 amendment of 2026-11-05 and its dialog are the Launchpad's own later change.
 
+**Addendum 2026-11-14 (register decisions 0245, 0246 and 0247): the generated texts follow
+the access model decided that day.** The register consolidated its access model into three
+entries, who is who (0245), the network (0246) and entry into an Environment and its record
+(0247), and the decisions of the same day changed four things the Folder told agents. The
+manual's chapters, the skill `admin-request`, Buddy's layer and the help of
+`lazurio organization role` and `lazurio organization install` now say the same as the
+register, and each states the target and what holds until it is deployed:
+
+- **An Organization Owner is never counted as the Organization Admin.** The Admin is a role
+  of Lazurio that an Organization Owner appoints in the Organization's Deployment Repo and
+  Lazurio Auth holds. Until it is deployed, only the Admin's administrative acts fall to an
+  active Organization Owner, and they give no entry to an Environment and no station. The
+  answer `organization-admin` of `lazurio organization role` keeps its value and its help
+  says what it stands for today.
+- **The Deployment Repo holds the boundaries of trust.** As the target only the Organization's
+  Owners and named machines see and change it, and the Admin makes changes in the
+  Organization's Dashboard; until that is deployed, the Admin works in the repository as
+  before. A member's agent proposes nothing in `infra` and hands the change to the Admin
+  with the skill `admin-request`, where two sentences of the manual sent it to the
+  repository itself.
+- **An administrative station is a named exception** until the service entry through the
+  recording entry point is deployed. No key or route is derived from the Admin role, and the
+  Conglomerate Host and the servers stay with their holder, never with the Admin role and
+  never from a station. Service entry is described as the target (a reason, the entry point,
+  three levels, the Admin's confirmation of an agent's entry) with today's way beside it.
+- **Production applications, the AI source and changes of servers** name both states: the
+  Admin's approval in the Dashboard as the target, the merge of the deployment pull request
+  as today's path.
+
+Citations of the superseded entries 0154, 0155, 0192, 0202, 0224, 0228 and 0243 move to
+0245, 0246 and 0247 by what each sentence is about. A citation that states a status uses a
+form the register's Status line carries, such as "(decision 0245, target model)". The lines
+of `AGENTS.md` change a number only, so its size does not change. The notes marked
+*Superseded* above in this decision point here; the dated addenda themselves stay as written.
+
+Template revision `base-instructions-123`. Verified by `tests/folder-mechanisms.test.ts`
+(every cited decision exists in the register and each stated status is in its Status line),
+`tests/folder-manual.test.ts`, `tests/folder-buddy.test.ts`, `tests/public-environment.test.ts`
+and the pinned digest. Not proven: that agents in every harness follow the text, and nothing
+here deploys the Admin role, the service entry or the Dashboard's requests.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
@@ -4002,6 +4067,12 @@ by Machines, applied to Headscale. The Dashboard is the one place where a person
 composes the graph: a change opens a pull request into infra (an Owner or an agent may
 open the same pull request by hand); the Dashboard never writes Headscale directly.
 The Launchpad reflects what the Dashboard shows.
+*Refined on 2026-11-14, for GEN4 (register decisions 0245 and 0246): the Organization's
+Deployment Repo holds the boundaries of trust and the exceptions no rule derives,
+the edges themselves are derived from facts (assignments, Team membership, the Admin
+role, approved devices), and Lazurio Auth holds the use of the boundaries. Only the
+Organization's Owners and named machines see that repository; an Admin's change is a
+request in the Dashboard, for which Lazurio opens the pull request.*
 
 **One Lazurio Account ties it together.** The same Account signs into the Dashboard and
 into the Launchpad of every Machine. It decides which Machines and applications a
@@ -11745,6 +11816,90 @@ browser on the preview in Czech (on) and English (off). Installed consumers rece
 through a qualified Platform release, and the state reads only once the relay's path
 (Machines step 2) and the Dashboard's read are deployed.
 
+**Addendum 2026-11-14: a thread's windows, listed and let go together, with no limit on
+their number (point 28 of root decision 0191).** An agent that works through the CLI,
+Codex in ChatGPT Desktop above all, could not tell its windows from other threads':
+agent-browser's `tab list` lists every tab of the Environment without an owner, and `done`
+lets go of one session's window while nothing said which of `<session>`, `<session>-2`, …
+the thread still held. In one thread an agent said it would close its tabs and did not,
+and the person lost their way among dozens of tabs.
+
+1. **A thread's windows, by record, never by name.** A session's name is no evidence of its
+   thread: names are free, so `team-2` may be a window of `team` or a thread of its own, and
+   reading `-2` as a further window let one thread list and let go of another's (Pablo's
+   review of this pull request). A thread's windows are its own session (the one its
+   harness names, `threadSession`) and the windows `lazurio browser window` and `lazurio
+   apps open` opened for it. On creating a window they record the calling thread's identity
+   (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` or `CLAUDE_CODE_SESSION_ID`, else the session
+   named) with the session and the tab it bound, in
+   `$XDG_RUNTIME_DIR/lazurio-browser/windows/<session>.json` (mode 0600, replaced
+   atomically, gone at a reboot like agent-browser's bindings in the runtime directory). No
+   other file held this fact: agent-browser's binding names a session's tab, a holder file
+   the tabs a place keeps (T3 Code's only those its thread's own session binds), and a
+   Codex or Claude Code thread has no holder file. The hub never reads a record, so holds
+   and the tabs' lives are unchanged. A window the session has already is never recorded
+   anew, so a name another thread opened stays that thread's.
+   - A recorded window is confirmed while its binding names the recorded tab. One rebound
+     since, or the thread's own session recorded by another thread, is ambiguous: it may be
+     the thread's or not, so `tabs` names it apart and `done --all` never lets go of it and
+     fails. A session without a record is no window of another thread, whatever its name.
+   - A record that cannot be read or is no valid record names no thread, and the session's
+     name proves none, so its window may be any thread's: it is ambiguous for every thread
+     while its daemon may run or its binding names an open tab (Pablo's review on
+     `54e2fefd`: leaving it out let `tabs` say no window remains and `done --all` succeed
+     while it may still be held). No other evidence tells its thread: the binding names
+     only the tab, and the daemon `lazurio browser window` starts carries no thread's
+     identity. `tabs` names an ambiguous window by its session only, never its address or
+     title, and says that its list is not complete; `done --all` lets go of the confirmed
+     windows, leaves the ambiguous ones and fails naming them. A broken record is rare (the
+     record is replaced atomically), so the price, every thread's answer incomplete until
+     that window's daemon ends, buys never claiming a complete answer that may not be.
+   - `--session` on `tabs` and `done --all` names one window of the thread, which must be
+     the calling thread's where its harness names one; otherwise, or when its thread cannot
+     be told, the command lists and lets go of nothing and fails.
+2. **`lazurio browser tabs`** lists them and no other thread's: for each its session, tab,
+   address, title, the person's link, whether the thread's daemon holds it (`held`), how
+   many people view it, whether it sleeps and when the hub ends it; the ambiguous windows
+   apart (`ambiguous`), and while it names any, its list is not complete. The windows come
+   from agent-browser's bindings (C7) and the records, their facts from the hub's loopback
+   list (C11). Its answer is the new kind `browser-tabs` of C13.
+3. **`lazurio browser done --all`** lets go of every confirmed window of the thread whose
+   daemon may run, each as `done` does; its answer keeps the kind `browser-done`, with the
+   thread as `session`, each session's outcome in `sessions`, the windows it left in
+   `ambiguous` and the worst outcome as `outcome`, `unconfirmed` when it left any. A window
+   whose daemon's process runs while nothing answers on its socket (missing or refused) is
+   not let go: the hub still counts the process and the binding as a hold, so `done` and
+   `done --all` answer `unconfirmed` and fail, never `none` (the same review). An agent
+   checks with `tabs` before it tells the person its windows are closed: a window let go
+   that the person views stays for them.
+4. **No limit; an overview instead** (decided by Matěj on 2026-11-14). No number limits a
+   thread's windows: its agent needs an overview of them, works with them, lets go of those
+   it no longer needs and does its work well. When `lazurio browser window` opens a new
+   window while the thread holds others (a confirmed daemon that runs, bound to an open
+   page), it names them on stderr with their addresses and reminds the agent of `done
+   --session <session>` and `done --all`; it refuses nothing and exits 0. A window it could
+   not record is said to be invisible to `tabs` and `done --all`. A limit of five windows,
+   proposed in the same pull request, was dropped before it was published.
+5. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-124`)
+   tells agents to list their windows with `tabs` and never with `tab list`, that a window
+   is theirs by `lazurio browser window`'s record and never by its name, to read helper
+   pages one after another in one window, to let go of a window as soon as they no longer
+   need it, to check with `tabs` before saying the windows are closed, and, in ChatGPT
+   Desktop, to keep one window whose link the person has in the right panel and to say what
+   a further window's new link shows.
+
+Unchanged: no tab is closed for everyone, the hub, its graces, the holder files and C2's
+names. C13 only grows within v1 (F50 point 3); `stopSessionDaemon` keeps its outcomes, and
+the CLI reads a `none` against the hub's rule for a hold. Verified by
+`tests/environment-browser.test.ts` (independent sessions `team`, `team-2` and `team-3` of
+different threads, with and without a harness's identity, and `t3-a-1`, `t3-a-2` and
+`t3-a-1000` each only its own thread's; another thread's sessions never listed or let go; a
+rebound record ambiguous; a neighbour window whose record does not parse, lacks a member,
+cannot be read or is a directory ambiguous for every thread, named by its session only,
+`tabs` not complete and `done --all` failing; `done --all`'s outcomes; a live `.pid` with a
+missing or refused socket unconfirmed; the note of `window` naming the thread's other
+windows, and none for the window a session keeps) and the vectors of `cli.json`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
@@ -12405,6 +12560,50 @@ cookies alike, kept the module's and github.com's, named `octocat`, and in publi
 github.com's session too. The Machines policy, the real loopback entry and an Environment are
 checked after Machines delivers them.
 
+**Addendum 2026-11-14: the view's own pickers for the pop-ups no screencast shows** (decided by
+Matěj on 2026-11-14 as variant A of LazurioPlatform#970; implemented in this revision). Chrome
+draws a `<select>`'s list, the calendar of `date`, `time`, `datetime-local`, `month` and `week`,
+the colour chooser of `type=color` and a datalist's suggestions as separate widgets outside the
+page's compositor. `Page.startScreencast` never shows them: the pop-up opened, the person's keys
+went into it, and they saw nothing, so a date of birth made of drop-down lists could not be
+filled. This addendum adds to point 7; the rest of F39 stands.
+
+1. **Only a person's input is looked at.** The hub checks a left press, a tap and the keys that
+   open such a pop-up on Chrome on Linux (Space, Enter, F4 and Alt with an arrow on a select; F4
+   and Alt with an arrow on the calendars; Space and Enter on a colour; an arrow on a datalist's
+   field), and only for input that came through the view. Agents work through their own DevTools
+   sessions and never reach the hub, so their clicks, keys and `select` commands open what they
+   always opened.
+2. **The control is found, then guarded.** `DOM.getNodeForLocation` at the press, or
+   `document.activeElement` for a key, in the page, its frames of the same process and the
+   frames of other processes, which the hub attaches to as their own targets. A script in a
+   view-only isolated world (`lazurio-view-pickers`) cancels the default of just the next
+   `mousedown` and `click`, or that key's `keydown`, on that control, within 1.5 s (3 s for a
+   tap), and lets every handler of the page run. The input still reaches the page, and Chrome's
+   pop-up stays shut. The script adds nothing to the page's document and never reads a password
+   field. Neither the DOM nor the Runtime domain is enabled. A select with
+   `appearance: base-select`, which Chrome draws inside the page, a `multiple` or `size > 1`
+   select, and disabled or read-only fields are left alone.
+3. **The view's picker goes to the person who acted** (`picker`): a list at the control with a
+   fine pointer, a sheet at the bottom on a touch screen or in a narrow view, with groups,
+   disabled options, keys and type-ahead; for a field, the person's own browser's field of that
+   type with the page's `min`, `max` and `step`. Esc or a press outside closes it without a
+   change (`pick-cancel`).
+4. **The choice is written as a person's** (`pick`): `selectedIndex` or `value`, then `input`
+   and `change`, both bubbling. A choice that changes nothing fires nothing. A select's option is
+   found again by its value and text when the page changed its options meanwhile, and one that is
+   gone or disabled is not written. A navigation, a closed tab or a lost browser closes the
+   picker.
+5. **The people's input to a tab keeps its order.** Each message waits until the one before has
+   been sent to Chrome, never for Chrome's answer.
+
+**Not decided here.** Autofill, Chrome's context menu and permission prompts (the other native
+windows #970 names); a select inside a closed shadow root.
+
+Tests: `tests/environment-browser-view-pickers.test.ts`. Checked live on 2026-11-14 against the
+Environment browser (Chrome 156) through a view from the change's worktree on its own port, by
+mouse, keys and touch, at 1280 px and at a phone's 390 px.
+
 **Addendum 2026-11-14: files from the person's computer, also into frames of other sites**
 (proposed by the agent on Matěj's approval of #973's scope the same day; open for the Admin's
 review). Point 7's file choosers were measured on Chrome 156 against a page on two origins: a
@@ -12475,6 +12674,14 @@ in F33, and the account-scoped list in F37. Historical statements that bind
 every visitor to GitHub/Team membership or every sharing action to their
 personal infra PR no longer define the target. Local loopback use stays
 independent. No behavior, schema, credential or live access changes here.
+
+*Superseded in part on 2026-11-14, for GEN4 (register decision 0245): the Organization's
+Deployment Repo holds the boundaries of trust (who is a member, who is an
+Organization Admin, the Devices of the Organization, access outside roles, the rule
+of approval) and Lazurio Auth holds their use; the Dashboard sets only what lies
+within those boundaries, and Machines applies a change of them only with proof of
+its approval. What stands of the paragraph below is the rejection of duplicate
+Dashboard ACLs and of a GitHub-only visitor identity.*
 
 Choose one Auth authority with Dashboard management and infra enforcement
 over duplicate Dashboard ACLs or GitHub-only visitor identity: it supports
@@ -16193,7 +16400,11 @@ implied by writing this contract.
 
 ## F49 — SSH from the person's devices is registered in Launchpad Settings
 
-**Decided by the Operator 2026-10-12; implemented in this revision.** A person connects
+**Decided by the Operator 2026-10-12; implemented in this revision.** *This is what
+runs today (register decision 0247, 2026-11-14): in GEN4 no person keeps a
+standing key into an Environment, a short-lived certificate that Lazurio Auth issues
+at the moment of entry takes the place of a registered device key, and the
+certificate authority's host certificate takes the place of the pinned host key.* A person connects
 SSH from their own computer into their Environment without touching a console inside
 it. They give the agent on their computer (Codex on macOS or Windows, which drives its
 own browser panel and runs commands there) the prompt the page offers. The agent opens
@@ -16366,6 +16577,12 @@ Environment, a node of its home tailnet only (root decision 0155), belongs to th
 Conglomerate Host owner's reviewed change. Fresh Headscale readback is the
 evidence for both devices, not a device list in the Organization overview. A
 personal Environment without tailnet or SSH (root decision 0207) gains no path.
+*Superseded on 2026-11-14 (register decision 0246): in Lazurio's personal tailnet the
+person approves and removes their own Devices (until self-approval is built, Lazurio's
+operator approves the first people's Devices by hand), and in a Conglomerate the
+Organization's Admin approves Devices. A Personal Environment without a tailnet is no
+longer a target, because the public entry of Personal Environments is retired; until
+its removal is deployed, that entry still runs.*
 
 The chapter covers identity discovery, existing clients and headless sockets,
 explicit hostname at enrollment, fresh client and administrator readback,
@@ -19173,6 +19390,12 @@ Trezor with the request listed, and in English an unknown id saying the request 
 exist.
 
 ## F55 — A public Environment: a demo onboarding, a quiet notice that it is public, nothing to sign in to
+
+*Retired as a path on 2026-11-12 (register decisions 0246 and 0204): entry without a
+tailnet is retired, and the reference Organization is to have no public Environment
+and no Environment that admits any Lazurio account. This decision describes the one
+shared visitors' Environment that keeps running until it is retired; nothing further
+is built on it.*
 
 **Decided by Matěj (Organization Admin) on 2026-10-16 (root decision 0204 points 3, 4 and
 6 and its line on 0201, plan DEV-6668 slice 1); the handover member is
@@ -22170,6 +22393,79 @@ address `buddy.<login>` showed the same error. This amends point 1 of the addend
 - A T3 Code that stops while the person has his window open shows the gateway's error until
   the page reads the document again.
 
+### F60 addendum of 2026-11-14: the person moves Buddy anywhere, he stands free and moves a little
+
+**Decided by Matěj (Organization Admin) on 2026-11-14**, who approved the prototype of
+LazurioDevelopment/prototypes-lazurio #131 ("Schvaluji, pokračuj"). In Chat the launcher in
+the bottom-right corner covered a part of the screen he works in (the right panel's
+controls), and the composer moved left and narrowed to keep the corner free. He asked for
+Buddy to be moved anywhere by dragging, as a pet on the screen, and to be an animated figure
+rather than a picture in a disc; and for T3 Code's composer to keep its own place. This
+amends point 4 of F60 and the addendum of 2026-10-25 (one place, the figure in the disc, the
+page keeping the corner free); the corner stays where he starts.
+
+1. **Moved by the person** (`src/shell/buddy-place.ts`, `buddy-element.ts`). A drag of the
+   launcher with a mouse, a pen or a finger puts him anywhere on the window; a move shorter
+   than 5 px is a click and opens his window as before, and a drag never clicks. The pointer
+   is held from the press on, so a quick flick still drags him. He never stands nearer than
+   8 px to an edge. Dropped within 40 px of his corner he is back in it. While he has the
+   focus the arrows move him by 16 px (64 px with Shift), out of his corner too: their steps
+   never snap, and only a step that lands exactly on the corner is home. Home takes him back
+   to his corner. His corner is measured in the window as it is now (an invisible box the stylesheet
+   places as it places him there, the host's offsets and the safe area included), so a
+   resized window snaps him to its own corner, never to where the corner was. While the Launchpad lifts him over its dialog (the addendum of 2026-10-26) he is
+   not moved.
+2. **Each app remembers his place.** The shell runs on each app's origin, so the place is
+   kept in that origin's `localStorage` (`lazurio.buddy.place`): the Launchpad, Chat and
+   Automate each have their own, and a new app starts in the corner. The place keeps the
+   edges he is nearest to, so a narrower or wider window keeps him by the same edge; his
+   corner is stored as nothing. Unreadable storage is the corner.
+3. **His panel opens beside him.** Away from his corner the panel (about 400 × 600) opens
+   above or below him, where there is more room, aligned with his outer side; where neither
+   has its height, to his left or right where it fits whole; always inside the window. In his
+   corner, and in full screen, everything is as before. The guide's figure leaps from where
+   he stands (`home`, as before), and the launcher keeps its 58 px box.
+4. **The corner is kept free only while he is in it.** `--lazurio-buddy-clearance` is set on
+   the document while the launcher is drawn in its corner, and removed while he stands
+   anywhere else, so a page that reads it gets its corner back once he moved. The property
+   and its value are as the addendum of 2026-10-25 has them; interface v1 is unchanged. T3
+   Code stops reading it (its composer keeps T3's own place, a change in Lazurio/t3code);
+   MausBot keeps reading it.
+5. **He stands free and moves a little** (`buddy-styles.ts`, as the prototype). His figure
+   at 48 × 52 px with its pixels kept sharp, no disc, a soft shadow on the ground under his
+   feet. He breathes, rises under the pointer, lifts and leans the way he is pulled while
+   dragged, lands where he is put, hops now and then while his "1" waits, and his ground is
+   ringed in ink while his window shows. While he is out with the guide only his ground
+   stays, dashed. Without his picture the neutral guide's mark keeps its white disc. Less
+   motion keeps him still: no breathing, hop, landing or lean.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the corner and only shrink the composer more | The corner still covers the right panel's controls and the composer stays narrowed; rejected for moving him |
+| One place for every app, kept by the Launchpad | Needs a writer behind the gateway and a reading on every page; the person asked for each app's own; not now |
+| Snap him to the nearest edge | A pet stays where it is put; only his corner snaps, so he can always go back |
+| Remove `--lazurio-buddy-clearance` | Interface v1 only grows, and MausBot reads it; kept, set only in the corner |
+| Frame-by-frame animation (blinking, waving) | Needs drawn frames of each character from his origin; an animated `avatar.webp` shows as it is, without a change here; not now |
+
+**Verified by:**
+- `tests/shell-buddy-place.test.ts`: the place by the nearest edges, kept on a resized window,
+  inside the window, back in the corner within 40 px of a drop, single arrow steps out of the
+  corner and back, the panel above,
+  below and beside him and on a phone, the remembered place and anything unreadable as the
+  corner.
+- `tests/shell-buddy.test.ts`: the figure's size and look, and the clearance only in the
+  corner.
+- In a browser: the personal preview with Buddy (`bun scripts/preview-launchpad.ts personal
+  cs <port> buddy`) at 1280 × 800 in headless Chromium: the drag, the clearance removed and
+  the place kept across a reload, the click after a drag opening the panel beside him, Home
+  back to the corner with the clearance written again, Enter opening the panel above him.
+
+**Honest limits.** Checked in headless Chromium only; Safari, Firefox and touch on a real
+phone are not. The preview's stand-in frame does not answer Escape, so Escape inside an open
+frame was not checked there. Before this change reaches an Environment, T3 Code's composer
+still reads the clearance; with the change and an older T3 Code the composer narrows only
+while Buddy is in his corner.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210
@@ -24644,7 +24940,14 @@ between the Environments of a Conglomerate from facts, in one service on the Con
 Host (`lazurio-access-service`, Machines `workloads/conglomerate-host/ACCESS-SERVICE.md`):
 Pracovní přístup (a personal Environment to its owner's Work Environments), Team via Work
 (a Work Environment to the Team Environments of its person's Teams) and Správcovský
-přístup (an Admin's Work Environment to every other Environment of the Organization). The
+přístup (an Admin's Work Environment to every other Environment of the Organization).
+*Register decision 0247 (2026-11-14) makes this what runs today: the target in GEN4 is a
+short-lived certificate from Lazurio Auth in place of the source's key and the
+certificate authority's host certificates in place of pinned host keys. Správcovský
+přístup is not derived from the Admin role in the meantime: an Admin's station is a
+named exception, declared as a boundary of trust, until the service entry through the
+recording entry point replaces it. The Platform keeps writing only what the service
+answers.* The
 service knows its caller by the tailnet source address; there are no tokens on guests. Its
 two calls for a source are `PUT /v1/source-key` and `GET /v1/targets`. Until now the
 Platform wrote a personal Environment's SSH config only from the handover's assigned

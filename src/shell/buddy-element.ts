@@ -1,5 +1,25 @@
+import type { Store } from "./account";
 import type { BuddyBubbleModel } from "./buddy-bubble";
-import { buddyBubbleCss, buddyLauncherClearance } from "./buddy-styles";
+import {
+  type BuddyBox,
+  type BuddyPlace,
+  buddyBeside,
+  buddyBoxOf,
+  buddyDragThreshold,
+  buddyEdge,
+  buddyNudge,
+  buddyPlaceOf,
+  buddyStep,
+  readBuddyPlace,
+  writeBuddyPlace,
+} from "./buddy-place";
+import {
+  buddyBubbleCss,
+  buddyLauncherClearance,
+  buddyLauncherOffset,
+  buddyLauncherSize,
+  buddyPanelSize,
+} from "./buddy-styles";
 import { icon } from "./icons";
 
 // How Buddy's bubble is drawn (decision F60): in `<lazurio-buddy>`'s own
@@ -26,6 +46,14 @@ import { icon } from "./icons";
 // Buddy is, the launcher itself rises over that dialog's top layer as a
 // manual popover with a ring around it: inert, as the page behind a modal
 // dialog is, so the dialog keeps the focus and its Escape.
+//
+// The person moves him (F60's addendum of 2026-11-14, buddy-place.ts): a
+// drag puts him anywhere on the window, and this app remembers the place; a
+// click opens his window as before, and the arrows move him while he has the
+// focus, Home back to his corner. Away from his corner he stands at the
+// `left` and `top` the place gives, his panel opens beside him, and the page
+// no longer keeps the corner free; in it everything is as before. While the
+// Launchpad lifts him over its dialog he is not dragged.
 
 /** His window's name for assistive technology: his name, the same in every
  * language, also while the launcher says more. */
@@ -44,10 +72,10 @@ export const launcherOnPage = (
 ): boolean => model !== null && !host.hidden;
 
 /** Keeps `--lazurio-buddy-clearance` on the document while the launcher is
- * on the page, as the rail keeps `--lazurio-rail-width`: written when the
- * launcher appears and removed when it goes (its bubble gone, or its element
- * hidden), never in between, since the bubble watches the document's style
- * for the colour scheme. */
+ * on the page in its corner, as the rail keeps `--lazurio-rail-width`:
+ * written when it appears there and removed when it goes (its bubble gone,
+ * its element hidden, or the person moved him away), never in between,
+ * since the bubble watches the document's style for the colour scheme. */
 export function launcherClearance(
   style: Pick<CSSStyleDeclaration, "setProperty" | "removeProperty">,
 ): (drawn: boolean) => void {
@@ -90,6 +118,9 @@ export function createBuddyBubbleView(
      * Začínáme: the element announces a link on its own origin and closes
      * the window. */
     follow: (href: string, event: MouseEvent) => void;
+    /** This app's memory (`localStorage`), where his place is kept; null
+     * keeps it for this page only. */
+    store: Store | null;
   }>,
 ): BuddyBubbleView {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(options.logo)}`;
@@ -97,6 +128,218 @@ export function createBuddyBubbleView(
   let frame: HTMLIFrameElement | null = null;
   let avatar: string | null = null;
   const clearance = launcherClearance(host.ownerDocument.documentElement.style);
+  const win = host.ownerDocument.defaultView;
+  const size = Object.freeze({
+    width: buddyLauncherSize,
+    height: buddyLauncherSize,
+  });
+  // His place in this app, whether the launcher is on the page, the drag
+  // under way, and until when a click is the end of a drag rather than the
+  // person's.
+  let place: BuddyPlace = readBuddyPlace(options.store);
+  let onPage = false;
+  let drag: {
+    id: number;
+    x: number;
+    y: number;
+    left: number;
+    top: number;
+    lastX: number;
+    moved: boolean;
+  } | null = null;
+  let swallowUntil = 0;
+
+  const view = () => ({
+    width: win?.innerWidth ?? 0,
+    height: win?.innerHeight ?? 0,
+  });
+  const boxOf = (element: Element): BuddyBox => {
+    const r = element.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  };
+  /** His corner in the window as it is now: an invisible box the
+   * stylesheet places as it places the launcher there, the host's offsets
+   * and the safe area included; before it is drawn, the defaults. */
+  const homeBox = (): BuddyBox => {
+    const measured = parts === null ? null : boxOf(parts.corner);
+    if (measured !== null && measured.width > 0) return measured;
+    const { width, height } = view();
+    return {
+      left: width - buddyLauncherOffset.right - size.width,
+      top: height - buddyLauncherOffset.bottom - size.height,
+      ...size,
+    };
+  };
+
+  /** Puts the launcher at his place, the panel beside him, and the page's
+   * clearance only while he is in his corner. */
+  function applyPlace(): void {
+    clearance(onPage && place === "home");
+    if (parts === null) return;
+    const { launcher } = parts;
+    if (place === "home") {
+      for (const side of ["left", "top", "right", "bottom"])
+        launcher.style.removeProperty(side);
+      delete launcher.dataset.moved;
+    } else {
+      const box = buddyBoxOf(place, size, view(), homeBox());
+      launcher.style.left = `${box.left}px`;
+      launcher.style.top = `${box.top}px`;
+      launcher.style.right = "auto";
+      launcher.style.bottom = "auto";
+      launcher.dataset.moved = "";
+    }
+    placePanel();
+  }
+
+  /** The panel beside him away from his corner; in it, and in full screen,
+   * the stylesheet's own place. */
+  function placePanel(): void {
+    if (parts === null) return;
+    const { dialog, launcher } = parts;
+    const modal = (() => {
+      try {
+        return dialog.matches(":modal");
+      } catch {
+        return false;
+      }
+    })();
+    if ((place === "home" && drag?.moved !== true) || modal || !dialog.open) {
+      for (const side of ["left", "top", "right", "bottom", "width", "height"])
+        dialog.style.removeProperty(side);
+      return;
+    }
+    const at = buddyBeside(
+      boxOf(launcher),
+      buddyPanelSize,
+      buddyPanelSize.gap,
+      view(),
+      true,
+    );
+    dialog.style.left = `${at.left}px`;
+    dialog.style.top = `${at.top}px`;
+    dialog.style.width = `${at.width}px`;
+    dialog.style.height = `${at.height}px`;
+    dialog.style.right = "auto";
+    dialog.style.bottom = "auto";
+  }
+
+  /** He lands where he was put: a short squash, played again each time. */
+  function land(figure: HTMLElement): void {
+    delete figure.dataset.landed;
+    void figure.offsetWidth;
+    figure.dataset.landed = "";
+  }
+
+  function settle(next: BuddyPlace): void {
+    place = next;
+    writeBuddyPlace(options.store, place);
+    applyPlace();
+    if (parts !== null) land(parts.figure);
+  }
+
+  function listenMoves(launcher: HTMLButtonElement, figure: HTMLElement) {
+    launcher.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || launcher.dataset.spot !== undefined) return;
+      const at = boxOf(launcher);
+      drag = {
+        id: event.pointerId,
+        x: event.clientX,
+        y: event.clientY,
+        left: at.left,
+        top: at.top,
+        lastX: event.clientX,
+        moved: false,
+      };
+      // Held from the press on, so a quick flick that leaves him at once
+      // still drags him.
+      try {
+        launcher.setPointerCapture(event.pointerId);
+      } catch {}
+    });
+    launcher.addEventListener("pointermove", (event) => {
+      if (drag === null || drag.id !== event.pointerId) return;
+      const dx = event.clientX - drag.x;
+      const dy = event.clientY - drag.y;
+      if (!drag.moved) {
+        if (Math.hypot(dx, dy) < buddyDragThreshold) return;
+        drag.moved = true;
+        launcher.dataset.drag = "";
+        clearance(false);
+      }
+      // He leans the way he is pulled, a little.
+      const tilt = Math.max(
+        -14,
+        Math.min(14, (event.clientX - drag.lastX) * 1.5),
+      );
+      drag.lastX = event.clientX;
+      const { width, height } = view();
+      const left = Math.max(
+        buddyEdge,
+        Math.min(drag.left + dx, width - size.width - buddyEdge),
+      );
+      const top = Math.max(
+        buddyEdge,
+        Math.min(drag.top + dy, height - size.height - buddyEdge),
+      );
+      launcher.style.left = `${left}px`;
+      launcher.style.top = `${top}px`;
+      launcher.style.right = "auto";
+      launcher.style.bottom = "auto";
+      launcher.style.setProperty("--buddy-tilt", `${tilt}deg`);
+      placePanel();
+    });
+    const end = (event: PointerEvent, put: boolean) => {
+      const was = drag;
+      if (was === null || was.id !== event.pointerId) return;
+      drag = null;
+      if (!was.moved) return;
+      delete launcher.dataset.drag;
+      launcher.style.removeProperty("--buddy-tilt");
+      // A browser may still click at the end of a drag; that is no click of
+      // the person's.
+      swallowUntil = performance.now() + 250;
+      if (!put) {
+        applyPlace();
+        return;
+      }
+      settle(
+        buddyPlaceOf(
+          was.left + event.clientX - was.x,
+          was.top + event.clientY - was.y,
+          size,
+          view(),
+          homeBox(),
+        ),
+      );
+    };
+    launcher.addEventListener("pointerup", (event) => end(event, true));
+    launcher.addEventListener("pointercancel", (event) => end(event, false));
+    launcher.addEventListener("keydown", (event) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (launcher.dataset.spot !== undefined) return;
+      const step = event.shiftKey ? 4 * buddyStep : buddyStep;
+      const moves: Record<string, readonly [number, number]> = {
+        ArrowLeft: [-step, 0],
+        ArrowRight: [step, 0],
+        ArrowUp: [0, -step],
+        ArrowDown: [0, step],
+      };
+      if (event.key === "Home") {
+        event.preventDefault();
+        settle("home");
+        return;
+      }
+      const move = moves[event.key];
+      if (move === undefined) return;
+      event.preventDefault();
+      settle(buddyNudge(place, move[0], move[1], size, view(), homeBox()));
+    });
+    figure.addEventListener("animationend", (event) => {
+      if (event.animationName === "buddy-land") delete figure.dataset.landed;
+    });
+    win?.addEventListener("resize", () => applyPlace());
+  }
 
   function build() {
     const root = host.shadowRoot ?? host.attachShadow({ mode: "open" });
@@ -114,6 +357,10 @@ export function createBuddyBubbleView(
     launcher.setAttribute("aria-haspopup", "dialog");
     launcher.setAttribute("aria-controls", dialog.id);
     launcher.setAttribute("aria-expanded", "false");
+    // His figure stands free on its ground; it lifts, leans and lands
+    // without moving the launcher's box.
+    const figure = document.createElement("span");
+    figure.className = "figure";
     const picture = document.createElement("img");
     picture.alt = "";
     picture.decoding = "async";
@@ -128,8 +375,13 @@ export function createBuddyBubbleView(
     badge.className = "badge";
     badge.setAttribute("aria-hidden", "true");
     badge.hidden = true;
-    launcher.append(picture, badge);
-    launcher.addEventListener("click", () => options.toggle());
+    figure.append(picture);
+    launcher.append(figure, badge);
+    launcher.addEventListener("click", () => {
+      if (performance.now() < swallowUntil) return;
+      options.toggle();
+    });
+    listenMoves(launcher, figure);
     bubble.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
       if (options.escape()) event.preventDefault();
@@ -178,13 +430,19 @@ export function createBuddyBubbleView(
     );
     meet.append(head, talk, action);
     dialog.append(meet);
-    bubble.append(dialog, launcher);
+    // His corner, measured where the person moved him away from it.
+    const corner = document.createElement("span");
+    corner.className = "corner";
+    corner.setAttribute("aria-hidden", "true");
+    bubble.append(corner, dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
     return {
       bubble,
+      corner,
       dialog,
       launcher,
+      figure,
       picture,
       badge,
       meet: { section: meet, close, face, hello, line, action },
@@ -239,7 +497,8 @@ export function createBuddyBubbleView(
 
   return Object.freeze({
     draw(model: BuddyBubbleModel | null): void {
-      clearance(launcherOnPage(model, host));
+      onPage = launcherOnPage(model, host);
+      clearance(onPage && place === "home");
       if (model === null) {
         parts?.bubble.remove();
         parts = null;
@@ -260,6 +519,9 @@ export function createBuddyBubbleView(
       if (model.launcher.away) launcher.dataset.away = "";
       else delete launcher.dataset.away;
       badge.hidden = model.launcher.badge === null;
+      // Something new waits for the person: he hops now and then.
+      if (model.launcher.badge !== null) launcher.dataset.calling = "";
+      else delete launcher.dataset.calling;
       badge.textContent = model.launcher.badge ?? "";
       lift(launcher, model.launcher.spot);
       dialog.setAttribute("aria-label", buddyWindowName);
@@ -290,6 +552,7 @@ export function createBuddyBubbleView(
         frame = made;
       }
       layout(dialog, model.layout);
+      if (drag?.moved !== true) applyPlace();
     },
     frameWindow: () => frame?.contentWindow ?? null,
     focus(target: "launcher" | "frame"): void {

@@ -1,6 +1,6 @@
 # Workspace composition: the Lazurio Account in the Launchpad and the workspace composed by the Dashboard
 
-> **Approved target update, 2026-10-06 (root 0192):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
 
 > **Amended 2026-10-09 (root decision 0194, [F45](decisions.md#f45--organization-settings-reach-the-environment-asked-through-its-relay-recorded-in-the-folder-reported-back)):** an Environment's credential never lives in the Folder. A hosted work Environment's identity is its own client at the Lazurio issuer (confidential, `private_key_jwt`, default client scope `lazurio-environment`); its private key is generated on the Machine and held by root, and its access tokens are held in memory by a helper of the gateway (Machines `docs/environment-identity.md`, Machines #449). The Launchpad and every agent reach the Dashboard only through the Environment's relay, a unix socket on which the gateway attaches the token itself; they never see the key or a token. Where this document keeps an Environment key or credential in the Folder's product state (sections 5.3, 7.4 and 11), that is superseded. The composition and the device-code registration of this proposal remain open; the first consumer of the Environment's identity is the delivery of the Organization's settings (F45).
 
@@ -314,7 +314,7 @@ plans and adds no account of its own.
   | Workstation (the user's own device) | registers their own device |
   | Personal Remote Environment | owns that Environment (the handover's `owner.github_id` is the user's linked GitHub id) |
   | Work Environment, Automated Environment | is the user the Organization assigned to that Environment (`owner.assignment`) |
-  | Team Environment | is an Organization Admin (until decision 0228 is deployed, an active Organization Owner on GitHub, whom the Dashboard calls Admin today) |
+  | Team Environment | is an Organization Admin (until the Admin role of decision 0245 is deployed, an active Organization Owner on GitHub, whom the Dashboard calls Admin today, which gives that Owner no access to an Environment) |
 
   The rule is checked by the Dashboard, which already reads the Organization's infra
   roster and GitHub roles, at registration and again whenever those facts change; a
@@ -700,7 +700,7 @@ superseded. Both plans need the same things, so they share them (Matěj, 2026-10
   (Task Agents work with full access, root decision 0172), and on an
   Organization-owned Machine the Organization stays a higher compromise domain; a
   user's list names their personal Remote Environment, which the work zone must never
-  reach (root decision 0155). So the rule is the same everywhere: an Environment
+  reach (decision 0246). So the rule is the same everywhere: an Environment
   credential gets 403 on the list.
 - **What DEV-6639 owns.** The shape of the Environment list, its offline cache and the
   local "Tento počítač" entry (since 2026-10-04 listed in every Organization the
