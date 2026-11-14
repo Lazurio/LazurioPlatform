@@ -47,6 +47,16 @@ export const en = {
     "The Environment browser opens only http and https addresses here.",
   handOff: "This page opens only in your own browser.",
   openInYourBrowser: "Open in your browser",
+  pickerApply: "Apply",
+  pickerEmpty: "No options",
+  pickerSelect: "Choose an option",
+  pickerDatalist: "Suggestions",
+  pickerDate: "Date",
+  pickerTime: "Time",
+  pickerDatetime: "Date and time",
+  pickerMonth: "Month",
+  pickerWeek: "Week",
+  pickerColor: "Colour",
 };
 export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
@@ -90,6 +100,16 @@ export const cs: Words = {
     "Prohlížeč Prostředí tu otevírá jen adresy http a https.",
   handOff: "Tato stránka se otevře jen ve vašem prohlížeči.",
   openInYourBrowser: "Otevřít ve vašem prohlížeči",
+  pickerApply: "Použít",
+  pickerEmpty: "Žádné možnosti",
+  pickerSelect: "Vyberte možnost",
+  pickerDatalist: "Návrhy",
+  pickerDate: "Datum",
+  pickerTime: "Čas",
+  pickerDatetime: "Datum a čas",
+  pickerMonth: "Měsíc",
+  pickerWeek: "Týden",
+  pickerColor: "Barva",
 };
 
 export const words: Readonly<Record<"cs" | "en", Words>> = Object.freeze({

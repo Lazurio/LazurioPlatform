@@ -19,6 +19,7 @@ import {
 } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
 import type { CookieSweep } from "./cookies";
+import { type FoundPicker, Pickers, pickerKeyKinds } from "./pickers";
 import {
   type PressureReading,
   pressureOrder,
@@ -276,6 +277,18 @@ type Tab = {
   askedAt: number;
   /** The main frame's coming navigation is the page's own doing. */
   selfNavigation: boolean;
+  /** The people's input to the page, in the order it came: the next waits
+   * until the one before has been sent to Chrome, never for its answer. */
+  input: Promise<void>;
+  /** A person's touch that began on a control with a pop-up (#970): shown
+   * as the view's picker if the touch ends as a tap. */
+  tap: Readonly<{
+    viewer: Viewer;
+    found: FoundPicker;
+    x: number;
+    y: number;
+    moved: boolean;
+  }> | null;
   /** The hub is looking whether the tab may sleep (decision F57). */
   checking: boolean;
   /** It is falling asleep: its page was asked to close. */
@@ -563,8 +576,19 @@ export class BrowserHub {
   private readonly pressureEveryMs: number;
   private readonly pressureCoolDownMs: number;
   private readonly pressureQuietMs: number;
+  /** The view's own pickers for the pop-ups no screencast shows (#970). */
+  private readonly pickers: Pickers;
 
   constructor(private readonly seams: HubSeams) {
+    this.pickers = new Pickers({
+      send: () => {
+        const cdp = this.cdp;
+        return cdp === null
+          ? null
+          : (method, params, session) => cdp.send(method, params, session);
+      },
+      log: (line) => seams.log(line),
+    });
     this.graceMs = seams.graceMs ?? browserTimes.viewerGraceMs;
     this.unviewedGraceMs =
       seams.unviewedGraceMs ?? browserTimes.unviewedGraceMs;
@@ -1158,6 +1182,8 @@ export class BrowserHub {
     if (this.shown(viewer)) tab.viewedAt = Date.now();
     tab.viewers.delete(viewer);
     tab.flows.delete(viewer);
+    this.pickers.forgetViewer(viewer);
+    if (tab.tap?.viewer === viewer) tab.tap = null;
     if (tab.lastActor === viewer) tab.lastActor = null;
     tab.usedAt = Date.now();
     if (tab.viewers.size > 0) {
@@ -1254,67 +1280,13 @@ export class BrowserHub {
         return null;
       });
     switch (message.t) {
-      case "mouse": {
-        this.acted(tab, viewer);
-        if (message.type === "mouseReleased") this.selectionSoon(tab);
-        await call("Input.dispatchMouseEvent", {
-          type: message.type,
-          x: message.x,
-          y: message.y,
-          button: message.button,
-          buttons: message.buttons,
-          clickCount: message.clickCount,
-          modifiers: message.modifiers,
-          ...(message.type === "mouseWheel"
-            ? { deltaX: message.deltaX ?? 0, deltaY: message.deltaY ?? 0 }
-            : {}),
-        });
-        return;
-      }
-      case "key": {
-        this.acted(tab, viewer);
-        if (
-          message.type === "keyUp" ||
-          message.key === "Control" ||
-          message.key === "Meta"
-        )
-          this.selectionSoon(tab);
-        const typing = message.type === "keyDown" && message.text !== undefined;
-        await call("Input.dispatchKeyEvent", {
-          type: typing
-            ? "keyDown"
-            : message.type === "keyDown"
-              ? "rawKeyDown"
-              : "keyUp",
-          key: message.key,
-          code: message.code,
-          windowsVirtualKeyCode: message.keyCode,
-          nativeVirtualKeyCode: message.keyCode,
-          modifiers: message.modifiers,
-          location: message.location,
-          autoRepeat: message.repeat,
-          isKeypad: message.location === 3,
-          ...(typing
-            ? { text: message.text, unmodifiedText: message.text }
-            : {}),
-        });
-        return;
-      }
+      case "mouse":
+      case "key":
       case "text":
-        this.acted(tab, viewer);
-        await call("Input.insertText", { text: message.text });
-        return;
       case "touch":
-        this.acted(tab, viewer);
-        await call("Input.dispatchTouchEvent", {
-          type: message.type,
-          touchPoints: message.points.map((point) => ({
-            x: point.x,
-            y: point.y,
-            id: point.id,
-          })),
-          modifiers: message.modifiers,
-        });
+      case "pick":
+      case "pick-cancel":
+        await this.input(tab, viewer, message, call);
         return;
       case "nav": {
         if (message.action === "reload") await call("Page.reload");
@@ -1354,6 +1326,187 @@ export class BrowserHub {
           .catch(() => undefined);
         return;
     }
+  }
+
+  /** A person's input to the page, in order (`Tab.input`). A press, a tap
+   * or a key that would open a pop-up Chrome draws outside the page shows
+   * the view's own picker instead (#970); the input itself still reaches
+   * the page. Only this input is looked at: an agent's never comes here. */
+  private async input(
+    tab: Tab,
+    viewer: Viewer,
+    message: Extract<
+      ClientMessage,
+      { t: "mouse" | "key" | "text" | "touch" | "pick" | "pick-cancel" }
+    >,
+    call: (
+      method: string,
+      params?: Record<string, unknown>,
+    ) => Promise<Record<string, unknown> | null>,
+  ): Promise<void> {
+    const before = tab.input;
+    let sent!: () => void;
+    tab.input = new Promise((resolve) => {
+      sent = resolve;
+    });
+    await before;
+    let dispatched: Promise<unknown> = Promise.resolve();
+    let after: (() => void) | null = null;
+    try {
+      switch (message.t) {
+        case "mouse": {
+          this.acted(tab, viewer);
+          if (message.type === "mouseReleased") this.selectionSoon(tab);
+          if (message.type === "mousePressed" && message.button === "left") {
+            const found = await this.pickers
+              .atPoint(tab, message.x, message.y, false)
+              .catch(() => null);
+            if (found !== null) this.showPicker(tab, viewer, found);
+          }
+          if (message.type === "mouseReleased")
+            after = () => this.pickers.disarm(tab);
+          dispatched = call("Input.dispatchMouseEvent", {
+            type: message.type,
+            x: message.x,
+            y: message.y,
+            button: message.button,
+            buttons: message.buttons,
+            clickCount: message.clickCount,
+            modifiers: message.modifiers,
+            ...(message.type === "mouseWheel"
+              ? { deltaX: message.deltaX ?? 0, deltaY: message.deltaY ?? 0 }
+              : {}),
+          });
+          break;
+        }
+        case "key": {
+          this.acted(tab, viewer);
+          if (
+            message.type === "keyUp" ||
+            message.key === "Control" ||
+            message.key === "Meta"
+          )
+            this.selectionSoon(tab);
+          if (message.type === "keyDown") {
+            const kinds = pickerKeyKinds(message.key, message.modifiers);
+            if (kinds.length > 0) {
+              const found = await this.pickers
+                .focused(tab, message.key, kinds)
+                .catch(() => null);
+              if (found !== null) {
+                this.showPicker(tab, viewer, found);
+                after = () => this.pickers.disarm(tab);
+              }
+            }
+          }
+          const typing =
+            message.type === "keyDown" && message.text !== undefined;
+          dispatched = call("Input.dispatchKeyEvent", {
+            type: typing
+              ? "keyDown"
+              : message.type === "keyDown"
+                ? "rawKeyDown"
+                : "keyUp",
+            key: message.key,
+            code: message.code,
+            windowsVirtualKeyCode: message.keyCode,
+            nativeVirtualKeyCode: message.keyCode,
+            modifiers: message.modifiers,
+            location: message.location,
+            autoRepeat: message.repeat,
+            isKeypad: message.location === 3,
+            ...(typing
+              ? { text: message.text, unmodifiedText: message.text }
+              : {}),
+          });
+          break;
+        }
+        case "text":
+          this.acted(tab, viewer);
+          dispatched = call("Input.insertText", { text: message.text });
+          break;
+        case "touch": {
+          this.acted(tab, viewer);
+          await this.touched(tab, viewer, message);
+          dispatched = call("Input.dispatchTouchEvent", {
+            type: message.type,
+            touchPoints: message.points.map((point) => ({
+              x: point.x,
+              y: point.y,
+              id: point.id,
+            })),
+            modifiers: message.modifiers,
+          });
+          if (message.type === "touchEnd" || message.type === "touchCancel")
+            after = this.tapEnded(tab, message.type === "touchEnd");
+          break;
+        }
+        case "pick":
+          this.acted(tab, viewer);
+          await this.pickers.pick(tab.targetId, viewer, message);
+          break;
+        case "pick-cancel":
+          await this.pickers.cancel(tab.targetId, viewer, message.token);
+          break;
+      }
+    } finally {
+      sent();
+    }
+    await dispatched;
+    after?.();
+  }
+
+  /** A touch on a control with a pop-up: guarded at its start, shown if it
+   * ends as a tap (a touch that moves is a scroll, as in the view). */
+  private async touched(
+    tab: Tab,
+    viewer: Viewer,
+    message: Extract<ClientMessage, { t: "touch" }>,
+  ): Promise<void> {
+    const [point] = message.points;
+    if (message.type === "touchStart") {
+      tab.tap = null;
+      if (message.points.length !== 1 || point === undefined) {
+        this.pickers.disarm(tab);
+        return;
+      }
+      const found = await this.pickers
+        .atPoint(tab, point.x, point.y, true)
+        .catch(() => null);
+      if (found !== null)
+        tab.tap = { viewer, found, x: point.x, y: point.y, moved: false };
+      return;
+    }
+    if (message.type !== "touchMove" || tab.tap === null) return;
+    const moved =
+      message.points.length !== 1 ||
+      point === undefined ||
+      Math.hypot(point.x - tab.tap.x, point.y - tab.tap.y) > 10;
+    if (moved) tab.tap = { ...tab.tap, moved: true };
+  }
+
+  /** The end of a touch: a tap shows its picker; anything else lets its
+   * guard go once the page had its chance to see the tap's mouse events. */
+  private tapEnded(tab: Tab, ended: boolean): () => void {
+    const tap = tab.tap;
+    tab.tap = null;
+    if (tap !== null && ended && !tap.moved && tab.viewers.has(tap.viewer)) {
+      this.showPicker(tab, tap.viewer, tap.found);
+      return () => undefined;
+    }
+    return () => this.pickers.disarm(tab);
+  }
+
+  private showPicker(tab: Tab, viewer: Viewer, found: FoundPicker): void {
+    viewer.send(this.pickers.show(tab.targetId, viewer, found));
+  }
+
+  /** The tab's document changed or it ended: its open pickers close. */
+  private closePickers(tab: Tab, ended: boolean): void {
+    tab.tap = null;
+    for (const { viewer, token } of this.pickers.closeTab(tab.targetId, ended))
+      if (tab.viewers.has(viewer as Viewer))
+        (viewer as Viewer).send({ t: "picker-closed", token });
   }
 
   /** Puts uploaded files on the input that asked for them. False when the
@@ -1523,6 +1676,8 @@ export class BrowserHub {
   private lost(): void {
     this.seams.log("browser connection lost");
     this.bySession.clear();
+    for (const tab of this.tabs.values()) this.closePickers(tab, true);
+    this.pickers.reset();
     for (const tab of this.tabs.values()) {
       // A page asked to close meanwhile: the reconnect tells whether it
       // fell asleep (decision F57); the request's answer cannot wait.
@@ -1655,6 +1810,8 @@ export class BrowserHub {
         unsavedAt: null,
         askedAt: 0,
         selfNavigation: false,
+        input: Promise.resolve(),
+        tap: null,
         checking: false,
         fall: null,
       };
@@ -2165,6 +2322,7 @@ export class BrowserHub {
         }
         tab.world = null;
         tab.document += 1;
+        this.closePickers(tab, false);
         // A navigation is use (decision F57), unless the page made it itself
         // (a refresh by its meta tag or header, or its script), and the new
         // document's input counts from now.
@@ -3436,6 +3594,7 @@ export class BrowserHub {
     if (tab.sessionId !== null) this.bySession.delete(tab.sessionId);
     for (const [token, chooser] of this.fileChoosers)
       if (chooser.targetId === targetId) this.fileChoosers.delete(token);
+    this.closePickers(tab, true);
     if (fellAsleep && sleeper !== undefined) {
       const fall = tab.fall;
       tab.fall = null;

@@ -12405,6 +12405,50 @@ cookies alike, kept the module's and github.com's, named `octocat`, and in publi
 github.com's session too. The Machines policy, the real loopback entry and an Environment are
 checked after Machines delivers them.
 
+**Addendum 2026-11-14: the view's own pickers for the pop-ups no screencast shows** (decided by
+Matěj on 2026-11-14 as variant A of LazurioPlatform#970; implemented in this revision). Chrome
+draws a `<select>`'s list, the calendar of `date`, `time`, `datetime-local`, `month` and `week`,
+the colour chooser of `type=color` and a datalist's suggestions as separate widgets outside the
+page's compositor. `Page.startScreencast` never shows them: the pop-up opened, the person's keys
+went into it, and they saw nothing, so a date of birth made of drop-down lists could not be
+filled. This addendum adds to point 7; the rest of F39 stands.
+
+1. **Only a person's input is looked at.** The hub checks a left press, a tap and the keys that
+   open such a pop-up on Chrome on Linux (Space, Enter, F4 and Alt with an arrow on a select; F4
+   and Alt with an arrow on the calendars; Space and Enter on a colour; an arrow on a datalist's
+   field), and only for input that came through the view. Agents work through their own DevTools
+   sessions and never reach the hub, so their clicks, keys and `select` commands open what they
+   always opened.
+2. **The control is found, then guarded.** `DOM.getNodeForLocation` at the press, or
+   `document.activeElement` for a key, in the page, its frames of the same process and the
+   frames of other processes, which the hub attaches to as their own targets. A script in a
+   view-only isolated world (`lazurio-view-pickers`) cancels the default of just the next
+   `mousedown` and `click`, or that key's `keydown`, on that control, within 1.5 s (3 s for a
+   tap), and lets every handler of the page run. The input still reaches the page, and Chrome's
+   pop-up stays shut. The script adds nothing to the page's document and never reads a password
+   field. Neither the DOM nor the Runtime domain is enabled. A select with
+   `appearance: base-select`, which Chrome draws inside the page, a `multiple` or `size > 1`
+   select, and disabled or read-only fields are left alone.
+3. **The view's picker goes to the person who acted** (`picker`): a list at the control with a
+   fine pointer, a sheet at the bottom on a touch screen or in a narrow view, with groups,
+   disabled options, keys and type-ahead; for a field, the person's own browser's field of that
+   type with the page's `min`, `max` and `step`. Esc or a press outside closes it without a
+   change (`pick-cancel`).
+4. **The choice is written as a person's** (`pick`): `selectedIndex` or `value`, then `input`
+   and `change`, both bubbling. A choice that changes nothing fires nothing. A select's option is
+   found again by its value and text when the page changed its options meanwhile, and one that is
+   gone or disabled is not written. A navigation, a closed tab or a lost browser closes the
+   picker.
+5. **The people's input to a tab keeps its order.** Each message waits until the one before has
+   been sent to Chrome, never for Chrome's answer.
+
+**Not decided here.** Autofill, Chrome's context menu and permission prompts (the other native
+windows #970 names); a select inside a closed shadow root.
+
+Tests: `tests/environment-browser-view-pickers.test.ts`. Checked live on 2026-11-14 against the
+Environment browser (Chrome 156) through a view from the change's worktree on its own port, by
+mouse, keys and touch, at 1280 px and at a phone's 390 px.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public
