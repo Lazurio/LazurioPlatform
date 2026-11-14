@@ -11816,6 +11816,90 @@ browser on the preview in Czech (on) and English (off). Installed consumers rece
 through a qualified Platform release, and the state reads only once the relay's path
 (Machines step 2) and the Dashboard's read are deployed.
 
+**Addendum 2026-11-14: a thread's windows, listed and let go together, with no limit on
+their number (point 28 of root decision 0191).** An agent that works through the CLI,
+Codex in ChatGPT Desktop above all, could not tell its windows from other threads':
+agent-browser's `tab list` lists every tab of the Environment without an owner, and `done`
+lets go of one session's window while nothing said which of `<session>`, `<session>-2`, …
+the thread still held. In one thread an agent said it would close its tabs and did not,
+and the person lost their way among dozens of tabs.
+
+1. **A thread's windows, by record, never by name.** A session's name is no evidence of its
+   thread: names are free, so `team-2` may be a window of `team` or a thread of its own, and
+   reading `-2` as a further window let one thread list and let go of another's (Pablo's
+   review of this pull request). A thread's windows are its own session (the one its
+   harness names, `threadSession`) and the windows `lazurio browser window` and `lazurio
+   apps open` opened for it. On creating a window they record the calling thread's identity
+   (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` or `CLAUDE_CODE_SESSION_ID`, else the session
+   named) with the session and the tab it bound, in
+   `$XDG_RUNTIME_DIR/lazurio-browser/windows/<session>.json` (mode 0600, replaced
+   atomically, gone at a reboot like agent-browser's bindings in the runtime directory). No
+   other file held this fact: agent-browser's binding names a session's tab, a holder file
+   the tabs a place keeps (T3 Code's only those its thread's own session binds), and a
+   Codex or Claude Code thread has no holder file. The hub never reads a record, so holds
+   and the tabs' lives are unchanged. A window the session has already is never recorded
+   anew, so a name another thread opened stays that thread's.
+   - A recorded window is confirmed while its binding names the recorded tab. One rebound
+     since, or the thread's own session recorded by another thread, is ambiguous: it may be
+     the thread's or not, so `tabs` names it apart and `done --all` never lets go of it and
+     fails. A session without a record is no window of another thread, whatever its name.
+   - A record that cannot be read or is no valid record names no thread, and the session's
+     name proves none, so its window may be any thread's: it is ambiguous for every thread
+     while its daemon may run or its binding names an open tab (Pablo's review on
+     `54e2fefd`: leaving it out let `tabs` say no window remains and `done --all` succeed
+     while it may still be held). No other evidence tells its thread: the binding names
+     only the tab, and the daemon `lazurio browser window` starts carries no thread's
+     identity. `tabs` names an ambiguous window by its session only, never its address or
+     title, and says that its list is not complete; `done --all` lets go of the confirmed
+     windows, leaves the ambiguous ones and fails naming them. A broken record is rare (the
+     record is replaced atomically), so the price, every thread's answer incomplete until
+     that window's daemon ends, buys never claiming a complete answer that may not be.
+   - `--session` on `tabs` and `done --all` names one window of the thread, which must be
+     the calling thread's where its harness names one; otherwise, or when its thread cannot
+     be told, the command lists and lets go of nothing and fails.
+2. **`lazurio browser tabs`** lists them and no other thread's: for each its session, tab,
+   address, title, the person's link, whether the thread's daemon holds it (`held`), how
+   many people view it, whether it sleeps and when the hub ends it; the ambiguous windows
+   apart (`ambiguous`), and while it names any, its list is not complete. The windows come
+   from agent-browser's bindings (C7) and the records, their facts from the hub's loopback
+   list (C11). Its answer is the new kind `browser-tabs` of C13.
+3. **`lazurio browser done --all`** lets go of every confirmed window of the thread whose
+   daemon may run, each as `done` does; its answer keeps the kind `browser-done`, with the
+   thread as `session`, each session's outcome in `sessions`, the windows it left in
+   `ambiguous` and the worst outcome as `outcome`, `unconfirmed` when it left any. A window
+   whose daemon's process runs while nothing answers on its socket (missing or refused) is
+   not let go: the hub still counts the process and the binding as a hold, so `done` and
+   `done --all` answer `unconfirmed` and fail, never `none` (the same review). An agent
+   checks with `tabs` before it tells the person its windows are closed: a window let go
+   that the person views stays for them.
+4. **No limit; an overview instead** (decided by Matěj on 2026-11-14). No number limits a
+   thread's windows: its agent needs an overview of them, works with them, lets go of those
+   it no longer needs and does its work well. When `lazurio browser window` opens a new
+   window while the thread holds others (a confirmed daemon that runs, bound to an open
+   page), it names them on stderr with their addresses and reminds the agent of `done
+   --session <session>` and `done --all`; it refuses nothing and exits 0. A window it could
+   not record is said to be invisible to `tabs` and `done --all`. A limit of five windows,
+   proposed in the same pull request, was dropped before it was published.
+5. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-124`)
+   tells agents to list their windows with `tabs` and never with `tab list`, that a window
+   is theirs by `lazurio browser window`'s record and never by its name, to read helper
+   pages one after another in one window, to let go of a window as soon as they no longer
+   need it, to check with `tabs` before saying the windows are closed, and, in ChatGPT
+   Desktop, to keep one window whose link the person has in the right panel and to say what
+   a further window's new link shows.
+
+Unchanged: no tab is closed for everyone, the hub, its graces, the holder files and C2's
+names. C13 only grows within v1 (F50 point 3); `stopSessionDaemon` keeps its outcomes, and
+the CLI reads a `none` against the hub's rule for a hold. Verified by
+`tests/environment-browser.test.ts` (independent sessions `team`, `team-2` and `team-3` of
+different threads, with and without a harness's identity, and `t3-a-1`, `t3-a-2` and
+`t3-a-1000` each only its own thread's; another thread's sessions never listed or let go; a
+rebound record ambiguous; a neighbour window whose record does not parse, lacks a member,
+cannot be read or is a directory ambiguous for every thread, named by its session only,
+`tabs` not complete and `done --all` failing; `done --all`'s outcomes; a live `.pid` with a
+missing or refused socket unconfirmed; the note of `window` naming the thread's other
+windows, and none for the window a session keeps) and the vectors of `cli.json`.
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
@@ -12475,6 +12559,111 @@ sweep removed the Lazurio and gateway cookies that real responses had set, host-
 cookies alike, kept the module's and github.com's, named `octocat`, and in public mode removed
 github.com's session too. The Machines policy, the real loopback entry and an Environment are
 checked after Machines delivers them.
+
+**Addendum 2026-11-14: the view's own pickers for the pop-ups no screencast shows** (decided by
+Matěj on 2026-11-14 as variant A of LazurioPlatform#970; implemented in this revision). Chrome
+draws a `<select>`'s list, the calendar of `date`, `time`, `datetime-local`, `month` and `week`,
+the colour chooser of `type=color` and a datalist's suggestions as separate widgets outside the
+page's compositor. `Page.startScreencast` never shows them: the pop-up opened, the person's keys
+went into it, and they saw nothing, so a date of birth made of drop-down lists could not be
+filled. This addendum adds to point 7; the rest of F39 stands.
+
+1. **Only a person's input is looked at.** The hub checks a left press, a tap and the keys that
+   open such a pop-up on Chrome on Linux (Space, Enter, F4 and Alt with an arrow on a select; F4
+   and Alt with an arrow on the calendars; Space and Enter on a colour; an arrow on a datalist's
+   field), and only for input that came through the view. Agents work through their own DevTools
+   sessions and never reach the hub, so their clicks, keys and `select` commands open what they
+   always opened.
+2. **The control is found, then guarded.** `DOM.getNodeForLocation` at the press, or
+   `document.activeElement` for a key, in the page, its frames of the same process and the
+   frames of other processes, which the hub attaches to as their own targets. A script in a
+   view-only isolated world (`lazurio-view-pickers`) cancels the default of just the next
+   `mousedown` and `click`, or that key's `keydown`, on that control, within 1.5 s (3 s for a
+   tap), and lets every handler of the page run. The input still reaches the page, and Chrome's
+   pop-up stays shut. The script adds nothing to the page's document and never reads a password
+   field. Neither the DOM nor the Runtime domain is enabled. A select with
+   `appearance: base-select`, which Chrome draws inside the page, a `multiple` or `size > 1`
+   select, and disabled or read-only fields are left alone.
+3. **The view's picker goes to the person who acted** (`picker`): a list at the control with a
+   fine pointer, a sheet at the bottom on a touch screen or in a narrow view, with groups,
+   disabled options, keys and type-ahead; for a field, the person's own browser's field of that
+   type with the page's `min`, `max` and `step`. Esc or a press outside closes it without a
+   change (`pick-cancel`).
+4. **The choice is written as a person's** (`pick`): `selectedIndex` or `value`, then `input`
+   and `change`, both bubbling. A choice that changes nothing fires nothing. A select's option is
+   found again by its value and text when the page changed its options meanwhile, and one that is
+   gone or disabled is not written. A navigation, a closed tab or a lost browser closes the
+   picker.
+5. **The people's input to a tab keeps its order.** Each message waits until the one before has
+   been sent to Chrome, never for Chrome's answer.
+
+**Not decided here.** Autofill, Chrome's context menu and permission prompts (the other native
+windows #970 names); a select inside a closed shadow root.
+
+Tests: `tests/environment-browser-view-pickers.test.ts`. Checked live on 2026-11-14 against the
+Environment browser (Chrome 156) through a view from the change's worktree on its own port, by
+mouse, keys and touch, at 1280 px and at a phone's 390 px.
+
+**Addendum 2026-11-14: files from the person's computer, also into frames of other sites**
+(proposed by the agent on Matěj's approval of #973's scope the same day; open for the Admin's
+review). Point 7's file choosers were measured on Chrome 156 against a page on two origins: a
+file input in a cross-origin frame was not intercepted (Chrome opened its own "Open File" window
+on the Environment's screen, which nobody in the view sees), names were rewritten to ASCII
+(`Výpis z OR – 2026.pdf` reached the page as `V_pis_z_OR___2026.pdf`), `accept` and a folder
+input never reached the view, `showOpenFilePicker()` ended as a failed upload, and a dropped or
+pasted file reached nothing.
+
+1. **Frames of other sites.** Chrome runs such a frame as a target of its own. The hub
+   auto-attaches each page's session to its frames (`Target.setAutoAttach`, flattened, frames
+   only, never paused) and each frame's session to the frames under it, and intercepts their
+   file choosers there. A chooser is answered on the session it came on. A frame's session is
+   used only for its choosers and for a paste; the page's address, loading, navigations and
+   input (decision F57) stay the main frame's. Chrome reports a frame's JavaScript dialogs and
+   `beforeunload` on the page's own session (measured), so point 7's dialogs already cover them.
+   (`src/browser/people/frame-sessions.ts`)
+2. **The person's names.** A file keeps its name: Unicode, spaces, quotes and a leading dot
+   (`.env`) arrive unchanged. The view sends each file's place as the person has it, its folders
+   and its name, as JSON, because a form turns a line break in its text into CR LF and a browser
+   writes `"` in a file's name as `%22` (measured on Chrome 148). On the Environment only path
+   separators and control characters go, `.` and `..` name nothing (a name of nothing else is
+   `file`, or `folder`), and a name is cut to 255 bytes of UTF-8 at a whole character, before its
+   extension. Places are told apart by the person's own names: one folder of the person is one
+   folder on the Environment, and two places of one folder, files or folders, whose names clean to
+   one take `name` and `name (2).ext`, the stem giving way so that the number and the extension
+   stay within the 255 bytes. A valid folder neither fails nor merges on its own names. Chrome
+   itself reports a `\` in a name inside a chosen folder as `/` in `webkitRelativePath`
+   (measured), so such a file arrives one folder deeper; a dropped folder keeps the name. Files
+   are still written owner-only, each upload in a folder of its own, and a chooser stays
+   answerable until its files are on its input: an upload that fails leaves the person's chooser
+   open to choose again. (`src/browser/people/files.ts`, `src/browser/people/uploads.ts`)
+3. **What the input asks for.** The view's chooser takes the input's `accept` and folder mode
+   (`webkitdirectory`). A folder is uploaded with each file's place and given to the input as one
+   folder, so the page gets each file's `webkitRelativePath`. A chooser without an input
+   (`showOpenFilePicker` and its kind) cannot take files: Chrome tells the page the choice was
+   cancelled (`AbortError`, measured), and the view tells the person why and suggests dropping
+   the files on the page.
+4. **Drop and paste.** Files dragged over the page area show an outline that keeps the page
+   visible. On a drop the view uploads them with its viewer's token (`upload-token`, good while
+   that socket views the tab) and the hub drops them at that point (`Input.dispatchDragEvent` with
+   the files), into a frame of another site too; a file input there takes them as its own drop. A
+   paste of files (a copied file, a screenshot) goes to the page as a `paste` event with the files
+   at the focused element, through frames of other sites. A paste of text stays text, and so does
+   text that brings a picture of itself (a spreadsheet's copy). Every failure is said in the view.
+   (`src/browser/people/uploads.ts`, `src/browser/people/file-drop.ts`)
+
+**Not decided here.** Answering `showOpenFilePicker` with files (Chrome's protocol has no command
+for it). A paste the page leaves to the browser to insert by itself (a picture into an editable
+area without a script of its own): the view's `paste` event carries the files, but no browser
+inserts anything for an event a script sent. How long uploaded files stay: still an hour, so a
+form sent later than that no longer finds them (#976).
+
+Tests: `tests/environment-browser-view-files.test.ts` (names, the upload's form, the chooser's
+ask, the frames' sessions and the hub against a scripted DevTools peer: a frame's chooser on its
+own session, its navigations leaving the tab alone, nested frames, a folder, a folder whose names
+clean to one, a chooser without an input, a drop, a paste into a frame, the tokens). Checked live
+on 2026-11-14 against the Environment browser (Chrome 156) with the view of this revision on a
+port of its own; the names of point 2 were checked the same day with two Chromium 148 browsers of
+the check's own, through the view's folder chooser and a drop.
 
 **Addendum 2026-11-14: the browser declines payments and Chrome's other windows over the page**
 (requested on 2026-11-14 after a payment window blocked a page in the view; the payment part as

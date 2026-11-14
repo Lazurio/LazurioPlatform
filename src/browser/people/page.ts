@@ -140,6 +140,31 @@ body {
 }
 .status { top: 50%; transform: translate(-50%, -50%); padding: 7px 14px; color: var(--muted); }
 .banner { z-index: 4; top: 10px; transform: translateX(-50%); padding: 6px 12px; font-size: 12px; }
+/* Files dragged over the page area (#973): an outline round the page, which
+   stays visible so the person sees where they drop, and what happens at its
+   top; the upload's status under the page. Neither takes the pointer, so the
+   drag stays the page's. */
+.drop-veil {
+  position: absolute; inset: 6px; z-index: 1; display: flex; justify-content: center;
+  align-items: flex-start; padding: 10px; border: 2px dashed var(--accent); border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent); pointer-events: none;
+  animation: drop-in 150ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.drop-label {
+  max-width: 100%; padding: 8px 14px; border-radius: 12px; background: var(--panel);
+  box-shadow: var(--shadow); text-align: center;
+}
+.drop-title { margin: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.drop-hint { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+@keyframes drop-in { from { opacity: 0; } }
+.transfer {
+  position: absolute; z-index: 4; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom));
+  max-width: calc(100% - 24px); transform: translateX(-50%); padding: 7px 14px;
+  border-radius: 16px; background: var(--panel); box-shadow: var(--shadow);
+  text-align: center; overflow-wrap: anywhere; pointer-events: none;
+}
+.transfer.failed { color: var(--error); }
+@media (prefers-reduced-motion: reduce) { .drop-veil { animation: none; } }
 .popups { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; pointer-events: none; }
 .popup {
   grid-area: 1 / 1; display: flex; flex-direction: column; overflow: hidden;
@@ -179,6 +204,52 @@ body {
 .modal input[type="file"] { display: block; width: 100%; margin: 0 0 14px; }
 .modal .error { margin: 0 0 12px; color: var(--error); }
 .actions { display: flex; justify-content: flex-end; gap: 8px; }
+/* The view's own pickers for the pop-ups a screencast never shows (#970): a
+   list at the control, or a sheet at the bottom on a touch screen. */
+.picker-veil { position: absolute; inset: 0; z-index: 5; }
+.picker-veil.sheet { display: flex; flex-direction: column; justify-content: flex-end; background: rgba(0, 0, 0, 0.32); }
+.picker {
+  position: absolute; display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  color: var(--text); box-shadow: var(--shadow); transform-origin: top left;
+  animation: picker-in 120ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.picker[data-side="above"] { transform-origin: bottom left; }
+.sheet .picker {
+  position: relative; max-height: min(70%, 520px); border-radius: 14px 14px 0 0;
+  border-width: 1px 0 0; transform-origin: bottom center;
+  animation: picker-sheet-in 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes picker-in { from { opacity: 0; transform: scale(0.97); } }
+@keyframes picker-sheet-in { from { transform: translateY(24px); opacity: 0.6; } }
+@media (prefers-reduced-motion: reduce) { .picker, .sheet .picker { animation: none; } }
+.picker-title { flex: none; padding: 14px 16px 8px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.picker-list { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px; outline: none; font-size: 14px; }
+.picker-group-label { padding: 6px 10px 2px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.picker-item {
+  display: flex; align-items: baseline; gap: 8px; min-height: 30px; padding: 6px 10px;
+  border-radius: 6px; cursor: default; overflow-wrap: anywhere; touch-action: manipulation;
+}
+.picker-group .picker-item { padding-left: 20px; }
+.picker-item[aria-selected="true"] { font-weight: 600; }
+.picker-item.active { background: var(--accent); color: var(--on-accent); }
+.picker-item[aria-disabled="true"] { opacity: 0.45; }
+.picker-hint { color: var(--muted); font-size: 12px; }
+.picker-item.active .picker-hint { color: inherit; opacity: 0.8; }
+.picker-empty { padding: 10px; color: var(--muted); }
+.sheet .picker-list { font-size: 16px; padding: 4px 8px 12px; }
+.sheet .picker-item { min-height: 48px; align-items: center; padding: 10px 12px; }
+.sheet .picker-group .picker-item { padding-left: 24px; }
+.picker-form { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.sheet .picker-form { padding: 4px 16px 16px; }
+.picker-field {
+  display: block; width: 100%; min-height: 36px; padding: 4px 10px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--field);
+  color: var(--text); font: inherit; font-size: 16px;
+}
+.picker-field[type="color"] { height: 44px; padding: 4px; }
+.picker-error { margin: 0; color: var(--error); }
+.sheet .picker-form .button { height: 44px; padding: 0 18px; font-size: 15px; }
 `;
 
 const page = `<!doctype html>

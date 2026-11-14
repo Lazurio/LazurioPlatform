@@ -28,6 +28,8 @@ import {
   pictureKey,
   pictureOf,
 } from "./bar";
+import { FileDrop, postFiles } from "./file-drop";
+import { maxUploadBytes, placeField, uploadFields } from "./files";
 import { FramePump } from "./frames";
 import {
   buttonBit,
@@ -47,6 +49,7 @@ import {
   viewSize,
   wheelDelta,
 } from "./input-map";
+import { controlRect, type PickerMessage, PickerView } from "./picker-view";
 import {
   type ClientMessage,
   decodeFrame,
@@ -364,11 +367,16 @@ class Viewer {
   private frameRequest = 0;
   private readonly touches = new Map<number, Touch>();
   private dialog: HTMLDialogElement | null = null;
+  /** The view's own picker for a page's control (#970), while open. */
+  private picker: PickerView | null = null;
   private chooser: Readonly<{
     dialog: HTMLDialogElement;
     token: string;
     abort: AbortController;
   }> | null = null;
+  /** Files the person drops or pastes (#973), with this socket's token. */
+  private readonly drop: FileDrop;
+  private uploadToken: string | null = null;
 
   constructor(
     readonly id: string,
@@ -387,6 +395,13 @@ class Viewer {
     this.status.setAttribute("role", "status");
     this.box.append(this.screen, keys, this.status);
     parent.append(this.box);
+    this.drop = new FileDrop({
+      box: this.box,
+      token: () => this.uploadToken,
+      point: (event) => this.at(event, true),
+      post: (token, form) => postFiles(this.id, token, form),
+      say,
+    });
     this.listen();
     this.observer = new ResizeObserver(() => this.resized());
     this.observer.observe(this.box);
@@ -412,6 +427,7 @@ class Viewer {
     socket?.close();
     this.closeDialog();
     this.closeChooser(null);
+    this.picker?.close();
     this.showStatus();
   }
 
@@ -468,6 +484,7 @@ class Viewer {
     socket.addEventListener("close", () => {
       if (this.socket !== socket) return;
       this.socket = null;
+      this.uploadToken = null;
       // What the remote page had down went with the socket.
       this.down.clear();
       this.touches.clear();
@@ -514,6 +531,18 @@ class Viewer {
         return;
       case "files-closed":
         this.closeChooser(message.token);
+        return;
+      case "files-refused":
+        this.showRefused();
+        return;
+      case "upload-token":
+        this.uploadToken = message.token;
+        return;
+      case "picker":
+        this.showPicker(message);
+        return;
+      case "picker-closed":
+        if (this.picker?.token === message.token) this.picker.close();
         return;
       case "browser":
         banner.hidden = message.state !== "reconnecting";
@@ -873,6 +902,8 @@ class Viewer {
     // Key ups go elsewhere now: what the remote page has down goes up.
     keys.addEventListener("blur", () => this.releaseKeys(false, 0));
     keys.addEventListener("paste", (event) => {
+      // A copied file or a screenshot goes to the page as a file (#973).
+      if (this.drop.paste(event)) return;
       event.preventDefault();
       this.sendAll(
         textMessages(event.clipboardData?.getData("text/plain") ?? ""),
@@ -1071,7 +1102,11 @@ class Viewer {
     const dialog = element("dialog", "modal");
     const input = element("input");
     input.type = "file";
-    input.multiple = message.multiple;
+    // What the page's input asks for (#973): its types, or a folder.
+    const directory = message.directory === true;
+    input.multiple = message.multiple || directory;
+    input.webkitdirectory = directory;
+    if (message.accept !== undefined) input.accept = message.accept;
     const error = element("p", "error", say.uploadFailed);
     error.hidden = true;
     const cancel = () => {
@@ -1085,23 +1120,27 @@ class Viewer {
     });
     const submit = async () => {
       const form = new FormData();
-      for (const file of input.files ?? []) form.append("file", file);
+      const files = [...(input.files ?? [])];
+      for (const file of files) {
+        form.append(uploadFields.file, file);
+        // Each file's place as the person has it: a folder's files with
+        // their places in it, every name exactly as it is.
+        form.append(
+          uploadFields.path,
+          placeField(file.name, directory ? file.webkitRelativePath : ""),
+        );
+      }
+      if (files.reduce((sum, file) => sum + file.size, 0) > maxUploadBytes) {
+        error.textContent = say.tooLarge;
+        error.hidden = false;
+        return;
+      }
+      error.textContent = say.uploadFailed;
       upload.disabled = true;
       input.disabled = true;
       upload.textContent = say.uploading;
       error.hidden = true;
-      const done = await fetch(
-        `${viewPath(this.id)}/files?token=${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          body: form,
-          credentials: "same-origin",
-          signal: abort.signal,
-        },
-      ).then(
-        (response) => response.ok,
-        () => false,
-      );
+      const done = await postFiles(this.id, token, form, abort.signal);
       if (abort.signal.aborted) return;
       if (done) {
         this.closeChooser(token);
@@ -1115,7 +1154,11 @@ class Viewer {
     const actions = element("div", "actions");
     actions.append(button(say.cancel, cancel), upload);
     dialog.append(
-      element("h2", "", message.multiple ? say.files : say.file),
+      element(
+        "h2",
+        "",
+        directory ? say.folder : message.multiple ? say.files : say.file,
+      ),
       input,
       error,
       actions,
@@ -1127,6 +1170,62 @@ class Viewer {
     this.chooser = { dialog, token, abort };
     this.showModal(dialog);
     input.focus();
+  }
+
+  /** The page asked for files without an input (#973): Chrome told it the
+   * choice was cancelled, and the person learns why nothing opened. */
+  private showRefused(): void {
+    this.closeDialog();
+    const dialog = element("dialog", "modal");
+    const close = () => this.closeDialog();
+    const ok = button(say.ok, close, "button primary");
+    const actions = element("div", "actions");
+    actions.append(ok);
+    dialog.append(
+      element("h2", "", say.filesRefused),
+      element("p", "message", say.filesRefusedText),
+      actions,
+    );
+    dialog.addEventListener("cancel", (event) => {
+      event.preventDefault();
+      close();
+    });
+    this.dialog = dialog;
+    this.showModal(dialog);
+    ok.focus();
+  }
+
+  /** A page's control would have opened a pop-up Chrome draws outside the
+   * page (#970): the view's own picker at the control. Its keys are the
+   * picker's until it closes; then they go to the page again, except on a
+   * touch screen, where that would open the keyboard. */
+  private showPicker(message: PickerMessage): void {
+    this.picker?.close();
+    const bitmap = this.bitmap;
+    const header = this.header;
+    const drawn =
+      bitmap === null
+        ? null
+        : containRect(
+            { width: this.box.clientWidth, height: this.box.clientHeight },
+            bitmap,
+          );
+    const picker = new PickerView({
+      message,
+      box: this.box,
+      control:
+        drawn === null || header === null
+          ? null
+          : controlRect(message.rect, drawn, header),
+      say,
+      send: (answer) => this.send(answer),
+      closed: () => {
+        if (this.picker !== picker) return;
+        this.picker = null;
+        if (!matchMedia("(pointer: coarse)").matches) this.focus();
+      },
+    });
+    this.picker = picker;
   }
 
   /** Closes the file chooser: any, or only the one of `token` (it was

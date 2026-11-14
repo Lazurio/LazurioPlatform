@@ -35,6 +35,13 @@ export const en = {
   upload: "Upload",
   uploading: "Uploading…",
   uploadFailed: "The files could not be uploaded.",
+  folder: "The page wants to upload a folder",
+  tooLarge: "These files are too large: at most 256 MB at a time.",
+  filesRefused: "Files cannot be picked here",
+  filesRefusedText:
+    "The page asks for files through the File System Access interface, which the Environment browser's view cannot answer yet, so the page was told the choice was cancelled. If the page takes dropped files, drag them onto it.",
+  dropHere: "Drop the files on the page",
+  dropHint: "The page gets them where you drop them.",
   picture: "Picture quality",
   pictureStandard: "Standard",
   pictureSaver: "Data saver",
@@ -47,6 +54,16 @@ export const en = {
     "The Environment browser opens only http and https addresses here.",
   handOff: "This page opens only in your own browser.",
   openInYourBrowser: "Open in your browser",
+  pickerApply: "Apply",
+  pickerEmpty: "No options",
+  pickerSelect: "Choose an option",
+  pickerDatalist: "Suggestions",
+  pickerDate: "Date",
+  pickerTime: "Time",
+  pickerDatetime: "Date and time",
+  pickerMonth: "Month",
+  pickerWeek: "Week",
+  pickerColor: "Colour",
 };
 export type Words = { readonly [K in keyof typeof en]: string };
 export const cs: Words = {
@@ -78,6 +95,13 @@ export const cs: Words = {
   upload: "Nahrát",
   uploading: "Nahrávám…",
   uploadFailed: "Soubory se nepodařilo nahrát.",
+  folder: "Stránka chce nahrát složku",
+  tooLarge: "Soubory jsou příliš velké: najednou nejvýš 256 MB.",
+  filesRefused: "Soubory tu vybrat nejde",
+  filesRefusedText:
+    "Stránka si soubory vybírá přes rozhraní File System Access, které pohled prohlížeče Prostředí zatím neumí obsloužit, a výběr proto dostala jako zrušený. Pokud stránka přijímá přetažené soubory, přetáhněte je přímo na ni.",
+  dropHere: "Pusťte soubory do stránky",
+  dropHint: "Stránka je dostane tam, kam je pustíte.",
   picture: "Kvalita obrazu",
   pictureStandard: "Standardní",
   pictureSaver: "Úsporná",
@@ -90,6 +114,16 @@ export const cs: Words = {
     "Prohlížeč Prostředí tu otevírá jen adresy http a https.",
   handOff: "Tato stránka se otevře jen ve vašem prohlížeči.",
   openInYourBrowser: "Otevřít ve vašem prohlížeči",
+  pickerApply: "Použít",
+  pickerEmpty: "Žádné možnosti",
+  pickerSelect: "Vyberte možnost",
+  pickerDatalist: "Návrhy",
+  pickerDate: "Datum",
+  pickerTime: "Čas",
+  pickerDatetime: "Datum a čas",
+  pickerMonth: "Měsíc",
+  pickerWeek: "Týden",
+  pickerColor: "Barva",
 };
 
 export const words: Readonly<Record<"cs" | "en", Words>> = Object.freeze({
