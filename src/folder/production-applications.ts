@@ -120,8 +120,12 @@ export const productionGlossary: readonly Text[] = [
     "| Application role | Application User and Application Admin determine what a person may do within a particular app; the module enforces its rules on the server through `appAccess`. Neither a Module role nor Organization Admin, and they never open the whole Environment. |",
   ),
   t(
-    "| Produkční aplikace | Vydaná a sestavená aplikace modulu, kterou Organizace provozuje na svém serveru pro členy s rolí v aplikaci a Lazurio účtem, i bez Prostředí. Zveřejnění a každou verzi schvaluje Admin Organizace. |",
-    "| Production application | A released, built module app its Organization runs on its own server for members with an application role and Lazurio account, including people without an Environment. The Organization Admin approves publication and each version. |",
+    "| Modul Organizace | Zdrojový kód a data modulu v repozitářích Organizace. Pracují s ním vývojáři a agenti v Prostředích; přístup k němu dávají role modulu (decisions 0232, 0234). Přístup k modulu nedává přístup do Aplikace Organizace. |",
+    "| Organization Module | A module's source code and data in the Organization's repositories. Developers and agents work with it in Environments; the Module roles give access to it (decisions 0232, 0234). Access to the Module gives no access to the Organization Application. |",
+  ),
+  t(
+    "| Aplikace Organizace (produkční aplikace) | Běžící vydaná verze jednoho Modulu Organizace, sestavená z jeho vydaného tagu, na `https://<aplikace>.<org>.lazurio.app`, bez zdrojového kódu. Organizace ji provozuje na svém serveru pro členy s rolí v aplikaci a Lazurio účtem, i bez Prostředí; zveřejnění a každou verzi schvaluje Admin Organizace. Přístup do aplikace nedává přístup k modulu a naopak (decisions 0234, 0239). |",
+    "| Organization Application (production application) | The running released version of one Organization Module, built from its released tag, at `https://<application>.<org>.lazurio.app`, with no source code. The Organization runs it on its own server for members with an application role and Lazurio account, including people without an Environment; the Organization Admin approves publication and each version. Access to the application gives no access to the Module, and the other way round (decisions 0234, 0239). |",
   ),
   t(
     "| Hostitel aplikací | Technický hostitel pouze vydaných produkčních aplikací na serveru Organizace. Není Prostředí, nemá přiděleného člověka ani agentní nástroje; jeho interní jméno uživatel nevidí a v adrese aplikace není. |",
