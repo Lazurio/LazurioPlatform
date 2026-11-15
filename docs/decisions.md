@@ -12008,6 +12008,135 @@ cannot be read or is a directory ambiguous for every thread, named by its sessio
 missing or refused socket unconfirmed; the note of `window` naming the thread's other
 windows, and none for the window a session keeps) and the vectors of `cli.json`.
 
+**Addendum 2026-11-15: a window opens blank, `tabs` says whether its list is complete, every
+tab in one overview, and taking a tab on purpose (decided by Matěj; #987, #989).** Matěj's
+aim: agents work efficiently in the Environment browser, understand what happens, and nothing
+happens in the background that an agent would read otherwise. The Environment browser is
+shared, and agents may work together. He would not forbid an agent to see every tab, but
+wants a way for an agent to see what is open in the Environment and to work with other tabs.
+Taking another agent's tab is a choice the agent wants and confirms, knowing from whom it
+takes it.
+
+1. **A new window opens blank, then goes to its address** (#987). `lazurio browser window
+   --url` and `lazurio apps open` create the window at `about:blank`. They bind the session
+   there and pin it (a blank page answers agent-browser's probe at once), record the window,
+   and only then open the address with `Page.navigate` on the page (`createThreadWindow`). A
+   slow or busy page therefore no longer fails the binding and no longer starts the path of
+   #974. Measured on a separate Chromium on 2026-11-15:
+   - A navigation from the blank page sends `Sec-Fetch-Site: none`, `Sec-Fetch-Mode:
+     navigate` and `Sec-Fetch-Dest: document`, so the hosting gateway's landing (addendum of
+     2026-11-12) still accepts it.
+   - `Page.navigate` answers once the page's server answered: 55 ms, 12 s for a server that
+     answered after 12 s, and 33 ms for a busy page.
+   - Where the page did not load at once, the tab's history keeps the blank page before it.
+     Back from the first page therefore shows a blank page, which is accepted (a target
+     created without any address behaves the same).
+
+   `window` waits 10 s for the browser's answer. When the address is still loading, or the
+   browser refused it, the window stays bound and recorded and `window` says so on stderr.
+   `apps open` fails with `navigate-failed` only when the browser refused the hand-over. An
+   address still never moves a window the session has already. `browser open` still opens
+   its tab through the hub at the address.
+2. **`tabs` says whether its list is complete.** Its answer gains `complete` beside
+   `ambiguous` (C13 grows within v1; a reader of an older answer derives it from
+   `ambiguous`). The text begins with a line that the list is not complete, why, and what to
+   do. The listing worked, so it exits 0 and running it again tells nothing more: a script
+   reads `complete`, and an agent neither takes the answer for a failure nor repeats it.
+3. **Every tab in one overview: `lazurio browser tabs --all`.** It adds every tab of the
+   Environment browser to the thread's own list (`all`):
+   - the tab's id, address, title and the person's link;
+   - the agent-browser sessions bound to it, each with its thread where its window record
+     tells (`null` where it cannot be told), whether its agent-browser runs, and whether its
+     binding is unverified or the tab was taken from it;
+   - the places that hold it (holder files, F47 point 4) and how many people view it.
+
+   The tabs and their facts are the hub's loopback list (C11), the sessions agent-browser's
+   bindings (C7) with the records of the addendum of 2026-11-14. Plain `tabs` stays the
+   calling thread's windows. The overview is for working with other agents, never a licence
+   to work in their tabs.
+4. **Taking a tab on purpose: `lazurio browser take <id>`.**
+   - **Without `--confirm`** it only describes: the tab, the sessions it would be taken from
+     with their thread and whether their agent may be working there now, the places and
+     people that keep it, and what `--confirm` does. It changes nothing and exits 3 (C13's
+     new exit `confirm`).
+   - **With `--confirm`** every other session bound to the tab is let go as `done` lets go of
+     one, the calling thread's session is bound and pinned as `window` binds one, and the tab
+     is recorded as the thread's window (`takeTab`, under the account's window lock).
+     agent-browser 0.43 refuses `tab` to a tab another live session has pinned
+     (vercel-labs/agent-browser#2135), and 0.37 would leave two agents working in it unseen.
+   - **Refused, with nothing changed**, when the browser has no such tab, when the calling
+     session is bound to another open window it would leave (`session-busy`: take it into
+     another `--session`, or let go of that window first), or when a holder's daemon does not
+     shut down (`holder-busy`).
+   - **A binding an earlier `window` left unverified (C19) is never the session's window**,
+     even when it names the tab: it may name another agent's tab. Without `--confirm`, `take`
+     refuses as `window` does (`binding-unverified`); with it, the binding is settled first
+     under the lock, as `window` settles one, or nothing is taken.
+   - **Every earlier holder's note is written before the session is bound.** Where one cannot
+     be written (`take-note-failed`), the notes go back to what they were and nothing is
+     bound: a holder without its note would take the tab for its window again and navigate
+     it. Where the binding fails, the taker may be left on the tab (`tab` answered, the pin did
+     not), so the notes go back only once the taker is proven off it (its binding names
+     another tab, or its daemon has ended and the binding is removed). Otherwise the notes
+     stay and the taker stays unverified (C19, `binding-unverified`) until `done` or `window`
+     settles it, so two agents never work in the tab unseen. The mark that keeps it so is the
+     one the binding wrote before its first command, keeping neither the taken tab nor it as
+     the earlier binding, so no second write can fail and a settled session never keeps the
+     taken tab; where that first mark cannot be written, no command runs and nothing is bound.
+     Once the binding is verified, the mark is first rewritten to keep the taken tab and then
+     removed, so a mark that cannot be removed keeps the take; where neither works, the take
+     is reported unfinished (`binding-unverified`) and the window is not recorded.
+   - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
+     changes, and the people who view the tab keep it.
+
+   **The earlier holder** keeps its agent-browser binding. Measured on 0.37 and on the 0.43
+   candidate: once its daemon has been let go, its next plain command restarts the daemon in
+   the same tab and may navigate it, and agent-browser tells it nothing. Removing its binding
+   instead sent that command to the first live tab of the browser, someone else's. So `take`
+   writes a note for each earlier holder instead, `$XDG_RUNTIME_DIR/lazurio-browser/taken/
+   <session>.json` (owner-only, beside the window records, gone at a reboot), which only the
+   Platform reads. While the holder's binding still names that tab:
+   - its `tabs` lists the window under `taken`, with the thread that took it and when; that is
+     known, so the list stays complete;
+   - its `done --all` lets go of it;
+   - its `window` and `apps open` give the session a new window instead of the taken tab, say
+     who took the earlier one, and remove the note.
+
+   A taker in a T3 Code thread whose tab another strip holds does not see the tab join its
+   strip by itself (Lazurio/t3code#207's rule); its agent sends the tab's link.
+5. **The mark of an unverified binding** (#989) becomes contract C19 (F50's addendum of
+   2026-11-15).
+   - `binding-unverified` names the session and the next step: `lazurio browser done
+     --session <session>`, then `window` again, or another session at once.
+   - `done` settles the mark once the session's daemon has ended. `done --all` lets go of the
+     thread's own sessions whose binding is unverified or whose tab was taken: letting go of
+     them ends only this thread's hold. It also settles a session that has only a mark (one is
+     written before a binding's first command) and one its record names whose daemon has
+     ended, whatever its binding names; one whose daemon still runs and whose binding the
+     record does not confirm stays named as ambiguous, and done --all fails. A binding that
+     cannot be settled makes `done` and `done --all` fail and is named (`unsettled`, and first
+     on stderr with `--json` too), never reported as done. Marks are read even before
+     agent-browser's socket directory exists, and marks that cannot be listed make `done --all`
+     fail (review of #993).
+   - T3 Code takes no binding of a marked session into a strip until the mark is gone
+     (Lazurio/t3code#208).
+   - The hub does not read the mark: there a binding only keeps a tab alive, and ignoring a new
+     window's binding while it is being verified could end that window.
+6. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-128`) tells
+   agents:
+   - that the Environment browser is shared and when to use the overview;
+   - that taking a tab is a deliberate step with `--confirm`, from whom it is taken, and what
+     the earlier holder sees;
+   - to read `complete` and not repeat an incomplete listing;
+   - what to do on `binding-unverified`.
+
+Unchanged: the hub, its graces, the holder files, C2's names and the window records' schema.
+Verified by `tests/environment-browser.test.ts` (the blank window and its navigation, slow and
+refused; `take` described, confirmed, already held and refused; the earlier holder's `tabs`,
+`window` and `apps open`; `tabs --all`; `done` settling a mark), `tests/agent-entry-cli.test.ts`,
+the vectors of `cli.json` and `unverified-binding.json`, and live on a separate Chromium with
+agent-browser 0.37.0-lazurio.1 and the 0.43.0 candidate (pull request #993).
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
@@ -16464,6 +16593,21 @@ wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and process
 running machine's own readings (`processNewTabHost`; its memory and tabs stay fakes), with
 `/preview/set?system=full` for a disk with 40 MB left and a high 5-minute load.
 
+**Addendum 2026-11-15: the agents' overview of every tab, and taking one on purpose (decided
+by Matěj; F38's addendum of 2026-11-15).** Point 7 gives the person the Environment's
+overview in Přehled. Agents get theirs from `lazurio browser tabs --all`: the hub's loopback
+list (point 6) with the holders' places (point 4), and agent-browser's bindings with the
+thread each belongs to where its window record tells. `lazurio browser take` binds the calling
+thread's session to another's tab only once its agent has confirmed it. It lets the tab's
+other sessions go as `done` does, so their holds of point 5 end the usual way. It changes no
+holder file and closes no tab: a strip that holds the tab keeps it, and people who view it
+keep viewing.
+
+Point 4's rule for T3 Code's strip grows by one case: a new binding of a session that the
+Platform marks as not verified yet (C19) does not join the strip until the mark is gone; then
+it is judged as any new binding (Lazurio/t3code#208). The marks' directory is watched with the
+others.
+
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
 **Decided by the Operator 2026-10-11, replacing the unpublished per-Organization
@@ -17601,6 +17745,22 @@ decided.
    own releases and the Platform release each one requires stay in that fork's runbook.
 3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
    they are.
+
+**Addendum 2026-11-15: C19, the mark of an unverified binding** (#989, F38's addendum of
+2026-11-15). The contract grows by one section and five exports, within v1 (point 3):
+- the mark's place, `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json`
+  (`unverifiedBindingDirectory`), and the sessions marked now (`readUnverifiedSessions`): a
+  session is unverified while its file is there, whatever its text, and a directory that
+  cannot be listed is thrown, so a reader then takes every binding as unverified;
+- its text, `{schema, session, targetId, before}` (`unverifiedBindingSchema`,
+  `unverifiedBindingText`, `parseUnverifiedBinding`), whose tabs only the Platform's settling
+  reads.
+
+The Platform writes it (`src/browser/window.ts`). T3 Code reads it so that its strip takes in
+no unverified binding; the hub does not. The vectors' file is `unverified-binding.json`; C13
+gains `complete`, `taken` and `all` on `browser-tabs`, the kind `browser-take` and the exit
+`confirm` (3). The table of contracts in [The Environment browser](environment-browser.md)
+gains the row C19.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 

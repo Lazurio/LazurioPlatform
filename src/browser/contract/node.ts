@@ -75,6 +75,36 @@ export function liveTabsPath(
     : undefined;
 }
 
+/** `$XDG_RUNTIME_DIR/lazurio-browser/unverified`, where Lazurio marks a
+ * session whose agent-browser binding it has not verified (C19); undefined
+ * without an absolute runtime directory. */
+export function unverifiedBindingDirectory(
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
+  const runtime = env.XDG_RUNTIME_DIR;
+  return runtime !== undefined && isAbsolute(runtime)
+    ? join(runtime, "lazurio-browser", "unverified")
+    : undefined;
+}
+
+/** The sessions marked unverified now (C19), sorted: each `<session>.json`
+ * of the directory whose name is a session's, whatever its text, so a mark
+ * that cannot be read counts too. Empty without the directory or a runtime
+ * directory. A directory that cannot be listed is thrown: a reader then
+ * takes every session's binding as unverified. */
+export async function readUnverifiedSessions(
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<string[]> {
+  const directory = unverifiedBindingDirectory(env);
+  if (directory === undefined) return [];
+  return (await names(directory)).flatMap((name) => {
+    const session = name.endsWith(".json")
+      ? name.slice(0, -".json".length)
+      : "";
+    return isStrip(session) ? [session] : [];
+  });
+}
+
 /** A name as agent-browser makes it a component of a session's name
  * (`sanitize_session_component` in its `cli/src/validation.rs`): letters and
  * digits in lower case, one `-` for every run of anything else, a `-` or

@@ -184,9 +184,14 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "bind-failed":
       "A window opened at the hand-over, but agent-browser did not bind the session to it.",
     "binding-unverified":
-      "The thread's session is not bound to a window it can verify: a failed binding left its agent-browser running, or its binding could not be checked or removed, so the binding may name another agent's tab, and nothing more is opened through it. The hand-over expires within a minute.",
+      "An earlier lazurio browser window or apps open in the thread's session did not finish binding it, and its agent-browser has not ended yet, so the session's binding may still come to name another agent's tab. Until it has ended, nothing is opened through the session. The hand-over was not used and expires within a minute.",
     "navigate-failed":
-      "agent-browser did not open the hand-over in the thread's window. The hand-over expires within a minute.",
+      "The browser did not open the hand-over in the thread's window. The hand-over expires within a minute.",
+    "not-a-tab": "The Environment browser has no such tab.",
+    "session-busy": "The thread's session is bound to another window.",
+    "holder-busy": "Another session holding the tab did not let it go.",
+    "take-note-failed":
+      "The note for the session that held the tab could not be written, so nothing was taken.",
   },
   cs: {
     "relay-absent":
@@ -255,9 +260,14 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "bind-failed":
       "Okno s předáním se otevřelo, ale agent-browser k němu sezení nepřipojil.",
     "binding-unverified":
-      "Sezení vlákna není připojené k oknu, které jde ověřit: nepovedené připojení nechalo jeho agent-browser běžet, nebo jeho vazbu nešlo ověřit či smazat, takže vazba může ukazovat na záložku jiného agenta a nic dalšího se přes ni neotevře. Předání do minuty vyprší.",
+      "Dřívější lazurio browser window nebo apps open v sezení vlákna jeho připojení nedokončil a jeho agent-browser ještě neskončil, takže vazba sezení může ještě začít ukazovat na záložku jiného agenta. Dokud neskončí, přes sezení se nic neotevře. Předání se nepoužilo a do minuty vyprší.",
     "navigate-failed":
-      "agent-browser předání v okně vlákna neotevřel. Předání do minuty vyprší.",
+      "Prohlížeč předání v okně vlákna neotevřel. Předání do minuty vyprší.",
+    "not-a-tab": "Prohlížeč Prostředí takovou záložku nemá.",
+    "session-busy": "Sezení vlákna je připojené k jinému oknu.",
+    "holder-busy": "Jiné sezení, které záložku drží, ji nepustilo.",
+    "take-note-failed":
+      "Poznámka pro sezení, které záložku drželo, se nezapsala, takže se nic nepřevzalo.",
   },
 };
 
@@ -265,7 +275,11 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
 function nextSteps(
   reason: Reason,
   locale: Locale,
-  input: Readonly<{ switchPage: string; choices?: readonly string[] }>,
+  input: Readonly<{
+    switchPage: string;
+    choices?: readonly string[];
+    session?: string;
+  }>,
 ): string[] {
   const cs = locale === "cs";
   const again = cs
@@ -291,9 +305,20 @@ function nextSteps(
     case "browser-unreachable":
     case "window-create-failed":
     case "bind-failed":
-    case "binding-unverified":
     case "navigate-failed":
+    case "not-a-tab":
+    case "session-busy":
+    case "holder-busy":
+    case "take-note-failed":
       return [again];
+    case "binding-unverified": {
+      const session = input.session ?? (cs ? "<sezení>" : "<session>");
+      return [
+        cs
+          ? `Pusť sezení příkazem lazurio browser done --session ${session}: jeho agent-browser se ukončí a vazba se vyřídí. Pak spusť tento příkaz znovu. Žádná záložka se nezavřela.`
+          : `Let go of the session with lazurio browser done --session ${session}: its agent-browser ends and the binding is settled. Then run this command again. No tab was closed.`,
+      ];
+    }
     case "relay-answer-invalid":
     case "refused":
     case "scope_not_allowed_here":
@@ -539,6 +564,7 @@ export async function runAppsCommand(
     extra: Readonly<{
       choices?: readonly string[];
       detail?: string | null;
+      session?: string;
     }> = {},
     kind: "blocked" | "failed" = "blocked",
   ): CommandOutput => {
@@ -546,6 +572,7 @@ export async function runAppsCommand(
     const steps = nextSteps(reason, locale, {
       switchPage: switchPage(),
       ...(extra.choices === undefined ? {} : { choices: extra.choices }),
+      ...(extra.session === undefined ? {} : { session: extra.session }),
     });
     return Object.freeze({
       code,
@@ -682,7 +709,7 @@ export async function runAppsCommand(
       );
     } catch (error) {
       if (error instanceof BrowserWindowFailure)
-        return blocked(error.reason, exitFailure, {}, "failed");
+        return blocked(error.reason, exitFailure, { session }, "failed");
       throw error;
     }
     const link = browserViewUrl(browser.origin, window.targetId);

@@ -1250,6 +1250,1121 @@
         }
       ],
       "expect": null
+    },
+    {
+      "name": "take without --confirm only described the tab",
+      "call": "browserCliExit",
+      "expect": {
+        "confirm": 3
+      }
+    },
+    {
+      "name": "tabs says whether its list is complete, and names the windows another thread took",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ],
+          "ambiguous": [
+            "codex-1-5"
+          ],
+          "complete": false,
+          "taken": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "thread": "t3-other",
+              "by": "t3-other",
+              "at": "2026-11-15T08:00:00.000Z"
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ],
+          "ambiguous": [
+            "codex-1-5"
+          ],
+          "complete": false,
+          "taken": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "thread": "t3-other",
+              "by": "t3-other",
+              "at": "2026-11-15T08:00:00.000Z"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "tabs --all adds every tab of the Environment browser",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ],
+          "ambiguous": [],
+          "complete": true,
+          "taken": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "thread": "t3-other",
+              "by": "t3-other",
+              "at": "2026-11-15T08:00:00.000Z"
+            }
+          ],
+          "all": [
+            {
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null,
+              "yours": true,
+              "sessions": [
+                {
+                  "session": "codex-1",
+                  "thread": "codex-1",
+                  "running": true,
+                  "unverified": false,
+                  "taken": false
+                }
+              ],
+              "strips": []
+            },
+            {
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "url": "https://example.org/form",
+              "title": "Form",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "viewers": 1,
+              "sleeping": false,
+              "endsAt": null,
+              "yours": false,
+              "sessions": [
+                {
+                  "session": "t3-other",
+                  "thread": "t3-other",
+                  "running": true,
+                  "unverified": false,
+                  "taken": false
+                },
+                {
+                  "session": "codex-1-2",
+                  "thread": "codex-1",
+                  "running": false,
+                  "unverified": false,
+                  "taken": true
+                }
+              ],
+              "strips": [
+                {
+                  "strip": "t3-other",
+                  "label": "Thread title"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-tabs",
+          "session": "codex-1",
+          "windows": [
+            {
+              "session": "codex-1",
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "held": true,
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null
+            }
+          ],
+          "ambiguous": [],
+          "complete": true,
+          "taken": [
+            {
+              "session": "codex-1-2",
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "thread": "t3-other",
+              "by": "t3-other",
+              "at": "2026-11-15T08:00:00.000Z"
+            }
+          ],
+          "all": [
+            {
+              "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "url": "https://example.com/",
+              "title": "Example",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+              "viewers": 0,
+              "sleeping": false,
+              "endsAt": null,
+              "yours": true,
+              "sessions": [
+                {
+                  "session": "codex-1",
+                  "thread": "codex-1",
+                  "running": true,
+                  "unverified": false,
+                  "taken": false
+                }
+              ],
+              "strips": []
+            },
+            {
+              "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "url": "https://example.org/form",
+              "title": "Form",
+              "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+              "viewers": 1,
+              "sleeping": false,
+              "endsAt": null,
+              "yours": false,
+              "sessions": [
+                {
+                  "session": "t3-other",
+                  "thread": "t3-other",
+                  "running": true,
+                  "unverified": false,
+                  "taken": false
+                },
+                {
+                  "session": "codex-1-2",
+                  "thread": "codex-1",
+                  "running": false,
+                  "unverified": false,
+                  "taken": true
+                }
+              ],
+              "strips": [
+                {
+                  "strip": "t3-other",
+                  "label": "Thread title"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "take that only described the tab",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-take",
+          "session": "codex-1-3",
+          "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "url": "https://example.org/form",
+          "title": "Form",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "command": "agent-browser --cdp 9222 --session codex-1-3",
+          "taken": false,
+          "from": [
+            {
+              "session": "t3-other",
+              "thread": "t3-other",
+              "running": true,
+              "unverified": false,
+              "taken": false
+            }
+          ],
+          "strips": [
+            {
+              "strip": "t3-other",
+              "label": "Thread title"
+            }
+          ],
+          "viewers": 1
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-take",
+          "session": "codex-1-3",
+          "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "url": "https://example.org/form",
+          "title": "Form",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "command": "agent-browser --cdp 9222 --session codex-1-3",
+          "taken": false,
+          "from": [
+            {
+              "session": "t3-other",
+              "thread": "t3-other",
+              "running": true,
+              "unverified": false,
+              "taken": false
+            }
+          ],
+          "strips": [
+            {
+              "strip": "t3-other",
+              "label": "Thread title"
+            }
+          ],
+          "viewers": 1
+        }
+      }
+    },
+    {
+      "name": "take that took the tab",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-take",
+          "session": "codex-1-3",
+          "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "url": "https://example.org/form",
+          "title": "Form",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "command": "agent-browser --cdp 9222 --session codex-1-3",
+          "taken": true,
+          "from": [
+            {
+              "session": "t3-other",
+              "thread": "t3-other",
+              "running": true,
+              "unverified": false,
+              "taken": false
+            }
+          ],
+          "strips": [
+            {
+              "strip": "t3-other",
+              "label": "Thread title"
+            }
+          ],
+          "viewers": 1
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-take",
+          "session": "codex-1-3",
+          "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "url": "https://example.org/form",
+          "title": "Form",
+          "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+          "command": "agent-browser --cdp 9222 --session codex-1-3",
+          "taken": true,
+          "from": [
+            {
+              "session": "t3-other",
+              "thread": "t3-other",
+              "running": true,
+              "unverified": false,
+              "taken": false
+            }
+          ],
+          "strips": [
+            {
+              "strip": "t3-other",
+              "label": "Thread title"
+            }
+          ],
+          "viewers": 1
+        }
+      }
+    },
+    {
+      "name": "without a browser, take answers with its own kind",
+      "call": "browserCliText",
+      "args": [
+        {
+          "kind": "browser-take",
+          "available": false
+        }
+      ],
+      "expect": {
+        "$json": {
+          "schema": "lazurio.browser-cli.v1",
+          "kind": "browser-take",
+          "available": false
+        }
+      }
+    },
+    {
+      "name": "tabs reads complete as it is given",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "ambiguous": [
+              "codex-1-5"
+            ],
+            "complete": false
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [],
+        "ambiguous": [
+          "codex-1-5"
+        ],
+        "complete": false
+      }
+    },
+    {
+      "name": "tabs without complete is complete exactly while it names no ambiguous session",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": 0,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "complete": true
+      }
+    },
+    {
+      "name": "tabs without complete that names an ambiguous session is not complete",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "ambiguous": [
+              "codex-1-5"
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "complete": false
+      }
+    },
+    {
+      "name": "tabs whose complete is no boolean is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "complete": "yes"
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs --all's answer",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [
+              {
+                "session": "codex-1",
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "held": true,
+                "viewers": 0,
+                "sleeping": false,
+                "endsAt": null
+              }
+            ],
+            "ambiguous": [],
+            "complete": true,
+            "taken": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "thread": "t3-other",
+                "by": "t3-other",
+                "at": "2026-11-15T08:00:00.000Z"
+              }
+            ],
+            "all": [
+              {
+                "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "url": "https://example.com/",
+                "title": "Example",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+                "viewers": 0,
+                "sleeping": false,
+                "endsAt": null,
+                "yours": true,
+                "sessions": [
+                  {
+                    "session": "codex-1",
+                    "thread": "codex-1",
+                    "running": true,
+                    "unverified": false,
+                    "taken": false
+                  }
+                ],
+                "strips": []
+              },
+              {
+                "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "url": "https://example.org/form",
+                "title": "Form",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null,
+                "yours": false,
+                "sessions": [
+                  {
+                    "session": "t3-other",
+                    "thread": "t3-other",
+                    "running": true,
+                    "unverified": false,
+                    "taken": false
+                  },
+                  {
+                    "session": "codex-1-2",
+                    "thread": "codex-1",
+                    "running": false,
+                    "unverified": false,
+                    "taken": true
+                  }
+                ],
+                "strips": [
+                  {
+                    "strip": "t3-other",
+                    "label": "Thread title"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "session": "codex-1",
+        "windows": [
+          {
+            "session": "codex-1",
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "held": true,
+            "viewers": 0,
+            "sleeping": false,
+            "endsAt": null
+          }
+        ],
+        "ambiguous": [],
+        "complete": true,
+        "taken": [
+          {
+            "session": "codex-1-2",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "thread": "t3-other",
+            "by": "t3-other",
+            "at": "2026-11-15T08:00:00.000Z"
+          }
+        ],
+        "all": [
+          {
+            "targetId": "0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "url": "https://example.com/",
+            "title": "Example",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A0A",
+            "viewers": 0,
+            "sleeping": false,
+            "endsAt": null,
+            "yours": true,
+            "sessions": [
+              {
+                "session": "codex-1",
+                "thread": "codex-1",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              }
+            ],
+            "strips": []
+          },
+          {
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "viewers": 1,
+            "sleeping": false,
+            "endsAt": null,
+            "yours": false,
+            "sessions": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              },
+              {
+                "session": "codex-1-2",
+                "thread": "codex-1",
+                "running": false,
+                "unverified": false,
+                "taken": true
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "tabs whose taken window lacks its thread is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "taken": [
+              {
+                "session": "codex-1-2",
+                "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "by": "t3-other",
+                "at": "2026-11-15T08:00:00.000Z"
+              }
+            ]
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs --all whose session names a thread that is no name is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "all": [
+              {
+                "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "url": "https://example.org/form",
+                "title": "Form",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null,
+                "yours": false,
+                "sessions": [
+                  {
+                    "session": "t3-other",
+                    "thread": 7,
+                    "running": true,
+                    "unverified": false,
+                    "taken": false
+                  }
+                ],
+                "strips": [
+                  {
+                    "strip": "t3-other",
+                    "label": "Thread title"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "tabs --all with a session of an unknown thread",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "all": [
+              {
+                "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "url": "https://example.org/form",
+                "title": "Form",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null,
+                "yours": false,
+                "sessions": [
+                  {
+                    "session": "team",
+                    "thread": null,
+                    "running": false,
+                    "unverified": true,
+                    "taken": false
+                  }
+                ],
+                "strips": []
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "all": [
+          {
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "sessions": [
+              {
+                "session": "team",
+                "thread": null,
+                "running": false,
+                "unverified": true,
+                "taken": false
+              }
+            ],
+            "strips": []
+          }
+        ]
+      }
+    },
+    {
+      "name": "tabs --all whose tab's id is in lower case is given in upper case",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-tabs",
+            "session": "codex-1",
+            "windows": [],
+            "all": [
+              {
+                "targetId": "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+                "url": "https://example.org/form",
+                "title": "Form",
+                "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+                "viewers": 1,
+                "sleeping": false,
+                "endsAt": null,
+                "yours": false,
+                "sessions": [
+                  {
+                    "session": "t3-other",
+                    "thread": "t3-other",
+                    "running": true,
+                    "unverified": false,
+                    "taken": false
+                  },
+                  {
+                    "session": "codex-1-2",
+                    "thread": "codex-1",
+                    "running": false,
+                    "unverified": false,
+                    "taken": true
+                  }
+                ],
+                "strips": [
+                  {
+                    "strip": "t3-other",
+                    "label": "Thread title"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-tabs",
+        "all": [
+          {
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "take's answer, only described",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "session": "codex-1-3",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "command": "agent-browser --cdp 9222 --session codex-1-3",
+            "taken": false,
+            "from": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ],
+            "viewers": 1
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-take",
+        "session": "codex-1-3",
+        "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "url": "https://example.org/form",
+        "title": "Form",
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "command": "agent-browser --cdp 9222 --session codex-1-3",
+        "taken": false,
+        "from": [
+          {
+            "session": "t3-other",
+            "thread": "t3-other",
+            "running": true,
+            "unverified": false,
+            "taken": false
+          }
+        ],
+        "strips": [
+          {
+            "strip": "t3-other",
+            "label": "Thread title"
+          }
+        ],
+        "viewers": 1
+      }
+    },
+    {
+      "name": "take's answer, taken",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "session": "codex-1-3",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "command": "agent-browser --cdp 9222 --session codex-1-3",
+            "taken": true,
+            "from": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ],
+            "viewers": 1
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-take",
+        "session": "codex-1-3",
+        "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "url": "https://example.org/form",
+        "title": "Form",
+        "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+        "command": "agent-browser --cdp 9222 --session codex-1-3",
+        "taken": true,
+        "from": [
+          {
+            "session": "t3-other",
+            "thread": "t3-other",
+            "running": true,
+            "unverified": false,
+            "taken": false
+          }
+        ],
+        "strips": [
+          {
+            "strip": "t3-other",
+            "label": "Thread title"
+          }
+        ],
+        "viewers": 1
+      }
+    },
+    {
+      "name": "take without a browser",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "available": false
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-take",
+        "available": false
+      }
+    },
+    {
+      "name": "take without its command is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "session": "codex-1-3",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "taken": false,
+            "from": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ],
+            "viewers": 1
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "take whose taken is no boolean is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "session": "codex-1-3",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "command": "agent-browser --cdp 9222 --session codex-1-3",
+            "taken": "no",
+            "from": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true,
+                "unverified": false,
+                "taken": false
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ],
+            "viewers": 1
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "take whose holder lacks a member is none",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-take",
+            "session": "codex-1-3",
+            "targetId": "0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "url": "https://example.org/form",
+            "title": "Form",
+            "link": "https://browser.vm-01.acme.lazurio.io/t/0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B0B",
+            "command": "agent-browser --cdp 9222 --session codex-1-3",
+            "taken": false,
+            "from": [
+              {
+                "session": "t3-other",
+                "thread": "t3-other",
+                "running": true
+              }
+            ],
+            "strips": [
+              {
+                "strip": "t3-other",
+                "label": "Thread title"
+              }
+            ],
+            "viewers": 1
+          }
+        }
+      ],
+      "expect": null
+    },
+    {
+      "name": "done --all's answer names the sessions whose unverified binding stayed unsettled (F38, review of #993)",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "stopped",
+            "sessions": [
+              {
+                "session": "codex-1",
+                "outcome": "stopped"
+              }
+            ],
+            "ambiguous": [],
+            "unsettled": [
+              "codex-1-2"
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "stopped",
+        "sessions": [
+          {
+            "session": "codex-1",
+            "outcome": "stopped"
+          }
+        ],
+        "ambiguous": [],
+        "unsettled": [
+          "codex-1-2"
+        ]
+      }
     }
   ]
 }
