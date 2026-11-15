@@ -12114,8 +12114,10 @@ takes it.
      written before a binding's first command) and one its record names whose daemon has
      ended, whatever its binding names; one whose daemon still runs and whose binding the
      record does not confirm stays named as ambiguous, and done --all fails. A binding that
-     cannot be settled makes `done` and `done --all` fail and is named (`unsettled`), never
-     reported as done (review of #993).
+     cannot be settled makes `done` and `done --all` fail and is named (`unsettled`, and first
+     on stderr with `--json` too), never reported as done. Marks are read even before
+     agent-browser's socket directory exists, and marks that cannot be listed make `done --all`
+     fail (review of #993).
    - T3 Code takes no binding of a marked session into a strip until the mark is gone
      (Lazurio/t3code#208).
    - The hub does not read the mark: there a binding only keeps a tab alive, and ignoring a new

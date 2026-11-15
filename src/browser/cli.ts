@@ -1458,11 +1458,13 @@ export async function runBrowserCommand(
           unconfirmed: copy["done-all-unconfirmed"],
           lingering: copy["done-all-lingering"],
         };
+      // An unsettled binding leads: on a failure the first line of stderr
+      // is the reason (C13), in text and with --json alike.
       const lines = [
-        ...results.map((entry) => `- ${entry.session}: ${words[entry.result]}`),
         ...unsettled.map((session) =>
           fill(copy["done-unsettled"], { session }),
         ),
+        ...results.map((entry) => `- ${entry.session}: ${words[entry.result]}`),
         ...(doubtful.length === 0
           ? []
           : [
@@ -1486,6 +1488,9 @@ export async function runBrowserCommand(
                 ambiguous,
                 ...(unsettled.length === 0 ? {} : { unsettled }),
               }),
+              ...(failed
+                ? { stderr: [...lines, copy["done-check"]].join("\n") }
+                : {}),
             }
           : lines.length === 0
             ? { stdout: copy["done-all-none"] }

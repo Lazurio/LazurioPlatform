@@ -564,12 +564,13 @@ async function readSessionFacts(
 ): Promise<readonly SessionFacts[]> {
   const directory = agentBrowserSocketDirectory(env);
   if (directory === undefined) return [];
-  let names: string[];
+  // No socket directory yet is no session's files, but a mark may already
+  // be there: it is written before a binding's first command.
+  let names: string[] = [];
   try {
     names = await readdir(directory);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
-    throw error;
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   const files = new Map<string, Set<string>>();
   for (const name of names) {
@@ -589,10 +590,15 @@ async function readSessionFacts(
   const records = windowRecordDirectory(env);
   const marks = unverifiedBindingDirectory(env);
   if (marks !== undefined) {
+    // A list of marks that cannot be read proves no session settled, so it
+    // fails like a socket directory that cannot be read.
     let marked: string[] = [];
     try {
       marked = await readdir(marks);
-    } catch {}
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
+    }
     for (const name of marked) {
       const session = name.endsWith(".json") ? name.slice(0, -5) : "";
       if (isStrip(session) && !files.has(session))

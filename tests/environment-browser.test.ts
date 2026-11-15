@@ -4862,6 +4862,10 @@ test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       expect(JSON.parse(all.stdout ?? "")).toMatchObject({
         unsettled: ["codex-019a-3"],
       });
+      // C13: the reason is the first line of stderr, with --json too.
+      expect(all.stderr?.split("\n")[0]).toContain(
+        "Its binding is still not verified",
+      );
       const allText = await runBrowserCommand(
         ["done", "--all", "--folder", folder],
         context(env),
@@ -4884,6 +4888,47 @@ test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       expect(oneText.stderr?.split("\n")[0]).toContain(
         "Its binding is still not verified",
       );
+    } finally {
+      await chmod(marks, 0o700);
+    }
+  },
+);
+
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "done --all finds a mark before agent-browser's socket directory exists, and fails when the marks cannot be listed (review of #993)",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const env = {
+      HOME: home,
+      CODEX_THREAD_ID: "019a",
+      AGENT_BROWSER_SOCKET_DIR: join(home, "sockets-not-yet"),
+      XDG_RUNTIME_DIR: join(home, "run"),
+    };
+    const marks = join(env.XDG_RUNTIME_DIR, "lazurio-browser", "unverified");
+    await mkdir(marks, { recursive: true });
+    await writeFile(
+      join(marks, "codex-019a.json"),
+      JSON.stringify({
+        schema: "lazurio.browser-unverified-binding.v1",
+        session: "codex-019a",
+        targetId: null,
+        before: null,
+      }),
+    );
+    const settled = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      context(env),
+    );
+    expect(settled.code).toBe(0);
+    expect(await present(join(marks, "codex-019a.json"))).toBe(false);
+    // Marks that cannot be listed prove nothing settled: done --all fails.
+    await chmod(marks, 0o000);
+    try {
+      const unlisted = await runBrowserCommand(
+        ["done", "--all", "--folder", folder, "--json"],
+        context(env),
+      );
+      expect(unlisted.code).toBe(1);
     } finally {
       await chmod(marks, 0o700);
     }
