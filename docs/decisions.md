@@ -25592,3 +25592,222 @@ headers through a fake gh; `tests/launchpad-access-check.test.ts` the words;
 `tests/module-built.test.ts` `retire` with an unreadable declaration, an unknown running unit and
 no answer from the service manager. Not proven: a real revocation on GitHub, a real
 fine-grained token and a real single sign-on. Known limits are in the contract.
+
+## F74 — The desktop of a Remote Environment: the escape for the windows the browser view cannot show
+
+**Proposed by the agent on 2026-11-15 on Matěj's direction of the same day ("Pohled + plocha jako
+úniková cesta"); open for his decision. A prototype in `prototypes/desktop/`, nothing installed,
+wired or released.** Root decision 0191 point 8 gives every Remote Environment a web desktop at
+`desktop.<…>` in its second wave, and point 16 names it the way to the windows outside a page.
+The known windows are now handled in the view itself: select, date, colour and datalist pop-ups
+(F39's addendum, #972), file choosers in every frame (#975), payments and Chrome's other windows
+declined (#984). Everything else that opens outside the page still stays where the view never
+shows it, and a person sees a page that no longer reacts: a GTK dialog nothing intercepted, the
+PDF viewer's print preview (#243), a bubble, an extension's window, or a program on the screen.
+For those the view offers the desktop, and the desktop opens on that tab's window.
+
+**Measured on 2026-11-15** on a Remote Environment's screen (Xvfb `:1`, 1920×1080, no window
+manager), with a Chrome for Testing 156 of the prototype's own (own profile and DevTools port, no
+Lazurio extension) next to the Environment browser:
+
+- A file input without interception opens GTK's "Open File" as a top-level X11 window,
+  `_NET_WM_WINDOW_TYPE_DIALOG`, `_NET_WM_STATE_MODAL`, `WM_WINDOW_ROLE` `GtkFileChooserDialog`,
+  with `WM_TRANSIENT_FOR` the tab's own browser window, placed at 0,0.
+- `window.print()` opens no X11 window: the preview is drawn inside the tab's window, and
+  DevTools shows a `page` target `chrome://print/`.
+- `Browser.getWindowForTarget` reports exactly the X11 geometry (no frames without a window
+  manager). Of the Environment browser's 36 tabs, 35 matched exactly one viewable X11 window by
+  position, size and title, none matched two, one matched none; by position and size alone, 24.
+- Chrome sets the input focus itself; without a window manager a click focuses nothing.
+- The screen's X server has no access control and its socket is writable by every local account.
+- x11vnc 0.9.16 (libvncserver 0.9.14, Ubuntu 24.04): a listening x11vnc opens TCP even with
+  `-rfbport 0`, and an IPv6 listener on every interface even with `-noipv6` unless given
+  `-listenv6 ::1`; `-localhost` refuses a unix-socket client. With `-inetd` it serves one client
+  on fd 0, which must be a socket.
+
+1. **Transport: x11vnc on the existing screen, noVNC in the page, the Platform's own gate between
+   them.**
+   - Machines installs `x11vnc`, `xdotool` and `x11-utils` (0191 point 9: packages are
+     Machines'). The Platform vendors noVNC 1.7.0 (MPL-2.0, its licence kept with it) and runs
+     no download at run time.
+   - x11vnc never listens. A user socket unit with `Accept=yes` (owner-only unix socket in the
+     state directory) starts one `x11vnc -inetd -display :1 -nopw -noremote -nocmds -norc
+     -noprimary -noclipboard -ncache 0` per connection, which ends with it. So no TCP port
+     exists, the screen is read only while someone watches, and the display and the browser are
+     never restarted for it.
+   - `lazurio-desktop.service` runs `lazurio desktop serve --port <loopback> --origin
+     https://desktop.<…>`, converged like F38 and F59 (written when it differs, never a reason
+     to fail, `BindsTo=` the display). It serves the page and noVNC and bridges the page's
+     WebSocket to that socket through the RFB gate (point 3).
+   - Selections of the screen (every thread's clipboard) never go to a viewer; a person's paste
+     still sets them.
+2. **Address and admission: the view's.** `desktop.<environment>.<organization>.lazurio.io`
+   (personal `desktop.<login>.lazurio.io`), the gateway's `lazurio_app` route that Machines
+   writes for an entry `desktop` in the handover, like `browser.`. No token: every request must
+   name the service's own host, every WebSocket and every change must carry its own Origin, and
+   only the Environment's own origins may frame it (F39 point 8). Application access never
+   includes it (F40 point 3). The person's name for "who holds the screen" is the gateway's
+   `X-Auth-Request-Preferred-Username`.
+3. **One holder of the screen at a time, enforced in two places.**
+   - **The lease.** A person takes the screen in the page ("Ovládat plochu", or "Převzít
+     ovládání" while an agent or another person has it). The lease lasts two minutes and is
+     renewed by input and by the visible page every 30 s; it ends with "Pustit plochu", "Zpět
+     na záložku", a closed page or socket, and every start and stop of the service, which is its
+     only writer (`~/.local/state/lazurio-desktop/turn/person.json`, owner-only). The last
+     person who takes it has it.
+   - **The person's side: the RFB gate.** The service reads the client half of the RFB stream:
+     version 3.8, security type None only (admission is the gateway's), ClientInit always shared,
+     then each message by its length. Keys, pointer and paste reach the screen only from the
+     viewer who holds the lease; screen updates always pass; SetDesktopSize and xvp never; an
+     unknown message closes the connection rather than guessing a length. When control ends,
+     every key and button the person still held is released. A press first focuses the window
+     under it (there is no window manager to do it), and a person's input keeps its order.
+   - **The agents' side: the `computer` entry gets a turn.** Each agent's MCP entry `computer`
+     becomes `lazurio computer mcp`, a line-by-line pass-through in front of the driver's own
+     proxy (`cua-driver mcp --socket …`), which F59 point 2 registered directly. While a person
+     holds the screen, every tool but the pinned driver's reading tools (screenshots, window
+     lists, accessibility trees, the session's own state) is answered at once with an error that
+     says a person holds the screen, that nothing moved, and that the agent waits and tells the
+     user; a tool the gate does not know counts as input. An input tool that passes is noted with
+     the agent's name (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`, else
+     the call's `session`), so the page says "Plochu ovládá agent … (před 3 s)". This is the
+     lock in the Platform's entry that F59 point 5 kept for when collisions show; a person on the
+     screen is that collision.
+   - **Who goes first.** The person, always. A page opened from the view's escape takes the
+     screen at once only when no agent acted in the last 20 seconds; otherwise it shows who is on
+     the screen and offers "Převzít ovládání".
+   - **Not a mechanism:** an agent that drives the screen without the `computer` entry (xdotool,
+     a driver of its own) is not stopped, and cannot be while the X server has no access
+     control. The Folder says it never does.
+4. **The tab's window in front, and nothing of other threads moved.**
+   - The page opened from a tab asks `POST /api/focus {tab}`. The service finds the tab's
+     window: the one viewable, non-override-redirect X11 window whose position and size equal
+     `Browser.getWindowForTarget` and whose title starts with the tab's title. It raises it, then
+     the native windows that belong to it (dialogs whose `WM_TRANSIENT_FOR` is that window,
+     bubbles lying wholly over it), focuses the topmost, and returns the rectangle the page opens
+     on.
+   - Only stacking changes: no window of another thread is moved, resized or closed. The
+     stacking before is recorded and restored when the person lets go of the screen (each
+     recorded window raised from the bottom up, windows that appeared meanwhile kept on top).
+   - No window manager: it would add frames that change the geometry the view, agent-browser
+     and this lookup rely on, and take over a focus Chrome manages itself.
+   - **What the person sees of other threads.** The whole screen, other threads' signed-in pages
+     included. That is no new reach (whoever passes the gateway may open any of the Environment's
+     tabs), but it shows them all at once. So the page opened from a tab starts at 1:1 on that
+     tab's window, says that the other windows belong to other threads and are not to be closed,
+     and shows the whole screen only when asked ("Celá plocha"). A stricter mode, the screen
+     clipped to the tab's window and its native windows (x11vnc `-clip`), is open below.
+5. **When the view offers the desktop.**
+   - **Always:** a "Plocha" button in the view's bar (in its overflow on a narrow view), opening
+     `https://desktop.<…>/?tab=<id>&back=<the view's address>` in the same place.
+   - **With a hint** ("Mimo stránku se otevřelo okno, které tady neukážu. Otevřít plochu"),
+     while a person views the tab and the hub sees for that tab:
+     - a viewable X11 dialog whose `WM_TRANSIENT_FOR` is the tab's window: certain and
+       attributable (measured);
+     - a `chrome://print/` target in the tab's window (`Browser.getWindowForTarget` of both
+       equal): certain; the attribution is to be verified;
+     - an override-redirect window that is no tooltip, menu, pop-up menu, drop-down, combo or
+       drag icon, lies wholly over the tab's window and lasts over 2 s: a heuristic for Chrome's
+       bubbles (a translate bubble was seen);
+     - not detected: a tab that merely stopped taking input. The hub's input is acknowledged by
+       Chrome either way, so only a probe in the page could tell, and none is proposed; the
+       button and the agents cover it.
+   - The detection is one module shared by the view's hub and the desktop service. It watches
+     the root window's map events (`xev -root -event substructure` from `x11-utils`, or an X11
+     client of its own) rather than polling, and only while someone views a tab.
+   - On the desktop page, a dialog found this way offers "Ukázat" and, to the person who holds
+     the screen, "Zavřít okno": the service raises and focuses that dialog and presses Escape as
+     a person would, so the program decides what closing means (GTK's file chooser cancels, and
+     the page hears `cancel`).
+6. **The phone.** The desktop opens there too, at 1:1 on the tab's window, moved by dragging,
+   with "Celá plocha" a tap away. A 1920×1080 screen is hard to work on a phone, so the common
+   case, getting rid of the window, is one tap on "Zavřít okno". Whether the phone offers the
+   desktop at all is open below.
+7. **Agents (the Folder's manual, a template revision with the implementation).** In the
+   Environment browser's section, where the Environment has the desktop:
+   - cs: „**Okno mimo stránku.** Když stránka v pohledu nereaguje a uživatel nevidí okno, které
+     otevřela (dialog systému, náhled tisku, bublina prohlížeče), nabídni mu plochu: tlačítko
+     Plocha v liště pohledu nebo odkaz `https://desktop.<…>/?tab=<id>`. Plocha ukazuje celou
+     obrazovku Prostředí i s okny ostatních vláken; uživatel na ní pracuje jen se svým oknem.
+     Platby, výběr souborů a vyskakovací seznamy plochu nepotřebují.“
+   - en: "**A window outside the page.** When the page in the view does not react and the user
+     cannot see a window it opened (a system dialog, the print preview, a browser bubble), offer
+     them the desktop: the Plocha button in the view's bar or the link
+     `https://desktop.<…>/?tab=<id>`. The desktop shows the Environment's whole screen with the
+     other threads' windows; the user works only with their own window there. Payments, file
+     choosers and pop-up lists do not need it."
+   - In Computer Use, both languages: while a person holds the screen, `computer` refuses input;
+     the agent does not retry in a loop, tells the user what it waits for, and never takes the
+     screen another way.
+8. **A fact in doctor.** `desktop`: the units, the packages, the socket, and that no x11vnc
+   listens on any TCP port; never `fail`, never in `recover`.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| x11vnc or the packages missing | The socket unit is skipped by its condition; the view shows no Plocha button; doctor says what is missing; the view and Computer Use are unchanged |
+| The page closes, the network drops | The socket closes, the lease ends, held keys and buttons are released, the stacking is restored |
+| The service crashes while a person holds | The lease runs out within two minutes; the next start clears it |
+| An agent's input while a person holds | Refused at once with the reason; nothing reaches the driver; reading still works |
+| An agent drives the screen without `computer` | Not stopped (the X server has no access control); the Folder forbids it |
+| Two people | The last who takes the screen has it; the other sees "Plochu ovládá jiný člověk", their held input is released |
+| The tab's window cannot be told (1 of 36 measured) | The page opens on the whole screen and says it could not find the window |
+| A native window belongs to another thread's tab | It is listed on the whole screen without "Zavřít okno" for the tab's person; the notice says not to close other threads' windows |
+| An unknown RFB message, another security type | The connection closes |
+| A paste on the desktop | It sets the screen's selections, which other threads may read; screen selections never reach a viewer |
+| The display restarts | Each x11vnc ends with its connection; the page says the connection dropped and reconnects on reload |
+| noVNC upgraded | The phone's initial 1:1 position uses a private call of 1.7.0 (`_display.viewportChangePos`); pinned, and checked on each upgrade |
+
+**Variants considered.**
+
+| Variant | Latency | Dependencies | Security | Maintenance | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| x11vnc + noVNC + the Platform's RFB gate, socket-activated (selected) | VNC updates of changed regions over the gateway's WebSocket; enough for dialogs, not measured for video | `x11vnc`, `xdotool`, `x11-utils` from Ubuntu (~2 MB); noVNC 1.7.0 vendored (~1 MB) | No port at all; admission by the gateway; input gated per viewer by the service; selections never to viewers | x11vnc upstream is quiet (0.9.16, 2019), libvncserver patched by Ubuntu; noVNC active | Selected: attaches to the existing screen without a restart, smallest own piece |
+| The Cua Driver: its screenshots as frames, its tools as input | A full-screen PNG per frame, about a frame a second (estimate) | None new | The person's input would go through the agents' tool and its turn | None new | Rejected as the transport; the driver stays the agents' |
+| KasmVNC | Good (its own encoder, WebP) | Replaces Xvfb with its own X server and brings its web client and users | Its own authentication next to the gateway's | A fork of TigerVNC to follow | Rejected for now: the display and the browser would restart; 0191's fallback |
+| Selkies (GStreamer, WebRTC) | Best | A GStreamer stack of hundreds of MB; UDP or TURN through the tailnet and gateway | WebRTC signalling and media next to the gateway | Large | Later, only if VNC proves too slow; the gate, turn and focus stay, only the transport changes |
+| neko | Good | Built around its own browser in a container | Its own rooms and passwords | Separate product | Rejected |
+| ffmpeg `x11grab` plus XTEST of our own | Tunable | ffmpeg present | Own protocol | Own machinery | Rejected |
+| A window manager on the screen | — | A WM package | — | Changes every window's geometry and focus | Rejected (point 4) |
+
+**Open for the decision.**
+
+1. Who wins: the person always (proposed), or the person waits until an agent's Computer Use is
+   idle for a few seconds.
+2. What a person sees of other threads: the whole screen starting at their window (proposed), or
+   only their tab's window and its native windows (x11vnc `-clip`, one x11vnc per viewer with
+   its rectangle), which hides a bubble the service cannot attribute.
+3. The phone: the desktop at 1:1 with "Zavřít okno" (proposed), or no desktop on a phone and
+   only "Zavřít okno" in the view.
+4. The `computer` entry: Lazurio's pass-through in front of the driver's proxy (proposed), or
+   the driver's proxy as now, with the turn only as the Folder's instruction.
+
+**Prototype.** `prototypes/desktop/` runs from a worktree on its own loopback port and touches
+no unit of the Environment: x11vnc, xdotool and x11-utils extracted from Ubuntu's packages into
+the user's `~/.local/opt` (`fetch-tools.sh`, no root, nothing installed), `systemd-socket-activate`
+in place of the socket unit, noVNC 1.7.0 from npm. `check.ts` is the live check above:
+
+- the file input's GTK window found and attributed to its tab;
+- the page taking the screen from that tab;
+- `computer`'s `click` refused before the real driver while `get_screen_size` reaches it;
+- Escape typed into the desktop page closing the dialog, the page hearing `cancel`;
+- after the release, the other windows of the screen in the same stacking, position and size.
+
+It passed on 2026-11-15. Earlier the same day, with a variant that ran one listening x11vnc on
+an owner-only unix socket instead of socket activation, the print preview closed by Escape from
+the desktop and the phone's "Zavřít okno" at 390 px closed the GTK dialog; the gate and the page
+were the same. `gates.test.ts` covers the RFB gate (handshake,
+chunks, input only in control, paste, never-messages, unknown messages, held input released) and
+the `computer` gate against a stand-in driver (every call without a person, input refused and
+reading passed with a person, a new tool refused, an expired lease).
+
+**Honest limits.** Not built: the units, the CLI command, the view's button and hint, the hub's
+event-driven detection, the doctor fact, the Folder's lines and Machines' packages and route.
+The prototype polls the window list every 2 s and reads it with xwininfo and xprop. Latency and
+the cost of x11vnc in memory and CPU were not measured; during the check the Environment was
+under memory pressure from the prototype's two extra Chromes and the view put one tab to sleep,
+as it is built to. Screenshots of the check show other threads' windows and stay out of this
+repository. The `chrome://print/` attribution and bubbles other than the translate bubble were not
+verified. One person and one headless page were used; two people at once and a real agent's
+Computer Use during a hold were not run.
