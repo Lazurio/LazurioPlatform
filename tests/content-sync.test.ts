@@ -354,6 +354,12 @@ posixTest(
     expect(new Set(again.entries.map((e) => e.result))).toEqual(
       new Set(["current"]),
     );
+    // A current answer names the commit its remote's branch named, the
+    // published commit a reader may rely on (decision F73).
+    expect(again.entries.find((e) => e.path === ".")?.to).toBe(
+      await head(fixture.at(".")),
+    );
+    expect(again.entries.find((e) => e.path === "workspace/web")?.to).toBe(web);
     expect(await snapshot(fixture.at("workspace/web"))).toEqual(before);
     // The record says the same, and the doctor finds nothing.
     const record = await readSyncRecord(world.lockDirectory, fixture.folder);

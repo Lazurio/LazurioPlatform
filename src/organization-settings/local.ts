@@ -60,32 +60,46 @@ const failed = (detail: string): SourceRead => ({
 
 /** The settings of `organization` (the owner the handover names, a GitHub
  * login, selected by `selectOwnerOrganization`) in the Folder's root of it,
- * at the commit of its `main`. */
+ * at the commit of its `main`, or, with `published`, at the commit a
+ * synchronization of this run verified as its published `main` (the root's
+ * path relative to the Folder to that commit): a root without one is
+ * `not-published`, whatever its local `main` holds (decision F73, review of
+ * #992). */
 export async function readRepositorySettings(
   folder: string,
   organization: string,
   git: GitReader,
+  published?: ReadonlyMap<string, string>,
 ): Promise<SourceRead> {
   let directory: string;
+  let root: string;
   try {
     const selection = selectOwnerOrganization(
       await readFolderCatalog(folder),
       organization,
     );
     if (selection.kind !== "found") return failed("organization-absent");
-    directory = join(folder, "organizations", selection.organization.directory);
+    root = join("organizations", selection.organization.directory);
+    directory = join(folder, root);
   } catch {
     return failed("catalog-unavailable");
   }
+  const wanted = published === undefined ? undefined : published.get(root);
+  if (published !== undefined && (wanted === undefined || !isCommitId(wanted)))
+    return failed("not-published");
   const head = (
     await git(directory, [
       "rev-parse",
       "--verify",
       "--quiet",
-      "refs/heads/main^{commit}",
+      `${wanted ?? "refs/heads/main"}^{commit}`,
     ])
   )?.trim();
-  if (head === undefined || !isCommitId(head))
+  if (
+    head === undefined ||
+    !isCommitId(head) ||
+    (wanted !== undefined && head !== wanted)
+  )
     return failed("commit-unavailable");
   const listed = await git(directory, [
     "ls-tree",

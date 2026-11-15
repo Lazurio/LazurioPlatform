@@ -944,8 +944,13 @@ export async function startLaunchpad(
                     : syncCheckouts({ onProgress }),
                 // The tools the Environment's Organization declares
                 // (decision F73), with this Launchpad's PATH and home.
-                organizationTools: (onStep) =>
-                  provisionDeclaredTools(folder, toolsEnvironment, onStep),
+                organizationTools: (onStep, published) =>
+                  provisionDeclaredTools(
+                    folder,
+                    toolsEnvironment,
+                    onStep,
+                    published,
+                  ),
                 tools: {
                   pins: (moved) => modules.runtimePins(moved),
                   resolve: modules.resolveBun,

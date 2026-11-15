@@ -17,16 +17,23 @@ import { type GitReader, operatorGit, readRepositorySettings } from "./local";
 // Which tools the Organization of this Environment declares (decision F73):
 // on an Organization's Environment (work, Team, Automated), the
 // `settings.tools` of the Organization its handover names as owner, read
-// from that Organization's root in the Folder at the commit of its `main`,
-// the same document and the same reader as the settings of decision F45
-// without the relay. Read from Git, not from the Dashboard's answer: the
-// content part of the same `lazurio update` has just brought that `main` to
-// what the Organization published, and a tool waits for no other service.
+// from that Organization's root in the Folder, the same document and the
+// same reader as the settings of decision F45 without the relay. Read from
+// Git, not from the Dashboard's answer, and only at the commit the content
+// part of the same `lazurio update` verified as what the Organization
+// published: the root's `main` on its remote's commit, current or just
+// fast-forwarded to it. A root that part left anywhere else (ahead,
+// diverged, dirty, busy, failed, not run) gives no declaration at all, so
+// a commit nobody published, a local one included, never installs anything
+// (review of #992). Doctor, which installs nothing, reads the local `main`.
 // A personal Environment and the person's own computer read nothing: the
 // Organization's settings never govern them (root decision 0194).
 
 export const organizationToolsNotRunReasons = [
   "not-governed",
+  /** The content part did not verify the root on its published commit in
+   * this run. */
+  "not-published",
   "organization-absent",
   "settings-invalid",
   "settings-unreadable",
@@ -49,6 +56,7 @@ export type DeclaredOrganizationTools =
 export async function declaredOrganizationTools(
   folder: string,
   tools: ToolsEnvironment,
+  published: ReadonlyMap<string, string> | undefined,
   git: GitReader = operatorGit(tools),
 ): Promise<DeclaredOrganizationTools> {
   const state = join(folder, ".lazurio");
@@ -63,15 +71,18 @@ export async function declaredOrganizationTools(
       reason: "settings-unreadable" as const,
     });
   }
-  return declaredToolsOf(folder, preferences, git);
+  return declaredToolsOf(folder, preferences, git, published);
 }
 
 /** The same, for a reader that has the Folder's preferences already and
- * must not take its lock (`lazurio doctor`, which never creates one). */
+ * must not take its lock (`lazurio doctor`, which never creates one).
+ * `published`: the roots' commits this run verified as published (see
+ * `readRepositorySettings`); without it, the local `main`. */
 export async function declaredToolsOf(
   folder: string,
   preferences: Pick<FolderPreferences, "preset" | "machine">,
   git: GitReader,
+  published?: ReadonlyMap<string, string>,
 ): Promise<DeclaredOrganizationTools> {
   const owner = preferences.machine?.owner;
   if (
@@ -82,7 +93,12 @@ export async function declaredToolsOf(
       kind: "not-run" as const,
       reason: "not-governed" as const,
     });
-  const read = await readRepositorySettings(folder, owner.organization, git);
+  const read = await readRepositorySettings(
+    folder,
+    owner.organization,
+    git,
+    published,
+  );
   if (read.kind === "invalid")
     return Object.freeze({
       kind: "not-run" as const,
@@ -94,7 +110,9 @@ export async function declaredToolsOf(
       reason:
         read.kind === "failed" && read.detail === "organization-absent"
           ? ("organization-absent" as const)
-          : ("settings-unreadable" as const),
+          : read.kind === "failed" && read.detail === "not-published"
+            ? ("not-published" as const)
+            : ("settings-unreadable" as const),
     });
   return Object.freeze({
     kind: "declared" as const,
@@ -105,17 +123,19 @@ export async function declaredToolsOf(
 }
 
 /** The Organization's tools part of one `lazurio update` (decision F73):
- * the declaration of this Environment's Organization, provisioned. The CLI
- * and the Launchpad's update run it alike. */
+ * the declaration of this Environment's Organization at the commit this
+ * run's content part verified as published (`published`), provisioned. The
+ * CLI and the Launchpad's update run it alike. */
 export async function provisionDeclaredTools(
   folder: string,
   tools: ToolsEnvironment,
   onStep: (tool: OrganizationToolId, step: "installing" | "updating") => void,
+  published: ReadonlyMap<string, string>,
 ): Promise<
   | Readonly<{ kind: "provisioned"; items: readonly OrganizationToolItem[] }>
   | Readonly<{ kind: "not-run"; reason: OrganizationToolsNotRun }>
 > {
-  const declared = await declaredOrganizationTools(folder, tools);
+  const declared = await declaredOrganizationTools(folder, tools, published);
   if (declared.kind === "not-run") return declared;
   return Object.freeze({
     kind: "provisioned" as const,

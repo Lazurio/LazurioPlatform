@@ -21,8 +21,9 @@ import type {
 //   1. content: the clean primary checkouts of the Organizations this
 //      Environment holds on their published branch (`syncContent`);
 //   1a. the Organization's tools: the tools the Organization that owns
-//      this Environment declares in `settings.tools` of the manifest the
-//      content just brought (decision F73), installed or raised to their
+//      this Environment declares in `settings.tools` of the manifest at the
+//      commit the content part just verified as published (decision F73;
+//      a root left anywhere else gives none), installed or raised to their
 //      minimum by their official path, without asking, because the
 //      Organization Admin's approval of the declaration is the consent;
 //   2. tools: the Bun each app of the module checkouts the content just
@@ -172,6 +173,10 @@ export type UpdateParts = Readonly<{
    * what provisioning them did. Absent: no such part. */
   organizationTools?: (
     onStep: NonNullable<OrganizationToolsInput["onStep"]>,
+    /** The Organization roots (their path relative to the Folder) this
+     * run's content part verified on their published `main`, to that
+     * commit: current or fast-forwarded to the remote's. */
+    published: ReadonlyMap<string, string>,
   ) => Promise<
     | Readonly<{ kind: "provisioned"; items: readonly OrganizationToolItem[] }>
     | Readonly<{ kind: "not-run"; reason: OrganizationToolsNotRun }>
@@ -264,6 +269,7 @@ export async function updateEverything(
 
   // 1. Content, waiting a while for another content operation.
   const moved: MovedModule[] = [];
+  const published = new Map<string, string>();
   try {
     const onProgress = (progress: SyncProgress) => {
       if (progress.step === "done") {
@@ -291,6 +297,12 @@ export async function updateEverything(
       for (const entry of run.entries) {
         set({ part: "content", ...entry });
         if (
+          entry.kind === "root" &&
+          (entry.result === "current" || entry.result === "fast-forwarded") &&
+          entry.to !== undefined
+        )
+          published.set(entry.root, entry.to);
+        if (
           entry.kind === "module" &&
           (entry.result === "fast-forwarded" || entry.result === "materialized")
         )
@@ -312,8 +324,9 @@ export async function updateEverything(
   // failed update, and it never stops the parts after it.
   if (parts.organizationTools !== undefined)
     try {
-      const answer = await parts.organizationTools((tool, step) =>
-        set({ part: "organization-tools", tool, step }),
+      const answer = await parts.organizationTools(
+        (tool, step) => set({ part: "organization-tools", tool, step }),
+        published,
       );
       // Where no Organization governs the Environment there is nothing to
       // say, so no line: a personal Environment's answer stays as it was.
@@ -594,6 +607,10 @@ export function organizationToolsText(items: readonly UpdateItem[]): string[] {
       else if (item.reason === "settings-invalid")
         lines.push(
           "The Organization's tools were not checked: its settings section is invalid (settings-invalid); lazurio organization check names why.",
+        );
+      else if (item.reason === "not-published")
+        lines.push(
+          "The Organization's tools were not checked: its root is not on the main it published (not-published); only a published declaration is installed.",
         );
       else if (item.reason === "settings-unreadable")
         lines.push(

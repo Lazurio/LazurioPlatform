@@ -264,11 +264,12 @@ export const processContext = (): CliContext =>
       host: processModuleHost(process.env, process.platform, process.execPath),
       personalspace: processPersonalspaceHolder(process.env, process.platform),
     }),
-    organizationTools: (folder: string) => (onStep) =>
+    organizationTools: (folder: string) => (onStep, published) =>
       provisionDeclaredTools(
         folder,
         toolsEnvironmentOf(process.env, process.platform, runTool),
         onStep,
+        published,
       ),
   });
 

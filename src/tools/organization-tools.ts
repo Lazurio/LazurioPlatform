@@ -1,4 +1,12 @@
-import { lstat, mkdir, realpath, symlink } from "node:fs/promises";
+import { constants } from "node:fs";
+import {
+  access,
+  lstat,
+  mkdir,
+  realpath,
+  stat,
+  symlink,
+} from "node:fs/promises";
 import { join, sep } from "node:path";
 import {
   type OrganizationTool,
@@ -21,6 +29,9 @@ import { resolveOnPath, type ToolRunner, versionOf } from "./status";
 // into a command run in all of its Environments).
 //
 // What it does, per declared tool:
+// - the tool is the one the user's own PATH finds first, as doctor reads
+//   it: never a PATH this run arranges, so a tool reported at its minimum
+//   is the one the user runs;
 // - a tool that reports at least the minimum is left exactly as it is,
 //   wherever it was installed and whatever version it has;
 // - a missing tool is installed by its official installer, for the user,
@@ -29,7 +40,8 @@ import { resolveOnPath, type ToolRunner, versionOf } from "./status";
 // - a tool below the minimum is updated by its own official path when the
 //   one on PATH is that installer's; an installation of someone else's (a
 //   system package, npm) is reported, never replaced or shadowed;
-// - it never downgrades and never edits a shell profile;
+// - it never downgrades, never switches what the user selected to anything
+//   older and never edits a shell profile;
 // - every outcome is an item; a failure names its stage and a safe tail of
 //   the installer's output.
 
@@ -51,14 +63,98 @@ export type OrganizationToolRecipe = Readonly<{
   bin: (home: string, xdg: Readonly<Record<string, string>>) => string;
   /** The programs linked from `bin` into `~/.local/bin`. */
   links: readonly string[];
-  /** The tool's own update, run from `bin`, as argv lists in order. */
-  update: (bin: string) => readonly (readonly string[])[];
+  /** The tool's own update of the installation in `bin`: null when it
+   * ran to its end, or why it stopped. It never lowers the version the
+   * user runs; the caller verifies the minimum afterwards. */
+  raise: (bin: string, step: RaiseSteps) => Promise<StepFailure | null>;
+}>;
+
+/** A step that did not end well: a locale-neutral reason and the output it
+ * gave, of which only a safe tail is ever shown. */
+export type StepFailure = Readonly<{ reason: string; output?: string }>;
+
+/** What a recipe's update may do: run a command (null when it ended well),
+ * read the version a command reports, and the declared minimum. */
+export type RaiseSteps = Readonly<{
+  run: (
+    argv: readonly string[],
+    extra?: Readonly<Record<string, string>>,
+  ) => Promise<StepFailure | null>;
+  read: (argv: readonly string[]) => Promise<string | undefined>;
+  version: (argv: readonly string[]) => Promise<string | undefined>;
+  minimum: string;
 }>;
 
 // Fetch to a private file, then run it, so a failed download never runs half
 // a script (as the catalog's codex installer).
 const fetchThenRun = (url: string, args: string) =>
   `set -eu; f="$(mktemp)"; trap 'rm -f "$f"' EXIT; curl --proto '=https' --tlsv1.2 -fsSL ${url} -o "$f"; sh "$f"${args}`;
+
+const pnpmInstaller = fetchThenRun("https://get.pnpm.io/install.sh", "");
+
+/** Raises a rustup installation to the minimum without lowering what the
+ * user runs (review of #992). First the toolchain the user selected, raised
+ * in place by rustup's own update: a channel (stable, beta, nightly) moves
+ * to its newest release, a pinned one stays where it is. Only when that
+ * cannot reach the minimum is the default switched, and only to stable, and
+ * only when stable reports at least the minimum, which is above the version
+ * selected now; otherwise the default stays as it was and the failure says
+ * which stable there is. */
+async function raiseRustToolchain(
+  bin: string,
+  step: RaiseSteps,
+): Promise<StepFailure | null> {
+  const rustup = join(bin, "rustup");
+  const shown = await step.read([rustup, "show", "active-toolchain"]);
+  const selected = shown?.trim().split(/\s+/, 1)[0];
+  if (selected === undefined || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(selected))
+    return { reason: "toolchain-unknown" };
+  const failed = await step.run([
+    rustup,
+    "update",
+    selected,
+    "--no-self-update",
+  ]);
+  if (failed !== null) return failed;
+  const raised = await step.version([
+    rustup,
+    "run",
+    selected,
+    "cargo",
+    "--version",
+  ]);
+  if (raised !== undefined && compareVersions(raised, step.minimum) >= 0)
+    return null;
+  if (/^stable(-|$)/.test(selected))
+    return {
+      reason: `stable-below-minimum:${raised ?? "unknown"}`,
+    };
+  const installed = await step.run([
+    rustup,
+    "toolchain",
+    "install",
+    "stable",
+    "--profile",
+    "minimal",
+    "--no-self-update",
+  ]);
+  if (installed !== null) return installed;
+  const stable = await step.version([
+    rustup,
+    "run",
+    "stable",
+    "cargo",
+    "--version",
+  ]);
+  if (stable === undefined) return { reason: "stable-version-unreadable" };
+  if (compareVersions(stable, step.minimum) < 0)
+    return { reason: `stable-below-minimum:${stable}` };
+  // Never older than what is selected now (the minimum is above it, but
+  // the switch is checked on its own).
+  if (raised !== undefined && compareVersions(stable, raised) < 0)
+    return { reason: "would-downgrade" };
+  return step.run([rustup, "default", "stable"]);
+}
 
 export const organizationToolRecipes: Readonly<
   Record<OrganizationToolId, OrganizationToolRecipe>
@@ -80,10 +176,7 @@ export const organizationToolRecipes: Readonly<
     installerEnv: Object.freeze({}),
     bin: (home: string) => join(home, ".cargo", "bin"),
     links: Object.freeze(["cargo", "rustc", "rustup"]),
-    update: (bin: string) => [
-      [join(bin, "rustup"), "update", "stable", "--no-self-update"],
-      [join(bin, "rustup"), "default", "stable"],
-    ],
+    raise: raiseRustToolchain,
   }),
   // pnpm's official installer (https://pnpm.io/installation) verifies the
   // npm registry's signature of what it downloads; `PNPM_NO_MODIFY_PATH`
@@ -96,12 +189,15 @@ export const organizationToolRecipes: Readonly<
     command: "pnpm",
     versionArgs: ["--version"],
     source: "https://pnpm.io/installation",
-    installer: fetchThenRun("https://get.pnpm.io/install.sh", ""),
+    installer: pnpmInstaller,
     installerEnv: Object.freeze({ PNPM_NO_MODIFY_PATH: "1" }),
     bin: (home: string, xdg: Readonly<Record<string, string>>) =>
       join(xdg.XDG_DATA_HOME ?? join(home, ".local", "share"), "pnpm", "bin"),
     links: Object.freeze(["pnpm", "pnpx"]),
-    update: () => [],
+    // pnpm has no update of its own that keeps its home: its installer,
+    // run again, installs the newest release over its own.
+    raise: (_bin: string, step: RaiseSteps) =>
+      step.run(["/bin/sh", "-c", pnpmInstaller], { PNPM_NO_MODIFY_PATH: "1" }),
   }),
 });
 
@@ -139,7 +235,13 @@ export type OrganizationToolItem = Readonly<{
   minimum: string;
 }> &
   (
-    | Readonly<{ result: "current"; version: string }>
+    | Readonly<{
+        result: "current";
+        version: string;
+        /** Only when the user's PATH does not reach it: the installer's own
+         * installation, linked into a ~/.local/bin that PATH lacks. */
+        onPath?: false;
+      }>
     | Readonly<{ result: "installed"; version: string; onPath: boolean }>
     | Readonly<{
         result: "updated";
@@ -234,21 +336,29 @@ async function inside(path: string, directory: string): Promise<boolean> {
   }
 }
 
-/** The run environment of an installer and its tool: the user's PATH with
- * `~/.local/bin` first, the home, the XDG base directories, and nothing
- * else of this process. */
+/** The run environment of an installer and its tool: the user's own PATH
+ * as it is, the home, the XDG base directories, and nothing else of this
+ * process. Never a PATH arranged for this run: what it finds is what the
+ * user runs (review of #992). */
 function runEnvironment(
   input: OrganizationToolsInput,
   home: string,
 ): Record<string, string> {
-  const entry = join(home, ".local", "bin");
-  const path = (input.path ?? "").split(":").filter((part) => part !== "");
   return {
-    PATH: [entry, ...path.filter((part) => part !== entry)].join(":"),
+    PATH: input.path ?? "",
     HOME: home,
     ...(input.xdg ?? {}),
     LC_ALL: "C",
   };
+}
+
+async function executable(file: string): Promise<boolean> {
+  try {
+    await access(file, constants.X_OK);
+    return (await stat(file)).isFile();
+  } catch {
+    return false;
+  }
 }
 
 async function oneTool(
@@ -260,6 +370,7 @@ async function oneTool(
   const base = { tool: declared.tool, minimum: declared.minimum } as const;
   const env = runEnvironment(input, home);
   const bin = recipe.bin(home, input.xdg ?? {});
+  const own = join(bin, recipe.command);
   const failed = (
     stage: "install" | "update" | "link" | "verify",
     reason: string,
@@ -275,51 +386,71 @@ async function oneTool(
       source: recipe.source,
     });
   };
-  const found = await resolveOnPath(recipe.command, env.PATH, input.platform);
+  // The one the user runs: the first on their own PATH. Where none is, the
+  // official installer's own installation that PATH does not reach yet (a
+  // run before linked it into a ~/.local/bin the PATH lacks) is the one to
+  // keep, never a second installation over it.
+  const onUserPath = await resolveOnPath(
+    recipe.command,
+    input.path,
+    input.platform,
+  );
+  const found = onUserPath ?? ((await executable(own)) ? own : undefined);
   const before =
     found === undefined
       ? undefined
       : await versionAt(found, recipe, input, env);
+  if (found !== undefined && before === undefined)
+    return failed("verify", "version-unreadable");
   if (
     found !== undefined &&
     before !== undefined &&
     compareVersions(before, declared.minimum) >= 0
   )
-    return Object.freeze({ ...base, result: "current", version: before });
-  if (found !== undefined && before === undefined)
-    return failed("verify", "version-unreadable");
+    return onUserPath === undefined
+      ? Object.freeze({
+          ...base,
+          result: "current",
+          version: before,
+          onPath: false,
+        })
+      : Object.freeze({ ...base, result: "current", version: before });
   const timeout = input.timeoutMs ?? installTimeoutMs;
-  const runStep = async (
+  const run = async (
     argv: readonly string[],
     extra: Readonly<Record<string, string>> = {},
-  ): Promise<string | null> => {
-    const result = await input.run(
-      argv,
-      timeout,
-      { ...env, ...extra },
-      { cwd: home, maxBytes: 1024 * 1024 },
-    );
-    if (result === "timeout") return "timeout";
-    return result.exitCode === 0
-      ? null
-      : `exit-${result.exitCode}\n${result.stdout}\n${result.stderr}`;
+  ): Promise<StepFailure | null> => {
+    try {
+      const result = await input.run(
+        argv,
+        timeout,
+        { ...env, ...extra },
+        { cwd: home, maxBytes: 1024 * 1024 },
+      );
+      if (result === "timeout") return { reason: "timeout" };
+      return result.exitCode === 0
+        ? null
+        : {
+            reason: `exit-${result.exitCode}`,
+            output: `${result.stdout}\n${result.stderr}`,
+          };
+    } catch {
+      return { reason: "spawn-failed" };
+    }
   };
   let result: "installed" | "updated";
   if (found === undefined) {
     input.onStep?.(declared.tool, "installing");
-    const outcome = await runStep(
+    const outcome = await run(
       ["/bin/sh", "-c", recipe.installer],
       recipe.installerEnv,
-    ).catch(() => "spawn-failed");
-    if (outcome !== null) {
-      const [reason = "failed", ...rest] = outcome.split("\n");
-      return failed("install", reason, rest.join("\n"));
-    }
+    );
+    if (outcome !== null)
+      return failed("install", outcome.reason, outcome.output);
     result = "installed";
   } else {
     // Below the minimum: only the official installer's own installation is
-    // raised, by the tool's own update, or (where it has none) its installer
-    // run again over its own home.
+    // raised, by the tool's own update; someone else's is reported.
     if (!(await inside(found, bin)))
       return Object.freeze({
         ...base,
@@ -330,19 +461,36 @@ async function oneTool(
         source: recipe.source,
       });
     input.onStep?.(declared.tool, "updating");
-    const steps = recipe.update(bin);
-    const commands: readonly (readonly string[])[] =
-      steps.length > 0 ? steps : [["/bin/sh", "-c", recipe.installer]];
-    for (const argv of commands) {
-      const outcome = await runStep(
-        argv,
-        steps.length > 0 ? {} : recipe.installerEnv,
-      ).catch(() => "spawn-failed");
-      if (outcome !== null) {
-        const [reason = "failed", ...rest] = outcome.split("\n");
-        return failed("update", reason, rest.join("\n"));
-      }
-    }
+    const outcome = await recipe.raise(bin, {
+      run,
+      read: async (argv) => {
+        try {
+          const answer = await input.run(argv, versionTimeoutMs, env, {
+            cwd: home,
+          });
+          return answer === "timeout" || answer.exitCode !== 0
+            ? undefined
+            : answer.stdout;
+        } catch {
+          return undefined;
+        }
+      },
+      version: async (argv) => {
+        try {
+          const answer = await input.run(argv, versionTimeoutMs, env, {
+            cwd: home,
+          });
+          return answer === "timeout" || answer.exitCode !== 0
+            ? undefined
+            : fullVersion(versionOf(answer.stdout));
+        } catch {
+          return undefined;
+        }
+      },
+      minimum: declared.minimum,
+    });
+    if (outcome !== null)
+      return failed("update", outcome.reason, outcome.output);
     result = "updated";
   }
   try {
@@ -350,18 +498,22 @@ async function oneTool(
   } catch {
     return failed("link", "link-failed");
   }
-  const located = await resolveOnPath(recipe.command, env.PATH, input.platform);
+  // Verified as the user runs it: the first on their own PATH, or, where
+  // that PATH reaches none, the installation itself (and it says so).
+  const located = await resolveOnPath(
+    recipe.command,
+    input.path,
+    input.platform,
+  );
+  const checked = located ?? ((await executable(own)) ? own : undefined);
   const after =
-    located === undefined
+    checked === undefined
       ? undefined
-      : await versionAt(located, recipe, input, env);
+      : await versionAt(checked, recipe, input, env);
   if (after === undefined) return failed("verify", "not-found-after");
   if (compareVersions(after, declared.minimum) < 0)
     return failed("verify", `below-minimum-after:${after}`);
-  // Whether the user's own PATH (not the one this run put first) finds it.
-  const onPath =
-    (await resolveOnPath(recipe.command, input.path, input.platform)) !==
-    undefined;
+  const onPath = located !== undefined;
   return result === "installed"
     ? Object.freeze({ ...base, result, version: after, onPath })
     : Object.freeze({
