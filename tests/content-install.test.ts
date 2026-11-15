@@ -503,6 +503,14 @@ posixTest(
       expect(scoped["workspace/secret"]).toBe("excluded_by_role_scope");
       expect(scoped["workspace/secret/db"]).toBe("excluded_by_role_scope");
       expect(scoped["workspace/web"]).toBe("materialized");
+      // Not shared by intent is no warning (issue #946): the restricted
+      // slot, the denied `docs` and the `planned` slot without a repository
+      // are notes; only `odd`, whose access cannot be classified, has a
+      // reason.
+      expect(
+        steps.find((step) => step.key === "check" && step.state === "done")
+          ?.detail,
+      ).toBe("executable; 6 modules, 1 with a reason (see lazurio doctor)");
       expect(scoped["mission-control"]).toBe("materialized");
       expect(scoped["productionspace/firmware"]).toBe("materialized");
       expect(

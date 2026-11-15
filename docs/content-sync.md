@@ -271,7 +271,8 @@ primary checkout of the declared repository and read its remote (not one blocked
 own state): GitHub is asked once,
 the clone goes to a temporary sibling on the declared branch and is published by a
 no-replace rename. `materialized` with `to` when it is; `absent` with `repository-denied`
-when this identity cannot read it, quietly (no doctor finding, `since` kept), and asked
+when this identity cannot read it, quietly (no doctor warning: the module's check is the
+note `skipped module-not-shared`, issue #946; `since` kept), and asked
 again at the next round. Modules run before data mounts, so both arrive in one run.
 
 GitHub refusing the identity (`repository-denied`), the network or GitHub not answering
@@ -540,7 +541,8 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    fails (F34). Nothing cloned: `skipped`.
 5. **check** — the doctor's checks of this Organization in the catalog
    (`catalogChecks`): the Organization must be executable; modules with a reason are
-   counted in the detail.
+   counted in the detail. A module the install left out by intent (`denied`,
+   `excluded_by_role_scope`, `no-repository`) is a note, not a reason (issue #946).
 
 ### A public Environment: anonymous reading
 
