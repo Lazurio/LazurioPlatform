@@ -185,7 +185,8 @@ of 4,096, Save, Cancel and Remove, and on a Work Environment the notice that the
 instructions belong to the Organization, before anything is saved. It saves
 through `POST /api/own-instructions/update`, which changes that text alone. After
 a save the person may open a prepared issue with the text in this repository
-(„Poslat Lazuriu jako podnět“); nothing is sent by the product.
+(„Poslat Lazuriu jako podnět“); nothing is sent by the product, and the form says
+before the click that opening the link hands the text to GitHub in the address.
 
 Voice presets or Marketplace templates are a possible later source of editor
 text, not a selected distribution mechanism yet. A future selection should fill

@@ -56,7 +56,7 @@ const en = {
     "{This} has no own instructions. Your own computer, a Personal Environment and a Work Environment assigned to one person have them. Load current settings.",
   ownSuggest: "Send to Lazurio as a suggestion",
   ownSuggestHint:
-    "Opens a prepared issue with the saved text in Lazurio's public repository on GitHub. Nothing is published until you submit it there yourself.",
+    "The link opens GitHub and hands it the saved text in the address as soon as it opens. It becomes public once you submit the issue there yourself.",
   ownSuggestOrganization:
     "You are sending a text that belongs to the Organization; send only what may be public.",
   ownSuggestTruncated:
@@ -2413,7 +2413,7 @@ const cs: Record<MessageKey, string> = {
     "{Toto} vlastní pokyny nemá. Má je váš počítač, Osobní Prostředí a Pracovní Prostředí přiřazené jednomu člověku. Načtěte aktuální nastavení.",
   ownSuggest: "Poslat Lazuriu jako podnět",
   ownSuggestHint:
-    "Otevře na GitHubu připravený issue s uloženým textem ve veřejném repozitáři Lazuria. Nic se nezveřejní, dokud ho tam sami neodešlete.",
+    "Odkaz otevře GitHub a uložený text mu předá v adrese hned při otevření. Veřejný bude, až tam issue sami odešlete.",
   ownSuggestOrganization:
     "Odesíláte text, který patří Organizaci; pošlete jen to, co smí být veřejné.",
   ownSuggestTruncated:

@@ -625,7 +625,10 @@ test("a save sends the text alone at the page's revision, says it is saved and o
   expect(anchor.target).toBe("_blank");
   expect(anchor.rel).toBe("noopener noreferrer");
   expect(at.says()).toContain("Poslat Lazuriu jako podnět");
-  expect(at.says()).toContain(cs.ownSuggestHint);
+  // Said before the click: opening the link already hands the text over.
+  expect(at.says()).toContain(
+    "Odkaz otevře GitHub a uložený text mu předá v adrese hned při otevření. Veřejný bude, až tam issue sami odešlete.",
+  );
   // The repository is public and the text is the Organization's.
   expect(at.says()).toContain(
     "Odesíláte text, který patří Organizaci; pošlete jen to, co smí být veřejné.",
@@ -660,6 +663,9 @@ test("a save sends the text alone at the page's revision, says it is saved and o
   own.records({ ...personal, text: long, bytes: 4096 }, 2);
   await own.submit();
   expect(own.says()).toContain("Send to Lazurio as a suggestion");
+  expect(own.says()).toContain(
+    "The link opens GitHub and hands it the saved text in the address as soon as it opens. It becomes public once you submit the issue there yourself.",
+  );
   expect(own.says()).not.toContain(en.ownSuggestOrganization);
   expect(own.says()).toContain(en.ownSuggestTruncated);
   expect(

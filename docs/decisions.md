@@ -3618,8 +3618,9 @@ Implemented on 2026-11-15 in a second pull request, the field in Settings:
   own sign-in. The link stays under 7,000 characters; a longer text is cut at a whole
   character and the issue says so. On a Work Environment the form adds that the text
   belongs to the Organization and that the repository is public. Opening the link already
-  hands the text to GitHub in the address, before anything is submitted; the form says
-  only that nothing is published until then.
+  hands the text to GitHub in the address, before anything is submitted; the form says so
+  under the link, before the click, and that the text becomes public once the person
+  submits the issue there.
 
 Not implemented yet:
 
