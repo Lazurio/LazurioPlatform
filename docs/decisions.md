@@ -3262,7 +3262,7 @@ Lazurio MausBot's intake reacts to an assignment without the old comment (the pe
 through assignment is the root's contract; the intake is MausBot's). Environments get the text through
 the next released Platform update and the normal Folder refresh.
 
-### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (B delivered 2026-11-03; decided with changes 2026-11-06, see below; A not implemented)
+### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (B delivered 2026-11-03; decided with changes 2026-11-06, see below; A's core implemented 2026-11-15, see the implementation note there)
 
 On 2026-10-29 Matěj raised two questions.
 - **Own instructions.** People should be able to tweak how agents behave where that makes sense, in one standard way, and Lazurio should learn about it, because each tweak marks something the product should fix. His first idea was a pattern in the Launchpad's settings that finds part of the instructions and replaces it, or adds to it. He also asked whether this belongs to the Folder or only to the Organization, whose repository the Folder's instructions point to.
@@ -3440,7 +3440,9 @@ Changed:
 - **Room first.** With the longest voice `AGENTS.md` has about 40 bytes left (#755). The own
   instructions ship only after #758 or another change frees their bound, and a test renders
   every pinned composition with the longest voice and the longest own instructions and fails
-  above 32 KiB (#755, first direction).
+  above 32 KiB (#755, first direction). *Amended 2026-11-15:* the own instructions ship
+  with one budget shared with the custom voice instead (the implementation note of
+  2026-11-15 below).
 - **The kind of a memory.** When the person asks to remember something, the agent decides
   whether it is a habit of the person (own instructions or the local Personalspace) or a
   process, meaning or knowledge of the Organization (a pull request or an issue to the
@@ -3554,6 +3556,112 @@ skill lists; a collision is refused by name; the doctor names a top-level `CLAUD
 `notes.txt`; the Team and Steward presets get neither. Not proven: that agents follow the own
 instructions and the rule on the kind of a memory, and that every harness version picks up the
 personal skills.
+
+**Implementation note 2026-11-15 (plan LZD-0012, M2 core): own instructions in the preference, the rendering and the CLI.**
+This note records what the code does now. The shared budget below was proposed with this
+change and decided on 2026-11-15; nothing else here goes beyond the decision above.
+
+Implemented, with template revision `base-instructions-127`:
+
+- **The preference.** `customInstructions` is the person's own instructions: plain text
+  without control characters other than tab and line ends, at most 4,096 UTF-8 bytes
+  (`maxOwnInstructionsBytes`), and the empty text means none. The rules are in
+  `src/folder/own-instructions.ts`. A stored text that breaks them is a state refusal that
+  names the field and never its content.
+- **The section.** `AGENTS.md` renders „Vlastní pokyny uživatele“ ("The user's own
+  instructions") right after the communication style and before the Environment's facts. Its
+  first paragraph carries the precedence of answer 3. On `hosted-organization-personal` the
+  same paragraph adds that the instructions belong to the Organization with the Environment
+  and that its Admins may read them. The text sits in a fence it cannot close, built like
+  the voice's. There is no section without a text. Buddy's layer does not render it, as it
+  renders no custom voice.
+- **The presets.** `local`, `hosted-personal` and `hosted-organization-personal` have own
+  instructions (`ownInstructionsAllowed`); `hosted-organization-team`,
+  `hosted-organization-steward` and a public Environment, whatever preset its Folder
+  records, have none. Saving a text there is refused as `own-instructions-unavailable`. A
+  Folder that already holds a text there keeps it, renders none and is stopped by nothing
+  because of it.
+- **The change path.** The refusal `custom-composition-unavailable` ends in the planner and
+  in the preview; an initialization journal still starts with no text. A profile request
+  takes `ownInstructions` next to `voice`, and `updateOwnInstructions` changes the text and
+  nothing else. Both run the one planner and the one transaction: a new rendering, never
+  `drift`, and a refresh after it is `unchanged`.
+- **The command.** `lazurio folder instructions show | add <line> | set (--file | --text) |
+  clear`, in the Folder's language, reading the Folder's revision itself. On a Work
+  Environment every answer of a change says whose the instructions are (`notice` in
+  `--json`).
+- **The agents' rules.** Where a person has own instructions, the rule on "zapamatuj si" in
+  `AGENTS.md` points to `lazurio folder instructions add` instead of the harness's personal
+  instructions; elsewhere the rule keeps its text. `manual/working-here.md` gains the
+  passage on own instructions: a line only on the person's word and proposed first, the
+  kind of a memory with one example each, what the agent says first on a Work Environment,
+  the assistant's name, and where there are none.
+
+Not implemented yet:
+
+- The field „Vlastní pokyny pro agenty“ in Settings with its notice, and „Poslat Lazuriu
+  jako podnět“. Until then the Launchpad's profile request refuses the key, so on a Work
+  Environment the only way to save is the command, which states the notice.
+- The local Personalspace of a Work Environment: the preset's policy, the folder, the
+  skills and the manual's texts, which still say that a Work Environment never has a
+  Personalspace.
+- #653's repair and the Lazurio Root on a workstation (delivery points 3 and 4 of the
+  proposal).
+
+Proposal B is delivered (F10's addendum of 2026-11-03): a top-level entry the Folder does
+not own stops no change, and `lazurio update`, `update status` and the doctor report it. This
+change does not touch that report. As read in the code on this date, it names every such
+entry of a hosted Folder (`src/folder/foreign-entries.ts`), not only a `CLAUDE.md`, an
+`AGENTS.override.md` or a `.codex/`, so answer 4's narrowing is still to be delivered.
+
+**Decided 2026-11-15 by Matěj (Organization Admin, plan LZD-0012) in the question tool: one
+shared budget for the text a person writes. It amends "Room first" of the addendum of
+2026-11-06.** That addendum let the own instructions ship only after #758 or another change
+freed their bound, with a test of the longest voice together with the longest own
+instructions. The implementer proposed another way to the same guarantee with this change,
+and Matěj chose it („Společný rozpočet teď“) over doing the cleanup of #758 first and over
+a smaller bound of the custom voice. The cleanup of #758 stays a separate step.
+
+- **The rule.** The own instructions keep their 4 KiB bound and share the custom
+  voice's 8 KiB budget instead of waiting for the cleanup of #758. The planner refuses, as
+  `person-text-too-large` with the sizes, every change after which the active voice text
+  (the person's custom one, or the product's default, with what its fence takes beyond the
+  usual three characters) and the whole rendered section of own instructions would together
+  take more than 8,192 bytes (`maxVoiceBytes`). With the default voice the own instructions
+  have their full 4,096 bytes; a long custom voice leaves them less. The existing 32 KiB
+  guard (`voice-context-too-large`) stays and now also runs for own instructions.
+- **Why.** With the longest voice the tightest pinned composition had 67 bytes left before
+  this change, and has 58 with it (the Czech rule on "zapamatuj si" is 9 bytes longer). A
+  section of 4 KiB does not fit next to an 8 KiB voice, and making room would mean taking
+  rule text out of `AGENTS.md`, which this change does not do. No existing Folder is
+  refused: no product path wrote a text into the preference before this change, and a
+  change that renders the same voice and section as before is never refused by the budget. Both cases are pinned by tests over the
+  shared compositions: the default voice with 4,096 bytes of own instructions, and a custom
+  voice of several lengths with own instructions that fill the rest of the budget, each at
+  most 32 KiB. A later template revision that pushed one of them over fails there, before a
+  release, and not as a refused refresh of someone's Folder.
+- **What it costs.** A person whose custom voice is longer than about 3.6 KiB cannot also
+  use the full 4 KiB of own instructions, and is told so with the sizes. The decision's
+  test of the longest voice together with the longest own instructions is not what runs:
+  that pair is refused at save. A text that forces a very long fence (runs of several
+  hundred backticks and tildes) counts with its fence and is refused even next to the
+  default voice. The section's own words are part of the budget. The tests measure the
+  wording of their own revision, so a later revision that lengthens those words could push
+  a Folder saved at the edge of the budget over 32 KiB by the difference; such a change
+  needs that much room to spare in the tests first.
+- **Not chosen.** The cleanup of #758 first: measured on this change, it has to take about
+  4.4 KiB of rule text out of `AGENTS.md` on a Personal Environment and about 3.8 KiB on a
+  Work Environment before the longest voice and the longest own instructions fit together,
+  and the feature would wait for it. A smaller bound of the custom voice (about 4 KiB):
+  one simpler rule, but a person with a longer voice today would have to shorten it.
+- **What stays open.** When #758 frees that room, the coupling can be removed by a later
+  decision and the own instructions get their 4 KiB next to an 8 KiB voice, with the test
+  the addendum of 2026-11-06 names.
+
+Proven by this change: the generated bytes of the section and of the rule, the change path
+and the command, in tests. Not proven: that an agent in any harness follows the own
+instructions. The section reaches only a consumer that reads `AGENTS.md`, as Codex and
+Claude Code do; Buddy's layer is rendered without it, and no harness was run against it.
 
 **Addendum 2026-11-01, decided by Matěj (Organization Admin, plan LZD-0002 of the
 LazurioDevelopment Organization): two more Folder skills from the Lazurio Root,

@@ -20,6 +20,14 @@ import {
 } from "./machine-binding";
 import type { OutputPath } from "./outputs";
 import {
+  type OwnInstructionsEdit,
+  ownInstructionsAllowed,
+  ownInstructionsSection,
+  parseOwnInstructions,
+  parseOwnInstructionsEdit,
+  personTextBudget,
+} from "./own-instructions";
+import {
   derivePreset,
   isFixed,
   type PresetName,
@@ -58,25 +66,31 @@ import {
   editVoice,
   parseAgentVoice,
   parseVoiceEdit,
+  resolvedVoice,
   type VoiceEdit,
 } from "./voice";
 
 // One request shape for CLI, Launchpad and a future typed owner request: the
 // preset (absent means keep the current one) and the full profile. The Machine
-// binding is never part of a request; it is immutable.
+// binding is never part of a request; it is immutable. `ownInstructions`
+// (root decision 0233) is the person's own instructions for agents, next to
+// the voice: the whole next text, or null to remove them; absent keeps them.
 export type ProfileRequest = Readonly<{
   voice?: VoiceEdit;
+  ownInstructions?: OwnInstructionsEdit;
   preset: PresetName | undefined;
   profile: FolderProfile;
 }>;
 
 export function parseProfileRequest(input: unknown): ProfileRequest {
   const withVoice = ownDataValue(input, "voice") !== undefined;
+  const withOwn = ownDataValue(input, "ownInstructions") !== undefined;
   const withPreset = ownDataValue(input, "preset") !== undefined;
   const value = stateFields(input, [
     "profile",
     ...(withPreset ? ["preset"] : []),
     ...(withVoice ? ["voice"] : []),
+    ...(withOwn ? ["ownInstructions"] : []),
   ]);
   const profile = parseFolderProfile(value.profile);
   const voice = withVoice ? parseVoiceEdit(value.voice) : undefined;
@@ -84,6 +98,9 @@ export function parseProfileRequest(input: unknown): ProfileRequest {
     throw new Error("Voice locale differs from the requested profile");
   return Object.freeze({
     ...(voice === undefined ? {} : { voice }),
+    ...(withOwn
+      ? { ownInstructions: parseOwnInstructionsEdit(value.ownInstructions) }
+      : {}),
     preset: withPreset ? parsePresetName(value.preset) : undefined,
     profile: parseFolderProfile(value.profile),
   });
@@ -118,10 +135,14 @@ export async function planProfileChange(
     currentManifestInput,
     expectedRevision,
     {
-      ...requested,
+      preset: requested.preset,
+      profile: requested.profile,
       ...(requested.voice === undefined
         ? {}
         : { agentVoice: editVoice(current.agentVoice, requested.voice) }),
+      ...(requested.ownInstructions === undefined
+        ? {}
+        : { ownInstructions: requested.ownInstructions.text ?? "" }),
       machine: current.machine,
       tools: enabledTools(current),
       notes: toolNotes(current),
@@ -273,6 +294,61 @@ export async function planChatgptAppsChange(
   );
 }
 
+// The person's own instructions for agents (root decision 0233, decision
+// F14's addendum of 2026-11-06) at the expected revision, everything else
+// carried forward: the whole next text, or null to remove them. The one
+// request an agent's command makes, so saving a line can change nothing
+// else. Refused where a person has none (`own-instructions-unavailable`) and
+// where the text does not fit next to the voice (`person-text-too-large`);
+// the same text is `unchanged`.
+export async function planOwnInstructionsChange(
+  currentPreferencesInput: unknown,
+  currentManifestInput: unknown,
+  expectedRevision: number,
+  editInput: unknown,
+  inspect: (path: OutputPath) => Promise<ObservedFile>,
+) {
+  const current = parseFolderPreferences(currentPreferencesInput);
+  const edit = parseOwnInstructionsEdit(editInput);
+  return planFolderChange(
+    current,
+    currentManifestInput,
+    expectedRevision,
+    {
+      ownInstructions: edit.text ?? "",
+      preset: current.preset.name,
+      profile: current.profile,
+      machine: current.machine,
+      tools: enabledTools(current),
+      notes: toolNotes(current),
+      organizationSettings: folderOrganizationSettings(current),
+      chatgptAppsAllowed: personalChatgptApps(current),
+    },
+    inspect,
+  );
+}
+
+// The person-written text of AGENTS.md as one composition renders it: the
+// active voice text and the section of own instructions.
+function personText(
+  locale: FolderProfile["locale"],
+  voice: AgentVoice | undefined,
+  preset: PresetName,
+  machine: MachineBinding | null,
+  ownInstructions: string,
+) {
+  const section = ownInstructionsSection(
+    locale,
+    preset,
+    machine,
+    ownInstructions,
+  );
+  return {
+    rendered: JSON.stringify([resolvedVoice(locale, voice).text, section]),
+    budget: personTextBudget(locale, voice, section),
+  };
+}
+
 // The recorded notes of the tools that are on in the next selection.
 function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
   const on = activeTools(tools).map((entry) => entry.name);
@@ -286,7 +362,8 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 // The one planner behind every change of the generated Folder: a requested
 // profile change (the binding and the enabled tools carried forward), a
 // requested change of the enabled tools and notes (everything else carried
-// forward) and a refresh from the current handover (the recorded preset,
+// forward), a requested change of the person's own instructions (the same)
+// and a refresh from the current handover (the recorded preset,
 // profile, tools and notes carried forward, the binding of the same Machine
 // re-projected). The Machine identity never changes here, except by the one
 // correction a refresh records (`ownerOrganizationKey`, below); the
@@ -300,6 +377,10 @@ function keptNotes(notes: ToolNotes, tools: readonly string[]): ToolNotes {
 export type FolderChange = Readonly<{
   // Undefined keeps the record; null removes the last override.
   agentVoice?: AgentVoice | null;
+  /** The person's own instructions for agents (root decision 0233):
+   * undefined keeps the recorded text, a text replaces it and `""` removes
+   * it. */
+  ownInstructions?: string;
   preset: PresetName | undefined;
   profile: FolderProfile;
   machine: MachineBinding | null;
@@ -345,11 +426,10 @@ export async function planFolderChange(
     return { kind: "blocked", reason: "template-upgrade-required" } as const;
   if (change.profile.os !== current.profile.os)
     return { kind: "blocked", reason: "execution-os-change" } as const;
-  if (current.customInstructions !== "")
-    return {
-      kind: "blocked",
-      reason: "custom-composition-unavailable",
-    } as const;
+  const nextInstructions =
+    change.ownInstructions === undefined
+      ? current.customInstructions
+      : parseOwnInstructions(change.ownInstructions);
   const nextVoice =
     change.agentVoice === undefined
       ? current.agentVoice
@@ -399,6 +479,50 @@ export async function planFolderChange(
     presetName === current.preset.name
       ? current.preset
       : presetReference(presetName, machine);
+  // A new or changed text of own instructions only where a person has them
+  // (root decision 0233): not on a Team Environment, an Environment with
+  // automations or a public one. A text the Folder already records there is
+  // carried as it is and renders nothing, so no change is refused because of
+  // it, and removing it is always possible.
+  if (
+    nextInstructions !== "" &&
+    nextInstructions !== current.customInstructions &&
+    !ownInstructionsAllowed(preset.name, machine)
+  )
+    return { kind: "blocked", reason: "own-instructions-unavailable" } as const;
+  // One budget for the person-written text of AGENTS.md (decision F14's
+  // implementation note of 2026-11-15): the active voice text and the whole
+  // rendered section of own instructions together take at most what the
+  // longest voice takes alone, the size every pinned composition is measured
+  // with. Checked for every change that renders another voice or another
+  // section, whatever it changed (the text, the voice, the locale, the
+  // preset), so a Folder this planner recorded stays within it; a change
+  // that renders the same person-written text is never refused by it.
+  const nextPersonText = personText(
+    change.profile.locale,
+    nextVoice,
+    preset.name,
+    machine,
+    nextInstructions,
+  );
+  if (
+    !nextPersonText.budget.fits &&
+    nextPersonText.rendered !==
+      personText(
+        current.profile.locale,
+        current.agentVoice,
+        current.preset.name,
+        current.machine,
+        current.customInstructions,
+      ).rendered
+  )
+    return {
+      kind: "blocked",
+      reason: "person-text-too-large",
+      voiceBytes: nextPersonText.budget.voiceBytes,
+      instructionsBytes: nextPersonText.budget.instructionsBytes,
+      maxBytes: nextPersonText.budget.maxBytes,
+    } as const;
   // The person's choice of ChatGPT's apps holds where they decide; an
   // Organization's Environment follows its Organization.
   const chatgptApps =
@@ -418,6 +542,7 @@ export async function planFolderChange(
   const preview = await previewFolder(
     {
       ...(nextVoice === undefined ? {} : { agentVoice: nextVoice }),
+      ...(nextInstructions === "" ? {} : { ownInstructions: nextInstructions }),
       preset: preset.name,
       machine,
       profile: change.profile,
@@ -431,9 +556,14 @@ export async function planFolderChange(
   );
   if (preview.plan.kind === "blocked") return preview.plan;
   // Bound the full generated document, including the fence and other settings.
-  // An oversized composition is never staged or silently truncated.
+  // An oversized composition is never staged or silently truncated. Own
+  // instructions are person-written text like the voice, so a Folder that
+  // renders them, or a change of them, is held to the same bound.
   if (
-    (nextVoice !== undefined || change.agentVoice !== undefined) &&
+    (nextVoice !== undefined ||
+      change.agentVoice !== undefined ||
+      nextPersonText.budget.instructionsBytes > 0 ||
+      change.ownInstructions !== undefined) &&
     new TextEncoder().encode(preview.desired["AGENTS.md"].content).length >
       32 * 1024
   )
@@ -456,6 +586,7 @@ export async function planFolderChange(
     preview.plan.kind === "unchanged" &&
     bindingCorrected === null &&
     JSON.stringify(nextVoice) === JSON.stringify(current.agentVoice) &&
+    nextInstructions === current.customInstructions &&
     JSON.stringify(machine?.entry) === JSON.stringify(current.machine?.entry) &&
     JSON.stringify(machine?.relationships) ===
       JSON.stringify(current.machine?.relationships) &&
@@ -490,6 +621,7 @@ export async function planFolderChange(
             preset,
             machine,
             profile: change.profile,
+            customInstructions: nextInstructions,
           },
           tools,
           notes,

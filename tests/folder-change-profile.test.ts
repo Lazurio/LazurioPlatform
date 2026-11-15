@@ -338,6 +338,11 @@ test("stale, incomplete, incompatible and custom state blocks before inventory",
         recorded,
       ),
     ).toEqual({ kind: "blocked", reason: "template-upgrade-required" });
+  // Own instructions are a recorded preference that the Folder renders
+  // (root decision 0233): preferences that hold a text the recorded bytes do
+  // not carry are incomplete state, and the text is never dropped by a
+  // change. That a change keeps and renders it is in
+  // folder-own-instructions.test.ts.
   expect(
     await planProfileChange(
       { ...current, customInstructions: "Do not drop this" },
@@ -346,7 +351,7 @@ test("stale, incomplete, incompatible and custom state blocks before inventory",
       changed,
       inspect,
     ),
-  ).toEqual({ kind: "blocked", reason: "custom-composition-unavailable" });
+  ).toEqual({ kind: "blocked", reason: "incomplete-state" });
   expect(
     await planProfileChange(
       current,
