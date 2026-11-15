@@ -273,6 +273,8 @@ const text = {
       "Your session {session} has a window of its own, which taking the tab would leave. Take the tab into another session (lazurio browser take {targetId} --session {session}-2), or let go of your window first (lazurio browser done --session {session}). Nothing was taken.",
     "holder-busy":
       "The session {session} bound to the tab did not let it go: its agent-browser refused to shut down or did not confirm that it ended. Nothing was taken. Try again in a moment; if it stays so, leave the tab to its agent.",
+    "take-note-failed":
+      "Lazurio could not write the note that tells the session {session} its window was taken, so its agent would not learn it. Nothing was taken: the tab stays with that session, and its agent-browser starts again in the same tab with its next command. Check that $XDG_RUNTIME_DIR/lazurio-browser/taken is a directory you can write to (lazurio doctor) and run lazurio browser take again.",
     "take-id":
       "take needs the tab's id, 32 hexadecimal digits, as lazurio browser tabs --all prints it.",
     "navigate-pending":
@@ -422,6 +424,8 @@ const text = {
       "Tvoje sezení {session} má vlastní okno a převzetím záložky by ho opustilo. Převezmi záložku do jiného sezení (lazurio browser take {targetId} --session {session}-2), nebo nejdřív pusť své okno (lazurio browser done --session {session}). Nic se nepřevzalo.",
     "holder-busy":
       "Sezení {session}, které je k záložce připojené, ji nepustilo: jeho agent-browser se odmítl ukončit nebo nepotvrdil, že skončil. Nic se nepřevzalo. Zkus to za chvíli znovu; když to vydrží, nech záložku jeho agentovi.",
+    "take-note-failed":
+      "Lazurio nezapsalo poznámku, ze které sezení {session} pozná, že mu někdo okno převzal, takže by se to jeho agent nedozvěděl. Nic se nepřevzalo: záložka zůstává tomu sezení a jeho agent-browser se při dalším příkazu spustí znovu ve stejné záložce. Ověř, že $XDG_RUNTIME_DIR/lazurio-browser/taken je adresář, do kterého smíš zapisovat (lazurio doctor), a spusť lazurio browser take znovu.",
     "take-id":
       "take potřebuje id záložky, 32 šestnáctkových číslic, jak ho vypíše lazurio browser tabs --all.",
     "navigate-pending":
@@ -970,13 +974,21 @@ async function take(
             `${copy.use}: ${command} <command>`,
           ].join("\n"),
     });
-  if (own?.targetId === targetId && own.taken === null) return already();
+  // A binding an earlier `window` left unverified (C19) may name another
+  // agent's tab, so it is never taken for the session's window: described
+  // only, the take refuses as `window` does; confirmed, `takeTab` settles
+  // it first under the window lock, or takes nothing.
+  if (own?.unverified === true && values.confirm !== true)
+    throw new BrowserWindowFailure("binding-unverified", session);
+  const believed = own?.unverified === true ? undefined : own;
+  if (believed?.targetId === targetId && believed.taken === null)
+    return already();
   // Taking it would leave the session's own open window: never silently.
   if (
-    own?.targetId !== undefined &&
-    own.targetId !== null &&
-    own.targetId !== targetId &&
-    open.has(own.targetId)
+    believed?.targetId !== undefined &&
+    believed.targetId !== null &&
+    believed.targetId !== targetId &&
+    open.has(believed.targetId)
   )
     return Object.freeze({
       code: browserCliExit.failure,

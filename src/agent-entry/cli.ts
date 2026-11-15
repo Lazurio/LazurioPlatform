@@ -190,6 +190,8 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "not-a-tab": "The Environment browser has no such tab.",
     "session-busy": "The thread's session is bound to another window.",
     "holder-busy": "Another session holding the tab did not let it go.",
+    "take-note-failed":
+      "The note for the session that held the tab could not be written, so nothing was taken.",
   },
   cs: {
     "relay-absent":
@@ -264,6 +266,8 @@ const meanings: Readonly<Record<Locale, Record<Reason, string>>> = {
     "not-a-tab": "Prohlížeč Prostředí takovou záložku nemá.",
     "session-busy": "Sezení vlákna je připojené k jinému oknu.",
     "holder-busy": "Jiné sezení, které záložku drží, ji nepustilo.",
+    "take-note-failed":
+      "Poznámka pro sezení, které záložku drželo, se nezapsala, takže se nic nepřevzalo.",
   },
 };
 
@@ -305,6 +309,7 @@ function nextSteps(
     case "not-a-tab":
     case "session-busy":
     case "holder-busy":
+    case "take-note-failed":
       return [again];
     case "binding-unverified": {
       const session = input.session ?? (cs ? "<sezení>" : "<session>");

@@ -11960,6 +11960,14 @@ takes it.
      session is bound to another open window it would leave (`session-busy`: take it into
      another `--session`, or let go of that window first), or when a holder's daemon does not
      shut down (`holder-busy`).
+   - **A binding an earlier `window` left unverified (C19) is never the session's window**,
+     even when it names the tab: it may name another agent's tab. Without `--confirm`, `take`
+     refuses as `window` does (`binding-unverified`); with it, the binding is settled first
+     under the lock, as `window` settles one, or nothing is taken.
+   - **Every earlier holder's note is written before the session is bound.** Where one cannot
+     be written (`take-note-failed`), or the binding fails, the notes go back to what they
+     were and nothing is bound: a holder without its note would take the tab for its window
+     again and navigate it.
    - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
      changes, and the people who view the tab keep it.
 

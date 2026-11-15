@@ -132,7 +132,10 @@ export class BrowserWindowFailure extends Error {
       | "session-busy"
       // `takeTab`: a session that holds the tab did not let it go: its
       // daemon refused to shut down or did not confirm it (`session`).
-      | "holder-busy",
+      | "holder-busy"
+      // `takeTab`: the note that tells an earlier holder its window was
+      // taken could not be written, so nothing was taken (`session`).
+      | "take-note-failed",
     /** The session the reason is about, where it names one. */
     readonly session?: string,
   ) {
@@ -1426,9 +1429,10 @@ export async function tabHolders(
  * view it keep it. Refused, with nothing changed, where the browser has no
  * such tab (`not-a-tab`), the session is bound to another open window of its
  * own, which it would leave (`session-busy`), its binding is not verified
- * (`binding-unverified`), or a holder's daemon did not shut down
+ * (`binding-unverified`), a holder's daemon did not shut down
  * (`holder-busy`, then the holders asked before it are let go and nothing is
- * bound). A session that holds the tab already changes nothing (`already`),
+ * bound), or a holder's note cannot be written (`take-note-failed`, then the
+ * notes go back to what they were and nothing is bound). A session that holds the tab already changes nothing (`already`),
  * unless another thread took it from it: then it takes it back. Under the
  * account's window lock. */
 export async function takeTab(
@@ -1485,21 +1489,46 @@ export async function takeTab(
       )
         throw new BrowserWindowFailure("holder-busy", holder.session);
     }
-    bindingFailure(await bindSession(session, targetId, seams));
+    // Every earlier holder's note is written before the session is bound:
+    // a holder whose note is missing would take the tab for its window
+    // again and navigate it. Where one cannot be written, or the binding
+    // fails, the notes go back to what they were and nothing is taken.
+    const at = new Date().toISOString();
+    const earlier = new Map<string, TakenWindow | null>();
+    const restore = async () => {
+      for (const [held, note] of earlier)
+        if (note === null) await clearTakenWindow(seams.env, held);
+        else await noteTakenWindow(seams.env, note);
+    };
+    for (const holder of holders) {
+      earlier.set(
+        holder.session,
+        await readTakenWindow(seams.env, holder.session),
+      );
+      if (
+        !(await noteTakenWindow(seams.env, {
+          session: holder.session,
+          targetId,
+          thread: options.thread,
+          by: session,
+          at,
+        }))
+      ) {
+        await restore();
+        throw new BrowserWindowFailure("take-note-failed", holder.session);
+      }
+    }
+    try {
+      bindingFailure(await bindSession(session, targetId, seams));
+    } catch (error) {
+      await restore();
+      throw error;
+    }
     const recorded = await recordThreadWindow(seams.env, {
       session,
       thread: options.thread,
       targetId,
     });
-    const at = new Date().toISOString();
-    for (const holder of holders)
-      await noteTakenWindow(seams.env, {
-        session: holder.session,
-        targetId,
-        thread: options.thread,
-        by: session,
-        at,
-      });
     await clearTakenWindow(seams.env, session);
     return Object.freeze({
       session,

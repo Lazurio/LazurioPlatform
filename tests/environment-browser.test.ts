@@ -4507,6 +4507,101 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32")(
+  "take never calls a binding a window left unverified the session's window: without --confirm it refuses as window does, with it the binding is settled first or nothing is taken (C19, review of #993)",
+  async () => {
+    const world = await takeWorld();
+    // An earlier window of the calling session did not finish binding it:
+    // its binding names the other thread's tab, the mark keeps another one,
+    // and its daemon still runs.
+    await bindSessionFiles(world.socketDir, "codex-019a", TAKEN_TAB, {
+      pid: String(process.pid),
+      sock: true,
+    });
+    const mark = unverifiedMark(world.runtime, "codex-019a");
+    await mkdir(dirname(mark), { recursive: true });
+    await writeFile(
+      mark,
+      JSON.stringify({
+        schema: "lazurio.browser-unverified-binding.v1",
+        session: "codex-019a",
+        targetId: "4D".repeat(16),
+        before: null,
+      }),
+    );
+    const described = await world.run(["take", TAKEN_TAB]);
+    expect(described.code).toBe(1);
+    expect(described.stdout ?? "").not.toContain("window already");
+    expect(described.stderr).toContain(
+      "The session codex-019a has no window for now",
+    );
+    expect(world.asked).toEqual([]);
+    expect(await present(mark)).toBe(true);
+    // Confirmed while its daemon does not end: refused, nothing taken.
+    const lingering: WindowSeams = {
+      ...windowSeams({
+        socketDir: world.socketDir,
+        targets: [TAKEN_TAB, OWN_TAB],
+        env: world.env,
+      }).seams,
+      daemon: {
+        ask: async () => ({ kind: "reply", line: '{"success":true}' }),
+        exists: async (path: string) => present(path),
+        exitWithinMs: 50,
+      },
+    };
+    await expect(
+      takeTab("codex-019a", TAKEN_TAB, lingering, { thread: "codex-019a" }),
+    ).rejects.toEqual(
+      new BrowserWindowFailure("binding-unverified", "codex-019a"),
+    );
+    expect(
+      await present(
+        join(world.runtime, "lazurio-browser", "taken", "t3-other.json"),
+      ),
+    ).toBe(false);
+    expect(await present(mark)).toBe(true);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "take takes nothing when the note for an earlier holder cannot be written: the session is not bound, the window not recorded and the holder's binding stays (review of #993)",
+  async () => {
+    const world = await takeWorld();
+    const before = await readFile(
+      join(world.socketDir, "t3-other.target"),
+      "utf8",
+    );
+    // The notes' directory is no directory.
+    await mkdir(join(world.runtime, "lazurio-browser"), { recursive: true });
+    await writeFile(join(world.runtime, "lazurio-browser", "taken"), "");
+    const taken = await world.run(["take", TAKEN_TAB, "--confirm"]);
+    expect(taken.code).toBe(1);
+    expect(taken.stderr).toContain(
+      "could not write the note that tells the session t3-other",
+    );
+    expect(taken.stderr).toContain("Nothing was taken");
+    expect(
+      world.calls.some(
+        (call) =>
+          Array.isArray(call) &&
+          call.includes("codex-019a") &&
+          call.includes("tab") &&
+          call.includes(TAKEN_TAB),
+      ),
+    ).toBe(false);
+    expect(await present(join(world.socketDir, "codex-019a.target"))).toBe(
+      false,
+    );
+    expect(
+      await readFile(join(world.socketDir, "t3-other.target"), "utf8"),
+    ).toBe(before);
+    expect(
+      JSON.parse((await world.run(["tabs", "--json"])).stdout ?? "").windows,
+    ).toEqual([]);
+  },
+);
+
 test("a session whose tab another thread took gets a new window from apps open too, and the taken tab is never navigated; a new window whose address the browser refuses fails apps open", async () => {
   const runtime = await temporary("browser-taken-open-");
   const socketDir = join(runtime, "agent-browser");
