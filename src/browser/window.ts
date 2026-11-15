@@ -965,19 +965,25 @@ type Binding = "bound" | "failed" | "unverified";
  * that left the session on another tab, or a command that did not answer in
  * time, lets the session go and settles its binding (`releaseBinding`); the
  * mark goes only once that is done, else the binding is `unverified`. The
- * caller has settled any earlier mark (`settleUnverified`). */
+ * caller has settled any earlier mark (`settleUnverified`). With `hold`
+ * (`takeTab`, review of #993), a failure never leaves the session on the
+ * tab asked for: the mark written before the first command keeps neither
+ * that tab nor it as the earlier binding, a failure that left the session
+ * there is let go like one on another tab, and where that cannot finish the
+ * same mark stays, so the session is unverified without a second write. */
 async function bindSession(
   session: string,
   targetId: string,
   seams: Pick<WindowSeams, "env" | "run" | "daemon" | "alive" | "endWithinMs">,
+  hold = false,
 ): Promise<Binding> {
   const directory = agentBrowserSocketDirectory(seams.env);
   const marks = unverifiedBindingDirectory(seams.env);
   const before = await readBinding(directory, session);
-  const kept: KeptBinding = {
-    targetId,
-    before: before === "none" || before === "unreadable" ? null : before,
-  };
+  const earlier = before === "none" || before === "unreadable" ? null : before;
+  const kept: KeptBinding = hold
+    ? { targetId: null, before: earlier === targetId ? null : earlier }
+    : { targetId, before: earlier };
   if (marks !== undefined && !(await markUnverified(marks, session, kept)))
     return "failed";
   const ok = (result: Awaited<ReturnType<ProcessRunner>> | null) =>
@@ -1009,8 +1015,12 @@ async function bindSession(
   // An unreadable binding says nothing about where the daemon is, so two
   // unreadable readings are not "unchanged".
   const stayed = after === before && after !== "unreadable";
+  const verified = ok(bound) && ok(pinned) && after === targetId;
   const settled =
-    (!unanswered && (after === targetId || stayed)) ||
+    (!unanswered &&
+      (hold
+        ? verified || (stayed && after !== targetId)
+        : after === targetId || stayed)) ||
     (await releaseBinding(
       directory,
       session,
@@ -1023,7 +1033,7 @@ async function bindSession(
   // keeps the session unverified for `tabs` until the next `window` settles
   // it again, which keeps this binding.
   await clearUnverified(marks, session);
-  return ok(bound) && ok(pinned) && after === targetId ? "bound" : "failed";
+  return verified ? "bound" : "failed";
 }
 
 /** Lets go of a session whose binding failed or did not finish and left it,
@@ -1417,30 +1427,6 @@ export async function tabHolders(
   );
 }
 
-/** Whether a session whose binding to `targetId` failed is off that tab:
- * its binding names something else, or, where it still names the tab, its
- * daemon has ended and the binding is removed (`releaseBinding`). False
- * while its binding cannot be read or its daemon may still run. */
-async function takerOff(
-  session: string,
-  targetId: string,
-  sockets: string | undefined,
-  seams: Pick<WindowSeams, "daemon" | "alive" | "endWithinMs">,
-): Promise<boolean> {
-  const left = await readBinding(sockets, session);
-  if (left === "unreadable") return false;
-  if (left !== targetId) return true;
-  return (
-    (await releaseBinding(
-      sockets,
-      session,
-      { targetId: null, before: null },
-      seams,
-      seams.endWithinMs ?? daemonEndMs,
-    )) && (await readBinding(sockets, session)) === "none"
-  );
-}
-
 /** Takes a tab into the calling thread's session on purpose, once its agent
  * confirmed it (`lazurio browser take --confirm`): the session is bound to
  * the tab and pinned as `window` binds one (`bindSession`), and the window is
@@ -1545,28 +1531,15 @@ export async function takeTab(
         throw new BrowserWindowFailure("take-note-failed", holder.session);
       }
     }
-    // A failed binding may leave the taker on the tab (`tab` answered, the
-    // pin did not): the holders get their window back only once the taker
-    // is proven off it, else their notes stay and the taker is marked
-    // unverified (C19) until `done` or `window` settles it (review of #993).
-    const binding = await bindSession(session, targetId, seams).catch(
+    // Bound with `hold`: a failure is `failed` only once the taker is off
+    // the tab, and the holders get their window back; otherwise the mark
+    // written before the binding's first command stays, the notes stay,
+    // and the taker is unverified (C19) until `done` or `window` settles it.
+    const binding = await bindSession(session, targetId, seams, true).catch(
       () => "unverified" as const,
     );
-    if (binding !== "bound") {
-      const off =
-        binding === "failed" &&
-        (await takerOff(session, targetId, sockets, seams));
-      if (off) await restore();
-      else {
-        const marks = unverifiedBindingDirectory(seams.env);
-        if (marks !== undefined)
-          await markUnverified(marks, session, {
-            targetId: null,
-            before: null,
-          });
-      }
-      bindingFailure(off ? "failed" : "unverified");
-    }
+    if (binding === "failed") await restore();
+    bindingFailure(binding);
     const recorded = await recordThreadWindow(seams.env, {
       session,
       thread: options.thread,

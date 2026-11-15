@@ -11970,8 +11970,11 @@ takes it.
      it. Where the binding fails, the taker may be left on the tab (`tab` answered, the pin did
      not), so the notes go back only once the taker is proven off it (its binding names
      another tab, or its daemon has ended and the binding is removed). Otherwise the notes
-     stay and the taker is marked unverified (C19, `binding-unverified`) until `done` or
-     `window` settles it, so two agents never work in the tab unseen.
+     stay and the taker stays unverified (C19, `binding-unverified`) until `done` or `window`
+     settles it, so two agents never work in the tab unseen. The mark that keeps it so is the
+     one the binding wrote before its first command, keeping neither the taken tab nor it as
+     the earlier binding, so no second write can fail and a settled session never keeps the
+     taken tab; where that first mark cannot be written, no command runs and nothing is bound.
    - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
      changes, and the people who view the tab keep it.
 

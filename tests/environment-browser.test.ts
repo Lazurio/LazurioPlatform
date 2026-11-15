@@ -4679,6 +4679,73 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "take whose binding fails keeps the taker unverified by the mark written before the binding, even when no mark can be written afterwards (review of #993)",
+  async () => {
+    const world = await takeWorld();
+    const marks = join(world.runtime, "lazurio-browser", "unverified");
+    await writeFile(
+      join(world.socketDir, "codex-019a.pid"),
+      String(process.pid),
+    );
+    await writeFile(join(world.socketDir, "codex-019a.sock"), "");
+    const base = windowSeams({
+      socketDir: world.socketDir,
+      targets: [TAKEN_TAB, OWN_TAB],
+      env: world.env,
+      failing: ["--pin-tab"],
+    }).seams;
+    const seams: WindowSeams = {
+      ...base,
+      // The pin fails, and from then on no mark can be written.
+      run: async (command, ...rest) => {
+        if (command.includes("--pin-tab")) await chmod(marks, 0o500);
+        return base.run(command, ...rest);
+      },
+      daemon: {
+        ask: async (socketPath: string) => {
+          const session = basename(socketPath, ".sock");
+          if (session === "t3-other") {
+            await rm(join(world.socketDir, `${session}.pid`), { force: true });
+            await rm(join(world.socketDir, `${session}.sock`), { force: true });
+          }
+          return { kind: "reply", line: '{"success":true}' } as const;
+        },
+        exists: async (path: string) => present(path),
+        exitWithinMs: 50,
+      },
+      endWithinMs: 0,
+    };
+    try {
+      await expect(
+        takeTab("codex-019a", TAKEN_TAB, seams, { thread: "codex-019a" }),
+      ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+    } finally {
+      await chmod(marks, 0o700);
+    }
+    expect(await present(unverifiedMark(world.runtime, "codex-019a"))).toBe(
+      true,
+    );
+    expect(
+      await present(
+        join(world.runtime, "lazurio-browser", "taken", "t3-other.json"),
+      ),
+    ).toBe(true);
+    const tabs = JSON.parse((await world.run(["tabs", "--json"])).stdout ?? "");
+    expect(tabs.windows).toEqual([]);
+    expect(tabs.complete).toBe(false);
+    // Its next window settles the mark once its daemon ends and opens a new
+    // window, never the taken tab.
+    const window = await world.run(["window", "--json"]);
+    expect(window.code).toBe(0);
+    expect(JSON.parse(window.stdout ?? "")).toMatchObject({
+      session: "codex-019a",
+      targetId: NEWTARGET,
+      created: true,
+    });
+  },
+);
+
 test("a session whose tab another thread took gets a new window from apps open too, and the taken tab is never navigated; a new window whose address the browser refuses fails apps open", async () => {
   const runtime = await temporary("browser-taken-open-");
   const socketDir = join(runtime, "agent-browser");
