@@ -49,6 +49,7 @@ import type { ExecutorHost } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import { type DocumentsHost, processDocumentsHost } from "../files/documents";
 import { type AgentsSwitch, enableToolForAgents } from "../folder/enable-tool";
+import { ownInstructionsOf } from "../folder/inspect-own-instructions";
 import { inspectProfileChange } from "../folder/inspect-profile-change";
 import {
   inspectToolsChange,
@@ -57,6 +58,10 @@ import {
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
 import type { MachineEntry } from "../folder/machine-binding";
+import {
+  maxOwnInstructionsBytes,
+  ownInstructionsProblem,
+} from "../folder/own-instructions";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
 import { isFixed, type PresetName, selectablePresets } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
@@ -66,7 +71,11 @@ import {
   stateFields,
 } from "../folder/state";
 import { ownDataValue } from "../folder/state-fields";
-import { updateProfile, updateTools } from "../folder/update-profile";
+import {
+  updateOwnInstructions,
+  updateProfile,
+  updateTools,
+} from "../folder/update-profile";
 import { resolvedVoice } from "../folder/voice";
 import {
   chatgptAppsItem,
@@ -627,6 +636,16 @@ export function ensureStatus(result: ModuleAnswer | ModuleBlocked): number {
   if (result.operation === "ensure") return 404;
   // The lifecycle refused the status read or the start.
   return 409;
+}
+
+// What `POST /api/profile` says of the person's own instructions: the
+// recorded state where the Environment has them, and no text where it has
+// none.
+function shownOwnInstructions(
+  preferences: Parameters<typeof ownInstructionsOf>[0],
+) {
+  const recorded = ownInstructionsOf(preferences);
+  return recorded.allowed ? recorded : { ...recorded, text: "", bytes: 0 };
 }
 
 // The tools operations that change what the tools report (an installation,
@@ -2839,6 +2858,13 @@ export async function startLaunchpad(
               current.preferences.profile.locale,
               current.preferences.agentVoice,
             ),
+            // The person's own instructions for agents (root decision
+            // 0233): whether this Environment has them, whose they are and
+            // the saved text. Where it has none (a Team Environment, an
+            // Environment with automations, a public one) a text the Folder
+            // still records is not sent: everyone who enters reads this
+            // answer, and the text was one person's.
+            ownInstructions: shownOwnInstructions(current.preferences),
             // The catalog tools agents may be told to use, with tier and
             // whether each is on in this Folder (decision F18).
             tools: toolSelection(enabledTools(current.preferences)),
@@ -3381,6 +3407,40 @@ export async function startLaunchpad(
               : { ...result, ...sharedSignInsWarning(recorded, value.tools) },
             result.kind === "blocked" ? 409 : 200,
           );
+        }
+        if (url.pathname === "/api/own-instructions/update") {
+          // „Vlastní pokyny pro agenty“ (root decision 0233, decision F14's
+          // addendum of 2026-11-06): the whole next text at the expected
+          // revision, or null to remove them, through the one operation that
+          // changes the text and nothing else, over the same planner and
+          // transaction as a profile change. A public Environment has none
+          // and its visitors change none: absent, before anything is read.
+          const value = stateFields(input, ["expectedRevision", "text"]);
+          if (publicEnvironment) return response({ error: "not-found" }, 404);
+          const expectedRevision = revisionOf(value.expectedRevision);
+          if (expectedRevision === null)
+            return response({ error: "invalid-revision" }, 400);
+          // Named before the planner, which would only throw: an empty text
+          // is not "none" (null is), and the rest is `ownInstructionsProblem`.
+          const problem =
+            value.text === null
+              ? null
+              : value.text === ""
+                ? "blank"
+                : ownInstructionsProblem(value.text);
+          if (problem !== null)
+            return response(
+              {
+                error: "invalid-own-instructions",
+                problem,
+                maxBytes: maxOwnInstructionsBytes,
+              },
+              400,
+            );
+          const result = await updateOwnInstructions(folder, expectedRevision, {
+            text: value.text,
+          });
+          return response(result, result.kind === "blocked" ? 409 : 200);
         }
         if (!["/api/preview", "/api/update"].includes(url.pathname))
           return response({ error: "not-found" }, 404);
