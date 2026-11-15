@@ -26609,9 +26609,10 @@ replaces points 2 and 3 above (the restricted key in `authorized_keys`, the forc
      no rate limit of its own.
 4. **The gateway** passes exactly `GET /.lazurio/computers/attach` with `Upgrade: websocket` on
    the Launchpad's name without a browser session. It strips the cookie and every identity
-   header, and passes nothing else. It is a narrow exception of the same kind as T3's native
-   pairing in 0157, recorded as the amendment of 2026-11-13 of 0241. Without it, a computer behind the gateway
-   is sent to the sign-in and never attaches.
+   header, and passes nothing else. It is one of the pairing channels that 0247 names as
+   exceptions, of the same kind as T3's native pairing in 0157, recorded as the amendment of
+   2026-11-13 of 0241; with Lazurio App it moves to a short-lived permission from Lazurio Auth
+   (0248). Without it, a computer behind the gateway is sent to the sign-in and never attaches.
 5. **The move from SSH.** As the installed Launchpad starts after the update, every old
    `lazurio-computer:` line of `authorized_keys` moves into the registry with its key, name, system and Executor's server.
    The line leaves `authorized_keys`, and every other line stays byte for byte. The application
@@ -26661,3 +26662,41 @@ the first Environment in `controlledBy`. `lazurio_shell_run` on the Mac ended wi
 The history kept its command but not the code, because the application answers the code only in
 its JSON text, so the broker now reads it there too (point 7). The Calculator gave 42 on both
 systems. Not proven: a real gateway with the exception.
+
+### F75 addendum of 2026-11-15: the review's four findings and the decisions of 2026-11-14
+
+**Task 2026-11-15-851 of LZD-0018, after Pablo's review of 2026-11-13; Matěj agreed on
+2026-11-15 that the texts follow the decisions of 2026-11-14.** While this pull request was open,
+main took F73 for an Organization's tools (#992), so people's computers are F75.
+
+1. **An attempt's message is an object.** The first message of an attempt must be a JSON object:
+   `null`, an array or a scalar is denied as `invalid-message`. No failure of an unauthenticated
+   attempt reaches the process; it is denied as `internal-error`. Before this, `null` ended the
+   Launchpad.
+2. **The registry across processes.** Every change of the registry takes the registry's kernel
+   lock (`registry.lock`, `flock`) around its read, its change and its atomic write, in every
+   process: the Launchpad's pairing and `lazurio computer remove` alike. A lock not taken within
+   10 s is `registry-busy`. A pairing that read the registry before a removal no longer writes
+   the removed computer back.
+3. **A session belongs to its key.** An attached session lasts only while its computer's entry
+   holds the key that signed its challenge. A computer removed and paired again under the same
+   id with another key ends the old key's session at the next check (15 s).
+4. **The history keeps no command.** This replaces the command in point 7 of the addendum of
+   2026-11-13: for `lazurio_shell_run` and `lazurio_shell_start` the history keeps that a
+   command ran and its exit code, never the command, which may carry a password or a token. The
+   pairing page's promise of a history without content holds again. A line written before this
+   change may still hold a command; nothing reads it.
+5. **The decisions of 2026-11-14.** The computer's channel is one of the pairing channels that
+   0247 names as exceptions. With Lazurio App it moves to a short-lived permission from Lazurio
+   Auth, which keeps no lasting key of the Device in the Environment (0248); LZD-0018 carries the
+   move (task 852). The manual's section People's computers names the device's approval as 0245
+   does.
+
+**Verified** in tests with a temporary home, each first failing for its finding:
+- `tests/computers-attach.test.ts`: `null`, an array and scalars are denied and the server still
+  attaches a paired computer; a computer paired again with another key ends the old session.
+- `tests/computers-registry.test.ts`: two real processes, a pairing that read the registry and
+  holds its transaction, and a removal that starts meanwhile: the removal waits, reads the
+  pairing's write and the removed computer stays removed.
+- `tests/computers-broker.test.ts`: commands with a password and a token leave only their exit
+  codes in the history.
