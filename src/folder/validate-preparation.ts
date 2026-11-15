@@ -120,8 +120,9 @@ export async function validatePreparation(
   // The staged binding is part of the transition: a refresh carries the
   // re-projected binding of the same Machine, a profile change the recorded
   // one; the staged enabled tools and notes are the requested or the
-  // recorded ones, and the staged Organization settings the applied or the
-  // recorded ones. A refresh that recorded the one correction of the identity
+  // recorded ones, the staged own instructions likewise, and the staged
+  // Organization settings the applied or the recorded ones. A refresh that
+  // recorded the one correction of the identity
   // (`ownerOrganizationCorrection`) checked the handover's
   // `owner.organization_key` under the lock when it prepared; the journal
   // does not carry the key, so the transition is regenerated with the staged
@@ -135,6 +136,7 @@ export async function validatePreparation(
     previousPreferences.revision,
     {
       agentVoice: preferences.agentVoice ?? null,
+      ownInstructions: preferences.customInstructions,
       preset: preferences.preset.name,
       profile: preferences.profile,
       machine: preferences.machine,

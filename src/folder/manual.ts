@@ -9,6 +9,10 @@ import {
 import { mechanisms, organizationAdmin } from "./manual-mechanisms";
 import type { ManualPath } from "./outputs";
 import {
+  ownInstructionsAllowed,
+  ownInstructionsOfOrganization,
+} from "./own-instructions";
+import {
   githubIdentity,
   type PresetName,
   presetVersion,
@@ -583,6 +587,68 @@ const publicPublication: Text = t(
   "**In a public Environment** you have no GitHub identity: you only read the Organization's public repositories anonymously and publish nothing from here, no push, pull request or issue, also where another rule here asks for one. Keep a finished change committed in the worktree and show it to the user. Sign nobody in to GitHub.",
 );
 
+// The person's own instructions for agents (root decision 0233, decision
+// F14's addendum of 2026-11-06): what they are, that an agent adds a line
+// only on the person's word, how it tells a habit of the person from what is
+// the Organization's, what it says first on a Work Environment and where
+// there are none. AGENTS.md renders the instructions themselves and points
+// here from its rule on "remember this". An Environment without them says
+// only that, and keeps that rule's other way.
+function ownInstructionsPassage(
+  preset: PresetName,
+  machine: MachineBinding | null,
+): readonly Text[] {
+  const heading = t(
+    "## Vlastní pokyny uživatele",
+    "## The user's own instructions",
+  );
+  if (!ownInstructionsAllowed(preset, machine))
+    return [
+      heading,
+      t(
+        "Toto Prostředí vlastní pokyny uživatele nemá: pracuje tu víc lidí nebo persona, takže by pokyny jednoho platily pro všechny. Mají je jen vlastní počítač uživatele, Osobní Prostředí a Pracovní Prostředí přiřazené jednomu člověku (rozhodnutí 0233). „Zapamatuj si“ tu řeš podle pravidla v `AGENTS.md`.",
+        "This Environment has no own instructions of a user: several people or a persona work here, so one person's instructions would hold for all. Only the user's own computer, a Personal Environment and a Work Environment assigned to one person have them (decision 0233). Handle a “remember this” here as the rule in `AGENTS.md` says.",
+      ),
+    ];
+  const organization = ownInstructionsOfOrganization(preset);
+  return [
+    heading,
+    t(
+      "Vlastní pokyny jsou text, kterým uživatel říká, jak s ním agenti v tomto Prostředí pracují (rozhodnutí 0233). Jsou nastavením Prostředí, ne úpravou generovaného souboru: Folder je vykreslí na začátku `AGENTS.md` hned za tónem komunikace, takže je dostane agent, jehož harness čte `AGENTS.md`; Buddy je nedostává. Žádná aktualizace se na nich nezastaví. Nic neudělují. Při střetu platí pravidla Lazuria a Organizace, ve které pracuješ, a uživateli řekneš, proč se pokynem neřídíš.",
+      "Own instructions are text in which the user says how agents work with them in this Environment (decision 0233). They are a setting of the Environment, not an edit of a generated file: the Folder renders them near the beginning of `AGENTS.md`, right after the communication voice, so an agent whose harness reads `AGENTS.md` gets them; Buddy does not. No update stops on them. They grant nothing. Where they conflict, Lazurio's rules and the rules of the Organization you work in win, and you tell the user why you do not follow the instruction.",
+    ),
+    t(
+      '- **Řádek přidáš jen na slovo uživatele.** Když tě požádá, ať si zapamatuješ, jak s ním pracovat, navrhni mu nejdřív přesné znění řádku a po jeho souhlasu ho ulož: `lazurio folder instructions add "<řádek>"`. Celý text ukáže `lazurio folder instructions show`, nahradí ho `set` a odstraní `clear`. Sám od sebe tam nic nepřidávej.',
+      '- **Add a line only on the user\'s word.** When they ask you to remember how to work with them, first propose the exact line and, once they agree, save it: `lazurio folder instructions add "<line>"`. `lazurio folder instructions show` prints the whole text, `set` replaces it and `clear` removes it. Add nothing there on your own.',
+    ),
+    t(
+      "- **Nejdřív rozhodni, čí ta paměť je.** Návyk uživatele patří do vlastních pokynů, třeba „odpovídej mi stručně a začni výsledkem“. Postup, pojem nebo znalost Organizace patří do ní jako pull request nebo issue, třeba „faktury se schvalují do pátku“; pak je zná i agent dalšího kolegy (decision 0163).",
+      "- **First decide whose memory it is.** A habit of the user goes into their own instructions, for example “answer me briefly and lead with the outcome”. A process, meaning or knowledge of the Organization goes to the Organization as a pull request or an issue, for example “invoices are approved by Friday”; then the next colleague's agent knows it too (decision 0163).",
+    ),
+    ...(organization
+      ? [
+          t(
+            "- **Na Pracovním Prostředí to uživateli řekni předem.** Než uložíš první řádek, řekni mu, že vlastní pokyny patří Organizaci spolu s Prostředím, že je její Admini smí číst a že soukromé věci patří do Osobního Prostředí. Příkaz to ve své odpovědi zopakuje.",
+            "- **In a Work Environment, tell the user first.** Before you save the first line, tell them that own instructions belong to the Organization with the Environment, that its Admins may read them and that private matters belong in a Personal Environment. The command repeats it in its answer.",
+          ),
+        ]
+      : []),
+    organization
+      ? t(
+          "- **Jméno asistenta.** Uživatel si tu smí svého asistenta pojmenovat; je to řádek vlastních pokynů jako každý jiný. Jsi asistent uživatele; persona Organizace (Henry) je pracovník Organizace s vlastním Prostředím.",
+          "- **The assistant's name.** The user may give their assistant a name here; it is a line of the own instructions like any other. You are the user's assistant; the Organization's persona (Henry) is the Organization's worker with an Environment of its own.",
+        )
+      : t(
+          "- **Jméno asistenta.** Uživatel si tu smí svého asistenta pojmenovat; je to řádek vlastních pokynů jako každý jiný.",
+          "- **The assistant's name.** The user may give their assistant a name here; it is a line of the own instructions like any other.",
+        ),
+    t(
+      "- **Kde nejsou.** Týmové Prostředí, Prostředí s automatizacemi a veřejné Prostředí vlastní pokyny nemají, protože tam pracuje víc lidí nebo persona.",
+      "- **Where there are none.** A Team Environment, an Environment with automations and a public Environment have no own instructions, because several people or a persona work there.",
+    ),
+  ];
+}
+
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -980,6 +1046,8 @@ function workingHere(
       "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree, do repozitáře, který jen čteš, jako issue s návrhem (výše); GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které uživatel do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost. V pochybnosti obsah nekopíruj: zapiš jen issue v jeho scope nebo odkaz na místo, kde je.",
       "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree, or to a repository you only read as an issue with the proposal (above); a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the user may place in that store; Personalspace and cross-Organization isolation always take precedence. When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.",
     ),
+    blank,
+    ...ownInstructionsPassage(preset, machine),
     blank,
     t("## Organizace", "## Organizations"),
     t(
@@ -2210,8 +2278,14 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `template-upgrade-required`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.",
     ),
     t(
-      "- `execution-os-change`, `custom-composition-unavailable`, `incomplete-state`, `revision-exhausted`: stav, který potřebuje diagnózu, nikdy odhad.",
-      "- `execution-os-change`, `custom-composition-unavailable`, `incomplete-state`, `revision-exhausted`: state that needs diagnosis, never a guess.",
+      "- `execution-os-change`, `incomplete-state`, `revision-exhausted`: stav, který potřebuje diagnózu, nikdy odhad.",
+      "- `execution-os-change`, `incomplete-state`, `revision-exhausted`: state that needs diagnosis, never a guess.",
+    ),
+    // The person's own instructions (root decision 0233): where there are
+    // none, and the one budget they share with a custom voice.
+    t(
+      "- `own-instructions-unavailable`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). `person-text-too-large`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v `AGENTS.md` jeden společný rozpočet (`voiceBytes`, `instructionsBytes`, `maxBytes`), takže se zkrátí pokyny nebo vlastní tón.",
+      "- `own-instructions-unavailable`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). `person-text-too-large`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in `AGENTS.md` (`voiceBytes`, `instructionsBytes`, `maxBytes`), so the instructions or the custom voice get shorter.",
     ),
     t(
       "- `drift` s `path`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). `unowned-file`, `unsafe-path`: cestu Folder nevlastní nebo je to link.",

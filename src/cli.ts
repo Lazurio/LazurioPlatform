@@ -20,6 +20,10 @@ import { FolderAdoptionError } from "./folder/handover-layout";
 import { initializeFolder } from "./folder/initialize-folder";
 import { inspectLegacyPaths } from "./folder/inspect-legacy-paths";
 import { inspectProfileChange } from "./folder/inspect-profile-change";
+import {
+  folderInstructionsHelp,
+  runFolderInstructionsCommand,
+} from "./folder/instructions-cli";
 import { inspectOutput } from "./folder/inventory";
 import { FolderOperationBusyError } from "./folder/lock";
 import {
@@ -110,6 +114,7 @@ import {
   executorAtStart,
   installBase,
   noticeAfterCommand,
+  operatorFolder,
   processContext,
   routesAtStart,
   runInstallCommand,
@@ -420,6 +425,16 @@ async function runOtherCommand(args: string[]): Promise<number> {
         cwd: process.cwd(),
       }),
     );
+  // The person's own instructions for agents (root decision 0233): the
+  // answer on stdout, a wrong invocation with the help on stderr. Without
+  // --folder it speaks about the Environment's own Folder, found as
+  // `lazurio integrations` finds it.
+  if (args[0] === "folder")
+    return emit(
+      await runFolderInstructionsCommand(args.slice(1), {
+        defaultFolder: () => operatorFolder(processContext()),
+      }),
+    );
   if (args[0] === "machine") {
     try {
       // folder-refresh restarts this base's supervised Launchpad when it
@@ -718,6 +733,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(browserHelp);
     console.log(appsHelp);
     console.log(filesHelp);
+    console.log(folderInstructionsHelp);
     console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);

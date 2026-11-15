@@ -204,9 +204,12 @@ test("the Folder says whether ChatGPT's apps are a way to an app, and who decide
         ? "„Zapamatuj si“ nikdy nezapisuj do vygenerovaných souborů Folderu (`AGENTS.md`, `manual/`, skilly)"
         : "Never write a “remember this” into the Folder's generated files (`AGENTS.md`, `manual/`, the skills)",
     );
-    expect(agents).toContain(
-      "(Codex `$CODEX_HOME/AGENTS.md`, Claude Code `~/.claude/CLAUDE.md`)",
-    );
+    // A Personal Environment has the person's own instructions (root
+    // decision 0233), so its rule sends a habit of the person to the command
+    // and no longer to the harness's personal instructions; where the rule
+    // keeps that other way is in folder-own-instructions.test.ts.
+    expect(agents).toContain("`lazurio folder instructions add`");
+    expect(agents).not.toContain("$CODEX_HOME/AGENTS.md");
   }
   // An Organization decides on its Environments: the person's choice never
   // renders there, and it has one representation.

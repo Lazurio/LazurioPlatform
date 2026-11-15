@@ -182,7 +182,7 @@ usage, 1 operation failure.
   required tool is `unchanged` (exit 0); enabling or disabling a tool the
   Organization does not allow here is `blocked` / `organization-governed` with the
   reason in words (exit 2, F45). The planner's refusals arrive unchanged
-  (`stale-revision`, `drift` with the path, `custom-composition-unavailable`, …). An
+  (`stale-revision`, `drift` with the path, `incomplete-state`, …). An
   interrupted change is completed with `profile-resume`.
 - `tools note <tool> --folder <Folder> --expected-revision <n> (--text <text> | --clear)
   [--json]` records or removes the user's note on a required or enabled tool

@@ -460,7 +460,9 @@ export function renderBuddyRules(input: unknown): string {
     // injection scan finds anything, and a custom voice is text this product
     // does not control (agent/prompt_builder.py `_scan_context_content`; only
     // the user's SOUL.md is merely warned about). Buddy's own tone is his
-    // persona's.
+    // persona's. For the same reason the user's own instructions (root
+    // decision 0233) are not rendered here either: the source may carry
+    // them, this layer never reads them.
     ...voiceSection(locale),
     pick(userAddress),
     "",
