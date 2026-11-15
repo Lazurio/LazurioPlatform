@@ -83,6 +83,16 @@ export type ShellEnvironment = Readonly<{
   who?: string;
   /** True when the account knows it is off. */
   offline?: boolean;
+  /** Whose a personal Environment is (decision 0248's addendum of
+   * 2026-11-15, additive in v1): its owner's GitHub login or Lazurio
+   * username, so a page tells the viewer's own Environment from another
+   * person's and draws the frame (`env-frame.ts`). Only on a personal one;
+   * a work one names its person in `assignee`. */
+  owner?: string;
+  /** The services Environment of a server (root decision 0209), which
+   * people see as a work Environment and the frame of 0248's addendum marks
+   * as shared (additive in v1). Only on a work one; absent otherwise. */
+  services?: true;
 }>;
 
 export type ShellOrganization = Readonly<{
@@ -450,6 +460,16 @@ function environment(value: unknown): ShellEnvironment | null {
     // rather than refusing the Environment, so a producer's slip never
     // costs the person their list.
     ...(assignee !== null && text(assigneeName, 128) ? { assigneeName } : {}),
+    // Whose it is and whether it serves a server (0248's addendum of
+    // 2026-11-15): only in their exact shape and beside their kind; any
+    // other value is left out rather than refusing the Environment, and
+    // without them the frame is drawn, never left out (`env-frame.ts`).
+    ...(kind === "personal" && isLogin(value.owner)
+      ? { owner: value.owner }
+      : {}),
+    ...(kind === "work" && value.services === true
+      ? { services: true as const }
+      : {}),
   });
 }
 

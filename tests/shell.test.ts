@@ -572,6 +572,9 @@ test("a personal Remote Environment carries its owner's initials and photo and b
     catalog: catalog(organization("example")),
   });
   expect(shell.environments[0]?.organizations).toEqual([]);
+  // Whose it is, for the frame of 0248's addendum of 2026-11-15.
+  expect(shell.environments[0]?.owner).toBe("example");
+  expect(shell.environments[0]?.services).toBeUndefined();
   expect(shell.operator.login).toBe("example");
   expect(shell.operator.initials).toBe("EX");
   expect(shell.operator.avatar).toBe("https://github.com/example.png?size=96");

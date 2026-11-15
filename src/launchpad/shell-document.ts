@@ -405,6 +405,12 @@ export function shellDocument(
             ? []
             : organizations.map((organization) => organization.slug),
         assignee: assigneeLogin(machine, kind),
+        // Whose it is, for the frame of 0248's addendum of 2026-11-15: a
+        // personal Environment's owner, and the services Environment's mark.
+        ...(kind === "personal" && login !== null ? { owner: login } : {}),
+        ...(kind === "work" && isServerServices(machine)
+          ? { services: true as const }
+          : {}),
         apps:
           entry === undefined
             ? { apps: "/", chat: null, automate: null }

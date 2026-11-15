@@ -423,7 +423,10 @@ test("the shell names Služby serveru a work Environment, never a Team one, assi
       kind: "work",
       organizations: ["example"],
       assignee: null,
+      // Shared, for the frame of 0248's addendum of 2026-11-15.
+      services: true,
     });
+    expect(environment.owner).toBeUndefined();
     expect(shell.operator).toEqual({
       initials: null,
       login: null,
@@ -446,14 +449,14 @@ test("the shell names Služby serveru a work Environment, never a Team one, assi
   expect(environmentKind(team, servicesBinding)).toBe("work");
   // A Team Environment of the same preset stays a Team one.
   expect(environmentKind(team, bindings.assignedTeam)).toBe("team");
-  expect(
-    shellDocument({
-      preset: team,
-      machine: bindings.assignedTeam as MachineBinding,
-      locale: "cs",
-      catalog,
-    }).environments[0]?.kind,
-  ).toBe("team");
+  const teamShell = shellDocument({
+    preset: team,
+    machine: bindings.assignedTeam as MachineBinding,
+    locale: "cs",
+    catalog,
+  });
+  expect(teamShell.environments[0]?.kind).toBe("team");
+  expect(teamShell.environments[0]?.services).toBeUndefined();
 });
 
 test("Toto Prostředí says the kind, whose it is and who works there in a person's words, and the assignment for support", () => {
