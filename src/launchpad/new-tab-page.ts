@@ -416,6 +416,13 @@ function updateItem(row: UpdateRow): HTMLLIElement {
     row.text,
   );
   text.append(element("span", "nto-name", row.name), state);
+  if (row.link !== undefined) {
+    const link = element("a", "nto-update-link", row.link.text);
+    link.href = row.link.href;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    text.append(link);
+  }
   item.append(text);
   return item;
 }

@@ -74,7 +74,10 @@ export type SyncEntry = Readonly<{
   /** `blocked`: a `syncBlockedReasons` member; `denied`, `unavailable`,
    * `failed`: a locale-neutral code. */
   reason?: string;
-  /** `fast-forwarded`: the commit before and after. */
+  /** `fast-forwarded`: the commit before and after. `current`, too, names
+   * in `to` the commit the checkout stands on, the one its remote's branch
+   * named in this run (the published commit a reader may rely on, decision
+   * F73); `materialized`: the commit it was cloned at. */
   from?: string;
   to?: string;
   /** When this answer was given (ISO 8601). */

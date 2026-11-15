@@ -549,7 +549,8 @@ async function syncCheckout(
     const remote = await context.remote(observed.repository);
     const head = await git.remoteHead(directory, remote, branch, remaining());
     if (head.kind !== "commit") return remoteFailure(head);
-    if (head.commit === observed.commit) return { result: "current" };
+    if (head.commit === observed.commit)
+      return { result: "current", to: head.commit };
     // Known here already: ahead or diverged is decided without a fetch.
     const known = await git.relation(directory, observed.commit, head.commit);
     if (known === "ahead" || known === "diverged") return blocked(known);
@@ -574,7 +575,7 @@ async function syncCheckout(
     );
     if (again !== null) return again;
     const relation = await git.relation(directory, now.commit, fetched.commit);
-    if (relation === "equal") return { result: "current" };
+    if (relation === "equal") return { result: "current", to: fetched.commit };
     if (relation === "ahead" || relation === "diverged")
       return blocked(relation);
     if (relation === null)

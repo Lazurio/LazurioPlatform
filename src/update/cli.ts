@@ -45,6 +45,7 @@ import {
   type ModuleHost,
   processModuleHost,
 } from "../modules/module-operations";
+import { provisionDeclaredTools } from "../organization-settings/tools";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
 import type { AccessServiceLocation } from "../ssh-access/access-service";
 import {
@@ -56,6 +57,7 @@ import {
   type ReadRoutesSource,
   type RoutesDeclaration,
 } from "../ssh-access/routes";
+import { toolsEnvironmentOf } from "../tools/overview";
 import { runTool } from "../tools/status";
 import {
   type AttestationVerifier,
@@ -236,6 +238,12 @@ export type CliContext = Readonly<{
         personalspace?: PersonalspaceHolderRead | undefined;
       }>)
     | undefined;
+  /** Where `lazurio update` provisions the tools the Environment's
+   * Organization declares (decision F73): this process's PATH and home in
+   * production. Absent: no such part (tests of the other parts). */
+  organizationTools?:
+    | ((folder: string) => NonNullable<UpdateParts["organizationTools"]>)
+    | undefined;
 }>;
 
 export const processContext = (): CliContext =>
@@ -256,6 +264,13 @@ export const processContext = (): CliContext =>
       host: processModuleHost(process.env, process.platform, process.execPath),
       personalspace: processPersonalspaceHolder(process.env, process.platform),
     }),
+    organizationTools: (folder: string) => (onStep, published) =>
+      provisionDeclaredTools(
+        folder,
+        toolsEnvironmentOf(process.env, process.platform, runTool),
+        onStep,
+        published,
+      ),
   });
 
 const usage = (message: string): CommandOutput =>
@@ -943,7 +958,10 @@ function folderParts(
   context: CliContext,
   base: string,
   folder: string | undefined,
-): Pick<UpdateParts, "content" | "tools" | "builds"> | null {
+): Pick<
+  UpdateParts,
+  "content" | "organizationTools" | "tools" | "builds"
+> | null {
   if (context.modules === undefined || folder === undefined) return null;
   const { host, personalspace } = context.modules();
   const content = host.dataMounts;
@@ -967,6 +985,9 @@ function folderParts(
             },
             { onProgress },
           ),
+    ...(context.organizationTools === undefined
+      ? {}
+      : { organizationTools: context.organizationTools(folder) }),
     tools: {
       pins: (moved) => operations.runtimePins(moved),
       resolve: operations.resolveBun,

@@ -25593,6 +25593,155 @@ headers through a fake gh; `tests/launchpad-access-check.test.ts` the words;
 no answer from the service manager. Not proven: a real revocation on GitHub, a real
 fine-grained token and a real single sign-on. Known limits are in the contract.
 
+## F73 — An Organization's tools: declared in its settings, installed and kept at their minimum by `lazurio update` in its Environments
+
+**Decided by Matěj (Owner and Organization Admin of a development Organization) on
+2026-11-15; the shape of the declaration and the recipes proposed by the implementing
+agent. Implemented, not yet released (template revision `base-instructions-126`).** An
+Organization's review persona could not finish a review because its Environment had
+neither `cargo` nor `pnpm`, which the repository's checks need. Matěj's direction: an
+Organization defines the tools it uses, and every Environment of it gets them through
+the standard `lazurio update`, without anyone asking; a minimum version is enough, no
+exact one; a missing tool must not block an agent, who instead proposes adding it to the
+Organization. Agents have full rights in their Environment (root decision 0172) so that
+they can install what they need; this gives that a standard place.
+
+It amends root decision 0161 point 2 (an agent updates the user's tools only on the
+user's explicit instruction) and F17's addendum of 2026-10-02 point 3 for one case: a
+tool the Organization declares, on an Organization's Environment. It implements root
+decision 0194 for "default tools", which that decision already names among the
+Organization's settings.
+
+1. **Where it is declared.** `settings.tools` of `lazurio.organization.json`: a list of
+   `{ "tool": "<catalog tool>", "minimum": "<major.minor.patch>" }`, at most 32, each tool
+   once. `organizationSettings` reads it as the key `tools` and
+   `$defs.organizationSettings` of the schema states it ([organization
+   contract](organization-contract.md#organization-settings)). An absent key governs
+   nothing. A minimum is numbers only: no range, no prerelease, no "latest".
+2. **The Organization says which tool and which minimum; the catalog says how.** The
+   official installer, the tool's own update, where its programs live and how its version
+   is read are Lazurio's recipes (`src/tools/organization-tools.ts`), one per tool the
+   reader accepts, reviewed in this repository. The manifest never carries an installer,
+   a URL or a command: otherwise every write to an Organization's repository would be a
+   command run as the user in all of its Environments. A tool joins by one pull request
+   here that adds its recipe and the reader's id together. The first two:
+   - `cargo` through rustup, Rust's official installer (`https://sh.rustup.rs`, `-y
+     --no-modify-path --profile minimal --default-toolchain stable`), linking `cargo`,
+     `rustc` and `rustup` from `~/.cargo/bin`. Raised without ever lowering what the
+     user runs: first the toolchain the user selected is updated in place (`rustup
+     update <selected>`, a channel moves to its newest release, a pinned one stays);
+     only when that does not reach the minimum is the default switched, and only to a
+     stable that reports at least the minimum (`rustup toolchain install stable`, then
+     `rustup default stable`). Otherwise the selected toolchain stays and the failure
+     names the stable there is (`stable-below-minimum:<version>`). A repository's
+     `rust-toolchain.toml` still picks its own toolchain, which rustup fetches on first
+     use.
+   - `pnpm` through pnpm's official installer (`https://get.pnpm.io/install.sh`, which
+     checks the npm registry's signature, with `PNPM_NO_MODIFY_PATH=1`), linking `pnpm`
+     and `pnpx` from `$XDG_DATA_HOME/pnpm/bin`; raised by running it again. pnpm itself
+     switches to the version a project's `packageManager` names.
+   Both fetch the vendor's script to a private file before running it, run as the user
+   without root, and install into the installer's own home with a link in
+   `~/.local/bin`, the standard path of 0161 point 6. Shell profiles are never edited.
+3. **Who installs and when.** `lazurio update` (the CLI and Nová karta's Aktualizovat,
+   one composition, root decision 0212 point 3) has a part after the content and before
+   the Bun pins and builds: it reads the declaration of the Organization the handover
+   names as owner, from that Organization's root in the Folder, as F45 reads settings
+   without the relay, and provisions each tool. It reads only at the commit the content
+   part of the same run verified as the root's published `main`: current on, or
+   fast-forwarded to, the commit its remote's `main` names (the sync entry's `to`). A
+   root that part left anywhere else (ahead, diverged, dirty, busy, failed, not run)
+   gives no declaration (`not-published`), so a commit nobody published, a local one
+   included, never installs anything. Read from Git rather than from the Dashboard's
+   answer, so the tools wait for no other service. `lazurio doctor`, which installs
+   nothing, reads the local `main`. It runs on every Environment an Organization's settings govern (work,
+   Team, Automated, `organizationGoverns`), without asking: the Organization Admin's
+   approval of the declaration is the consent. On the person's own computer and on a
+   personal Environment nothing is installed; there the generated manual tells the agent
+   to offer a declared tool and install it only with the person's consent.
+4. **How the minimum is kept, never lowered.** The tool is the one the user's own PATH
+   finds first, as doctor reads it, for discovery and for the final check; no run
+   arranges a PATH of its own. A tool on PATH that reports at least the
+   minimum is left exactly as it is, wherever and however it was installed. The
+   recipe's own installation that the PATH does not reach (`~/.local/bin` missing from
+   it) is kept and reported with `onPath: false`, never installed a second time. A missing
+   tool is installed by its recipe. A tool below the minimum is raised by its own update
+   only when the program on PATH is the recipe's installation; one installed another way
+   (a system package, npm) is reported as `below-minimum` with `foreign-installation` and
+   its official source, and never replaced or shadowed (F17). Nothing ever lowers a
+   version; a link is created only where nothing is.
+5. **When it fails, it says so.** Each declared tool is one item of the update's answer:
+   `current`, `installed`, `updated`, `below-minimum`, `failed` with its stage (`install`,
+   `update`, `link`, `verify`), a reason and a safe tail of the installer's output with
+   lines that could carry a secret withheld, or `unsupported-platform` (Windows has no
+   recipe yet). An invalid `settings` section is one finding (`settings-invalid`). A tool
+   that cannot be had never fails the update and never stops a later part. Nová karta's
+   Aktualizovat shows the same: a row per tool with its step while it runs (with its
+   minimum), what it was installed or raised to, and each finding with its stage and
+   reason in words and a link to the tool's official installation; the part as a whole
+   when it did not check (`not-published`, an invalid or unreadable section) or failed.
+   A tool at its minimum on the PATH says nothing. `lazurio
+   doctor` reads the same declaration without changing anything: one check
+   `organization-tool` per tool, `ok`, or a warning `organization-tool-missing`,
+   `organization-tool-below-minimum`, `organization-tool-version-unreadable`, and
+   `organization-tools-invalid` for an invalid section.
+6. **What agents are told.** The generated manual (section on the product update, after
+   the operator's tools) says on an Organization's Environment that the Organization's
+   tools come with `lazurio update`, that a missing declared tool is fixed by running it
+   and blocks nothing, and that a tool the Organization does not declare is installed
+   under the rule for the user's tools while the agent proposes adding it: a pull request
+   to the Organization's root repository that adds the entry, and an issue here for a
+   tool the catalog cannot install yet. An Organization may give its automated
+   Environments a standing mandate for such local installations in its own rules.
+7. **How the list changes.** Like every setting (0194): a pull request to the
+   Organization's root repository, whose merge by the Organization Admin is the
+   Publication. Readers first: a release older than this reads a section with `tools` as
+   invalid and applies none of the section, keeping what it applied before, so an
+   Organization that declares tools beside other settings waits until its Environments
+   run this release. The GEN3 Root's `lazurio organization check` refuses the unknown key
+   until its Core learns the leaf (its own pull request).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The manifest names an installer or URL per tool | A write to the Organization's repository becomes a command in all its Environments; rejected for catalog recipes |
+| A separate file of tools beside the manifest | A second authority beside the settings of 0194; rejected |
+| Install from Machines' rollout | The rollout repairs the baseline and never touches the user's tools (0161); rejected |
+| Ask the user before each installation | The Admin's approval of the declaration is the consent, and an automated Environment has no one to ask; rejected |
+| Exact versions | Matěj: a minimum is enough; exact pins belong to a project (`rust-toolchain.toml`, `packageManager`); rejected |
+| pnpm through Corepack | Node no longer ships Corepack from version 25, and its shims need write access to Node's directory; rejected for pnpm's own installer |
+| pnpm through `npm install -g` | Ties pnpm to the user's Node and npm prefix; rejected |
+| Read the declaration from the Dashboard's answer | The Dashboard rejects a key it does not know yet and the tools would wait for it; rejected for the root at `main` |
+
+**Verification.** `tests/organization-tools.test.ts`: the recipes match the reader's ids and
+none edits a shell profile or pipes into a shell; a tool at its minimum is untouched; a
+missing one is installed with the recipe's environment and linked, never over a file
+there; one below in the recipe's home is raised by its update, one installed another way
+is reported and untouched; a failed installer and a tool still below after it name their
+stage, and the next tool runs; Windows is `unsupported-platform`; doctor's reading changes
+nothing; the declaration comes from the handover's Organization at the commit verified as
+published with real git, a local commit ahead of it is never read, a root left ahead,
+diverged, dirty, failed or busy by the content part installs nothing (`not-published`),
+a personal Environment reads none and an invalid section is `settings-invalid`; a system
+cargo below the minimum first on PATH, ahead of Lazurio's, is `foreign-installation` in
+the update as in doctor; rustup raises the selected toolchain in place, keeps a nightly
+above stable and a stable below a newer minimum as they are, and switches a pinned
+toolchain only to a stable that reaches the minimum; the part runs after the content and
+before the builds, a failing part is one item. `tests/content-sync.test.ts`: a current
+entry names the published commit. `tests/new-tab-view.test.ts`: Aktualizovat's rows of
+the tools, their steps, findings with stage and reason, and only an https link
+(review of #992).
+`tests/organization-settings.test.ts` and `tests/organization-schema.test.ts`: the leaf,
+its refusals (an installer of the manifest's among them) and the duplicate checked only by
+the reader. Live on 2026-11-15, Linux x64, in a temporary home: the core installed cargo
+1.100.0 through rustup and pnpm 12.21.0 through pnpm's installer in 9 seconds, linked
+`cargo`, `rustc`, `rustup`, `pnpm` and `pnpx` into `~/.local/bin`, wrote no shell profile,
+and a second run left both `current`; in a repository whose `rust-toolchain.toml` pins
+1.89.0, the linked `cargo` ran 1.89.0. Live on 2026-11-15, Linux x64, in a temporary home
+with real rustup and a pinned 1.80.0 default (review of #992): a minimum of 9.0.0 left
+the default and cargo 1.80.0 as they were and failed with `stable-below-minimum:1.100.0`;
+a minimum of 1.89.0 then gave `updated` from 1.80.0 to 1.100.0 with stable the default.
+Not verified: macOS, a running `lazurio update` on an Environment with a declaration.
+
 ## F74 — The desktop of a Remote Environment: the escape for the windows the browser view cannot show
 
 **Proposed by the agent on 2026-11-15 on Matěj's direction of the same day ("Pohled + plocha jako
