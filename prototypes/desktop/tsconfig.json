@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "types": ["bun"],
+    "skipLibCheck": true,
+    "typeRoots": ["../../node_modules/@types"]
+  },
+  "include": ["*.ts"]
+}

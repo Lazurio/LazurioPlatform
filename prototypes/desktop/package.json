@@ -1,0 +1,13 @@
+{
+  "name": "lazurio-desktop-prototype",
+  "private": true,
+  "type": "module",
+  "license": "Elastic-2.0",
+  "scripts": {
+    "serve": "bun serve.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@novnc/novnc": "1.7.0"
+  }
+}

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Plocha: testovací stránka</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 32px; color: #111; background: #fafafa; }
+  h1 { font-size: 22px; margin: 0 0 16px; }
+  section { margin: 0 0 20px; padding: 16px; border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+  button, input { font: inherit; }
+  iframe { width: 100%; height: 90px; border: 1px dashed #999; }
+  #log { font-family: ui-monospace, monospace; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Okna, která vyskočí mimo stránku</h1>
+<p>Tuto stránku otevírá prototyp plochy (LazurioPlatform, návrh F74)
+ve svém vlastním Chromu na obrazovce <code>:1</code>, bez rozšíření Lazuria a bez pohledu,
+aby se nativní okna opravdu otevřela.</p>
+
+<section>
+  <h2>1. Výběr souboru v rámečku</h2>
+  <iframe id="frame" srcdoc="<input id=f type=file><script>f.onchange=()=>parent.postMessage('chosen:'+[...f.files].map(x=>x.name).join(','),'*')</script>"></iframe>
+</section>
+
+<section>
+  <h2>2. Výběr souboru na stránce</h2>
+  <input id="file" type="file">
+</section>
+
+<section>
+  <h2>3. Tisk</h2>
+  <button id="print" type="button">window.print()</button>
+</section>
+
+<section>
+  <h2>Záznam</h2>
+  <div id="log"></div>
+</section>
+<script>
+  const log = (line) => { document.getElementById("log").textContent += line + "\n"; };
+  addEventListener("message", (event) => log(String(event.data)));
+  document.getElementById("file").addEventListener("change", (event) => log("chosen:" + [...event.target.files].map((x) => x.name).join(",")));
+  document.getElementById("file").addEventListener("cancel", () => log("cancelled"));
+  document.getElementById("print").addEventListener("click", () => { log("print opened"); window.print(); log("print closed"); });
+  document.addEventListener("pointerdown", (event) => log("page pointerdown " + Math.round(event.clientX) + "," + Math.round(event.clientY)));
+</script>
+</body>
+</html>
