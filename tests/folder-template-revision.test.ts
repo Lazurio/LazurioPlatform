@@ -28,8 +28,8 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-130",
-  digest: "00817fa8c4ff9c05b95d47909d31e46bb607dd1527c20ca76ef4d8d4d749383f",
+  revision: "base-instructions-131",
+  digest: "d199e0719769176608a662a9a8d35282d57b09a7d3c9d564946b4c74c1fb9cf5",
 } as const;
 
 function renderedDigest(): string {
