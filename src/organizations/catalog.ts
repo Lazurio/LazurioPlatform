@@ -1,5 +1,6 @@
 import { lstat, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { classifySlotAccess } from "../content/role";
 import { withFolderReadLock } from "../folder/lock";
 import {
   inspectCheckoutDirectory,
@@ -185,6 +186,14 @@ export type CatalogModule = Readonly<{
    * directory that is there but cannot be read is not absent: its reason
    * says why. Never on a Personalspace module, which is found on disk. */
   absent?: true;
+  /** With `absent`, when the Organization's own declaration says why it is
+   * not here and no one needs to act on this Environment (issue #946):
+   * `restricted`, its slot (or one above it) is for the Organization Admin
+   * only, which content installation and synchronization leave out for any
+   * other role (`excluded_by_role_scope`); `no-repository`, its slot names
+   * no repository, so it is materialized for no one yet. Read from the
+   * declaration only; nothing is asked of GitHub. */
+  absence?: "restricted" | "no-repository";
 }>;
 
 export type CatalogTeam = Readonly<{ slug: string; displayName: string }>;
@@ -855,6 +864,36 @@ async function isAbsent(root: string, path: string): Promise<boolean> {
   return false;
 }
 
+// Why an absent module's slot is meant to be absent, by the declaration
+// alone (issue #946): restricted when the slot or any declared slot above it
+// is, as content installation scopes it (`declaredChildren`); else
+// no-repository when the slot names no remote. A slot whose access cannot be
+// classified is neither: installation blocks it, and that asks for attention.
+function absenceOf(
+  slots: readonly unknown[],
+  path: string,
+): CatalogModule["absence"] {
+  let restricted = false;
+  let own: unknown;
+  for (const slot of slots) {
+    if (!isRecord(slot) || typeof slot.path !== "string") continue;
+    const at = slot.path;
+    if (at !== path && !path.startsWith(`${at}/`)) continue;
+    const access = classifySlotAccess(slot);
+    if (access === "unknown") return undefined;
+    if (access === "restricted") restricted = true;
+    if (at === path && own === undefined) own = slot;
+  }
+  if (restricted) return "restricted";
+  const remote = slotRemote(own);
+  return own !== undefined &&
+    (remote === undefined ||
+      remote === null ||
+      (typeof remote === "string" && remote.trim() === ""))
+    ? "no-repository"
+    : undefined;
+}
+
 /** One candidate directory, resolved read-only. Never throws. */
 export async function readCatalogOrganization(
   directory: string,
@@ -941,6 +980,7 @@ export async function readCatalogOrganization(
         const absent =
           entry.kind !== "module-observed" &&
           (await isAbsent(directory, entry.path));
+        const absence = absent ? absenceOf(slots, entry.path) : undefined;
         return [
           Object.freeze({
             organization: result.company,
@@ -960,6 +1000,7 @@ export async function readCatalogOrganization(
             ...(invalid ? { issues: Object.freeze(["teams-invalid"]) } : {}),
             ...(url === null ? {} : { url }),
             ...(absent ? { absent: true as const } : {}),
+            ...(absence === undefined ? {} : { absence }),
           } satisfies CatalogModule),
         ];
       }),

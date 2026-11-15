@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { join } from "node:path";
 import {
   observePaymentCards,
   paymentCardsCauses,
@@ -310,6 +311,12 @@ const ownReasons = [
   // that slot: its declaration, an orphan database or a collision.
   "guest-module-absent",
   ...repositorySlotIssues,
+  // A module of an installed Organization that is not here by intent (issue
+  // #946), a note that never asks for attention: one the person's role or
+  // GitHub access does not reach (`access`), and one whose slot names no
+  // repository yet.
+  "module-not-shared",
+  "module-without-repository",
   // The synchronization of primary checkouts (decision F9's amendment of
   // 2026-10-24): no run recorded yet, a checkout left as it is, or one
   // GitHub refused, did not answer or failed for a day.
@@ -475,6 +482,10 @@ export const doctorContextRules: Readonly<
     typeof value === "string" && namePattern.test(value),
   // A guest Module's home Organization (DEV-6694), a GitHub login.
   homeOrganization: isGithubLogin,
+  // Why a module is not shared with the person (issue #946): its slot is for
+  // the Organization Admin only, or GitHub refused this identity its
+  // repository (or ended its access).
+  access: oneOf(["restricted", "repository-denied"]),
   module: (value: unknown) =>
     typeof value === "string" && namePattern.test(value),
   // A route between Environments (F70): its Environment id, why a try
@@ -910,10 +921,43 @@ const secretContext = (
         secretReason: (secrets[0] as RuntimeSecretFinding).reason,
       };
 
+/** Whether GitHub refused this Environment's identity the repository of a
+ * declared module, by Organization directory and slot path: content
+ * installation's `denied` outcomes, or the synchronization record's quiet
+ * `absent` answers (`deniedBySync`). */
+export type RepositoryDenied = (directory: string, path: string) => boolean;
+
+/** The modules the last synchronization could not clone because GitHub
+ * refused this identity (`repository-denied`), or removed because access
+ * ended (`access-ended`, decision F72). */
+export function deniedBySync(
+  entries: readonly SyncEntry[] | null,
+): RepositoryDenied {
+  const denied = new Set(
+    (entries ?? [])
+      .filter(
+        (entry) =>
+          entry.kind === "module" &&
+          entry.result === "absent" &&
+          (entry.reason === "repository-denied" ||
+            entry.reason === "access-ended"),
+      )
+      .map((entry) => `${entry.root}\0${entry.path}`),
+  );
+  return (directory, path) =>
+    denied.has(`${join("organizations", directory)}\0${path}`);
+}
+
 /** The Organizations and modules of a catalog as doctor checks; content
- * installation ends an Organization's install with the same checks. */
+ * installation ends an Organization's install with the same checks. A module
+ * that is not here by intent (issue #946) is a note, never a warning: its
+ * slot is for the Organization Admin only, GitHub refuses this identity its
+ * repository, or its slot names no repository. A module the person should
+ * have and does not (not synchronized yet, a failed clone or preparation, an
+ * unknown state) still asks for attention. */
 export function catalogChecks(
   catalog: Catalog | "unreadable" | null,
+  denied: RepositoryDenied = () => false,
 ): DoctorCheck[] {
   if (catalog === null) return [check("catalog", "skipped", "no-folder")];
   if (catalog === "unreadable")
@@ -949,6 +993,25 @@ export function catalogChecks(
     );
     for (const module of entry.modules) {
       const named = { organization, module: safeName(module.module) };
+      const unshared =
+        module.absent === true && module.reason === "module-unavailable"
+          ? module.absence === "restricted"
+            ? "restricted"
+            : denied(entry.directory, module.path)
+              ? "repository-denied"
+              : module.absence
+          : undefined;
+      if (unshared !== undefined) {
+        checks.push(
+          unshared === "no-repository"
+            ? check("module", "skipped", "module-without-repository", named)
+            : check("module", "skipped", "module-not-shared", {
+                ...named,
+                access: unshared,
+              }),
+        );
+        continue;
+      }
       checks.push(
         module.executable
           ? module.secretsNotProvided?.length
@@ -1518,6 +1581,10 @@ export async function collectDoctor(
     observed,
     folder !== undefined,
   );
+  const syncRecord =
+    folder === undefined
+      ? null
+      : await readSyncRecord(contentLockDirectory(base), folder);
   const checks: DoctorCheck[] = [
     fromRecovery("update-state", recovered, "update-state-invalid"),
     version,
@@ -1551,14 +1618,8 @@ export async function collectDoctor(
     ...organizationTools,
     executor,
     ...githubChecks(github),
-    ...catalogChecks(catalog),
-    ...syncChecks(
-      folder === undefined
-        ? null
-        : await readSyncRecord(contentLockDirectory(base), folder),
-      folder !== undefined,
-      environment.now(),
-    ),
+    ...catalogChecks(catalog, deniedBySync(syncRecord)),
+    ...syncChecks(syncRecord, folder !== undefined, environment.now()),
     fromRecovery("launchpad-unit", recovered, "launchpad-unit"),
     fromRecovery(
       "launchpad-health",
