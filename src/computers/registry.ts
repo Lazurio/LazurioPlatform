@@ -1,6 +1,7 @@
 import { constants } from "node:fs";
 import { open } from "node:fs/promises";
 import { join } from "node:path";
+import { acquireFileLock, type FileLock } from "../platform/flock";
 import { parseDeviceKey } from "../ssh-access/keys";
 import { writeDurableFile } from "../update/durable-file";
 import {
@@ -74,6 +75,18 @@ function entryOf(value: unknown): RegistryEntry | null {
   };
 }
 
+/** The lock of every writer of the registry, in every process: the
+ * Launchpad's pairing and `lazurio computer remove` alike (review of #943,
+ * where a stale pairing write brought a removed key back). A kernel `flock`
+ * fits: the write itself is atomic, so a holder that dies leaves no half
+ * state, and the next one reads the truth again. */
+export const registryLockName = "registry.lock";
+const registryLockTimeoutMs = 10_000;
+
+export type RegistryRefusal = Readonly<{
+  refused: "registry-unreadable" | "registry-busy";
+}>;
+
 export type RegistryRead =
   | Readonly<{ computers: readonly RegistryEntry[] }>
   | Readonly<{ refused: "registry-unreadable" }>;
@@ -127,37 +140,50 @@ export async function readRegistry(
   }
 }
 
-// One writer per file in this process; the next waits for the one before.
+// One writer per file in this process, the next waiting for the one before,
+// and one across processes through the registry's lock.
 const queues = new Map<string, Promise<void>>();
 
 /** Changes the registry in one read, change and atomic write (temporary
- * file 0600, rename). `change` answers the new list and a result, or null
- * to write nothing. */
+ * file 0600, rename) under the registry's lock. `change` answers the new
+ * list and a result, or null to write nothing. A lock not taken in time is
+ * `registry-busy`. */
 export function updateRegistry<T>(
   home: string,
   uid: number | undefined,
   change: (
     computers: readonly RegistryEntry[],
   ) => Readonly<{ computers: readonly RegistryEntry[] | null; result: T }>,
-): Promise<T | Readonly<{ refused: "registry-unreadable" }>> {
+): Promise<T | RegistryRefusal> {
   const key = registryPath(home);
   const before = queues.get(key) ?? Promise.resolve();
-  const run = before.then(async () => {
-    const read = await readRegistry(home, uid);
-    if ("refused" in read) return read;
-    const { computers, result } = change(read.computers);
-    if (computers !== null) {
-      const directory = await ensureComputersDirectory(home, uid);
-      await writeDurableFile(
-        directory,
-        registryName,
-        Buffer.from(
-          `${JSON.stringify({ v: 1, computers }, null, 2)}\n`,
-          "utf8",
-        ),
-      );
+  const run = before.then(async (): Promise<T | RegistryRefusal> => {
+    const directory = await ensureComputersDirectory(home, uid);
+    let lock: FileLock;
+    try {
+      lock = await acquireFileLock(join(directory, registryLockName), {
+        timeoutMs: registryLockTimeoutMs,
+      });
+    } catch {
+      return { refused: "registry-busy" };
     }
-    return result;
+    try {
+      const read = await readRegistry(home, uid);
+      if ("refused" in read) return read;
+      const { computers, result } = change(read.computers);
+      if (computers !== null)
+        await writeDurableFile(
+          directory,
+          registryName,
+          Buffer.from(
+            `${JSON.stringify({ v: 1, computers }, null, 2)}\n`,
+            "utf8",
+          ),
+        );
+      return result;
+    } finally {
+      await lock.release();
+    }
   });
   const after = run.then(
     () => undefined,

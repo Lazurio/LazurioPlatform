@@ -81,7 +81,7 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
       else if (params.name === "lazurio_shell_run")
         answer(
           message.id,
-          params.arguments?.command === "uname -a"
+          String(params.arguments?.command ?? "").startsWith("uname")
             ? // As Lazurio Agent Desktop answers: its JSON as the one text.
               {
                 content: [
@@ -746,7 +746,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "the application's own lock is an ordinary failed call; a shell command is kept with its exit code, never its output",
+  "the application's own lock is an ordinary failed call; of a shell command the history keeps its exit code, never the command or its output (review of #943)",
   () =>
     withBroker({}, async ({ path, audit }) => {
       const first = await agent(path, "claude-code");
@@ -758,13 +758,16 @@ test.skipIf(!posix)(
       // The session stays: the next call works.
       const shell = await first.call("tools/call", {
         name: "lazurio_shell_run",
-        arguments: { command: "ls -la\n~/Documents", cwd: "~" },
+        arguments: {
+          command: "mysql -u root -p'hunter2-secret' -e 'select 1'",
+          cwd: "~",
+        },
       });
       expect(shell.result).toBeDefined();
       // The application's own answer carries the exit code in its JSON text.
       const text = await first.call("tools/call", {
         name: "lazurio_shell_run",
-        arguments: { command: "uname -a" },
+        arguments: { command: "uname -a # token tok-0123456789" },
       });
       expect(text.result).toBeDefined();
       await waitFor(
@@ -774,16 +777,23 @@ test.skipIf(!posix)(
       expect(tools[0]).toMatchObject({ tool: "locked", ok: false });
       expect(tools[1]).toMatchObject({
         tool: "lazurio_shell_run",
-        command: "ls -la ~/Documents",
         exitCode: 3,
       });
       expect(tools[2]).toMatchObject({
         tool: "lazurio_shell_run",
         ok: true,
-        command: "uname -a",
         exitCode: 0,
       });
-      expect(JSON.stringify(audit)).not.toContain("secret output");
+      for (const line of tools) expect(line).not.toHaveProperty("command");
+      const history = JSON.stringify(audit);
+      for (const secret of [
+        "secret output",
+        "hunter2-secret",
+        "tok-0123456789",
+        "mysql",
+        "uname",
+      ])
+        expect(history).not.toContain(secret);
       expect(audit.map((line) => line.event)).not.toContain("disconnected");
       first.close();
     }),

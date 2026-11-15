@@ -169,7 +169,9 @@ export function createComputerAttach(host: AttachHost) {
     });
     send(ws, { type: "denied", reason });
     ws.data.state = "closed";
-    ws.close(1008, reason);
+    try {
+      ws.close(1008, reason);
+    } catch {}
   };
 
   const end = (ws: AttachSocket, reason: string) => {
@@ -182,13 +184,24 @@ export function createComputerAttach(host: AttachHost) {
 
   async function authenticate(ws: AttachSocket, text: string) {
     ws.data.state = "checking";
-    let message: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      message = JSON.parse(text) as Record<string, unknown>;
+      parsed = JSON.parse(text);
     } catch {
       deny(ws, "invalid-message");
       return;
     }
+    // Every JSON value parses, `null` too: only an object is a message
+    // (review of #943, where `null` ended the Launchpad).
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
+      deny(ws, "invalid-message");
+      return;
+    }
+    const message = parsed as Record<string, unknown>;
     const device = message.device;
     if (
       message.type !== "auth" ||
@@ -281,8 +294,12 @@ export function createComputerAttach(host: AttachHost) {
           ...line,
         }),
       saveTools: (tools) => writeTools(host.home, host.uid, device, tools),
+      // The session belongs to the key it proved: a computer removed and
+      // paired again under the same id with another key ends it (review
+      // of #943).
       stillAllowed: async () =>
-        (await registryEntry(host.home, host.uid, device)) !== null,
+        (await registryEntry(host.home, host.uid, device))?.fingerprint ===
+        entry.fingerprint,
       ...(host.checkMs === undefined ? {} : { checkMs: host.checkMs }),
       updating: {
         mark: () =>
@@ -397,7 +414,12 @@ export function createComputerAttach(host: AttachHost) {
         ws.data.lastHeard = now();
         if (typeof message !== "string") return;
         if (ws.data.state === "challenge") {
-          void authenticate(ws, message);
+          // Nothing an unauthenticated attempt causes may reach the process:
+          // a failure denies the attempt (review of #943).
+          authenticate(ws, message).catch(() => {
+            if (ws.data.state === "challenge" || ws.data.state === "checking")
+              deny(ws, "internal-error");
+          });
           return;
         }
         if (ws.data.state !== "ready") return;

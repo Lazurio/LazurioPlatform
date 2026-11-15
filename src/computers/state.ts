@@ -219,8 +219,8 @@ export type AuditEntry = Readonly<{
   system?: string;
   osVersion?: string;
   channel?: string;
-  /** On a shell tool: its command and exit code (contract v1 section 3). */
-  command?: string;
+  /** On a shell tool: its exit code (contract v1 section 3); never the
+   * command, which may carry a password or a token (review of #943). */
   exitCode?: number;
 }>;
 

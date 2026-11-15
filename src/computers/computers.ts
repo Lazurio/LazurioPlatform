@@ -195,7 +195,8 @@ export type PairRefusal =
   | "unsupported-platform"
   | "channel-unavailable"
   | "no-free-id"
-  | "registry-unreadable";
+  | "registry-unreadable"
+  | "registry-busy";
 
 /** Refusals of what was sent, as opposed to the state of this
  * Environment. */
@@ -434,7 +435,8 @@ export type RemoveAnswer =
         | "invalid-id"
         | "not-found"
         | "unsupported-platform"
-        | "registry-unreadable";
+        | "registry-unreadable"
+        | "registry-busy";
     }>;
 
 /** Removes a computer: its registry entry first (it can no longer attach,

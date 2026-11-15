@@ -44,10 +44,11 @@ import {
 // - One session per computer: while another session's socket answers, a
 //   new one is refused.
 // - The session is alive while the computer answers `ping`; it ends when the
-//   computer stops answering, when its key leaves `authorized_keys` (the
-//   computer was removed) or when the SSH session closes.
+//   computer stops answering, when its pairing ends (removed, or paired
+//   again under the same id with another key) or when the session closes.
 // - The history writes connections, the lease, each tool call's name,
-//   outcome and duration; never arguments or results.
+//   outcome and duration; never arguments or results. A shell command is an
+//   argument too: it may carry a password or a token (review of #943).
 
 export type BrokerOptions = Readonly<{
   home: string;
@@ -93,22 +94,12 @@ export type BrokerTransport = Readonly<{
 }>;
 
 /** The tools of the application that run commands on the computer (contract
- * v1 section 3): the history keeps the command and its exit code. */
+ * v1 section 3): the history keeps that a command ran and its exit code,
+ * never the command itself (review of #943). */
 const shellCommandTools: ReadonlySet<string> = new Set([
   "lazurio_shell_run",
   "lazurio_shell_start",
 ]);
-
-/** A command as the history keeps it: one line, no control characters, at
- * most 500 characters. */
-export function commandLabel(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const command = value
-    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]+/gu, " ")
-    .trim()
-    .slice(0, 500);
-  return command === "" ? undefined : command;
-}
 
 /** The longest text of a shell tool's result that is read for its exit code
  * (the application keeps 64 KiB of each output). */
@@ -186,8 +177,8 @@ type Pending = Readonly<{
   id: JsonRpcId;
   method: string;
   tool: string | null;
-  /** A shell tool's command, for the history. */
-  command?: string;
+  /** A shell tool's call, whose exit code the history keeps. */
+  shell?: true;
   started: number;
 }>;
 
@@ -288,16 +279,13 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         const result = message.result as { isError?: unknown } | undefined;
         const ok = message.error === undefined && result?.isError !== true;
         const exitCode =
-          entry.command === undefined
-            ? undefined
-            : shellExitCode(message.result);
+          entry.shell === true ? shellExitCode(message.result) : undefined;
         void audit({
           event: "tool",
           tool: entry.tool ?? "unknown",
           ok,
           ms: Math.max(0, now() - entry.started),
           agent: label(entry.client),
-          ...(entry.command === undefined ? {} : { command: entry.command }),
           ...(exitCode === undefined ? {} : { exitCode }),
         });
         // An update that did not start: the computer stays.
@@ -414,7 +402,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       return;
     }
     let tool: string | null = null;
-    let command: string | undefined;
+    let shell = false;
     if (method === "tools/call") {
       const refused = lease(client);
       if (refused !== null) {
@@ -426,11 +414,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         (message.params as { name?: unknown } | undefined)?.name,
       );
       client.lastCall = now();
-      if (shellCommandTools.has(tool))
-        command = commandLabel(
-          (message.params as { arguments?: { command?: unknown } } | undefined)
-            ?.arguments?.command,
-        );
+      shell = shellCommandTools.has(tool);
       // The application updates itself and restarts: the computer will be
       // away for about a minute, which is expected, not a failure.
       if (tool === appUpdateTool) {
@@ -445,7 +429,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       id,
       method,
       tool,
-      ...(command === undefined ? {} : { command }),
+      ...(shell ? { shell: true as const } : {}),
       started: now(),
     });
     send({ ...(message as JsonRpcMessage), id: own });

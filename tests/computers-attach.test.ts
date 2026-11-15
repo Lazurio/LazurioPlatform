@@ -306,6 +306,60 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
+  "an attempt whose message is no object is denied, and the server stays (review of #943)",
+  async () => {
+    const { server, keys } = await setup({ attemptsPerMinute: 20 });
+    for (const text of ["null", "[]", "42", '"auth"', "true"]) {
+      const ws = new WebSocket(
+        `ws://127.0.0.1:${server.port}${attachPath}?device=alex-macbook`,
+      );
+      const seen: Message[] = [];
+      const closed = new Promise<number>((resolve) => {
+        ws.addEventListener("close", (event) => resolve(event.code));
+      });
+      ws.addEventListener("message", (event) => {
+        const message = JSON.parse(String(event.data)) as Message;
+        seen.push(message);
+        if (message.type === "challenge") ws.send(text);
+      });
+      expect(await closed).toBe(1008);
+      expect(seen.at(-1)).toEqual({
+        type: "denied",
+        reason: "invalid-message",
+      });
+    }
+    // The same server still attaches a paired computer.
+    const fake = computer(server.port as number, keys.privateKey);
+    await waitFor(() => fake.seen.some((message) => message.type === "ready"));
+    fake.ws.close();
+    await fake.closed;
+  },
+);
+
+test.skipIf(!posix)(
+  "a computer paired again under the same id with another key ends the old key's session (review of #943)",
+  async () => {
+    const { home, keys, server } = await setup({ checkMs: 30 });
+    const fake = computer(server.port as number, keys.privateKey);
+    await waitFor(() => fake.seen.some((message) => message.type === "ready"));
+    const other = generateKeyPairSync("ed25519");
+    await updateRegistry(home, process.getuid?.(), (computers) => ({
+      computers: computers.map((entry) => ({
+        ...entry,
+        publicKey: sshKey(other.publicKey),
+      })),
+      result: null,
+    }));
+    await fake.closed;
+    await waitFor(() =>
+      readFile(auditPath(home), "utf8").then((text) =>
+        text.includes('"reason":"removed"'),
+      ),
+    );
+  },
+);
+
+test.skipIf(!posix)(
   "only a GET upgrade to a WebSocket, a few times a minute per address",
   async () => {
     const { attach } = await setup({ attemptsPerMinute: 2 });
