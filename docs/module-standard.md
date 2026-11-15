@@ -492,10 +492,12 @@ Module's code what each role may do ([decision 0231](decision-register.md#0231--
 each request from the person's existing Lazurio session, with no second
 sign-in.
 
-**Status: decided, not yet available.** It becomes available on an Environment
-once `@lazurio/module-kit` 0.3.0 is released and the Environment runs a gateway
-release that states the person and the entry (Machines). Until then a request
-through the gateway reads `unknown`, which grants no role.
+**Status: available** with `@lazurio/module-kit` 0.3.0 (released 2026-11-06) on an
+Environment whose gateway states the person and the entry (Machines v0.12.233
+and later). Behind an older gateway a request through it reads `unknown`, which
+grants no role. The stack profiles still pin module-kit 0.2.0
+([stack profiles](stack-profiles.md)); an App adopts 0.3.0 with the profile
+release that moves the pin.
 
 **How an App reads it.** Only through `@lazurio/module-kit`:
 `appAccess(request, "<listener>")` (Python: `app_access`). Its answer is the
@@ -745,6 +747,26 @@ Generated read models in `generated/` are derived and never edited by hand. A
 user's edit is an unpublished change in the data checkout; publishing it is one
 commit and push, a Publication.
 
+Three consequences for the App and its validation:
+
+- **Validate content, not the Git index.** A publication runs the data repository's
+  validate commands in the live checkout before it stages the change
+  (`git add --all`), so a file added in the same draft is still untracked there,
+  while in a pull request's CI every present file is tracked. A validation rule must
+  therefore judge the checkout's content (paths, files, what `.gitignore` excludes),
+  never whether a file is tracked or staged.
+- **Check rules across records in the App first.** When the validation fails at
+  publication, the change stays unpublished in the data checkout, and the next
+  publication fails again until that draft is discarded. A rule that spans records
+  (a unique open item, a reference to another record) belongs in the App's operation
+  before it writes, answering the request with a refusal (`409`, `422`); the
+  validator stays the safety net.
+- **A new field ships validator first.** Merge the data repository's validator
+  change before the Module change that writes the field; in the other order the new
+  App writes what the old validator refuses. The schemas are strict, so an older
+  running copy of the App cannot read a record with the new field: update every
+  running copy before converting existing records.
+
 ## Stacks and quality
 
 An App is written in strict TypeScript: no `.js`, `.mjs` or `.cjs` sources, and
@@ -898,6 +920,11 @@ A Module's CI saves GitHub Actions minutes (decision 0171, addendum of
   can be checked out on Windows, reading the real names
   (`git -c core.quotePath=false ls-files`).
 - Steps, action pins and the Bun version are the same on every system.
+- A root `package.json` that delegates to the App runs `bun run --cwd app/vN check`,
+  never `bun --cwd app/vN run check`: with the global flag first, Bun (1.4.2 to
+  1.4.4) prints the usage of `bun run` and exits 0, so CI passes without running a
+  single gate. Read the CI log once and check that the type check, Biome and the
+  tests really ran.
 
 `lazurio module create` writes the Linux workflow only
 (`src/modules/templates/_bun/dot-github/workflows/check.yml.tmpl`); it does not
