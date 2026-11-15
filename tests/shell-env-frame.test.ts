@@ -43,7 +43,12 @@ const jana: ShellIdentity = { subject: janaSubject, githubId: 202 };
 describe("sameIdentity", () => {
   test("one person only by a member both identities carry", () => {
     expect(sameIdentity(matej, matej)).toBe(true);
-    expect(sameIdentity({ githubId: 101 }, matej)).toBe(true);
+    // GitHub ids decide only where neither side has a subject: an identity
+    // with a subject is a Lazurio account, and a GitHub id alone does not
+    // prove it is the same one (an account may have relinked GitHub).
+    expect(sameIdentity({ githubId: 101 }, { githubId: 101 })).toBe(true);
+    expect(sameIdentity({ githubId: 101 }, matej)).toBe(false);
+    expect(sameIdentity(matej, { githubId: 101 })).toBe(false);
     expect(
       sameIdentity({ subject: matejSubject }, { subject: matejSubject }),
     ).toBe(true);
@@ -327,6 +332,11 @@ describe("the identity the Launchpad writes (ownerIdentity)", () => {
     expect(environment?.ownerIdentity).toEqual({ githubId: 12345 });
     expect(envFrame(environment, { githubId: 12345 })).toBeNull();
     expect(envFrame(environment, { githubId: 54321 })?.tone).toBe("person");
+    // A viewer known by their Lazurio account is not this principal owner by
+    // the GitHub id alone: framed until the Environment records a subject.
+    expect(
+      envFrame(environment, { subject: matejSubject, githubId: 12345 })?.tone,
+    ).toBe("person");
     expect(envFrame(environment, null)?.tone).toBe("person");
   });
 });

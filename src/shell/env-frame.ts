@@ -36,19 +36,20 @@ export type EnvFrame =
       name: string | null;
     }>;
 
-/** True only when both identities name the same person by a member both
- * carry: the same Lazurio Auth subject, or the same GitHub id. Two
- * identities that share no member are not known to be one person. */
+/** True only when both identities surely name the same person: both carry
+ * a Lazurio Auth subject and it is the same, or neither carries a subject
+ * and both carry the same GitHub id. A subject on only one side is a
+ * Lazurio account the other side does not name, and a GitHub id alone does
+ * not prove it is that account (an account may relink GitHub), so it is not
+ * known to be one person and the page stays framed. */
 export function sameIdentity(
   a: ShellIdentity | undefined,
   b: ShellIdentity | null,
 ): boolean {
   if (a === undefined || b === null) return false;
-  if (a.subject !== undefined && b.subject !== undefined)
-    return a.subject === b.subject;
-  if (a.githubId !== undefined && b.githubId !== undefined)
-    return a.githubId === b.githubId;
-  return false;
+  if (a.subject !== undefined || b.subject !== undefined)
+    return a.subject !== undefined && a.subject === b.subject;
+  return a.githubId !== undefined && a.githubId === b.githubId;
 }
 
 /** The frame of a page of `environment` for `viewer` (the identity of the
