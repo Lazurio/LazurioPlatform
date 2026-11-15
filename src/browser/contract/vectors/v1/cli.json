@@ -2326,6 +2326,45 @@
         }
       ],
       "expect": null
+    },
+    {
+      "name": "done --all's answer names the sessions whose unverified binding stayed unsettled (F38, review of #993)",
+      "call": "parseBrowserCliAnswer",
+      "args": [
+        {
+          "$json": {
+            "schema": "lazurio.browser-cli.v1",
+            "kind": "browser-done",
+            "session": "codex-1",
+            "outcome": "stopped",
+            "sessions": [
+              {
+                "session": "codex-1",
+                "outcome": "stopped"
+              }
+            ],
+            "ambiguous": [],
+            "unsettled": [
+              "codex-1-2"
+            ]
+          }
+        }
+      ],
+      "expect": {
+        "kind": "browser-done",
+        "session": "codex-1",
+        "outcome": "stopped",
+        "sessions": [
+          {
+            "session": "codex-1",
+            "outcome": "stopped"
+          }
+        ],
+        "ambiguous": [],
+        "unsettled": [
+          "codex-1-2"
+        ]
+      }
     }
   ]
 }

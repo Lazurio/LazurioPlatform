@@ -970,6 +970,9 @@ export type BrowserCliAnswer =
       outcome: BrowserDoneOutcome;
       sessions?: readonly BrowserDoneSession[];
       ambiguous?: readonly string[];
+      /** Sessions whose daemon ended but whose unverified binding (C19)
+       * could not be settled; their presence makes the command fail. */
+      unsettled?: readonly string[];
     }>
   /** The calling thread's windows (`session` is the thread), and the
    * sessions that may be its windows but whose record does not confirm it
@@ -1223,16 +1226,22 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
         value.ambiguous === undefined
           ? undefined
           : everyOf(value.ambiguous, stripOf);
+      const unsettled =
+        value.unsettled === undefined
+          ? undefined
+          : everyOf(value.unsettled, stripOf);
       return session !== null &&
         doneOutcomes.includes(value.outcome as string) &&
         sessions !== null &&
-        ambiguous !== null
+        ambiguous !== null &&
+        unsettled !== null
         ? Object.freeze({
             kind,
             session,
             outcome: value.outcome as BrowserDoneOutcome,
             ...(sessions === undefined ? {} : { sessions }),
             ...(ambiguous === undefined ? {} : { ambiguous }),
+            ...(unsettled === undefined ? {} : { unsettled }),
           })
         : null;
     }

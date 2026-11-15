@@ -533,6 +533,8 @@ export type ThreadSession = Readonly<{
   confirmed: boolean;
   doubt: ThreadWindowDoubt | null;
   owned: boolean;
+  /** The session's window record names this thread, whatever it binds. */
+  recorded: boolean;
   taken: TakenWindow | null;
 }>;
 
@@ -552,8 +554,10 @@ type SessionFacts = Readonly<{
 }>;
 
 /** Every session with any of agent-browser's files (`.target`, `.pid`,
- * `.sock`), sorted by name with numbers in order. Empty where there is no
- * socket directory or it does not exist. */
+ * `.sock`) or a mark of an unverified binding (C19), sorted by name with
+ * numbers in order: a mark is written before a binding's first command, so
+ * a session may have it and nothing else yet (review of #993). Empty where
+ * there is no socket directory or it does not exist. */
 async function readSessionFacts(
   env: Readonly<Record<string, string | undefined>>,
   alive: (pid: number) => boolean,
@@ -584,6 +588,17 @@ async function readSessionFacts(
   }
   const records = windowRecordDirectory(env);
   const marks = unverifiedBindingDirectory(env);
+  if (marks !== undefined) {
+    let marked: string[] = [];
+    try {
+      marked = await readdir(marks);
+    } catch {}
+    for (const name of marked) {
+      const session = name.endsWith(".json") ? name.slice(0, -5) : "";
+      if (isStrip(session) && !files.has(session))
+        files.set(session, new Set());
+    }
+  }
   const sessions = [...files.keys()].sort((a, b) =>
     a.localeCompare(b, "en", { numeric: true }),
   );
@@ -674,6 +689,7 @@ export async function readThreadSessions(
         confirmed: doubt === null,
         doubt,
         owned,
+        recorded,
         taken: owned ? facts.taken : null,
       });
     },

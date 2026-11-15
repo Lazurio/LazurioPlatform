@@ -1473,6 +1473,7 @@ for (const mode of ["refuse", "linger"] as const)
         confirmed: false,
         doubt: "unverified",
         owned: true,
+        recorded: false,
         taken: null,
       },
     ]);
@@ -1524,6 +1525,7 @@ test("a binding the clean-up cannot remove: window does not report the session a
       confirmed: false,
       doubt: "unverified",
       owned: true,
+      recorded: false,
       taken: null,
     },
   ]);
@@ -4790,6 +4792,101 @@ test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
     expect(
       JSON.parse((await world.run(["tabs", "--json"])).stdout ?? "").windows,
     ).toEqual([]);
+  },
+);
+
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "done --all settles every unverified session of the thread, a mark alone or a recorded window bound elsewhere, and done and done --all fail while a binding stays unsettled (review of #993)",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const socketDir = join(home, "sockets");
+    await mkdir(socketDir);
+    const env = {
+      HOME: home,
+      CODEX_THREAD_ID: "019a",
+      AGENT_BROWSER_SOCKET_DIR: socketDir,
+      XDG_RUNTIME_DIR: join(home, "run"),
+    };
+    const marks = join(env.XDG_RUNTIME_DIR, "lazurio-browser", "unverified");
+    await mkdir(marks, { recursive: true });
+    const mark = (session: string, targetId: string | null) =>
+      writeFile(
+        join(marks, `${session}.json`),
+        JSON.stringify({
+          schema: "lazurio.browser-unverified-binding.v1",
+          session,
+          targetId,
+          before: null,
+        }),
+      );
+    // A mark alone, written before a window's first command.
+    await mark("codex-019a", null);
+    // A window recorded for the thread whose binding names another tab now,
+    // its daemon ended.
+    await openedWindow(env, "codex-019a-3", "codex-019a", TAB_B);
+    await bindSessionFiles(socketDir, "codex-019a-3", TAB_F);
+    await mark("codex-019a-3", TAB_B);
+    const settled = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      context(env),
+    );
+    expect(settled.code).toBe(0);
+    expect(await present(join(marks, "codex-019a.json"))).toBe(false);
+    expect(await present(join(marks, "codex-019a-3.json"))).toBe(false);
+    expect(await present(join(socketDir, "codex-019a-3.target"))).toBe(false);
+    // The same window with its daemon running: never let go, named, and
+    // done --all fails.
+    await bindSessionFiles(socketDir, "codex-019a-3", TAB_F, {
+      pid: String(process.pid),
+      sock: true,
+    });
+    await mark("codex-019a-3", TAB_B);
+    const held = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      context(env),
+    );
+    expect(held.code).toBe(1);
+    expect(JSON.parse(held.stdout ?? "")).toMatchObject({
+      ambiguous: ["codex-019a-3"],
+    });
+    await rm(join(socketDir, "codex-019a-3.pid"));
+    await rm(join(socketDir, "codex-019a-3.sock"));
+    // A mark that cannot be removed: done --all and done fail and say so.
+    await chmod(marks, 0o500);
+    try {
+      const all = await runBrowserCommand(
+        ["done", "--all", "--folder", folder, "--json"],
+        context(env),
+      );
+      expect(all.code).toBe(1);
+      expect(JSON.parse(all.stdout ?? "")).toMatchObject({
+        unsettled: ["codex-019a-3"],
+      });
+      const allText = await runBrowserCommand(
+        ["done", "--all", "--folder", folder],
+        context(env),
+      );
+      expect(allText.code).toBe(1);
+      expect(allText.stderr).toContain("Its binding is still not verified");
+      const one = await runBrowserCommand(
+        ["done", "--session", "codex-019a-3", "--folder", folder, "--json"],
+        context(env),
+      );
+      expect(one.code).toBe(1);
+      expect(JSON.parse(one.stdout ?? "")).toMatchObject({
+        unsettled: ["codex-019a-3"],
+      });
+      const oneText = await runBrowserCommand(
+        ["done", "--session", "codex-019a-3", "--folder", folder],
+        context(env),
+      );
+      expect(oneText.code).toBe(1);
+      expect(oneText.stderr?.split("\n")[0]).toContain(
+        "Its binding is still not verified",
+      );
+    } finally {
+      await chmod(marks, 0o700);
+    }
   },
 );
 

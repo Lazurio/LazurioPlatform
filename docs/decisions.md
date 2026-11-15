@@ -12002,7 +12002,12 @@ takes it.
      --session <session>`, then `window` again, or another session at once.
    - `done` settles the mark once the session's daemon has ended. `done --all` lets go of the
      thread's own sessions whose binding is unverified or whose tab was taken: letting go of
-     them ends only this thread's hold.
+     them ends only this thread's hold. It also settles a session that has only a mark (one is
+     written before a binding's first command) and one its record names whose daemon has
+     ended, whatever its binding names; one whose daemon still runs and whose binding the
+     record does not confirm stays named as ambiguous, and done --all fails. A binding that
+     cannot be settled makes `done` and `done --all` fail and is named (`unsettled`), never
+     reported as done (review of #993).
    - T3 Code takes no binding of a marked session into a strip until the mark is gone
      (Lazurio/t3code#208).
    - The hub does not read the mark: there a binding only keeps a tab alive, and ignoring a new

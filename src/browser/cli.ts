@@ -1425,10 +1425,17 @@ export async function runBrowserCommand(
         })),
       );
       // A binding left unverified is settled once its daemon has ended,
-      // also for a session whose daemon had ended already.
+      // also for a session whose daemon had ended already: the thread's own
+      // sessions, and any its record names whose daemon no longer runs,
+      // whatever its binding names (a stale record holds nothing then). One
+      // whose daemon still runs and whose binding the record does not
+      // confirm stays ambiguous above, so done --all fails (review of #993).
       const unsettled: string[] = [];
       for (const entry of threadSessions.filter(
-        (candidate) => candidate.owned && candidate.doubt === "unverified",
+        (candidate) =>
+          candidate.doubt === "unverified" &&
+          (candidate.owned ||
+            (candidate.recorded && !candidate.running && !candidate.socket)),
       ))
         if (
           (await settleSessionBinding(entry.session, settleSeams(context))) ===
@@ -1463,7 +1470,10 @@ export async function runBrowserCommand(
               ...doubtful.map((entry) => doubtText(entry, copy)),
             ]),
       ];
-      const failed = outcome === "refused" || outcome === "unconfirmed";
+      const failed =
+        outcome === "refused" ||
+        outcome === "unconfirmed" ||
+        unsettled.length > 0;
       return Object.freeze({
         code: failed ? browserCliExit.failure : browserCliExit.done,
         ...(json
@@ -1474,6 +1484,7 @@ export async function runBrowserCommand(
                 outcome,
                 sessions: outcomes,
                 ambiguous,
+                ...(unsettled.length === 0 ? {} : { unsettled }),
               }),
             }
           : lines.length === 0
@@ -1498,28 +1509,41 @@ export async function runBrowserCommand(
         ? await settleSessionBinding(session, settleSeams(context))
         : "none";
       const settledText = settled === "settled" ? [copy["done-settled"]] : [];
-      const unsettled =
-        settled === "pending"
-          ? { stderr: fill(copy["done-unsettled"], { session }) }
-          : {};
+      // A binding that stays unverified is a failure: the next window would
+      // still refuse the session (review of #993).
+      if (settled === "pending")
+        return Object.freeze({
+          code: browserCliExit.failure,
+          ...(json
+            ? {
+                stdout: answered({
+                  kind: "browser-done",
+                  session,
+                  outcome,
+                  unsettled: [session],
+                }),
+              }
+            : {}),
+          stderr: [
+            fill(copy["done-unsettled"], { session }),
+            outcome === "stopped" ? copy.stopped : copy["no-daemon"],
+          ].join("\n"),
+        });
       return Object.freeze({
         code: ended ? browserCliExit.done : browserCliExit.failure,
         ...(json
           ? {
               stdout: answered({ kind: "browser-done", session, outcome }),
-              ...unsettled,
             }
           : outcome === "stopped"
             ? {
                 stdout: [copy.stopped, ...settledText, copy["done-check"]].join(
                   "\n",
                 ),
-                ...unsettled,
               }
             : outcome === "none"
               ? {
                   stdout: [copy["no-daemon"], ...settledText].join("\n"),
-                  ...unsettled,
                 }
               : {
                   stderr:
