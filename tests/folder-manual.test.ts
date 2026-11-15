@@ -2970,8 +2970,20 @@ test("the browser section says, right after sign-in, that the user pays by card 
       cardWords: [
         "platbu dělá uživatel sám ve své záložce v pohledu: je to jeho Publikace",
         "Ověření u banky (3D Secure)",
+        // Pablo's review of #994: where the bank's check shows, as measured
+        // with the view, and the way out when it does not.
+        "ve vyskakovacím okně, ukáže se v pohledu přes stránku",
+        "lištu „Stránka otevřela novou záložku“ s tlačítkem Otevřít",
+        "požádej uživatele, ať zaplatí ve vlastním prohlížeči",
         "nikdy nevyplňuj, neukládej ani nečti",
         "nežádej o ně v chatu",
+        // The protection as doctor reads it, and what happens when it fails.
+        "kontrola `browser-payment-cards` v `lazurio doctor`",
+        "„Save card?“",
+        "nikdy na ně neklikej, ani přes Computer Use",
+      ],
+      cardNot: [
+        "Ověření u banky (3D Secure) se ukáže ve stránce",
         "Prohlížeč kartu neuloží ani nedoplní",
       ],
       point: "- **Google Pay a okna Chromu.**",
@@ -2986,9 +2998,18 @@ test("the browser section says, right after sign-in, that the user pays by card 
       card: "- **Paying by card.**",
       cardWords: [
         "the user makes it themselves in their tab in the view: it is their Publication",
-        "The bank's check (3D Secure)",
+        "the bank's check (3D Secure)",
+        "in a pop-up, the view shows it over the page",
+        'the bar "The page opened a new tab" with its Open button',
+        "ask the user to pay in their own browser",
         "Never fill in, save or read",
         "never ask for them in the chat",
+        "the check `browser-payment-cards` of `lazurio doctor`",
+        '"Save card?"',
+        "never click it, not through Computer Use either",
+      ],
+      cardNot: [
+        "The bank's check (3D Secure) shows in the page",
         "The browser neither saves nor fills cards",
       ],
       point: "- **Google Pay and Chrome's windows.**",
@@ -3024,6 +3045,8 @@ test("the browser section says, right after sign-in, that the user pays by card 
       expect(lines[card - 1]?.startsWith(words.before)).toBe(true);
       for (const phrase of words.cardWords)
         expect(lines[card]).toContain(phrase);
+      for (const phrase of words.cardNot)
+        expect(lines[card]).not.toContain(phrase);
       const at = lines.findIndex((line) => line.startsWith(words.point));
       expect(at).toBe(card + 1);
       expect(lines[at]).toContain(words.pdf);
