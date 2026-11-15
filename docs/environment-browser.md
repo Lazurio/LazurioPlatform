@@ -170,6 +170,10 @@ the view. That text is the agents' instruction; this list is what it follows.
    the three units, DevTools and the view on loopback, holder files that cannot be
    read (`browser-holder-unreadable`), and the GitHub login of the browser's kept
    github.com sign-in. It warns and never fails, and it starts and restarts nothing.
+   Fact `browser-payment-cards` (`src/browser/payment-cards.ts`): whether Chrome's
+   saving and filling of payment cards is really off, read from Chrome through the
+   Lazurio extension's worker over DevTools; it starts a stopped worker as a new tab
+   would and sets nothing (F39's addendum of 2026-11-15, point 5).
 
 ## The parts and who owns them
 
