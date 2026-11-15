@@ -25736,5 +25736,8 @@ the reader. Live on 2026-11-15, Linux x64, in a temporary home: the core install
 1.100.0 through rustup and pnpm 12.21.0 through pnpm's installer in 9 seconds, linked
 `cargo`, `rustc`, `rustup`, `pnpm` and `pnpx` into `~/.local/bin`, wrote no shell profile,
 and a second run left both `current`; in a repository whose `rust-toolchain.toml` pins
-1.89.0, the linked `cargo` ran 1.89.0. Not verified: macOS, a real update from below the
-minimum, a running `lazurio update` on an Environment with a declaration.
+1.89.0, the linked `cargo` ran 1.89.0. Live on 2026-11-15, Linux x64, in a temporary home
+with real rustup and a pinned 1.80.0 default (review of #992): a minimum of 9.0.0 left
+the default and cargo 1.80.0 as they were and failed with `stable-below-minimum:1.100.0`;
+a minimum of 1.89.0 then gave `updated` from 1.80.0 to 1.100.0 with stable the default.
+Not verified: macOS, a running `lazurio update` on an Environment with a declaration.
