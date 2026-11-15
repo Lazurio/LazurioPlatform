@@ -3161,10 +3161,27 @@ function workerChrome(
   };
   let failSet = false;
   const windows = options.windows ?? new Map();
+  // What Chrome answers for the card setting after the worker asked for it:
+  // by default the worker's own value, held by the extension.
+  let effective: { value: unknown; levelOfControl: string } | "throws" = {
+    value: false,
+    levelOfControl: "controlled_by_this_extension",
+  };
+  const changed: ((details: {
+    value: unknown;
+    levelOfControl: string;
+  }) => unknown)[] = [];
   const setting = (name: string) => ({
     set: async (details: unknown) => {
       if (failSet) throw new Error("the setting cannot be changed");
       set.push({ setting: name, details });
+    },
+    get: async () => {
+      if (effective === "throws") throw new Error("unreadable");
+      return effective;
+    },
+    onChange: {
+      addListener: (fn: (typeof changed)[number]) => changed.push(fn),
     },
   });
   const chrome = {
@@ -3210,8 +3227,17 @@ function workerChrome(
     failSets: () => {
       failSet = true;
     },
+    answers: (answer: typeof effective) => {
+      effective = answer;
+    },
+    changed,
   };
 }
+
+/** What the worker recorded of its last attempt (`lazurioPaymentCards`). */
+const recorded = async () =>
+  await (globalThis as { lazurioPaymentCards?: Promise<unknown> })
+    .lazurioPaymentCards;
 
 test("the extension moves a second tab of a window into a window of its own", async () => {
   const worker = workerChrome({
@@ -3269,6 +3295,103 @@ test("a setting Chrome refuses leaves the worker running: tabs still move", asyn
   expect(() => bare.run()).not.toThrow();
   await settle();
   await bare.listeners.installed[0]?.();
+});
+
+// Pablo's review of #994: a refused or overridden setting is never taken for
+// a protection. After asking, the worker reads back what Chrome applies and
+// records it (`globalThis.lazurioPaymentCards`, which doctor awaits before its
+// own read): protected only when the value is off and held by this extension.
+test("the worker reads back the card setting Chrome applies and records it as protected only when it is off and held by the extension", async () => {
+  try {
+    const worker = workerChrome();
+    worker.run();
+    expect(await recorded()).toEqual({
+      protected: true,
+      value: false,
+      levelOfControl: "controlled_by_this_extension",
+    });
+    // A policy or another extension wins over the extension's value.
+    for (const answer of [
+      { value: true, levelOfControl: "not_controllable" },
+      { value: true, levelOfControl: "controlled_by_other_extensions" },
+      { value: false, levelOfControl: "controlled_by_other_extensions" },
+      { value: false, levelOfControl: "controllable_by_this_extension" },
+    ]) {
+      const other = workerChrome();
+      other.answers(answer);
+      other.run();
+      expect(await recorded()).toEqual({ protected: false, ...answer });
+    }
+    // A refused setting is read back as well, never assumed.
+    const refused = workerChrome();
+    refused.failSets();
+    refused.answers({
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    refused.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    // Unreadable, or no chrome.privacy at all.
+    const unreadable = workerChrome();
+    unreadable.answers("throws");
+    unreadable.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      reason: "unreadable",
+    });
+    const bare = workerChrome();
+    (bare.chrome as { privacy?: unknown }).privacy = undefined;
+    bare.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      reason: "no-setting",
+    });
+  } finally {
+    delete (globalThis as { lazurioPaymentCards?: unknown })
+      .lazurioPaymentCards;
+  }
+});
+
+test("when another holder lets go of the card setting, the worker takes it back; its own change sets nothing again", async () => {
+  try {
+    const worker = workerChrome();
+    worker.run();
+    await settle();
+    expect(worker.set).toHaveLength(1);
+    expect(worker.changed).toHaveLength(1);
+    const [onChange] = worker.changed;
+    // Its own value, held: nothing to do (no loop on its own change).
+    await onChange?.({
+      value: false,
+      levelOfControl: "controlled_by_this_extension",
+    });
+    // A policy or another extension holds it: nothing the extension can do,
+    // and its record says so (measured: a worker that started before another
+    // extension turned saving on still recorded its own success).
+    await onChange?.({ value: true, levelOfControl: "not_controllable" });
+    await settle();
+    expect(worker.set).toHaveLength(1);
+    expect(await recorded()).toEqual({
+      protected: false,
+      value: true,
+      levelOfControl: "not_controllable",
+    });
+    // Another extension or a policy let go: the extension takes it back.
+    await onChange?.({
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    await settle();
+    expect(worker.set).toHaveLength(2);
+    expect(await recorded()).toMatchObject({ protected: true });
+  } finally {
+    delete (globalThis as { lazurioPaymentCards?: unknown })
+      .lazurioPaymentCards;
+  }
 });
 
 test("a changed worker comes with a new file name and a new version, which Chrome needs to run it in a profile that ran the earlier one", () => {

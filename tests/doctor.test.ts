@@ -425,6 +425,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "codex-app-server skipped no-user-manager",
     "chat-defaults skipped not-hosted",
     "environment-browser skipped no-user-manager",
+    "browser-payment-cards skipped no-user-manager",
     "computer-use skipped no-user-manager",
     "chatgpt-apps skipped not-hosted",
     "access-service skipped not-hosted",

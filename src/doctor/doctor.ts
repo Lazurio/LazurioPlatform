@@ -1,5 +1,14 @@
-import { isGithubLogin } from "../browser/people/cookies";
+import { homedir } from "node:os";
 import {
+  observePaymentCards,
+  paymentCardsCauses,
+  paymentCardsReasons,
+} from "../browser/payment-cards";
+import { browserSocketUrl, connectCdp } from "../browser/people/cdp";
+import { isGithubLogin } from "../browser/people/cookies";
+import { browserExtensionDirectory } from "../browser/people/extension";
+import {
+  browserCdpPort,
   browserUnits,
   environmentBrowserReasons,
   observeEnvironmentBrowser,
@@ -175,6 +184,9 @@ export const doctorCheckIds = [
   "codex-app-server",
   "chat-defaults",
   "environment-browser",
+  // Whether Chrome's saving and filling of payment cards is really off in
+  // the Environment browser (F39's addendum of 2026-11-15).
+  "browser-payment-cards",
   "computer-use",
   // Whether the operator's Codex keeps the ChatGPT account's apps off where
   // they are not allowed (decision F42's addendum of 2026-10-27).
@@ -222,6 +234,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "codex-app-server": "machine",
     "chat-defaults": "machine",
     "environment-browser": "machine",
+    "browser-payment-cards": "machine",
     "computer-use": "machine",
     "chatgpt-apps": "machine",
     "access-service": "machine",
@@ -350,6 +363,7 @@ export const doctorReasons: readonly string[] = Object.freeze([
     ...catalogReasons,
     ...codexAppServerReasons,
     ...environmentBrowserReasons,
+    ...paymentCardsReasons,
     ...computerUseReasons,
   ]),
 ]);
@@ -460,6 +474,15 @@ export const doctorContextRules: Readonly<
     value.length <= 512 &&
     /^[A-Z][A-Z0-9_]*(,[A-Z][A-Z0-9_]*)*$/.test(value),
   secretReason: oneOf(runtimeSecretReasons),
+  // The Environment browser's card setting (F39's addendum of 2026-11-15):
+  // who holds it, or why it could not be read.
+  cardControl: oneOf([
+    "not_controllable",
+    "controlled_by_other_extensions",
+    "controllable_by_this_extension",
+    "controlled_by_this_extension",
+  ]),
+  cardCause: oneOf(paymentCardsCauses),
   // A hosted Folder's foreign top-level entries (decision F10's addendum of
   // 2026-11-03): how many, and the first one's name when it is a plain name.
   entries: count,
@@ -1383,6 +1406,18 @@ export async function collectDoctor(
     fetch: environment.fetch ?? ((url, init) => fetch(url, init)),
   });
 
+  // Chrome's card setting, read from Chrome through the extension's worker
+  // (F39's addendum of 2026-11-15); only where the browser runs.
+  const fetcher = environment.fetch ?? ((url, init) => fetch(url, init));
+  const paymentCards = await observePaymentCards({
+    browser,
+    directory: browserExtensionDirectory(environment.tools.home ?? homedir()),
+    connect: async () =>
+      connectCdp(
+        await browserSocketUrl(browserCdpPort, fetcher as typeof fetch),
+      ),
+  });
+
   // Computer Use on the same screen (decision F59).
   const computer = await observeComputerUse({
     platform,
@@ -1468,6 +1503,12 @@ export async function collectDoctor(
       browser.outcome,
       browser.reason,
       browser.context,
+    ),
+    check(
+      "browser-payment-cards",
+      paymentCards.outcome,
+      paymentCards.reason,
+      paymentCards.context,
     ),
     check("computer-use", computer.outcome, computer.reason, computer.context),
     chatgptApps,

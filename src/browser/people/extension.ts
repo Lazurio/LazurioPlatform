@@ -30,10 +30,23 @@ import { writeDurableFile } from "../../update/durable-file";
  *   opens, and no card stays in the profile the Environment's agents share.
  *   The page's own card form is untouched: a person pays by typing the card in
  *   the view (F39's addendum of 2026-11-15). Passwords and the other autofill
- *   stay Chrome's. */
+ *   stay Chrome's. Whether the setting holds is Chrome's answer, read back by
+ *   the worker and by `lazurio doctor` (`../payment-cards.ts`): a policy or
+ *   another extension can win over it. */
 
 export const browserExtensionDirectory = (home: string) =>
   join(home, ".local", "share", "lazurio-browser", "extension");
+
+/** Chrome's id of an unpacked extension loaded from `directory`: the first
+ * 32 hexadecimal digits of the SHA-256 of its absolute path, each written as a
+ * letter `a`–`p`. Chrome resolves the path of `--load-extension` first, so the
+ * caller passes the directory's real path. Measured on Chrome for Testing 156
+ * (F39's addendum of 2026-11-15). */
+export function browserExtensionIdOf(directory: string): string {
+  return [...createHash("sha256").update(directory).digest("hex").slice(0, 32)]
+    .map((digit) => String.fromCharCode(97 + Number.parseInt(digit, 16)))
+    .join("");
+}
 
 const background = `// Lazurio (decision F39): a tab opened in a window that already has a tab
 // moves into a window of its own. Chrome paints only visible windows, and the
@@ -58,14 +71,64 @@ chrome.tabs.onCreated.addListener(async (tab) => {
 // marked as this extension's, so its settings page cannot turn it on. Set on
 // every start of this worker; Chrome also keeps the value with the extension.
 // A page's own card form is untouched: a person pays by typing the card.
-const noPaymentCards = async () => {
+// A policy or another extension can win over this value, and Chrome can refuse
+// it: after asking, the worker reads back what Chrome applies and keeps it in
+// lazurioPaymentCards, protected only when the value is off and held by this
+// extension. Lazurio's doctor reads the setting itself (check
+// browser-payment-cards); this record is only what the worker last saw.
+const cardSetting = () => {
   try {
-    await chrome.privacy.services.autofillCreditCardEnabled.set({ value: false });
-  } catch {}
+    return chrome.privacy.services.autofillCreditCardEnabled;
+  } catch {
+    return undefined;
+  }
 };
-chrome.runtime.onStartup.addListener(noPaymentCards);
-chrome.runtime.onInstalled.addListener(noPaymentCards);
-noPaymentCards();
+const noPaymentCards = async () => {
+  const setting = cardSetting();
+  if (!setting) return { protected: false, reason: "no-setting" };
+  try {
+    await setting.set({ value: false });
+  } catch {}
+  try {
+    const { value, levelOfControl } = await setting.get({});
+    return {
+      protected: value === false && levelOfControl === "controlled_by_this_extension",
+      value,
+      levelOfControl,
+    };
+  } catch {
+    return { protected: false, reason: "unreadable" };
+  }
+};
+const holdPaymentCards = () => {
+  globalThis.lazurioPaymentCards = noPaymentCards();
+  return globalThis.lazurioPaymentCards;
+};
+chrome.runtime.onStartup.addListener(holdPaymentCards);
+chrome.runtime.onInstalled.addListener(holdPaymentCards);
+// When a policy or another extension lets go of the setting, or it is on while
+// this extension holds it, the extension takes it back. Its own value, held,
+// changes nothing, so its own change never sets it again. Any other change is
+// only recorded: a policy or another extension holds it now.
+try {
+  cardSetting()?.onChange.addListener((details) => {
+    if (
+      details.levelOfControl === "controllable_by_this_extension" ||
+      (details.levelOfControl === "controlled_by_this_extension" &&
+        details.value !== false)
+    )
+      holdPaymentCards();
+    else
+      globalThis.lazurioPaymentCards = Promise.resolve({
+        protected:
+          details.value === false &&
+          details.levelOfControl === "controlled_by_this_extension",
+        value: details.value,
+        levelOfControl: details.levelOfControl,
+      });
+  });
+} catch {}
+holdPaymentCards();
 `;
 
 /** The worker's file name and the extension's version, both from the
