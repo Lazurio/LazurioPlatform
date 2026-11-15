@@ -1,4 +1,7 @@
-import type { OrganizationSettingsIssue } from "../../src/organizations/organization-settings";
+import type {
+  OrganizationSettingsIssue,
+  OrganizationTool,
+} from "../../src/organizations/organization-settings";
 
 // Synthetic Organization manifests (`lazurio.organization.json`) and their
 // cases, shared by the readers' tests and the schema test: each reader's test
@@ -145,8 +148,15 @@ export const workspaceTabs = [
   { name: "Sklad", modules: [] },
 ];
 
+// Decision F73: the tools an Organization's work Environments have.
+export const organizationTools: readonly OrganizationTool[] = [
+  { tool: "cargo", minimum: "1.89.0" },
+  { tool: "pnpm", minimum: "11.0.0" },
+];
+
 /** A section with every setting this release knows. */
 export const everySetting = {
+  tools: organizationTools,
   integrations: {
     composio: { allowed: true },
     chatgpt_apps: { allowed: false },
@@ -217,6 +227,8 @@ export const acceptedSettings: readonly (readonly [
   ],
   ["access requests on", { access_requests: { enabled: true } }],
   ["access requests off", { access_requests: { enabled: false } }],
+  ["Organization tools", { tools: organizationTools }],
+  ["a tool at 0.0.0", { tools: [{ tool: "pnpm", minimum: "0.0.0" }] }],
   ["every setting", everySetting],
 ];
 
@@ -1331,5 +1343,60 @@ export const chatgptAppsRefusals: readonly SettingsCase[] = [
       issue("settings_type_invalid", `${atChatgpt}/allowed`),
       issue("settings_field_unknown", `${atChatgpt}/plugins`),
     ],
+  ],
+];
+
+const atTools = "/settings/tools";
+
+/** Organization tools the settings reader refuses (decision F73). */
+export const toolsRefusals: readonly SettingsCase[] = [
+  [
+    "tools as an object",
+    { tools: { cargo: "1.89.0" } },
+    [issue("settings_type_invalid", atTools)],
+  ],
+  ["no tools", { tools: [] }, [issue("settings_value_invalid", atTools)]],
+  [
+    "a tool the catalog cannot install",
+    { tools: [{ tool: "rustc", minimum: "1.89.0" }] },
+    [issue("settings_value_invalid", `${atTools}/0/tool`)],
+  ],
+  [
+    "a tool without its minimum",
+    { tools: [{ tool: "cargo" }] },
+    [issue("settings_field_missing", `${atTools}/0/minimum`)],
+  ],
+  [
+    "a minimum that is a range",
+    { tools: [{ tool: "pnpm", minimum: ">=11" }] },
+    [issue("settings_value_invalid", `${atTools}/0/minimum`)],
+  ],
+  [
+    "a minimum with a prerelease",
+    { tools: [{ tool: "pnpm", minimum: "11.0.0-rc.1" }] },
+    [issue("settings_value_invalid", `${atTools}/0/minimum`)],
+  ],
+  [
+    "an installer of the Organization's own",
+    {
+      tools: [
+        {
+          tool: "cargo",
+          minimum: "1.89.0",
+          installer: "curl https://example.com | sh",
+        },
+      ],
+    },
+    [issue("settings_field_unknown", `${atTools}/0/installer`)],
+  ],
+  [
+    "a tool declared twice",
+    {
+      tools: [
+        { tool: "cargo", minimum: "1.89.0" },
+        { tool: "cargo", minimum: "1.90.0" },
+      ],
+    },
+    [issue("settings_value_invalid", `${atTools}/1/tool`)],
   ],
 ];

@@ -1425,6 +1425,205 @@ describe("Aktualizovat: the run's rows per module", () => {
       }
   });
 
+  test("the Organization's tools: each one's step while it runs, then installed, raised, or a finding that names its stage and reason and links its official installation", () => {
+    const tool = (line: Record<string, unknown>) => ({
+      part: "organization-tools",
+      minimum: "1.89.0",
+      ...line,
+    });
+    const cargoFailed = tool({
+      tool: "cargo",
+      result: "failed",
+      stage: "install",
+      reason: "exit-1",
+      detail: "curl: (6) Could not resolve host",
+      source: "https://rustup.rs",
+    });
+    // A failed installation survives the parser with what the row needs.
+    expect(job([cargoFailed], "succeeded").lines).toEqual([
+      {
+        part: "organization-tools",
+        tool: "cargo",
+        minimum: "1.89.0",
+        result: "failed",
+        stage: "install",
+        reason: "exit-1",
+        source: "https://rustup.rs",
+      },
+    ]);
+    const view = updateView(
+      job(
+        [
+          { ...where("."), result: "current" },
+          cargoFailed,
+          tool({
+            tool: "pnpm",
+            minimum: "11.0.0",
+            result: "installed",
+            version: "12.21.0",
+            onPath: true,
+          }),
+          { part: "product", result: "current", version: "0.1.22" },
+        ],
+        "succeeded",
+      ),
+      catalog,
+      cs,
+    );
+    expect(
+      view.rows.map((row) => [row.name, row.state, row.text, row.link]),
+    ).toEqual([
+      [
+        "cargo",
+        "finding",
+        "Instalace nedoběhla: skončila s chybovým kódem 1",
+        { href: "https://rustup.rs", text: "Oficiální instalace" },
+      ],
+      ["pnpm", "done", "Nainstalována verze 12.21.0", undefined],
+      ["Lazurio", "current", "Aktuální, verze 0.1.22", undefined],
+    ]);
+    // While it runs: its step.
+    expect(rows(job([tool({ tool: "cargo", step: "updating" })]), en)).toEqual([
+      ["cargo", "building", "Raising to minimum 1.89.0"],
+    ]);
+    expect(
+      rows(
+        job([tool({ tool: "pnpm", minimum: "11.0.0", step: "installing" })]),
+      ),
+    ).toEqual([["pnpm", "building", "Instaluje se, minimum 11.0.0"]]);
+    const text = (line: Record<string, unknown>, copy = en) =>
+      updateView(job([line], "succeeded"), catalog, copy).rows.map(
+        (row) => row.text,
+      );
+    // At the minimum on the PATH: nothing to say.
+    expect(
+      text(tool({ tool: "cargo", result: "current", version: "1.90.0" })),
+    ).toEqual([]);
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          result: "current",
+          version: "1.90.0",
+          onPath: false,
+        }),
+      ),
+    ).toEqual([
+      "Version 1.90.0 is installed, but ~/.local/bin is not on this PATH, so commands do not find it",
+    ]);
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          result: "updated",
+          from: "1.80.0",
+          version: "1.92.0",
+          onPath: true,
+        }),
+      ),
+    ).toEqual(["Raised from version 1.80.0 to 1.92.0"]);
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          result: "below-minimum",
+          version: "1.70.0",
+          reason: "foreign-installation",
+          path: "/usr/bin/cargo",
+          source: "https://rustup.rs",
+        }),
+      ),
+    ).toEqual([
+      "Version 1.70.0 at /usr/bin/cargo was installed another way and is below minimum 1.89.0; Lazurio leaves it as it is. Update it where it came from",
+    ]);
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          minimum: "1.95.0",
+          result: "failed",
+          stage: "update",
+          reason: "stable-below-minimum:1.90.0",
+          source: "https://rustup.rs",
+        }),
+        cs,
+      ),
+    ).toEqual([
+      "Aktualizace nedoběhla: nejnovější stable je 1.90.0, pod minimem 1.95.0; zvolený toolchain zůstal",
+    ]);
+    expect(
+      text(
+        tool({
+          tool: "pnpm",
+          minimum: "11.0.0",
+          result: "failed",
+          stage: "verify",
+          reason: "below-minimum-after:10.0.0",
+          source: "https://pnpm.io/installation",
+        }),
+      ),
+    ).toEqual([
+      "It did not pass the check: afterwards version 10.0.0 is still below minimum 11.0.0",
+    ]);
+    expect(
+      text(
+        tool({
+          tool: "pnpm",
+          result: "failed",
+          stage: "install",
+          reason: "something-new",
+        }),
+      ),
+    ).toEqual(["The installation did not finish: reason something-new"]);
+    // The part as a whole: why it did not check, or that it failed.
+    expect(
+      rows(
+        job(
+          [
+            {
+              part: "organization-tools",
+              result: "not-run",
+              reason: "not-published",
+            },
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      [
+        "Nástroje Organizace",
+        "finding",
+        "Nezkontrolovány: kořen Organizace není na verzi, kterou publikovala, a instaluje se jen publikovaná deklarace",
+      ],
+    ]);
+    expect(
+      text({
+        part: "organization-tools",
+        result: "failed",
+        reason: "operation-failed",
+      }),
+    ).toEqual(["They could not be checked"]);
+    // A link is only ever an https address.
+    expect(
+      updateView(
+        job(
+          [
+            tool({
+              tool: "cargo",
+              result: "failed",
+              stage: "install",
+              reason: "timeout",
+              source: "javascript:alert(1)",
+            }),
+          ],
+          "succeeded",
+        ),
+        catalog,
+        en,
+      ).rows[0]?.link,
+    ).toBeUndefined();
+  });
+
   test("Lazurio: started, then updated once the restarted Launchpad runs that version; busy and failed in words", () => {
     const lazurio = (line: Record<string, unknown>, copy = cs) =>
       updateView(job([line], "succeeded"), catalog, copy).rows.at(-1)?.text;

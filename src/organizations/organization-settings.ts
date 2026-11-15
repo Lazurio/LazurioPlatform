@@ -84,6 +84,19 @@ export const microsoft365CallbacksMax = 255;
 export const workspaceTabNamePattern =
   // biome-ignore lint/suspicious/noControlCharactersInRegex: the control characters are what it refuses.
   /^(?=[^\u0000-\u001f\u007f]{1,40}$)[^\s\u0000-\u001f\u007f](?:.*[^\s\u0000-\u001f\u007f])?$/;
+/** The tools an Organization may declare for its work Environments
+ * (`settings.tools`, decision F73): the catalog tools Lazurio knows how to
+ * install and keep at a minimum by their official path
+ * (`src/tools/organization-tools.ts`). A tool joins this list only with its
+ * recipe, in one pull request of this repository. */
+export const organizationToolIds = Object.freeze(["cargo", "pnpm"] as const);
+export type OrganizationToolId = (typeof organizationToolIds)[number];
+/** A minimum version: `major.minor.patch`, numbers only. */
+export const toolMinimumPattern =
+  /^(?:0|[1-9][0-9]{0,5})\.(?:0|[1-9][0-9]{0,5})\.(?:0|[1-9][0-9]{0,5})$/;
+/** At most this many declared tools. */
+export const organizationToolsMax = 32;
+
 /** A module of a tab, by its `lazurio.module.v1` id. */
 export const workspaceModulePattern = /^[a-z0-9][a-z0-9-]{0,62}$/;
 /** At most this many tabs: a row a person reads at a glance. */
@@ -141,6 +154,19 @@ const contract = objectNode({
     ),
   }),
   access_requests: objectNode({ enabled: booleanLeaf }, ["enabled"]),
+  // The tools the Organization's work Environments have (decision F73):
+  // each a catalog tool and the minimum version `lazurio update` keeps it
+  // at. A tool is declared once (checked by `toolsIssues`).
+  tools: arrayLeaf(
+    objectNode(
+      {
+        tool: enumItem(organizationToolIds),
+        minimum: stringLeaf(toolMinimumPattern),
+      },
+      ["tool", "minimum"],
+    ),
+    { minItems: 1, maxItems: organizationToolsMax },
+  ),
 });
 /** Top-level settings of the Dashboard alone: checked, never kept. */
 const dashboardOnly = Object.freeze(["access_requests"]);
@@ -154,6 +180,7 @@ export const organizationSettingsKeys = Object.freeze([
   "integrations.microsoft365.client_id",
   "integrations.microsoft365.apps",
   "integrations.microsoft365.callbacks",
+  "tools",
   "workspace.tabs",
 ] as const);
 export type OrganizationSettingsKey = (typeof organizationSettingsKeys)[number];
@@ -214,8 +241,15 @@ export type WorkspaceTab = Readonly<{
   modules: readonly string[];
 }>;
 
+/** One tool the Organization declares (decision F73). */
+export type OrganizationTool = Readonly<{
+  tool: OrganizationToolId;
+  minimum: string;
+}>;
+
 export type OrganizationSettingsValues = Readonly<{
   workspace?: Readonly<{ tabs: readonly WorkspaceTab[] }>;
+  tools?: readonly OrganizationTool[];
   integrations?: Readonly<{
     composio?: Readonly<{ allowed: boolean }>;
     chatgpt_apps?: Readonly<{ allowed: boolean }>;
@@ -226,7 +260,8 @@ export type OrganizationSettingValue =
   | boolean
   | string
   | readonly string[]
-  | readonly WorkspaceTab[];
+  | readonly WorkspaceTab[]
+  | readonly OrganizationTool[];
 export type OrganizationSettingsEntry = Readonly<{
   key: OrganizationSettingsKey;
   /** `false`: the Organization does not govern it and the Environment decides. */
@@ -262,7 +297,10 @@ export function organizationSettings(manifest: Data): OrganizationSettings {
     });
   const issues: OrganizationSettingsIssue[] = [];
   validate(manifest.settings, contract, "/settings", issues);
-  if (issues.length === 0) workspaceIssues(manifest.settings, issues);
+  if (issues.length === 0) {
+    workspaceIssues(manifest.settings, issues);
+    toolsIssues(manifest.settings, issues);
+  }
   if (issues.length > 0)
     return deepFreeze({
       status: "invalid" as const,
@@ -469,6 +507,24 @@ function workspaceIssues(
         });
       modules.add(module);
     });
+  });
+}
+
+// What the closed tree cannot say about the tools: a tool is declared once.
+function toolsIssues(
+  settings: unknown,
+  issues: OrganizationSettingsIssue[],
+): void {
+  const tools = (settings as OrganizationSettingsValues).tools;
+  if (tools === undefined) return;
+  const seen = new Set<string>();
+  tools.forEach((entry, index) => {
+    if (seen.has(entry.tool))
+      issues.push({
+        code: "settings_value_invalid",
+        path: `/settings/tools/${index}/tool`,
+      });
+    seen.add(entry.tool);
   });
 }
 

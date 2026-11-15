@@ -1447,6 +1447,34 @@ const toolUpdates: Text = t(
   "- Offer the user a newer version of one of their tools (Codex, Claude Code, `gh`, Node, npm, Bun and the rest) as soon as you find one, for example from the tool's own notice or its official release. Update it only with their consent in this thread: `lazurio tools update <tool>` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. `lazurio tools status` shows what is installed; report a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the user made themselves.",
 );
 
+// The tools an Organization declares for its Environments (decision F73):
+// on its Environments `lazurio update` installs them or raises them to their
+// minimum without asking, the Admin's approval of the declaration being the
+// consent; on the person's own computer nothing is installed by itself; a
+// personal Remote Environment mounts no Organization. A tool the
+// Organization does not declare stays under the rule above, and the agent
+// proposes declaring it.
+function organizationTools(preset: PresetName): readonly Text[] {
+  if (preset === "hosted-personal") return [];
+  if (preset === "local")
+    return [
+      t(
+        "- Organizace může deklarovat nástroje, které její Prostředí mají mít (`settings.tools` v jejím `lazurio.organization.json`: nástroj z katalogu Lazuria a minimální verze). Na vašem počítači je Lazurio samo neinstaluje: chybí-li nástroj z deklarace nebo je starší, nabídni ho uživateli a nainstaluj ho jen s jeho souhlasem, oficiální cestou nástroje (decision F73).",
+        "- An Organization may declare the tools its Environments have (`settings.tools` in its `lazurio.organization.json`: a tool of Lazurio's catalog and a minimum version). On the person's own computer Lazurio installs none of them by itself: when a declared tool is missing or older, offer it to the user and install it only with their consent, by the tool's official path (decision F73).",
+      ),
+    ];
+  return [
+    t(
+      "- **Nástroje Organizace.** Organizace, které toto Prostředí patří, deklaruje nástroje, které její Prostředí mají mít, v `settings.tools` svého `lazurio.organization.json`: nástroj z katalogu Lazuria a minimální verzi. `lazurio update` je tu bez ptaní doinstaluje nebo zvedne na minimum jejich oficiální cestou (cargo přes rustup, pnpm oficiálním instalátorem pnpm) do standardní cesty, nikdy je nesníží a nástroj nainstalovaný jinak nepřepíše; schválení deklarace Adminem Organizace je souhlas (decision F73). Stav ukáže `lazurio doctor` (kontrola `organization-tool`) a selhání pojmenuje odpověď `lazurio update` i s oficiálním zdrojem nástroje.",
+      "- **The Organization's tools.** The Organization this Environment belongs to declares the tools its Environments have in `settings.tools` of its `lazurio.organization.json`: a tool of Lazurio's catalog and a minimum version. Here `lazurio update` installs them or raises them to their minimum without asking, by their official path (cargo through rustup, pnpm with pnpm's official installer) into the standard path; it never lowers them and never overwrites a tool installed another way; the Organization Admin's approval of the declaration is the consent (decision F73). `lazurio doctor` shows their state (the check `organization-tool`), and the answer of `lazurio update` names a failure with the tool's official source.",
+    ),
+    t(
+      "- Chybí-li ti nástroj z deklarace, spusť `lazurio update`; chybějící nástroj práci neblokuje. Nástroj, který Organizace nedeklaruje a práce ho potřebuje, instaluješ podle pravidla výše a zároveň navrhni jeho přidání do deklarace: pull request do kořenového repozitáře Organizace, který přidá položku do `settings.tools`, a jeho sloučení Adminem Organizace je Publikace. Nástroj, který katalog Lazuria zatím neumí, navrhni issue v `Lazurio/LazurioPlatform`.",
+      "- When a declared tool is missing, run `lazurio update`; a missing tool does not block the work. A tool the Organization does not declare and the work needs, you install under the rule above, and you propose adding it to the declaration: a pull request to the Organization's root repository that adds the entry to `settings.tools`, whose merge by the Organization Admin is the Publication. A tool Lazurio's catalog cannot install yet, propose as an issue in `Lazurio/LazurioPlatform`.",
+    ),
+  ];
+}
+
 // The user's request to update („Aktualizuj“) is the consent to update
 // everything: Lazurio, the tools with a newer version and, where the
 // Environment carries Organizations, every checkout (root decision 0161,
@@ -1628,6 +1656,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
         "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
       ),
       toolUpdates,
+      ...organizationTools(preset),
       updateRequest(preset),
       t(
         "- `lazurio` je na PATH jako `~/.local/bin/lazurio`. Když ho shell nenajde (neinteraktivní `ssh host 'příkaz'` nečte `~/.profile`), spusť ho celou cestou; když chybí i ten link, `~/.local/share/lazurio/bin/lazurio`.",
@@ -1673,6 +1702,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
       "- The Launchpad **pill** shows `idle`, `checking`, `available`, `downloading`, `activating`, and failures that return to `available` with the error and a retry. One click runs the same `lazurio update`.",
     ),
     toolUpdates,
+    ...organizationTools(preset),
     updateRequest(preset),
     blank,
     ...toolLayout,
