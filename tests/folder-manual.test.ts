@@ -2958,26 +2958,42 @@ test("the manual says AI signs in at Začínáme, never Tools, and AGENTS.md nam
   }
 });
 
-// F39's addendum of 2026-11-14: the browser declines payments and Chrome's
-// other windows over the page; agents read it right after the sign-in point,
-// wherever the Environment has the view.
-test("the browser section says, right after sign-in, that payments and Chrome's windows over the page are declined, and how to save a PDF", () => {
+// F39's addenda of 2026-11-14 and 2026-11-15: right after the sign-in point,
+// wherever the Environment has the view, agents read that a card payment is
+// the user's own in the view, with the card never filled, saved or read by
+// them, and then that payments through the browser and Chrome's other windows
+// over the page are declined.
+test("the browser section says, right after sign-in, that the user pays by card in the view, then that payments through the browser and Chrome's windows are declined, and how to save a PDF", () => {
   const heads = {
     cs: {
-      point: "- **Platby a okna Chromu.**",
+      card: "- **Platba kartou.**",
+      cardWords: [
+        "platbu dělá uživatel sám ve své záložce v pohledu: je to jeho Publikace",
+        "Ověření u banky (3D Secure)",
+        "nikdy nevyplňuj, neukládej ani nečti",
+        "nežádej o ně v chatu",
+        "Prohlížeč kartu neuloží ani nedoplní",
+      ],
+      point: "- **Google Pay a okna Chromu.**",
       before: "- **Přihlášení a ověření.**",
       pdf: "`agent-browser --cdp 9222 --session <sezení> pdf <soubor>`",
-      publication: "Platba je Publikace",
       // Pablo's review of #984: no site is promised to offer another way.
       may: "Stránka pak může nabídnout jiný způsob platby",
       fallback: "zaplatí ve vlastním prohlížeči",
       promise: "Stránka pak nabídne",
     },
     en: {
-      point: "- **Payments and Chrome's windows.**",
+      card: "- **Paying by card.**",
+      cardWords: [
+        "the user makes it themselves in their tab in the view: it is their Publication",
+        "The bank's check (3D Secure)",
+        "Never fill in, save or read",
+        "never ask for them in the chat",
+        "The browser neither saves nor fills cards",
+      ],
+      point: "- **Google Pay and Chrome's windows.**",
       before: "- **Sign-in and verification.**",
       pdf: "`agent-browser --cdp 9222 --session <session> pdf <file>`",
-      publication: "A payment is a Publication",
       may: "The page may then offer another way to pay",
       fallback: "they pay in their own browser",
       promise: "The page then offers",
@@ -3003,18 +3019,24 @@ test("the browser section says, right after sign-in, that payments and Chrome's 
       ["hosted-organization-team", bindings.teamBrowser],
     ] as const) {
       const lines = manualOf(preset, machine).split("\n");
+      const card = lines.findIndex((line) => line.startsWith(words.card));
+      expect(card).toBeGreaterThan(0);
+      expect(lines[card - 1]?.startsWith(words.before)).toBe(true);
+      for (const phrase of words.cardWords)
+        expect(lines[card]).toContain(phrase);
       const at = lines.findIndex((line) => line.startsWith(words.point));
-      expect(at).toBeGreaterThan(0);
-      expect(lines[at - 1]?.startsWith(words.before)).toBe(true);
+      expect(at).toBe(card + 1);
       expect(lines[at]).toContain(words.pdf);
-      expect(lines[at]).toContain(words.publication);
       expect(lines[at]).toContain(words.may);
       expect(lines[at]).toContain(words.fallback);
       expect(lines[at]).not.toContain(words.promise);
     }
     // No view, no point.
-    expect(
-      manualOf("hosted-organization-personal", bindings.organization),
-    ).not.toContain(words.point);
+    const withoutView = manualOf(
+      "hosted-organization-personal",
+      bindings.organization,
+    );
+    expect(withoutView).not.toContain(words.card);
+    expect(withoutView).not.toContain(words.point);
   }
 });
