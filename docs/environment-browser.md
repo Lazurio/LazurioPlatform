@@ -59,7 +59,8 @@ held by review and by the release process.
   is removed (0191), so its profile and sign-ins never pass to someone else.
 - **The screen's other programs** are worked through Computer Use, one agent at a time
   ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)).
-  A web desktop on which people watch the screen is a later wave (0191).
+  A web desktop on which people watch the screen is a later wave (0191); its design, as the
+  escape for windows the view cannot show, is proposed in [F74](decisions.md#f74--the-desktop-of-a-remote-environment-the-escape-for-the-windows-the-browser-view-cannot-show).
 
 ## How an agent uses it
 
@@ -538,7 +539,7 @@ refresh of a fork on a new upstream stable release, keeps these rules:
   offered upstream (F50 point 2).
 - **Lazurio MausBot on the Environment browser** (0191; F50 point 8, last step): built
   in the fork's `main`, not yet deployed.
-- **The web desktop** for people (0191, a later wave), and a visible marking of
+- **The web desktop** for people (0191, a later wave; proposed in F74), and a visible marking of
   another Environment's tab, which is a direction for interface proposals only.
 
 ## Provenance
