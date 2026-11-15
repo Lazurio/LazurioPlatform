@@ -253,6 +253,15 @@ test.skipIf(process.platform === "win32")(
         allowedPresets: ["local"],
         machine: null,
         voice: resolvedVoice(profile.locale as "cs" | "en"),
+        // The person's own instructions for agents: on their own computer
+        // there may be some, and none is saved yet.
+        ownInstructions: {
+          allowed: true,
+          ofOrganization: false,
+          text: "",
+          bytes: 0,
+          maxBytes: 4096,
+        },
         profile,
         tools: [
           { name: "gh", tier: "required", setup: "launchpad", enabled: true },
@@ -373,6 +382,14 @@ test.skipIf(process.platform === "win32")(
         machine: bindings.organization,
         profile: session.profile,
         voice: resolvedVoice(session.profile.locale),
+        // A Work Environment's own instructions are the Organization's.
+        ownInstructions: {
+          allowed: true,
+          ofOrganization: true,
+          text: "",
+          bytes: 0,
+          maxBytes: 4096,
+        },
         tools: toolSelection([]),
       });
       const change = {

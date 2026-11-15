@@ -1,5 +1,6 @@
 import type { VoiceLocale } from "../folder/voice";
 import type { MessageKey } from "./messages";
+import { personTextTooLarge } from "./own-instructions-view";
 
 export type VoiceView = Readonly<{
   locale: VoiceLocale;
@@ -60,7 +61,9 @@ export function voicePanel(options: {
   let current: ProfileView | null = null;
   let active: VoiceDraft | null = null;
   let busy = false;
-  let notice: MessageKey | null = null;
+  // What the last save said: one of the page's sentences, or the sentence
+  // of a refusal that carries its numbers.
+  let notice: MessageKey | Readonly<{ text: string }> | null = null;
   let needsRefresh = false;
   function render() {
     if (!active || !current) return;
@@ -75,7 +78,9 @@ export function voicePanel(options: {
       (active.mode === "default" && active.text === active.saved.defaultText);
     meta.textContent = `${current.voice.locale === "cs" ? "Čeština" : "English"} · ${active.mode === "default" ? copy.voiceDefault : copy.voiceCustom}`;
     status.textContent = notice
-      ? copy[notice]
+      ? typeof notice === "string"
+        ? copy[notice]
+        : notice.text
       : voiceDirty(active)
         ? copy.voiceDirty
         : "";
@@ -145,7 +150,16 @@ export function voicePanel(options: {
     try {
       const { ok, value } = await options.post("/api/update", request);
       const result = value as { kind?: string; reason?: string };
-      if (!ok || (result.kind !== "updated" && result.kind !== "unchanged")) {
+      // The voice and the person's own instructions share one budget
+      // (decision F14's implementation note of 2026-11-15): a voice too long
+      // next to saved instructions is said with its sizes, and a shorter
+      // text can be saved at once, at the same revision.
+      const budget = ok ? null : personTextTooLarge(value, options.copy());
+      if (budget !== null) notice = { text: budget };
+      else if (
+        !ok ||
+        (result.kind !== "updated" && result.kind !== "unchanged")
+      ) {
         needsRefresh = true;
         notice =
           result.reason === "stale-revision"

@@ -317,7 +317,27 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .card.voice-card { padding: 20px; display: grid; gap: 14px; }
 .voice-meta, .voice-actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .voice-meta { justify-content: space-between; color: var(--muted-fg); font-size: 14px; }
-#voice-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
+#voice-text, #own-text { width: 100%; resize: vertical; min-height: 320px; font: inherit; line-height: 1.65; padding: 14px; }
+/* The person's own instructions (own-instructions-panel.ts) under the voice:
+   the same card and actions. A field under 16 px makes a phone zoom into it
+   on focus and stay there, so a touch screen and the page's phone layout
+   get 16 px. */
+#own-text { min-height: 180px; }
+/* The card's rule between rows is not for the lines under the field. */
+#own-form .voice-card > p { border-top: 0; }
+@media (pointer: coarse), (max-width: 767px) { #own-text { font-size: 16px; } }
+.own-count { font-variant-numeric: tabular-nums; }
+.own-count[data-over] { color: var(--destructive); }
+.own-error { color: var(--destructive); font-size: 13px; }
+.own-error:empty { display: none; }
+#own-form .callout, #own-form .row-desc, .own-error { overflow-wrap: anywhere; }
+/* The text saved elsewhere next to the person's own, and the choice. Empty,
+   the block is in the page for a screen reader and takes no room. */
+.own-conflict { display: grid; gap: 10px; }
+.own-conflict:empty { display: none; }
+.own-conflict pre { background: var(--card); color: var(--fg); font: inherit; line-height: 1.65; }
+.own-suggest { display: grid; gap: 6px; justify-items: start; }
+.own-suggest .icon { width: 14px; height: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }
 /* Under a page's title stands only a state (F56's addendum (6) of
    2026-10-24): with none shown, the head takes no room and leaves no gap

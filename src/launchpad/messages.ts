@@ -31,6 +31,45 @@ const en = {
   voiceStale:
     "Settings changed elsewhere. Your draft is kept. Load current settings, check your text and save again.",
   voiceRefresh: "Load current settings",
+  // The person's own instructions for agents (root decision 0233), below
+  // the voice. The sizes are UTF-8 bytes; the tokens in braces are filled
+  // by own-instructions-view.ts.
+  ownTitle: "Own instructions for agents",
+  ownHint:
+    "Tell agents how to work with you: how to answer, what to ask about, what to always do. This grants nothing; where they conflict, Lazurio's and the Organization's rules win.",
+  ownCount: "{bytes} of {maxBytes} bytes",
+  ownRemove: "Remove instructions",
+  ownSaved:
+    "Saved. The instructions are in the AGENTS.md of {this}; new agent conversations that read it get them.",
+  ownRemoved:
+    "The own instructions are removed. New conversations no longer get them.",
+  ownTooLong:
+    "The text is longer than {maxBytes} bytes. Shorten it; an accented letter takes two bytes.",
+  ownNotPlain:
+    "Own instructions are plain text. Remove the control characters (other than tab and line ends), for example ones copied from a terminal.",
+  ownBlank:
+    "The text is only white space. Write the instructions, or remove them.",
+  personTextTooLarge:
+    "The custom voice and the own instructions share one limit of {maxBytes} bytes: the voice takes {voiceBytes} bytes and the section of own instructions {instructionsBytes}. Shorten the instructions or the custom voice and save again.",
+  ownContextLarge:
+    "With this text the combined agent instructions would be too long. Shorten the instructions, the voice or your tool notes and save again.",
+  ownUnavailable:
+    "{This} has no own instructions. Your own computer, a Personal Environment and a Work Environment assigned to one person have them. Load current settings.",
+  // The saved text changed elsewhere while a draft was open: the person
+  // chooses which text holds before anything is saved.
+  ownConflict:
+    "The saved instructions changed elsewhere in the meantime, for example an agent added a line. Before you save, choose which text holds.",
+  ownConflictSaved: "Saved text",
+  ownConflictRemoved: "The saved instructions were removed.",
+  ownConflictUseSaved: "Use the saved text",
+  ownConflictKeepMine: "Keep my text",
+  ownSuggest: "Send to Lazurio as a suggestion",
+  ownSuggestHint:
+    "The link opens GitHub and hands it the saved text in the address as soon as it opens. It becomes public once you submit the issue there yourself.",
+  ownSuggestOrganization:
+    "You are sending a text that belongs to the Organization; send only what may be public.",
+  ownSuggestTruncated:
+    "The text is longer than the link can carry; the issue holds only its beginning.",
 
   themeGroup: "Environment theme",
   themeNote: "The colours of Chat, Apps and Automate {in this}.",
@@ -2363,6 +2402,38 @@ const cs: Record<MessageKey, string> = {
   voiceStale:
     "Nastavení se mezitím změnilo. Rozepsaný text zůstává. Načtěte aktuální nastavení, zkontrolujte text a uložte ho znovu.",
   voiceRefresh: "Načíst aktuální nastavení",
+  ownTitle: "Vlastní pokyny pro agenty",
+  ownHint:
+    "Řekněte agentům, jak s vámi mají pracovat: jak odpovídat, na co se ptát, co dělat vždy. Nic tím neudělujete; při střetu platí pravidla Lazuria a Organizace.",
+  ownCount: "{bytes} z {maxBytes} bajtů",
+  ownRemove: "Odebrat pokyny",
+  ownSaved:
+    "Uloženo. Pokyny jsou v AGENTS.md {tohoto}; dostanou je nové konverzace agentů, které ho čtou.",
+  ownRemoved: "Vlastní pokyny jsou odebrané. Nové konverzace je už nedostanou.",
+  ownTooLong:
+    "Text je delší než {maxBytes} bajtů. Zkraťte ho; písmeno s diakritikou zabere dva bajty.",
+  ownNotPlain:
+    "Vlastní pokyny jsou prostý text. Odstraňte řídicí znaky (kromě tabulátoru a konce řádku), třeba zkopírované z terminálu.",
+  ownBlank: "Text obsahuje jen mezery. Napište pokyny, nebo je odeberte.",
+  personTextTooLarge:
+    "Vlastní tón a vlastní pokyny sdílejí jeden limit {maxBytes} bajtů: tón má {voiceBytes} bajtů a oddíl vlastních pokynů {instructionsBytes}. Zkraťte pokyny, nebo vlastní tón a uložte znovu.",
+  ownContextLarge:
+    "S tímto textem by celé instrukce pro agenty byly příliš dlouhé. Zkraťte pokyny, tón nebo poznámky k nástrojům a uložte znovu.",
+  ownUnavailable:
+    "{Toto} vlastní pokyny nemá. Má je váš počítač, Osobní Prostředí a Pracovní Prostředí přiřazené jednomu člověku. Načtěte aktuální nastavení.",
+  ownConflict:
+    "Uložené pokyny se mezitím změnily jinde, například je doplnil agent. Než uložíte, vyberte, které znění platí.",
+  ownConflictSaved: "Uložené znění",
+  ownConflictRemoved: "Uložené pokyny někdo odebral.",
+  ownConflictUseSaved: "Použít uložené znění",
+  ownConflictKeepMine: "Ponechat můj text",
+  ownSuggest: "Poslat Lazuriu jako podnět",
+  ownSuggestHint:
+    "Odkaz otevře GitHub a uložený text mu předá v adrese hned při otevření. Veřejný bude, až tam issue sami odešlete.",
+  ownSuggestOrganization:
+    "Odesíláte text, který patří Organizaci; pošlete jen to, co smí být veřejné.",
+  ownSuggestTruncated:
+    "Text je delší, než odkaz unese; do issue se vejde jen jeho začátek.",
 
   themeGroup: "Téma Prostředí",
   themeNote: "Barvy Chatu, Aplikací a Automatizace {v tomto}.",

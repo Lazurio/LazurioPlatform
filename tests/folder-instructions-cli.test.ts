@@ -254,7 +254,9 @@ test("a text saved from show --json comes back byte for byte through set --file 
   await writeFile(file, "Končí LF\n");
   expect((await f.json("set", "--file", file)).code).toBe(0);
   expect((await f.state()).customInstructions).toBe("Končí LF");
-});
+  // Six round trips, each several commands: under a loaded CI runner they
+  // do not fit the suite's 20 seconds, so this test has the file's own limit.
+}, 60_000);
 
 test("on the person's own computer the answers are in the Folder's language and carry no notice", async () => {
   const f = await folderOf("local", null, "en");
