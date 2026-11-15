@@ -25606,6 +25606,14 @@ shows it, and a person sees a page that no longer reacts: a GTK dialog nothing i
 PDF viewer's print preview (#243), a bubble, an extension's window, or a program on the screen.
 For those the view offers the desktop, and the desktop opens on that tab's window.
 
+**Matěj's answers of 2026-11-15** (question tool, the same thread): a person sees the whole
+screen starting at their tab's window (open point 2 below, as proposed); the phone works the way
+Chrome Remote Desktop's trackpad does (point 6); and agents get **no mechanism** in front of
+`computer` for now: "Berme, že tady tohleten přístup na vzdálenou plochu je výjimka v tuhle
+chvíli. Rozhodně bych nedefinoval nějaká tvrdá pravidla. Musíme si to prvně osahat v praxi."
+Whether a person or an agent goes first "musíme dobře nadefinovat" and stays open. Points 3, 6
+and 7 below are written to these answers.
+
 **Measured on 2026-11-15** on a Remote Environment's screen (Xvfb `:1`, 1920×1080, no window
 manager), with a Chrome for Testing 156 of the prototype's own (own profile and DevTools port, no
 Lazurio extension) next to the Environment browser:
@@ -25648,9 +25656,9 @@ Lazurio extension) next to the Environment browser:
    only the Environment's own origins may frame it (F39 point 8). Application access never
    includes it (F40 point 3). The person's name for "who holds the screen" is the gateway's
    `X-Auth-Request-Preferred-Username`.
-3. **One holder of the screen at a time, enforced in two places.**
+3. **One person controls the screen at a time; agents by rule, not by mechanism.**
    - **The lease.** A person takes the screen in the page ("Ovládat plochu", or "Převzít
-     ovládání" while an agent or another person has it). The lease lasts two minutes and is
+     ovládání" while another person has it). The lease lasts two minutes and is
      renewed by input and by the visible page every 30 s; it ends with "Pustit plochu", "Zpět
      na záložku", a closed page or socket, and every start and stop of the service, which is its
      only writer (`~/.local/state/lazurio-desktop/turn/person.json`, owner-only). The last
@@ -25662,23 +25670,16 @@ Lazurio extension) next to the Environment browser:
      unknown message closes the connection rather than guessing a length. When control ends,
      every key and button the person still held is released. A press first focuses the window
      under it (there is no window manager to do it), and a person's input keeps its order.
-   - **The agents' side: the `computer` entry gets a turn.** Each agent's MCP entry `computer`
-     becomes `lazurio computer mcp`, a line-by-line pass-through in front of the driver's own
-     proxy (`cua-driver mcp --socket …`), which F59 point 2 registered directly. While a person
-     holds the screen, every tool but the pinned driver's reading tools (screenshots, window
-     lists, accessibility trees, the session's own state) is answered at once with an error that
-     says a person holds the screen, that nothing moved, and that the agent waits and tells the
-     user; a tool the gate does not know counts as input. An input tool that passes is noted with
-     the agent's name (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`, else
-     the call's `session`), so the page says "Plochu ovládá agent … (před 3 s)". This is the
-     lock in the Platform's entry that F59 point 5 kept for when collisions show; a person on the
-     screen is that collision.
-   - **Who goes first.** The person, always. A page opened from the view's escape takes the
-     screen at once only when no agent acted in the last 20 seconds; otherwise it shows who is on
-     the screen and offers "Převzít ovládání".
-   - **Not a mechanism:** an agent that drives the screen without the `computer` entry (xdotool,
-     a driver of its own) is not stopped, and cannot be while the X server has no access
-     control. The Folder says it never does.
+   - **The agents' side: a rule, no gate (Matěj, 2026-11-15).** The `computer` entry stays the
+     driver's own proxy, as F59 point 2 registered it; nothing in front of it refuses an agent's
+     input while a person controls the screen. The Folder tells agents to leave the screen
+     alone while the user works on it (point 7). The desktop is an exception for now, and how a
+     person and agents take turns is learned in practice before anything enforces it; F59
+     point 5 keeps the lock for when collisions show. Without a gate the page cannot tell when
+     an agent last acted, so it says only that agents of this Environment may use the screen too.
+   - **Who goes first: open.** Matěj wants it defined well, not guessed. Until then a person
+     takes control in the page when they choose ("Ovládat plochu"), and an agent that sees its
+     Computer Use interfered with stops and asks the user.
 4. **The tab's window in front, and nothing of other threads moved.**
    - The page opened from a tab asks `POST /api/focus {tab}`. The service finds the tab's
      window: the one viewable, non-override-redirect X11 window whose position and size equal
@@ -25696,7 +25697,7 @@ Lazurio extension) next to the Environment browser:
      tabs), but it shows them all at once. So the page opened from a tab starts at 1:1 on that
      tab's window, says that the other windows belong to other threads and are not to be closed,
      and shows the whole screen only when asked ("Celá plocha"). A stricter mode, the screen
-     clipped to the tab's window and its native windows (x11vnc `-clip`), is open below.
+     clipped to the tab's window and its native windows (x11vnc `-clip`), was not taken (below).
 5. **When the view offers the desktop.**
    - **Always:** a "Plocha" button in the view's bar (in its overflow on a narrow view), opening
      `https://desktop.<…>/?tab=<id>&back=<the view's address>` in the same place.
@@ -25719,10 +25720,14 @@ Lazurio extension) next to the Environment browser:
      the screen, "Zavřít okno": the service raises and focuses that dialog and presses Escape as
      a person would, so the program decides what closing means (GTK's file chooser cancels, and
      the page hears `cancel`).
-6. **The phone.** The desktop opens there too, at 1:1 on the tab's window, moved by dragging,
-   with "Celá plocha" a tap away. A 1920×1080 screen is hard to work on a phone, so the common
-   case, getting rid of the window, is one tap on "Zavřít okno". Whether the phone offers the
-   desktop at all is open below.
+6. **The phone: a trackpad, as Chrome Remote Desktop has it (Matěj, 2026-11-15).** The desktop
+   opens there too, on the tab's window. The person pinches to zoom and pans with two fingers,
+   and the screen has a cursor of its own: dragging one finger anywhere moves the cursor
+   relative to where it is, as on a laptop's trackpad, never jumping to the finger; a tap clicks
+   where the cursor is; a two-finger tap clicks the right button; a press and drag drags. A
+   keyboard button opens the phone's keyboard, and "Zavřít okno" stays one tap for the common
+   case. noVNC's own touch input taps where the finger is, so the page translates the gestures
+   itself into the pointer events it sends (not in the prototype, which tapped through noVNC).
 7. **Agents (the Folder's manual, a template revision with the implementation).** In the
    Environment browser's section, where the Environment has the desktop:
    - cs: „**Okno mimo stránku.** Když stránka v pohledu nereaguje a uživatel nevidí okno, které
@@ -25736,9 +25741,11 @@ Lazurio extension) next to the Environment browser:
      `https://desktop.<…>/?tab=<id>`. The desktop shows the Environment's whole screen with the
      other threads' windows; the user works only with their own window there. Payments, file
      choosers and pop-up lists do not need it."
-   - In Computer Use, both languages: while a person holds the screen, `computer` refuses input;
-     the agent does not retry in a loop, tells the user what it waits for, and never takes the
-     screen another way.
+   - In Computer Use, both languages, a rule and no mechanism: cs „Když uživatel pracuje na
+     ploše Prostředí, Computer Use nepoužívej, dokud ti neřekne, že skončil. Když plochu
+     potřebuješ, řekni mu to a počkej.“; en "While the user works on the Environment's desktop,
+     do not use Computer Use until they tell you they are done. When you need the screen, tell
+     them and wait."
 8. **A fact in doctor.** `desktop`: the units, the packages, the socket, and that no x11vnc
    listens on any TCP port; never `fail`, never in `recover`.
 
@@ -25749,8 +25756,7 @@ Lazurio extension) next to the Environment browser:
 | x11vnc or the packages missing | The socket unit is skipped by its condition; the view shows no Plocha button; doctor says what is missing; the view and Computer Use are unchanged |
 | The page closes, the network drops | The socket closes, the lease ends, held keys and buttons are released, the stacking is restored |
 | The service crashes while a person holds | The lease runs out within two minutes; the next start clears it |
-| An agent's input while a person holds | Refused at once with the reason; nothing reaches the driver; reading still works |
-| An agent drives the screen without `computer` | Not stopped (the X server has no access control); the Folder forbids it |
+| An agent's input while a person controls the screen | Not stopped (no gate, by Matěj's decision, and the X server has no access control); the Folder's rule asks agents to wait; collisions are watched in practice before anything enforces a turn |
 | Two people | The last who takes the screen has it; the other sees "Plochu ovládá jiný člověk", their held input is released |
 | The tab's window cannot be told (1 of 36 measured) | The page opens on the whole screen and says it could not find the window |
 | A native window belongs to another thread's tab | It is listed on the whole screen without "Zavřít okno" for the tab's person; the notice says not to close other threads' windows |
@@ -25771,17 +25777,16 @@ Lazurio extension) next to the Environment browser:
 | ffmpeg `x11grab` plus XTEST of our own | Tunable | ffmpeg present | Own protocol | Own machinery | Rejected |
 | A window manager on the screen | — | A WM package | — | Changes every window's geometry and focus | Rejected (point 4) |
 
-**Open for the decision.**
+**Decided and open (Matěj, 2026-11-15).**
 
-1. Who wins: the person always (proposed), or the person waits until an agent's Computer Use is
-   idle for a few seconds.
-2. What a person sees of other threads: the whole screen starting at their window (proposed), or
-   only their tab's window and its native windows (x11vnc `-clip`, one x11vnc per viewer with
-   its rectangle), which hides a bubble the service cannot attribute.
-3. The phone: the desktop at 1:1 with "Zavřít okno" (proposed), or no desktop on a phone and
-   only "Zavřít okno" in the view.
-4. The `computer` entry: Lazurio's pass-through in front of the driver's proxy (proposed), or
-   the driver's proxy as now, with the turn only as the Folder's instruction.
+1. Who goes first, a person or an agent's Computer Use: **open**, to be defined well after the
+   desktop is used in practice.
+2. What a person sees of other threads: **the whole screen starting at their window**, with the
+   notice; not a clip to the tab's window, which would hide a bubble the service cannot
+   attribute.
+3. The phone: **the desktop with a trackpad as Chrome Remote Desktop has it** (point 6).
+4. The `computer` entry: **the driver's proxy as now**, with the turn only as the Folder's rule;
+   any enforcement waits until practice shows how the desktop is used.
 
 **Prototype.** `prototypes/desktop/` runs from a worktree on its own loopback port and touches
 no unit of the Environment: x11vnc, xdotool and x11-utils extracted from Ubuntu's packages into
@@ -25790,7 +25795,9 @@ in place of the socket unit, noVNC 1.7.0 from npm. `check.ts` is the live check 
 
 - the file input's GTK window found and attributed to its tab;
 - the page taking the screen from that tab;
-- `computer`'s `click` refused before the real driver while `get_screen_size` reaches it;
+- `computer`'s `click` refused before the real driver while `get_screen_size` reaches it (the
+  prototype's gate, `computer-gate.ts` and `turn.ts`, an experiment Matěj did not take: no gate
+  is built);
 - Escape typed into the desktop page closing the dialog, the page hearing `cancel`;
 - after the release, the other windows of the screen in the same stacking, position and size.
 
