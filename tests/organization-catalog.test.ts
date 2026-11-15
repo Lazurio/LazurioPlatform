@@ -1043,7 +1043,7 @@ posixTest(
         ["legal", true, null],
         ["planned", true, "no-repository"],
         ["sales", true, null],
-        ["odd", true, null],
+        ["odd", true, "access-unknown"],
       ]);
 
       // The last synchronization: GitHub refused `hr`, `legal`'s access
@@ -1063,6 +1063,9 @@ posixTest(
         entry("workspace/hr", "repository-denied"),
         entry("workspace/legal", "access-ended"),
         entry("workspace/sales"),
+        // A denial recorded for a slot whose access cannot be classified
+        // does not hide that declaration problem (review of #1013).
+        entry("workspace/odd", "repository-denied"),
       ];
       const modules = (denied?: Parameters<typeof catalogChecks>[1]) =>
         catalogChecks(catalog, denied)

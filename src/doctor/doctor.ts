@@ -994,13 +994,17 @@ export function catalogChecks(
     for (const module of entry.modules) {
       const named = { organization, module: safeName(module.module) };
       const unshared =
-        module.absent === true && module.reason === "module-unavailable"
-          ? module.absence === "restricted"
+        module.absent !== true ||
+        module.reason !== "module-unavailable" ||
+        // An access declaration that cannot be classified asks for attention
+        // whatever GitHub answered (installation blocks it for every role).
+        module.absence === "access-unknown"
+          ? undefined
+          : module.absence === "restricted"
             ? "restricted"
             : denied(entry.directory, module.path)
               ? "repository-denied"
-              : module.absence
-          : undefined;
+              : module.absence;
       if (unshared !== undefined) {
         checks.push(
           unshared === "no-repository"
