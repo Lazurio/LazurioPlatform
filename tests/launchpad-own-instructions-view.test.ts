@@ -304,12 +304,12 @@ test("what a save answered is said in one clear sentence in both languages", () 
   ): unknown => ownInstructionsOutcome(ok, value, removed, 4096, copy);
   expect(said(true, { kind: "updated", revision: 2 })).toEqual({
     saved: true,
-    notice: "Uloženo. Nové konverzace se budou řídit těmito pokyny.",
+    notice: "Uloženo. Pokyny jsou v AGENTS.md tohoto Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
     needsRefresh: false,
   });
   expect(said(true, { kind: "unchanged" }, en)).toEqual({
     saved: true,
-    notice: "Saved. New conversations will follow these instructions.",
+    notice: "Saved. The instructions are in this Environment's AGENTS.md; new agent conversations that read it get them.",
     needsRefresh: false,
   });
   expect(said(true, { kind: "updated", revision: 3 }, cs, true)).toEqual({
@@ -735,7 +735,7 @@ test("a save sends the text alone at the page's revision, says it is saved and o
     },
   ]);
   expect(at.says()).toContain(
-    "Uloženo. Nové konverzace se budou řídit těmito pokyny.",
+    "Uloženo. Pokyny jsou v AGENTS.md tohoto Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
   );
   expect(at.button(cs.voiceSave).disabled).toBe(true);
   const link = at.link();
