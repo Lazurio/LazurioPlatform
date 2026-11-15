@@ -4,7 +4,7 @@ Evidence for [recovery mode G.3](../recovery-mode.md#g3-canary-stage-every-machi
 and the [canary of the release cycle](../release-cycle.md#qualification-and-the-canary): the candidate `v0.1.22-rc.1`
 (`a64bbcc8`) ran on every Machine in scope of the pilot Organization, LazurioExampleOrganization, and on one personal VM;
 every Machine was read at both edges of the stage; one recorded smoke test as the pilot Organization's test accounts, its
-Owner and a member, passed between the readings. The stage ran on 2026-11-15 from 15:53:38Z to 21:10:17Z.
+Owner and a member, passed between the readings. The stage ran on 2026-11-15 from 21:05:43Z to 21:10:17Z.
 
 The record is [`qualification/canary/v0.1.22-rc.1.json`](../../qualification/canary/v0.1.22-rc.1.json), added by the same
 pull request as this file. Machines are opaque ids, as in the record: the first 16 hex digits of an HMAC-SHA-256 under the
@@ -45,7 +45,7 @@ word; the prerelease was published at 2026-11-15T00:18:55Z. Qualification run 43
 - **The four Environments of the pilot Organization** on its tailnet host (the Owner's and the member's Work
   Environments, the Team Environment and the Prostředí služeb): LazurioExampleOrganization/infra#293, applied by its push
   run after the merge at 10:29Z. #301 (Machines v0.12.246 and a disk growth) re-applied the same host and ended at
-  15:53:38Z with the candidate unchanged; that end is the stage's start.
+  15:53:38Z with the candidate unchanged; that is the last time a Machine in scope got the candidate.
 - **One personal VM**, the Owner test account's Personal Environment: the product's own updater
   (`lazurio update --version v0.1.22-rc.1`, 2026-11-15 08:19Z, on the release owner's instruction), then its lane on the
   operator path (LazurioExampleOrganization/infra#298, applied 14:31–14:40Z after an independent review).
@@ -58,7 +58,9 @@ word; the prerelease was published at 2026-11-15T00:18:55Z. Qualification run 43
 By one thread, read-only except the smoke test.
 
 1. **Quiet check, 21:05:24Z:** no rollout run in progress, queued or waiting in the pilot Organization's Deployment Repo;
-   its last run (#302) had ended at 15:59:45Z. **Start:** `2026-11-15T15:53:38Z`.
+   its last run (#302) had ended at 15:59:45Z. Every Machine had run the candidate since 15:53:38Z at the latest
+   (the end of #301's apply), but nothing read their health or restarts between that apply and R1, so the stage
+   starts at the first reading. **Start:** `2026-11-15T21:05:43Z`, R1's first reading.
 2. **R1, 21:05:43–21:06:19Z.** Every Machine through its own Launchpad, as the test accounts, each through the client of
    its own space in the pilot Organization's tailnet (`/api/recovery`, the use case of `lazurio recover --json`, and
    `/api/update/status`).
