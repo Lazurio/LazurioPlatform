@@ -1,4 +1,4 @@
-import type { ShellEnvironment } from "./contract";
+import type { ShellEnvironment, ShellIdentity } from "./contract";
 
 // The frame of decision 0248's addendum of 2026-11-15 and 0180's: a page of
 // another person's Environment has a red frame, a page of a shared one (a
@@ -9,9 +9,12 @@ import type { ShellEnvironment } from "./contract";
 //
 // Whose the Environment is comes from the document it answers behind its
 // gateway (`lazurio.shell.v1`, never the page), the viewer from the Lazurio
-// account. Where either is not known, the frame is drawn: a frame too many
-// costs a glance, a frame too few hides that someone else's Environment is
-// open. Pure: no DOM and no I/O.
+// account. Both sides are compared only by an identity that survives a
+// rename, the Lazurio Auth subject or the immutable GitHub id, never by a
+// login or a username: a GitHub login can change, and it can equal another
+// person's frozen Lazurio username. Where either side is not known, the
+// frame is drawn: a frame too many costs a glance, a frame too few hides
+// that someone else's Environment is open. Pure: no DOM and no I/O.
 
 export type EnvFrame =
   | Readonly<{
@@ -33,20 +36,27 @@ export type EnvFrame =
       name: string | null;
     }>;
 
-const same = (a: string, b: string): boolean =>
-  a.toLowerCase() === b.toLowerCase();
+/** True only when both identities name the same person by a member both
+ * carry: the same Lazurio Auth subject, or the same GitHub id. Two
+ * identities that share no member are not known to be one person. */
+export function sameIdentity(
+  a: ShellIdentity | undefined,
+  b: ShellIdentity | null,
+): boolean {
+  if (a === undefined || b === null) return false;
+  if (a.subject !== undefined && b.subject !== undefined)
+    return a.subject === b.subject;
+  if (a.githubId !== undefined && b.githubId !== undefined)
+    return a.githubId === b.githubId;
+  return false;
+}
 
-const isViewer = (
-  login: string | null | undefined,
-  viewer: string | null,
-): boolean =>
-  typeof login === "string" && viewer !== null && same(login, viewer);
-
-/** The frame of a page of `environment` for `viewer` (the Lazurio account's
- * login, null when not known); null for none. */
+/** The frame of a page of `environment` for `viewer` (the identity of the
+ * Lazurio account signed in, `ShellAccount.identity`; null when not known);
+ * null for none. */
 export function envFrame(
   environment: ShellEnvironment | undefined,
-  viewer: string | null,
+  viewer: ShellIdentity | null,
 ): EnvFrame | null {
   if (environment === undefined || environment.kind === "workstation")
     return null;
@@ -57,7 +67,7 @@ export function envFrame(
     case "automated":
       return { tone: "shared", shared: "henry", name };
     case "personal":
-      if (isViewer(environment.owner, viewer)) return null;
+      if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
         login: environment.owner ?? null,
@@ -71,7 +81,7 @@ export function envFrame(
       if (environment.assignee === null) {
         return { tone: "shared", shared: "work", name };
       }
-      if (isViewer(environment.assignee, viewer)) return null;
+      if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
         login: environment.assignee,

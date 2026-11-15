@@ -77,6 +77,9 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
           "organizations": [
             "example",
           ],
+          "ownerIdentity": {
+            "githubId": 20002,
+          },
         },
       ],
       "locale": "cs",
@@ -115,6 +118,9 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
           "organizations": [
             "example",
           ],
+          "ownerIdentity": {
+            "githubId": 20002,
+          },
         },
       ],
       "locale": "en",
@@ -353,6 +359,7 @@ exports[`golden: services-01, the services Environment of a server renders, deri
           "organizations": [
             "example",
           ],
+          "services": true,
         },
       ],
       "locale": "cs",
@@ -391,6 +398,7 @@ exports[`golden: services-01, the services Environment of a server renders, deri
           "organizations": [
             "example",
           ],
+          "services": true,
         },
       ],
       "locale": "en",
