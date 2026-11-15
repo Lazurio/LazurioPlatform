@@ -32,7 +32,9 @@ apply it.
   Core validates Organization manifests on a person's computer against its own
   `lazurio/lazurio.organization.v1.schema.json` until it pins the schema of this
   repository by commit and SHA-256. It never extends the contract on its own.
-- **Known gaps.** The GEN3 Root's own schema does not define
+- **Known gaps.** The GEN3 Root's own schema does not define `settings.tools`
+  (F73) until its Core follows this repository, so its `lazurio organization
+  check` refuses a manifest that declares tools. It also does not define
   `settings.workspace.tabs`, which `organizationSettings` reads ([F32](decisions.md#f32--teams-are-not-a-presentation-axis-of-the-launchpad-an-environment-is-one-workspace),
   addendum of 2026-10-16): a manifest with tabs fails that schema while this
   repository's readers and schema accept them.
@@ -120,8 +122,13 @@ Decision 0194 adds the optional, closed `settings` section of
 tree and the schema's `$defs.organizationSettings` states it. Its settings are
 `integrations.composio.allowed`, `integrations.chatgpt_apps.allowed`,
 `integrations.microsoft365` (`tenant_id`, `client_id`, `apps`, `callbacks`),
-the Dashboard's own `access_requests.enabled`, and `workspace.tabs`, which the
-GEN3 Root's schema lacks (see the known gaps above).
+the Dashboard's own `access_requests.enabled`, `workspace.tabs`, which the
+GEN3 Root's schema lacks (see the known gaps above), and `tools`, the tools the
+Organization's work Environments have ([F73](decisions.md#f73--an-organizations-tools-declared-in-its-settings-installed-and-kept-at-their-minimum-by-lazurio-update-in-its-environments)):
+a list of `{ tool, minimum }`, each a tool the catalog has a recipe for
+(`organizationToolIds`) with a `major.minor.patch` minimum, each tool once. The
+recipe (installer, update, version) is the catalog's, never the manifest's, so
+the leaf refuses any other key.
 
 - `parseCanonicalOrganization` accepts the section and keeps it as authored but
   never judges it. `organizationSettings` (`src/organizations/organization-settings.ts`)
@@ -189,6 +196,7 @@ reason.
   - `module_port_pool.start` does not exceed `end`;
   - two Workspace tabs never share a name (in NFC, ignoring letter case), and a
     module is in one tab at most;
+  - a tool is declared once in `settings.tools`;
   - a tab name has at most 40 UTF-16 code units: a name of 21 to 40 characters
     outside the Basic Multilingual Plane, such as emoji, passes only the schema;
   - the declared projection digest is the digest of the projection of this

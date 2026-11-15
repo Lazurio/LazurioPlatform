@@ -13,6 +13,7 @@ import {
 } from "../tools/catalog";
 import { type MachineBinding, parseMachineBinding } from "./machine-binding";
 import { manifestOutputPaths, type OutputPath } from "./outputs";
+import { ownInstructionsProblem } from "./own-instructions";
 import {
   type PresetReference,
   parsePresetReference,
@@ -66,6 +67,12 @@ export const instructionManifestSchema = 6;
 // person's own choice to let agents use the apps of their ChatGPT account,
 // only where no Organization governs (a personal Environment, the person's
 // own computer): `true`, or absent for off, the default.
+// `customInstructions` (root decision 0233, decision F14's addendum of
+// 2026-11-06) is the person's own instructions for agents: plain text within
+// `maxOwnInstructionsBytes`, `""` when there are none. The text is kept
+// verbatim on every preset; whether it renders is the composition's
+// (`ownInstructionsAllowed`), so a Folder that holds a text where none is
+// allowed still reads.
 export type FolderPreferences = Readonly<{
   schemaVersion: 2 | 3;
   agentVoice?: AgentVoice;
@@ -255,10 +262,17 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
   ]);
   if (
     (value.schemaVersion !== 2 && value.schemaVersion !== 3) ||
-    (withVoice && value.schemaVersion !== 3) ||
-    typeof value.customInstructions !== "string"
+    (withVoice && value.schemaVersion !== 3)
   )
     throw new Error("Unsupported Folder preferences");
+  // Text that is not plain or is over the bound was not written by this
+  // product: the refusal names the field, never its content.
+  const customInstructions = value.customInstructions;
+  if (
+    typeof customInstructions !== "string" ||
+    ownInstructionsProblem(customInstructions) !== null
+  )
+    throw new FolderStateUnreadable("invalid", { field: "customInstructions" });
   const tools = withTools ? parseEnabledTools(value.tools) : undefined;
   if (tools?.length === 0)
     throw new Error("Empty enabled tools must be absent");
@@ -296,9 +310,10 @@ export function parseFolderPreferences(input: unknown): FolderPreferences {
     preset,
     machine,
     profile,
-    // Source is preserved verbatim. This schema neither executes it nor imports
-    // effective mandates; composition/conflict handling is a separate consumer.
-    customInstructions: value.customInstructions,
+    // The person's text is preserved verbatim. It grants nothing: the
+    // rendered section says so and the rules of Lazurio and of the
+    // Organization win (root decision 0233).
+    customInstructions,
     ...(tools === undefined ? {} : { tools }),
     ...(notes === undefined ? {} : { toolNotes: notes }),
     ...(settings === undefined ? {} : { organizationSettings: settings }),

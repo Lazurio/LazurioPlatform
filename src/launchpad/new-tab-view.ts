@@ -198,6 +198,41 @@ const en = {
   updateBunFailed: "Version {version} could not be prepared",
   updateBunUnknown:
     "For some apps, the version they need could not be determined",
+  updateToolsName: "The Organization's tools",
+  updateToolInstalling: "Installing, minimum {minimum}",
+  updateToolUpdating: "Raising to minimum {minimum}",
+  updateToolInstalled: "Version {version} installed",
+  updateToolUpdated: "Raised from version {from} to {version}",
+  updateToolOffPath:
+    "Version {version} is installed, but ~/.local/bin is not on this PATH, so commands do not find it",
+  updateToolForeign:
+    "Version {version} at {path} was installed another way and is below minimum {minimum}; Lazurio leaves it as it is. Update it where it came from",
+  updateToolPlatform: "Lazurio does not install it on this system yet",
+  updateToolFailed: "{stage}: {reason}",
+  updateToolStageInstall: "The installation did not finish",
+  updateToolStageUpdate: "The update did not finish",
+  updateToolStageLink: "It could not be linked into ~/.local/bin",
+  updateToolStageVerify: "It did not pass the check",
+  updateToolExit: "it ended with error code {code}",
+  updateToolTimeout: "it did not finish in time",
+  updateToolSpawn: "it could not be started",
+  updateToolStableBelow:
+    "the newest stable is {version}, below minimum {minimum}; the selected toolchain stays",
+  updateToolBelowAfter:
+    "afterwards version {version} is still below minimum {minimum}",
+  updateToolNotFound: "afterwards the tool was not found",
+  updateToolUnreadable: "the tool did not report its version",
+  updateToolToolchain: "the selected toolchain could not be read",
+  updateToolHome: "the home directory is not known",
+  updateToolOther: "reason {reason}",
+  updateToolSource: "Official installation",
+  updateToolsNotPublished:
+    "Not checked: the Organization's root is not on the version it published, and only a published declaration is installed",
+  updateToolsInvalid:
+    "Not checked: the Organization's settings are invalid; lazurio organization check says why",
+  updateToolsUnreadable:
+    "Not checked: the Organization's settings could not be read",
+  updateToolsFailed: "They could not be checked",
 };
 type Words = { readonly [K in keyof typeof en]: string };
 const cs: Words = {
@@ -363,6 +398,41 @@ const cs: Words = {
   updateBunFailed: "Verzi {version} se nepodařilo připravit",
   updateBunUnknown:
     "U některých aplikací se nepodařilo zjistit, jakou verzi potřebují",
+  updateToolsName: "Nástroje Organizace",
+  updateToolInstalling: "Instaluje se, minimum {minimum}",
+  updateToolUpdating: "Zvedá se na minimum {minimum}",
+  updateToolInstalled: "Nainstalována verze {version}",
+  updateToolUpdated: "Zvednuto z verze {from} na {version}",
+  updateToolOffPath:
+    "Verze {version} je nainstalovaná, ale ~/.local/bin není v PATH, a tak ji příkazy nenajdou",
+  updateToolForeign:
+    "Verze {version} v {path} je nainstalovaná jinak a je pod minimem {minimum}; Lazurio ji nechává, jak je. Aktualizujte ji tam, odkud pochází",
+  updateToolPlatform: "Na tomto systému ho Lazurio zatím neinstaluje",
+  updateToolFailed: "{stage}: {reason}",
+  updateToolStageInstall: "Instalace nedoběhla",
+  updateToolStageUpdate: "Aktualizace nedoběhla",
+  updateToolStageLink: "Nepodařilo se ho propojit do ~/.local/bin",
+  updateToolStageVerify: "Neprošel kontrolou",
+  updateToolExit: "skončila s chybovým kódem {code}",
+  updateToolTimeout: "nedoběhla včas",
+  updateToolSpawn: "nešla spustit",
+  updateToolStableBelow:
+    "nejnovější stable je {version}, pod minimem {minimum}; zvolený toolchain zůstal",
+  updateToolBelowAfter:
+    "potom je tu pořád verze {version}, pod minimem {minimum}",
+  updateToolNotFound: "potom nebyl nástroj nalezen",
+  updateToolUnreadable: "nástroj neřekl svou verzi",
+  updateToolToolchain: "nepodařilo se zjistit zvolený toolchain",
+  updateToolHome: "není známá domovská složka",
+  updateToolOther: "důvod {reason}",
+  updateToolSource: "Oficiální instalace",
+  updateToolsNotPublished:
+    "Nezkontrolovány: kořen Organizace není na verzi, kterou publikovala, a instaluje se jen publikovaná deklarace",
+  updateToolsInvalid:
+    "Nezkontrolovány: nastavení Organizace je neplatné; proč, řekne lazurio organization check",
+  updateToolsUnreadable:
+    "Nezkontrolovány: nastavení Organizace se nepodařilo přečíst",
+  updateToolsFailed: "Nepodařilo se je zkontrolovat",
 };
 
 export type NewTabCopy = Words;
@@ -1472,6 +1542,24 @@ export type UpdateJobLine =
       version?: string;
       to?: string;
       code?: string;
+    }>
+  | Readonly<{
+      /** A tool the Environment's Organization declares (decision F73);
+       * without `tool`, the part as a whole (not run or failed). */
+      part: "organization-tools";
+      tool?: string;
+      minimum?: string;
+      step?: "installing" | "updating";
+      result?: string;
+      version?: string;
+      from?: string;
+      stage?: string;
+      reason?: string;
+      path?: string;
+      /** The tool's official installation page, an https address. */
+      source?: string;
+      /** False only when the user's PATH does not reach it. */
+      onPath?: false;
     }>;
 
 export type UpdateJob = Readonly<{
@@ -1485,8 +1573,28 @@ const lineSteps = new Set([
   "checking",
   "fetching",
   "fast-forwarding",
+  "cloning",
   "building",
+  "installing",
+  "updating",
 ]);
+const contentSteps = new Set([
+  "checking",
+  "fetching",
+  "fast-forwarding",
+  "cloning",
+]);
+/** An https address, or nothing: a link the page draws is never another
+ * scheme. */
+const httpsAddress = (value: unknown) => {
+  const address = word(value, 200);
+  if (address === undefined) return undefined;
+  try {
+    return new URL(address).protocol === "https:" ? address : undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 function parseUpdateLine(value: unknown): UpdateJobLine | null {
   if (!isRecord(value)) return null;
@@ -1506,7 +1614,7 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
         part: "content",
         root: word(value.root),
         path: word(value.path),
-        step: step === "building" ? undefined : step,
+        step: step !== undefined && contentSteps.has(step) ? step : undefined,
         result,
         reason: word(value.reason, 60),
         to: word(value.to, 64),
@@ -1540,6 +1648,23 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
         commit: word(value.commit, 64),
       }),
     ) as UpdateJobLine;
+  if (value.part === "organization-tools")
+    return Object.freeze({
+      ...own({
+        part: "organization-tools",
+        tool: word(value.tool, 40),
+        minimum: word(value.minimum, 40),
+        step: step === "installing" || step === "updating" ? step : undefined,
+        result,
+        version: word(value.version, 64),
+        from: word(value.from, 64),
+        stage: word(value.stage, 20),
+        reason: word(value.reason, 80),
+        path: word(value.path, 300),
+        source: httpsAddress(value.source),
+      }),
+      ...(value.onPath === false ? { onPath: false } : {}),
+    }) as UpdateJobLine;
   if (value.part === "product")
     return Object.freeze(
       own({
@@ -1593,6 +1718,9 @@ export type UpdateRow = Readonly<{
     | "current"
     | "finding";
   text: string;
+  /** The next step, where the row has one: the tool's official
+   * installation page. */
+  link?: Readonly<{ href: string; text: string }>;
 }>;
 
 export type UpdateView = Readonly<{
@@ -1631,8 +1759,123 @@ function bunFinding(
   return copy.updateBunFailed;
 }
 
+/** Why a step of an Organization tool did not end well, in words: a known
+ * reason, or its code where there are no words for it yet. */
+function toolReason(
+  line: Extract<UpdateJobLine, { part: "organization-tools" }>,
+  copy: NewTabCopy,
+): string {
+  const reason = line.reason ?? "";
+  const minimum = line.minimum ?? "";
+  const exit = /^exit-(\d+)$/.exec(reason);
+  if (exit !== null) return fill(copy.updateToolExit, { code: exit[1] ?? "" });
+  const [code, version = ""] = reason.split(":", 2);
+  switch (code) {
+    case "timeout":
+      return copy.updateToolTimeout;
+    case "spawn-failed":
+      return copy.updateToolSpawn;
+    case "stable-below-minimum":
+      return fill(copy.updateToolStableBelow, { version, minimum });
+    case "below-minimum-after":
+      return fill(copy.updateToolBelowAfter, { version, minimum });
+    case "not-found-after":
+      return copy.updateToolNotFound;
+    case "version-unreadable":
+    case "stable-version-unreadable":
+      return copy.updateToolUnreadable;
+    case "toolchain-unknown":
+      return copy.updateToolToolchain;
+    case "home-unknown":
+      return copy.updateToolHome;
+    default:
+      return fill(copy.updateToolOther, { reason });
+  }
+}
+
+/** One Organization tool's row (decision F73): its step while it runs,
+ * then what it ended with; nothing for one already at its minimum on the
+ * user's PATH. A finding names its stage and reason and links the tool's
+ * official installation. */
+function toolRow(
+  line: Extract<UpdateJobLine, { part: "organization-tools" }>,
+  copy: NewTabCopy,
+): UpdateRow | null {
+  const values = {
+    minimum: line.minimum ?? "",
+    version: line.version ?? "",
+    from: line.from ?? "",
+    path: line.path ?? "",
+  };
+  const row = (
+    state: UpdateRow["state"],
+    words: string,
+    linked = false,
+  ): UpdateRow => ({
+    key: `organization-tools\0${line.tool ?? ""}`,
+    name: line.tool ?? copy.updateToolsName,
+    stone: null,
+    state,
+    text: fill(words, values),
+    ...(linked && line.source !== undefined
+      ? { link: { href: line.source, text: copy.updateToolSource } }
+      : {}),
+  });
+  if (line.tool === undefined) {
+    if (line.result === "failed") return row("finding", copy.updateToolsFailed);
+    if (line.reason === "not-published")
+      return row("finding", copy.updateToolsNotPublished);
+    if (line.reason === "settings-invalid")
+      return row("finding", copy.updateToolsInvalid);
+    if (line.reason === "settings-unreadable")
+      return row("finding", copy.updateToolsUnreadable);
+    return null;
+  }
+  if (line.step === "installing")
+    return row("building", copy.updateToolInstalling);
+  if (line.step === "updating") return row("building", copy.updateToolUpdating);
+  switch (line.result) {
+    case "current":
+      return line.onPath === false
+        ? row("finding", copy.updateToolOffPath)
+        : null;
+    case "installed":
+      return line.onPath === false
+        ? row("finding", copy.updateToolOffPath)
+        : row("done", copy.updateToolInstalled);
+    case "updated":
+      return line.onPath === false
+        ? row("finding", copy.updateToolOffPath)
+        : row("done", copy.updateToolUpdated);
+    case "below-minimum":
+      return row("finding", copy.updateToolForeign, true);
+    case "unsupported-platform":
+      return row("finding", copy.updateToolPlatform, true);
+    case "failed": {
+      const stage =
+        line.stage === "update"
+          ? copy.updateToolStageUpdate
+          : line.stage === "link"
+            ? copy.updateToolStageLink
+            : line.stage === "verify"
+              ? copy.updateToolStageVerify
+              : copy.updateToolStageInstall;
+      return {
+        ...row("finding", "", true),
+        text: fill(copy.updateToolFailed, {
+          stage,
+          reason: toolReason(line, copy),
+        }),
+      };
+    }
+    default:
+      return null;
+  }
+}
+
 /** The run's rows: one per module in the order its lines came, the
- * Organization's root only when it is a finding, then each Bun a moved
+ * Organization's root only when it is a finding, then each tool the
+ * Organization declares that did something or could not, then each Bun a moved
  * module pins that was fetched or could not be, and one finding when the
  * pins could not all be read, Lazurio last. */
 export function updateView(
@@ -1685,12 +1928,16 @@ export function updateView(
   };
   const roots: UpdateRow[] = [];
   const bun: Extract<UpdateJobLine, { part: "tools" }>[] = [];
+  const organizationTools: UpdateRow[] = [];
   let note: string | null = null;
   let product: Extract<UpdateJobLine, { part: "product" }> | null = null;
   for (const line of job.lines) {
     if (line.part === "product") product = line;
     else if (line.part === "tools") bun.push(line);
-    else if (line.part === "content") {
+    else if (line.part === "organization-tools") {
+      const row = toolRow(line, copy);
+      if (row !== null) organizationTools.push(row);
+    } else if (line.part === "content") {
       if (line.root === undefined || line.path === undefined) {
         if (line.result === "not-run" && line.reason === "content-busy")
           note = copy.updateBusy;
@@ -1796,6 +2043,10 @@ export function updateView(
       continue;
     else row("current", copy.updateCurrent);
   }
+  // The Organization's tools (decision F73), in the order they ran, after
+  // the modules: each one installed, raised or not had, with its step while
+  // it runs.
+  rows.push(...organizationTools);
   // A Bun that was there already (the user's own, or the runtime cache's)
   // needed nothing and says nothing. The part as a whole failed when the
   // pins of the moved modules could not all be read: one finding after the

@@ -80,12 +80,10 @@ export function resolvedVoice(locale: VoiceLocale, voice?: AgentVoice) {
   });
 }
 
-export function voiceSection(
-  locale: VoiceLocale,
-  voice?: AgentVoice,
-): string[] {
-  const text = resolvedVoice(locale, voice).text;
-  // Longer than any authored run: text cannot close the fence or import a file.
+/** The fence of a block that holds person-written text (the voice, the
+ * person's own instructions): longer than any authored run, so the text
+ * cannot close the fence or import a file. */
+export function textFence(text: string): string {
   const ticks = Math.max(
     3,
     ...Array.from(text.matchAll(/`+/g), (match) => match[0].length + 1),
@@ -94,7 +92,15 @@ export function voiceSection(
     3,
     ...Array.from(text.matchAll(/~+/g), (match) => match[0].length + 1),
   );
-  const fence = ticks <= tildes ? "`".repeat(ticks) : "~".repeat(tildes);
+  return ticks <= tildes ? "`".repeat(ticks) : "~".repeat(tildes);
+}
+
+export function voiceSection(
+  locale: VoiceLocale,
+  voice?: AgentVoice,
+): string[] {
+  const text = resolvedVoice(locale, voice).text;
+  const fence = textFence(text);
   return [
     locale === "cs" ? "## Tón komunikace" : "## Communication voice",
     locale === "cs"

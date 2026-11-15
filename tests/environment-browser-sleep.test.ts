@@ -273,6 +273,10 @@ async function threadWorld() {
       calls.push([method, params]);
       return { targetId: id(0x900) };
     },
+    navigate: async (targetId, url) => {
+      calls.push(["Page.navigate", targetId, url]);
+      return "started";
+    },
     ...(withPages ? { pages: async () => pages } : {}),
   });
   return { sockets, holders, bind, calls, pages, seams };
@@ -379,6 +383,7 @@ test("two threads whose names differ by a trailing -2 are two threads: neither e
     session: "t3-thread",
     targetId: id(0x900),
     created: true,
+    navigation: "started",
   });
   // A holder file whose strip names another thread holds nothing here.
   await writeFile(

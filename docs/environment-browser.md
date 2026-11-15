@@ -59,7 +59,8 @@ held by review and by the release process.
   is removed (0191), so its profile and sign-ins never pass to someone else.
 - **The screen's other programs** are worked through Computer Use, one agent at a time
   ([F59](decisions.md#f59--computer-use-on-a-remote-environment-the-cua-drivers-daemon-on-the-screen-one-mcp-server-computer-for-every-agent)).
-  A web desktop on which people watch the screen is a later wave (0191).
+  A web desktop on which people watch the screen is a later wave (0191); its design, as the
+  escape for windows the view cannot show, is proposed in [F74](decisions.md#f74--the-desktop-of-a-remote-environment-the-escape-for-the-windows-the-browser-view-cannot-show).
 
 ## How an agent uses it
 
@@ -72,8 +73,12 @@ the view. That text is the agents' instruction; this list is what it follows.
    thread's window, or returns the one its session is bound to, and prints the
    session, the link to its tab and the command to work in it. The window is a new
    window of the browser's default context (CDP `Target.createTarget` with
-   `newWindow`), so it has the Environment's sign-ins; the session is bound to it and
-   pinned (`src/browser/window.ts`). The binding counts only once the session's
+   `newWindow`), so it has the Environment's sign-ins. It opens at `about:blank`, the
+   session is bound to it and pinned there, and only then does the browser open the
+   address (`Page.navigate` on the page, `Sec-Fetch-Site: none`), so a slow or busy
+   page never fails the binding (#987; F38, addendum of 2026-11-15). An address still
+   loading after 10 s, or one the browser refused, leaves the window bound, and
+   `window` says so on stderr (`src/browser/window.ts`). The binding counts only once the session's
    binding file names the window: agent-browser's answer alone proves nothing (#974).
    A fresh daemon makes the first live tab of the browser its own, whoever's it is,
    and records its tab after every command, a failed one too, so a `tab <id>` that
@@ -92,8 +97,10 @@ the view. That text is the agents' instruction; this list is what it follows.
    and `browser open` settle it first: they ask its daemon once more to shut down,
    remove the binding it left once it has ended, and drop the mark. When the daemon
    still runs, or the binding cannot be checked or removed, they run no command in
-   the session and open nothing for it: `window` fails with "binding cannot be
-   verified yet", and `browser open` opens the page without the thread. The window
+   the session and open nothing for it: `window` fails with `binding-unverified`,
+   naming the session and the way out (`lazurio browser done --session <session>`,
+   which lets the daemon go and settles the binding, then `window` again, or another
+   session at once), and `browser open` opens the page without the thread. The window
    that could not be bound is not retried: nothing holds it, so the hub ends it, and
    `window` fails and says to run it again. `--url` applies to a new window only. The session
    is `--session`, else `AGENT_BROWSER_SESSION` (T3 Code sets it per thread), else
@@ -138,8 +145,11 @@ the view. That text is the agents' instruction; this list is what it follows.
    daemon may run or its binding names an open tab. A window whose binding is marked
    unverified (point 1) is ambiguous too: its binding may name another agent's tab.
    `tabs` names an ambiguous window apart,
-   by its session only (never its address or title), and says its list is not complete;
-   `done --all` leaves it and fails. The windows come from agent-browser's bindings (C7)
+   by its session only (never its address or title), and says its list is not complete:
+   `complete: false`, and a first line that says why and what to do. It still exits 0,
+   since the listing worked; an agent reads `complete` and does not repeat it.
+   `done --all` leaves such a window and fails, except the thread's own sessions whose
+   binding alone is unverified, which it lets go of and settles. The windows come from agent-browser's bindings (C7)
    and the records (`readThreadSessions`, `src/browser/window.ts`), their facts from the hub's loopback
    list (C11); `agent-browser … tab list` lists every thread's tabs without an owner. No number limits a thread's windows (F38, addendum
    of 2026-11-14); the agent keeps track of them instead. It reads helper pages
@@ -149,24 +159,43 @@ the view. That text is the agents' instruction; this list is what it follows.
    that runs, bound to an open page: `heldThreadWindows`, `src/browser/window.ts`),
    it writes a note to stderr naming them with their addresses and reminding the agent
    of `done --session <session>` and `done --all`; it refuses nothing and exits 0.
-7. **Done.** `lazurio browser done` lets go of the window: it asks the session's own
+7. **The shared browser: every tab, and taking one** (F38, addendum of 2026-11-15).
+   The Environment browser is shared, and agents may work together. `lazurio browser
+   tabs --all` adds every tab of the Environment to the thread's list: its id, address,
+   title and the person's link, the agent-browser sessions bound to it with their
+   thread where a window record tells and whether their agent-browser runs, the places
+   that hold it and how many people view it. It is an overview, never a licence to
+   work in another's tab. `lazurio browser take <id>` takes one into the thread's
+   session on purpose: without `--confirm` it describes from whom and what happens and
+   exits 3; with it the other sessions bound to the tab are let go as `done` lets go of
+   one, the session is bound and pinned, and the tab is recorded as the thread's window.
+   Nothing closes and no holder file changes. The earlier holders keep their
+   agent-browser binding (removing it would send their next command to the first live
+   tab of the browser), and a note (`taken/<session>.json`) tells their `tabs`,
+   `done --all`, `window` and `apps open` that the tab is the other thread's now;
+   agent-browser itself does not tell their agent, which works in the same tab if it
+   goes on in its session. `take` refuses a tab that is not there, a session bound to
+   another open window it would leave, and a holder whose daemon does not shut down.
+8. **Done.** `lazurio browser done` lets go of the window: it asks the session's own
    agent-browser daemon on its socket to shut down and never signals a process
-   (`stopSessionDaemon`, C7). `done --all` does so for every confirmed window of the
-   thread. A daemon whose process runs while nothing answers on its socket may still hold
+   (`stopSessionDaemon`, C7), and once that daemon has ended it settles a binding an
+   earlier `window` left unverified. `done --all` does so for every confirmed window of
+   the thread and for its own sessions whose binding is unverified or whose tab was
+   taken. A daemon whose process runs while nothing answers on its socket may still hold
    the window, so `done` answers `unconfirmed` and fails rather than `none`. The
    tab then ends once nothing holds it and nobody views it, so an agent checks with
    `lazurio browser tabs` before it tells the person its windows are closed. Agents
    never use `agent-browser … tab close` or `close`, which close the tab for everyone,
    and never stop or restart the browser or its units.
-8. **A lost window.** When agent-browser answers `tab_gone`, the window is gone (a
+9. **A lost window.** When agent-browser answers `tab_gone`, the window is gone (a
    renderer ended under the memory budget, or the browser restarted):
    `lazurio browser window` opens a new one, and the agent sends its new link.
-9. **Another Environment's browser.** Work for an Organization runs in the browser of
+10. **Another Environment's browser.** Work for an Organization runs in the browser of
    that Organization's Environment. From the Personal Environment the agent runs
    `lazurio browser window --session <session> --url <address>` there over SSH and
    sends the link to that Environment's view, which is never loaded inside this
    Environment's browser (0191).
-10. **Diagnosis.** `lazurio doctor`, fact `environment-browser` (`src/browser/units.ts`):
+11. **Diagnosis.** `lazurio doctor`, fact `environment-browser` (`src/browser/units.ts`):
    the three units, DevTools and the view on loopback, holder files that cannot be
    read (`browser-holder-unreadable`), and the GitHub login of the browser's kept
    github.com sign-in. It warns and never fails, and it starts and restarts nothing.
@@ -184,11 +213,12 @@ the view. That text is the agents' instruction; this list is what it follows.
 | Holder files, `$XDG_RUNTIME_DIR/lazurio-browser/holders/<strip>.json` | The format is the Platform's (C5); each file belongs to the server of the app whose strip it is | Which tabs a strip holds |
 | The list of live tabs, `$XDG_RUNTIME_DIR/lazurio-browser/tabs.json` | The hub (C6) | A fresh snapshot of the browser's tabs on the boot clock, by which every app reconciles its holds |
 | A thread's window records, `$XDG_RUNTIME_DIR/lazurio-browser/windows/<session>.json` | Platform CLI, `src/browser/window.ts` (`lazurio browser window`, `lazurio apps open`) | Which thread opened a window, with the tab it bound: what `tabs`, `done --all` and the note of `window` take as the thread's. The hub never reads it |
-| Marks of an unverified binding, `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json` | Platform CLI, `src/browser/window.ts` (`lazurio browser window`, `lazurio apps open`, `browser open`) | That a session's agent-browser binding is no evidence of its window yet, from the first command of a binding until it is verified or settled (#974, Pablo's review of #986), with the tabs it may keep naming. While it is there, nothing takes the binding as the session's window and `tabs` and `done --all` do not count it. The hub never reads it |
+| Marks of an unverified binding, `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json` (C19) | Platform CLI, `src/browser/window.ts` (`lazurio browser window`, `lazurio apps open`, `browser open`, `take`) | That a session's agent-browser binding is no evidence of its window yet, from the first command of a binding until it is verified or settled (#974, Pablo's review of #986), with the tabs it may keep naming. While it is there, nothing takes the binding as the session's window, `tabs` does not confirm it and T3 Code's strip does not take it in; `done` settles it once the daemon has ended. The hub never reads it |
+| Notes of a taken window, `$XDG_RUNTIME_DIR/lazurio-browser/taken/<session>.json` | Platform CLI, `src/browser/window.ts` (`lazurio browser take`) | That another thread took the session's tab on purpose, which thread, into which session and when. While the session's binding still names that tab, its `tabs` lists it as taken, `done --all` lets go of it, and `window` and `apps open` give the session a new window. The hub never reads it |
 | The hub's loopback requests, `/.lazurio/tabs…` | The hub (C11); only the Launchpad and `lazurio browser` call them | List, open, close for everyone, Vrátit, Uspat, Probudit; never through the gateway, never from a page |
 | Přehled and the Launchpad's actions, `/api/new-tab/…` | Platform, `src/launchpad/new-tab-routes.ts` | Memory, tabs and running Modules; open, hold, release, close for everyone, Vrátit |
 | Nová karta: the page `/new-tab` and the element `<lazurio-new-tab>` | Platform shell (C10) | One New Tab for every app's "+", and a standalone page for ChatGPT Desktop |
-| `lazurio browser` | Platform CLI, `src/browser/cli.ts` (C13) | `window`, `link`, `open`, `tabs` and `done` for agents and CLIs |
+| `lazurio browser` | Platform CLI, `src/browser/cli.ts` (C13) | `window`, `link`, `open`, `tabs` (with `--all`, every tab), `take` and `done` for agents and CLIs |
 | `agent-browser` | Fork [`Lazurio/agent-browser`](https://github.com/Lazurio/agent-browser) (C7) | The agents' tool: sessions, a session's binding to its tab, the pinned tab, the idle timeout |
 | The agents' text | Platform, `src/folder/manual.ts` | The Folder's `manual/this-machine.md` section and the AGENTS.md line |
 
@@ -369,7 +399,7 @@ documented command of the fork is to replace it (F50 point 2), and only the outc
 the fork carries fixes and distribution, and its runbook
 `docs/operations/lazurio-fork-release.md` describes its releases.
 
-## The contracts C1 to C18
+## The contracts C1 to C19
 
 The programs that meet in the Environment browser agree through these contracts
 (F50). The one definition of each is the Platform's module `src/browser/contract/`,
@@ -378,7 +408,8 @@ and its executable vectors in `src/browser/contract/vectors/v1/` are their truth
 module, fails when an export has no case or a case names no export, and pins the
 module's exported names. C11 and C12 are internal to the Platform: their shapes are in
 `src/browser/contract/platform.ts`, which the forks do not get, and they have no
-vectors. C18 was added by F50's addendum of 2026-10-18.
+vectors. C18 was added by F50's addendum of 2026-10-18, C19 by its addendum of
+2026-11-15.
 
 The table was checked against the Platform's `main` at `a2927744`. In it, `pure.ts`,
 `node.ts` and `platform.ts` are files of `src/browser/contract/`, `people/` is
@@ -400,12 +431,13 @@ forks only where they touch a contract today.
 | C10 | **Nová karta's interface:** `<lazurio-new-tab strip tools focus-address lang>`; `tools` is JSON `[{id, label, key?, icon?}]`, at most 12, an id matching `^[a-z0-9][a-z0-9-]{0,31}$`; the event `lazurio-new-tab` with `{kind: "page" \| "tab", tab, view}` or `{kind: "tool", id}`; the registry of tool ids `terminal`, `files`, `diff`, `pull-request`, `linked-pull-requests`, `agents` and `device`, each with its icon | Platform shell (interface v1) | `newTabEventName`, `maxNewTabTools`, `parseNewTabTools`, `newTabViewOf`, `parseNewTabChoice`, `newTabToolIcons`, `newTabToolIcon` (`pure.ts`); `src/shell/new-tab-protocol.ts`, `src/shell/new-tab-element.ts`, the page (`new-tab-page.ts`), the Launchpad's panel (`browser-panel.ts`, `browser-panel-view.ts`) | `new-tab.json`; `shell-new-tab.test.ts`; `shell-interface.test.ts` | T3 Code web inserts the element and maps its tools with its own copy |
 | C11 | **The hub's loopback requests:** `GET /.lazurio/tabs[?heap=1]`; `POST /.lazurio/tabs {url, strip?}` → 201 `{id, view}`, or 200 with `reused: true` for a tab of the same strip at that address; `POST /.lazurio/tabs/<id>/close`, `restore`, `sleep` or `wake` (`wake` also for a remembered tab that ended); a sleeping tab's reason is `idle`, `pressure`, `asked` or `ended`; only with a loopback `Host`, refused with any `Origin` or `Sec-Fetch-Site` | The hub (Platform only) | The shapes in `platform.ts` (`hubTabsPath`, `hubTabPath`, `hubRequestOf`, `parseHubTab`); served by `classifyRequest` (`people/service.ts`); called by the Launchpad (`new-tab/hub-client.ts`) and by `lazurio browser link --url` and `open` | `launchpad-new-tab.test.ts`; `environment-browser-view.test.ts`; `environment-browser-sleep.test.ts`; no vectors | No fork calls it, and none gets it |
 | C12 | **The Launchpad's view routes:** `GET /.lazurio/browser.json[?session=]` → `{available: true, view, session}` or `{available: false, reason}` (`not-declared`, `view-unavailable`); `GET /.lazurio/browser[?session=]` → a redirect to the view | The Launchpad (Platform only) | The shapes in `platform.ts`; served by `src/launchpad/server.ts` with `src/browser/view.ts`; read by Nová karta's page (`new-tab-page.ts`); `lazurio browser link` prints the hand-over (`browserHandoverUrl`, `src/browser/cli.ts`) | `environment-browser.test.ts`; `browser-panel-view.test.ts`; no vectors | `?session=` stays for T3 Code 0.0.45-lazurio.7 until lazurio.8 runs everywhere (`platform.ts`) |
-| C13 | **`lazurio browser … --json`:** `{"schema": "lazurio.browser-cli.v1", kind, …}`, one kind per command: `browser-window` `{session, targetId, created, link, command}`, `browser-link` `{session, link[, targetId]}`, `browser-done` `{session, outcome[, sessions, ambiguous]}` (with `--all`: `sessions` `[{session, outcome}]`, `ambiguous` the sessions left because their record does not confirm the thread or their binding is not verified), `browser-open` `{session, targetId, link}`, `browser-tabs` `{session, windows: [{session, targetId, url, title, link, held, viewers, sleeping, endsAt}][, ambiguous]}` (`ambiguous` the sessions whose record does not confirm the thread or whose binding is not verified, any whose record cannot be read among them; `windows` is complete only while it is empty); without a browser `{kind, available: false}` and exit 10; exits 0 done, 1 failure, 2 usage, 10 no browser; on a failure the first line of stderr is the reason in the user's language; on exit 0 a caller reads stdout, and `window` that opened a new window may write a note to stderr naming the thread's other windows | Platform CLI | `browserCliSchema`, `browserCliText`, `parseBrowserCliAnswer`, `browserCliExit` (`pure.ts`); `src/browser/cli.ts` | `cli.json`; `environment-browser.test.ts` | T3 Code's server calls `window` and `link` with its own decoder |
+| C13 | **`lazurio browser … --json`:** `{"schema": "lazurio.browser-cli.v1", kind, …}`, one kind per command: `browser-window` `{session, targetId, created, link, command}`, `browser-link` `{session, link[, targetId]}`, `browser-done` `{session, outcome[, sessions, ambiguous, unsettled]}` (with `--all`: `sessions` `[{session, outcome}]`, `ambiguous` the sessions left because their record does not confirm the thread; `unsettled` the sessions whose unverified binding (C19) could not be settled, which makes `done` and `done --all` fail), `browser-open` `{session, targetId, link}`, `browser-tabs` `{session, windows: [{session, targetId, url, title, link, held, viewers, sleeping, endsAt}][, ambiguous, complete, taken, all]}` (`ambiguous` the sessions whose record does not confirm the thread or whose binding is not verified, any whose record cannot be read among them; `complete` true exactly while it is empty, derived from it where an answer lacks it; `taken` `[{session, targetId, thread, by, at}]` the windows another thread took; with `--all`, `all` `[{targetId, url, title, link, viewers, sleeping, endsAt, yours, sessions: [{session, thread, running, unverified, taken}], strips: [{strip, label}]}]`), `browser-take` `{session, targetId, url, title, link, command, taken, from: [{session, thread, running, unverified, taken}], strips, viewers}` (F38's addendum of 2026-11-15); without a browser `{kind, available: false}` and exit 10; exits 0 done, 1 failure, 2 usage, 3 `take` described only (`confirm`), 10 no browser; an incomplete `tabs` exits 0; on a failure the first line of stderr is the reason in the user's language; on exit 0 a caller reads stdout, and `window` that opened a new window may write a note to stderr naming the thread's other windows | Platform CLI | `browserCliSchema`, `browserCliText`, `parseBrowserCliAnswer`, `browserCliExit` (`pure.ts`); `src/browser/cli.ts` | `cli.json`; `environment-browser.test.ts` | T3 Code's server calls `window` and `link` with its own decoder |
 | C14 | **Times and bounds:** the hub ends a tab 8 s after its last hold, 30 s after its last viewer, and after 10 minutes when never viewed or held; Vrátit lasts 7 s, 1 s less than the hub's grace; holds are read and reconciled at least every 30 s, changes joined in 100 ms, snapshots in 50 ms; the hub reconnects after 2 s and waits 2 s for a new tab; Přehled reads every 5 s; Nová karta is standalone after 1.5 s; another Environment's view names its tab within 4 s of loading or 15 s of starting; the identity is asked at 0, 1 and 4 s; agent-browser's idle timeout `1h`; DevTools port 9222; a thread's window has a 1280×800 page in a 1280×900 window | The hub (Platform) | `browserTimes`, `browserBounds` (`pure.ts`); the hub (`people/hub.ts`), the Launchpad (`new-tab/holder.ts`, `new-tab-view.ts`, `browser-panel.ts`), `src/browser/units.ts`, `src/browser/window.ts`, `src/browser/agent-browser-config.ts` | `times.json`, which pins both objects whole | T3 Code types its own values until phase 2 |
 | C15 | **Framing:** the frame `allow="clipboard-read; clipboard-write; fullscreen"`, `referrerpolicy="origin"` and the sandbox `allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-modals`, never on the app's own origin; the view's `frame-ancestors 'self' https://*.<base>.lazurio.io` and the T3 Code or Launchpad of another Environment that the request's `Referer` names; Nová karta's page `frame-ancestors 'self'` and the Environment's own apps | The view (Platform); the Launchpad for Nová karta | `viewFrameAttributes`, `appShellOrigin`, `viewFrameAncestors`, `newTabFrameAncestors` (`pure.ts`); the view's headers (`people/service.ts`), the Launchpad's frame (`browser-panel.ts`), Nová karta's page (`new-tab-routes.ts`) | `framing.json`; `environment-browser-view.test.ts`; `browser-panel-view.test.ts` | T3 Code web frames with attributes of its own |
 | C16 | **Address-bar input:** one rule for the view's bar and Nová karta, read as Chrome's address bar: text with the scheme http or https as typed, and `about:blank`; another scheme refused; `localhost`, an IP address, or a one-label name with a port or a path over http; a name with a dot and a top-level domain over https; anything else a search, but a text without a space that names a view host is refused, never searched; this Environment's view address opens as its tab, its bare origin as a new tab, another Environment's view as that Environment's; the hub, `window --url`, `link --url` and `open` navigate only to http(s) off a view host, or to `about:blank` | Platform | `addressBarTarget`, `searchAddress`, `navigableAddress` (`pure.ts`); the view's bar (`people/client.ts`), Nová karta (`new-tab-page.ts`), the hub (`people/hub.ts`, `people/service.ts`, `people/sleep.ts`), the Launchpad (`new-tab-routes.ts`), `src/browser/cli.ts` | `address-bar.json`; `environment-browser-view-client.test.ts`; `new-tab-view.test.ts`; `environment-browser-view.test.ts` | — |
 | C17 | **Language:** Czech or English; the shell's language everywhere, the browser's language only for a view opened on its own (0191); a framed view speaks the browser's language until the identity answer carries the shell's (phase 3) | Platform shell | `surfaceLanguages`, `surfaceLanguageOf`, `browserLanguage` (`pure.ts`); the view (`people/client.ts`), Nová karta (`new-tab-page.ts`, `src/shell/new-tab-protocol.ts`) | `language.json`; `environment-browser-view-client.test.ts` | T3 Code's overlay speaks the browser's language |
 | C18 | **Hand-off to the person's own browser:** a navigation the Environment browser's policy blocks fails with `net::ERR_BLOCKED_BY_ADMINISTRATOR`; the view then offers that page's http or https address, without credentials, to open in the person's own browser, and never opens it inside | The view (Platform); the policy: Machines | `blockedNavigationError`, `handOffAddress` (`pure.ts`); the hub (`people/hub.ts`) and the view's bar (`people/bar.ts`) | `hand-off.json`; `environment-browser-view.test.ts` | A fork's view that hands a page off takes the same rule |
+| C19 | **The mark of an unverified binding:** `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json` = `{"schema": "lazurio.browser-unverified-binding.v1", "session", "targetId", "before"}`, mode 0600, replaced atomically; a session is unverified while its file is there, whatever its text, from the first command of a binding of `lazurio browser window`, `apps open`, `browser open` or `take` until the binding is read back or the daemon has ended and the binding is settled; only the Platform reads `targetId` and `before`; a directory that cannot be listed counts every session as unverified | Platform CLI | `unverifiedBindingSchema`, `unverifiedBindingText`, `parseUnverifiedBinding` (`pure.ts`), `unverifiedBindingDirectory`, `readUnverifiedSessions` (`node.ts`); written and settled by `src/browser/window.ts`, settled by `done` (`src/browser/cli.ts`) | `unverified-binding.json`; `environment-browser.test.ts` | T3 Code server: own copy of the two readers (`apps/server/src/lazurio/holders.ts`); its strip takes in no binding of a marked session (Lazurio/t3code#208). The hub does not read it |
 
 ### Versions
 
@@ -542,7 +574,7 @@ refresh of a fork on a new upstream stable release, keeps these rules:
   offered upstream (F50 point 2).
 - **Lazurio MausBot on the Environment browser** (0191; F50 point 8, last step): built
   in the fork's `main`, not yet deployed.
-- **The web desktop** for people (0191, a later wave), and a visible marking of
+- **The web desktop** for people (0191, a later wave; proposed in F74), and a visible marking of
   another Environment's tab, which is a direction for interface proposals only.
 
 ## Provenance

@@ -228,8 +228,12 @@ The authored values live in **`<Folder>/.lazurio/preferences.json`** as optional
 keys resolve to product defaults; an empty map is omitted. The strict parser still
 reads schema 2. The first saved customization upgrades that Folder to 3; subsequent
 changes preserve 3, including resetting the last override. Other writers keep the
-map. The existing `customInstructions` field keeps its separate, unsupported
-composition contract; voice does not reuse it.
+map. The existing `customInstructions` field holds the person's own instructions
+for agents (root decision 0233, decision F14's addendum of 2026-11-06 and its
+implementation note of 2026-11-15); voice does not reuse it. The Folder renders
+them in their own section right after the voice, and the planner holds the active
+voice text and that section to one budget of 8,192 bytes, as the Organization
+Admin decided on 2026-11-15 (F14's implementation note of that date).
 
 **Generate the complete active voice into a named section near the beginning of
 `<Folder>/AGENTS.md`.** The first sentence states that it covers all authored

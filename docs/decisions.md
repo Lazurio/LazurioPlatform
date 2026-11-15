@@ -3262,7 +3262,7 @@ Lazurio MausBot's intake reacts to an assignment without the old comment (the pe
 through assignment is the root's contract; the intake is MausBot's). Environments get the text through
 the next released Platform update and the normal Folder refresh.
 
-### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (B delivered 2026-11-03; decided with changes 2026-11-06, see below; A not implemented)
+### Proposal of 2026-10-29: the person's own instructions for agents, and a person's own entries in a hosted Folder (B delivered 2026-11-03; decided with changes 2026-11-06, see below; A's core implemented 2026-11-15, see the implementation note there)
 
 On 2026-10-29 Matěj raised two questions.
 - **Own instructions.** People should be able to tweak how agents behave where that makes sense, in one standard way, and Lazurio should learn about it, because each tweak marks something the product should fix. His first idea was a pattern in the Launchpad's settings that finds part of the instructions and replaces it, or adds to it. He also asked whether this belongs to the Folder or only to the Organization, whose repository the Folder's instructions point to.
@@ -3440,7 +3440,9 @@ Changed:
 - **Room first.** With the longest voice `AGENTS.md` has about 40 bytes left (#755). The own
   instructions ship only after #758 or another change frees their bound, and a test renders
   every pinned composition with the longest voice and the longest own instructions and fails
-  above 32 KiB (#755, first direction).
+  above 32 KiB (#755, first direction). *Amended 2026-11-15:* the own instructions ship
+  with one budget shared with the custom voice instead (the implementation note of
+  2026-11-15 below).
 - **The kind of a memory.** When the person asks to remember something, the agent decides
   whether it is a habit of the person (own instructions or the local Personalspace) or a
   process, meaning or knowledge of the Organization (a pull request or an issue to the
@@ -3554,6 +3556,112 @@ skill lists; a collision is refused by name; the doctor names a top-level `CLAUD
 `notes.txt`; the Team and Steward presets get neither. Not proven: that agents follow the own
 instructions and the rule on the kind of a memory, and that every harness version picks up the
 personal skills.
+
+**Implementation note 2026-11-15 (plan LZD-0012, M2 core): own instructions in the preference, the rendering and the CLI.**
+This note records what the code does now. The shared budget below was proposed with this
+change and decided on 2026-11-15; nothing else here goes beyond the decision above.
+
+Implemented, with template revision `base-instructions-127`:
+
+- **The preference.** `customInstructions` is the person's own instructions: plain text
+  without control characters other than tab and line ends, at most 4,096 UTF-8 bytes
+  (`maxOwnInstructionsBytes`), and the empty text means none. The rules are in
+  `src/folder/own-instructions.ts`. A stored text that breaks them is a state refusal that
+  names the field and never its content.
+- **The section.** `AGENTS.md` renders „Vlastní pokyny uživatele“ ("The user's own
+  instructions") right after the communication style and before the Environment's facts. Its
+  first paragraph carries the precedence of answer 3. On `hosted-organization-personal` the
+  same paragraph adds that the instructions belong to the Organization with the Environment
+  and that its Admins may read them. The text sits in a fence it cannot close, built like
+  the voice's. There is no section without a text. Buddy's layer does not render it, as it
+  renders no custom voice.
+- **The presets.** `local`, `hosted-personal` and `hosted-organization-personal` have own
+  instructions (`ownInstructionsAllowed`); `hosted-organization-team`,
+  `hosted-organization-steward` and a public Environment, whatever preset its Folder
+  records, have none. Saving a text there is refused as `own-instructions-unavailable`. A
+  Folder that already holds a text there keeps it, renders none and is stopped by nothing
+  because of it.
+- **The change path.** The refusal `custom-composition-unavailable` ends in the planner and
+  in the preview; an initialization journal still starts with no text. A profile request
+  takes `ownInstructions` next to `voice`, and `updateOwnInstructions` changes the text and
+  nothing else. Both run the one planner and the one transaction: a new rendering, never
+  `drift`, and a refresh after it is `unchanged`.
+- **The command.** `lazurio folder instructions show | add <line> | set (--file | --text) |
+  clear`, in the Folder's language, reading the Folder's revision itself. On a Work
+  Environment every answer of a change says whose the instructions are (`notice` in
+  `--json`).
+- **The agents' rules.** Where a person has own instructions, the rule on "zapamatuj si" in
+  `AGENTS.md` points to `lazurio folder instructions add` instead of the harness's personal
+  instructions; elsewhere the rule keeps its text. `manual/working-here.md` gains the
+  passage on own instructions: a line only on the person's word and proposed first, the
+  kind of a memory with one example each, what the agent says first on a Work Environment,
+  the assistant's name, and where there are none.
+
+Not implemented yet:
+
+- The field „Vlastní pokyny pro agenty“ in Settings with its notice, and „Poslat Lazuriu
+  jako podnět“. Until then the Launchpad's profile request refuses the key, so on a Work
+  Environment the only way to save is the command, which states the notice.
+- The local Personalspace of a Work Environment: the preset's policy, the folder, the
+  skills and the manual's texts, which still say that a Work Environment never has a
+  Personalspace.
+- #653's repair and the Lazurio Root on a workstation (delivery points 3 and 4 of the
+  proposal).
+
+Proposal B is delivered (F10's addendum of 2026-11-03): a top-level entry the Folder does
+not own stops no change, and `lazurio update`, `update status` and the doctor report it. This
+change does not touch that report. As read in the code on this date, it names every such
+entry of a hosted Folder (`src/folder/foreign-entries.ts`), not only a `CLAUDE.md`, an
+`AGENTS.override.md` or a `.codex/`, so answer 4's narrowing is still to be delivered.
+
+**Decided 2026-11-15 by Matěj (Organization Admin, plan LZD-0012) in the question tool: one
+shared budget for the text a person writes. It amends "Room first" of the addendum of
+2026-11-06.** That addendum let the own instructions ship only after #758 or another change
+freed their bound, with a test of the longest voice together with the longest own
+instructions. The implementer proposed another way to the same guarantee with this change,
+and Matěj chose it („Společný rozpočet teď“) over doing the cleanup of #758 first and over
+a smaller bound of the custom voice. The cleanup of #758 stays a separate step.
+
+- **The rule.** The own instructions keep their 4 KiB bound and share the custom
+  voice's 8 KiB budget instead of waiting for the cleanup of #758. The planner refuses, as
+  `person-text-too-large` with the sizes, every change after which the active voice text
+  (the person's custom one, or the product's default, with what its fence takes beyond the
+  usual three characters) and the whole rendered section of own instructions would together
+  take more than 8,192 bytes (`maxVoiceBytes`). With the default voice the own instructions
+  have their full 4,096 bytes; a long custom voice leaves them less. The existing 32 KiB
+  guard (`voice-context-too-large`) stays and now also runs for own instructions.
+- **Why.** With the longest voice the tightest pinned composition had 67 bytes left before
+  this change, and has 58 with it (the Czech rule on "zapamatuj si" is 9 bytes longer). A
+  section of 4 KiB does not fit next to an 8 KiB voice, and making room would mean taking
+  rule text out of `AGENTS.md`, which this change does not do. No existing Folder is
+  refused: no product path wrote a text into the preference before this change, and a
+  change that renders the same voice and section as before is never refused by the budget. Both cases are pinned by tests over the
+  shared compositions: the default voice with 4,096 bytes of own instructions, and a custom
+  voice of several lengths with own instructions that fill the rest of the budget, each at
+  most 32 KiB. A later template revision that pushed one of them over fails there, before a
+  release, and not as a refused refresh of someone's Folder.
+- **What it costs.** A person whose custom voice is longer than about 3.6 KiB cannot also
+  use the full 4 KiB of own instructions, and is told so with the sizes. The decision's
+  test of the longest voice together with the longest own instructions is not what runs:
+  that pair is refused at save. A text that forces a very long fence (runs of several
+  hundred backticks and tildes) counts with its fence and is refused even next to the
+  default voice. The section's own words are part of the budget. The tests measure the
+  wording of their own revision, so a later revision that lengthens those words could push
+  a Folder saved at the edge of the budget over 32 KiB by the difference; such a change
+  needs that much room to spare in the tests first.
+- **Not chosen.** The cleanup of #758 first: measured on this change, it has to take about
+  4.4 KiB of rule text out of `AGENTS.md` on a Personal Environment and about 3.8 KiB on a
+  Work Environment before the longest voice and the longest own instructions fit together,
+  and the feature would wait for it. A smaller bound of the custom voice (about 4 KiB):
+  one simpler rule, but a person with a longer voice today would have to shorten it.
+- **What stays open.** When #758 frees that room, the coupling can be removed by a later
+  decision and the own instructions get their 4 KiB next to an 8 KiB voice, with the test
+  the addendum of 2026-11-06 names.
+
+Proven by this change: the generated bytes of the section and of the rule, the change path
+and the command, in tests. Not proven: that an agent in any harness follows the own
+instructions. The section reaches only a consumer that reads `AGENTS.md`, as Codex and
+Claude Code do; Buddy's layer is rendered without it, and no harness was run against it.
 
 **Addendum 2026-11-01, decided by Matěj (Organization Admin, plan LZD-0002 of the
 LazurioDevelopment Organization): two more Folder skills from the Lazurio Root,
@@ -11900,6 +12008,135 @@ cannot be read or is a directory ambiguous for every thread, named by its sessio
 missing or refused socket unconfirmed; the note of `window` naming the thread's other
 windows, and none for the window a session keeps) and the vectors of `cli.json`.
 
+**Addendum 2026-11-15: a window opens blank, `tabs` says whether its list is complete, every
+tab in one overview, and taking a tab on purpose (decided by Matěj; #987, #989).** Matěj's
+aim: agents work efficiently in the Environment browser, understand what happens, and nothing
+happens in the background that an agent would read otherwise. The Environment browser is
+shared, and agents may work together. He would not forbid an agent to see every tab, but
+wants a way for an agent to see what is open in the Environment and to work with other tabs.
+Taking another agent's tab is a choice the agent wants and confirms, knowing from whom it
+takes it.
+
+1. **A new window opens blank, then goes to its address** (#987). `lazurio browser window
+   --url` and `lazurio apps open` create the window at `about:blank`. They bind the session
+   there and pin it (a blank page answers agent-browser's probe at once), record the window,
+   and only then open the address with `Page.navigate` on the page (`createThreadWindow`). A
+   slow or busy page therefore no longer fails the binding and no longer starts the path of
+   #974. Measured on a separate Chromium on 2026-11-15:
+   - A navigation from the blank page sends `Sec-Fetch-Site: none`, `Sec-Fetch-Mode:
+     navigate` and `Sec-Fetch-Dest: document`, so the hosting gateway's landing (addendum of
+     2026-11-12) still accepts it.
+   - `Page.navigate` answers once the page's server answered: 55 ms, 12 s for a server that
+     answered after 12 s, and 33 ms for a busy page.
+   - Where the page did not load at once, the tab's history keeps the blank page before it.
+     Back from the first page therefore shows a blank page, which is accepted (a target
+     created without any address behaves the same).
+
+   `window` waits 10 s for the browser's answer. When the address is still loading, or the
+   browser refused it, the window stays bound and recorded and `window` says so on stderr.
+   `apps open` fails with `navigate-failed` only when the browser refused the hand-over. An
+   address still never moves a window the session has already. `browser open` still opens
+   its tab through the hub at the address.
+2. **`tabs` says whether its list is complete.** Its answer gains `complete` beside
+   `ambiguous` (C13 grows within v1; a reader of an older answer derives it from
+   `ambiguous`). The text begins with a line that the list is not complete, why, and what to
+   do. The listing worked, so it exits 0 and running it again tells nothing more: a script
+   reads `complete`, and an agent neither takes the answer for a failure nor repeats it.
+3. **Every tab in one overview: `lazurio browser tabs --all`.** It adds every tab of the
+   Environment browser to the thread's own list (`all`):
+   - the tab's id, address, title and the person's link;
+   - the agent-browser sessions bound to it, each with its thread where its window record
+     tells (`null` where it cannot be told), whether its agent-browser runs, and whether its
+     binding is unverified or the tab was taken from it;
+   - the places that hold it (holder files, F47 point 4) and how many people view it.
+
+   The tabs and their facts are the hub's loopback list (C11), the sessions agent-browser's
+   bindings (C7) with the records of the addendum of 2026-11-14. Plain `tabs` stays the
+   calling thread's windows. The overview is for working with other agents, never a licence
+   to work in their tabs.
+4. **Taking a tab on purpose: `lazurio browser take <id>`.**
+   - **Without `--confirm`** it only describes: the tab, the sessions it would be taken from
+     with their thread and whether their agent may be working there now, the places and
+     people that keep it, and what `--confirm` does. It changes nothing and exits 3 (C13's
+     new exit `confirm`).
+   - **With `--confirm`** every other session bound to the tab is let go as `done` lets go of
+     one, the calling thread's session is bound and pinned as `window` binds one, and the tab
+     is recorded as the thread's window (`takeTab`, under the account's window lock).
+     agent-browser 0.43 refuses `tab` to a tab another live session has pinned
+     (vercel-labs/agent-browser#2135), and 0.37 would leave two agents working in it unseen.
+   - **Refused, with nothing changed**, when the browser has no such tab, when the calling
+     session is bound to another open window it would leave (`session-busy`: take it into
+     another `--session`, or let go of that window first), or when a holder's daemon does not
+     shut down (`holder-busy`).
+   - **A binding an earlier `window` left unverified (C19) is never the session's window**,
+     even when it names the tab: it may name another agent's tab. Without `--confirm`, `take`
+     refuses as `window` does (`binding-unverified`); with it, the binding is settled first
+     under the lock, as `window` settles one, or nothing is taken.
+   - **Every earlier holder's note is written before the session is bound.** Where one cannot
+     be written (`take-note-failed`), the notes go back to what they were and nothing is
+     bound: a holder without its note would take the tab for its window again and navigate
+     it. Where the binding fails, the taker may be left on the tab (`tab` answered, the pin did
+     not), so the notes go back only once the taker is proven off it (its binding names
+     another tab, or its daemon has ended and the binding is removed). Otherwise the notes
+     stay and the taker stays unverified (C19, `binding-unverified`) until `done` or `window`
+     settles it, so two agents never work in the tab unseen. The mark that keeps it so is the
+     one the binding wrote before its first command, keeping neither the taken tab nor it as
+     the earlier binding, so no second write can fail and a settled session never keeps the
+     taken tab; where that first mark cannot be written, no command runs and nothing is bound.
+     Once the binding is verified, the mark is first rewritten to keep the taken tab and then
+     removed, so a mark that cannot be removed keeps the take; where neither works, the take
+     is reported unfinished (`binding-unverified`) and the window is not recorded.
+   - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
+     changes, and the people who view the tab keep it.
+
+   **The earlier holder** keeps its agent-browser binding. Measured on 0.37 and on the 0.43
+   candidate: once its daemon has been let go, its next plain command restarts the daemon in
+   the same tab and may navigate it, and agent-browser tells it nothing. Removing its binding
+   instead sent that command to the first live tab of the browser, someone else's. So `take`
+   writes a note for each earlier holder instead, `$XDG_RUNTIME_DIR/lazurio-browser/taken/
+   <session>.json` (owner-only, beside the window records, gone at a reboot), which only the
+   Platform reads. While the holder's binding still names that tab:
+   - its `tabs` lists the window under `taken`, with the thread that took it and when; that is
+     known, so the list stays complete;
+   - its `done --all` lets go of it;
+   - its `window` and `apps open` give the session a new window instead of the taken tab, say
+     who took the earlier one, and remove the note.
+
+   A taker in a T3 Code thread whose tab another strip holds does not see the tab join its
+   strip by itself (Lazurio/t3code#207's rule); its agent sends the tab's link.
+5. **The mark of an unverified binding** (#989) becomes contract C19 (F50's addendum of
+   2026-11-15).
+   - `binding-unverified` names the session and the next step: `lazurio browser done
+     --session <session>`, then `window` again, or another session at once.
+   - `done` settles the mark once the session's daemon has ended. `done --all` lets go of the
+     thread's own sessions whose binding is unverified or whose tab was taken: letting go of
+     them ends only this thread's hold. It also settles a session that has only a mark (one is
+     written before a binding's first command) and one its record names whose daemon has
+     ended, whatever its binding names; one whose daemon still runs and whose binding the
+     record does not confirm stays named as ambiguous, and done --all fails. A binding that
+     cannot be settled makes `done` and `done --all` fail and is named (`unsettled`, and first
+     on stderr with `--json` too), never reported as done. Marks are read even before
+     agent-browser's socket directory exists, and marks that cannot be listed make `done --all`
+     fail (review of #993).
+   - T3 Code takes no binding of a marked session into a strip until the mark is gone
+     (Lazurio/t3code#208).
+   - The hub does not read the mark: there a binding only keeps a tab alive, and ignoring a new
+     window's binding while it is being verified could end that window.
+6. **The Folder** (`manual/this-machine.md`, template revision `base-instructions-128`) tells
+   agents:
+   - that the Environment browser is shared and when to use the overview;
+   - that taking a tab is a deliberate step with `--confirm`, from whom it is taken, and what
+     the earlier holder sees;
+   - to read `complete` and not repeat an incomplete listing;
+   - what to do on `binding-unverified`.
+
+Unchanged: the hub, its graces, the holder files, C2's names and the window records' schema.
+Verified by `tests/environment-browser.test.ts` (the blank window and its navigation, slow and
+refused; `take` described, confirmed, already held and refused; the earlier holder's `tabs`,
+`window` and `apps open`; `tabs --all`; `done` settling a mark), `tests/agent-entry-cli.test.ts`,
+the vectors of `cli.json` and `unverified-binding.json`, and live on a separate Chromium with
+agent-browser 0.37.0-lazurio.1 and the 0.43.0 candidate (pull request #993).
+
 ## F39 — The people's view of the Environment browser: one tab of a person is one remote tab
 
 **Decided by Matěj 2026-10-06 after the pilot (root decision 0191 points 11–18, plan
@@ -12886,7 +13123,7 @@ stands.
    that when it warns Chrome may offer "Save card?" outside the page, where nobody sees it, and
    the card is saved only by a click: they never click it, not through Computer Use either, and
    tell the user. The point on payments through the browser follows as "Google Pay and Chrome's
-   windows", still promising no other way to pay; template revision `base-instructions-126`.
+   windows", still promising no other way to pay; template revision `base-instructions-129`.
 
 | Failure | What happens |
 | --- | --- |
@@ -16535,6 +16772,21 @@ wireframe, in the preview (`scripts/preview-new-tab.ts`), whose disk and process
 running machine's own readings (`processNewTabHost`; its memory and tabs stay fakes), with
 `/preview/set?system=full` for a disk with 40 MB left and a high 5-minute load.
 
+**Addendum 2026-11-15: the agents' overview of every tab, and taking one on purpose (decided
+by Matěj; F38's addendum of 2026-11-15).** Point 7 gives the person the Environment's
+overview in Přehled. Agents get theirs from `lazurio browser tabs --all`: the hub's loopback
+list (point 6) with the holders' places (point 4), and agent-browser's bindings with the
+thread each belongs to where its window record tells. `lazurio browser take` binds the calling
+thread's session to another's tab only once its agent has confirmed it. It lets the tab's
+other sessions go as `done` does, so their holds of point 5 end the usual way. It changes no
+holder file and closes no tab: a strip that holds the tab keeps it, and people who view it
+keep viewing.
+
+Point 4's rule for T3 Code's strip grows by one case: a new binding of a session that the
+Platform marks as not verified yet (C19) does not join the strip until the mark is gone; then
+it is judged as any new binding (Lazurio/t3code#208). The marks' directory is watched with the
+others.
+
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
 **Decided by the Operator 2026-10-11, replacing the unpublished per-Organization
@@ -17672,6 +17924,22 @@ decided.
    own releases and the Platform release each one requires stay in that fork's runbook.
 3. **Nothing else changes.** The module, its vectors, the artifact and doctor stay as
    they are.
+
+**Addendum 2026-11-15: C19, the mark of an unverified binding** (#989, F38's addendum of
+2026-11-15). The contract grows by one section and five exports, within v1 (point 3):
+- the mark's place, `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json`
+  (`unverifiedBindingDirectory`), and the sessions marked now (`readUnverifiedSessions`): a
+  session is unverified while its file is there, whatever its text, and a directory that
+  cannot be listed is thrown, so a reader then takes every binding as unverified;
+- its text, `{schema, session, targetId, before}` (`unverifiedBindingSchema`,
+  `unverifiedBindingText`, `parseUnverifiedBinding`), whose tabs only the Platform's settling
+  reads.
+
+The Platform writes it (`src/browser/window.ts`). T3 Code reads it so that its strip takes in
+no unverified binding; the hub does not. The vectors' file is `unverified-binding.json`; C13
+gains `complete`, `taken` and `all` on `browser-tabs`, the kind `browser-take` and the exit
+`confirm` (3). The table of contracts in [The Environment browser](environment-browser.md)
+gains the row C19.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
@@ -25771,3 +26039,380 @@ headers through a fake gh; `tests/launchpad-access-check.test.ts` the words;
 `tests/module-built.test.ts` `retire` with an unreadable declaration, an unknown running unit and
 no answer from the service manager. Not proven: a real revocation on GitHub, a real
 fine-grained token and a real single sign-on. Known limits are in the contract.
+
+## F73 — An Organization's tools: declared in its settings, installed and kept at their minimum by `lazurio update` in its Environments
+
+**Decided by Matěj (Owner and Organization Admin of a development Organization) on
+2026-11-15; the shape of the declaration and the recipes proposed by the implementing
+agent. Implemented, not yet released (template revision `base-instructions-126`).** An
+Organization's review persona could not finish a review because its Environment had
+neither `cargo` nor `pnpm`, which the repository's checks need. Matěj's direction: an
+Organization defines the tools it uses, and every Environment of it gets them through
+the standard `lazurio update`, without anyone asking; a minimum version is enough, no
+exact one; a missing tool must not block an agent, who instead proposes adding it to the
+Organization. Agents have full rights in their Environment (root decision 0172) so that
+they can install what they need; this gives that a standard place.
+
+It amends root decision 0161 point 2 (an agent updates the user's tools only on the
+user's explicit instruction) and F17's addendum of 2026-10-02 point 3 for one case: a
+tool the Organization declares, on an Organization's Environment. It implements root
+decision 0194 for "default tools", which that decision already names among the
+Organization's settings.
+
+1. **Where it is declared.** `settings.tools` of `lazurio.organization.json`: a list of
+   `{ "tool": "<catalog tool>", "minimum": "<major.minor.patch>" }`, at most 32, each tool
+   once. `organizationSettings` reads it as the key `tools` and
+   `$defs.organizationSettings` of the schema states it ([organization
+   contract](organization-contract.md#organization-settings)). An absent key governs
+   nothing. A minimum is numbers only: no range, no prerelease, no "latest".
+2. **The Organization says which tool and which minimum; the catalog says how.** The
+   official installer, the tool's own update, where its programs live and how its version
+   is read are Lazurio's recipes (`src/tools/organization-tools.ts`), one per tool the
+   reader accepts, reviewed in this repository. The manifest never carries an installer,
+   a URL or a command: otherwise every write to an Organization's repository would be a
+   command run as the user in all of its Environments. A tool joins by one pull request
+   here that adds its recipe and the reader's id together. The first two:
+   - `cargo` through rustup, Rust's official installer (`https://sh.rustup.rs`, `-y
+     --no-modify-path --profile minimal --default-toolchain stable`), linking `cargo`,
+     `rustc` and `rustup` from `~/.cargo/bin`. Raised without ever lowering what the
+     user runs: first the toolchain the user selected is updated in place (`rustup
+     update <selected>`, a channel moves to its newest release, a pinned one stays);
+     only when that does not reach the minimum is the default switched, and only to a
+     stable that reports at least the minimum (`rustup toolchain install stable`, then
+     `rustup default stable`). Otherwise the selected toolchain stays and the failure
+     names the stable there is (`stable-below-minimum:<version>`). A repository's
+     `rust-toolchain.toml` still picks its own toolchain, which rustup fetches on first
+     use.
+   - `pnpm` through pnpm's official installer (`https://get.pnpm.io/install.sh`, which
+     checks the npm registry's signature, with `PNPM_NO_MODIFY_PATH=1`), linking `pnpm`
+     and `pnpx` from `$XDG_DATA_HOME/pnpm/bin`; raised by running it again. pnpm itself
+     switches to the version a project's `packageManager` names.
+   Both fetch the vendor's script to a private file before running it, run as the user
+   without root, and install into the installer's own home with a link in
+   `~/.local/bin`, the standard path of 0161 point 6. Shell profiles are never edited.
+3. **Who installs and when.** `lazurio update` (the CLI and Nová karta's Aktualizovat,
+   one composition, root decision 0212 point 3) has a part after the content and before
+   the Bun pins and builds: it reads the declaration of the Organization the handover
+   names as owner, from that Organization's root in the Folder, as F45 reads settings
+   without the relay, and provisions each tool. It reads only at the commit the content
+   part of the same run verified as the root's published `main`: current on, or
+   fast-forwarded to, the commit its remote's `main` names (the sync entry's `to`). A
+   root that part left anywhere else (ahead, diverged, dirty, busy, failed, not run)
+   gives no declaration (`not-published`), so a commit nobody published, a local one
+   included, never installs anything. Read from Git rather than from the Dashboard's
+   answer, so the tools wait for no other service. `lazurio doctor`, which installs
+   nothing, reads the local `main`. It runs on every Environment an Organization's settings govern (work,
+   Team, Automated, `organizationGoverns`), without asking: the Organization Admin's
+   approval of the declaration is the consent. On the person's own computer and on a
+   personal Environment nothing is installed; there the generated manual tells the agent
+   to offer a declared tool and install it only with the person's consent.
+4. **How the minimum is kept, never lowered.** The tool is the one the user's own PATH
+   finds first, as doctor reads it, for discovery and for the final check; no run
+   arranges a PATH of its own. A tool on PATH that reports at least the
+   minimum is left exactly as it is, wherever and however it was installed. The
+   recipe's own installation that the PATH does not reach (`~/.local/bin` missing from
+   it) is kept and reported with `onPath: false`, never installed a second time. A missing
+   tool is installed by its recipe. A tool below the minimum is raised by its own update
+   only when the program on PATH is the recipe's installation; one installed another way
+   (a system package, npm) is reported as `below-minimum` with `foreign-installation` and
+   its official source, and never replaced or shadowed (F17). Nothing ever lowers a
+   version; a link is created only where nothing is.
+5. **When it fails, it says so.** Each declared tool is one item of the update's answer:
+   `current`, `installed`, `updated`, `below-minimum`, `failed` with its stage (`install`,
+   `update`, `link`, `verify`), a reason and a safe tail of the installer's output with
+   lines that could carry a secret withheld, or `unsupported-platform` (Windows has no
+   recipe yet). An invalid `settings` section is one finding (`settings-invalid`). A tool
+   that cannot be had never fails the update and never stops a later part. Nová karta's
+   Aktualizovat shows the same: a row per tool with its step while it runs (with its
+   minimum), what it was installed or raised to, and each finding with its stage and
+   reason in words and a link to the tool's official installation; the part as a whole
+   when it did not check (`not-published`, an invalid or unreadable section) or failed.
+   A tool at its minimum on the PATH says nothing. `lazurio
+   doctor` reads the same declaration without changing anything: one check
+   `organization-tool` per tool, `ok`, or a warning `organization-tool-missing`,
+   `organization-tool-below-minimum`, `organization-tool-version-unreadable`, and
+   `organization-tools-invalid` for an invalid section.
+6. **What agents are told.** The generated manual (section on the product update, after
+   the operator's tools) says on an Organization's Environment that the Organization's
+   tools come with `lazurio update`, that a missing declared tool is fixed by running it
+   and blocks nothing, and that a tool the Organization does not declare is installed
+   under the rule for the user's tools while the agent proposes adding it: a pull request
+   to the Organization's root repository that adds the entry, and an issue here for a
+   tool the catalog cannot install yet. An Organization may give its automated
+   Environments a standing mandate for such local installations in its own rules.
+7. **How the list changes.** Like every setting (0194): a pull request to the
+   Organization's root repository, whose merge by the Organization Admin is the
+   Publication. Readers first: a release older than this reads a section with `tools` as
+   invalid and applies none of the section, keeping what it applied before, so an
+   Organization that declares tools beside other settings waits until its Environments
+   run this release. The GEN3 Root's `lazurio organization check` refuses the unknown key
+   until its Core learns the leaf (its own pull request).
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| The manifest names an installer or URL per tool | A write to the Organization's repository becomes a command in all its Environments; rejected for catalog recipes |
+| A separate file of tools beside the manifest | A second authority beside the settings of 0194; rejected |
+| Install from Machines' rollout | The rollout repairs the baseline and never touches the user's tools (0161); rejected |
+| Ask the user before each installation | The Admin's approval of the declaration is the consent, and an automated Environment has no one to ask; rejected |
+| Exact versions | Matěj: a minimum is enough; exact pins belong to a project (`rust-toolchain.toml`, `packageManager`); rejected |
+| pnpm through Corepack | Node no longer ships Corepack from version 25, and its shims need write access to Node's directory; rejected for pnpm's own installer |
+| pnpm through `npm install -g` | Ties pnpm to the user's Node and npm prefix; rejected |
+| Read the declaration from the Dashboard's answer | The Dashboard rejects a key it does not know yet and the tools would wait for it; rejected for the root at `main` |
+
+**Verification.** `tests/organization-tools.test.ts`: the recipes match the reader's ids and
+none edits a shell profile or pipes into a shell; a tool at its minimum is untouched; a
+missing one is installed with the recipe's environment and linked, never over a file
+there; one below in the recipe's home is raised by its update, one installed another way
+is reported and untouched; a failed installer and a tool still below after it name their
+stage, and the next tool runs; Windows is `unsupported-platform`; doctor's reading changes
+nothing; the declaration comes from the handover's Organization at the commit verified as
+published with real git, a local commit ahead of it is never read, a root left ahead,
+diverged, dirty, failed or busy by the content part installs nothing (`not-published`),
+a personal Environment reads none and an invalid section is `settings-invalid`; a system
+cargo below the minimum first on PATH, ahead of Lazurio's, is `foreign-installation` in
+the update as in doctor; rustup raises the selected toolchain in place, keeps a nightly
+above stable and a stable below a newer minimum as they are, and switches a pinned
+toolchain only to a stable that reaches the minimum; the part runs after the content and
+before the builds, a failing part is one item. `tests/content-sync.test.ts`: a current
+entry names the published commit. `tests/new-tab-view.test.ts`: Aktualizovat's rows of
+the tools, their steps, findings with stage and reason, and only an https link
+(review of #992).
+`tests/organization-settings.test.ts` and `tests/organization-schema.test.ts`: the leaf,
+its refusals (an installer of the manifest's among them) and the duplicate checked only by
+the reader. Live on 2026-11-15, Linux x64, in a temporary home: the core installed cargo
+1.100.0 through rustup and pnpm 12.21.0 through pnpm's installer in 9 seconds, linked
+`cargo`, `rustc`, `rustup`, `pnpm` and `pnpx` into `~/.local/bin`, wrote no shell profile,
+and a second run left both `current`; in a repository whose `rust-toolchain.toml` pins
+1.89.0, the linked `cargo` ran 1.89.0. Live on 2026-11-15, Linux x64, in a temporary home
+with real rustup and a pinned 1.80.0 default (review of #992): a minimum of 9.0.0 left
+the default and cargo 1.80.0 as they were and failed with `stable-below-minimum:1.100.0`;
+a minimum of 1.89.0 then gave `updated` from 1.80.0 to 1.100.0 with stable the default.
+Not verified: macOS, a running `lazurio update` on an Environment with a declaration.
+
+## F74 — The desktop of a Remote Environment: the escape for the windows the browser view cannot show
+
+**Proposed by the agent on 2026-11-15 on Matěj's direction of the same day ("Pohled + plocha jako
+úniková cesta"), with his answers below; who goes first stays open. The prototype stays out of
+`main` (`prototypes/desktop/` at commit `e45730e` of Lazurio/LazurioPlatform#995); nothing is
+installed, wired or released.** Root decision 0191 point 8 gives every Remote Environment a web desktop at
+`desktop.<…>` in its second wave, and point 16 names it the way to the windows outside a page.
+The known windows are now handled in the view itself: select, date, colour and datalist pop-ups
+(F39's addendum, #972), file choosers in every frame (#975), payments and Chrome's other windows
+declined (#984). Everything else that opens outside the page still stays where the view never
+shows it, and a person sees a page that no longer reacts: a GTK dialog nothing intercepted, the
+PDF viewer's print preview (#243), a bubble, an extension's window, or a program on the screen.
+For those the view offers the desktop, and the desktop opens on that tab's window.
+
+**Matěj's answers of 2026-11-15** (question tool, the same thread): a person sees the whole
+screen starting at their tab's window (open point 2 below, as proposed); the phone works the way
+Chrome Remote Desktop's trackpad does (point 6); and agents get **no mechanism** in front of
+`computer` for now: "Berme, že tady tohleten přístup na vzdálenou plochu je výjimka v tuhle
+chvíli. Rozhodně bych nedefinoval nějaká tvrdá pravidla. Musíme si to prvně osahat v praxi."
+Whether a person or an agent goes first "musíme dobře nadefinovat" and stays open. Points 3, 6
+and 7 below are written to these answers.
+
+**Measured on 2026-11-15** on a Remote Environment's screen (Xvfb `:1`, 1920×1080, no window
+manager), with a Chrome for Testing 156 of the prototype's own (own profile and DevTools port, no
+Lazurio extension) next to the Environment browser:
+
+- A file input without interception opens GTK's "Open File" as a top-level X11 window,
+  `_NET_WM_WINDOW_TYPE_DIALOG`, `_NET_WM_STATE_MODAL`, `WM_WINDOW_ROLE` `GtkFileChooserDialog`,
+  with `WM_TRANSIENT_FOR` the tab's own browser window, placed at 0,0.
+- `window.print()` opens no X11 window: the preview is drawn inside the tab's window, and
+  DevTools shows a `page` target `chrome://print/`.
+- `Browser.getWindowForTarget` reports exactly the X11 geometry (no frames without a window
+  manager). Of the Environment browser's 36 tabs, 35 matched exactly one viewable X11 window by
+  position, size and title, none matched two, one matched none; by position and size alone, 24.
+- Chrome sets the input focus itself; without a window manager a click focuses nothing.
+- The screen's X server has no access control and its socket is writable by every local account.
+- x11vnc 0.9.16 (libvncserver 0.9.14, Ubuntu 24.04): a listening x11vnc opens TCP even with
+  `-rfbport 0`, and an IPv6 listener on every interface even with `-noipv6` unless given
+  `-listenv6 ::1`; `-localhost` refuses a unix-socket client. With `-inetd` it serves one client
+  on fd 0, which must be a socket.
+
+1. **Transport: x11vnc on the existing screen, noVNC in the page, the Platform's own gate between
+   them.**
+   - Machines installs `x11vnc`, `xdotool` and `x11-utils` (0191 point 9: packages are
+     Machines'). The Platform vendors noVNC 1.7.0 (MPL-2.0, its licence kept with it) and runs
+     no download at run time.
+   - x11vnc never listens. A user socket unit with `Accept=yes` (owner-only unix socket in the
+     state directory) starts one `x11vnc -inetd -display :1 -nopw -noremote -nocmds -norc
+     -noprimary -noclipboard -ncache 0` per connection, which ends with it. So no TCP port
+     exists, the screen is read only while someone watches, and the display and the browser are
+     never restarted for it.
+   - `lazurio-desktop.service` runs `lazurio desktop serve --port <loopback> --origin
+     https://desktop.<…>`, converged like F38 and F59 (written when it differs, never a reason
+     to fail, `BindsTo=` the display). It serves the page and noVNC and bridges the page's
+     WebSocket to that socket through the RFB gate (point 3).
+   - Selections of the screen (every thread's clipboard) never go to a viewer; a person's paste
+     still sets them.
+2. **Address and admission: the view's.** `desktop.<environment>.<organization>.lazurio.io`
+   (personal `desktop.<login>.lazurio.io`), the gateway's `lazurio_app` route that Machines
+   writes for an entry `desktop` in the handover, like `browser.`. No token: every request must
+   name the service's own host, every WebSocket and every change must carry its own Origin, and
+   only the Environment's own origins may frame it (F39 point 8). Application access never
+   includes it (F40 point 3). The person's name for "who holds the screen" is the gateway's
+   `X-Auth-Request-Preferred-Username`.
+3. **One person controls the screen at a time; agents by rule, not by mechanism.**
+   - **The lease.** A person takes the screen in the page ("Ovládat plochu", or "Převzít
+     ovládání" while another person has it). The lease lasts two minutes and is
+     renewed by input and by the visible page every 30 s; it ends with "Pustit plochu", "Zpět
+     na záložku", a closed page or socket, and every start and stop of the service, which is its
+     only writer (`~/.local/state/lazurio-desktop/turn/person.json`, owner-only). The last
+     person who takes it has it.
+   - **The person's side: the RFB gate.** The service reads the client half of the RFB stream:
+     version 3.8, security type None only (admission is the gateway's), ClientInit always shared,
+     then each message by its length. Keys, pointer and paste reach the screen only from the
+     viewer who holds the lease; screen updates always pass; SetDesktopSize and xvp never; an
+     unknown message closes the connection rather than guessing a length. When control ends,
+     every key and button the person still held is released. A press first focuses the window
+     under it (there is no window manager to do it), and a person's input keeps its order.
+   - **The agents' side: a rule, no gate (Matěj, 2026-11-15).** The `computer` entry stays the
+     driver's own proxy, as F59 point 2 registered it; nothing in front of it refuses an agent's
+     input while a person controls the screen. The Folder tells agents to leave the screen
+     alone while the user works on it (point 7). The desktop is an exception for now, and how a
+     person and agents take turns is learned in practice before anything enforces it; F59
+     point 5 keeps the lock for when collisions show. Without a gate the page cannot tell when
+     an agent last acted, so it says only that agents of this Environment may use the screen too.
+   - **Who goes first: open.** Matěj wants it defined well, not guessed. Until then a person
+     takes control in the page when they choose ("Ovládat plochu"), and an agent that sees its
+     Computer Use interfered with stops and asks the user.
+4. **The tab's window in front, and nothing of other threads moved.**
+   - The page opened from a tab asks `POST /api/focus {tab}`. The service finds the tab's
+     window: the one viewable, non-override-redirect X11 window whose position and size equal
+     `Browser.getWindowForTarget` and whose title starts with the tab's title. It raises it, then
+     the native windows that belong to it (dialogs whose `WM_TRANSIENT_FOR` is that window,
+     bubbles lying wholly over it), focuses the topmost, and returns the rectangle the page opens
+     on.
+   - Only stacking changes: no window of another thread is moved, resized or closed. The
+     stacking before is recorded and restored when the person lets go of the screen (each
+     recorded window raised from the bottom up, windows that appeared meanwhile kept on top).
+   - No window manager: it would add frames that change the geometry the view, agent-browser
+     and this lookup rely on, and take over a focus Chrome manages itself.
+   - **What the person sees of other threads.** The whole screen, other threads' signed-in pages
+     included. That is no new reach (whoever passes the gateway may open any of the Environment's
+     tabs), but it shows them all at once. So the page opened from a tab starts at 1:1 on that
+     tab's window, says that the other windows belong to other threads and are not to be closed,
+     and shows the whole screen only when asked ("Celá plocha"). A stricter mode, the screen
+     clipped to the tab's window and its native windows (x11vnc `-clip`), was not taken (below).
+5. **When the view offers the desktop.**
+   - **Always:** a "Plocha" button in the view's bar (in its overflow on a narrow view), opening
+     `https://desktop.<…>/?tab=<id>&back=<the view's address>` in the same place.
+   - **With a hint** ("Mimo stránku se otevřelo okno, které tady neukážu. Otevřít plochu"),
+     while a person views the tab and the hub sees for that tab:
+     - a viewable X11 dialog whose `WM_TRANSIENT_FOR` is the tab's window: certain and
+       attributable (measured);
+     - a `chrome://print/` target in the tab's window (`Browser.getWindowForTarget` of both
+       equal): certain; the attribution is to be verified;
+     - an override-redirect window that is no tooltip, menu, pop-up menu, drop-down, combo or
+       drag icon, lies wholly over the tab's window and lasts over 2 s: a heuristic for Chrome's
+       bubbles (a translate bubble was seen);
+     - not detected: a tab that merely stopped taking input. The hub's input is acknowledged by
+       Chrome either way, so only a probe in the page could tell, and none is proposed; the
+       button and the agents cover it.
+   - The detection is one module shared by the view's hub and the desktop service. It watches
+     the root window's map events (`xev -root -event substructure` from `x11-utils`, or an X11
+     client of its own) rather than polling, and only while someone views a tab.
+   - On the desktop page, a dialog found this way offers "Ukázat" and, to the person who holds
+     the screen, "Zavřít okno": the service raises and focuses that dialog and presses Escape as
+     a person would, so the program decides what closing means (GTK's file chooser cancels, and
+     the page hears `cancel`).
+6. **The phone: a trackpad, as Chrome Remote Desktop has it (Matěj, 2026-11-15).** The desktop
+   opens there too, on the tab's window. The person pinches to zoom and pans with two fingers,
+   and the screen has a cursor of its own: dragging one finger anywhere moves the cursor
+   relative to where it is, as on a laptop's trackpad, never jumping to the finger; a tap clicks
+   where the cursor is; a two-finger tap clicks the right button; a press and drag drags. A
+   keyboard button opens the phone's keyboard, and "Zavřít okno" stays one tap for the common
+   case. noVNC's own touch input taps where the finger is, so the page translates the gestures
+   itself into the pointer events it sends (not in the prototype, which tapped through noVNC).
+7. **Agents (the Folder's manual, a template revision with the implementation).** In the
+   Environment browser's section, where the Environment has the desktop:
+   - cs: „**Okno mimo stránku.** Když stránka v pohledu nereaguje a uživatel nevidí okno, které
+     otevřela (dialog systému, náhled tisku, bublina prohlížeče), nabídni mu plochu: tlačítko
+     Plocha v liště pohledu nebo odkaz `https://desktop.<…>/?tab=<id>`. Plocha ukazuje celou
+     obrazovku Prostředí i s okny ostatních vláken; uživatel na ní pracuje jen se svým oknem.
+     Platby, výběr souborů a vyskakovací seznamy plochu nepotřebují.“
+   - en: "**A window outside the page.** When the page in the view does not react and the user
+     cannot see a window it opened (a system dialog, the print preview, a browser bubble), offer
+     them the desktop: the Plocha button in the view's bar or the link
+     `https://desktop.<…>/?tab=<id>`. The desktop shows the Environment's whole screen with the
+     other threads' windows; the user works only with their own window there. Payments, file
+     choosers and pop-up lists do not need it."
+   - In Computer Use, both languages, a rule and no mechanism: cs „Když uživatel pracuje na
+     ploše Prostředí, Computer Use nepoužívej, dokud ti neřekne, že skončil. Když plochu
+     potřebuješ, řekni mu to a počkej.“; en "While the user works on the Environment's desktop,
+     do not use Computer Use until they tell you they are done. When you need the screen, tell
+     them and wait."
+8. **A fact in doctor.** `desktop`: the units, the packages, the socket, and that no x11vnc
+   listens on any TCP port; never `fail`, never in `recover`.
+
+**Failure modes.**
+
+| Failure | What happens |
+| --- | --- |
+| x11vnc or the packages missing | The socket unit is skipped by its condition; the view shows no Plocha button; doctor says what is missing; the view and Computer Use are unchanged |
+| The page closes, the network drops | The socket closes, the lease ends, held keys and buttons are released, the stacking is restored |
+| The service crashes while a person holds | The lease runs out within two minutes; the next start clears it |
+| An agent's input while a person controls the screen | Not stopped (no gate, by Matěj's decision, and the X server has no access control); the Folder's rule asks agents to wait; collisions are watched in practice before anything enforces a turn |
+| Two people | The last who takes the screen has it; the other sees "Plochu ovládá jiný člověk", their held input is released |
+| The tab's window cannot be told (1 of 36 measured) | The page opens on the whole screen and says it could not find the window |
+| A native window belongs to another thread's tab | It is listed on the whole screen without "Zavřít okno" for the tab's person; the notice says not to close other threads' windows |
+| An unknown RFB message, another security type | The connection closes |
+| A paste on the desktop | It sets the screen's selections, which other threads may read; screen selections never reach a viewer |
+| The display restarts | Each x11vnc ends with its connection; the page says the connection dropped and reconnects on reload |
+| noVNC upgraded | The phone's initial 1:1 position uses a private call of 1.7.0 (`_display.viewportChangePos`); pinned, and checked on each upgrade |
+
+**Variants considered.**
+
+| Variant | Latency | Dependencies | Security | Maintenance | Disposition |
+| --- | --- | --- | --- | --- | --- |
+| x11vnc + noVNC + the Platform's RFB gate, socket-activated (selected) | VNC updates of changed regions over the gateway's WebSocket; enough for dialogs, not measured for video | `x11vnc`, `xdotool`, `x11-utils` from Ubuntu (~2 MB); noVNC 1.7.0 vendored (~1 MB) | No port at all; admission by the gateway; input gated per viewer by the service; selections never to viewers | x11vnc upstream is quiet (0.9.16, 2019), libvncserver patched by Ubuntu; noVNC active | Selected: attaches to the existing screen without a restart, smallest own piece |
+| The Cua Driver: its screenshots as frames, its tools as input | A full-screen PNG per frame, about a frame a second (estimate) | None new | The person's input would go through the agents' tool and its turn | None new | Rejected as the transport; the driver stays the agents' |
+| KasmVNC | Good (its own encoder, WebP) | Replaces Xvfb with its own X server and brings its web client and users | Its own authentication next to the gateway's | A fork of TigerVNC to follow | Rejected for now: the display and the browser would restart; 0191's fallback |
+| Selkies (GStreamer, WebRTC) | Best | A GStreamer stack of hundreds of MB; UDP or TURN through the tailnet and gateway | WebRTC signalling and media next to the gateway | Large | Later, only if VNC proves too slow; the gate, turn and focus stay, only the transport changes |
+| neko | Good | Built around its own browser in a container | Its own rooms and passwords | Separate product | Rejected |
+| ffmpeg `x11grab` plus XTEST of our own | Tunable | ffmpeg present | Own protocol | Own machinery | Rejected |
+| A window manager on the screen | — | A WM package | — | Changes every window's geometry and focus | Rejected (point 4) |
+
+**Decided and open (Matěj, 2026-11-15).**
+
+1. Who goes first, a person or an agent's Computer Use: **open**, to be defined well after the
+   desktop is used in practice.
+2. What a person sees of other threads: **the whole screen starting at their window**, with the
+   notice; not a clip to the tab's window, which would hide a bubble the service cannot
+   attribute.
+3. The phone: **the desktop with a trackpad as Chrome Remote Desktop has it** (point 6).
+4. The `computer` entry: **the driver's proxy as now**, with the turn only as the Folder's rule;
+   any enforcement waits until practice shows how the desktop is used.
+
+**Prototype** (`prototypes/desktop/` at commit `e45730e` of #995, not merged; the implementation
+starts from this decision, not from that code). It runs from a worktree on its own loopback port and touches
+no unit of the Environment: x11vnc, xdotool and x11-utils extracted from Ubuntu's packages into
+the user's `~/.local/opt` (`fetch-tools.sh`, no root, nothing installed), `systemd-socket-activate`
+in place of the socket unit, noVNC 1.7.0 from npm. `check.ts` is the live check above:
+
+- the file input's GTK window found and attributed to its tab;
+- the page taking the screen from that tab;
+- `computer`'s `click` refused before the real driver while `get_screen_size` reaches it (the
+  prototype's gate, `computer-gate.ts` and `turn.ts`, an experiment Matěj did not take: no gate
+  is built);
+- Escape typed into the desktop page closing the dialog, the page hearing `cancel`;
+- after the release, the other windows of the screen in the same stacking, position and size.
+
+It passed on 2026-11-15. Earlier the same day, with a variant that ran one listening x11vnc on
+an owner-only unix socket instead of socket activation, the print preview closed by Escape from
+the desktop and the phone's "Zavřít okno" at 390 px closed the GTK dialog; the gate and the page
+were the same. `gates.test.ts` covers the RFB gate (handshake,
+chunks, input only in control, paste, never-messages, unknown messages, held input released) and
+the `computer` gate against a stand-in driver (every call without a person, input refused and
+reading passed with a person, a new tool refused, an expired lease).
+
+**Honest limits.** Not built: the units, the CLI command, the view's button and hint, the hub's
+event-driven detection, the doctor fact, the Folder's lines and Machines' packages and route.
+The prototype polls the window list every 2 s and reads it with xwininfo and xprop. Latency and
+the cost of x11vnc in memory and CPU were not measured; during the check the Environment was
+under memory pressure from the prototype's two extra Chromes and the view put one tab to sleep,
+as it is built to. Screenshots of the check show other threads' windows and stay out of this
+repository. The `chrome://print/` attribution and bubbles other than the translate bubble were not
+verified. One person and one headless page were used; two people at once and a real agent's
+Computer Use during a hold were not run.

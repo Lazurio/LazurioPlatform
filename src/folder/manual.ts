@@ -9,6 +9,10 @@ import {
 import { mechanisms, organizationAdmin } from "./manual-mechanisms";
 import type { ManualPath } from "./outputs";
 import {
+  ownInstructionsAllowed,
+  ownInstructionsOfOrganization,
+} from "./own-instructions";
+import {
   githubIdentity,
   type PresetName,
   presetVersion,
@@ -583,6 +587,68 @@ const publicPublication: Text = t(
   "**In a public Environment** you have no GitHub identity: you only read the Organization's public repositories anonymously and publish nothing from here, no push, pull request or issue, also where another rule here asks for one. Keep a finished change committed in the worktree and show it to the user. Sign nobody in to GitHub.",
 );
 
+// The person's own instructions for agents (root decision 0233, decision
+// F14's addendum of 2026-11-06): what they are, that an agent adds a line
+// only on the person's word, how it tells a habit of the person from what is
+// the Organization's, what it says first on a Work Environment and where
+// there are none. AGENTS.md renders the instructions themselves and points
+// here from its rule on "remember this". An Environment without them says
+// only that, and keeps that rule's other way.
+function ownInstructionsPassage(
+  preset: PresetName,
+  machine: MachineBinding | null,
+): readonly Text[] {
+  const heading = t(
+    "## Vlastní pokyny uživatele",
+    "## The user's own instructions",
+  );
+  if (!ownInstructionsAllowed(preset, machine))
+    return [
+      heading,
+      t(
+        "Toto Prostředí vlastní pokyny uživatele nemá: pracuje tu víc lidí nebo persona, takže by pokyny jednoho platily pro všechny. Mají je jen vlastní počítač uživatele, Osobní Prostředí a Pracovní Prostředí přiřazené jednomu člověku (rozhodnutí 0233). „Zapamatuj si“ tu řeš podle pravidla v `AGENTS.md`.",
+        "This Environment has no own instructions of a user: several people or a persona work here, so one person's instructions would hold for all. Only the user's own computer, a Personal Environment and a Work Environment assigned to one person have them (decision 0233). Handle a “remember this” here as the rule in `AGENTS.md` says.",
+      ),
+    ];
+  const organization = ownInstructionsOfOrganization(preset);
+  return [
+    heading,
+    t(
+      "Vlastní pokyny jsou text, kterým uživatel říká, jak s ním agenti v tomto Prostředí pracují (rozhodnutí 0233). Jsou nastavením Prostředí, ne úpravou generovaného souboru: Folder je vykreslí na začátku `AGENTS.md` hned za tónem komunikace, takže je dostane agent, jehož harness čte `AGENTS.md`; Buddy je nedostává. Žádná aktualizace se na nich nezastaví. Nic neudělují. Při střetu platí pravidla Lazuria a Organizace, ve které pracuješ, a uživateli řekneš, proč se pokynem neřídíš.",
+      "Own instructions are text in which the user says how agents work with them in this Environment (decision 0233). They are a setting of the Environment, not an edit of a generated file: the Folder renders them near the beginning of `AGENTS.md`, right after the communication voice, so an agent whose harness reads `AGENTS.md` gets them; Buddy does not. No update stops on them. They grant nothing. Where they conflict, Lazurio's rules and the rules of the Organization you work in win, and you tell the user why you do not follow the instruction.",
+    ),
+    t(
+      '- **Řádek přidáš jen na slovo uživatele.** Když tě požádá, ať si zapamatuješ, jak s ním pracovat, navrhni mu nejdřív přesné znění řádku a po jeho souhlasu ho ulož: `lazurio folder instructions add "<řádek>"`. Celý text ukáže `lazurio folder instructions show`, nahradí ho `set` a odstraní `clear`. Sám od sebe tam nic nepřidávej.',
+      '- **Add a line only on the user\'s word.** When they ask you to remember how to work with them, first propose the exact line and, once they agree, save it: `lazurio folder instructions add "<line>"`. `lazurio folder instructions show` prints the whole text, `set` replaces it and `clear` removes it. Add nothing there on your own.',
+    ),
+    t(
+      "- **Nejdřív rozhodni, čí ta paměť je.** Návyk uživatele patří do vlastních pokynů, třeba „odpovídej mi stručně a začni výsledkem“. Postup, pojem nebo znalost Organizace patří do ní jako pull request nebo issue, třeba „faktury se schvalují do pátku“; pak je zná i agent dalšího kolegy (decision 0163).",
+      "- **First decide whose memory it is.** A habit of the user goes into their own instructions, for example “answer me briefly and lead with the outcome”. A process, meaning or knowledge of the Organization goes to the Organization as a pull request or an issue, for example “invoices are approved by Friday”; then the next colleague's agent knows it too (decision 0163).",
+    ),
+    ...(organization
+      ? [
+          t(
+            "- **Na Pracovním Prostředí to uživateli řekni předem.** Než uložíš první řádek, řekni mu, že vlastní pokyny patří Organizaci spolu s Prostředím, že je její Admini smí číst a že soukromé věci patří do Osobního Prostředí. Příkaz to ve své odpovědi zopakuje.",
+            "- **In a Work Environment, tell the user first.** Before you save the first line, tell them that own instructions belong to the Organization with the Environment, that its Admins may read them and that private matters belong in a Personal Environment. The command repeats it in its answer.",
+          ),
+        ]
+      : []),
+    organization
+      ? t(
+          "- **Jméno asistenta.** Uživatel si tu smí svého asistenta pojmenovat; je to řádek vlastních pokynů jako každý jiný. Jsi asistent uživatele; persona Organizace (Henry) je pracovník Organizace s vlastním Prostředím.",
+          "- **The assistant's name.** The user may give their assistant a name here; it is a line of the own instructions like any other. You are the user's assistant; the Organization's persona (Henry) is the Organization's worker with an Environment of its own.",
+        )
+      : t(
+          "- **Jméno asistenta.** Uživatel si tu smí svého asistenta pojmenovat; je to řádek vlastních pokynů jako každý jiný.",
+          "- **The assistant's name.** The user may give their assistant a name here; it is a line of the own instructions like any other.",
+        ),
+    t(
+      "- **Kde nejsou.** Týmové Prostředí, Prostředí s automatizacemi a veřejné Prostředí vlastní pokyny nemají, protože tam pracuje víc lidí nebo persona.",
+      "- **Where there are none.** A Team Environment, an Environment with automations and a public Environment have no own instructions, because several people or a persona work there.",
+    ),
+  ];
+}
+
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -980,6 +1046,8 @@ function workingHere(
       "Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do `AGENTS.md` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree, do repozitáře, který jen čteš, jako issue s návrhem (výše); GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které uživatel do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost. V pochybnosti obsah nekopíruj: zapiš jen issue v jeho scope nebo odkaz na místo, kde je.",
       "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree, or to a repository you only read as an issue with the proposal (above); a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the user may place in that store; Personalspace and cross-Organization isolation always take precedence. When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.",
     ),
+    blank,
+    ...ownInstructionsPassage(preset, machine),
     blank,
     t("## Organizace", "## Organizations"),
     t(
@@ -1447,6 +1515,34 @@ const toolUpdates: Text = t(
   "- Offer the user a newer version of one of their tools (Codex, Claude Code, `gh`, Node, npm, Bun and the rest) as soon as you find one, for example from the tool's own notice or its official release. Update it only with their consent in this thread: `lazurio tools update <tool>` runs the official updater or installer of exactly that one tool; where there is none, it prints only the official source. `lazurio tools status` shows what is installed; report a missing tool with its official source (decision 0161). Never downgrade a tool or overwrite an installation the user made themselves.",
 );
 
+// The tools an Organization declares for its Environments (decision F73):
+// on its Environments `lazurio update` installs them or raises them to their
+// minimum without asking, the Admin's approval of the declaration being the
+// consent; on the person's own computer nothing is installed by itself; a
+// personal Remote Environment mounts no Organization. A tool the
+// Organization does not declare stays under the rule above, and the agent
+// proposes declaring it.
+function organizationTools(preset: PresetName): readonly Text[] {
+  if (preset === "hosted-personal") return [];
+  if (preset === "local")
+    return [
+      t(
+        "- Organizace může deklarovat nástroje, které její Prostředí mají mít (`settings.tools` v jejím `lazurio.organization.json`: nástroj z katalogu Lazuria a minimální verze). Na vašem počítači je Lazurio samo neinstaluje: chybí-li nástroj z deklarace nebo je starší, nabídni ho uživateli a nainstaluj ho jen s jeho souhlasem, oficiální cestou nástroje (decision F73).",
+        "- An Organization may declare the tools its Environments have (`settings.tools` in its `lazurio.organization.json`: a tool of Lazurio's catalog and a minimum version). On the person's own computer Lazurio installs none of them by itself: when a declared tool is missing or older, offer it to the user and install it only with their consent, by the tool's official path (decision F73).",
+      ),
+    ];
+  return [
+    t(
+      "- **Nástroje Organizace.** Organizace, které toto Prostředí patří, deklaruje nástroje, které její Prostředí mají mít, v `settings.tools` svého `lazurio.organization.json`: nástroj z katalogu Lazuria a minimální verzi. `lazurio update` je tu bez ptaní doinstaluje nebo zvedne na minimum jejich oficiální cestou (cargo přes rustup, pnpm oficiálním instalátorem pnpm) do standardní cesty, nikdy je nesníží a nástroj nainstalovaný jinak nepřepíše; schválení deklarace Adminem Organizace je souhlas (decision F73). Stav ukáže `lazurio doctor` (kontrola `organization-tool`) a selhání pojmenuje odpověď `lazurio update` i s oficiálním zdrojem nástroje.",
+      "- **The Organization's tools.** The Organization this Environment belongs to declares the tools its Environments have in `settings.tools` of its `lazurio.organization.json`: a tool of Lazurio's catalog and a minimum version. Here `lazurio update` installs them or raises them to their minimum without asking, by their official path (cargo through rustup, pnpm with pnpm's official installer) into the standard path; it never lowers them and never overwrites a tool installed another way; the Organization Admin's approval of the declaration is the consent (decision F73). `lazurio doctor` shows their state (the check `organization-tool`), and the answer of `lazurio update` names a failure with the tool's official source.",
+    ),
+    t(
+      "- Chybí-li ti nástroj z deklarace, spusť `lazurio update`; chybějící nástroj práci neblokuje. Nástroj, který Organizace nedeklaruje a práce ho potřebuje, instaluješ podle pravidla výše a zároveň navrhni jeho přidání do deklarace: pull request do kořenového repozitáře Organizace, který přidá položku do `settings.tools`, a jeho sloučení Adminem Organizace je Publikace. Nástroj, který katalog Lazuria zatím neumí, navrhni issue v `Lazurio/LazurioPlatform`.",
+      "- When a declared tool is missing, run `lazurio update`; a missing tool does not block the work. A tool the Organization does not declare and the work needs, you install under the rule above, and you propose adding it to the declaration: a pull request to the Organization's root repository that adds the entry to `settings.tools`, whose merge by the Organization Admin is the Publication. A tool Lazurio's catalog cannot install yet, propose as an issue in `Lazurio/LazurioPlatform`.",
+    ),
+  ];
+}
+
 // The user's request to update („Aktualizuj“) is the consent to update
 // everything: Lazurio, the tools with a newer version and, where the
 // Environment carries Organizations, every checkout (root decision 0161,
@@ -1628,6 +1724,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
         "- `lazurio install` is the rollout's path: it installs or repairs Lazurio from a staged file. For an update use `lazurio update`.",
       ),
       toolUpdates,
+      ...organizationTools(preset),
       updateRequest(preset),
       t(
         "- `lazurio` je na PATH jako `~/.local/bin/lazurio`. Když ho shell nenajde (neinteraktivní `ssh host 'příkaz'` nečte `~/.profile`), spusť ho celou cestou; když chybí i ten link, `~/.local/share/lazurio/bin/lazurio`.",
@@ -1673,6 +1770,7 @@ function productUpdate(preset: PresetName): readonly Text[] {
       "- The Launchpad **pill** shows `idle`, `checking`, `available`, `downloading`, `activating`, and failures that return to `available` with the error and a retry. One click runs the same `lazurio update`.",
     ),
     toolUpdates,
+    ...organizationTools(preset),
     updateRequest(preset),
     blank,
     ...toolLayout,
@@ -2180,8 +2278,14 @@ function troubleshooting(preset: PresetName): readonly Text[] {
       "- `template-upgrade-required`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.",
     ),
     t(
-      "- `execution-os-change`, `custom-composition-unavailable`, `incomplete-state`, `revision-exhausted`: stav, který potřebuje diagnózu, nikdy odhad.",
-      "- `execution-os-change`, `custom-composition-unavailable`, `incomplete-state`, `revision-exhausted`: state that needs diagnosis, never a guess.",
+      "- `execution-os-change`, `incomplete-state`, `revision-exhausted`: stav, který potřebuje diagnózu, nikdy odhad.",
+      "- `execution-os-change`, `incomplete-state`, `revision-exhausted`: state that needs diagnosis, never a guess.",
+    ),
+    // The person's own instructions (root decision 0233): where there are
+    // none, and the one budget they share with a custom voice.
+    t(
+      "- `own-instructions-unavailable`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). `person-text-too-large`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v `AGENTS.md` jeden společný rozpočet (`voiceBytes`, `instructionsBytes`, `maxBytes`), takže se zkrátí pokyny nebo vlastní tón.",
+      "- `own-instructions-unavailable`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). `person-text-too-large`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in `AGENTS.md` (`voiceBytes`, `instructionsBytes`, `maxBytes`), so the instructions or the custom voice get shorter.",
     ),
     t(
       "- `drift` s `path`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). `unowned-file`, `unsafe-path`: cestu Folder nevlastní nebo je to link.",
@@ -3069,8 +3173,8 @@ function environmentBrowser(
       "- **\"The open browser\".** When the user talks about the browser they have open, or asks what is in it, they mostly mean the Environment browser: the right panel of T3 Code or of the Launchpad, or your link. In ChatGPT Desktop it can also be a tab of its built-in browser with a plain address, which runs on their computer. `curl -s http://127.0.0.1:9222/json/list` lists what the Environment's windows have open (each page's address and title).",
     ),
     t(
-      "- **Tvoje okno.** Na začátku práce s prohlížečem spusť `lazurio browser window` (případně `--url <adresa>`). Otevře okno tvého vlákna, nebo najde to, které už máš, a vypíše jméno sezení, odkaz na tvou záložku v pohledu (`https://browser.…/t/<id>`) a příkaz, kterým v okně pracuješ. Adresa z `--url` platí jen pro nové okno: okno, které už máš, nikam nepřevede. Jméno sezení plyne z vlákna (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); jinak ho zadej `--session <jméno>`.",
-      "- **Your window.** When you start browser work, run `lazurio browser window` (optionally `--url <address>`). It opens your thread's window, or finds the one you have, and prints the session name, the link to your tab in the users' view (`https://browser.…/t/<id>`) and the command to work in the window with. `--url` applies only to a new window: it never moves the window you already have. The session name follows from the thread (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); otherwise give it with `--session <name>`.",
+      "- **Tvoje okno.** Na začátku práce s prohlížečem spusť `lazurio browser window` (případně `--url <adresa>`). Otevře okno tvého vlákna, nebo najde to, které už máš, a vypíše jméno sezení, odkaz na tvou záložku v pohledu (`https://browser.…/t/<id>`) a příkaz, kterým v okně pracuješ. Adresa z `--url` platí jen pro nové okno: okno, které už máš, nikam nepřevede. Jméno sezení plyne z vlákna (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); jinak ho zadej `--session <jméno>`. Nové okno se otevře prázdné, tvoje sezení se k němu připojí a teprve pak okno přejde na adresu; když se adresa do 10 s nenačte nebo ji prohlížeč odmítne, okno je i tak tvoje a příkaz to napíše. Když `window` odpoví, že sezení teď okno nemá (`binding-unverified`: dřívější `window` připojení nedokončil), pusť sezení příkazem `lazurio browser done --session <sezení>` a spusť `window` znovu, nebo hned pracuj v jiném sezení (`--session <sezení>-2`).",
+      "- **Your window.** When you start browser work, run `lazurio browser window` (optionally `--url <address>`). It opens your thread's window, or finds the one you have, and prints the session name, the link to your tab in the users' view (`https://browser.…/t/<id>`) and the command to work in the window with. `--url` applies only to a new window: it never moves the window you already have. The session name follows from the thread (`AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID`, `CLAUDE_CODE_SESSION_ID`); otherwise give it with `--session <name>`. A new window opens blank, your session is bound to it, and only then does the window go to the address; when the address has not loaded within 10 s or the browser refuses it, the window is still yours and the command says so. When `window` answers that the session has no window for now (`binding-unverified`: an earlier `window` did not finish binding it), let go of the session with `lazurio browser done --session <session>` and run `window` again, or work in another session at once (`--session <session>-2`).",
     ),
     t(
       '- **Práce v okně.** `agent-browser --cdp 9222 --session <sezení> <příkaz>`: například `open <url>`, `snapshot -i`, `click @e1`, `fill @e2 "text"`, `screenshot <soubor>`, `get url`. Vždy s `--cdp 9222` a svým `--session`: bez `--cdp` by agent-browser spustil vlastní prohlížeč bez přihlášení Environmentu a uživatel by ho neviděl. Nepoužívej `window new` (otevře izolované okno bez přihlášení), `--profile`, `--headed`, `set device` ani `set viewport`: velikost stránky určuje pohled uživatele.',
@@ -3148,16 +3252,26 @@ function environmentBrowser(
       "- **After a lost tab or a restart.** The browser has a memory budget of its own (decision 0195). Over it, the kernel ends one tab, or the browser restarts and opens none of its old tabs. Open a page that stopped answering again (`open <address>`). When agent-browser answers `tab_gone`, your window is gone: run `lazurio browser window` again (optionally `--url <address>`), which opens a new one, and send the user its new link. Never restart the browser for it, and leave the other threads' windows open.",
     ),
     t(
-      "- **Tvoje okna.** `lazurio browser tabs` vypíše okna tvého vlákna a žádná jiná: tvoje sezení a okna, která pro vlákno otevřel `lazurio browser window` (vlákno pozná podle `AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` nebo `CLAUDE_CODE_SESSION_ID`, jinak je vláknem samo sezení), u každého adresu, titulek, odkaz pro uživatele, jestli ho ještě drží tvůj agent-browser a jestli se na něj někdo dívá. Jméno sezení okno tvým nedělá: okno otevřené jinak (přímo přes agent-browser) ve výpisu není a pustíš ho `lazurio browser done --session <sezení>`. `agent-browser … tab list` k tomu nepoužívej: vypíše záložky všech vláken Prostředí a nepozná, které jsou tvoje. Počet oken omezený není, přehled o nich ale držíš ty: pomocné stránky otevírej postupně v jednom okně (bod Nová záložka) a okno, které už nepotřebuješ, hned pusť (bod Konec). Když `lazurio browser window` otevírá nové okno a vlákno už nějaká drží, vypíše je a připomene ti, jak je pustit.",
-      "- **Your windows.** `lazurio browser tabs` lists your thread's windows and no others: your session and the windows `lazurio browser window` opened for your thread (it knows the thread by `AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` or `CLAUDE_CODE_SESSION_ID`, otherwise the session is its own thread), each with its address, title, the user's link, whether your agent-browser still holds it and whether someone views it. A session's name does not make a window yours: one opened another way (with agent-browser directly) is not listed, and you let go of it with `lazurio browser done --session <session>`. Do not use `agent-browser … tab list` for it: it lists the tabs of every thread of the Environment and cannot tell yours. The number of windows is not limited, but keeping track of them is up to you: open helper pages one after another in one window (the point A new tab) and let go of a window as soon as you no longer need it (the point When done). When `lazurio browser window` opens a new window while your thread holds others, it lists them and reminds you how to let go of them.",
+      "- **Tvoje okna.** `lazurio browser tabs` vypíše okna tvého vlákna a žádná jiná: tvoje sezení a okna, která pro vlákno otevřel `lazurio browser window` (vlákno pozná podle `AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` nebo `CLAUDE_CODE_SESSION_ID`, jinak je vláknem samo sezení), u každého adresu, titulek, odkaz pro uživatele, jestli ho ještě drží tvůj agent-browser a jestli se na něj někdo dívá. Jméno sezení okno tvým nedělá: okno otevřené jinak (přímo přes agent-browser) ve výpisu není a pustíš ho `lazurio browser done --session <sezení>`. `agent-browser … tab list` k tomu nepoužívej: vypíše záložky všech vláken Prostředí a nepozná, které jsou tvoje. Počet oken omezený není, přehled o nich ale držíš ty: pomocné stránky otevírej postupně v jednom okně (bod Nová záložka) a okno, které už nepotřebuješ, hned pusť (bod Konec). Když `lazurio browser window` otevírá nové okno a vlákno už nějaká drží, vypíše je a připomene ti, jak je pustit. Když výpis začíná větou, že není úplný (v JSON `complete: false`), výpis proběhl: neopakuj ho, nic dalšího se nedozvíš. Okna pod „Nepotvrzená“ můžou být tvoje i cizí: to, o kterém víš, že je tvoje, pusť příkazem `lazurio browser done --session <sezení>`, ostatní nech být. Okno pod „Převzalo je jiné vlákno“ už tvoje není: nech ho být, a potřebuješ-li okno, spusť `lazurio browser window`, které ti dá nové.",
+      "- **Your windows.** `lazurio browser tabs` lists your thread's windows and no others: your session and the windows `lazurio browser window` opened for your thread (it knows the thread by `AGENT_BROWSER_SESSION`, `CODEX_THREAD_ID` or `CLAUDE_CODE_SESSION_ID`, otherwise the session is its own thread), each with its address, title, the user's link, whether your agent-browser still holds it and whether someone views it. A session's name does not make a window yours: one opened another way (with agent-browser directly) is not listed, and you let go of it with `lazurio browser done --session <session>`. Do not use `agent-browser … tab list` for it: it lists the tabs of every thread of the Environment and cannot tell yours. The number of windows is not limited, but keeping track of them is up to you: open helper pages one after another in one window (the point A new tab) and let go of a window as soon as you no longer need it (the point When done). When `lazurio browser window` opens a new window while your thread holds others, it lists them and reminds you how to let go of them. When the list begins with a line that it is not complete (in JSON `complete: false`), the listing worked: do not run it again, it tells nothing more. Windows under \"Not confirmed\" may be yours or another thread's: let go of one you know is yours with `lazurio browser done --session <session>`, and leave the others alone. A window under \"Taken by another thread\" is no longer yours: leave it alone, and when you need a window, `lazurio browser window` gives you a new one.",
+    ),
+    // F38's addendum of 2026-11-15: the Environment browser is shared, the
+    // overview of every tab, and taking one only on purpose.
+    t(
+      "- **Sdílený prohlížeč.** Prohlížeč Prostředí je sdílený: pracují v něm i jiná vlákna a lidé a agenti spolu můžou spolupracovat. Přehled všech záložek Prostředí vypíše `lazurio browser tabs --all`: u každé id, adresu, titulek a odkaz pro uživatele, sezení agent-browseru, která jsou k ní připojená (s vláknem, kde je známé, a jestli jejich agent-browser běží), místa, která ji drží, a kolik lidí se na ni dívá. Použij ho, když uživatel mluví o záložce, kterou neotevřelo tvoje vlákno, nebo když s jiným agentem na něčem spolupracujete. Přehled slouží k orientaci: v záložce jiného vlákna nebo člověka nepracuj, dokud ji vědomě nepřevezmeš.",
+      "- **A shared browser.** The Environment browser is shared: other threads and people work in it too, and agents may work together. `lazurio browser tabs --all` lists every tab of the Environment: for each its id, address, title and the user's link, the agent-browser sessions bound to it (with their thread where it is known, and whether their agent-browser runs), the places that hold it and how many people view it. Use it when the user talks about a tab your thread did not open, or when you work on something together with another agent. The overview is for finding your way: do not work in another thread's or a person's tab until you take it on purpose.",
+    ),
+    t(
+      "- **Převzetí záložky.** Záložku jiného agenta nebo člověka převezmi jen jako vědomé rozhodnutí: když o to uživatel požádá, nebo když s tím agentem vědomě spolupracujete. Nejdřív spusť `lazurio browser take <id>` bez potvrzení: popíše, od koho záložku přebíráš (sezení, jeho vlákno a jestli v ní jeho agent možná právě pracuje), kdo ji dál drží a co se stane, nic nezmění a skončí kódem 3. Teprve když to tak chceš, spusť `lazurio browser take <id> --confirm`: sezení, která ji drží, se pustí jako po `done`, tvoje sezení se k ní připojí a záložka se zapíše jako okno tvého vlákna. Nic se nezavře a kdo ji má otevřenou, tomu zůstane. Dosavadnímu držiteli to agent-browser neřekne: jeho vlákno to uvidí v `lazurio browser tabs` a jeho `window` mu dá nové okno, ale když jeho agent ve svém sezení pokračuje, pracuje ve stejné záložce jako ty. Záložku, ve které jiný agent možná právě pracuje, proto bez souhlasu uživatele nepřebírej, a uživateli řekni, od koho a proč jsi ji převzal. Má-li tvoje sezení vlastní okno, převezmi záložku do jiného sezení (`--session <sezení>-2`).",
+      "- **Taking a tab.** Take another agent's or a person's tab only as a deliberate decision: when the user asks for it, or when you work with that agent on purpose. First run `lazurio browser take <id>` without confirming: it describes from whom you take the tab (the session, its thread and whether its agent may be working there now), who else keeps it and what happens, changes nothing and exits 3. Only when you mean it, run `lazurio browser take <id> --confirm`: the sessions bound to it are let go as with `done`, your session is bound to it, and the tab is recorded as your thread's window. Nothing is closed, and whoever has it open keeps it. agent-browser does not tell the earlier holder: its thread sees it in `lazurio browser tabs` and its `window` gives it a new window, but if its agent goes on in its session, it works in the same tab as you. So never take a tab another agent may be working in without the user's consent, and tell the user from whom and why you took it. When your session has a window of its own, take the tab into another session (`--session <session>-2`).",
     ),
     t(
       "- **Okna v ChatGPT Desktopu.** V ChatGPT Desktopu uživatel vidí tvoje okno v pravém panelu přes odkaz `https://browser.…/t/<id>`. Každé další okno (`--session <sezení>-2` a tak dál) je nová záložka s vlastním odkazem, který mu musíš poslat zvlášť; v panelu se sám neobjeví a starý odkaz pořád ukazuje první okno. Aby se uživatel neztrácel: drž jedno okno, ve kterém mu práci ukazuješ, a stránky v něm střídej (`agent-browser … open <adresa>`), dokud nepotřebuje vidět dvě vedle sebe. Když mu pošleš odkaz na další okno, napiš, co v něm je, a že ten předchozí patří k jinému oknu. Okno, které už nepotřebuje, pusť a řekni mu to.",
       "- **Windows in ChatGPT Desktop.** In ChatGPT Desktop the user sees your window in the right panel through the link `https://browser.…/t/<id>`. Every further window (`--session <session>-2` and so on) is a new tab with a link of its own that you send them separately; it does not appear in the panel by itself, and the old link still shows the first window. So that the user does not lose their way: keep one window in which you show them your work and change pages in it (`agent-browser … open <address>`) unless they need two side by side. When you send them the link to a further window, say what is in it and that the earlier link belongs to another window. Let go of a window they no longer need, and tell them.",
     ),
     t(
-      "- **Konec.** Až v okně skončíš, pusť ho příkazem `lazurio browser done` (další okno s `--session <sezení>-2` a tak dál); všechna okna vlákna najednou pustí `lazurio browser done --all`. Záložka pak skončí, až ji nic nedrží a nikdo se na ni nedívá; uživateli, který ji má otevřenou, zůstane. Než uživateli řekneš, že jsi okna zavřel, ověř to za pár sekund příkazem `lazurio browser tabs`: puštěné okno, na které se uživatel dívá, mu zůstane, a to mu řekni přesně (třeba „okno s náhledem jsem pustil, zmizí, až ho zavřete“). Neslibuj zavření, které jsi neudělal. `agent-browser … tab close` ani `close` nepoužívej: zavřel bys ji všem, kdo ji drží nebo mají otevřenou. Prohlížeč ani jeho služby nevypínej a nerestartuj: zavřel bys okna ostatních vláken.",
-      '- **When done.** When your work in your window is done, let go of it with `lazurio browser done` (another window with `--session <session>-2`, and so on); `lazurio browser done --all` lets go of every window of the thread at once. The tab then ends once nothing holds it and nobody views it; a user who has it open keeps it. Before you tell the user you closed your windows, check it with `lazurio browser tabs` a few seconds later: a window you let go that the user views stays for them, and tell them exactly that ("I let go of the preview window; it goes once you close it", say). Never promise a closing you did not do. Never use `agent-browser … tab close` or `close`: that closes the tab for everyone who holds it or has it open. Never stop or restart the browser or its services: that would close the other threads\' windows.',
+      "- **Konec.** Až v okně skončíš, pusť ho příkazem `lazurio browser done` (další okno s `--session <sezení>-2` a tak dál); všechna okna vlákna najednou pustí `lazurio browser done --all`. Záložka pak skončí, až ji nic nedrží a nikdo se na ni nedívá; uživateli, který ji má otevřenou, zůstane. Než uživateli řekneš, že jsi okna zavřel, ověř to za pár sekund příkazem `lazurio browser tabs`: puštěné okno, na které se uživatel dívá, mu zůstane, a to mu řekni přesně (třeba „okno s náhledem jsem pustil, zmizí, až ho zavřete“). Neslibuj zavření, které jsi neudělal. `agent-browser … tab close` ani `close` nepoužívej: zavřel bys ji všem, kdo ji drží nebo mají otevřenou. Prohlížeč ani jeho služby nevypínej a nerestartuj: zavřel bys okna ostatních vláken. Když `window` nechal vazbu sezení neověřenou, `done` ji po skončení agent-browseru vyřídí.",
+      '- **When done.** When your work in your window is done, let go of it with `lazurio browser done` (another window with `--session <session>-2`, and so on); `lazurio browser done --all` lets go of every window of the thread at once. The tab then ends once nothing holds it and nobody views it; a user who has it open keeps it. Before you tell the user you closed your windows, check it with `lazurio browser tabs` a few seconds later: a window you let go that the user views stays for them, and tell them exactly that ("I let go of the preview window; it goes once you close it", say). Never promise a closing you did not do. Never use `agent-browser … tab close` or `close`: that closes the tab for everyone who holds it or has it open. Never stop or restart the browser or its services: that would close the other threads\' windows. Where an earlier `window` left the binding of the session unverified, `done` settles it once the agent-browser has ended.',
     ),
     t(
       "- **Když nefunguje.** `lazurio doctor` (kontrola `environment-browser`) řekne, která služba neběží: `lazurio-display`, `lazurio-browser` nebo `lazurio-browser-view`.",
