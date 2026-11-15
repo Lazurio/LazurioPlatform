@@ -3561,7 +3561,7 @@ personal skills.
 This note records what the code does now. The shared budget below was proposed with this
 change and decided on 2026-11-15; nothing else here goes beyond the decision above.
 
-Implemented, with template revision `base-instructions-126`:
+Implemented, with template revision `base-instructions-127`:
 
 - **The preference.** `customInstructions` is the person's own instructions: plain text
   without control characters other than tab and line ends, at most 4,096 UTF-8 bytes
