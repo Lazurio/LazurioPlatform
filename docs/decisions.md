@@ -25745,8 +25745,9 @@ Not verified: macOS, a running `lazurio update` on an Environment with a declara
 ## F74 — The desktop of a Remote Environment: the escape for the windows the browser view cannot show
 
 **Proposed by the agent on 2026-11-15 on Matěj's direction of the same day ("Pohled + plocha jako
-úniková cesta"); open for his decision. A prototype in `prototypes/desktop/`, nothing installed,
-wired or released.** Root decision 0191 point 8 gives every Remote Environment a web desktop at
+úniková cesta"), with his answers below; who goes first stays open. The prototype stays out of
+`main` (`prototypes/desktop/` at commit `e45730e` of Lazurio/LazurioPlatform#995); nothing is
+installed, wired or released.** Root decision 0191 point 8 gives every Remote Environment a web desktop at
 `desktop.<…>` in its second wave, and point 16 names it the way to the windows outside a page.
 The known windows are now handled in the view itself: select, date, colour and datalist pop-ups
 (F39's addendum, #972), file choosers in every frame (#975), payments and Chrome's other windows
@@ -25937,7 +25938,8 @@ Lazurio extension) next to the Environment browser:
 4. The `computer` entry: **the driver's proxy as now**, with the turn only as the Folder's rule;
    any enforcement waits until practice shows how the desktop is used.
 
-**Prototype.** `prototypes/desktop/` runs from a worktree on its own loopback port and touches
+**Prototype** (`prototypes/desktop/` at commit `e45730e` of #995, not merged; the implementation
+starts from this decision, not from that code). It runs from a worktree on its own loopback port and touches
 no unit of the Environment: x11vnc, xdotool and x11-utils extracted from Ubuntu's packages into
 the user's `~/.local/opt` (`fetch-tools.sh`, no root, nothing installed), `systemd-socket-activate`
 in place of the socket unit, noVNC 1.7.0 from npm. `check.ts` is the live check above:
