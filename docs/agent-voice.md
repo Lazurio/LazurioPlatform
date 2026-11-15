@@ -174,6 +174,19 @@ The composition is:
 This precedence applies to style, not a new general instruction hierarchy.
 Existing presets and Organization instructions keep their current owners.
 
+The same section has a second form below the voice, „Vlastní pokyny pro agenty“
+("Own instructions for agents"; root decision 0233, decision F14's addendum of
+2026-11-06 and its implementation note of 2026-11-15). It is not a second voice:
+it starts empty, holds what the person tells agents about working with them, and
+is drawn only where a person has own instructions (`local`, `hosted-personal`,
+`hosted-organization-personal`), never on a Team Environment, an Environment with
+automations or a public one. It shows a counter of UTF-8 bytes against its bound
+of 4,096, Save, Cancel and Remove, and on a Work Environment the notice that the
+instructions belong to the Organization, before anything is saved. It saves
+through `POST /api/own-instructions/update`, which changes that text alone. After
+a save the person may open a prepared issue with the text in this repository
+(„Poslat Lazuriu jako podnět“); nothing is sent by the product.
+
 Voice presets or Marketplace templates are a possible later source of editor
 text, not a selected distribution mechanism yet. A future selection should fill
 the same editable draft and use the same Save and recovery path. It must not

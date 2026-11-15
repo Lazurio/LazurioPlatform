@@ -3597,11 +3597,32 @@ Implemented, with template revision `base-instructions-127`:
   kind of a memory with one example each, what the agent says first on a Work Environment,
   the assistant's name, and where there are none.
 
+Implemented on 2026-11-15 in a second pull request, the field in Settings:
+
+- **The field.** Settings → Komunikace agentů has „Vlastní pokyny pro agenty“ below the
+  voice: a plain text with a counter of UTF-8 bytes against the bound, Save, Cancel and
+  Remove. It is drawn only where a person has own instructions; on a Team Environment, an
+  Environment with automations and a public Environment the page has nothing of it.
+- **Its notice.** On a Work Environment the form shows `ownInstructionsNotice` above its
+  buttons from its first drawing, so the person reads whose the instructions are before
+  anything is saved. The command states the same with its answer.
+- **The save.** `POST /api/profile` answers `ownInstructions` (`allowed`, `ofOrganization`,
+  `text`, `bytes`, `maxBytes`), with no text where the Environment has none, and
+  `POST /api/own-instructions/update` with `{expectedRevision, text}` (`text` null removes
+  them) calls `updateOwnInstructions`. The profile request of `/api/update` still refuses
+  the key, so a save of the field can change nothing else. A public Environment answers the
+  route as absent. The voice form now says `person-text-too-large` with its sizes as well.
+- **„Poslat Lazuriu jako podnět“.** After each save the form offers a link that opens
+  GitHub's new-issue form of this repository in the person's browser, filled with the saved
+  text in a fence. The product sends nothing and the person submits the issue under their
+  own sign-in. The link stays under 7,000 characters; a longer text is cut at a whole
+  character and the issue says so. On a Work Environment the form adds that the text
+  belongs to the Organization and that the repository is public. Opening the link already
+  hands the text to GitHub in the address, before anything is submitted; the form says
+  only that nothing is published until then.
+
 Not implemented yet:
 
-- The field „Vlastní pokyny pro agenty“ in Settings with its notice, and „Poslat Lazuriu
-  jako podnět“. Until then the Launchpad's profile request refuses the key, so on a Work
-  Environment the only way to save is the command, which states the notice.
 - The local Personalspace of a Work Environment: the preset's policy, the folder, the
   skills and the manual's texts, which still say that a Work Environment never has a
   Personalspace.
