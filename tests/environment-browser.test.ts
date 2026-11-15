@@ -4285,7 +4285,16 @@ async function takeWorld() {
       pageTitles,
       daemonSeams: daemon,
     });
-  return { env, folder, socketDir, runtime, run, asked, calls: browser.calls };
+  return {
+    env,
+    folder,
+    socketDir,
+    runtime,
+    run,
+    asked,
+    daemon,
+    calls: browser.calls,
+  };
 }
 
 test.skipIf(process.platform === "win32")(
@@ -4743,6 +4752,44 @@ test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       targetId: NEWTARGET,
       created: true,
     });
+  },
+);
+
+test.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "take whose binding is verified but whose mark can then be neither rewritten nor removed reports the take unfinished, never a success a later window undoes (review of #993)",
+  async () => {
+    const world = await takeWorld();
+    const marks = join(world.runtime, "lazurio-browser", "unverified");
+    const base = windowSeams({
+      socketDir: world.socketDir,
+      targets: [TAKEN_TAB, OWN_TAB],
+      env: world.env,
+    }).seams;
+    const seams: WindowSeams = {
+      ...base,
+      // The pin succeeds, and from then on the marks cannot change.
+      run: async (command, ...rest) => {
+        const result = await base.run(command, ...rest);
+        if (command.includes("--pin-tab")) await chmod(marks, 0o500);
+        return result;
+      },
+      daemon: world.daemon,
+    };
+    try {
+      await expect(
+        takeTab("codex-019a", TAKEN_TAB, seams, { thread: "codex-019a" }),
+      ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+    } finally {
+      await chmod(marks, 0o700);
+    }
+    // Unfinished: the window is not recorded as the thread's, and the
+    // session stays unverified until done or window settles it.
+    expect(await present(unverifiedMark(world.runtime, "codex-019a"))).toBe(
+      true,
+    );
+    expect(
+      JSON.parse((await world.run(["tabs", "--json"])).stdout ?? "").windows,
+    ).toEqual([]);
   },
 );
 

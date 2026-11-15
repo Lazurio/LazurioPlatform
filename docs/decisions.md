@@ -11975,6 +11975,9 @@ takes it.
      one the binding wrote before its first command, keeping neither the taken tab nor it as
      the earlier binding, so no second write can fail and a settled session never keeps the
      taken tab; where that first mark cannot be written, no command runs and nothing is bound.
+     Once the binding is verified, the mark is first rewritten to keep the taken tab and then
+     removed, so a mark that cannot be removed keeps the take; where neither works, the take
+     is reported unfinished (`binding-unverified`) and the window is not recorded.
    - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
      changes, and the people who view the tab keep it.
 

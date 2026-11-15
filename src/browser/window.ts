@@ -1029,6 +1029,18 @@ async function bindSession(
       seams.endWithinMs ?? daemonEndMs,
     ));
   if (!settled) return "unverified";
+  // With `hold`, the mark keeps no tab, so a verified binding first gets a
+  // mark that keeps it: where the mark then cannot be removed, settling it
+  // later keeps the tab taken (review of #993). Where neither write works,
+  // the binding is not finished: the mark that keeps no tab stays.
+  if (hold && verified && marks !== undefined) {
+    const keeps = await markUnverified(marks, session, {
+      targetId,
+      before: null,
+    });
+    const gone = await clearUnverified(marks, session);
+    return gone || keeps ? "bound" : "unverified";
+  }
   // Verified or settled, so the mark goes. A mark that cannot be removed
   // keeps the session unverified for `tabs` until the next `window` settles
   // it again, which keeps this binding.
