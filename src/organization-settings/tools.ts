@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { readFolderState } from "../folder/read-state";
+import type { FolderPreferences } from "../folder/state";
 import type {
   OrganizationTool,
   OrganizationToolId,
@@ -51,7 +52,7 @@ export async function declaredOrganizationTools(
   git: GitReader = operatorGit(tools),
 ): Promise<DeclaredOrganizationTools> {
   const state = join(folder, ".lazurio");
-  let preferences: Awaited<ReturnType<typeof readFolderState>>["preferences"];
+  let preferences: FolderPreferences;
   try {
     ({ preferences } = await withFolderReadLock(state, () =>
       readFolderState(state),
@@ -62,6 +63,16 @@ export async function declaredOrganizationTools(
       reason: "settings-unreadable" as const,
     });
   }
+  return declaredToolsOf(folder, preferences, git);
+}
+
+/** The same, for a reader that has the Folder's preferences already and
+ * must not take its lock (`lazurio doctor`, which never creates one). */
+export async function declaredToolsOf(
+  folder: string,
+  preferences: Pick<FolderPreferences, "preset" | "machine">,
+  git: GitReader,
+): Promise<DeclaredOrganizationTools> {
   const owner = preferences.machine?.owner;
   if (
     !organizationGoverns(preferences.preset.name) ||

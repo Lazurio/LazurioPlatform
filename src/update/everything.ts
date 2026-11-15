@@ -114,9 +114,9 @@ export type ToolsItem = Readonly<{ part: "tools"; packageManager: string }> &
   );
 
 /** The Organization's tools part's answer (decision F73): one item per
- * declared tool, or why it did not run. `not-governed` (a personal
- * Environment, the person's computer, an Environment without an owner
- * Organization) is silent; the others are findings. */
+ * declared tool, or why it did not run. Where no Organization governs the
+ * Environment (a personal Environment, the person's computer) the part
+ * gives no item at all; the other reasons are findings. */
 export type OrganizationToolsLine = Readonly<{ part: "organization-tools" }> &
   (
     | OrganizationToolItem
@@ -315,13 +315,16 @@ export async function updateEverything(
       const answer = await parts.organizationTools((tool, step) =>
         set({ part: "organization-tools", tool, step }),
       );
-      if (answer.kind === "not-run")
-        set({
-          part: "organization-tools",
-          result: "not-run",
-          reason: answer.reason,
-        });
-      else
+      // Where no Organization governs the Environment there is nothing to
+      // say, so no line: a personal Environment's answer stays as it was.
+      if (answer.kind === "not-run") {
+        if (answer.reason !== "not-governed")
+          set({
+            part: "organization-tools",
+            result: "not-run",
+            reason: answer.reason,
+          });
+      } else
         for (const item of answer.items)
           set({ part: "organization-tools", ...item });
     } catch {

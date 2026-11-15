@@ -51,7 +51,8 @@ import {
   runtimeSecretReasons,
 } from "../modules/runtime-secrets";
 import { chatgptAppsPolicyOf } from "../organization-settings/governance";
-import { declaredOrganizationTools } from "../organization-settings/tools";
+import { operatorGit } from "../organization-settings/local";
+import { declaredToolsOf } from "../organization-settings/tools";
 import {
   type Catalog,
   type ModuleReason,
@@ -835,9 +836,14 @@ async function toolRows(
  * warning. Read only: doctor installs nothing. */
 async function organizationToolChecks(
   folder: string,
+  preferences: Parameters<typeof declaredToolsOf>[1],
   tools: ToolsEnvironment,
 ): Promise<DoctorCheck[]> {
-  const declared = await declaredOrganizationTools(folder, tools);
+  const declared = await declaredToolsOf(
+    folder,
+    preferences,
+    operatorGit(tools),
+  );
   if (declared.kind === "not-run")
     return declared.reason === "settings-invalid"
       ? [check("organization-tool", "warn", "organization-tools-invalid")]
@@ -1376,10 +1382,16 @@ export async function collectDoctor(
     environment.tools,
     environment.signIn === true,
   );
+  // From the preferences doctor already read, never under the Folder's lock
+  // (taking it would create one where the state has none).
   const organizationTools =
-    folder === undefined
+    folder === undefined || observed.preferences == null
       ? []
-      : await organizationToolChecks(folder, environment.tools).catch(() => []);
+      : await organizationToolChecks(
+          folder,
+          observed.preferences,
+          environment.tools,
+        ).catch(() => []);
   const catalog =
     folder === undefined
       ? null
