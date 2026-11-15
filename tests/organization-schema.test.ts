@@ -18,6 +18,7 @@ import {
   manifestRefusals,
   manifestVariants,
   microsoft365Refusals,
+  toolsRefusals,
   unverifiedManifest,
   verifiedManifest,
   workspaceTabsRefusals,
@@ -130,6 +131,7 @@ const settingsRefusals = [
   ...workspaceTabsRefusals,
   ...accessRequestsRefusals,
   ...chatgptAppsRefusals,
+  ...toolsRefusals,
 ];
 
 // Refused cases of this test alone: what JSON Schema cannot see.
@@ -239,6 +241,10 @@ const readerOnly = new Map<string, string>([
   [
     "settings: module in two tabs",
     "A module is in one tab at most: items compared.",
+  ],
+  [
+    "settings: a tool declared twice",
+    "A tool is declared once: items compared by one field.",
   ],
   [
     "settings: tab name of 21 emoji",

@@ -51,12 +51,17 @@ import {
   runtimeSecretReasons,
 } from "../modules/runtime-secrets";
 import { chatgptAppsPolicyOf } from "../organization-settings/governance";
+import { declaredOrganizationTools } from "../organization-settings/tools";
 import {
   type Catalog,
   type ModuleReason,
   type OrganizationReason,
   readFolderCatalog,
 } from "../organizations/catalog";
+import {
+  organizationToolIds,
+  toolMinimumPattern,
+} from "../organizations/organization-settings";
 import { repositorySlotIssues } from "../organizations/repository-slots";
 import { organizationRootStates } from "../organizations/root-resolution";
 import { checkoutReasons } from "../providers/checkout-custody";
@@ -99,6 +104,7 @@ import {
   codexAppsInputOf,
   observeCodexApps,
 } from "../tools/codex-apps";
+import { organizationToolsState } from "../tools/organization-tools";
 import { type ToolsEnvironment, toolsOverview } from "../tools/overview";
 import {
   type ToolRunner,
@@ -152,6 +158,9 @@ export const doctorCheckIds = [
   "folder-top-level",
   // tools
   "tool",
+  // A tool the Environment's Organization declares (decision F73): at its
+  // minimum, missing or below it; `lazurio update` provisions it.
+  "organization-tool",
   "executor",
   // The shared GitHub App sign-in pilot (decision F48): only while
   // it is on.
@@ -208,6 +217,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     "machine-binding": "folder",
     "folder-top-level": "folder",
     tool: "tools",
+    "organization-tool": "tools",
     executor: "tools",
     "github-sign-in": "tools",
     "github-leftover": "tools",
@@ -272,6 +282,11 @@ const ownReasons = [
   // gh signed in as the person while this Environment does not reach GitHub
   // over SSH as that account (decision F19, addendum 2026-10-19).
   "ssh-not-linked",
+  // The Organization's tools (decision F73).
+  "organization-tool-missing",
+  "organization-tool-below-minimum",
+  "organization-tool-version-unreadable",
+  "organization-tools-invalid",
   // Organizations
   "catalog-unreadable",
   "template-not-runtime",
@@ -396,7 +411,13 @@ export const doctorContextRules: Readonly<
 > = Object.freeze({
   ...contextRules,
   running: isReleaseVersion,
-  tool: oneOf(toolCatalog.map((entry) => entry.name)),
+  tool: oneOf(
+    toolCatalog.map((entry) => entry.name),
+    organizationToolIds,
+  ),
+  // An Organization tool's declared minimum (decision F73).
+  minimum: (value: unknown) =>
+    typeof value === "string" && toolMinimumPattern.test(value),
   tier: oneOf(["required", "recommended", "optional"]),
   // Numeric segments only: a tool prints its version line itself, and a
   // suffix (`-beta`, `+build`, or any word) is free text; it is omitted.
@@ -803,6 +824,48 @@ async function toolRows(
       signIn: signIns?.[index],
       offered: offered(entry),
     };
+  });
+}
+
+/** The tools the Environment's Organization declares (decision F73), each
+ * a check: `ok` at its minimum, a warning when missing or below, which the
+ * next `lazurio update` provisions. Nothing where no Organization governs
+ * the Environment or it declares none, or where its root cannot be read
+ * (the Organization's own check names that); an invalid declaration is one
+ * warning. Read only: doctor installs nothing. */
+async function organizationToolChecks(
+  folder: string,
+  tools: ToolsEnvironment,
+): Promise<DoctorCheck[]> {
+  const declared = await declaredOrganizationTools(folder, tools);
+  if (declared.kind === "not-run")
+    return declared.reason === "settings-invalid"
+      ? [check("organization-tool", "warn", "organization-tools-invalid")]
+      : [];
+  const states = await organizationToolsState({
+    tools: declared.tools,
+    path: tools.path,
+    home: tools.home,
+    xdg: tools.xdg,
+    platform: tools.platform,
+    run: tools.run,
+  });
+  return states.map((entry) => {
+    const context = {
+      tool: entry.tool,
+      minimum: entry.minimum,
+      ...(entry.version === undefined
+        ? {}
+        : { toolVersion: entry.version.split(/[-+]/, 1)[0] }),
+    };
+    return entry.state === "ok"
+      ? check("organization-tool", "ok", undefined, context)
+      : check(
+          "organization-tool",
+          "warn",
+          `organization-tool-${entry.state}`,
+          context,
+        );
   });
 }
 
@@ -1313,6 +1376,10 @@ export async function collectDoctor(
     environment.tools,
     environment.signIn === true,
   );
+  const organizationTools =
+    folder === undefined
+      ? []
+      : await organizationToolChecks(folder, environment.tools).catch(() => []);
   const catalog =
     folder === undefined
       ? null
@@ -1434,6 +1501,7 @@ export async function collectDoctor(
             ) === "own-sign-in",
         ),
       ),
+    ...organizationTools,
     executor,
     ...githubChecks(github),
     ...catalogChecks(catalog),

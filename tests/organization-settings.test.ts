@@ -22,7 +22,9 @@ import {
   microsoft365,
   microsoft365Refusals,
   fixtureInventory as modules,
+  organizationTools,
   tenantId,
+  toolsRefusals,
   workspaceTabs,
   workspaceTabsRefusals,
 } from "./fixtures/organization-manifests";
@@ -38,6 +40,7 @@ const ungoverned: OrganizationSettingsEntry[] = [
   { key: "integrations.microsoft365.client_id", governed: false, value: null },
   { key: "integrations.microsoft365.apps", governed: false, value: null },
   { key: "integrations.microsoft365.callbacks", governed: false, value: null },
+  { key: "tools", governed: false, value: null },
   { key: "workspace.tabs", governed: false, value: null },
 ];
 const issue = (
@@ -53,6 +56,7 @@ test("the settings vocabulary is the upstream one", () => {
     "integrations.microsoft365.client_id",
     "integrations.microsoft365.apps",
     "integrations.microsoft365.callbacks",
+    "tools",
     "workspace.tabs",
   ]);
   expect(organizationSettingsIssueCodes).toEqual([
@@ -271,6 +275,7 @@ test("the Microsoft 365 company app is identifiers beside Composio, and never re
         governed: true,
         value: [callback],
       },
+      { key: "tools", governed: false, value: null },
       { key: "workspace.tabs", governed: false, value: null },
     ],
     issues: [],
@@ -371,6 +376,7 @@ test("access requests are accepted and ignored: the other settings beside them s
         governed: true,
         value: [callback],
       },
+      { key: "tools", governed: false, value: null },
       { key: "workspace.tabs", governed: true, value: tabs },
     ],
     issues: [],
@@ -410,6 +416,28 @@ test("ChatGPT apps are one boolean leaf beside Composio, and absent is not gover
   }
   // `allowed` is required once the group is there, and only a boolean.
   for (const [name, settings, issues] of chatgptAppsRefusals)
+    expect(
+      organizationSettings(parseCanonicalOrganization(manifest(settings))),
+      name,
+    ).toEqual({ status: "invalid", values: null, effective: null, issues });
+});
+
+// Decision F73: an Organization declares the tools its work Environments
+// have, each a catalog tool with its minimum version; the recipe (official
+// installer, update, verification) stays the catalog's, never the
+// manifest's.
+test("the Organization's tools are one setting: catalog tools with a minimum, each once", () => {
+  const verdict = organizationSettings(
+    parseCanonicalOrganization(manifest({ tools: organizationTools })),
+  );
+  expect(verdict.status).toBe("valid");
+  expect(verdict.values).toEqual({ tools: organizationTools });
+  expect(verdict.effective?.at(-2)).toEqual({
+    key: "tools",
+    governed: true,
+    value: organizationTools,
+  });
+  for (const [name, settings, issues] of toolsRefusals)
     expect(
       organizationSettings(parseCanonicalOrganization(manifest(settings))),
       name,

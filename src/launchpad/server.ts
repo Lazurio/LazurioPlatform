@@ -96,6 +96,7 @@ import {
   type RelayTransport,
   unixSocketTransport,
 } from "../organization-settings/relay";
+import { provisionDeclaredTools } from "../organization-settings/tools";
 import {
   handoverServerServices,
   type ServerServices,
@@ -941,6 +942,10 @@ export async function startLaunchpad(
                   syncCheckouts === undefined
                     ? contentNotRun("not-installed")
                     : syncCheckouts({ onProgress }),
+                // The tools the Environment's Organization declares
+                // (decision F73), with this Launchpad's PATH and home.
+                organizationTools: (onStep) =>
+                  provisionDeclaredTools(folder, toolsEnvironment, onStep),
                 tools: {
                   pins: (moved) => modules.runtimePins(moved),
                   resolve: modules.resolveBun,

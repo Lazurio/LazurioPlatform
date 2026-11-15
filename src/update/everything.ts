@@ -7,6 +7,11 @@ import {
   type RuntimeReason,
 } from "../modules/bun-runtime";
 import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
+import type { OrganizationToolsNotRun } from "../organization-settings/tools";
+import type {
+  OrganizationToolItem,
+  OrganizationToolsInput,
+} from "../tools/organization-tools";
 
 // One `lazurio update` (root decision 0212 point 3, decision F9's second
 // amendment of 2026-10-24): the same command on a computer and on an Environment
@@ -15,6 +20,11 @@ import type { BuiltProgress, BuiltRefresh } from "../modules/module-operations";
 //
 //   1. content: the clean primary checkouts of the Organizations this
 //      Environment holds on their published branch (`syncContent`);
+//   1a. the Organization's tools: the tools the Organization that owns
+//      this Environment declares in `settings.tools` of the manifest the
+//      content just brought (decision F73), installed or raised to their
+//      minimum by their official path, without asking, because the
+//      Organization Admin's approval of the declaration is the consent;
 //   2. tools: the Bun each app of the module checkouts the content just
 //      fast-forwarded pins (decision F62), made available with the resolver
 //      a start uses (`prewarmModuleRuntimes`), before any build, so a build
@@ -103,15 +113,26 @@ export type ToolsItem = Readonly<{ part: "tools"; packageManager: string }> &
     | Readonly<{ result: "not-fetched"; reason: typeof runtimeUnavailable }>
   );
 
+/** The Organization's tools part's answer (decision F73): one item per
+ * declared tool, or why it did not run. `not-governed` (a personal
+ * Environment, the person's computer, an Environment without an owner
+ * Organization) is silent; the others are findings. */
+export type OrganizationToolsLine = Readonly<{ part: "organization-tools" }> &
+  (
+    | OrganizationToolItem
+    | Readonly<{ result: "not-run"; reason: OrganizationToolsNotRun }>
+  );
+
 /** One item of the answer. */
 export type UpdateItem =
   | (Readonly<{ part: "content" }> & SyncEntry)
   | Readonly<{ part: "content"; result: "not-run"; reason: ContentNotRun }>
+  | OrganizationToolsLine
   | ToolsItem
   | (Readonly<{ part: "build" }> & BuiltRefresh)
   | ProductItem
   | Readonly<{
-      part: "content" | "build" | "tools" | "product";
+      part: "content" | "organization-tools" | "build" | "tools" | "product";
       result: "failed";
       reason: typeof partFailed;
     }>;
@@ -129,6 +150,11 @@ export type UpdateStep =
       Readonly<{
         step: "checking" | "fetching" | "fast-forwarding" | "cloning";
       }>)
+  | Readonly<{
+      part: "organization-tools";
+      tool: string;
+      step: "installing" | "updating";
+    }>
   | Readonly<{ part: "tools"; packageManager: string; step: "fetching" }>
   | (Readonly<{ part: "build" }> & BuiltProgress)
   | Readonly<{ part: "product"; step: "checking" }>;
@@ -141,6 +167,15 @@ export type UpdateParts = Readonly<{
   content: (
     onProgress: (progress: SyncProgress) => void,
   ) => Promise<SyncRun | Readonly<{ kind: "not-run"; reason: ContentNotRun }>>;
+  /** The tools the Environment's Organization declares (decision F73),
+   * after the content: the declaration, or why there is none to apply, and
+   * what provisioning them did. Absent: no such part. */
+  organizationTools?: (
+    onStep: NonNullable<OrganizationToolsInput["onStep"]>,
+  ) => Promise<
+    | Readonly<{ kind: "provisioned"; items: readonly OrganizationToolItem[] }>
+    | Readonly<{ kind: "not-run"; reason: OrganizationToolsNotRun }>
+  >;
   /** The Bun the apps of the module checkouts this run fast-forwarded pin
    * (decision F62): their pins as the checkouts now declare them, with how
    * many could not be read (`runtimePins` of the module core), and the
@@ -179,6 +214,10 @@ const keyOf = (line: UpdateLine): string => {
       : "build";
   if (line.part === "tools")
     return "packageManager" in line ? `tools\0${line.packageManager}` : "tools";
+  if (line.part === "organization-tools")
+    return "tool" in line
+      ? `organization-tools\0${line.tool}`
+      : "organization-tools";
   return line.part;
 };
 
@@ -266,6 +305,28 @@ export async function updateEverything(
   } catch {
     failed("content");
   }
+
+  // 1a. The Organization's tools (decision F73), after the content, so a
+  // declaration the Organization has just published applies in this run.
+  // One tool at a time; a tool that cannot be had is an item, never a
+  // failed update, and it never stops the parts after it.
+  if (parts.organizationTools !== undefined)
+    try {
+      const answer = await parts.organizationTools((tool, step) =>
+        set({ part: "organization-tools", tool, step }),
+      );
+      if (answer.kind === "not-run")
+        set({
+          part: "organization-tools",
+          result: "not-run",
+          reason: answer.reason,
+        });
+      else
+        for (const item of answer.items)
+          set({ part: "organization-tools", ...item });
+    } catch {
+      failed("organization-tools");
+    }
 
   // 2. Tools (DEV-6682): the Bun each app of the checkouts the content just
   // moved pins (decision F62), before any build, so that a build never waits
@@ -473,6 +534,7 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
       `Content: ${entries.length} repositories checked, ${moved} fast-forwarded,${cloned === 0 ? "" : ` ${cloned} cloned,`} ${left} left as they are.`,
     );
   }
+  lines.push(...organizationToolsText(items));
   for (const item of items) {
     if (item.part !== "tools") continue;
     if (!("packageManager" in item)) {
@@ -509,6 +571,55 @@ export function everythingText(items: readonly UpdateItem[]): string[] {
     else if (item.result === "failed")
       lines.push(
         `${name} was not built${item.reason === undefined ? "" : ` (${item.reason})`}; what runs stays as it was.`,
+      );
+  }
+  return lines;
+}
+
+/** What `lazurio update` prints of the Organization's tools (decision F73):
+ * a tool installed or raised, or one that could not be; nothing for a tool
+ * already at its minimum or where no Organization governs. */
+export function organizationToolsText(items: readonly UpdateItem[]): string[] {
+  const lines: string[] = [];
+  for (const item of items) {
+    if (item.part !== "organization-tools") continue;
+    if (!("tool" in item)) {
+      if (item.result === "failed")
+        lines.push(
+          "The Organization's tools were not checked: the part failed (operation-failed).",
+        );
+      else if (item.reason === "settings-invalid")
+        lines.push(
+          "The Organization's tools were not checked: its settings section is invalid (settings-invalid); lazurio organization check names why.",
+        );
+      else if (item.reason === "settings-unreadable")
+        lines.push(
+          "The Organization's tools were not checked: its manifest could not be read from its main (settings-unreadable).",
+        );
+      continue;
+    }
+    const name = `${item.tool} (minimum ${item.minimum})`;
+    const onPath = (value: boolean) =>
+      value ? "" : "; ~/.local/bin is not on this PATH";
+    if (item.result === "installed")
+      lines.push(
+        `Installed the Organization's tool ${name}: ${item.version}${onPath(item.onPath)}.`,
+      );
+    else if (item.result === "updated")
+      lines.push(
+        `Updated the Organization's tool ${name}: ${item.from} to ${item.version}${onPath(item.onPath)}.`,
+      );
+    else if (item.result === "below-minimum")
+      lines.push(
+        `The Organization's tool ${name} is ${item.version} at ${item.path}, installed another way; it was left as it is (${item.reason}). Its official source: ${item.source}`,
+      );
+    else if (item.result === "failed")
+      lines.push(
+        `The Organization's tool ${name} could not be made available (${item.stage}: ${item.reason}). Its official source: ${item.source}${item.detail === undefined ? "" : `\n${item.detail}`}`,
+      );
+    else if (item.result === "unsupported-platform")
+      lines.push(
+        `The Organization's tool ${name} is not installed on ${item.platform} by Lazurio yet (unsupported-platform).`,
       );
   }
   return lines;
