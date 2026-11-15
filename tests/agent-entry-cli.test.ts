@@ -200,6 +200,10 @@ function windowSeams(socketDir: string, targets: string[] = []) {
       calls.push([method, params]);
       return { targetId: NEWTARGET };
     },
+    navigate: async (targetId, url) => {
+      calls.push(["Page.navigate", targetId, url]);
+      return "started";
+    },
   };
   return { seams, calls };
 }
@@ -413,12 +417,18 @@ test.skipIf(process.platform === "win32" || uid === 0)(
       origin: inspections.url,
       generation: null,
     });
-    // The answered address, unchanged, is the new window's first page; the
-    // list's own address is never opened.
+    // The new window opens blank and is bound (#987); then the answered
+    // address, unchanged, is its first page, as a navigation the browser
+    // starts itself. The list's own address is never opened.
     const created = calls.find(
       (call) => Array.isArray(call) && call[0] === "Target.createTarget",
     ) as [string, { url: string }];
-    expect(created[1].url).toBe(handOverUrl(inspections.url));
+    expect(created[1].url).toBe("about:blank");
+    expect(
+      calls.filter(
+        (call) => Array.isArray(call) && call[0] === "Page.navigate",
+      ),
+    ).toEqual([["Page.navigate", NEWTARGET, handOverUrl(inspections.url)]]);
     expect(JSON.stringify(calls)).not.toContain(`"${inspections.url}"`);
     // The one-time value is never printed.
     expect(opened.stdout).not.toContain(value);

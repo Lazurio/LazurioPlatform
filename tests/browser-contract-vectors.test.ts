@@ -51,6 +51,7 @@ test("every vector file is a v1 vector file of its contract, and each case names
     "remote-tab-ids.json",
     "strips.json",
     "times.json",
+    "unverified-binding.json",
     "view-addresses.json",
   ]);
   for (const file of files) {
@@ -130,6 +131,7 @@ test("the contract's exported names are exactly these", () => {
     "parseMessageMajors",
     "parseNewTabChoice",
     "parseNewTabTools",
+    "parseUnverifiedBinding",
     "searchAddress",
     "stripAppOf",
     "stripPrefixes",
@@ -137,6 +139,8 @@ test("the contract's exported names are exactly these", () => {
     "surfaceLanguages",
     "targetIdOf",
     "threadSession",
+    "unverifiedBindingSchema",
+    "unverifiedBindingText",
     "viewAddressOf",
     "viewClosedMessage",
     "viewEnvironmentId",
@@ -160,9 +164,11 @@ test("the contract's exported names are exactly these", () => {
     "readBootClock",
     "readHolds",
     "readLiveTabs",
+    "readUnverifiedSessions",
     "replaceOwnerFile",
     "stopSessionDaemon",
     "unreadableHolderFiles",
+    "unverifiedBindingDirectory",
     "watchHolds",
     "writeLiveTabs",
   ]);

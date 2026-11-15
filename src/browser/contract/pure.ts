@@ -844,7 +844,8 @@ export type BrowserCliKind =
   | "browser-link"
   | "browser-done"
   | "browser-open"
-  | "browser-tabs";
+  | "browser-tabs"
+  | "browser-take";
 
 /** What letting go of a window came to (`stopSessionDaemon`). */
 export type BrowserDoneOutcome = "stopped" | "none" | "refused" | "unconfirmed";
@@ -867,6 +868,54 @@ export type BrowserThreadWindow = Readonly<{
   endsAt: string | null;
 }>;
 
+/** A window of the calling thread that another thread took on purpose
+ * (`lazurio browser take`): the thread's session, the tab, the thread that
+ * took it with the session it took it into (`by`), and when (an ISO time).
+ * It is that thread's now: not the calling thread's window, and not in
+ * doubt either. */
+export type BrowserTakenWindow = Readonly<{
+  session: string;
+  targetId: string;
+  thread: string;
+  by: string;
+  at: string;
+}>;
+
+/** An agent-browser session bound to a tab, as the overview of every tab
+ * names it: the thread whose window it is where its record tells (null:
+ * unknown), whether its daemon runs (so its agent may work in the tab now),
+ * whether its binding is not verified yet (C19), and whether another thread
+ * took the tab from it. */
+export type BrowserTabSession = Readonly<{
+  session: string;
+  thread: string | null;
+  running: boolean;
+  unverified: boolean;
+  taken: boolean;
+}>;
+
+/** A place that holds a tab by its holder file (C5): a T3 Code thread's
+ * strip, the Launchpad. */
+export type BrowserTabStrip = Readonly<{ strip: string; label: string }>;
+
+/** One tab of the Environment browser in the overview of every tab (`tabs
+ * --all`): its tab, address, title and the person's link, how many people
+ * view it, whether it sleeps and when the hub ends it, whether it is one of
+ * the calling thread's windows (`yours`), the agent-browser sessions bound
+ * to it and the places that hold it. */
+export type BrowserEnvironmentTab = Readonly<{
+  targetId: string;
+  url: string;
+  title: string;
+  link: string;
+  viewers: number;
+  sleeping: boolean;
+  endsAt: string | null;
+  yours: boolean;
+  sessions: readonly BrowserTabSession[];
+  strips: readonly BrowserTabStrip[];
+}>;
+
 /** One session's outcome of `done --all`. */
 export type BrowserDoneSession = Readonly<{
   session: string;
@@ -880,7 +929,14 @@ export type BrowserDoneSession = Readonly<{
 // `ambiguous`: `tabs` names it apart, by its session only, and `done --all`
 // never lets go of it. A record that cannot be read names no thread, so its
 // window is ambiguous for every thread; while any session is ambiguous, the
-// thread's list is not complete.
+// thread's list is not complete (`complete: false`, F38's addendum of
+// 2026-11-15): the listing worked and exits 0, and a caller reads `complete`
+// instead of taking the answer for a failure. A window another thread took
+// on purpose (`take`) is named in `taken`: known, so the list stays complete.
+// `tabs --all` adds the overview of every tab of the Environment (`all`), and
+// `take` binds the calling thread's session to another's tab only once its
+// agent confirmed it: without `--confirm` it describes from whom and what
+// happens, and exits `confirm` (3).
 
 /** An answer of `lazurio browser window`, `link`, `done`, `open` or `tabs`
  * with `--json`;
@@ -918,12 +974,35 @@ export type BrowserCliAnswer =
   /** The calling thread's windows (`session` is the thread), and the
    * sessions that may be its windows but whose record does not confirm it
    * (`ambiguous`), among them any whose record cannot be read. `windows` is
-   * complete only while `ambiguous` names none. */
+   * complete only while `ambiguous` names none, which `complete` says (an
+   * answer without it is complete exactly then). `taken`: the thread's
+   * windows another thread took. `all`, with `--all`: every tab of the
+   * Environment browser. */
   | Readonly<{
       kind: "browser-tabs";
       session: string;
       windows: readonly BrowserThreadWindow[];
       ambiguous?: readonly string[];
+      complete?: boolean;
+      taken?: readonly BrowserTakenWindow[];
+      all?: readonly BrowserEnvironmentTab[];
+    }>
+  /** `take`: the tab, its link and address, the calling thread's `session`
+   * that takes it and the command to work in it, the sessions bound to it
+   * that it takes it from (`from`), the places and people that keep it, and
+   * whether it is taken (`taken`: false while only described, exit 3). */
+  | Readonly<{
+      kind: "browser-take";
+      session: string;
+      targetId: string;
+      url: string;
+      title: string;
+      link: string;
+      command: string;
+      taken: boolean;
+      from: readonly BrowserTabSession[];
+      strips: readonly BrowserTabStrip[];
+      viewers: number;
     }>
   /** The default browser's page (root decision 0201 point 5): its tab and
    * link, and the thread whose session it is bound to, so its app shows it;
@@ -947,6 +1026,7 @@ const cliKinds: readonly string[] = [
   "browser-done",
   "browser-open",
   "browser-tabs",
+  "browser-take",
 ];
 const doneOutcomes: readonly string[] = [
   "stopped",
@@ -983,6 +1063,74 @@ function threadWindowOf(value: unknown): BrowserThreadWindow | null {
         viewers,
         sleeping,
         endsAt,
+      })
+    : null;
+}
+
+/** A taken window of `tabs`, or null. */
+function takenWindowOf(value: unknown): BrowserTakenWindow | null {
+  if (!isRecord(value)) return null;
+  const targetId = targetIdOf(value.targetId);
+  const { session, thread, by, at } = value;
+  return isStrip(session) &&
+    targetId !== null &&
+    isStrip(thread) &&
+    isStrip(by) &&
+    typeof at === "string"
+    ? Object.freeze({ session, targetId, thread, by, at })
+    : null;
+}
+
+/** A session bound to a tab of the overview, or null. */
+function tabSessionOf(value: unknown): BrowserTabSession | null {
+  if (!isRecord(value)) return null;
+  const { session, thread, running, unverified, taken } = value;
+  return isStrip(session) &&
+    (thread === null || isStrip(thread)) &&
+    typeof running === "boolean" &&
+    typeof unverified === "boolean" &&
+    typeof taken === "boolean"
+    ? Object.freeze({ session, thread, running, unverified, taken })
+    : null;
+}
+
+/** A place that holds a tab, or null. */
+function tabStripOf(value: unknown): BrowserTabStrip | null {
+  return isRecord(value) &&
+    isStrip(value.strip) &&
+    typeof value.label === "string"
+    ? Object.freeze({ strip: value.strip, label: value.label })
+    : null;
+}
+
+/** One tab of the overview, or null. */
+function environmentTabOf(value: unknown): BrowserEnvironmentTab | null {
+  if (!isRecord(value)) return null;
+  const targetId = targetIdOf(value.targetId);
+  const { url, title, link, viewers, sleeping, endsAt, yours } = value;
+  const sessions = everyOf(value.sessions, tabSessionOf);
+  const strips = everyOf(value.strips, tabStripOf);
+  return targetId !== null &&
+    typeof url === "string" &&
+    typeof title === "string" &&
+    typeof link === "string" &&
+    isCount(viewers) &&
+    typeof sleeping === "boolean" &&
+    (endsAt === null || typeof endsAt === "string") &&
+    typeof yours === "boolean" &&
+    sessions !== null &&
+    strips !== null
+    ? Object.freeze({
+        targetId,
+        url,
+        title,
+        link,
+        viewers,
+        sleeping,
+        endsAt,
+        yours,
+        sessions,
+        strips,
       })
     : null;
 }
@@ -1094,12 +1242,66 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
         value.ambiguous === undefined
           ? undefined
           : everyOf(value.ambiguous, stripOf);
-      return session !== null && windows !== null && ambiguous !== null
+      const taken =
+        value.taken === undefined
+          ? undefined
+          : everyOf(value.taken, takenWindowOf);
+      const all =
+        value.all === undefined
+          ? undefined
+          : everyOf(value.all, environmentTabOf);
+      if (
+        session === null ||
+        windows === null ||
+        ambiguous === null ||
+        taken === null ||
+        all === null ||
+        (value.complete !== undefined && typeof value.complete !== "boolean")
+      )
+        return null;
+      // An answer from before `complete` is complete exactly while it names
+      // no ambiguous session.
+      const complete =
+        typeof value.complete === "boolean"
+          ? value.complete
+          : (ambiguous ?? []).length === 0;
+      return Object.freeze({
+        kind,
+        session,
+        windows,
+        ...(ambiguous === undefined ? {} : { ambiguous }),
+        complete,
+        ...(taken === undefined ? {} : { taken }),
+        ...(all === undefined ? {} : { all }),
+      });
+    }
+    case "browser-take": {
+      const targetId = targetIdOf(value.targetId);
+      const from = everyOf(value.from, tabSessionOf);
+      const strips = everyOf(value.strips, tabStripOf);
+      const { url, title, link, command, taken, viewers } = value;
+      return session !== null &&
+        targetId !== null &&
+        typeof url === "string" &&
+        typeof title === "string" &&
+        typeof link === "string" &&
+        typeof command === "string" &&
+        typeof taken === "boolean" &&
+        from !== null &&
+        strips !== null &&
+        isCount(viewers)
         ? Object.freeze({
             kind,
             session,
-            windows,
-            ...(ambiguous === undefined ? {} : { ambiguous }),
+            targetId,
+            url,
+            title,
+            link,
+            command,
+            taken,
+            from,
+            strips,
+            viewers,
           })
         : null;
     }
@@ -1115,12 +1317,14 @@ export function parseBrowserCliAnswer(text: string): BrowserCliAnswer | null {
 }
 
 /** The exit statuses of `lazurio browser`: done, a usage error, a failure,
- * and an Environment without a browser. The first line of stderr is the
- * reason, in the Operator's language. */
+ * an Environment without a browser, and `take` without `--confirm`, which
+ * only described what taking the tab does (`confirm`). The first line of
+ * stderr is the reason, in the Operator's language. */
 export const browserCliExit = Object.freeze({
   done: 0,
   failure: 1,
   usage: 2,
+  confirm: 3,
   noBrowser: 10,
 });
 
@@ -1484,4 +1688,70 @@ export function handOffAddress(
   } catch {
     return null;
   }
+}
+
+// ---- A binding Lazurio has not verified (C19) --------------------------------
+//
+// agent-browser records a session's tab in `<session>.target` after every
+// command, a failed one too, so from the first command of a binding until
+// Lazurio has read the binding back, or the session's daemon has ended, the
+// binding is no evidence of the session's window (#974, F38's addendum of
+// 2026-11-15). Lazurio marks such a session in a file of its own,
+// `$XDG_RUNTIME_DIR/lazurio-browser/unverified/<session>.json`. A session is
+// unverified while that file is there, whatever its text: a file that cannot
+// be read keeps it unverified. The text, `{schema, session, targetId,
+// before}`, names the tabs the binding may keep naming once its daemon has
+// ended (the one asked for, the one bound before); only the Platform's
+// settling reads them. An app that follows a session's binding (T3 Code's
+// strip) takes no binding of an unverified session as the session's window.
+
+/** The `schema` of a mark of an unverified binding (C19). */
+export const unverifiedBindingSchema = "lazurio.browser-unverified-binding.v1";
+
+/** A mark of an unverified binding: the session, and the tabs its binding
+ * may keep naming once its daemon has ended (null where there is none). */
+export type UnverifiedBinding = Readonly<{
+  session: string;
+  targetId: string | null;
+  before: string | null;
+}>;
+
+/** A mark's text: JSON with its schema, and a newline. */
+export function unverifiedBindingText(mark: UnverifiedBinding): string {
+  return `${JSON.stringify({
+    schema: unverifiedBindingSchema,
+    session: mark.session,
+    targetId: mark.targetId === null ? null : targetIdOf(mark.targetId),
+    before: mark.before === null ? null : targetIdOf(mark.before),
+  })}\n`;
+}
+
+/** The mark in a file named `name` (`<session>.json`): its session and the
+ * tabs it keeps, ids in upper case. Null for a text that is no mark of that
+ * session (another schema or session, no JSON, a name outside the grammar):
+ * the session stays unverified, and the mark keeps no tab. */
+export function parseUnverifiedBinding(
+  name: string,
+  text: string,
+): UnverifiedBinding | null {
+  if (!name.endsWith(".json")) return null;
+  const session = name.slice(0, -".json".length);
+  if (!isStrip(session)) return null;
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (
+    !isRecord(value) ||
+    value.schema !== unverifiedBindingSchema ||
+    value.session !== session
+  )
+    return null;
+  return Object.freeze({
+    session,
+    targetId: targetIdOf(value.targetId),
+    before: targetIdOf(value.before),
+  });
 }
