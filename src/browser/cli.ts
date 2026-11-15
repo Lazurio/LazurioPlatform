@@ -429,7 +429,7 @@ const text = {
     "navigate-refused":
       "Okno je tvoje, ale prohlížeč v něm adresu neotevřel. Otevři ji příkazem {command} open <adresa>.",
     "window-taken":
-      "Tvoje dřívější okno v tomto sezení ({targetId}) převzalo vlákno {thread} (sezení {by}) v {at}: teď patří jemu, tak ho nech být. Tohle je nové okno.",
+      "Tvoje dřívější okno v tomto sezení ({targetId}) převzalo vlákno {thread} (sezení {by}) v {at}: teď patří jemu, tak ho nech být. Toto je nové okno.",
     "done-settled":
       "Jeho neověřená vazba je vyřízená: lazurio browser window v tomto sezení zase otevře okno.",
     "done-unsettled":
