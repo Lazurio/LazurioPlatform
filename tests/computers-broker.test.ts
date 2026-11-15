@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { createConnection, type Socket } from "node:net";
+import { createConnection, createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
@@ -430,6 +430,98 @@ function entry(
   };
   return { input, output, done, send, answer };
 }
+
+/** A broker socket that completes the agents' server's handshake and then
+ * closes the connection the moment the given method arrives, unanswered: a
+ * request taken by a session that ends. */
+async function closingBroker(path: string, closeOn: string) {
+  const server = createServer((connection) => {
+    connection.on(
+      "data",
+      lineSplitter((line) => {
+        const message = JSON.parse(line) as Message;
+        if (message.id === "lazurio-init")
+          connection.write(
+            `${JSON.stringify({ jsonrpc: "2.0", id: "lazurio-init", result: {} })}\n`,
+          );
+        else if (message.method === closeOn) connection.destroy();
+      }),
+    );
+  });
+  await new Promise<void>((resolve) => server.listen(path, resolve));
+  return server;
+}
+
+for (const updating of [false, true])
+  test.skipIf(!posix)(
+    `a call the closing session took with it is answered as a call to an away computer (updating: ${updating})`,
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "lzc-"));
+      const path = join(home, "broker.sock");
+      const broker = await closingBroker(path, "tools/call");
+      try {
+        const server = entry(
+          path,
+          [{ name: "desktop_snapshot" }],
+          async () => updating,
+        );
+        server.send({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {},
+        });
+        await server.answer(1);
+        server.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+        server.send({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "tools/call",
+          params: { name: "desktop_snapshot", arguments: {} },
+        });
+        const lost = await server.answer(2);
+        // The same shape as a call to a computer that is already away.
+        expect(lost.error).toBeUndefined();
+        const result = lost.result as {
+          isError: boolean;
+          content: { text: string }[];
+        };
+        expect(result.isError).toBe(true);
+        expect(result.content[0]?.text).toContain(
+          updating ? "se aktualizuje. Zkuste to za chvíli" : "není připojený",
+        );
+        server.input.end();
+        expect(await server.done).toBe(0);
+      } finally {
+        broker.close();
+        await rm(home, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(!posix)(
+  "a tool list the closing session took with it is answered from the cache",
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), "lzc-"));
+    const path = join(home, "broker.sock");
+    const broker = await closingBroker(path, "tools/list");
+    try {
+      const server = entry(path, [{ name: "desktop_snapshot" }]);
+      server.send({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} });
+      await server.answer(1);
+      server.send({ jsonrpc: "2.0", method: "notifications/initialized" });
+      server.send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
+      expect((await server.answer(2)).result).toEqual({
+        tools: [{ name: "desktop_snapshot" }],
+      });
+      server.input.end();
+      expect(await server.done).toBe(0);
+    } finally {
+      broker.close();
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);
 
 test.skipIf(!posix)(
   "the agents' server answers plainly while the computer is away",

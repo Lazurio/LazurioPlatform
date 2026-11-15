@@ -73,8 +73,11 @@ export async function runAgentEntry(
   let connecting: Promise<Socket | null> | null = null;
   let clientInfo: unknown = { name: "unknown", version: "0" };
   let agentInitialized = false;
-  // Each request sent to the computer, with the tool it calls.
-  const inFlight = new Map<JsonRpcId, string | null>();
+  // Each request sent to the computer: its method and, for a call, the tool.
+  const inFlight = new Map<
+    JsonRpcId,
+    Readonly<{ method: string; tool: string | null }>
+  >();
   const updating = () =>
     (options.updating?.() ?? Promise.resolve(false)).catch(() => false);
 
@@ -122,28 +125,25 @@ export async function runAgentEntry(
           if (upstream === socket) upstream = null;
           const lostCalls = [...inFlight];
           inFlight.clear();
-          void updating().then((busy) => {
-            for (const [id, tool] of lostCalls)
-              reply(
-                tool === appUpdateTool
-                  ? // The session ends because the update runs.
-                    resultAnswer(id, {
-                      content: [
-                        {
-                          type: "text",
-                          text: updateStartedMessage(options.name),
-                        },
-                      ],
-                    })
-                  : errorAnswer(
-                      id,
-                      computerAway,
-                      busy
-                        ? updatingMessage(options.name)
-                        : awayMessage(options.name),
-                    ),
-              );
-          });
+          // A request the session took with it is answered exactly as if the
+          // computer had already been away when it came, whatever the timing.
+          void (async () => {
+            for (const [id, { method, tool }] of lostCalls) {
+              if (tool === appUpdateTool)
+                // The session ends because the update runs.
+                reply(
+                  resultAnswer(id, {
+                    content: [
+                      {
+                        type: "text",
+                        text: updateStartedMessage(options.name),
+                      },
+                    ],
+                  }),
+                );
+              else await away(id, method);
+            }
+          })();
         };
         socket.once("close", lost);
         socket.once("error", () => socket.destroy());
@@ -234,16 +234,21 @@ export async function runAgentEntry(
       return;
     }
     const socket = await open();
-    if (socket === null) {
+    // A socket that is closing takes no new request: the computer is away.
+    if (socket === null || socket.destroyed || !socket.writable) {
+      if (socket !== null && upstream === socket) upstream = null;
       await away(id, method);
       return;
     }
-    inFlight.set(
-      id,
-      method === "tools/call"
-        ? String((message.params as { name?: unknown } | undefined)?.name ?? "")
-        : null,
-    );
+    inFlight.set(id, {
+      method,
+      tool:
+        method === "tools/call"
+          ? String(
+              (message.params as { name?: unknown } | undefined)?.name ?? "",
+            )
+          : null,
+    });
     socket.write(`${line}\n`);
   };
 
