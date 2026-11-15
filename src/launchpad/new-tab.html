@@ -128,6 +128,10 @@ button { cursor: pointer; }
 .nto-update-state { color: var(--nt-muted); font-size: 12px; }
 .nto-update-state.is-working { color: var(--lz-blue-500); }
 .nto-update-state.is-finding { color: var(--lz-warning); }
+.nto-update-state { overflow-wrap: anywhere; }
+.nto-update-link { justify-self: start; color: var(--nt-muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; touch-action: manipulation; }
+.nto-update-link:focus-visible { outline: 2px solid var(--lz-blue-500); outline-offset: 2px; border-radius: 2px; }
+@media (hover: hover) and (pointer: fine) { .nto-update-link:hover { color: var(--nt-ink); } }
 .nto-empty { margin: 0; padding: 12px 14px; border: 1px dashed var(--nt-line); border-radius: var(--lz-radius-md); color: var(--nt-muted); font-size: 13px; }
 
 /* A tab's icon: its favicon or a globe, with a dot while an agent works. */

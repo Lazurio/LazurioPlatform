@@ -494,6 +494,37 @@ const updates = createUpdateJobs({
             entries,
           };
         },
+        // The tools the Organization declares (decision F73), scripted: an
+        // installation of cargo that fails as one without the network
+        // would, and pnpm raised to its minimum.
+        organizationTools: async (onStep) => {
+          onStep("cargo", "installing", "1.89.0");
+          await step();
+          onStep("pnpm", "updating", "11.0.0");
+          await step();
+          return {
+            kind: "provisioned" as const,
+            items: [
+              {
+                tool: "cargo" as const,
+                minimum: "1.89.0",
+                result: "failed" as const,
+                stage: "install" as const,
+                reason: "exit-6",
+                detail: "curl: (6) Could not resolve host: sh.rustup.rs",
+                source: "https://rustup.rs",
+              },
+              {
+                tool: "pnpm" as const,
+                minimum: "11.0.0",
+                result: "updated" as const,
+                from: "10.33.0",
+                version: "12.21.0",
+                onPath: true,
+              },
+            ],
+          };
+        },
         tools: {
           pins: async () => ({ pins: ["bun@1.4.3"], unreadable: 1 }),
           resolve: async () => {
