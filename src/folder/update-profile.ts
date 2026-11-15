@@ -141,6 +141,27 @@ export async function updateChatgptApps(
   );
 }
 
+// Records the person's own instructions for agents (root decision 0233,
+// decision F14's addendum of 2026-11-06) and re-renders the generated Folder
+// with their section: the same planner, transaction, archive and recovery
+// (`profile-resume`) as a profile change, never `drift`. `edit` is
+// `{ text }`, the whole next text or null to remove them; nothing else of
+// the Folder can change through it. Refused where a person has none
+// (`own-instructions-unavailable`) and where the text does not fit next to
+// the voice (`person-text-too-large`); the same text is `unchanged`.
+export async function updateOwnInstructions(
+  folder: string,
+  expectedRevision: number,
+  edit: unknown,
+  checkpoint: (step: UpdateStep) => Promise<void> = async () => {},
+) {
+  return changeFolder(
+    folder,
+    { kind: "own-instructions", expectedRevision, edit },
+    checkpoint,
+  );
+}
+
 async function changeFolder(
   folder: string,
   request: FolderChangeRequest,

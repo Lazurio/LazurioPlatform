@@ -1029,6 +1029,13 @@ When work stalls on a missing right, never leave it hanging without an owner:
 ## Knowledge belongs where others find it
 Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the \`AGENTS.md\` of that scope. What is written into a repository always goes as a PR from your worktree, or to a repository you only read as an issue with the proposal (above); a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the user may place in that store; Personalspace and cross-Organization isolation always take precedence. When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.
 
+## The user's own instructions
+Own instructions are text in which the user says how agents work with them in this Environment (decision 0233). They are a setting of the Environment, not an edit of a generated file: the Folder renders them near the beginning of \`AGENTS.md\`, right after the communication voice, so every harness reads them and no update stops on them. They grant nothing. Where they conflict, Lazurio's rules and the rules of the Organization you work in win, and you tell the user why you do not follow the instruction.
+- **Add a line only on the user's word.** When they ask you to remember how to work with them, first propose the exact line and, once they agree, save it: \`lazurio folder instructions add "<line>"\`. \`lazurio folder instructions show\` prints the whole text, \`set\` replaces it and \`clear\` removes it. Add nothing there on your own.
+- **First decide whose memory it is.** A habit of the user goes into their own instructions, for example “answer me briefly and lead with the outcome”. A process, meaning or knowledge of the Organization goes to the Organization as a pull request or an issue, for example “invoices are approved by Friday”; then the next colleague's agent knows it too (decision 0163).
+- **The assistant's name.** The user may give their assistant a name here; it is a line of the own instructions like any other.
+- **Where there are none.** A Team Environment, an Environment with automations and a public Environment have no own instructions, because several people or a persona work there.
+
 ## Organizations
 Never work in a specific Organization from the Folder root: enter \`organizations/<org>/\`, read its \`AGENTS.md\`, and only then change its content. Never copy secrets, customer data, business strategy or personal overlays between Organizations; general patterns, anonymized templates and lessons in general form are fine.
 
@@ -1244,6 +1251,13 @@ Když práce stojí na chybějícím právu, nenech ji viset bez ownera:
 
 ## Poznatky patří tam, kde je najdou ostatní
 Syntéza poznání patří do Knowledgebase; trvalé rozhodnutí do decision recordu; plán a jeho stav do Mission Controlu a task ledgerů; otevřený technický problém nebo nejistota do GitHub Issue v přesném owning repozitáři; změna pravidel práce do \`AGENTS.md\` daného scope. Co se zapisuje do repozitáře, jde vždy jako PR ze svého worktree, do repozitáře, který jen čteš, jako issue s návrhem (výše); GitHub Issue zapisuješ přímo. Chat i soukromá paměť agenta jsou jen cache: co zůstane jen tam, ztratí se. Zapisuj jen relevantní, netajné poznatky, které uživatel do daného úložiště smí umístit; izolace Personalspace a Organizací má vždy přednost. V pochybnosti obsah nekopíruj: zapiš jen issue v jeho scope nebo odkaz na místo, kde je.
+
+## Vlastní pokyny uživatele
+Vlastní pokyny jsou text, kterým uživatel říká, jak s ním agenti v tomto Prostředí pracují (rozhodnutí 0233). Jsou nastavením Prostředí, ne úpravou generovaného souboru: Folder je vykreslí na začátku \`AGENTS.md\` hned za tónem komunikace, takže je čte každý harness a žádná aktualizace se na nich nezastaví. Nic neudělují. Při střetu platí pravidla Lazuria a Organizace, ve které pracuješ, a uživateli řekneš, proč se pokynem neřídíš.
+- **Řádek přidáš jen na slovo uživatele.** Když tě požádá, ať si zapamatuješ, jak s ním pracovat, navrhni mu nejdřív přesné znění řádku a po jeho souhlasu ho ulož: \`lazurio folder instructions add "<řádek>"\`. Celý text ukáže \`lazurio folder instructions show\`, nahradí ho \`set\` a odstraní \`clear\`. Sám od sebe tam nic nepřidávej.
+- **Nejdřív rozhodni, čí ta paměť je.** Návyk uživatele patří do vlastních pokynů, třeba „odpovídej mi stručně a začni výsledkem“. Postup, pojem nebo znalost Organizace patří do ní jako pull request nebo issue, třeba „faktury se schvalují do pátku“; pak je zná i agent dalšího kolegy (decision 0163).
+- **Jméno asistenta.** Uživatel si tu smí svého asistenta pojmenovat; je to řádek vlastních pokynů jako každý jiný.
+- **Kde nejsou.** Týmové Prostředí, Prostředí s automatizacemi a veřejné Prostředí vlastní pokyny nemají, protože tam pracuje víc lidí nebo persona.
 
 ## Organizace
 Z rootu Folderu nikdy nepracuj v konkrétní Organizaci: vstup do \`organizations/<org>/\`, přečti její \`AGENTS.md\` a teprve potom měň její obsah. Mezi Organizacemi nikdy nekopíruj secrets, zákaznická data, obchodní strategii ani osobní overlaye; obecné vzory, anonymizované šablony a poučení v obecné podobě jsou v pořádku.
@@ -2089,7 +2103,8 @@ The preset and the communication axes change only through the Launchpad profile 
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`own-instructions-unavailable\`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). \`person-text-too-large\`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in \`AGENTS.md\` (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), so the instructions or the custom voice get shorter.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
 A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. \`lazurio update\`, \`lazurio update status\` and \`lazurio doctor\` name it, though, because work products belong in \`~/Documents/<task>/\`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.
 A pending \`.lazurio/transaction\` blocks every change until it is completed or retired; nothing is deleted automatically.
@@ -2172,7 +2187,8 @@ Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhle
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`own-instructions-unavailable\`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). \`person-text-too-large\`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v \`AGENTS.md\` jeden společný rozpočet (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), takže se zkrátí pokyny nebo vlastní tón.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
 Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. \`lazurio update\`, \`lazurio update status\` i \`lazurio doctor\` ji ale vyjmenují, protože výstupy patří do \`~/Documents/<úkol>/\`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.
 Rozpracovaná \`.lazurio/transaction\` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.
@@ -2247,7 +2263,8 @@ Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhle
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`own-instructions-unavailable\`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). \`person-text-too-large\`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v \`AGENTS.md\` jeden společný rozpočet (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), takže se zkrátí pokyny nebo vlastní tón.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
 Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. \`lazurio update\`, \`lazurio update status\` i \`lazurio doctor\` ji ale vyjmenují, protože výstupy patří do \`~/Documents/<úkol>/\`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.
 Rozpracovaná \`.lazurio/transaction\` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.
@@ -2322,7 +2339,8 @@ The preset and the communication axes change only through the Launchpad profile 
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`own-instructions-unavailable\`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). \`person-text-too-large\`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in \`AGENTS.md\` (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), so the instructions or the custom voice get shorter.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
 A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. \`lazurio update\`, \`lazurio update status\` and \`lazurio doctor\` name it, though, because work products belong in \`~/Documents/<task>/\`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.
 A pending \`.lazurio/transaction\` blocks every change until it is completed or retired; nothing is deleted automatically.
@@ -2415,7 +2433,8 @@ Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhle
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`own-instructions-unavailable\`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). \`person-text-too-large\`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v \`AGENTS.md\` jeden společný rozpočet (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), takže se zkrátí pokyny nebo vlastní tón.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
 Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. \`lazurio update\`, \`lazurio update status\` i \`lazurio doctor\` ji ale vyjmenují, protože výstupy patří do \`~/Documents/<úkol>/\`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.
 Rozpracovaná \`.lazurio/transaction\` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.
@@ -2508,7 +2527,8 @@ The preset and the communication axes change only through the Launchpad profile 
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`own-instructions-unavailable\`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). \`person-text-too-large\`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in \`AGENTS.md\` (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), so the instructions or the custom voice get shorter.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
 A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. \`lazurio update\`, \`lazurio update status\` and \`lazurio doctor\` name it, though, because work products belong in \`~/Documents/<task>/\`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.
 A pending \`.lazurio/transaction\` blocks every change until it is completed or retired; nothing is deleted automatically.
@@ -2602,7 +2622,8 @@ Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhle
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`own-instructions-unavailable\`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). \`person-text-too-large\`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v \`AGENTS.md\` jeden společný rozpočet (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), takže se zkrátí pokyny nebo vlastní tón.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
 Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. \`lazurio update\`, \`lazurio update status\` i \`lazurio doctor\` ji ale vyjmenují, protože výstupy patří do \`~/Documents/<úkol>/\`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.
 Rozpracovaná \`.lazurio/transaction\` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.
@@ -2696,7 +2717,8 @@ The preset and the communication axes change only through the Launchpad profile 
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`own-instructions-unavailable\`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). \`person-text-too-large\`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in \`AGENTS.md\` (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), so the instructions or the custom voice get shorter.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
 A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. \`lazurio update\`, \`lazurio update status\` and \`lazurio doctor\` name it, though, because work products belong in \`~/Documents/<task>/\`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.
 A pending \`.lazurio/transaction\` blocks every change until it is completed or retired; nothing is deleted automatically.
@@ -2789,7 +2811,8 @@ Preset a komunikační osy se mění jen v profilovém panelu Launchpadu (náhle
 - \`stale-revision\`: Folder se od načtení panelu změnil; načti ho znovu.
 - \`preset-not-allowed\`, \`preset-composition\`: preset je mimo to, co handover povoluje, nebo s ním nesouhlasí pevné osy.
 - \`template-upgrade-required\`: Folder byl vykreslený novějším releasem produktu, než je tenhle (nebo šablonou, kterou tenhle release nezná). Nic se nevrací na starší verzi; Folder potřebuje ten release nebo pozdější.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: stav, který potřebuje diagnózu, nikdy odhad.
+- \`own-instructions-unavailable\`: toto Prostředí vlastní pokyny uživatele nemá (Týmové Prostředí, Prostředí s automatizacemi, veřejné Prostředí). \`person-text-too-large\`: vlastní pokyny se nevejdou vedle tónu komunikace; text, který píše uživatel, má v \`AGENTS.md\` jeden společný rozpočet (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), takže se zkrátí pokyny nebo vlastní tón.
 - \`drift\` s \`path\`: pojmenovaný generovaný soubor byl upraven nebo smazán (viz níže). \`unowned-file\`, \`unsafe-path\`: cestu Folder nevlastní nebo je to link.
 Položka na nejvyšší úrovni Folderu, kterou Folder nevlastní (například tam uložený výstup), změnu ani refresh nezastaví: Folder ji nečte a nemění. \`lazurio update\`, \`lazurio update status\` i \`lazurio doctor\` ji ale vyjmenují, protože výstupy patří do \`~/Documents/<úkol>/\`. Je-li tvoje, přesuň ji tam; cizí nech být a řekni o ní uživateli.
 Rozpracovaná \`.lazurio/transaction\` blokuje každou změnu, dokud se nedokončí nebo neodloží; nic se nesmaže automaticky.
@@ -2882,7 +2905,8 @@ The preset and the communication axes change only through the Launchpad profile 
 - \`stale-revision\`: the Folder changed since the panel loaded; reload.
 - \`preset-not-allowed\`, \`preset-composition\`: the preset is outside what the handover allows, or the fixed axes disagree with it.
 - \`template-upgrade-required\`: the Folder was rendered by a newer product release than this one (or by a template this release does not know). Nothing is downgraded; the Folder needs that release or a later one.
-- \`execution-os-change\`, \`custom-composition-unavailable\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`execution-os-change\`, \`incomplete-state\`, \`revision-exhausted\`: state that needs diagnosis, never a guess.
+- \`own-instructions-unavailable\`: this Environment has no own instructions of a user (a Team Environment, an Environment with automations, a public Environment). \`person-text-too-large\`: the own instructions do not fit next to the communication voice; the text a user writes has one shared budget in \`AGENTS.md\` (\`voiceBytes\`, \`instructionsBytes\`, \`maxBytes\`), so the instructions or the custom voice get shorter.
 - \`drift\` with \`path\`: the named generated file was edited or removed (see below). \`unowned-file\`, \`unsafe-path\`: the path is not owned by the Folder or is a link.
 A top-level entry the Folder does not own (for example a work product saved there) stops no change and no refresh: the Folder neither reads nor changes it. \`lazurio update\`, \`lazurio update status\` and \`lazurio doctor\` name it, though, because work products belong in \`~/Documents/<task>/\`. If it is yours, move it there; leave anyone else's where it is and tell the user about it.
 A pending \`.lazurio/transaction\` blocks every change until it is completed or retired; nothing is deleted automatically.

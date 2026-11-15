@@ -2,8 +2,16 @@ import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { renderBuddyLayer } from "../src/folder/buddy";
 import { buddyLayerPaths, outputPaths } from "../src/folder/outputs";
+import {
+  maxOwnInstructionsBytes,
+  ownInstructionsAllowed,
+  ownInstructionsSection,
+  personTextBudget,
+  sectionBytes,
+} from "../src/folder/own-instructions";
 import { renderOutputs } from "../src/folder/preview";
 import { instructionTemplateRevision } from "../src/folder/render";
+import { maxVoiceBytes } from "../src/folder/voice";
 import { compositions, environments } from "./fixtures/folder-compositions";
 
 // The template revision names the bytes of the generated Folder (decision
@@ -21,7 +29,7 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // compositions too.
 const pinned = {
   revision: "base-instructions-126",
-  digest: "d9c32998c63b22f758be25916d0b25f48a50a760e7c1ffc7e32ad3c67ec3abee",
+  digest: "490c60a4ac2b42ab8d6ec8051d18f9a4a1e5ed2e6db54ba2982ca18c7d0bb74e",
 } as const;
 
 function renderedDigest(): string {
@@ -71,4 +79,136 @@ test("default and maximum plain voice fit the generated-document budget across p
     expect(Buffer.byteLength(custom)).toBeLessThanOrEqual(32 * 1024);
     expect(custom.indexOf("x".repeat(8192))).toBeLessThan(1500);
   }
+});
+
+// The person's own instructions (root decision 0233) are person-written text
+// like the voice, and the planner holds the two to one budget: the active
+// voice text and the whole rendered section together take at most the
+// longest voice, `maxVoiceBytes` (decision F14's implementation note of
+// 2026-11-15). These two tests are why a Folder within that budget fits what
+// Codex loads in every template revision: any text added to AGENTS.md that
+// pushes one of these compositions over 32 KiB fails here, before a release,
+// and never as a refused refresh of someone's Folder.
+const withOwnInstructions = () =>
+  compositions().filter((composition) =>
+    ownInstructionsAllowed(composition.preset, composition.machine),
+  );
+
+// The longest plain text of own instructions whose section takes at most
+// `room` bytes on this composition, the bound of the text included.
+function longestInstructions(
+  composition: ReturnType<typeof compositions>[number],
+  room: number,
+): string {
+  const section = (text: string) =>
+    sectionBytes(
+      ownInstructionsSection(
+        composition.profile.locale,
+        composition.preset,
+        composition.machine,
+        text,
+      ),
+    );
+  // The section is its frame and the text, byte for byte.
+  const frame = section("x") - 1;
+  return "x".repeat(
+    Math.max(0, Math.min(maxOwnInstructionsBytes, room - frame)),
+  );
+}
+
+test("the default voice and the longest own instructions fit the generated-document budget wherever a person has own instructions", () => {
+  const all = withOwnInstructions();
+  // Every preset that has them, in both languages, and no other.
+  expect(new Set(all.map((composition) => composition.preset))).toEqual(
+    new Set(["local", "hosted-personal", "hosted-organization-personal"]),
+  );
+  let tightest = Number.POSITIVE_INFINITY;
+  for (const composition of all) {
+    const text = "x".repeat(maxOwnInstructionsBytes);
+    const agents = renderOutputs({ ...composition, ownInstructions: text })[
+      "AGENTS.md"
+    ];
+    expect(agents).toContain(text);
+    tightest = Math.min(tightest, 32 * 1024 - Buffer.byteLength(agents));
+    // The planner's budget agrees: the default voice leaves the whole bound.
+    expect(
+      personTextBudget(
+        composition.profile.locale,
+        undefined,
+        ownInstructionsSection(
+          composition.profile.locale,
+          composition.preset,
+          composition.machine,
+          text,
+        ),
+      ).fits,
+    ).toBe(true);
+  }
+  expect(tightest).toBeGreaterThanOrEqual(0);
+});
+
+test("a custom voice and own instructions that fill their shared budget fit the generated-document budget in every split", () => {
+  let tightest = Number.POSITIVE_INFINITY;
+  for (const composition of withOwnInstructions()) {
+    const locale = composition.profile.locale;
+    const frame =
+      sectionBytes(
+        ownInstructionsSection(
+          locale,
+          composition.preset,
+          composition.machine,
+          "x",
+        ),
+      ) - 1;
+    // From the shortest voice with the longest instructions, through the
+    // voice that leaves exactly the whole bound of the instructions and an
+    // even split, to the longest voice that still leaves one byte of them.
+    for (const voiceBytes of [
+      1,
+      2048,
+      maxVoiceBytes - frame - maxOwnInstructionsBytes,
+      Math.floor((maxVoiceBytes - frame) / 2),
+      6000,
+      maxVoiceBytes - frame - 1,
+    ]) {
+      const voice = { overrides: { [locale]: "v".repeat(voiceBytes) } };
+      const text = longestInstructions(composition, maxVoiceBytes - voiceBytes);
+      expect(text.length).toBeGreaterThan(0);
+      const section = ownInstructionsSection(
+        locale,
+        composition.preset,
+        composition.machine,
+        text,
+      );
+      const budget = personTextBudget(locale, voice, section);
+      expect(budget.fits).toBe(true);
+      // The split is at the edge of the budget: one more byte of
+      // instructions is over it, unless the text is at its own bound.
+      if (text.length < maxOwnInstructionsBytes) {
+        expect(budget.voiceBytes + budget.instructionsBytes).toBe(
+          maxVoiceBytes,
+        );
+        expect(
+          personTextBudget(
+            locale,
+            voice,
+            ownInstructionsSection(
+              locale,
+              composition.preset,
+              composition.machine,
+              `${text}x`,
+            ),
+          ).fits,
+        ).toBe(false);
+      }
+      const agents = renderOutputs({
+        ...composition,
+        agentVoice: voice,
+        ownInstructions: text,
+      })["AGENTS.md"];
+      expect(agents).toContain(text);
+      tightest = Math.min(tightest, 32 * 1024 - Buffer.byteLength(agents));
+    }
+  }
+  expect(tightest).toBeGreaterThanOrEqual(0);
 });

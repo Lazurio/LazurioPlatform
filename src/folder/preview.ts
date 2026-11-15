@@ -67,8 +67,6 @@ export async function previewConfiguredFolder(
     manifestInput === null ? null : parseInstructionManifest(manifestInput);
   if (manifest && manifest.preferenceRevision !== preferences.revision)
     throw new Error("Incomplete or mismatched Folder state");
-  if (preferences.customInstructions !== "")
-    throw new Error("Custom instruction composition is not implemented");
   return previewFolder(
     instructionSource(preferences),
     manifest?.outputs ?? null,

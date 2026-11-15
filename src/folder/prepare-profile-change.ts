@@ -5,6 +5,7 @@ import {
   planChatgptAppsChange,
   planFolderChange,
   planOrganizationSettingsChange,
+  planOwnInstructionsChange,
   planProfileChange,
   planToolsChange,
 } from "./change-profile";
@@ -72,8 +73,10 @@ type Inspect = (path: OutputPath) => ReturnType<typeof inspectOutput>;
 // the recorded profile, tools and notes and the recorded preset unless the
 // operator names the one the new handover offers (issue #107), or the
 // Organization settings the Launchpad applies (root decision 0194, F45),
-// which keep everything else. All run the one planner and the one
-// transaction below; only the input differs.
+// which keep everything else, or the person's own instructions for agents
+// at the expected revision (root decision 0233), which keep everything else
+// too. All run the one planner and the one transaction below; only the
+// input differs.
 export type FolderChangeRequest =
   | Readonly<{
       kind: "profile";
@@ -100,6 +103,12 @@ export type FolderChangeRequest =
       kind: "chatgpt-apps";
       expectedRevision: number;
       allowed: unknown;
+    }>
+  | Readonly<{
+      kind: "own-instructions";
+      expectedRevision: number;
+      /** `{ text }`: the whole next text, or null to remove them. */
+      edit: unknown;
     }>;
 
 function planRequestedChange(
@@ -137,6 +146,14 @@ function planRequestedChange(
       state.manifest,
       request.expectedRevision,
       request.allowed,
+      inspect,
+    );
+  if (request.kind === "own-instructions")
+    return planOwnInstructionsChange(
+      state.preferences,
+      state.manifest,
+      request.expectedRevision,
+      request.edit,
       inspect,
     );
   // No caller-held revision: the refresh re-renders the recorded choices under

@@ -741,7 +741,7 @@ test("the main view of Nástroje says nothing technical; what support needs stay
       change({ kind: "blocked", reason: "stale-revision" }),
       change({ kind: "blocked", reason: "drift", path: "manual/x.md" }),
       change({ kind: "blocked", reason: "incomplete-state" }),
-      change({ kind: "blocked", reason: "custom-composition-unavailable" }),
+      change({ kind: "blocked", reason: "revision-exhausted" }),
       change(null),
       ...["removed", "kept-not-lazurio", "not-removed", "no-key"].map((state) =>
         logoutOutcome(
@@ -789,7 +789,7 @@ test("the main view of Nástroje says nothing technical; what support needs stay
     for (const kept of [
       "manual/x.md",
       "lazurio profile-resume",
-      "custom-composition-unavailable",
+      "revision-exhausted",
       "lazurio recover",
       print,
       "tool-exit",

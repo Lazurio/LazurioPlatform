@@ -30,15 +30,12 @@ const manifest = {
   ),
 };
 
-test("configured preview refuses mismatched state and unimplemented custom composition before inspection", async () => {
+test("configured preview refuses mismatched state before inspection and renders the person's own instructions", async () => {
   let inspections = 0;
   const inspect = async () => {
     inspections++;
     return { kind: "absent" as const };
   };
-  await expect(
-    previewConfiguredFolder(preferences, manifest, inspect),
-  ).rejects.toThrow("Custom instruction");
   await expect(
     previewConfiguredFolder(
       { ...preferences, customInstructions: "" },
@@ -54,6 +51,16 @@ test("configured preview refuses mismatched state and unimplemented custom compo
   );
   expect(result.plan.kind).toBe("write");
   expect(inspections).toBe(outputPaths.length);
+  // The stored text is rendered verbatim into AGENTS.md (root decision
+  // 0233); the preview no longer refuses a Folder that has one.
+  const own = await previewConfiguredFolder(preferences, null, inspect);
+  expect(own.plan.kind).toBe("write");
+  expect(own.desired["AGENTS.md"].content).toContain(
+    `\`\`\`text\n${preferences.customInstructions}\n\`\`\``,
+  );
+  expect(result.desired["AGENTS.md"].content).not.toContain(
+    "Vlastní pracovní instrukce.",
+  );
 });
 
 test("state parsing preserves custom source independently from frozen generated ownership", () => {

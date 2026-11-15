@@ -627,6 +627,9 @@ test("every existing refusal holds for a tools change", async () => {
       never,
     ),
   ).toEqual({ kind: "blocked", reason: "incomplete-state" });
+  // Own instructions the recorded bytes do not carry are incomplete state
+  // (root decision 0233); a tools change of a Folder that renders them keeps
+  // them (folder-own-instructions.test.ts).
   expect(
     await planToolsChange(
       { ...preferences, customInstructions: "Do not drop this" },
@@ -635,7 +638,7 @@ test("every existing refusal holds for a tools change", async () => {
       ["wacli"],
       never,
     ),
-  ).toEqual({ kind: "blocked", reason: "custom-composition-unavailable" });
+  ).toEqual({ kind: "blocked", reason: "incomplete-state" });
   expect(
     await planToolsChange(
       preferences,
