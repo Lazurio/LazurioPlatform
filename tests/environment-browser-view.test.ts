@@ -3,6 +3,7 @@ import {
   chmod,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   realpath,
   rm,
@@ -25,6 +26,8 @@ import {
 import type { CdpConnection, CdpEvent } from "../src/browser/people/cdp";
 import {
   browserExtensionFiles,
+  browserExtensionWorker,
+  browserExtensionWorkerOf,
   writeBrowserExtension,
 } from "../src/browser/people/extension";
 import {
@@ -3138,19 +3141,55 @@ test("the extension turns Chrome's own context menu off even when the page stops
   expect(event.defaultPrevented).toBe(true);
 });
 
-test("the extension moves a second tab of a window into a window of its own", async () => {
+/** A stand-in for the `chrome` the extension's worker sees: tabs and windows
+ * for the tab mover, the runtime's start events and every setting of
+ * `chrome.privacy.services`, recording what the worker sets. */
+function workerChrome(
+  options: Readonly<{
+    windows?: Map<number, { type: string; tabs: number }>;
+  }> = {},
+) {
   const moved: unknown[] = [];
-  let listener:
-    | ((tab: { id?: number; windowId?: number }) => Promise<void>)
-    | undefined;
-  const windows = new Map([
-    [1, { type: "normal", tabs: 2 }],
-    [2, { type: "popup", tabs: 2 }],
-    [3, { type: "normal", tabs: 1 }],
-  ]);
+  const set: { setting: string; details: unknown }[] = [];
+  const listeners = {
+    created: [] as ((tab: {
+      id?: number;
+      windowId?: number;
+    }) => Promise<void>)[],
+    startup: [] as (() => unknown)[],
+    installed: [] as (() => unknown)[],
+  };
+  let failSet = false;
+  const windows = options.windows ?? new Map();
+  // What Chrome answers for the card setting after the worker asked for it:
+  // by default the worker's own value, held by the extension.
+  let effective: { value: unknown; levelOfControl: string } | "throws" = {
+    value: false,
+    levelOfControl: "controlled_by_this_extension",
+  };
+  const changed: ((details: {
+    value: unknown;
+    levelOfControl: string;
+  }) => unknown)[] = [];
+  const setting = (name: string) => ({
+    set: async (details: unknown) => {
+      if (failSet) throw new Error("the setting cannot be changed");
+      set.push({ setting: name, details });
+    },
+    get: async () => {
+      if (effective === "throws") throw new Error("unreadable");
+      return effective;
+    },
+    onChange: {
+      addListener: (fn: (typeof changed)[number]) => changed.push(fn),
+    },
+  });
   const chrome = {
     tabs: {
-      onCreated: { addListener: (fn: typeof listener) => (listener = fn) },
+      onCreated: {
+        addListener: (fn: (typeof listeners.created)[number]) =>
+          listeners.created.push(fn),
+      },
       query: async ({ windowId }: { windowId: number }) =>
         Array.from({ length: windows.get(windowId)?.tabs ?? 0 }),
     },
@@ -3158,14 +3197,228 @@ test("the extension moves a second tab of a window into a window of its own", as
       get: async (windowId: number) => windows.get(windowId),
       create: async (options: unknown) => moved.push(options),
     },
+    runtime: {
+      onStartup: {
+        addListener: (fn: () => unknown) => listeners.startup.push(fn),
+      },
+      onInstalled: {
+        addListener: (fn: () => unknown) => listeners.installed.push(fn),
+      },
+    },
+    privacy: {
+      services: {
+        autofillCreditCardEnabled: setting("autofillCreditCardEnabled"),
+        autofillAddressEnabled: setting("autofillAddressEnabled"),
+        passwordSavingEnabled: setting("passwordSavingEnabled"),
+      },
+    },
   };
-  new Function("chrome", browserExtensionFiles["background.js"] as string)(
+  const run = () =>
+    new Function(
+      "chrome",
+      browserExtensionFiles[browserExtensionWorker] as string,
+    )(chrome);
+  return {
     chrome,
-  );
+    moved,
+    set,
+    listeners,
+    run,
+    failSets: () => {
+      failSet = true;
+    },
+    answers: (answer: typeof effective) => {
+      effective = answer;
+    },
+    changed,
+  };
+}
+
+/** What the worker recorded of its last attempt (`lazurioPaymentCards`). */
+const recorded = async () =>
+  await (globalThis as { lazurioPaymentCards?: Promise<unknown> })
+    .lazurioPaymentCards;
+
+test("the extension moves a second tab of a window into a window of its own", async () => {
+  const worker = workerChrome({
+    windows: new Map([
+      [1, { type: "normal", tabs: 2 }],
+      [2, { type: "popup", tabs: 2 }],
+      [3, { type: "normal", tabs: 1 }],
+    ]),
+  });
+  worker.run();
+  const [listener] = worker.listeners.created;
   await listener?.({ id: 10, windowId: 1 });
   await listener?.({ id: 11, windowId: 2 });
   await listener?.({ id: 12, windowId: 3 });
-  expect(moved).toEqual([{ tabId: 10, focused: false }]);
+  expect(worker.moved).toEqual([{ tabId: 10, focused: false }]);
+});
+
+test("the extension turns Chrome's saving and filling of payment cards off at every start of its worker, and nothing else", async () => {
+  const worker = workerChrome();
+  worker.run();
+  await settle();
+  // At once when the worker runs: the first start after an update, before any
+  // event, and every later wake of the worker.
+  const off = {
+    setting: "autofillCreditCardEnabled",
+    details: { value: false },
+  };
+  expect(worker.set).toEqual([off]);
+  // And on Chrome's start and the extension's install or update.
+  expect(worker.listeners.startup).toHaveLength(1);
+  expect(worker.listeners.installed).toHaveLength(1);
+  await worker.listeners.startup[0]?.();
+  await worker.listeners.installed[0]?.();
+  expect(worker.set).toEqual([off, off, off]);
+  // Passwords and addresses stay Chrome's: no other setting is touched.
+  expect(new Set(worker.set.map(({ setting }) => setting))).toEqual(
+    new Set(["autofillCreditCardEnabled"]),
+  );
+});
+
+test("a setting Chrome refuses leaves the worker running: tabs still move", async () => {
+  const worker = workerChrome({
+    windows: new Map([[1, { type: "normal", tabs: 2 }]]),
+  });
+  worker.failSets();
+  expect(() => worker.run()).not.toThrow();
+  await settle();
+  await worker.listeners.startup[0]?.();
+  expect(worker.set).toEqual([]);
+  await worker.listeners.created[0]?.({ id: 10, windowId: 1 });
+  expect(worker.moved).toEqual([{ tabId: 10, focused: false }]);
+  // A Chrome without chrome.privacy (no permission) is the same.
+  const bare = workerChrome();
+  (bare.chrome as { privacy?: unknown }).privacy = undefined;
+  expect(() => bare.run()).not.toThrow();
+  await settle();
+  await bare.listeners.installed[0]?.();
+});
+
+// Pablo's review of #994: a refused or overridden setting is never taken for
+// a protection. After asking, the worker reads back what Chrome applies and
+// records it (`globalThis.lazurioPaymentCards`, which doctor awaits before its
+// own read): protected only when the value is off and held by this extension.
+test("the worker reads back the card setting Chrome applies and records it as protected only when it is off and held by the extension", async () => {
+  try {
+    const worker = workerChrome();
+    worker.run();
+    expect(await recorded()).toEqual({
+      protected: true,
+      value: false,
+      levelOfControl: "controlled_by_this_extension",
+    });
+    // A policy or another extension wins over the extension's value.
+    for (const answer of [
+      { value: true, levelOfControl: "not_controllable" },
+      { value: true, levelOfControl: "controlled_by_other_extensions" },
+      { value: false, levelOfControl: "controlled_by_other_extensions" },
+      { value: false, levelOfControl: "controllable_by_this_extension" },
+    ]) {
+      const other = workerChrome();
+      other.answers(answer);
+      other.run();
+      expect(await recorded()).toEqual({ protected: false, ...answer });
+    }
+    // A refused setting is read back as well, never assumed.
+    const refused = workerChrome();
+    refused.failSets();
+    refused.answers({
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    refused.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    // Unreadable, or no chrome.privacy at all.
+    const unreadable = workerChrome();
+    unreadable.answers("throws");
+    unreadable.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      reason: "unreadable",
+    });
+    const bare = workerChrome();
+    (bare.chrome as { privacy?: unknown }).privacy = undefined;
+    bare.run();
+    expect(await recorded()).toEqual({
+      protected: false,
+      reason: "no-setting",
+    });
+  } finally {
+    delete (globalThis as { lazurioPaymentCards?: unknown })
+      .lazurioPaymentCards;
+  }
+});
+
+test("when another holder lets go of the card setting, the worker takes it back; its own change sets nothing again", async () => {
+  try {
+    const worker = workerChrome();
+    worker.run();
+    await settle();
+    expect(worker.set).toHaveLength(1);
+    expect(worker.changed).toHaveLength(1);
+    const [onChange] = worker.changed;
+    // Its own value, held: nothing to do (no loop on its own change).
+    await onChange?.({
+      value: false,
+      levelOfControl: "controlled_by_this_extension",
+    });
+    // A policy or another extension holds it: nothing the extension can do,
+    // and its record says so (measured: a worker that started before another
+    // extension turned saving on still recorded its own success).
+    await onChange?.({ value: true, levelOfControl: "not_controllable" });
+    await settle();
+    expect(worker.set).toHaveLength(1);
+    expect(await recorded()).toEqual({
+      protected: false,
+      value: true,
+      levelOfControl: "not_controllable",
+    });
+    // Another extension or a policy let go: the extension takes it back.
+    await onChange?.({
+      value: true,
+      levelOfControl: "controllable_by_this_extension",
+    });
+    await settle();
+    expect(worker.set).toHaveLength(2);
+    expect(await recorded()).toMatchObject({ protected: true });
+  } finally {
+    delete (globalThis as { lazurioPaymentCards?: unknown })
+      .lazurioPaymentCards;
+  }
+});
+
+test("a changed worker comes with a new file name and a new version, which Chrome needs to run it in a profile that ran the earlier one", () => {
+  const current = browserExtensionWorkerOf(
+    browserExtensionFiles[browserExtensionWorker] as string,
+  );
+  expect(current.file).toBe(browserExtensionWorker);
+  expect(current.file).toMatch(/^background-[0-9a-f]{12}\.js$/);
+  // A version Chrome accepts: up to four integers 0–65535, no leading zero.
+  const valid = /^(0|[1-9][0-9]{0,4})(\.(0|[1-9][0-9]{0,4})){0,3}$/;
+  expect(current.version).toMatch(valid);
+  for (const part of current.version.split("."))
+    expect(Number(part)).toBeLessThanOrEqual(65535);
+  // One character more: another name and another version.
+  const changed = browserExtensionWorkerOf(
+    `${browserExtensionFiles[browserExtensionWorker]}\n`,
+  );
+  expect(changed.file).not.toBe(current.file);
+  expect(changed.version).not.toBe(current.version);
+  expect(changed.version).toMatch(valid);
+  // The same text: the same name and version, so an unchanged release never
+  // registers the worker again.
+  expect(
+    browserExtensionWorkerOf(
+      browserExtensionFiles[browserExtensionWorker] as string,
+    ),
+  ).toEqual(current);
 });
 
 test("the extension is written next to the profile and only when it differs", async () => {
@@ -3178,14 +3431,26 @@ test("the extension is written next to the profile and only when it differs", as
       "utf8",
     ),
   ) as {
+    version: string;
     permissions?: unknown;
+    background: { service_worker: string };
     content_scripts: { js: string[]; world?: string; run_at: string }[];
   };
-  // No permission at all, and the passkey, payment and window scripts run
-  // in the page's world before the page, in every frame: also one made from
-  // a blob: or data: address, where a page can print or pay as well
-  // (measured on Chrome 156: such a frame printed without the fallback).
-  expect(manifest.permissions).toBeUndefined();
+  // One permission, for Chrome's card setting (F39's addendum of 2026-11-15).
+  expect(manifest.permissions).toEqual(["privacy"]);
+  // The worker the manifest names is this release's, at its version.
+  expect(manifest.background).toEqual({
+    service_worker: browserExtensionWorker,
+  });
+  expect(manifest.version).toBe(
+    browserExtensionWorkerOf(
+      browserExtensionFiles[browserExtensionWorker] as string,
+    ).version,
+  );
+  // The passkey, payment and window scripts run in the page's world before
+  // the page, in every frame: also one made from a blob: or data: address,
+  // where a page can print or pay as well (measured on Chrome 156: such a
+  // frame printed without the fallback).
   expect(manifest.content_scripts[0]).toMatchObject({
     js: ["webauthn.js", "payment.js", "sheets.js"],
     world: "MAIN",
@@ -3205,9 +3470,26 @@ test("the extension is written next to the profile and only when it differs", as
   // Every script the manifest names is written.
   expect(manifest.content_scripts.flatMap(({ js }) => js).sort()).toEqual(
     Object.keys(browserExtensionFiles)
-      .filter((name) => name.endsWith(".js") && name !== "background.js")
+      .filter((name) => name.endsWith(".js") && name !== browserExtensionWorker)
       .sort(),
   );
+});
+
+test("an earlier release's worker is removed; nothing else in the directory is", async () => {
+  root = await realpath(await mkdtemp(join(tmpdir(), "extension-")));
+  const directory = join(root, ".local/share/lazurio-browser/extension");
+  await mkdir(directory, { recursive: true });
+  // What a release before F39's addendum of 2026-11-15 left, and the worker
+  // of another release since.
+  await writeFile(join(directory, "background.js"), "// earlier\n");
+  await writeFile(join(directory, "background-0123456789ab.js"), "// other\n");
+  await writeFile(join(directory, "notes.txt"), "kept\n");
+  expect(await writeBrowserExtension(root)).toBe(true);
+  expect((await readdir(directory)).sort()).toEqual(
+    [...Object.keys(browserExtensionFiles), "notes.txt"].sort(),
+  );
+  // Nothing left to remove or write: unchanged.
+  expect(await writeBrowserExtension(root)).toBe(false);
 });
 
 test("serve takes exactly a loopback port and an origin", () => {

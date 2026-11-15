@@ -12994,6 +12994,185 @@ account, so the hidden Google Pay button itself was seen only on the test page. 
 Pay button in Chrome is Stripe's own, not a Payment Request, and stays; the demo's button does
 nothing on a click, so what it opens on a real checkout was not checked.
 
+**Addendum 2026-11-15: a card payment in the view works, and the browser never saves or fills a
+payment card** (decided by Matěj on 2026-11-15: "Rozhodně by se neměla ukládat platební karta
+v prohlížeči … minimálně když ji naťukám, tak bych byl rád, aby normálně šlo zaplatit kartou.
+Jsem v pohodě s tím, že Google Pay bude zakázáno, ale platba kartou rozhodně musí fungovat."
+The mechanism of point 2, the worker of point 3 and doctor's check of point 5, asked for by
+Pablo's review, are proposed by the agent from the measurements below; LazurioPlatform#994). Payments through the browser stay declined as the
+addendum of 2026-11-14 says. This addendum adds to point 7 and to that addendum; the rest of F39
+stands.
+
+1. **A person pays by card in the view.** The page's own card form works in the view as any
+   other form: the fields of a payment provider are frames of another site (Stripe's Payment
+   Element and Checkout), and the view's clicks and keys reach them as in every frame (point 6).
+   Checked live, in Stripe's test mode only, with Stripe's public test cards, through the view of
+   this revision on a port of its own, from a click and keys sent to the view page as a person's:
+   - the card `4242 4242 4242 4242`: typed into Stripe's frame, paid, and the payment is
+     `succeeded` as Stripe's server reports it;
+   - the card `4000 0027 6000 3184`, which asks for 3D Secure: Stripe's challenge
+     (`three-ds-2-challenge` with the bank's test page from `testmode-acs.stripe.com` inside)
+     shows in the page, in the view, and its Complete clicked in the view ends with `succeeded`
+     and 3D Secure `authenticated`;
+   - a reload during an unfinished payment: the page's "Leave this page?" shows in the view and is
+     answered there (point 7, JavaScript dialogs).
+
+   Both cards were paid this way in the Environment browser itself (the extension of the
+   installed release) and in a Chrome for Testing 156 of the check's own with this revision's
+   extension. A bank may open its check in a window of its own instead of a frame. Measured on
+   a test page with no payment provider (a shop on one site whose Pay opens a "bank" on another
+   site, whose Confirm answers the shop and closes itself), through the view of this revision
+   against a Chrome for Testing 156 of the check's own, every click sent to the view page:
+   - `window.open` with a reference to the window (the shape of a 3D Secure pop-up) is point 4's
+     pop-up: it shows over the page in the person's own tab, Confirm clicked in the view reached
+     the shop (`postMessage` to its opener), and the pop-up closed and left the view;
+   - a form posted to `target=_blank`, or a `noopener` window, has no access to its opener (Chrome
+     reports `canAccessOpener: false`): the view shows "Stránka otevřela novou záložku" with
+     Otevřít, which opened the bank's page as a tab of its own in the view, where Confirm worked.
+     Such a window is not a window of the agent's thread, so `lazurio browser tabs` does not list
+     it.
+
+   That was not checked with a real bank. A check that does not show in the view or cannot be
+   completed leaves the person's own browser. A payment is a Publication, and typing a card is the
+   person's: the Folder tells agents to take the order up to the payment form, send the link and
+   wait, never to fill in, save or read a card, never to ask for one in the chat and not to
+   capture the tab while the person pays (point 6 below).
+2. **The browser never saves or fills a payment card.** Before this addendum, Chrome offered
+   "Save card?" after a card payment (Visa ••4242 in the checks), in a bubble outside the page:
+   the view never shows it, a click in the view never closes it, and a "Save" on the
+   Environment's screen would have kept the card in the profile every agent of the Environment
+   shares. Measured in a Chrome of the check's own on Stripe's Card Element, its Payment Element
+   and Stripe Checkout embedded in a page, and in the Environment browser on the Payment Element. The Lazurio extension now has one
+   permission, `privacy`, and its worker sets Chrome's own setting "Save and fill payment
+   methods" off (`chrome.privacy.services.autofillCreditCardEnabled`, the preference
+   `autofill.credit_card_enabled`) when the worker starts, on Chrome's start and on the
+   extension's install or update. Chrome keeps the value with the extension and shows the
+   setting as the extension's; "Save security codes" and "Card benefits" depend on it and are off
+   with it. Measured with this revision's extension: no bubble and no card icon in the address
+   bar after either payment, through the view and without it; every card, security code, IBAN
+   and payment table of the profile's `Web Data` empty; the setting `ENFORCED` by the extension,
+   so `chrome://settings` cannot turn it on; the same after a restart. Passwords, addresses and the
+   rest of autofill stay Chrome's. Whether the setting also covers IBANs was not checked.
+
+   A policy or another extension can win over the extension's value, Chrome can refuse it, and a
+   person can turn the extension off (Pablo's review of LazurioPlatform#994). The worker therefore
+   never takes its request for the result: after asking, it reads back what Chrome applies
+   (`get({})`) and keeps it as `lazurioPaymentCards`, protected only when the value is off and
+   `levelOfControl` is `controlled_by_this_extension`. When a policy or another extension lets go
+   (`controllable_by_this_extension`), or the value is on while the extension holds it, the
+   worker asks again (`onChange`); any other change is only recorded, so its own change never
+   sets it again. Whether the protection holds is answered by doctor, point 5.
+3. **A changed worker reaches every profile.** The extension is loaded with `--load-extension`
+   at every start and never goes through Chrome's update. Chrome registers an extension's worker
+   again only when the extension's version differs from the one it registered, and even then it
+   keeps the worker it has while the script's address stays the same (the service worker
+   specification's Register). Measured on Chrome for Testing 156: in a profile that had run the
+   earlier extension, the new `background.js` was on disk and its manifest read, yet Chrome ran
+   the earlier worker, with version 1.0.0 and with 1.0.1. The worker's file name is therefore
+   `background-<12 digits of its digest>.js` and the extension's version `1.<a>.<b>` from the same
+   digest, so every change of the worker comes with a new name and a new version; Chrome compares
+   the versions only for equality, and a lower one took over as well. The writer writes the
+   manifest last, so it never names a worker that is not there yet, and removes an earlier
+   release's worker file (`background.js` or `background-<digest>.js`), nothing else. The
+   extension's id comes from its directory, which does not change, so its stored settings stay.
+4. **Rollout.** The extension's digest is part of the browser unit's text, so the release that
+   ships this addendum restarts the browser on `install` and `update` (point 10), and every window
+   of every thread closes, as for every new extension. At that start the new worker runs and
+   turns card saving off; nothing in the Environment needs another step. Checked with the
+   product's own writer: a profile that had run the release before, restarted with this one,
+   runs the new `background-<digest>.js` with the setting off; on one profile, each worker of
+   this pull request in turn (`background-23eb908e230a.js`, `background-8b6d9d7ed298.js`,
+   `background-374f12e5cfb9.js`) took over at the next start.
+5. **Doctor reads whether the protection holds** (check `browser-payment-cards`, group
+   Machine). Only Chrome knows the value in force, so doctor asks Chrome: over DevTools on the
+   browser's loopback port it attaches to the extension's worker
+   (`chrome-extension://<id>/background-<digest>.js`, the id computed as Chrome computes it for
+   an unpacked extension, from the real path of the extension's directory), waits for the
+   worker's own request (`lazurioPaymentCards`) and evaluates
+   `chrome.privacy.services.autofillCreditCardEnabled.get({})`.
+   - `ok` when the value is off and held by the extension, or off by a Chrome policy
+     (`not_controllable`), which holds even with the extension off;
+   - `warn payment-cards-unprotected` when it is on, whoever holds it;
+   - `warn payment-cards-not-held` when it is off but another extension or nobody holds it, so the
+     settings page or that extension can turn it on;
+   - `warn payment-cards-unverified` when it cannot be read: DevTools does not answer, the
+     extension's worker never starts (the extension turned off or not loaded), or the worker does
+     not answer;
+   - `skipped` where the browser check is skipped or the browser does not run.
+
+   Never `fail`, as the browser check (an Environment works without its browser) and never a
+   repair. Doctor opens and closes no tab or window and sets nothing. Chrome stops an idle
+   extension worker after about 30 s and DevTools lists only a running one; doctor then starts
+   it with `ServiceWorker.startWorker` from a session on one of Chrome's own interface targets
+   (`browser_ui`), or on a page when there is none, as a new tab starts it. A worker that starts
+   asks Chrome for the setting as on every start (point 2); doctor reads Chrome's answer after
+   that. Measured against a Chrome for Testing 156 of the check's own with this revision's
+   extension: a running worker and a stopped one (woken, 26–30 ms) both `ok`; the extension turned
+   off in `chrome://extensions` `unverified` (`extension-not-running`), on again `ok`; a test
+   extension setting the value on `unprotected` (`controlled_by_other_extensions`). Which of two
+   extensions wins depends on Chrome's order of installation: once the Lazurio extension won
+   because its new version was installed later, and on the first start after the test extension
+   was no longer loaded its value still applied, then no longer (each time doctor reported what
+   Chrome applied, and the worker's record followed `onChange`).
+6. **Agents** read, right after the sign-in point of the Folder's browser section, that a card
+   payment works and is the user's own in their tab in the view, as in point 1, with where the
+   bank's check shows (in the page, a pop-up over it, or the bar for a new tab) and that a check
+   that does not show or cannot be completed means paying in their own browser, as nothing was
+   checked with a real bank. They read that card saving and filling is off, that the check
+   `browser-payment-cards` of `lazurio doctor` shows before a payment whether that holds, and
+   that when it warns Chrome may offer "Save card?" outside the page, where nobody sees it, and
+   the card is saved only by a click: they never click it, not through Computer Use either, and
+   tell the user. The point on payments through the browser follows as "Google Pay and Chrome's
+   windows", still promising no other way to pay; template revision `base-instructions-129`.
+
+| Failure | What happens |
+| --- | --- |
+| The extension is turned off in Chrome (`chrome://extensions`, or Disable next to the setting) | Chrome's own value returns: card saving is on, and passkeys, payments through the browser and the windows of point 7 are no longer declined. It stays off across restarts (measured). Doctor warns `payment-cards-unverified` (`extension-not-running`, measured). The view's address bar opens only web addresses, so a person in the view never reaches these pages; an agent over DevTools could, and the Folder tells agents never to get around the browser. A Chrome policy would hold even then (variants) |
+| Chrome refuses the setting (no `privacy` permission) | The worker goes on; tabs still move; card saving stays Chrome's, and the worker records what Chrome applies, never a success (tested with a stand-in). Doctor reads the value itself |
+| A policy or another extension turns card saving on, or holds it | Doctor warns `payment-cards-unprotected` or `payment-cards-not-held` (measured with a test extension). The worker takes the setting back when the other holder lets go |
+| The protection does not hold during a payment | Chrome may offer "Save card?" outside the page after the payment, where nobody sees it in the view. The card is saved only by a click on it; agents never click it, not through Computer Use either, and tell the user (point 6). Nothing in the view can answer it, and closing the tab's window closes it unanswered (measured before this addendum) |
+| The extension's worker is stopped (idle for about 30 s) | Doctor starts it over DevTools and reads it (measured) |
+| A card saved in the profile before this release | Chrome neither offers nor fills it while the setting is off; it stays in `Web Data` until removed. The Environment browser of the Environment where this was checked held none |
+| A site's own offer to keep the card (Stripe's Link, a shop account) | It is the site's, in the page and visible in the view; the person decides. The browser keeps nothing |
+| A bank's check in a window of its own | A pop-up with access to its opener shows over the page, a window without it as the view's bar for a new tab (point 1, measured with a test page); not checked with a real bank. When it does not show or cannot be completed, the person pays in their own browser |
+| A site that takes only a wallet | As the addendum of 2026-11-14: the person pays in their own browser |
+
+**Variants considered.**
+
+| Alternative | Disposition |
+| --- | --- |
+| The extension's `privacy` setting (selected) | The Platform's own, applied at every start of the worker, enforced against the settings page, no root and no other repository; measured |
+| `AutofillCreditCardEnabled: false` in the Chrome policy Machines manages (`/etc/opt/chrome_for_testing/policies/managed`, the directory Chrome for Testing 156 reads) | Holds even with the extension turned off, but needs the Machines release and root on each Environment, and the Environment where this was checked has no policy there yet. A second layer, not decided here |
+| `--policy={"AutofillCreditCardEnabled":false}` on Chrome's command line | Ignored by Chrome for Testing 156 (measured); rejected |
+| Writing `autofill.credit_card_enabled` into the profile's `Preferences` before each start | Edits Chrome's own file, and the settings page could turn it on until the next start; rejected |
+| Bumping the extension's version by hand when the worker changes | Still the same script address, so Chrome keeps the earlier worker (measured); and a forgotten bump is silent; rejected |
+
+**Not decided here.** Chrome's managed policy as a second layer (variants), whether the
+setting covers IBANs, whether a card saved before this release should be removed from a
+profile that has one, and whether anything should act on doctor's warning beyond telling the
+agent and the user.
+
+Tests: `tests/environment-browser-view.test.ts` (the worker against a stand-in `chrome`: the
+card setting off at once and on both start events, no other setting touched, a refused setting
+leaving the tab mover working; the value Chrome applies read back and recorded as protected only
+when off and held by the extension, also after a refused setting or without `chrome.privacy`;
+the setting taken back when another holder lets go and only recorded otherwise; the worker's
+name and version following its text and valid for Chrome; the manifest's permission, worker and
+version; an earlier worker removed and nothing else); `tests/browser-payment-cards.test.ts`
+(doctor's reading against a scripted DevTools peer: each answer of Chrome and what it means, the
+running worker read, a stopped one started from Chrome's interface and never from a person's tab
+when there is one, nothing opened, closed or set, the extension turned off, an unreadable worker,
+no DevTools, the check skipped without a running browser, Chrome's id of an unpacked extension,
+the check and its reasons in doctor); `tests/doctor.test.ts` (the check in the order of the
+Machine group); `tests/environment-browser.test.ts` (the files written next to the profile);
+`tests/folder-manual.test.ts` (the card point right after sign-in, wherever the view is, with the
+bank's check, the way out and the doctor check, and without the earlier unconditional claims).
+Checked live on 2026-11-15 as point 1 to 5 say: the payments through the view in the Environment
+browser (Chrome 156) with the view of this revision on a port of its own; the bank's window, the
+setting, doctor's reading, the profile and the rollout in a Chrome for Testing 156 of the check's
+own (own display, port and temporary profile), never in the Environment browser, whose own profile
+and DevTools list were only read.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public
