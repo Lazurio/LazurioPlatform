@@ -11965,9 +11965,13 @@ takes it.
      refuses as `window` does (`binding-unverified`); with it, the binding is settled first
      under the lock, as `window` settles one, or nothing is taken.
    - **Every earlier holder's note is written before the session is bound.** Where one cannot
-     be written (`take-note-failed`), or the binding fails, the notes go back to what they
-     were and nothing is bound: a holder without its note would take the tab for its window
-     again and navigate it.
+     be written (`take-note-failed`), the notes go back to what they were and nothing is
+     bound: a holder without its note would take the tab for its window again and navigate
+     it. Where the binding fails, the taker may be left on the tab (`tab` answered, the pin did
+     not), so the notes go back only once the taker is proven off it (its binding names
+     another tab, or its daemon has ended and the binding is removed). Otherwise the notes
+     stay and the taker is marked unverified (C19, `binding-unverified`) until `done` or
+     `window` settles it, so two agents never work in the tab unseen.
    - **Nothing is silently replaced and nothing is closed.** No tab closes, no holder file
      changes, and the people who view the tab keep it.
 

@@ -4602,6 +4602,83 @@ test.skipIf(process.platform === "win32")(
   },
 );
 
+test.skipIf(process.platform === "win32")(
+  "take whose binding fails gives the holders their window back only once the taker is proven off the tab; otherwise their notes stay and the taker is marked unverified (review of #993)",
+  async () => {
+    const world = await takeWorld();
+    const note = join(
+      world.runtime,
+      "lazurio-browser",
+      "taken",
+      "t3-other.json",
+    );
+    const before = await readFile(
+      join(world.socketDir, "t3-other.target"),
+      "utf8",
+    );
+    const endsOnlyHolders = {
+      ask: async (socketPath: string) => {
+        const session = basename(socketPath, ".sock");
+        world.asked.push(session);
+        if (session === "t3-other") {
+          await rm(join(world.socketDir, `${session}.pid`), { force: true });
+          await rm(join(world.socketDir, `${session}.sock`), { force: true });
+        }
+        return { kind: "reply", line: '{"success":true}' } as const;
+      },
+      exists: async (path: string) => present(path),
+      exitWithinMs: 50,
+    };
+    const pinFails = (): WindowSeams => ({
+      ...windowSeams({
+        socketDir: world.socketDir,
+        targets: [TAKEN_TAB, OWN_TAB],
+        env: world.env,
+        failing: ["--pin-tab"],
+      }).seams,
+      daemon: endsOnlyHolders,
+      endWithinMs: 0,
+    });
+    // `tab` answers and the pin does not: the taker is on the tab, its
+    // daemon has ended, so its binding goes and the holder's note with it.
+    await expect(
+      takeTab("codex-019a", TAKEN_TAB, pinFails(), { thread: "codex-019a" }),
+    ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+    expect(await present(join(world.socketDir, "codex-019a.target"))).toBe(
+      false,
+    );
+    expect(await present(note)).toBe(false);
+    expect(
+      await readFile(join(world.socketDir, "t3-other.target"), "utf8"),
+    ).toBe(before);
+    // The same with the taker's daemon still running: it cannot be proven
+    // off the tab, so the note stays and the taker is marked unverified.
+    await bindSessionFiles(world.socketDir, "t3-other", TAKEN_TAB, {
+      pid: String(process.pid),
+      sock: true,
+    });
+    await writeFile(
+      join(world.socketDir, "codex-019a.pid"),
+      String(process.pid),
+    );
+    await writeFile(join(world.socketDir, "codex-019a.sock"), "");
+    await expect(
+      takeTab("codex-019a", TAKEN_TAB, pinFails(), { thread: "codex-019a" }),
+    ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+    expect(JSON.parse(await readFile(note, "utf8"))).toMatchObject({
+      session: "t3-other",
+      targetId: TAKEN_TAB,
+      by: "codex-019a",
+    });
+    expect(await present(unverifiedMark(world.runtime, "codex-019a"))).toBe(
+      true,
+    );
+    expect(
+      JSON.parse((await world.run(["tabs", "--json"])).stdout ?? "").windows,
+    ).toEqual([]);
+  },
+);
+
 test("a session whose tab another thread took gets a new window from apps open too, and the taken tab is never navigated; a new window whose address the browser refuses fails apps open", async () => {
   const runtime = await temporary("browser-taken-open-");
   const socketDir = join(runtime, "agent-browser");

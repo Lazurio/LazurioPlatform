@@ -1417,6 +1417,30 @@ export async function tabHolders(
   );
 }
 
+/** Whether a session whose binding to `targetId` failed is off that tab:
+ * its binding names something else, or, where it still names the tab, its
+ * daemon has ended and the binding is removed (`releaseBinding`). False
+ * while its binding cannot be read or its daemon may still run. */
+async function takerOff(
+  session: string,
+  targetId: string,
+  sockets: string | undefined,
+  seams: Pick<WindowSeams, "daemon" | "alive" | "endWithinMs">,
+): Promise<boolean> {
+  const left = await readBinding(sockets, session);
+  if (left === "unreadable") return false;
+  if (left !== targetId) return true;
+  return (
+    (await releaseBinding(
+      sockets,
+      session,
+      { targetId: null, before: null },
+      seams,
+      seams.endWithinMs ?? daemonEndMs,
+    )) && (await readBinding(sockets, session)) === "none"
+  );
+}
+
 /** Takes a tab into the calling thread's session on purpose, once its agent
  * confirmed it (`lazurio browser take --confirm`): the session is bound to
  * the tab and pinned as `window` binds one (`bindSession`), and the window is
@@ -1432,7 +1456,10 @@ export async function tabHolders(
  * (`binding-unverified`), a holder's daemon did not shut down
  * (`holder-busy`, then the holders asked before it are let go and nothing is
  * bound), or a holder's note cannot be written (`take-note-failed`, then the
- * notes go back to what they were and nothing is bound). A session that holds the tab already changes nothing (`already`),
+ * notes go back to what they were and nothing is bound). Where the binding
+ * itself fails, the notes go back only once the session is proven off the
+ * tab; otherwise they stay and the session is marked unverified
+ * (`binding-unverified`), so no two agents work in the tab unseen. A session that holds the tab already changes nothing (`already`),
  * unless another thread took it from it: then it takes it back. Under the
  * account's window lock. */
 export async function takeTab(
@@ -1518,11 +1545,27 @@ export async function takeTab(
         throw new BrowserWindowFailure("take-note-failed", holder.session);
       }
     }
-    try {
-      bindingFailure(await bindSession(session, targetId, seams));
-    } catch (error) {
-      await restore();
-      throw error;
+    // A failed binding may leave the taker on the tab (`tab` answered, the
+    // pin did not): the holders get their window back only once the taker
+    // is proven off it, else their notes stay and the taker is marked
+    // unverified (C19) until `done` or `window` settles it (review of #993).
+    const binding = await bindSession(session, targetId, seams).catch(
+      () => "unverified" as const,
+    );
+    if (binding !== "bound") {
+      const off =
+        binding === "failed" &&
+        (await takerOff(session, targetId, sockets, seams));
+      if (off) await restore();
+      else {
+        const marks = unverifiedBindingDirectory(seams.env);
+        if (marks !== undefined)
+          await markUnverified(marks, session, {
+            targetId: null,
+            before: null,
+          });
+      }
+      bindingFailure(off ? "failed" : "unverified");
     }
     const recorded = await recordThreadWindow(seams.env, {
       session,
