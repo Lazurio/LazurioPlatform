@@ -105,6 +105,7 @@ import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createNewModuleDialog } from "./new-module-dialog";
 import { parseBriefAnswer } from "./new-module-view";
+import { ownInstructionsPanel } from "./own-instructions-panel";
 import { createHelpVideo } from "./page-help";
 import { isPublicEnvironment, publicRoute } from "./public-environment";
 import { createRecoveryPanel } from "./recovery-panel";
@@ -1794,6 +1795,8 @@ let current: {
   machine: MachineView | null;
   profile: Record<string, string>;
   voice: VoiceView;
+  // The person's own instructions for agents (own-instructions-view.ts).
+  ownInstructions?: unknown;
 };
 let pending: {
   expectedRevision: number;
@@ -1920,6 +1923,7 @@ function relabel() {
   ssh.render();
   connections.render();
   theme.render();
+  ownInstructions.render();
   vaultPage.render();
   if (framed) marketplace.render();
   newModuleDialog.render();
@@ -1994,6 +1998,7 @@ async function load() {
   // preset); the page's start reads it once, or carries it.
   if (!first) void readShell();
   voice.load(current);
+  ownInstructions.load(current);
   drawMachine();
   // One fixed option on a public Environment (the Try overlay, F55's
   // addendum of 2026-10-20).
@@ -2112,6 +2117,22 @@ const tools = createToolsPanel({
   persona: () => personaGithub(profileState?.preset),
 });
 const voice = voicePanel({
+  post,
+  copy: () => copy,
+  changed: async () => {
+    pending = null;
+    controls.apply.disabled = true;
+    await load();
+  },
+});
+// The person's own instructions for agents (root decision 0233), in the
+// same section under the voice; drawn only where the Environment has them.
+const ownInstructions = ownInstructionsPanel({
+  host: () => {
+    const section = document.getElementById("section-communication");
+    if (!section) throw new Error("Missing section: communication");
+    return section;
+  },
   post,
   copy: () => copy,
   changed: async () => {
