@@ -39,7 +39,8 @@ const en = {
     "Tell agents how to work with you: how to answer, what to ask about, what to always do. This grants nothing; where they conflict, Lazurio's and the Organization's rules win.",
   ownCount: "{bytes} of {maxBytes} bytes",
   ownRemove: "Remove instructions",
-  ownSaved: "Saved. The instructions are in this Environment's AGENTS.md; new agent conversations that read it get them.",
+  ownSaved:
+    "Saved. The instructions are in this Environment's AGENTS.md; new agent conversations that read it get them.",
   ownRemoved:
     "The own instructions are removed. New conversations no longer get them.",
   ownTooLong:
@@ -2406,7 +2407,8 @@ const cs: Record<MessageKey, string> = {
     "Řekněte agentům, jak s vámi mají pracovat: jak odpovídat, na co se ptát, co dělat vždy. Nic tím neudělujete; při střetu platí pravidla Lazuria a Organizace.",
   ownCount: "{bytes} z {maxBytes} bajtů",
   ownRemove: "Odebrat pokyny",
-  ownSaved: "Uloženo. Pokyny jsou v AGENTS.md tohoto Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
+  ownSaved:
+    "Uloženo. Pokyny jsou v AGENTS.md tohoto Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
   ownRemoved: "Vlastní pokyny jsou odebrané. Nové konverzace je už nedostanou.",
   ownTooLong:
     "Text je delší než {maxBytes} bajtů. Zkraťte ho; písmeno s diakritikou zabere dva bajty.",
