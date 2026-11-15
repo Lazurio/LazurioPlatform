@@ -331,6 +331,11 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .own-error { color: var(--destructive); font-size: 13px; }
 .own-error:empty { display: none; }
 #own-form .callout, #own-form .row-desc, .own-error { overflow-wrap: anywhere; }
+/* The text saved elsewhere next to the person's own, and the choice. Empty,
+   the block is in the page for a screen reader and takes no room. */
+.own-conflict { display: grid; gap: 10px; }
+.own-conflict:empty { display: none; }
+.own-conflict pre { background: var(--card); color: var(--fg); font: inherit; line-height: 1.65; }
 .own-suggest { display: grid; gap: 6px; justify-items: start; }
 .own-suggest .icon { width: 14px; height: 14px; }
 .section-head-text { display: grid; gap: 0.75rem; }

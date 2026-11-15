@@ -54,6 +54,14 @@ const en = {
     "With this text the combined agent instructions would be too long. Shorten the instructions, the voice or your tool notes and save again.",
   ownUnavailable:
     "{This} has no own instructions. Your own computer, a Personal Environment and a Work Environment assigned to one person have them. Load current settings.",
+  // The saved text changed elsewhere while a draft was open: the person
+  // chooses which text holds before anything is saved.
+  ownConflict:
+    "The saved instructions changed elsewhere in the meantime, for example an agent added a line. Before you save, choose which text holds.",
+  ownConflictSaved: "Saved text",
+  ownConflictRemoved: "The saved instructions were removed.",
+  ownConflictUseSaved: "Use the saved text",
+  ownConflictKeepMine: "Keep my text",
   ownSuggest: "Send to Lazurio as a suggestion",
   ownSuggestHint:
     "The link opens GitHub and hands it the saved text in the address as soon as it opens. It becomes public once you submit the issue there yourself.",
@@ -2411,6 +2419,12 @@ const cs: Record<MessageKey, string> = {
     "S tímto textem by celé instrukce pro agenty byly příliš dlouhé. Zkraťte pokyny, tón nebo poznámky k nástrojům a uložte znovu.",
   ownUnavailable:
     "{Toto} vlastní pokyny nemá. Má je váš počítač, Osobní Prostředí a Pracovní Prostředí přiřazené jednomu člověku. Načtěte aktuální nastavení.",
+  ownConflict:
+    "Uložené pokyny se mezitím změnily jinde, například je doplnil agent. Než uložíte, vyberte, které znění platí.",
+  ownConflictSaved: "Uložené znění",
+  ownConflictRemoved: "Uložené pokyny někdo odebral.",
+  ownConflictUseSaved: "Použít uložené znění",
+  ownConflictKeepMine: "Ponechat můj text",
   ownSuggest: "Poslat Lazuriu jako podnět",
   ownSuggestHint:
     "Odkaz otevře GitHub a uložený text mu předá v adrese hned při otevření. Veřejný bude, až tam issue sami odešlete.",

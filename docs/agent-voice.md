@@ -183,7 +183,10 @@ is drawn only where a person has own instructions (`local`, `hosted-personal`,
 automations or a public one. It shows a counter of UTF-8 bytes against its bound
 of 4,096, Save, Cancel and Remove, and on a Work Environment the notice that the
 instructions belong to the Organization, before anything is saved. It saves
-through `POST /api/own-instructions/update`, which changes that text alone. After
+through `POST /api/own-instructions/update`, which changes that text alone. Where
+the saved text changed elsewhere while the person wrote (an agent's `lazurio folder
+instructions add`, another tab), a reload shows that text next to the person's and
+nothing is saved before the person chooses which one holds. After
 a save the person may open a prepared issue with the text in this repository
 („Poslat Lazuriu jako podnět“); nothing is sent by the product, and the form says
 before the click that opening the link hands the text to GitHub in the address.

@@ -52,21 +52,43 @@ export const utf8Bytes = (text: string): number =>
   new TextEncoder().encode(text).length;
 
 export type OwnInstructionsDraft = {
+  /** What is saved, as the profile was last read. */
   saved: OwnInstructionsView;
+  /** What the form holds. */
   text: string;
+  /** Not null while the person has yet to choose between this text and one
+   * saved elsewhere in the meantime (an agent's `lazurio folder instructions
+   * add`, another tab): `saved` is then that other text, and `base` is the
+   * saved text this draft was started from. Nothing is saved before the
+   * choice. */
+  conflict: Readonly<{ base: string }> | null;
 };
 export const ownInstructionsDirty = (draft: OwnInstructionsDraft): boolean =>
   draft.text !== draft.saved.text;
 
-/** A profile reload updates the saved baseline and keeps a text the person
- * is still writing, as the voice form does (`reconcileVoice`). */
+/** What a profile reload makes of the form, an ordinary one and the one
+ * after a refused save alike. An untouched form takes the saved text. A text
+ * being written stays, and where the saved text is no longer the one it was
+ * started from, the draft is in conflict: it keeps the person's text next to
+ * the saved one until the person chooses, so that a save never replaces a
+ * text the person has not seen. Only the revision moved (a tools change, a
+ * change of the voice): the draft goes on as it was. The saved text is the
+ * person's text already: there is nothing to choose and the form is clean.
+ * The same rules hold for a reload during a conflict, against the text the
+ * draft was started from. */
 export function reconcileOwnInstructions(
   saved: OwnInstructionsView,
   draft?: OwnInstructionsDraft,
 ): OwnInstructionsDraft {
-  return draft !== undefined && ownInstructionsDirty(draft)
-    ? { ...draft, saved }
-    : { saved, text: saved.text };
+  const clean = { saved, text: saved.text, conflict: null };
+  if (draft === undefined || draft.text === saved.text) return clean;
+  if (draft.conflict === null && !ownInstructionsDirty(draft)) return clean;
+  const base = draft.conflict?.base ?? draft.saved.text;
+  return {
+    saved,
+    text: draft.text,
+    conflict: saved.text === base ? null : { base },
+  };
 }
 
 const fill = (text: string, values: Readonly<Record<string, number>>) =>
@@ -97,6 +119,10 @@ export type OwnInstructionsForm = Readonly<{
   over: boolean;
   /** The inline error, or null. */
   problem: string | null;
+  /** The text saved elsewhere that the person has yet to choose against
+   * (empty: the saved instructions were removed), or null. While it is
+   * there, nothing can be saved or removed. */
+  conflict: string | null;
   /** Which buttons can be pressed. */
   save: boolean;
   cancel: boolean;
@@ -116,14 +142,22 @@ export function ownInstructionsForm(
   const bytes = utf8Bytes(draft.text);
   const problem = draftProblem(draft, copy);
   const dirty = ownInstructionsDirty(draft);
+  const conflict = draft.conflict !== null;
   return Object.freeze({
     notice: draft.saved.ofOrganization ? ownInstructionsNotice[locale] : null,
     count: fill(copy.ownCount, { bytes, maxBytes: draft.saved.maxBytes }),
     over: bytes > draft.saved.maxBytes,
     problem,
-    save: !state.busy && !state.needsRefresh && dirty && problem === null,
+    conflict: conflict ? draft.saved.text : null,
+    save:
+      !state.busy &&
+      !state.needsRefresh &&
+      !conflict &&
+      dirty &&
+      problem === null,
+    // In a conflict Cancel takes the saved text, as „Použít uložené znění“.
     cancel: !state.busy && dirty,
-    remove: !state.busy && draft.text !== "",
+    remove: !state.busy && !conflict && draft.text !== "",
   });
 }
 

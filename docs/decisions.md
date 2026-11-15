@@ -3621,6 +3621,14 @@ Implemented on 2026-11-15 in a second pull request, the field in Settings:
   hands the text to GitHub in the address, before anything is submitted; the form says so
   under the link, before the click, and that the text becomes public once the person
   submits the issue there.
+- **A text saved elsewhere.** The saved text can change while the person writes: an agent
+  runs `lazurio folder instructions add`, another tab saves. A profile reload, an ordinary
+  one and the one after a save refused as `stale-revision`, then keeps the person's text in
+  the field and shows the saved one read-only above the buttons, with „Použít uložené
+  znění“ and „Ponechat můj text“. Until the person chooses, Save and Remove are off;
+  nothing is merged and nothing is saved by itself. A form nobody wrote in takes the new
+  text, a reload that moved only the revision keeps the draft, and a saved text equal to
+  the draft leaves nothing to choose.
 
 Not implemented yet:
 

@@ -28,8 +28,9 @@ import { FakeNode } from "./fixtures/fake-dialog-dom";
 // draws it (own-instructions-view.ts, own-instructions-panel.ts; root
 // decision 0233, decision F14's addendum of 2026-11-06): the counter of
 // UTF-8 bytes, the notice of a Work Environment before anything is saved, no
-// form where an Environment has no own instructions, what a save answered
-// and the link „Poslat Lazuriu jako podnět“. The panel runs on the small
+// form where an Environment has no own instructions, what a save answered,
+// the choice between a text being written and one saved elsewhere in the
+// meantime, and the link „Poslat Lazuriu jako podnět“. The panel runs on the small
 // stand-in for the page's DOM; how it looks and wraps is checked in a
 // browser, not here.
 
@@ -132,6 +133,122 @@ test("the buttons follow the draft as the voice form's do, and a text that is no
       reconcileOwnInstructions(personal),
     ).text,
   ).toBe("Elsewhere");
+});
+
+const savedAs = (text: string, from = personal): OwnInstructionsView => ({
+  ...from,
+  text,
+  bytes: utf8Bytes(text),
+});
+
+test("a reload under a text being written: a saved text changed elsewhere is a conflict that keeps both texts, an untouched form takes it, a moved revision alone keeps the draft, and a saved text equal to the draft is clean", () => {
+  const base = savedAs("Piš věcně.");
+  const elsewhere = savedAs("Piš věcně.\nŘádek od agenta.");
+  const untouched = reconcileOwnInstructions(base);
+  expect(untouched).toEqual({
+    saved: base,
+    text: "Piš věcně.",
+    conflict: null,
+  });
+  const draft = reconcileOwnInstructions(base);
+  draft.text = "Piš věcně a krátce.";
+
+  // The saved text is another one than the draft was started from: both
+  // texts are kept and nothing can be saved or removed before the choice.
+  const conflict = reconcileOwnInstructions(elsewhere, draft);
+  expect(conflict).toEqual({
+    saved: elsewhere,
+    text: "Piš věcně a krátce.",
+    conflict: { base: "Piš věcně." },
+  });
+  expect(ownInstructionsForm(conflict, idle, "cs", cs)).toMatchObject({
+    conflict: "Piš věcně.\nŘádek od agenta.",
+    save: false,
+    cancel: true,
+    remove: false,
+    problem: null,
+  });
+  // The draft itself was not touched by the reload.
+  expect(draft).toEqual({
+    saved: base,
+    text: "Piš věcně a krátce.",
+    conflict: null,
+  });
+
+  // A form nobody wrote in simply shows the new saved text.
+  const adopted = reconcileOwnInstructions(elsewhere, untouched);
+  expect(adopted).toEqual({
+    saved: elsewhere,
+    text: "Piš věcně.\nŘádek od agenta.",
+    conflict: null,
+  });
+  expect(ownInstructionsForm(adopted, idle, "cs", cs)).toMatchObject({
+    conflict: null,
+    save: false,
+    cancel: false,
+  });
+
+  // The same saved text read again (only the revision moved, a tools
+  // change): the draft goes on and can be saved.
+  const again = savedAs("Piš věcně.");
+  const kept = reconcileOwnInstructions(again, draft);
+  expect(kept).toEqual({
+    saved: again,
+    text: "Piš věcně a krátce.",
+    conflict: null,
+  });
+  expect(kept.saved).toBe(again);
+  expect(ownInstructionsForm(kept, idle, "cs", cs)).toMatchObject({
+    conflict: null,
+    save: true,
+    cancel: true,
+    remove: true,
+  });
+
+  // What was saved elsewhere is the draft's text: nothing to choose.
+  const same = savedAs("Piš věcně a krátce.");
+  const clean = reconcileOwnInstructions(same, draft);
+  expect(clean).toEqual({
+    saved: same,
+    text: "Piš věcně a krátce.",
+    conflict: null,
+  });
+  expect(ownInstructionsForm(clean, idle, "cs", cs)).toMatchObject({
+    conflict: null,
+    save: false,
+    cancel: false,
+  });
+
+  // A reload during a conflict follows the same rules, against the text the
+  // draft was started from: another text stays a conflict with that text
+  // shown, a removal is one too, the first text back ends it with the draft
+  // kept, and the draft's own text ends it clean.
+  const third = savedAs("Třetí znění.");
+  expect(reconcileOwnInstructions(third, conflict)).toEqual({
+    saved: third,
+    text: "Piš věcně a krátce.",
+    conflict: { base: "Piš věcně." },
+  });
+  const removed = reconcileOwnInstructions(personal, conflict);
+  expect(removed.conflict).toEqual({ base: "Piš věcně." });
+  expect(ownInstructionsForm(removed, idle, "cs", cs)?.conflict).toBe("");
+  expect(reconcileOwnInstructions(again, conflict)).toEqual({
+    saved: again,
+    text: "Piš věcně a krátce.",
+    conflict: null,
+  });
+  expect(reconcileOwnInstructions(same, conflict)).toEqual({
+    saved: same,
+    text: "Piš věcně a krátce.",
+    conflict: null,
+  });
+  // After the person kept their text, the saved text they saw is the one
+  // the draft stands against: a further change elsewhere is a new conflict.
+  const chosen = { ...conflict, conflict: null };
+  expect(reconcileOwnInstructions(elsewhere, chosen).conflict).toBeNull();
+  expect(reconcileOwnInstructions(third, chosen).conflict).toEqual({
+    base: "Piš věcně.\nŘádek od agenta.",
+  });
 });
 
 test("a Work Environment's form says whose the instructions are before anything is saved, in the core's words; a Personal one says nothing; where there are none there is no form", () => {
@@ -513,8 +630,15 @@ test("on a Work Environment the notice stands in the form, above the buttons, be
     "legend",
     "card voice-card",
     "notice",
+    "callout own-conflict",
     "voice-actions",
   ]);
+  // The place of a conflict is there from the start, empty and live, so a
+  // screen reader hears its words arrive.
+  const conflict = at.byId("own-conflict");
+  expect(conflict.children).toEqual([]);
+  expect(conflict.attributes.get("role")).toBe("status");
+  expect(conflict.attributes.get("aria-live")).toBe("polite");
   // Read with the field by a screen reader.
   const text = at.byId("own-text");
   expect(text.attributes.get("aria-describedby")).toBe(
@@ -673,7 +797,7 @@ test("a save sends the text alone at the page's revision, says it is saved and o
   ).toBeLessThanOrEqual(suggestionUrlLimit);
 });
 
-test("a refused save keeps the text: a stale revision asks for the current settings, a text too large next to the voice says the three sizes", async () => {
+test("a refused save keeps the text: a stale revision asks for the current settings and shows the text saved elsewhere before anything is saved over it, a text too large next to the voice says the three sizes", async () => {
   const at = page();
   at.load(personal);
   at.type("Odpovídej stručně.");
@@ -691,8 +815,18 @@ test("a refused save keeps the text: a stale revision asks for the current setti
   refresh.click();
   await settled();
   expect(at.button(cs.voiceRefresh).hidden).toBe(true);
-  // The text being written stays; the next save is at the new revision.
+  // The text being written stays, and the other text is shown next to it:
+  // nothing is saved over a text the person has not seen.
   expect(at.byId("own-text").value).toBe("Odpovídej stručně.");
+  expect(at.says()).toContain(cs.ownConflict);
+  expect(at.says()).toContain("Jinde.");
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  await at.submit();
+  expect(at.posted).toHaveLength(1);
+  // The person keeps their text; the next save is at the new revision.
+  at.button(cs.ownConflictKeepMine).click();
+  expect(at.byId("own-conflict").children).toEqual([]);
+  expect(at.button(cs.voiceSave).disabled).toBe(false);
   at.answers(false, {
     kind: "blocked",
     reason: "person-text-too-large",
@@ -713,6 +847,302 @@ test("a refused save keeps the text: a stale revision asks for the current setti
   at.type("Stručně.");
   expect(at.button(cs.voiceSave).disabled).toBe(false);
   expect(at.says()).not.toContain(cs.voiceStale);
+});
+
+// --- A text saved elsewhere while a draft is open -------------------------
+
+const before = "Piš věcně.";
+const mine = "Piš věcně a krátce.";
+const agents = "Piš věcně.\nŘádek od agenta.";
+
+/** What the conflict block shows, by its parts. */
+function conflictOf(at: ReturnType<typeof page>) {
+  const block = at.byId("own-conflict");
+  const parts = block.children as PageNode[];
+  return {
+    block,
+    words: parts.map((node) => node.textContent),
+    box: parts.find((node) => node.tagName === "pre"),
+    buttons: parts
+      .flatMap((node) => node.children as PageNode[])
+      .filter((node) => node.tagName === "button")
+      .map((node) => node.textContent),
+  };
+}
+
+test("a profile reload under a text being written shows the text saved elsewhere and saves nothing before the person chooses; „Ponechat můj text“ then saves the draft at the new revision", async () => {
+  const at = page();
+  at.load(savedAs(before));
+  at.type(mine);
+  expect(at.byId("own-conflict").children).toEqual([]);
+  // The profile is read again, as after a tools change or „Načíst profil
+  // znovu“: an agent added a line in the meantime, at revision 4.
+  at.load(savedAs(agents), 4);
+  expect(at.posted).toEqual([]);
+  expect(at.byId("own-text").value).toBe(mine);
+  const shown = conflictOf(at);
+  expect(shown.words).toEqual([
+    "Uložené pokyny se mezitím změnily jinde, například je doplnil agent. Než uložíte, vyberte, které znění platí.",
+    "Uložené znění",
+    agents,
+    "",
+  ]);
+  expect(shown.box?.textContent).toBe(agents);
+  expect(shown.buttons).toEqual(["Použít uložené znění", "Ponechat můj text"]);
+  expect(at.says()).toContain(agents);
+  // Above the form's own buttons, inside its fields.
+  const fields = at.byId("own-form").children[0] as PageNode;
+  expect(fields.children.at(-2)).toBe(shown.block);
+  expect(fields.children.at(-1)?.className).toBe("voice-actions");
+  // Read with the field.
+  expect(at.byId("own-text").attributes.get("aria-describedby")).toBe(
+    "own-hint own-count own-error own-conflict-words",
+  );
+  // Nothing can be saved or removed; Cancel and the field stay.
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  expect(at.button(cs.ownRemove).disabled).toBe(true);
+  expect(at.button(cs.voiceCancel).disabled).toBe(false);
+  expect(at.byId("own-text").disabled).toBe(false);
+  await at.submit();
+  expect(at.posted).toEqual([]);
+  // The person writes on: still no save, and the block's words are not
+  // written again at each key (a live region would read them again).
+  const sentence = shown.block.children[0] as PageNode;
+  let words = sentence.textContent;
+  let written = 0;
+  Object.defineProperty(sentence, "textContent", {
+    get: () => words,
+    set(value: string) {
+      written += 1;
+      words = value;
+    },
+  });
+  at.type(`${mine} Vždy.`);
+  expect(written).toBe(0);
+  expect(conflictOf(at).block.children[0]).toBe(sentence);
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  await at.submit();
+  expect(at.posted).toEqual([]);
+
+  // The informed choice: the draft stays and can now be saved, knowingly
+  // over the text shown, at the revision that text was read with.
+  at.button(cs.ownConflictKeepMine).click();
+  expect(at.byId("own-conflict").children).toEqual([]);
+  expect(at.says()).not.toContain(cs.ownConflict);
+  expect(at.says()).not.toContain(agents);
+  expect(at.byId("own-text").value).toBe(`${mine} Vždy.`);
+  expect(at.byId("own-text").attributes.get("aria-describedby")).toBe(
+    "own-hint own-count own-error",
+  );
+  expect(at.says()).toContain(cs.voiceDirty);
+  expect(at.button(cs.voiceSave).disabled).toBe(false);
+  expect(at.button(cs.ownRemove).disabled).toBe(false);
+  // The choice itself sent nothing.
+  expect(at.posted).toEqual([]);
+  at.records(savedAs(`${mine} Vždy.`), 5);
+  at.answers(true, { kind: "updated", revision: 5 });
+  await at.submit();
+  expect(at.posted).toEqual([
+    {
+      path: "/api/own-instructions/update",
+      body: { expectedRevision: 4, text: `${mine} Vždy.` },
+    },
+  ]);
+  expect(at.says()).toContain(cs.ownSaved);
+  expect(at.byId("own-conflict").children).toEqual([]);
+});
+
+test("„Použít uložené znění“ and Cancel put the text saved elsewhere into the form and send nothing; writing that text oneself ends the conflict too", async () => {
+  for (const choose of [cs.ownConflictUseSaved, cs.voiceCancel]) {
+    const at = page();
+    at.load(savedAs(before));
+    at.type(mine);
+    at.load(savedAs(agents), 4);
+    expect(conflictOf(at).box?.textContent).toBe(agents);
+    at.button(choose).click();
+    expect(at.byId("own-text").value).toBe(agents);
+    expect(at.byId("own-conflict").children).toEqual([]);
+    expect(at.says()).not.toContain(cs.ownConflict);
+    expect(at.says()).not.toContain(cs.voiceDirty);
+    // Clean: nothing to save or cancel, and a submit sends nothing.
+    expect(at.button(cs.voiceSave).disabled).toBe(true);
+    expect(at.button(cs.voiceCancel).disabled).toBe(true);
+    expect(at.button(cs.ownRemove).disabled).toBe(false);
+    await at.submit();
+    expect(at.posted).toEqual([]);
+    // The form goes on from the saved text, at its revision.
+    at.type(`${agents}\nA krátce.`);
+    at.records(savedAs(`${agents}\nA krátce.`), 5);
+    await at.submit();
+    expect(at.posted).toEqual([
+      {
+        path: "/api/own-instructions/update",
+        body: { expectedRevision: 4, text: `${agents}\nA krátce.` },
+      },
+    ]);
+  }
+  // The person types the saved text into the field: nothing left to choose.
+  const at = page(en);
+  at.load(savedAs(before));
+  at.type(mine);
+  at.load(savedAs(agents), 4);
+  expect(conflictOf(at).words).toEqual([
+    "The saved instructions changed elsewhere in the meantime, for example an agent added a line. Before you save, choose which text holds.",
+    "Saved text",
+    agents,
+    "",
+  ]);
+  expect(conflictOf(at).buttons).toEqual([
+    "Use the saved text",
+    "Keep my text",
+  ]);
+  at.type(agents);
+  expect(at.byId("own-conflict").children).toEqual([]);
+  expect(at.button(en.voiceSave).disabled).toBe(true);
+  await at.submit();
+  expect(at.posted).toEqual([]);
+});
+
+test("the recovery from a stale revision shows the text saved elsewhere: the refused save, the current settings, the choice, and only then a save that succeeds", async () => {
+  const at = page();
+  at.load(savedAs(before));
+  at.type(mine);
+  // An agent added a line; the page still holds revision 1.
+  at.answers(false, { kind: "blocked", reason: "stale-revision" });
+  await at.submit();
+  expect(at.posted).toEqual([
+    {
+      path: "/api/own-instructions/update",
+      body: { expectedRevision: 1, text: mine },
+    },
+  ]);
+  expect(at.says()).toContain(cs.voiceStale);
+  expect(at.byId("own-conflict").children).toEqual([]);
+  at.records(savedAs(agents), 5);
+  at.button(cs.voiceRefresh).click();
+  await settled();
+  expect(at.button(cs.voiceRefresh).hidden).toBe(true);
+  expect(at.says()).not.toContain(cs.voiceStale);
+  // Both texts: the person's in the field, the agent's in the block.
+  expect(at.byId("own-text").value).toBe(mine);
+  expect(conflictOf(at).words).toEqual([
+    cs.ownConflict,
+    "Uložené znění",
+    agents,
+    "",
+  ]);
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  expect(at.button(cs.ownRemove).disabled).toBe(true);
+  await at.submit();
+  expect(at.posted).toHaveLength(1);
+  at.button(cs.ownConflictKeepMine).click();
+  expect(at.posted).toHaveLength(1);
+  at.records(savedAs(mine), 6);
+  at.answers(true, { kind: "updated", revision: 6 });
+  await at.submit();
+  expect(at.posted).toHaveLength(2);
+  expect(at.posted[1]).toEqual({
+    path: "/api/own-instructions/update",
+    body: { expectedRevision: 5, text: mine },
+  });
+  expect(at.says()).toContain(cs.ownSaved);
+  expect(at.byId("own-text").value).toBe(mine);
+  expect(at.byId("own-conflict").children).toEqual([]);
+
+  // The other choice after the same refusal: the agent's text stays saved
+  // and nothing more is sent.
+  const other = page();
+  other.load(savedAs(before));
+  other.type(mine);
+  other.answers(false, { kind: "blocked", reason: "stale-revision" });
+  await other.submit();
+  other.records(savedAs(agents), 5);
+  other.button(cs.voiceRefresh).click();
+  await settled();
+  other.button(cs.ownConflictUseSaved).click();
+  expect(other.byId("own-text").value).toBe(agents);
+  expect(other.button(cs.voiceSave).disabled).toBe(true);
+  await other.submit();
+  expect(other.posted).toHaveLength(1);
+});
+
+test("instructions removed elsewhere are said as removed, and a second reload during a conflict shows the text saved then", async () => {
+  const at = page();
+  at.load(savedAs(before, work));
+  at.type(mine);
+  // Someone removed them (`lazurio folder instructions clear`).
+  at.load(work, 3);
+  const removed = conflictOf(at);
+  expect(removed.words).toEqual([
+    cs.ownConflict,
+    "Uložené pokyny někdo odebral.",
+    "",
+  ]);
+  expect(removed.box).toBeUndefined();
+  expect(removed.buttons).toEqual([
+    "Použít uložené znění",
+    "Ponechat můj text",
+  ]);
+  expect(at.says()).not.toContain("Uložené znění");
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  // The notice of a Work Environment stays above it.
+  expect(at.byId("own-notice").hidden).toBe(false);
+
+  // Before the person chose, an agent saved a line: the block shows it.
+  at.load(savedAs("Řádek od agenta.", work), 4);
+  expect(conflictOf(at).words).toEqual([
+    cs.ownConflict,
+    "Uložené znění",
+    "Řádek od agenta.",
+    "",
+  ]);
+  expect(at.byId("own-text").value).toBe(mine);
+  expect(at.button(cs.voiceSave).disabled).toBe(true);
+  // And another text again, at revision 6: the block follows.
+  at.load(savedAs("Řádek od agenta.\nDruhý řádek.", work), 6);
+  expect(conflictOf(at).box?.textContent).toBe(
+    "Řádek od agenta.\nDruhý řádek.",
+  );
+  await at.submit();
+  expect(at.posted).toEqual([]);
+  at.button(cs.ownConflictKeepMine).click();
+  at.records(savedAs(mine, work), 7);
+  await at.submit();
+  expect(at.posted).toEqual([
+    {
+      path: "/api/own-instructions/update",
+      body: { expectedRevision: 6, text: mine },
+    },
+  ]);
+
+  // „Použít uložené znění“ on removed instructions empties the form.
+  const gone = page();
+  gone.load(savedAs(before));
+  gone.type(mine);
+  gone.load(personal, 2);
+  gone.button(cs.ownConflictUseSaved).click();
+  expect(gone.byId("own-text").value).toBe("");
+  expect(gone.button(cs.voiceSave).disabled).toBe(true);
+  expect(gone.button(cs.ownRemove).disabled).toBe(true);
+  await gone.submit();
+  expect(gone.posted).toEqual([]);
+
+  // A reload that brings back the text the draft was started from, or the
+  // draft's own text, ends the conflict by itself.
+  const back = page();
+  back.load(savedAs(before));
+  back.type(mine);
+  back.load(savedAs(agents), 2);
+  expect(conflictOf(back).box?.textContent).toBe(agents);
+  back.load(savedAs(before), 3);
+  expect(back.byId("own-conflict").children).toEqual([]);
+  expect(back.byId("own-text").value).toBe(mine);
+  expect(back.button(cs.voiceSave).disabled).toBe(false);
+  back.load(savedAs(agents), 4);
+  back.load(savedAs(mine), 5);
+  expect(back.byId("own-conflict").children).toEqual([]);
+  expect(back.button(cs.voiceSave).disabled).toBe(true);
+  expect(back.says()).not.toContain(cs.voiceDirty);
 });
 
 test("the voice form says the shared budget too, where it showed its general failure", async () => {
