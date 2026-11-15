@@ -1305,8 +1305,8 @@ const glossary: readonly Text[] = [
     "| Kolega | A user in an Organization, any of its people; their roles and Teams decide what they may do. |",
   ),
   t(
-    "| Vlastník Organizace (`organization-owner`) | Jeden pojem: vlastní GitHub Organizaci a jmenuje Adminy Organizace; sám o sobě do Prostředí nevstupuje. V Lazuriu je jím, koho určí provozovatel Lazuria nebo stávající Vlastník Organizace, a Lazurio ověří, že je vlastníkem i GitHub Organizace (decisions 0245, 0234). |",
-    "| Organization Owner (`organization-owner`) | One term: owns the GitHub Organization and appoints the Organization Admins; by that alone enters no Environment. In Lazurio it is whoever Lazurio's operator or an existing Organization Owner names, and Lazurio verifies that they own the GitHub Organization too (decisions 0245, 0234). |",
+    "| Vlastník Organizace (`organization-owner`) | Jeden pojem: vlastní GitHub Organizaci a jmenuje Adminy Organizace; sám o sobě do Prostředí nevstupuje. Lazurio vždy ověří, že je vlastníkem i GitHub Organizace. Dnes prvního Vlastníka Organizace v Lazuriu určí Založení Organizace v Lazuriu, které po přihlášení dokončí sám; cílově (rozhodnuto, zatím nenasazeno) ho určí provozovatel Lazuria nebo stávající Vlastník Organizace prohlášením, které Lazurio ověří přes GitHub (decisions 0245, 0234). |",
+    "| Organization Owner (`organization-owner`) | One term: owns the GitHub Organization and appoints the Organization Admins; by that alone enters no Environment. Lazurio always verifies that they own the GitHub Organization too. Today the first Organization Owner in Lazurio is set by setting up the Organization in Lazurio, which they complete themselves after signing in; in the target (decided, not yet deployed) Lazurio's operator or an existing Organization Owner names them by a declaration that Lazurio verifies through GitHub (decisions 0245, 0234). |",
   ),
   t(
     "| Založení Organizace v Lazuriu | Krok, kterým se Organizace v Lazuriu založí a dostane prvního Vlastníka Organizace. Lidem se neříká „nativní Organizace“, „nativní Owner“ ani „nárok“; ty názvy zůstávají jen v kódu a technických dokumentech (decision 0234). |",
