@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { writeDurableFile } from "../../update/durable-file";
 
 /** The Lazurio extension of the Environment browser (decision F39 point 7),
  * loaded with `--load-extension` from a directory next to the profile, never
- * inside it. Five jobs, no permissions:
+ * inside it. Six jobs, one permission (`privacy`, for the last one):
  * - a tab a page opens in a window that already has one moves into a window
  *   of its own, because Chrome paints only visible windows and the people's
  *   view shows one tab per person's tab (point 2);
@@ -22,19 +22,89 @@ import { writeDurableFile } from "../../update/durable-file";
  *   a device and the eyedropper. Each is answered as when a person closes it
  *   (the same addendum);
  * - Chrome's own context menu never opens either: it would sit outside the
- *   page, where nobody sees it. A page's own menu still works. */
+ *   page, where nobody sees it. A page's own menu still works;
+ * - Chrome never saves or fills a payment card: the extension holds Chrome's
+ *   own setting "Save and fill payment methods" off
+ *   (`chrome.privacy.services.autofillCreditCardEnabled`), so Chrome's "Save
+ *   card?" window, which opens outside the page after a card payment, never
+ *   opens, and no card stays in the profile the Environment's agents share.
+ *   The page's own card form is untouched: a person pays by typing the card in
+ *   the view (F39's addendum of 2026-11-15). Passwords and the other autofill
+ *   stay Chrome's. */
 
 export const browserExtensionDirectory = (home: string) =>
   join(home, ".local", "share", "lazurio-browser", "extension");
+
+const background = `// Lazurio (decision F39): a tab opened in a window that already has a tab
+// moves into a window of its own. Chrome paints only visible windows, and the
+// people's view shows exactly one tab per person's tab. The tab keeps its
+// opener, so a page and the tab it opened still talk to each other.
+chrome.tabs.onCreated.addListener(async (tab) => {
+  try {
+    if (tab.id === undefined || tab.windowId === undefined) return;
+    const window = await chrome.windows.get(tab.windowId);
+    if (window.type !== "normal") return;
+    const tabs = await chrome.tabs.query({ windowId: tab.windowId });
+    if (tabs.length < 2) return;
+    await chrome.windows.create({ tabId: tab.id, focused: false });
+  } catch {}
+});
+
+// Lazurio (decision F39, addendum of 2026-11-15): Chrome never saves or fills
+// a payment card here. Its "Save card?" window opens outside the page after a
+// card payment, where the people's view cannot show it, and a saved card would
+// stay in the profile that every agent of the Environment shares. While this
+// extension runs, Chrome's setting "Save and fill payment methods" is off and
+// marked as this extension's, so its settings page cannot turn it on. Set on
+// every start of this worker; Chrome also keeps the value with the extension.
+// A page's own card form is untouched: a person pays by typing the card.
+const noPaymentCards = async () => {
+  try {
+    await chrome.privacy.services.autofillCreditCardEnabled.set({ value: false });
+  } catch {}
+};
+chrome.runtime.onStartup.addListener(noPaymentCards);
+chrome.runtime.onInstalled.addListener(noPaymentCards);
+noPaymentCards();
+`;
+
+/** The worker's file name and the extension's version, both from the
+ * worker's text, so a new worker always comes with a new name and a new
+ * version. The extension is loaded with `--load-extension` at every start and
+ * never goes through Chrome's update, and Chrome registers its worker again
+ * only when the version differs from the one it registered; even then it keeps
+ * the worker it has while the script's address stays the same (the service
+ * worker specification's Register). Under one name and version a changed
+ * `background.js` therefore never ran in a profile that had run the earlier
+ * one (measured on Chrome for Testing 156, F39's addendum of 2026-11-15).
+ * Chrome compares the versions only for equality, so a lower one works too. */
+export function browserExtensionWorkerOf(text: string): Readonly<{
+  file: string;
+  version: string;
+}> {
+  const digest = createHash("sha256").update(text).digest("hex");
+  const part = (from: number) =>
+    Number.parseInt(digest.slice(from, from + 4), 16);
+  return Object.freeze({
+    file: `background-${digest.slice(0, 12)}.js`,
+    version: `1.${part(0)}.${part(4)}`,
+  });
+}
+
+const worker = browserExtensionWorkerOf(background);
+
+/** The worker's file name in this release (`background-<digest>.js`). */
+export const browserExtensionWorker = worker.file;
 
 const manifest = `${JSON.stringify(
   {
     manifest_version: 3,
     name: "Lazurio Environment browser",
-    version: "1.0.0",
+    version: worker.version,
     description:
-      "Keeps every tab of the Environment browser in a window of its own, declines passkey requests until the Environment's Bitwarden holds its passkeys, and declines payments and the other Chrome windows the people's view cannot show.",
-    background: { service_worker: "background.js" },
+      "Keeps every tab of the Environment browser in a window of its own, declines passkey requests until the Environment's Bitwarden holds its passkeys, declines payments through the browser and the other Chrome windows the people's view cannot show, and keeps Chrome from saving or filling payment cards.",
+    permissions: ["privacy"],
+    background: { service_worker: worker.file },
     content_scripts: [
       {
         matches: ["<all_urls>"],
@@ -58,22 +128,6 @@ const manifest = `${JSON.stringify(
   null,
   2,
 )}\n`;
-
-const background = `// Lazurio (decision F39): a tab opened in a window that already has a tab
-// moves into a window of its own. Chrome paints only visible windows, and the
-// people's view shows exactly one tab per person's tab. The tab keeps its
-// opener, so a page and the tab it opened still talk to each other.
-chrome.tabs.onCreated.addListener(async (tab) => {
-  try {
-    if (tab.id === undefined || tab.windowId === undefined) return;
-    const window = await chrome.windows.get(tab.windowId);
-    if (window.type !== "normal") return;
-    const tabs = await chrome.tabs.query({ windowId: tab.windowId });
-    if (tabs.length < 2) return;
-    await chrome.windows.create({ tabId: tab.id, focused: false });
-  } catch {}
-});
-`;
 
 const webauthn = `// Lazurio (decision F39, root decision 0191 point 17): until the
 // Environment's Bitwarden holds its passkeys, a passkey request is declined at
@@ -263,7 +317,7 @@ window.addEventListener("contextmenu", (event) => event.preventDefault(), true);
 export const browserExtensionFiles: Readonly<Record<string, string>> =
   Object.freeze({
     "manifest.json": manifest,
-    "background.js": background,
+    [worker.file]: background,
     "webauthn.js": webauthn,
     "payment.js": payment,
     "sheets.js": sheets,
@@ -282,17 +336,32 @@ export const browserExtensionDigest = createHash("sha256")
   .digest("hex")
   .slice(0, 16);
 
-/** Writes the files that differ. True when anything was written. */
+/** An earlier release's worker: `background.js` or `background-<digest>.js`. */
+const earlierWorker = /^background(?:-[0-9a-f]{12})?\.js$/;
+
+/** Writes the files that differ, the manifest last, so it never names a
+ * worker that is not there yet, then removes an earlier release's worker,
+ * which no manifest names any more. Nothing else in the directory is touched.
+ * True when anything was written or removed. */
 export async function writeBrowserExtension(home: string): Promise<boolean> {
   const directory = browserExtensionDirectory(home);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   let changed = false;
-  for (const [name, text] of Object.entries(browserExtensionFiles)) {
+  const names = Object.keys(browserExtensionFiles).sort(
+    (a, b) => Number(a === "manifest.json") - Number(b === "manifest.json"),
+  );
+  for (const name of names) {
+    const text = browserExtensionFiles[name] as string;
     const existing = await readFile(join(directory, name), "utf8").catch(
       () => undefined,
     );
     if (existing === text) continue;
     await writeDurableFile(directory, name, Buffer.from(text));
+    changed = true;
+  }
+  for (const name of await readdir(directory)) {
+    if (name === worker.file || !earlierWorker.test(name)) continue;
+    await rm(join(directory, name), { force: true });
     changed = true;
   }
   return changed;
