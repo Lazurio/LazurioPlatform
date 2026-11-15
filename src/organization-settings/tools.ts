@@ -2,12 +2,10 @@ import { join } from "node:path";
 import { withFolderReadLock } from "../folder/lock";
 import { readFolderState } from "../folder/read-state";
 import type { FolderPreferences } from "../folder/state";
-import type {
-  OrganizationTool,
-  OrganizationToolId,
-} from "../organizations/organization-settings";
+import type { OrganizationTool } from "../organizations/organization-settings";
 import {
   type OrganizationToolItem,
+  type OrganizationToolsInput,
   provisionOrganizationTools,
 } from "../tools/organization-tools";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -129,7 +127,7 @@ export async function declaredToolsOf(
 export async function provisionDeclaredTools(
   folder: string,
   tools: ToolsEnvironment,
-  onStep: (tool: OrganizationToolId, step: "installing" | "updating") => void,
+  onStep: NonNullable<OrganizationToolsInput["onStep"]>,
   published: ReadonlyMap<string, string>,
 ): Promise<
   | Readonly<{ kind: "provisioned"; items: readonly OrganizationToolItem[] }>

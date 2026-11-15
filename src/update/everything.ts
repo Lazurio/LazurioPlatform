@@ -154,6 +154,7 @@ export type UpdateStep =
   | Readonly<{
       part: "organization-tools";
       tool: string;
+      minimum: string;
       step: "installing" | "updating";
     }>
   | Readonly<{ part: "tools"; packageManager: string; step: "fetching" }>
@@ -325,7 +326,8 @@ export async function updateEverything(
   if (parts.organizationTools !== undefined)
     try {
       const answer = await parts.organizationTools(
-        (tool, step) => set({ part: "organization-tools", tool, step }),
+        (tool, step, minimum) =>
+          set({ part: "organization-tools", tool, minimum, step }),
         published,
       );
       // Where no Organization governs the Environment there is nothing to

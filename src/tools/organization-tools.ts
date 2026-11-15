@@ -274,7 +274,11 @@ export type OrganizationToolsInput = Readonly<{
   platform: string;
   run: ToolRunner;
   /** Called before a tool's installer or update starts (a line's step). */
-  onStep?: (tool: OrganizationToolId, step: "installing" | "updating") => void;
+  onStep?: (
+    tool: OrganizationToolId,
+    step: "installing" | "updating",
+    minimum: string,
+  ) => void;
   timeoutMs?: number;
 }>;
 
@@ -440,7 +444,7 @@ async function oneTool(
   };
   let result: "installed" | "updated";
   if (found === undefined) {
-    input.onStep?.(declared.tool, "installing");
+    input.onStep?.(declared.tool, "installing", declared.minimum);
     const outcome = await run(
       ["/bin/sh", "-c", recipe.installer],
       recipe.installerEnv,
@@ -460,7 +464,7 @@ async function oneTool(
         path: found,
         source: recipe.source,
       });
-    input.onStep?.(declared.tool, "updating");
+    input.onStep?.(declared.tool, "updating", declared.minimum);
     const outcome = await recipe.raise(bin, {
       run,
       read: async (argv) => {

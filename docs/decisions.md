@@ -25627,9 +25627,15 @@ Organization's settings.
    here that adds its recipe and the reader's id together. The first two:
    - `cargo` through rustup, Rust's official installer (`https://sh.rustup.rs`, `-y
      --no-modify-path --profile minimal --default-toolchain stable`), linking `cargo`,
-     `rustc` and `rustup` from `~/.cargo/bin`; raised by `rustup update stable` and
-     `rustup default stable`. A repository's `rust-toolchain.toml` still picks its own
-     toolchain, which rustup fetches on first use.
+     `rustc` and `rustup` from `~/.cargo/bin`. Raised without ever lowering what the
+     user runs: first the toolchain the user selected is updated in place (`rustup
+     update <selected>`, a channel moves to its newest release, a pinned one stays);
+     only when that does not reach the minimum is the default switched, and only to a
+     stable that reports at least the minimum (`rustup toolchain install stable`, then
+     `rustup default stable`). Otherwise the selected toolchain stays and the failure
+     names the stable there is (`stable-below-minimum:<version>`). A repository's
+     `rust-toolchain.toml` still picks its own toolchain, which rustup fetches on first
+     use.
    - `pnpm` through pnpm's official installer (`https://get.pnpm.io/install.sh`, which
      checks the npm registry's signature, with `PNPM_NO_MODIFY_PATH=1`), linking `pnpm`
      and `pnpx` from `$XDG_DATA_HOME/pnpm/bin`; raised by running it again. pnpm itself
@@ -25640,17 +25646,25 @@ Organization's settings.
 3. **Who installs and when.** `lazurio update` (the CLI and Nová karta's Aktualizovat,
    one composition, root decision 0212 point 3) has a part after the content and before
    the Bun pins and builds: it reads the declaration of the Organization the handover
-   names as owner, from that Organization's root in the Folder at the commit of its
-   `main`, as F45 reads settings without the relay, and provisions each tool. Read from
-   Git rather than from the Dashboard's answer, because the content part of the same run
-   has just brought `main` to what the Organization published, and the tools wait for no
-   other service. It runs on every Environment an Organization's settings govern (work,
+   names as owner, from that Organization's root in the Folder, as F45 reads settings
+   without the relay, and provisions each tool. It reads only at the commit the content
+   part of the same run verified as the root's published `main`: current on, or
+   fast-forwarded to, the commit its remote's `main` names (the sync entry's `to`). A
+   root that part left anywhere else (ahead, diverged, dirty, busy, failed, not run)
+   gives no declaration (`not-published`), so a commit nobody published, a local one
+   included, never installs anything. Read from Git rather than from the Dashboard's
+   answer, so the tools wait for no other service. `lazurio doctor`, which installs
+   nothing, reads the local `main`. It runs on every Environment an Organization's settings govern (work,
    Team, Automated, `organizationGoverns`), without asking: the Organization Admin's
    approval of the declaration is the consent. On the person's own computer and on a
    personal Environment nothing is installed; there the generated manual tells the agent
    to offer a declared tool and install it only with the person's consent.
-4. **How the minimum is kept, never lowered.** A tool on PATH that reports at least the
-   minimum is left exactly as it is, wherever and however it was installed. A missing
+4. **How the minimum is kept, never lowered.** The tool is the one the user's own PATH
+   finds first, as doctor reads it, for discovery and for the final check; no run
+   arranges a PATH of its own. A tool on PATH that reports at least the
+   minimum is left exactly as it is, wherever and however it was installed. The
+   recipe's own installation that the PATH does not reach (`~/.local/bin` missing from
+   it) is kept and reported with `onPath: false`, never installed a second time. A missing
    tool is installed by its recipe. A tool below the minimum is raised by its own update
    only when the program on PATH is the recipe's installation; one installed another way
    (a system package, npm) is reported as `below-minimum` with `foreign-installation` and
@@ -25661,7 +25675,12 @@ Organization's settings.
    `update`, `link`, `verify`), a reason and a safe tail of the installer's output with
    lines that could carry a secret withheld, or `unsupported-platform` (Windows has no
    recipe yet). An invalid `settings` section is one finding (`settings-invalid`). A tool
-   that cannot be had never fails the update and never stops a later part. `lazurio
+   that cannot be had never fails the update and never stops a later part. Nová karta's
+   Aktualizovat shows the same: a row per tool with its step while it runs (with its
+   minimum), what it was installed or raised to, and each finding with its stage and
+   reason in words and a link to the tool's official installation; the part as a whole
+   when it did not check (`not-published`, an invalid or unreadable section) or failed.
+   A tool at its minimum on the PATH says nothing. `lazurio
    doctor` reads the same declaration without changing anything: one check
    `organization-tool` per tool, `ok`, or a warning `organization-tool-missing`,
    `organization-tool-below-minimum`, `organization-tool-version-unreadable`, and
@@ -25699,9 +25718,18 @@ missing one is installed with the recipe's environment and linked, never over a 
 there; one below in the recipe's home is raised by its update, one installed another way
 is reported and untouched; a failed installer and a tool still below after it name their
 stage, and the next tool runs; Windows is `unsupported-platform`; doctor's reading changes
-nothing; the declaration comes from the handover's Organization at its `main` with real
-git, a personal Environment reads none and an invalid section is `settings-invalid`; the
-part runs after the content and before the builds, a failing part is one item.
+nothing; the declaration comes from the handover's Organization at the commit verified as
+published with real git, a local commit ahead of it is never read, a root left ahead,
+diverged, dirty, failed or busy by the content part installs nothing (`not-published`),
+a personal Environment reads none and an invalid section is `settings-invalid`; a system
+cargo below the minimum first on PATH, ahead of Lazurio's, is `foreign-installation` in
+the update as in doctor; rustup raises the selected toolchain in place, keeps a nightly
+above stable and a stable below a newer minimum as they are, and switches a pinned
+toolchain only to a stable that reaches the minimum; the part runs after the content and
+before the builds, a failing part is one item. `tests/content-sync.test.ts`: a current
+entry names the published commit. `tests/new-tab-view.test.ts`: Aktualizovat's rows of
+the tools, their steps, findings with stage and reason, and only an https link
+(review of #992).
 `tests/organization-settings.test.ts` and `tests/organization-schema.test.ts`: the leaf,
 its refusals (an installer of the manifest's among them) and the duplicate checked only by
 the reader. Live on 2026-11-15, Linux x64, in a temporary home: the core installed cargo

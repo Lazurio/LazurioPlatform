@@ -797,10 +797,11 @@ test("the Organization's tools run after the content and before the builds; a fa
       return product;
     },
   });
+  const steps: unknown[] = [];
   const items = await updateEverything(
     parts(async (onStep) => {
       order.push("organization-tools");
-      onStep("cargo", "installing");
+      onStep("cargo", "installing", "1.89.0");
       return {
         kind: "provisioned",
         items: [
@@ -820,8 +821,20 @@ test("the Organization's tools run after the content and before the builds; a fa
         ],
       };
     }),
+    (lines) => {
+      for (const line of lines)
+        if (line.part === "organization-tools" && "step" in line)
+          steps.push(line);
+    },
   );
   expect(order).toEqual(["content", "organization-tools", "builds", "product"]);
+  // The step a surface shows while the tool runs names its minimum.
+  expect(steps[0]).toEqual({
+    part: "organization-tools",
+    tool: "cargo",
+    minimum: "1.89.0",
+    step: "installing",
+  });
   expect(items).toEqual([
     {
       part: "organization-tools",

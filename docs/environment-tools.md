@@ -1169,21 +1169,24 @@ An Organization declares in `settings.tools` of its manifest the tools its work
 Environments have: a catalog tool and a minimum version, for example
 `{ "tool": "cargo", "minimum": "1.89.0" }`. On every Environment an Organization's
 settings govern, `lazurio update` reads the declaration of the owner Organization from
-its root in the Folder at the commit of its `main`, after the content part, and for each
-tool:
+its root in the Folder, only at the commit its content part has just verified as the
+root's published `main` (a root left ahead, diverged, dirty or busy gives none:
+`not-published`), and for each tool, the one the user's own PATH finds first:
 
-- leaves it as it is when the tool on PATH reports at least the minimum;
+- leaves it as it is when that tool reports at least the minimum;
 - installs a missing one with its recipe's official installer, for the user and
   without root, into the installer's home, and links its programs into `~/.local/bin`
   where nothing is there yet;
 - raises one below the minimum with the tool's own update when the program on PATH is
   the recipe's installation, and only reports one installed another way
-  (`below-minimum`, `foreign-installation`);
+  (`below-minimum`, `foreign-installation`); rustup updates the toolchain the user
+  selected in place and switches the default only to a stable that reaches the minimum;
 - never lowers a version and never edits a shell profile.
 
 The recipes are `src/tools/organization-tools.ts`: `cargo` through rustup and `pnpm`
 through pnpm's own installer. Every tool is one item of the update's answer (`part:
-"organization-tools"`), and `lazurio doctor` reports each as `organization-tool`. The
+"organization-tools"`), shown as a row in Nová karta's Aktualizovat with its step,
+stage and reason, and `lazurio doctor` reports each as `organization-tool`. The
 person's own computer and a personal Environment install nothing; there an agent offers
 a declared tool and installs it only with the person's consent. The decision, its
 alternatives and its verification are [F73](decisions.md#f73--an-organizations-tools-declared-in-its-settings-installed-and-kept-at-their-minimum-by-lazurio-update-in-its-environments).
