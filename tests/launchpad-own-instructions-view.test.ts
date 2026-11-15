@@ -311,9 +311,16 @@ test("what a save answered is said in one clear sentence in both languages", () 
   expect(said(true, { kind: "unchanged" }, en)).toEqual({
     saved: true,
     notice:
-      "Saved. The instructions are in this Environment's AGENTS.md; new agent conversations that read it get them.",
+      "Saved. The instructions are in the AGENTS.md of this Environment; new agent conversations that read it get them.",
     needsRefresh: false,
   });
+  // The page says the kind of the Environment it is in (kind-name.ts).
+  expect(messages("cs", "work").ownSaved).toBe(
+    "Uloženo. Pokyny jsou v AGENTS.md tohoto Pracovního Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
+  );
+  expect(messages("en", "workstation").ownSaved).toBe(
+    "Saved. The instructions are in the AGENTS.md of this computer; new agent conversations that read it get them.",
+  );
   expect(said(true, { kind: "updated", revision: 3 }, cs, true)).toEqual({
     saved: true,
     notice: "Vlastní pokyny jsou odebrané. Nové konverzace je už nedostanou.",

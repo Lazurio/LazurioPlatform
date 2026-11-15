@@ -40,7 +40,7 @@ const en = {
   ownCount: "{bytes} of {maxBytes} bytes",
   ownRemove: "Remove instructions",
   ownSaved:
-    "Saved. The instructions are in this Environment's AGENTS.md; new agent conversations that read it get them.",
+    "Saved. The instructions are in the AGENTS.md of {this}; new agent conversations that read it get them.",
   ownRemoved:
     "The own instructions are removed. New conversations no longer get them.",
   ownTooLong:
@@ -2408,7 +2408,7 @@ const cs: Record<MessageKey, string> = {
   ownCount: "{bytes} z {maxBytes} bajtů",
   ownRemove: "Odebrat pokyny",
   ownSaved:
-    "Uloženo. Pokyny jsou v AGENTS.md tohoto Prostředí; dostanou je nové konverzace agentů, které ho čtou.",
+    "Uloženo. Pokyny jsou v AGENTS.md {tohoto}; dostanou je nové konverzace agentů, které ho čtou.",
   ownRemoved: "Vlastní pokyny jsou odebrané. Nové konverzace je už nedostanou.",
   ownTooLong:
     "Text je delší než {maxBytes} bajtů. Zkraťte ho; písmeno s diakritikou zabere dva bajty.",
