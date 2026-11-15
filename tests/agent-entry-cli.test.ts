@@ -179,6 +179,20 @@ function windowSeams(socketDir: string, targets: string[] = []) {
     env: { HOME: "/home/operator", AGENT_BROWSER_SOCKET_DIR: socketDir },
     run: async (command) => {
       calls.push([...command]);
+      // agent-browser records the tab `tab <id>` bound the session to.
+      const tab = command.indexOf("tab");
+      if (tab > 0 && command[tab - 1] === "--no-pin-tab")
+        await writeFile(
+          join(
+            socketDir,
+            `${command[command.indexOf("--session") + 1]}.target`,
+          ),
+          JSON.stringify({
+            targetId: command[tab + 1],
+            url: "",
+            pinned: false,
+          }),
+        );
       return { exitCode: 0, stdout: "" };
     },
     targets: async () => new Set(targets),

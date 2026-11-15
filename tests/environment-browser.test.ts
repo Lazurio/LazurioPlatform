@@ -13,14 +13,17 @@ import {
 } from "node:fs/promises";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import {
   browserCommand,
   browserCommandWithoutNotice,
   browserLink,
   runBrowserCommand,
 } from "../src/browser/cli";
-import { stopSessionDaemon } from "../src/browser/contract/node";
+import {
+  agentBrowserSocketDirectory,
+  stopSessionDaemon,
+} from "../src/browser/contract/node";
 import {
   browserCliExit,
   browserViewUrl,
@@ -43,8 +46,10 @@ import {
 import { browserEntryOf, resolveBrowserView } from "../src/browser/view";
 import {
   BrowserWindowFailure,
+  bindThreadWindow,
   ensureThreadWindow,
   heldThreadWindows,
+  openInThreadWindow,
   readThreadSessions,
   recordThreadWindow,
   sessionHoldMayRemain,
@@ -758,6 +763,24 @@ const STARTUP_BLANK = "1A".repeat(16);
 const OTHER_THREAD = "1B".repeat(16);
 const BEFORE_RESTART = "1C".repeat(16);
 
+/** What agent-browser leaves of a `tab <id>` that succeeded: the session's
+ * binding names the tab (`<socket dir>/<session>.target`, C7). */
+async function bindAs(
+  command: readonly string[],
+  failed: boolean,
+  env: Readonly<Record<string, string | undefined>>,
+) {
+  const tab = command.indexOf("tab");
+  const sockets = agentBrowserSocketDirectory(env);
+  if (failed || tab < 1 || command[tab - 1] !== "--no-pin-tab") return;
+  if (sockets === undefined) return;
+  await mkdir(sockets, { recursive: true });
+  await writeFile(
+    join(sockets, `${command[command.indexOf("--session") + 1]}.target`),
+    JSON.stringify({ targetId: command[tab + 1], url: "", pinned: false }),
+  );
+}
+
 function windowSeams(
   input: Readonly<{
     socketDir: string;
@@ -776,12 +799,12 @@ function windowSeams(
     },
     run: async (command) => {
       calls.push([...command]);
-      return {
-        exitCode: (input.failing ?? []).some((word) => command.includes(word))
-          ? 1
-          : 0,
-        stdout: "",
-      };
+      const failed = (input.failing ?? []).some((word) =>
+        command.includes(word),
+      );
+      // agent-browser records the tab `tab <id>` bound the session to.
+      await bindAs(command, failed, seams.env);
+      return { exitCode: failed ? 1 : 0, stdout: "" };
     },
     targets: async () => new Set(input.targets),
     cdp: async (method, params) => {
@@ -1013,6 +1036,578 @@ test("two simultaneous requests for one thread's window create it once and both 
   expect(
     JSON.parse(await readFile(join(socketDir, "t3-new.target"), "utf8")),
   ).toEqual({ targetId: only });
+});
+
+// ---- A binding that fails (#974) ---------------------------------------------
+
+const FOREIGN = "2A".repeat(16);
+const EARLIER = "2B".repeat(16);
+const SECOND = "2C".repeat(16);
+const STRIP_TAB = "2D".repeat(16);
+
+/** agent-browser 0.37 and 0.43 as #974 found them on the Environment
+ * browser: a daemon that starts takes up its session's binding while that
+ * tab is open, else makes the first live tab of `Target.getTargets` its own,
+ * whoever's it is; `tab <id>` fails on a page that does not answer its probe
+ * within 3 + 10 s (`unresponsive`), or answers success without moving
+ * (`misreported`), or outlasts the runner (`late`: the runner gives up, the
+ * daemon goes on, fails and only then records its tab, and, as 0.37 does,
+ * drops a shutdown asked meanwhile, `lateMs` later); and after every command,
+ * a failed one too, the daemon records its tab in the session's binding. A
+ * shutdown asked on the session's socket ends the daemon, unless the test sets
+ * `hooks.shutdown`: `refuse` answers that it did not shut down, `linger`
+ * acknowledges but the daemon does not end (its `.pid` stays). `hooks.ended`
+ * runs once a shutdown ended the daemon, before the clean-up reads the
+ * binding. `quiet()` waits for every command that outlasted the runner. */
+async function foreignWorld(
+  input: Readonly<{
+    first: string;
+    open: readonly string[];
+    unresponsive?: readonly string[];
+    misreported?: readonly string[];
+    late?: readonly string[];
+    lateMs?: number;
+    endWithinMs?: number;
+    pages?: Readonly<Record<string, string>>;
+  }>,
+) {
+  const runtime = await temporary("browser-window-974-");
+  const sockets = join(runtime, "agent-browser");
+  await mkdir(sockets, { recursive: true, mode: 0o700 });
+  const open = [...input.open];
+  const unresponsive = new Set(input.unresponsive ?? []);
+  const misreported = new Set(input.misreported ?? []);
+  const late = new Set(input.late ?? []);
+  const busy = new Map<string, Promise<void>>();
+  const lateWrites: Promise<void>[] = [];
+  const hooks: {
+    shutdown: "end" | "refuse" | "linger";
+    ended?: ((session: string) => Promise<void>) | undefined;
+  } = { shutdown: "end" };
+  const fresh = [NEWTARGET, SECOND];
+  const active = new Map<string, string>();
+  const calls: unknown[] = [];
+  const binding = async (session: string): Promise<unknown> => {
+    try {
+      return JSON.parse(
+        await readFile(join(sockets, `${session}.target`), "utf8"),
+      );
+    } catch {
+      return null;
+    }
+  };
+  const seams: WindowSeams = {
+    env: { HOME: "/home/operator", XDG_RUNTIME_DIR: runtime },
+    run: async (command) => {
+      calls.push([...command]);
+      const session = command[command.indexOf("--session") + 1] as string;
+      if (!active.has(session)) {
+        const bound = ((await binding(session)) as { targetId?: unknown })
+          ?.targetId;
+        active.set(
+          session,
+          typeof bound === "string" && open.includes(bound)
+            ? bound
+            : input.first,
+        );
+        await writeFile(join(sockets, `${session}.pid`), `${process.pid}\n`);
+      }
+      const record = () =>
+        writeFile(
+          join(sockets, `${session}.target`),
+          JSON.stringify({
+            targetId: active.get(session),
+            url: "",
+            pinned: command.includes("--pin-tab"),
+          }),
+        );
+      const tab = command.indexOf("tab");
+      let exitCode = 0;
+      if (tab !== -1) {
+        const id = command[tab + 1] as string;
+        if (late.has(id)) {
+          const write = (async () => {
+            await new Promise((resolve) =>
+              setTimeout(resolve, input.lateMs ?? 50),
+            );
+            await record();
+            busy.delete(session);
+          })();
+          busy.set(session, write);
+          lateWrites.push(write);
+          return "timeout";
+        }
+        if (!open.includes(id) || unresponsive.has(id)) exitCode = 1;
+        else if (!misreported.has(id)) active.set(session, id);
+      }
+      await record();
+      return { exitCode, stdout: "" };
+    },
+    targets: async () => new Set(open),
+    pages: async () =>
+      new Map(open.map((id) => [id, input.pages?.[id] ?? "about:blank"])),
+    cdp: async (method, params) => {
+      calls.push([method, params]);
+      const id = fresh.shift() as string;
+      open.push(id);
+      return { targetId: id };
+    },
+    daemon: {
+      ask: async (socketPath) => {
+        const session = basename(socketPath, ".sock");
+        calls.push(["shutdown", session]);
+        if (hooks.shutdown === "refuse")
+          return { kind: "reply", line: '{"success":false}' };
+        // Busy with a command: no answer, and the request is dropped.
+        if (busy.has(session)) return { kind: "no-answer" };
+        if (hooks.shutdown === "end") {
+          active.delete(session);
+          await rm(join(sockets, `${session}.pid`), { force: true });
+          await hooks.ended?.(session);
+        }
+        return { kind: "reply", line: '{"success":true}' };
+      },
+      exitWithinMs: 50,
+    },
+    endWithinMs: input.endWithinMs ?? 2_000,
+  };
+  /** Every argument and DevTools method used: never a close of a tab. */
+  const words = () =>
+    calls.flatMap((call) => (Array.isArray(call) ? (call as unknown[]) : []));
+  const quiet = () => Promise.all(lateWrites);
+  return {
+    runtime,
+    sockets,
+    seams,
+    calls,
+    binding,
+    unresponsive,
+    words,
+    hooks,
+    quiet,
+  };
+}
+
+// #974: a thread asked for its first window at a page that did not answer;
+// agent-browser's `tab <id>` failed after 13 s and left the thread's session
+// bound to the tab another agent (`upload-fix`) worked in. `window` failed,
+// but the next one handed out that tab and T3 Code took it into the thread.
+test("a binding that fails and leaves the session on another agent's tab: the session is let go and that binding removed, no tab is closed, nothing is recorded, and the next window is a new one of the session's own (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    unresponsive: [NEWTARGET],
+  });
+  const other = JSON.stringify({
+    targetId: FOREIGN,
+    url: "http://127.0.0.1:8701/index.html",
+    pinned: true,
+  });
+  await writeFile(join(world.sockets, "upload-fix.target"), other);
+  await expect(
+    ensureThreadWindow("t3-thread", "https://example.com/", world.seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  // The session is bound to no tab, and its daemon was asked to end as
+  // `done` asks it.
+  expect(await world.binding("t3-thread")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-thread"]);
+  // The other agent's binding is untouched, and no tab was closed: neither
+  // agent-browser's `close` nor `tab close`, nor DevTools.
+  expect(await readFile(join(world.sockets, "upload-fix.target"), "utf8")).toBe(
+    other,
+  );
+  expect(world.words()).not.toContain("close");
+  expect(world.words()).not.toContain("Target.closeTarget");
+  // Nothing of the session is left for `tabs` or `done --all`.
+  expect(await readThreadSessions("t3-thread", world.seams.env)).toEqual([]);
+  // The next window: a new one of its own, never the other agent's tab.
+  world.unresponsive.clear();
+  expect(
+    await ensureThreadWindow("t3-thread", "https://example.com/", world.seams, {
+      thread: "t3-thread",
+    }),
+  ).toEqual({
+    session: "t3-thread",
+    targetId: SECOND,
+    created: true,
+    recorded: true,
+  });
+});
+
+test("a binding counts only once the session's binding names the tab: an answer of success that left the session elsewhere is a failure, and the session is let go (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    misreported: [NEWTARGET],
+  });
+  await expect(
+    ensureThreadWindow("codex-a", undefined, world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("codex-a")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "codex-a"]);
+});
+
+test("a binding whose command outlasts the runner: the daemon goes on and records another agent's tab later, so it is waited for until it ends and that binding removed (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    late: [NEWTARGET],
+  });
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("t3-thread")).toBeNull();
+  // Asked again once that command was over, the daemon has ended, so
+  // nothing records the tab again.
+  expect(
+    world.calls.filter((call) =>
+      Bun.deepEquals(call, ["shutdown", "t3-thread"]),
+    ).length,
+  ).toBeGreaterThan(1);
+  await expect(stat(join(world.sockets, "t3-thread.pid"))).rejects.toThrow();
+});
+
+test("browser open's binding that fails: the thread's session stays on its earlier window; one the failure moved to another tab is let go; the page stays open (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN, EARLIER, STRIP_TAB],
+    unresponsive: [STRIP_TAB],
+  });
+  // The thread works in its earlier window.
+  expect(await bindThreadWindow("t3-thread", EARLIER, world.seams)).toBe(true);
+  // The hub's new tab does not answer: the session stays where it worked,
+  // and its daemon goes on.
+  expect(await bindThreadWindow("t3-thread", STRIP_TAB, world.seams)).toBe(
+    false,
+  );
+  expect(await world.binding("t3-thread")).toMatchObject({
+    targetId: EARLIER,
+  });
+  expect(world.calls).not.toContainEqual(["shutdown", "t3-thread"]);
+  // A session with no window yet that the failure left on another agent's
+  // tab is let go.
+  expect(await bindThreadWindow("t3-other", STRIP_TAB, world.seams)).toBe(
+    false,
+  );
+  expect(await world.binding("t3-other")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-other"]);
+  expect(world.words()).not.toContain("close");
+  expect(world.words()).not.toContain("Target.closeTarget");
+});
+
+test("a page the thread shows already that cannot be bound: bind-failed, the session let go, the page left in the strip, no window created (#974)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN, STRIP_TAB],
+    unresponsive: [STRIP_TAB],
+    pages: { [STRIP_TAB]: "https://vault.example.com/#/vault" },
+  });
+  const holders = join(world.runtime, "lazurio-browser", "holders");
+  await mkdir(holders, { recursive: true });
+  const strip = JSON.stringify({
+    strip: "t3-thread",
+    label: "t3-thread",
+    tabs: [STRIP_TAB],
+  });
+  await writeFile(join(holders, "t3-thread.json"), strip);
+  await expect(
+    ensureThreadWindow(
+      "t3-thread",
+      "https://vault.example.com/#/send",
+      world.seams,
+    ),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(await world.binding("t3-thread")).toBeNull();
+  expect(world.calls).toContainEqual(["shutdown", "t3-thread"]);
+  expect(world.words()).not.toContain("Target.createTarget");
+  expect(world.words()).not.toContain("close");
+  expect(await readFile(join(holders, "t3-thread.json"), "utf8")).toBe(strip);
+});
+
+// ---- A binding Lazurio has not verified (Pablo's review of #986) -------------
+
+/** Where `window` marks a session's binding as not verified, beside the
+ * window records (`$XDG_RUNTIME_DIR/lazurio-browser/unverified`). */
+const unverifiedMark = (runtime: string, session: string) =>
+  join(runtime, "lazurio-browser", "unverified", `${session}.json`);
+
+const present = (path: string) =>
+  stat(path).then(
+    () => true,
+    () => false,
+  );
+
+const createdWindows = (calls: readonly unknown[]) =>
+  calls.filter(
+    (call) => Array.isArray(call) && call[0] === "Target.createTarget",
+  ).length;
+
+// Pablo's review of #986: a `tab <id>` that outlasted the runner stayed busy
+// past the shutdown deadline, the clean-up gave up, and the daemon recorded
+// another agent's tab in the session's binding afterwards. The next `window`
+// believed that live binding and handed out the other agent's tab.
+test("a binding whose command stays busy past the shutdown deadline: the other agent's tab its daemon records afterwards is never handed out, and the next window first lets the daemon end and removes that binding (#974, review of #986)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    late: [NEWTARGET],
+    lateMs: 300,
+    endWithinMs: 50,
+  });
+  const first = await ensureThreadWindow("t3-thread", undefined, world.seams, {
+    thread: "t3-thread",
+  }).catch((error: unknown) => error);
+  // The daemon goes on and records the other agent's tab after the clean-up
+  // stopped waiting for it.
+  await world.quiet();
+  expect(await world.binding("t3-thread")).toMatchObject({ targetId: FOREIGN });
+  // The next window never takes it: a new window of the session's own.
+  expect(
+    await ensureThreadWindow("t3-thread", undefined, world.seams, {
+      thread: "t3-thread",
+    }),
+  ).toEqual({
+    session: "t3-thread",
+    targetId: SECOND,
+    created: true,
+    recorded: true,
+  });
+  // The first window did not say the session was bound to no other tab: its
+  // binding could not be verified yet.
+  expect(first).toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(await world.binding("t3-thread")).toMatchObject({ targetId: SECOND });
+  expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(false);
+  expect(world.words()).not.toContain("close");
+  expect(world.words()).not.toContain("Target.closeTarget");
+});
+
+for (const mode of ["refuse", "linger"] as const)
+  test(`a daemon that ${mode === "refuse" ? "refuses to shut down" : "acknowledges a shutdown but does not end"} after a failed binding: while it runs, window opens nothing and fails, tabs and done --all do not count the session, and its binding is never handed out (#974, review of #986)`, async () => {
+    const world = await foreignWorld({
+      first: FOREIGN,
+      open: [FOREIGN],
+      late: [NEWTARGET],
+      lateMs: 30,
+      endWithinMs: 200,
+    });
+    world.hooks.shutdown = mode;
+    const first = await ensureThreadWindow(
+      "t3-thread",
+      undefined,
+      world.seams,
+      { thread: "t3-thread" },
+    ).catch((error: unknown) => error);
+    await world.quiet();
+    expect(await world.binding("t3-thread")).toMatchObject({
+      targetId: FOREIGN,
+    });
+    // Its daemon still runs: the binding cannot be verified, so the next
+    // window opens nothing and fails, and closes nothing.
+    const created = createdWindows(world.calls);
+    await expect(
+      ensureThreadWindow("t3-thread", undefined, world.seams, {
+        thread: "t3-thread",
+      }),
+    ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+    expect(createdWindows(world.calls)).toBe(created);
+    expect(await world.binding("t3-thread")).toMatchObject({
+      targetId: FOREIGN,
+    });
+    // Nor is the session the thread's confirmed window meanwhile.
+    expect(await readThreadSessions("t3-thread", world.seams.env)).toEqual([
+      {
+        session: "t3-thread",
+        targetId: FOREIGN,
+        running: true,
+        socket: false,
+        confirmed: false,
+        doubt: "unverified",
+      },
+    ]);
+    expect(await heldThreadWindows("t3-thread", world.seams)).toEqual([]);
+    // Once its daemon ends, the next window removes that binding and opens
+    // a window of the session's own.
+    world.hooks.shutdown = "end";
+    expect(
+      await ensureThreadWindow("t3-thread", undefined, world.seams, {
+        thread: "t3-thread",
+      }),
+    ).toEqual({
+      session: "t3-thread",
+      targetId: SECOND,
+      created: true,
+      recorded: true,
+    });
+    expect(first).toEqual(new BrowserWindowFailure("binding-unverified"));
+    expect(world.words()).not.toContain("close");
+    expect(world.words()).not.toContain("Target.closeTarget");
+  });
+
+test("a binding the clean-up cannot remove: window does not report the session as bound to no other tab, refuses the session until the binding is gone, and then opens a window of its own (#974, review of #986)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    unresponsive: [NEWTARGET],
+  });
+  // Once the daemon ended, its binding cannot be removed: here a directory
+  // stands in its place.
+  const target = join(world.sockets, "t3-thread.target");
+  world.hooks.ended = async () => {
+    await rm(target, { recursive: true, force: true });
+    await mkdir(target);
+    await writeFile(join(target, "in-the-way"), "");
+  };
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, world.seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(true);
+  expect(await readThreadSessions("t3-thread", world.seams.env)).toEqual([
+    {
+      session: "t3-thread",
+      targetId: null,
+      running: false,
+      socket: false,
+      confirmed: false,
+      doubt: "unverified",
+    },
+  ]);
+  // Still in the way: the next window fails again and opens nothing.
+  const created = createdWindows(world.calls);
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, world.seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(createdWindows(world.calls)).toBe(created);
+  // Gone: the session gets a window of its own.
+  world.hooks.ended = undefined;
+  await rm(target, { recursive: true, force: true });
+  expect(
+    await ensureThreadWindow("t3-thread", undefined, world.seams, {
+      thread: "t3-thread",
+    }),
+  ).toMatchObject({ targetId: SECOND, created: true });
+  expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(false);
+});
+
+test("a binding unreadable before and after a failed command proves nothing: the session is not let off as bound to no other tab, its mark stays, and window refuses it while its daemon runs (#974, second review of #986)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN],
+    unresponsive: [NEWTARGET],
+  });
+  world.hooks.shutdown = "refuse";
+  // A directory in place of the binding: unreadable before the command and
+  // after it, whatever the daemon is on.
+  const target = join(world.sockets, "t3-thread.target");
+  await mkdir(target);
+  await writeFile(join(target, "in-the-way"), "");
+  // The daemon answers its failure but cannot record its tab there: the
+  // binding reads the same before and after, and says nothing about where
+  // the running daemon is.
+  const seams = {
+    ...world.seams,
+    run: (async (...args: Parameters<typeof world.seams.run>) =>
+      world.seams
+        .run(...args)
+        .catch(() => ({ exitCode: 1, stdout: "" }))) as typeof world.seams.run,
+  };
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  await world.quiet();
+  expect(await present(unverifiedMark(world.runtime, "t3-thread"))).toBe(true);
+  const created = createdWindows(world.calls);
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, seams, {
+      thread: "t3-thread",
+    }),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(createdWindows(world.calls)).toBe(created);
+});
+
+// A `window` killed while it bound the session (the harness's own timeout):
+// its mark stays, so the binding the fresh daemon recorded meanwhile is not
+// believed by `window`, `apps open` or `browser open`.
+test("a session marked unverified by a window that did not finish: window, apps open and browser open run no command in it and fail while its daemon runs, then settle it once it ends (#974, review of #986)", async () => {
+  const world = await foreignWorld({
+    first: FOREIGN,
+    open: [FOREIGN, STRIP_TAB],
+  });
+  // The fresh daemon made the other agent's tab its own and recorded it.
+  await world.seams.run(
+    [
+      "/home/operator/.local/bin/agent-browser",
+      "--cdp",
+      "9222",
+      "--session",
+      "t3-thread",
+      "--no-pin-tab",
+      "get",
+      "url",
+    ],
+    30_000,
+  );
+  expect(await world.binding("t3-thread")).toMatchObject({ targetId: FOREIGN });
+  const mark = unverifiedMark(world.runtime, "t3-thread");
+  await mkdir(dirname(mark), { recursive: true });
+  await writeFile(
+    mark,
+    JSON.stringify({
+      schema: "lazurio.browser-unverified-binding.v1",
+      session: "t3-thread",
+      targetId: NEWTARGET,
+      before: null,
+    }),
+  );
+  world.hooks.shutdown = "linger";
+  const commands = () =>
+    world.calls.filter(
+      (call) =>
+        Array.isArray(call) && String(call[0]).includes("agent-browser"),
+    ).length;
+  const ran = commands();
+  expect(await bindThreadWindow("t3-thread", STRIP_TAB, world.seams)).toBe(
+    false,
+  );
+  await expect(
+    openInThreadWindow("t3-thread", "https://app.example.com/", world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  await expect(
+    ensureThreadWindow("t3-thread", "https://example.com/", world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("binding-unverified"));
+  expect(commands()).toBe(ran);
+  expect(createdWindows(world.calls)).toBe(0);
+  expect(await present(mark)).toBe(true);
+  // Its daemon ends: the binding to the other agent's tab goes, and the
+  // page the hub opened is bound to the session.
+  world.hooks.shutdown = "end";
+  expect(await bindThreadWindow("t3-thread", STRIP_TAB, world.seams)).toBe(
+    true,
+  );
+  expect(await world.binding("t3-thread")).toMatchObject({
+    targetId: STRIP_TAB,
+  });
+  expect(await present(mark)).toBe(false);
+  expect(world.words()).not.toContain("close");
+});
+
+test("a mark that cannot be written: the session is not touched, and window fails (#974, review of #986)", async () => {
+  const world = await foreignWorld({ first: FOREIGN, open: [FOREIGN] });
+  // Something else is where the marks go.
+  await mkdir(join(world.runtime, "lazurio-browser"), { recursive: true });
+  await writeFile(join(world.runtime, "lazurio-browser", "unverified"), "");
+  await expect(
+    ensureThreadWindow("t3-thread", undefined, world.seams),
+  ).rejects.toEqual(new BrowserWindowFailure("bind-failed"));
+  expect(world.words()).not.toContain("tab");
+  expect(await world.binding("t3-thread")).toBeNull();
 });
 
 // ---- The recorded entry ------------------------------------------------------
@@ -2795,7 +3390,7 @@ test.skipIf(process.platform === "win32")(
       [
         "- codex-019a: let go",
         "- codex-019a-2: let go",
-        "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+        "done --all did not let go of these windows, and this thread may still hold them: their record or binding does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
         "- codex-019a-5: its window changed since lazurio browser window opened it",
         "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
       ].join("\n"),
@@ -2810,6 +3405,59 @@ test.skipIf(process.platform === "win32")(
     );
     await rm(join(socketDir, "codex-019a-5.sock"));
     await rm(join(socketDir, "codex-019a-5.target"));
+    // A window whose binding a failed lazurio browser window left
+    // unverified (#974, Pablo's review of #986) may name another agent's
+    // tab: tabs names it apart by its session only, and done --all leaves it
+    // and fails.
+    const UNVERIFIED_TAB = "47".repeat(16);
+    await openedWindow(env, "codex-019a-6", "codex-019a", UNVERIFIED_TAB, {
+      sock: true,
+    });
+    const mark = join(env.XDG_RUNTIME_DIR, "lazurio-browser", "unverified");
+    await mkdir(mark, { recursive: true });
+    await writeFile(
+      join(mark, "codex-019a-6.json"),
+      JSON.stringify({
+        schema: "lazurio.browser-unverified-binding.v1",
+        session: "codex-019a-6",
+        targetId: UNVERIFIED_TAB,
+        before: null,
+      }),
+    );
+    const unverifiedTabs = await runBrowserCommand(
+      ["tabs", "--folder", folder, "--json"],
+      { ...context(env), listTabs, pageTitles },
+    );
+    expect(JSON.parse(unverifiedTabs.stdout ?? "")).toMatchObject({
+      ambiguous: ["codex-019a-6"],
+    });
+    expect(
+      JSON.parse(unverifiedTabs.stdout ?? "").windows.map(
+        (window: { session: string }) => window.session,
+      ),
+    ).not.toContain("codex-019a-6");
+    const unverifiedText = await runBrowserCommand(
+      ["tabs", "--folder", folder],
+      { ...context(env), listTabs, pageTitles },
+    );
+    expect(unverifiedText.stdout).toContain(
+      "- codex-019a-6: its binding is not verified since a lazurio browser window failed or did not finish, so it may name another agent's tab; lazurio browser window settles it",
+    );
+    expect(unverifiedText.stdout).not.toContain(UNVERIFIED_TAB);
+    asked.length = 0;
+    const unverifiedDone = await runBrowserCommand(
+      ["done", "--all", "--folder", folder, "--json"],
+      { ...context(env), daemonSeams: acknowledging },
+    );
+    expect(unverifiedDone.code).toBe(1);
+    expect(JSON.parse(unverifiedDone.stdout ?? "")).toMatchObject({
+      outcome: "unconfirmed",
+      ambiguous: ["codex-019a-6"],
+    });
+    expect(asked).not.toContain(join(socketDir, "codex-019a-6.sock"));
+    await rm(join(socketDir, "codex-019a-6.sock"));
+    await rm(join(socketDir, "codex-019a-6.target"));
+    await rm(join(mark, "codex-019a-6.json"));
     // A thread with nothing running: nothing to let go, and done.
     const nothing = await runBrowserCommand(
       ["done", "--all", "--folder", folder, "--json"],
@@ -3298,7 +3946,7 @@ test.skipIf(process.platform === "win32")(
       });
       expect(text.code).toBe(0);
       expect(text.stdout?.split("\n").slice(-3)).toEqual([
-        "This list is not complete: these windows may be this thread's, but their record does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+        "This list is not complete: these windows may be this thread's, but their record or binding does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
         "- preview: its record cannot be read, so it may be any thread's window",
         "Before you tell the user your windows are closed, run lazurio browser tabs again: a window you let go that the user views stays for them.",
       ]);
@@ -3350,7 +3998,7 @@ test.skipIf(process.platform === "win32")(
         [
           "- codex-019c: let go",
           "- codex-019c-2: let go",
-          "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+          "done --all did not let go of these windows, and this thread may still hold them: their record or binding does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
           "- preview: its record cannot be read, so it may be any thread's window",
           "Check what remains with lazurio browser tabs in a few seconds: a window ends 8 s after it was let go unless the user views it.",
         ].join("\n"),

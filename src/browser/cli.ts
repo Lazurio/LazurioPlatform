@@ -210,7 +210,9 @@ const text = {
     "window-create-failed":
       "The Environment browser did not open a window. Run lazurio doctor.",
     "bind-failed":
-      "The window is open, but agent-browser did not bind the session to it.",
+      "The window is open, but agent-browser did not bind the session to it. The session is left bound to no other tab: run lazurio browser window again. A window it could not bind ends by itself while nobody views it.",
+    "binding-unverified":
+      "agent-browser did not bind the session, and its binding cannot be verified yet: its agent-browser has not ended, or the binding could not be checked or removed, so it may name another agent's tab. lazurio browser window gives this session no window until that is settled: run it again in a minute, and run lazurio doctor if it stays so. No tab was closed; a window it could not bind ends by itself while nobody views it.",
     "navigate-failed":
       "The window is open, but agent-browser did not open the address in it.",
     failed: "lazurio browser failed",
@@ -274,11 +276,13 @@ const text = {
     "thread-other":
       "{session} is not a window of this thread: lazurio browser window did not open it for this thread, and tabs and done --all take only this thread's windows. If it is yours, let go of it alone with lazurio browser done --session {session}.",
     "tabs-ambiguous":
-      "This list is not complete: these windows may be this thread's, but their record does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+      "This list is not complete: these windows may be this thread's, but their record or binding does not confirm it, so done --all leaves them. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
     "done-all-ambiguous":
-      "done --all did not let go of these windows, and this thread may still hold them: their record does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
+      "done --all did not let go of these windows, and this thread may still hold them: their record or binding does not confirm that they are this thread's. Let go of one that is yours with lazurio browser done --session <session>, and leave the others alone:",
     "doubt-unreadable":
       "its record cannot be read, so it may be any thread's window",
+    "doubt-unverified":
+      "its binding is not verified since a lazurio browser window failed or did not finish, so it may name another agent's tab; lazurio browser window settles it",
     "doubt-rebound":
       "its window changed since lazurio browser window opened it",
     "doubt-recorded-elsewhere":
@@ -298,7 +302,9 @@ const text = {
     "window-create-failed":
       "Prohlížeč Prostředí neotevřel okno. Spusťte lazurio doctor.",
     "bind-failed":
-      "Okno je otevřené, ale agent-browser k němu sezení nepřipojil.",
+      "Okno je otevřené, ale agent-browser k němu sezení nepřipojil. Sezení nezůstalo připojené k žádné jiné záložce: spusť lazurio browser window znovu. Okno, které se připojit nepodařilo, samo skončí, když se na něj nikdo nedívá.",
+    "binding-unverified":
+      "agent-browser sezení nepřipojil a jeho vazbu zatím nejde ověřit: jeho agent-browser neskončil, nebo vazbu nešlo ověřit či smazat, takže může ukazovat na záložku jiného agenta. Dokud se to nevyřeší, lazurio browser window tomuto sezení okno nedá: spusť ho za minutu znovu, a když to vydrží, spusť lazurio doctor. Žádná záložka se nezavřela; okno, které se připojit nepodařilo, samo skončí, když se na něj nikdo nedívá.",
     "navigate-failed":
       "Okno je otevřené, ale agent-browser v něm adresu neotevřel.",
     failed: "lazurio browser selhal",
@@ -358,11 +364,13 @@ const text = {
     "thread-other":
       "{session} není okno tohoto vlákna: lazurio browser window ho pro toto vlákno neotevřel a tabs i done --all berou jen okna tohoto vlákna. Je-li tvoje, pusť ho samotné příkazem lazurio browser done --session {session}.",
     "tabs-ambiguous":
-      "Výpis není úplný: tato okna můžou patřit tomuto vláknu, ale jejich záznam to nepotvrzuje, takže je done --all nechá být. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
+      "Výpis není úplný: tato okna můžou patřit tomuto vláknu, ale jejich záznam nebo vazba to nepotvrzuje, takže je done --all nechá být. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
     "done-all-ambiguous":
-      "Tato okna done --all nepustil a toto vlákno je možná pořád drží: jejich záznam nepotvrzuje, že patří tomuto vláknu. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
+      "Tato okna done --all nepustil a toto vlákno je možná pořád drží: jejich záznam nebo vazba nepotvrzuje, že patří tomuto vláknu. To, které je tvoje, pusť příkazem lazurio browser done --session <sezení>, ostatní nech být:",
     "doubt-unreadable":
       "jeho záznam nejde přečíst, takže může patřit kterémukoli vláknu",
+    "doubt-unverified":
+      "jeho vazba není ověřená, protože lazurio browser window selhal nebo nedoběhl, takže může ukazovat na záložku jiného agenta; vyřeší to lazurio browser window",
     "doubt-rebound":
       "jeho okno se od otevření příkazem lazurio browser window změnilo",
     "doubt-recorded-elsewhere":

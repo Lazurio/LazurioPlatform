@@ -259,6 +259,13 @@ async function threadWorld() {
     },
     run: async (command) => {
       calls.push([...command]);
+      // agent-browser records the tab `tab <id>` bound the session to.
+      const tab = command.indexOf("tab");
+      if (tab > 0 && command[tab - 1] === "--no-pin-tab")
+        await bind(
+          command[command.indexOf("--session") + 1] as string,
+          command[tab + 1] as string,
+        );
       return { exitCode: 0, stdout: "" };
     },
     targets: async () => new Set(pages.keys()),
