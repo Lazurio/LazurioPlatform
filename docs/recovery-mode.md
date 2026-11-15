@@ -668,7 +668,12 @@ moves to the remaining Organizations in steps.
 
 Decided by Matěj on 2026-09-28 (Q6): "no rollback" binds Machines too. An
 apply completes or does not start; it never returns to an earlier release as a way of
-repair. Applied to Machines, this is a proposal for a **separate Machines decision**;
+repair. One thing is not a rollback (decisions 0166 and 0205, addendum
+2026-11-15): when an apply stops a running Environment to change its memory or
+processor and does not confirm the result in time, the host tries to write back the
+values this one change replaced and to start the Environment; releases and disk data
+are never touched and the cause is repaired forward. The attempt can fail, and then
+the Environment's actual state is read back from the host, not assumed. Applied to Machines, this is a proposal for a **separate Machines decision**;
 nothing below exists in Machines today unless cited as such.
 
 **What stays, because it is not rollback** (B's rule: nothing is restored after the
