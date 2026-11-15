@@ -756,8 +756,11 @@ Three consequences for the App and its validation:
   therefore judge the checkout's content (paths, files, what `.gitignore` excludes),
   never whether a file is tracked or staged.
 - **Check rules across records in the App first.** When the validation fails at
-  publication, the change stays unpublished in the data checkout, and the next
-  publication fails again until that draft is discarded. A rule that spans records
+  publication (`validation_failed`), the change stays an unpublished, editable draft
+  in the data checkout, and every further publication fails the same way until the
+  data or the validator is corrected and the publication retried (repository-db
+  `docs/operations.md`); discard the draft only if it should not be published at
+  all. A rule that spans records
   (a unique open item, a reference to another record) belongs in the App's operation
   before it writes, answering the request with a refusal (`409`, `422`); the
   validator stays the safety net.
