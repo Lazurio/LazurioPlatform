@@ -223,6 +223,39 @@ test.skipIf(!hosted)(
   60_000,
 );
 
+// The way back from a product that refuses a Folder with own instructions
+// (the release notes' rollback): the text is saved from `show --json`,
+// removed and restored. `set --file` treats the file's final line end as the
+// file's; `--exact` takes the file as the text, so every valid text comes
+// back byte for byte, whatever it ends with.
+test("a text saved from show --json comes back byte for byte through set --file --exact", async () => {
+  const f = await folderOf("local", null, "cs");
+  const file = join(f.parent, "backup.txt");
+  for (const text of [
+    "Bez konce řádku 🙂",
+    "Končí LF\n",
+    "Končí CRLF\r\n",
+    "Končí samotným CR\r",
+    "Dva LF na konci\n\n",
+    "Více řádků\ns prázdným\n\nna konci LF\n",
+  ]) {
+    expect((await f.json("set", "--text", text)).code).toBe(0);
+    const shown = (await f.json("show")).result;
+    expect(shown).toMatchObject({ text, bytes: Buffer.byteLength(text) });
+    await writeFile(file, shown.text);
+    expect((await f.json("clear")).code).toBe(0);
+    expect((await f.state()).customInstructions).toBe("");
+    expect((await f.json("set", "--file", file, "--exact")).code).toBe(0);
+    expect((await f.state()).customInstructions).toBe(text);
+  }
+  // Without --exact the same file loses its final line end: a text that
+  // ends with one, or with a lone carriage return before the added one, is
+  // not what comes back.
+  await writeFile(file, "Končí LF\n");
+  expect((await f.json("set", "--file", file)).code).toBe(0);
+  expect((await f.state()).customInstructions).toBe("Končí LF");
+});
+
 test("on the person's own computer the answers are in the Folder's language and carry no notice", async () => {
   const f = await folderOf("local", null, "en");
   expect((await f.run("show")).stdout).toBe(
@@ -360,6 +393,8 @@ test("a wrong invocation is a usage error with the help, and without a Folder th
     ["instructions", "add", "one", "two"],
     ["instructions", "set"],
     ["instructions", "set", "--text", "a", "--file", "/tmp/a"],
+    ["instructions", "set", "--text", "a", "--exact"],
+    ["instructions", "clear", "--exact"],
     ["instructions", "clear", "--text", "a"],
     ["instructions", "add", "a", "--file", "/tmp/a"],
     ["instructions", "show", "--expected-revision", "1"],

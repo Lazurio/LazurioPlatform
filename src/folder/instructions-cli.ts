@@ -25,9 +25,11 @@ export const folderInstructionsHelp = `folder instructions show [--folder <absol
 folder instructions add <line> [--folder <absolute Folder>] [--expected-revision <n>] [--json]
   Appends one line to the own instructions (after -- when it starts with a
   dash). Only on the user's word: propose the exact line first.
-folder instructions set (--file <path> | --text <text>) [--folder <absolute Folder>] [--expected-revision <n>] [--json]
+folder instructions set (--file <path> [--exact] | --text <text>) [--folder <absolute Folder>] [--expected-revision <n>] [--json]
   Replaces the whole text; a file is UTF-8 and its final line end is not part
-  of the text.
+  of the text. With --exact the file is the text byte for byte, its final
+  line end included: the way to restore a text saved from the "text" field
+  of show --json, whatever it ends with.
 folder instructions clear [--folder <absolute Folder>] [--expected-revision <n>] [--json]
   Removes the own instructions.
   The text is plain: no control characters but tab and line ends, at most
@@ -46,7 +48,7 @@ folder instructions clear [--folder <absolute Folder>] [--expected-revision <n>]
   Exit status: 0 read, saved or unchanged, 2 blocked or usage, 1 failure.`;
 
 const usage =
-  "Usage: folder instructions show [--folder <Folder>] [--json] | folder instructions add <line> [--folder <Folder>] [--expected-revision <n>] [--json] | folder instructions set (--file <path> | --text <text>) [--folder <Folder>] [--expected-revision <n>] [--json] | folder instructions clear [--folder <Folder>] [--expected-revision <n>] [--json]";
+  "Usage: folder instructions show [--folder <Folder>] [--json] | folder instructions add <line> [--folder <Folder>] [--expected-revision <n>] [--json] | folder instructions set (--file <path> [--exact] | --text <text>) [--folder <Folder>] [--expected-revision <n>] [--json] | folder instructions clear [--folder <Folder>] [--expected-revision <n>] [--json]";
 
 export type FolderInstructionsOutput = Readonly<{
   code: number;
@@ -135,6 +137,7 @@ type Options = {
   folder?: string | undefined;
   json?: boolean | undefined;
   file?: string | undefined;
+  exact?: boolean | undefined;
   text?: string | undefined;
   "expected-revision"?: string | undefined;
 };
@@ -155,6 +158,7 @@ export async function runFolderInstructionsCommand(
         folder: { type: "string" },
         json: { type: "boolean" },
         file: { type: "string" },
+        exact: { type: "boolean" },
         text: { type: "string" },
         "expected-revision": { type: "string" },
       },
@@ -183,6 +187,8 @@ export async function runFolderInstructionsCommand(
       command !== "set") ||
     (command === "set" &&
       (values.file === undefined) === (values.text === undefined)) ||
+    // --exact says how a file is read: with --file only.
+    (values.exact === true && values.file === undefined) ||
     (expected !== undefined &&
       (command === "show" ||
         !/^[1-9][0-9]*$/.test(expected) ||
@@ -334,10 +340,15 @@ export async function runFolderInstructionsCommand(
         );
       }
       try {
-        next = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true })
-          .decode(content)
-          // The file's final line end is the file's, not the text's.
-          .replace(/\r?\n$/, "");
+        const decoded = new TextDecoder("utf-8", {
+          fatal: true,
+          ignoreBOM: true,
+        }).decode(content);
+        // The file's final line end is the file's, not the text's, unless
+        // the caller says the file is the text (--exact): a text saved from
+        // show --json comes back byte for byte, whether it ends with a line
+        // end, a lone carriage return or neither.
+        next = values.exact === true ? decoded : decoded.replace(/\r?\n$/, "");
       } catch {
         return refusedText("not-text", content.length);
       }
