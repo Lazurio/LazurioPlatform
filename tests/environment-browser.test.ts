@@ -4182,7 +4182,33 @@ test("the Folder tells an agent to list its own windows, keep them few and check
     expect(point(cs ? "- **Nová záložka.**" : "- **A new tab.**")).toContain(
       cs ? "v jednom takovém okně" : "in one such window",
     );
+    // F38, addendum of 2026-11-15: an incomplete list is no failure to
+    // repeat; a window opens blank; the shared browser's overview, and a
+    // tab taken only on purpose, with --confirm, knowing from whom.
+    expect(windows).toContain("`complete: false`");
+    expect(windows).toContain(cs ? "neopakuj ho" : "do not run it again");
+    const own = point(cs ? "- **Tvoje okno.**" : "- **Your window.**");
+    expect(own).toContain(cs ? "otevře prázdné" : "opens blank");
+    expect(own).toContain("`lazurio browser done --session <");
+    const shared = point(
+      cs ? "- **Sdílený prohlížeč.**" : "- **A shared browser.**",
+    );
+    expect(shared).toContain("`lazurio browser tabs --all`");
+    expect(shared).toContain(cs ? "vědomě nepřevezmeš" : "take it on purpose");
+    const take = point(cs ? "- **Převzetí záložky.**" : "- **Taking a tab.**");
+    expect(take).toContain("`lazurio browser take <id>`");
+    expect(take).toContain("`lazurio browser take <id> --confirm`");
+    expect(take).toContain(cs ? "od koho" : "from whom");
+    expect(take).toContain(cs ? "kódem 3" : "exits 3");
+    expect(done).toContain(cs ? "vyřídí" : "settles it");
   }
+  // Only where the Environment has its browser.
+  const without = renderManual({
+    preset: "hosted-organization-personal",
+    machine: bindings.organization,
+    profile: presetProfile("hosted-organization-personal", "linux"),
+  })["manual/this-machine.md"];
+  expect(without).not.toContain("lazurio browser take");
 });
 
 // ---- The shared browser: every tab, taking one on purpose (F38, addendum of
