@@ -62,6 +62,14 @@ Folder; Platform applies none of it.
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
 renamed without compatibility.
 
+The person's own instructions for agents (root decision 0233, decision F14's addendum of
+2026-11-06) exist on `local`, `hosted-personal` and `hosted-organization-personal`, where
+one person works: the Folder renders them in `AGENTS.md` after the communication style, and
+`lazurio folder instructions` reads and saves them. `hosted-organization-team`,
+`hosted-organization-steward` and a public Environment, whatever preset its Folder records,
+have none (`ownInstructionsAllowed` in `src/folder/own-instructions.ts`). On
+`hosted-organization-personal` they belong to the Organization with the Environment.
+
 ## Derived from the handover, confirmed or explicitly overridden
 
 The preset is derived from the typed fields of the root-issued handover
