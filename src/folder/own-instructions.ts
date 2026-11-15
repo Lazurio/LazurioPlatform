@@ -153,7 +153,7 @@ export function sectionBytes(section: readonly string[]): number {
 }
 
 /** The one budget of person-written text in AGENTS.md (decision F14's
- * implementation note of 2026-11-15, proposed): the active voice text and
+ * implementation note and decision of 2026-11-15): the active voice text and
  * the whole rendered section of own instructions together take at most what
  * the longest custom voice takes alone, `maxVoiceBytes`. The pinned
  * compositions are measured with the longest voice, so a Folder within this
