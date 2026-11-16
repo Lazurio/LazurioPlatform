@@ -69,8 +69,8 @@ export function harnessOf(provider: string): UsageHarness {
   return "other";
 }
 
-/** The model families whose names may be sent. */
-const modelFamilies: ReadonlySet<string> = new Set([
+/** The model families a name may be reduced to: a fixed list, never the source's text. */
+const modelFamilies: readonly string[] = [
   "claude",
   "gpt",
   "o1",
@@ -78,75 +78,45 @@ const modelFamilies: ReadonlySet<string> = new Set([
   "o4",
   "codex",
   "gemini",
-  "grok",
-  "llama",
-  "mistral",
-  "deepseek",
-  "qwen",
-]);
-/** The words a published model name uses after its family. */
-const modelWords: ReadonlySet<string> = new Set([
-  "opus",
-  "sonnet",
-  "haiku",
-  "fable",
-  "mini",
-  "nano",
-  "pro",
-  "flash",
-  "lite",
-  "sol",
-  "turbo",
-  "preview",
-  "instruct",
-  "latest",
-  "codex",
-  "max",
-  "high",
-  "medium",
-  "low",
-  "chat",
-  "coder",
-  "reasoner",
-  "thinking",
-  "exp",
-]);
-/**
- * The bounded numeric parts of a published name: a version (`5`, `6.1`,
- * `4o`, at most two digits per part), a release date (`20241022`) or a size
- * (`70b`). A longer number can be a private identifier and is never sent.
- */
-const modelNumbers: readonly RegExp[] = [
-  /^\d{1,2}(?:\.\d{1,2}){0,2}[a-z]?$/,
-  /^20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$/,
-  /^\d{1,3}b$/,
 ];
-/** Parts of a model name after its family. */
-const modelPartsMax = 5;
+
+/**
+ * The shapes of published model names, one fixed grammar per family: a tier
+ * word from a closed list, a version of one or two digits with at most one
+ * one-digit minor, and a release date. No shape repeats a part, so no
+ * combination of numbers or words can spell anything else.
+ */
+const knownModels: readonly RegExp[] = [
+  // claude-opus-5-5, claude-sonnet-4-20250514
+  /^claude-(?:opus|sonnet|haiku|fable)-\d{1,2}(?:-\d)?(?:-20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))?$/,
+  // claude-3-5-sonnet-20241022
+  /^claude-\d(?:-\d)?-(?:opus|sonnet|haiku)(?:-20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))?$/,
+  // gpt-6.1-sol, gpt-4o-mini, gpt-5-codex, gpt-4o-2024-08-06
+  /^gpt-\d{1,2}(?:\.\d)?o?(?:-(?:mini|nano|pro|sol|turbo|codex|chat))?(?:-20[2-3]\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))?$/,
+  // o3, o4-mini, o3-pro
+  /^o[134](?:-(?:mini|pro))?$/,
+  // codex-mini
+  /^codex-(?:mini|max)$/,
+  // gemini-2.5-pro, gemini-2.0-flash-lite
+  /^gemini-\d(?:\.\d)?-(?:pro|flash|flash-lite)(?:-preview)?$/,
+];
 
 /**
  * The model as the contract may carry it. The source's value is untrusted
- * text, so it is rebuilt from known parts only: a known family, then
- * versions and published model words. `unknown` when the source has no
- * model; `other` for anything else, a URL, a path, a provider prefix or a
- * private label of a fine-tuned model included.
+ * text, so only a whole published name of a known shape is sent as it is. A
+ * name of a known family in any other shape (a private fine-tune, a version
+ * of many numbers) is reduced to the family from the fixed list; anything
+ * else, a URL, a path or a provider prefix included, is `other`; a missing
+ * value is `unknown`.
  */
 export function safeModel(value: unknown): string {
   if (typeof value !== "string" || value.trim() === "") return "unknown";
-  const parts = value.trim().toLowerCase().split("-");
-  const [family, ...rest] = parts;
-  if (
-    family === undefined ||
-    !modelFamilies.has(family) ||
-    rest.length > modelPartsMax
-  )
-    return "other";
-  return rest.every(
-    (part) =>
-      modelWords.has(part) || modelNumbers.some((shape) => shape.test(part)),
-  )
-    ? parts.join("-")
-    : "other";
+  const name = value.trim().toLowerCase();
+  if (knownModels.some((shape) => shape.test(name))) return name;
+  const family = modelFamilies.find(
+    (candidate) => name === candidate || name.startsWith(`${candidate}-`),
+  );
+  return family ?? "other";
 }
 
 /** An instant as RFC 3339 UTC, or null for anything that is not one. */

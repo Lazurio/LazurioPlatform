@@ -25,11 +25,13 @@ columns and named JSON keys only:
 | run in a scheduled task's thread | `origin: automation`; a turn takes its own run's origin and model, however long ago the run started |
 
 Never read: thread titles, messages, prompts, scheduled task titles or prompts,
-paths, branches, pull requests. The model name is untrusted text, so it is
-rebuilt from known parts only (`safeModel`): a known family, then at most five
-parts that are published model words or bounded numbers (a version of at most
-two digits per part, a release date, a size); anything else, a longer number a URL, a path, a provider prefix or a
-private label of a fine-tuned model, is sent as `other`. Ids leave the Environment only as digests
+paths, branches, pull requests. The model name is untrusted text: only a
+whole published name of a known shape (`safeModel`, one fixed grammar per
+family: a closed list of tier words, a short version, a release date) is sent
+as it is. Any other name of a known family, such as a fine-tune label or a
+version made of many numbers, is reduced to the family from a fixed list
+(`gpt`, `claude`, …), and anything else, a URL, a path or a provider prefix
+included, is sent as `other`. Ids leave the Environment only as digests
 (`usageId`): a stable version 8 UUID per occurrence, so a redelivery is a
 no-op at the Dashboard. When a table or column it needs is missing, the
 adapter produces nothing (`unavailable`), never a guess; that includes
