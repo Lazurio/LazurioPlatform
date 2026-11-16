@@ -14,9 +14,24 @@ key of v0.1.20's and v0.1.21's records, kept only by the release thread's statio
 there. Which Machine is which is kept only at the station.
 
 **This record is not a release.** The final `v0.1.22` is tagged only on the release owner's decision, after their own look
-at the candidate's main change (a drag, a reload, Escape in Buddy's window). A final tagged with this record is the tree
-of `v0.1.22-rc.3` (release.yml's `qualified` job: the tag differs from the candidate only under `qualification/` and
-`docs/evidence/`).
+at the candidate's main change (a drag, a reload, Escape in Buddy's window). Merging this record alone does not make a
+final: `main` has moved on since the candidate (#1018 and #943 change files outside `qualification/` and
+`docs/evidence/`), so a tag on `main` would fail release.yml's `qualified` job.
+
+### How the final is tagged
+
+As for `v0.1.20` and `v0.1.21`, the final is a release commit off `main`:
+
+1. its parent is the merge commit of this record on `main`, which `check-canary.ts --provenance` requires as an
+   ancestor of the tag;
+2. its tree is the candidate's tree, `a00c77a6`, everywhere outside `qualification/` and `docs/evidence/`, and this
+   record's two files inside them (`git diff --name-only a00c77a6 <release commit>` lists only those two directories);
+3. `v0.1.22` is tagged at that commit, and the Release workflow waits for the release owner in the `release`
+   environment.
+
+`v0.1.21` (`8c11468b`) is that shape: its parent is the merge of its record (`5c7aad85`, #954), 49 files outside those
+directories differ from that parent, and none differ from `v0.1.21-rc.6`. The final of 0.1.22 so carries rc.3's code,
+without #1018 and #943; they go to the next candidate.
 
 ## Earlier candidates of 0.1.22
 
