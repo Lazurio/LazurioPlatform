@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { acquireFileLock } from "../platform/flock";
 import { writeDurableFile } from "../update/durable-file";
 import { type UsageEvent, usageBatch, usageBatchMaxEvents } from "./events";
 
@@ -12,6 +13,14 @@ import { type UsageEvent, usageBatch, usageBatchMaxEvents } from "./events";
 //   read: no history is reconstructed;
 // - switching off deletes the queue and the cursor at once, so nothing that
 //   was waiting is sent later.
+//
+// Every change of the state happens under one kernel lock (`usage/lock`,
+// `src/platform/flock.ts`), and every holder reads the state again first. A
+// round never carries a state across a wait for the relay: it checks under
+// the lock that the same consent (`enabledAt`) still stands before it sends
+// the next batch and before it records an answer, so switching off can
+// neither be undone by a round nor followed by another batch. A batch already
+// on its way when consent ends may still arrive; nothing after it is sent.
 
 const schemaVersion = 1;
 /** Events kept while the Dashboard cannot be reached (about a working month of one person). */
@@ -30,10 +39,21 @@ export type UsageState = Readonly<{
   lastDelivery: Readonly<{ at: string; outcome: DeliveryOutcome }> | null;
 }>;
 
+/**
+ * How the Dashboard answered a batch:
+ * - `delivered` (202): accepted; removed from the queue;
+ * - `refused` (400, 413): the batch itself is invalid; removed, never resent;
+ * - `not-collected` (403 `usage_not_collected`): the Dashboard does not take
+ *   this Environment's usage; measuring stops;
+ * - `retrying`: anything that does not establish that, a 401, 403 of another
+ *   reason, 404, 408, 429 or 5xx included; kept for the next round;
+ * - `unreachable`: the relay gave no answer; kept for the next round.
+ */
 export type DeliveryOutcome =
   | "delivered"
-  | "not-collected"
   | "refused"
+  | "not-collected"
+  | "retrying"
   | "unreachable";
 
 export const usageOff: UsageState = Object.freeze({
@@ -50,14 +70,25 @@ export type UsageStateStore = Readonly<{
   write(state: UsageState): Promise<void>;
   /** Off, with the queue and the cursor deleted. */
   purge(): Promise<void>;
+  /** `work` under the state's lock; read the state again inside it. */
+  locked<T>(work: () => Promise<T>): Promise<T>;
 }>;
+
+/** How long a holder of the state's lock may keep another one waiting. */
+export const usageLockTimeoutMs = 30_000;
 
 const outcomes: readonly DeliveryOutcome[] = [
   "delivered",
-  "not-collected",
   "refused",
+  "not-collected",
+  "retrying",
   "unreachable",
 ];
+
+/** Whether a state still carries the consent a round started under. */
+export function sameConsent(state: UsageState, enabledAt: string): boolean {
+  return state.enabled && state.enabledAt === enabledAt;
+}
 
 function lastDeliveryOf(value: unknown): UsageState["lastDelivery"] {
   if (typeof value !== "object" || value === null) return null;
@@ -105,6 +136,17 @@ export function usageStateStore(base: string): UsageStateStore {
     async purge() {
       await rm(file, { force: true });
     },
+    async locked(work) {
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const lock = await acquireFileLock(join(directory, "lock"), {
+        timeoutMs: usageLockTimeoutMs,
+      });
+      try {
+        return await work();
+      } finally {
+        await lock.release();
+      }
+    },
   };
 }
 
@@ -113,22 +155,24 @@ export async function enableUsage(
   store: UsageStateStore,
   now: Date,
 ): Promise<UsageState> {
-  const current = await store.read();
-  if (current.enabled) return current;
-  const at = now.toISOString();
-  const state: UsageState = {
-    ...usageOff,
-    enabled: true,
-    enabledAt: at,
-    readUntil: at,
-  };
-  await store.write(state);
-  return state;
+  return store.locked(async () => {
+    const current = await store.read();
+    if (current.enabled) return current;
+    const at = now.toISOString();
+    const state: UsageState = {
+      ...usageOff,
+      enabled: true,
+      enabledAt: at,
+      readUntil: at,
+    };
+    await store.write(state);
+    return state;
+  });
 }
 
 /** Switch measuring off and delete everything waiting. */
 export async function disableUsage(store: UsageStateStore): Promise<void> {
-  await store.purge();
+  await store.locked(() => store.purge());
 }
 
 /** Add read events to the queue, without repeats, within its bound. */

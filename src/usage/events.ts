@@ -69,11 +69,67 @@ export function harnessOf(provider: string): UsageHarness {
   return "other";
 }
 
-const modelName = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,79}$/;
+/** The model families whose names may be sent. */
+const modelFamilies: ReadonlySet<string> = new Set([
+  "claude",
+  "gpt",
+  "o1",
+  "o3",
+  "o4",
+  "codex",
+  "gemini",
+  "grok",
+  "llama",
+  "mistral",
+  "deepseek",
+  "qwen",
+]);
+/** The words a published model name uses after its family. */
+const modelWords: ReadonlySet<string> = new Set([
+  "opus",
+  "sonnet",
+  "haiku",
+  "fable",
+  "mini",
+  "nano",
+  "pro",
+  "flash",
+  "lite",
+  "sol",
+  "turbo",
+  "preview",
+  "instruct",
+  "latest",
+  "codex",
+  "max",
+  "high",
+  "medium",
+  "low",
+  "chat",
+  "coder",
+  "reasoner",
+  "thinking",
+  "exp",
+]);
+/** A version, a date or a size: `5`, `6.1`, `4o`, `20241022`, `70b`. */
+const modelVersion = /^\d+(?:\.\d+)*[a-z]?$/;
 
-/** A model name the contract accepts, or none. */
-export function usableModel(value: unknown): string | undefined {
-  return typeof value === "string" && modelName.test(value) ? value : undefined;
+/**
+ * The model as the contract may carry it. The source's value is untrusted
+ * text, so it is rebuilt from known parts only: a known family, then
+ * versions and published model words. `unknown` when the source has no
+ * model; `other` for anything else, a URL, a path, a provider prefix or a
+ * private label of a fine-tuned model included.
+ */
+export function safeModel(value: unknown): string {
+  if (typeof value !== "string" || value.trim() === "") return "unknown";
+  const parts = value.trim().toLowerCase().split("-");
+  const [family, ...rest] = parts;
+  if (family === undefined || !modelFamilies.has(family) || parts.length > 8)
+    return "other";
+  return rest.every((part) => modelVersion.test(part) || modelWords.has(part))
+    ? parts.join("-")
+    : "other";
 }
 
 /** An instant as RFC 3339 UTC, or null for anything that is not one. */

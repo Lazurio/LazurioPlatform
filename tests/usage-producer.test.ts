@@ -4,8 +4,17 @@ import { mkdtemp, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { RelayTransport } from "../src/organization-settings/relay";
-import { usageRelayPath, usageRound } from "../src/usage/collect";
-import { usageBatchMaxEvents, usageId } from "../src/usage/events";
+import {
+  deliveryOutcome,
+  usageRelayPath,
+  usageRound,
+} from "../src/usage/collect";
+import {
+  safeModel,
+  type UsageEvent,
+  usageBatchMaxEvents,
+  usageId,
+} from "../src/usage/events";
 import {
   disableUsage,
   enableUsage,
@@ -17,8 +26,13 @@ import { readT3Usage } from "../src/usage/t3-source";
 // off unless switched on, and off reads nothing and sends nothing; nothing
 // that happened before consent is ever sent; no event carries content (a
 // title, a message, a prompt) or a person; an occurrence keeps its id, so a
-// redelivery is a no-op at the Dashboard; switching off deletes the queue;
-// an Environment the Dashboard does not collect stops measuring.
+// redelivery is a no-op at the Dashboard; switching off deletes the queue,
+// also in the middle of a round, which can neither turn consent back on nor
+// send another batch; only an answer that establishes a batch is invalid
+// drops it, while authentication, routing, load and time keep it; an
+// Environment the Dashboard does not collect stops measuring; a long run's
+// late turn keeps its run's origin and model; a model name never carries a
+// URL, a path or a private label.
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -237,18 +251,33 @@ test("a changed or missing T3 Code state produces nothing", async () => {
 
 type Sent = { path: string; ids: string[] };
 
-function relay(statuses: number[], sent: Sent[]): RelayTransport {
+/** A relay answering `statuses` in turn (0: no answer), with an optional body, after `during`. */
+function relay(
+  statuses: (number | [number, string])[],
+  sent: Sent[],
+  during: () => Promise<void> = async () => undefined,
+): RelayTransport {
   return async (input) => {
     const body = JSON.parse(input.body ?? "{}") as {
       events: { event_id: string }[];
     };
     sent.push({ path: input.path, ids: body.events.map((e) => e.event_id) });
-    const status = statuses.shift() ?? 202;
+    await during();
+    const next = statuses.shift() ?? 202;
+    const [status, text] = typeof next === "number" ? [next, "{}"] : next;
     return status === 0
       ? { kind: "failed", reason: "socket-absent" }
-      : { kind: "answer", status, type: "application/json", text: "{}" };
+      : { kind: "answer", status, type: "application/json", text };
   };
 }
+
+const event = (i: number): UsageEvent => ({
+  event_id: usageId(`e${i}`),
+  occurred_at: "2026-11-12T09:00:00.000Z",
+  type: "task.started",
+  origin: "interactive",
+  task_id: usageId(`t${i}`),
+});
 
 test("off by default: no source is read and nothing reaches the relay", async () => {
   const store = usageStateStore(await temp());
@@ -294,13 +323,6 @@ test("switching off deletes the queue at once; an Environment the Dashboard does
   const dir = await temp();
   const store = usageStateStore(dir);
   await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
-  const event = (i: number) => ({
-    event_id: usageId(`e${i}`),
-    occurred_at: "2026-11-12T09:00:00.000Z",
-    type: "task.started" as const,
-    origin: "interactive" as const,
-    task_id: usageId(`t${i}`),
-  });
   const sent: Sent[] = [];
   const many = Array.from({ length: usageBatchMaxEvents + 5 }, (_, i) =>
     event(i),
@@ -321,9 +343,145 @@ test("switching off deletes the queue at once; an Environment the Dashboard does
   const refused = await usageRound({
     store,
     read: () => ({ kind: "ready", events: [event(1)] }),
-    relay: relay([403], sent),
+    relay: relay([[403, '{"error":"usage_not_collected"}']], sent),
     now: () => new Date("2026-11-13T07:00:00.000Z"),
   });
   expect(refused).toEqual({ kind: "off", queued: 0, outcome: "not-collected" });
   expect((await store.read()).enabled).toBe(false);
+});
+
+test("switching off during a multi-batch round sends no further batch and is never written over", async () => {
+  const dir = await temp();
+  const store = usageStateStore(dir);
+  await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
+  const many = Array.from({ length: usageBatchMaxEvents * 3 }, (_, i) =>
+    event(i),
+  );
+  for (const answer of [202, 0, 503]) {
+    await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
+    const sent: Sent[] = [];
+    const round = await usageRound({
+      store,
+      read: () => ({ kind: "ready", events: many }),
+      // Switched off while the first batch waits for its answer.
+      relay: relay([answer, 202, 202], sent, () => disableUsage(store)),
+      now: () => new Date("2026-11-13T07:00:00.000Z"),
+    });
+    expect([answer, round.kind, sent.length]).toEqual([answer, "off", 1]);
+    expect((await store.read()).enabled).toBe(false);
+    await expect(stat(join(dir, "usage", "state.json"))).rejects.toThrow();
+  }
+});
+
+test("only an answer that establishes the batch is invalid drops it", async () => {
+  const answer = (status: number, text = "{}") =>
+    deliveryOutcome({ kind: "answer", status, type: "application/json", text });
+  expect(answer(202)).toBe("delivered");
+  expect([answer(400), answer(413)]).toEqual(["refused", "refused"]);
+  expect(answer(403, '{"error":"usage_not_collected"}')).toBe("not-collected");
+  for (const kept of [
+    answer(401),
+    answer(403, '{"error":"environment_unknown"}'),
+    answer(403, "not json"),
+    answer(404),
+    answer(408),
+    answer(429),
+    answer(500),
+    answer(503),
+  ])
+    expect(kept).toBe("retrying");
+  expect(deliveryOutcome({ kind: "failed", reason: "timeout" })).toBe(
+    "unreachable",
+  );
+
+  const store = usageStateStore(await temp());
+  await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
+  const sent: Sent[] = [];
+  const round = await usageRound({
+    store,
+    read: () => ({ kind: "ready", events: [event(1)] }),
+    relay: relay([401], sent),
+    now: () => new Date("2026-11-13T07:00:00.000Z"),
+  });
+  expect(round).toEqual({ kind: "waiting", queued: 1, outcome: "retrying" });
+  expect((await store.read()).queue.map((e) => e.event_id)).toEqual([
+    usageId("e1"),
+  ]);
+});
+
+test("a long run's late turn keeps its run's origin and model; automation needs the scheduled tasks' threads", async () => {
+  const dir = await temp();
+  const path = join(dir, "state.sqlite");
+  const db = t3State(path);
+  // An automation that started three hours before the read and is still running.
+  db.run(
+    "INSERT INTO orchestration_v2_projection_runs VALUES ('r-long', 't-auto', 1, 'codex', 'running', '2026-11-12T21:00:00.000Z', NULL, ?)",
+    [JSON.stringify({ modelSelection: { model: "claude-opus-5-5" } })],
+  );
+  db.run(
+    "INSERT INTO orchestration_v2_projection_run_attempts VALUES ('a-long', 'r-long')",
+  );
+  db.run(
+    "INSERT INTO orchestration_v2_projection_provider_turns VALUES ('p-long', 'a-long', '2026-11-13T00:30:00.000Z', ?)",
+    [
+      JSON.stringify({
+        turnTokenUsage: {
+          usageStatus: "complete",
+          inputTokens: 10,
+          outputTokens: 2,
+        },
+      }),
+    ],
+  );
+  db.close();
+  const read = readT3Usage(path, "2026-11-13T00:00:00.000Z");
+  if (read.kind !== "ready") throw new Error(read.reason);
+  const turn = read.events.find(
+    (e) => e.event_id === usageId("turn:p-long:usage"),
+  );
+  expect([turn?.origin, turn?.model, turn?.task_id]).toEqual([
+    "automation",
+    "claude-opus-5-5",
+    usageId("task:r-long"),
+  ]);
+
+  const older = join(dir, "older.sqlite");
+  t3State(older).close();
+  const change = new Database(older);
+  change.exec(
+    "DROP TABLE scheduled_tasks; CREATE TABLE scheduled_tasks (task_id TEXT PRIMARY KEY)",
+  );
+  change.close();
+  expect(readT3Usage(older, "2026-11-12T00:00:00.000Z")).toEqual({
+    kind: "unavailable",
+    reason: "schema",
+  });
+});
+
+test("a model name is rebuilt from known parts; a URL, a path or a private label is `other`", () => {
+  for (const known of [
+    "gpt-6.1-sol",
+    "claude-opus-5-5",
+    "claude-3-5-sonnet-20241022",
+    "gpt-4o-mini",
+    "o3",
+    "gemini-2.5-pro",
+  ])
+    expect(safeModel(known)).toBe(known);
+  expect(safeModel("GPT-6.1-Sol")).toBe("gpt-6.1-sol");
+  for (const unsafe of [
+    "https://example.com/private",
+    "/home/someone/models/x",
+    "anthropic/claude-opus-5-5",
+    "gpt-4o-acme-internal",
+    "o3secret",
+    "claude-opus:latest",
+    "a model with spaces",
+  ])
+    expect([unsafe, safeModel(unsafe)]).toEqual([unsafe, "other"]);
+  expect([safeModel(null), safeModel(""), safeModel(42)]).toEqual([
+    "unknown",
+    "unknown",
+    "unknown",
+  ]);
 });

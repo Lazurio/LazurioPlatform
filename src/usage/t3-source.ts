@@ -2,9 +2,9 @@ import { Database } from "bun:sqlite";
 import {
   harnessOf,
   instant,
+  safeModel,
   type UsageEvent,
   type UsageOrigin,
-  usableModel,
   usageId,
 } from "./events";
 
@@ -53,6 +53,8 @@ const required: Readonly<Record<string, readonly string[]>> = {
     "started_at",
     "completed_at",
   ],
+  // Which runs are automation: without it, nothing can be told apart.
+  scheduled_tasks: ["thread_id"],
 };
 
 const terminal: Readonly<
@@ -86,7 +88,6 @@ type Run = {
   status: string;
   requested_at: string;
   completed_at: string | null;
-  model: string | null;
 };
 
 /**
@@ -104,29 +105,24 @@ export function readT3Usage(path: string, since: string): T3UsageRead {
   try {
     if (!schemaFits(db)) return { kind: "unavailable", reason: "schema" };
     const automatedThreads = new Set<string>();
-    if (columnsOf(db, "scheduled_tasks").has("thread_id")) {
-      for (const row of db
-        .query(
-          "SELECT thread_id FROM scheduled_tasks WHERE thread_id IS NOT NULL",
-        )
-        .all() as { thread_id: string }[]) {
-        automatedThreads.add(row.thread_id);
-      }
+    for (const row of db
+      .query(
+        "SELECT thread_id FROM scheduled_tasks WHERE thread_id IS NOT NULL",
+      )
+      .all() as { thread_id: string }[]) {
+      automatedThreads.add(row.thread_id);
     }
     const originOf = (thread: string): UsageOrigin =>
       automatedThreads.has(thread) ? "automation" : "interactive";
     const events: UsageEvent[] = [];
     const runs = db
       .query(
-        `SELECT run_id, thread_id, provider, status, requested_at, completed_at,
-                json_extract(payload_json, '$.modelSelection.model') AS model
+        `SELECT run_id, thread_id, provider, status, requested_at, completed_at
            FROM orchestration_v2_projection_runs
           WHERE requested_at >= ?1 OR completed_at >= ?1`,
       )
       .all(since) as Run[];
-    const runOf = new Map<string, Run>();
     for (const run of runs) {
-      runOf.set(run.run_id, run);
       const task = usageId(`task:${run.run_id}`);
       const origin = originOf(run.thread_id);
       const harness = harnessOf(run.provider);
@@ -203,18 +199,24 @@ export function readT3Usage(path: string, since: string): T3UsageRead {
 
     const turns = db
       .query(
-        `SELECT t.provider_turn_id, t.completed_at, a.run_id,
+        `SELECT t.provider_turn_id, t.completed_at, a.run_id, r.thread_id,
+                json_extract(r.payload_json, '$.modelSelection.model') AS model,
                 json_extract(t.payload_json, '$.turnTokenUsage.usageStatus') AS usage_status,
                 json_extract(t.payload_json, '$.turnTokenUsage.inputTokens') AS input_tokens,
                 json_extract(t.payload_json, '$.turnTokenUsage.outputTokens') AS output_tokens
            FROM orchestration_v2_projection_provider_turns t
            JOIN orchestration_v2_projection_run_attempts a ON a.attempt_id = t.run_attempt_id
+           -- The turn's own run, whenever it started: a long run's late turn
+           -- keeps its origin and model.
+           LEFT JOIN orchestration_v2_projection_runs r ON r.run_id = a.run_id
           WHERE t.completed_at >= ?1`,
       )
       .all(since) as {
       provider_turn_id: string;
       completed_at: string | null;
       run_id: string;
+      thread_id: string | null;
+      model: unknown;
       usage_status: string | null;
       input_tokens: number | null;
       output_tokens: number | null;
@@ -228,15 +230,14 @@ export function readT3Usage(path: string, since: string): T3UsageRead {
         !tokens.every((n) => Number.isSafeInteger(n) && (n ?? -1) >= 0)
       )
         continue;
-      const run = runOf.get(turn.run_id);
-      const model = usableModel(run?.model);
       events.push({
         event_id: usageId(`turn:${turn.provider_turn_id}:usage`),
         occurred_at: ended,
         type: "model.usage",
-        origin: run === undefined ? "interactive" : originOf(run.thread_id),
+        origin:
+          turn.thread_id === null ? "interactive" : originOf(turn.thread_id),
         task_id: usageId(`task:${turn.run_id}`),
-        model: model ?? "unknown",
+        model: safeModel(turn.model),
         input_tokens: turn.input_tokens ?? 0,
         output_tokens: turn.output_tokens ?? 0,
       });
