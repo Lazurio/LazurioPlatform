@@ -42,8 +42,9 @@ chat defaults [--apply] [--folder <absolute Folder>] [--json]
   The recommended model is the one this Environment's Codex configuration pins,
   as Codex's own config/read answers, or the Platform's own when it pins none.
   Without Codex's answer nothing is read from or written to T3: unavailable,
-  codex-config-unreadable. T3 must support the managed Folder contract; no
-  offline write or settings-file patch is attempted. Exit: 0 managed/custom,
+  codex-config-unreadable. T3's answer is its last JSON line; without one it
+  is unavailable, t3-answer-unreadable. T3 must support the managed Folder
+  contract; no offline write or settings-file patch is attempted. Exit: 0 managed/custom,
   10 outdated/not hosted, 1 unavailable.`;
 
 export const exitNotHosted = exitUpdateAvailable;

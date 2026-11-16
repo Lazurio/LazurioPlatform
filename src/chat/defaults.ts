@@ -24,6 +24,7 @@ export type ChatDefaults = Readonly<{
   reason?:
     | "t3-launcher-missing"
     | "t3-defaults-unavailable"
+    | "t3-answer-unreadable"
     | "codex-config-unreadable";
 }>;
 const selection = (value: unknown): value is Selection => {
@@ -97,6 +98,27 @@ export async function recommendedChatSelection(
     : Object.freeze({ ...recommendedChatModel, model });
 }
 
+// T3's answer is one JSON line, the last one on its stdout. T3 may log before
+// it on stdout (a migration-history warning when its data directory was opened
+// by a later T3 build, Lazurio/t3code#210), so a line before the answer is not
+// a failure. No JSON object on the last non-empty line is an unreadable answer.
+function t3Answer(stdout: string): Record<string, unknown> | undefined {
+  const line = stdout
+    .split("\n")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .at(-1);
+  if (line === undefined) return undefined;
+  try {
+    const value: unknown = JSON.parse(line);
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function chatDefaults(
   tools: ToolsEnvironment,
   options: Readonly<{
@@ -141,7 +163,9 @@ export async function chatDefaults(
       { maxBytes: 32 * 1024 },
     );
     if (result === "timeout" || result.exitCode !== 0) return unavailable;
-    const body = JSON.parse(result.stdout) as Record<string, unknown>;
+    const body = t3Answer(result.stdout);
+    if (body === undefined)
+      return { ...unavailable, reason: "t3-answer-unreadable" };
     if (
       body.version !== 1 ||
       !(body.current === null || selection(body.current)) ||
