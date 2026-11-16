@@ -13243,7 +13243,9 @@ an avatar, in no Organization's space, a long name in words, an older view readi
 answer and a newer view an older one, the wire and the page, a badge that is no badge),
 `tests/shell-picker-owners.test.ts` (the column head with the badge, the list's rows without),
 `tests/browser-contract-vectors.test.ts` (the two C9 cases). The drawing was checked in the
-browser with screenshots in the pull request; ChatGPT Desktop's right panel was not.
+browser with screenshots in the pull request, and Matěj saw it on 2026-11-16 in web T3 Code's
+right panel: the Environment browser opened this change's view page and an app's column head,
+served from the Environment's loopback. ChatGPT Desktop's right panel was not checked.
 
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
