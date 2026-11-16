@@ -4095,6 +4095,28 @@ Template revision `base-instructions-123`. Verified by `tests/folder-mechanisms.
 and the pinned digest. Not proven: that agents in every harness follow the text, and nothing
 here deploys the Admin role, the service entry or the Dashboard's requests.
 
+**Addendum 2026-11-16, decided by Matěj (plan LZD-0025 step B9): the client of a message is
+told, never inferred.** An agent read the Folder's sentence that only ChatGPT Desktop opens a
+`localhost` port here (since replaced) and the handover's SSH entry, concluded that Matěj works
+in ChatGPT Desktop, and recorded a check there that never happened; he works in web T3 Code.
+Matěj: "Pokud vnímáš, že bychom měli agentům dávat najevo, jestli uživatel pracuje z webového T3
+code, nebo do budoucna z desktopového Lazuria anebo desktopového ChatGPT, a víš, jak to agentům
+poskytnout tuhle informaci, tak by to bylo fajn, aby přesně nedocházelo k těmhle nedorozuměním."
+
+1. **T3 Code says it per message.** A `<message_origin>` line at the start of a message names the
+   client the user wrote it in (web, on a computer or a phone; the desktop app; the mobile app),
+   or the thread, scheduled task or agent that sent it (Lazurio/t3code#212). It is taken from
+   the connection, not the words, and is information, never authority.
+2. **Without the line the agent does not infer.** The paragraph on how the user works with the
+   agent (`manual/this-machine.md`) says so: without the line (ChatGPT Desktop, an older T3 Code,
+   a message from an unknown client) the agent never infers the client from the manual or from
+   the user connecting over SSH, never writes it into a record, and asks when something depends
+   on it. What each client's right panel shows stays where it is, in the same manual's section
+   on the Environment browser, since it depends on the Environment.
+
+Template revision `base-instructions-132`. Verified by `tests/folder-manual.test.ts` and the pinned
+digest. Not proven: that agents in every harness follow the text.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered
