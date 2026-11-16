@@ -344,3 +344,57 @@ test("without Codex's answer, apply writes nothing and says why; a managed pinne
     await env.done();
   }
 });
+
+// T3 may log on stdout before its one-line answer, as 0.1.7-lazurio.1 does
+// when its data directory carries migrations of a later build
+// (Lazurio/t3code#210). The answer is still read; a stdout without a JSON
+// line is its own reason.
+test("a log line before T3's answer is read through; no answer is t3-answer-unreadable", async () => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "chat-log-")));
+  try {
+    for (const name of ["t3", "codex"])
+      await writeFile(join(home, name), "#!/bin/sh\nexit 1\n", {
+        mode: 0o700,
+      });
+    const { converse } = codexAnswering(configRead(null));
+    const answer = JSON.stringify({
+      version: 1,
+      current: recommendedChatModel,
+      lastManaged: recommendedChatModel,
+    });
+    const warning = [
+      "[00:47:49.316] WARN (#31): Database migration history diverges from this build; recorded migration ids are skipped, not reconciled by name. {",
+      "  divergent: [",
+      "    '80:ScheduledTaskThreadMode (unknown to this build)',",
+      "  ]",
+      "}",
+    ].join("\n");
+    const with_ = (stdout: string): ToolsEnvironment => ({
+      home,
+      path: home,
+      platform: "linux",
+      run: async () => ({ exitCode: 0, stdout, stderr: "" }),
+    });
+    expect(
+      await chatDefaults(with_(`${warning}\n${answer}\n`), {
+        apply: true,
+        folder: home,
+        converse,
+      }),
+    ).toEqual({ kind: "chat-defaults", state: "managed" });
+    for (const stdout of ["", `${warning}\n`, "[1,2]", "null"])
+      expect(
+        await chatDefaults(with_(stdout), {
+          apply: true,
+          folder: home,
+          converse,
+        }),
+      ).toEqual({
+        kind: "chat-defaults",
+        state: "unavailable",
+        reason: "t3-answer-unreadable",
+      });
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
