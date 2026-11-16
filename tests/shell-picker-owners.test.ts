@@ -418,7 +418,13 @@ test("the column head: the person's photo and name over 'Pracovní Prostředí';
     id: "vm-01.acme",
     name: "Ada Lovelace",
     who: "Pracovní Prostředí",
-    glyph: photo("ada", "Ada Lovelace", "AL"),
+    // With the badge of its Organization on the photo (F39's addendum of
+    // 2026-11-16): the head names one Environment, the list's heading names
+    // the Organization of its rows.
+    glyph: {
+      ...photo("ada", "Ada Lovelace", "AL"),
+      organization: { name: "Acme Works", avatar, initials: "AW" },
+    },
   });
   expect(head(acme({ current: "services-01.acme" }))).toEqual({
     id: "services-01.acme",

@@ -49,6 +49,9 @@ export const baseCss = `
   --shell-mark: var(--lazurio-raised, var(--lz-white));
   --shell-mark-ink: var(--lazurio-ink, var(--lz-ink));
   --shell-mark-line: var(--lazurio-line, var(--lz-line));
+  /* The ring that parts an Organization's badge from a person's photo: the
+     colour of what the head sits on (F39's addendum of 2026-11-16). */
+  --shell-badge-ring: var(--lazurio-surface, var(--lz-paper));
   --shell-inverse: var(--lazurio-ink, var(--lz-ink));
   --shell-inverse-ink: var(--lazurio-surface, var(--lz-white));
 }

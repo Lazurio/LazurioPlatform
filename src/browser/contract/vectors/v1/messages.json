@@ -233,6 +233,48 @@
       }
     },
     {
+      "name": "the app's answer with a person's photo and their Organization's badge",
+      "call": "identityReplyMessage",
+      "args": [
+        {
+          "id": "vm-01.acme",
+          "name": "Jana",
+          "who": "Pracovní Prostředí",
+          "glyph": {
+            "kind": "person",
+            "name": "Jana",
+            "avatar": "https://github.com/jana.png?size=96",
+            "initials": "JA",
+            "organization": {
+              "name": "Acme Works",
+              "avatar": null,
+              "initials": "AW"
+            }
+          }
+        }
+      ],
+      "expect": {
+        "type": "lazurio-browser:identity",
+        "v": 1,
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "Jana",
+          "who": "Pracovní Prostředí",
+          "glyph": {
+            "kind": "person",
+            "name": "Jana",
+            "avatar": "https://github.com/jana.png?size=96",
+            "initials": "JA",
+            "organization": {
+              "name": "Acme Works",
+              "avatar": null,
+              "initials": "AW"
+            }
+          }
+        }
+      }
+    },
+    {
       "name": "the app's answer names the majors its parser reads",
       "call": "identityReplyMessage",
       "args": [
@@ -838,6 +880,56 @@
           "glyph": {
             "kind": "initials",
             "text": "AC"
+          }
+        },
+        "majors": null
+      }
+    },
+    {
+      "name": "the badge of a person's Organization is the answer's as sent",
+      "call": "acceptIdentityReply",
+      "args": [
+        {
+          "data": {
+            "type": "lazurio-browser:identity",
+            "v": 1,
+            "identity": {
+              "id": "vm-01.acme",
+              "name": "Jana",
+              "who": "Pracovní Prostředí",
+              "glyph": {
+                "kind": "person",
+                "name": "Jana",
+                "avatar": "https://github.com/jana.png?size=96",
+                "initials": "JA",
+                "organization": {
+                  "name": "Acme Works",
+                  "avatar": null,
+                  "initials": "AW"
+                }
+              }
+            }
+          },
+          "origin": "https://launchpad.vm-01.acme.lazurio.io",
+          "fromParent": true
+        },
+        "https://launchpad.vm-01.acme.lazurio.io"
+      ],
+      "expect": {
+        "identity": {
+          "id": "vm-01.acme",
+          "name": "Jana",
+          "who": "Pracovní Prostředí",
+          "glyph": {
+            "kind": "person",
+            "name": "Jana",
+            "avatar": "https://github.com/jana.png?size=96",
+            "initials": "JA",
+            "organization": {
+              "name": "Acme Works",
+              "avatar": null,
+              "initials": "AW"
+            }
           }
         },
         "majors": null
