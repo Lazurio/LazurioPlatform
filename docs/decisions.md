@@ -13203,6 +13203,48 @@ setting, doctor's reading, the profile and the rollout in a Chrome for Testing 1
 own (own display, port and temporary profile), never in the Environment browser, whose own profile
 and DevTools list were only read.
 
+**Addendum 2026-11-16: the Organization's badge on a person's photo** (decided by Matěj on
+2026-11-16, plan LZD-0025 step B8: "Když mám otevřený Environment browser v T3 kódu, tak
+teďka vidím, … že je to moje pracovní prostředí, ale chybí mi tam úplně informace o tom, jaká
+organizace. … Nemyslím si, že je nutné to tam psát textem. Myslím si, že ikona stačí." Of the
+choices offered he took the badge on the photo). Since F36's addendum of 2026-11-03 a work
+Environment assigned to a person is drawn by that person's photo, which says whose it is but
+not of which Organization. This addendum adds to point 1 of the addendum of 2026-10-12; the rest
+of F39 stands.
+
+1. **A badge, not words.** The glyph of a person's work Environment (`kind: "person"`) gains an
+   optional member `organization`: the name, avatar and initials of the Organization of the
+   space the identity stands in (`environmentGlyph`, `src/shell/view.ts`), the same values the
+   Organization's own mark (`kind: "avatar"`) carries. `drawIdentity` draws it as a small
+   square on the lower right corner of the round photo, as a chat app marks its workspace:
+   the Organization's avatar, else its first initial, and its first initial when the avatar
+   does not load, as `organizationMark` falls back. A ring in the colour under the head
+   (`--shell-badge-ring`, the host's `--lazurio-surface`) parts it from the photo in either
+   scheme. The bar and the head take no wider: the badge stays inside the glyph's place.
+2. **The name in words where words are read.** The badge is an image named by the
+   Organization (`role="img"`, `aria-label`); the picker's own label and every tooltip and
+   title name it first (`identityOrganization`, `identityText`): `<Organization> · <person> ·
+   Pracovní Prostředí`, as a Team's Environment already read. A long name is whole there.
+3. **Only the person's work Environment.** A personal Environment, a Team's, the Organization's
+   own (an Automated one, Henry, the server services) and your computer are drawn as before.
+   A row of the switcher's list has no badge: the list's heading names the Organization of its
+   rows. In a space that is no Organization's, the photo stands alone.
+4. **Contract v1 only grows (F50 point 3).** The member is optional. A view of an older release
+   reads the person's glyph by the members it knows and draws the photo alone; a newer view
+   reads an older app's glyph, without the member, as the photo alone. A badge that is not one
+   (an address the shell does not allow, a name that is no display text, initials too long) is
+   dropped and the person is still drawn. Its avatar comes only from an address `isShellUrl`
+   admits, as an Organization's mark does; no new origin, no new CSP. Both the app's answer
+   (C9) and the identity the view's server puts into the page carry it, from the same
+   `environmentIdentity`. `messages.json` gains two cases.
+
+Tests: `tests/shell-identity.test.ts` (the badge only on a person's work Environment, without
+an avatar, in no Organization's space, a long name in words, an older view reading a newer
+answer and a newer view an older one, the wire and the page, a badge that is no badge),
+`tests/shell-picker-owners.test.ts` (the column head with the badge, the list's rows without),
+`tests/browser-contract-vectors.test.ts` (the two C9 cases). The drawing was checked in the
+browser with screenshots in the pull request; ChatGPT Desktop's right panel was not.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public

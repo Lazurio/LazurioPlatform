@@ -50,6 +50,7 @@ const styles = `
      the bar's colours in both schemes, as in any app that hosts it. */
   --lazurio-ink: var(--text); --lazurio-ink-muted: var(--muted);
   --lazurio-line: var(--line); --lazurio-raised: var(--field);
+  --lazurio-surface: var(--chrome);
 }
 @media (prefers-color-scheme: dark) {
   :root {
