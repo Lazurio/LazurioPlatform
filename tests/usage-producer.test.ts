@@ -593,37 +593,29 @@ test("a long run's late turn keeps its run's origin and model; automation needs 
   });
 });
 
-test("only a whole published model name is sent; any other name of a family is reduced to the family, the rest is `other`", () => {
+test("a model is mapped to a fixed value: a listed identifier, its family, `other` or `unknown`", () => {
   for (const known of [
     "gpt-6.1-sol",
-    "gpt-4o-mini",
-    "gpt-5-codex",
-    "gpt-4o-2024-08-06",
     "claude-opus-5-5",
     "claude-fable-5-1",
-    "claude-sonnet-4-20250514",
-    "claude-3-5-sonnet-20241022",
+    "gpt-4o-mini",
     "o3",
     "o4-mini",
-    "codex-mini",
     "gemini-2.5-pro",
-    "gemini-2.0-flash-lite",
   ])
     expect([known, safeModel(known)]).toEqual([known, known]);
   expect(safeModel("GPT-6.1-Sol")).toBe("gpt-6.1-sol");
-  // Segmented or long numbers and private labels never pass: only the family does.
+  // Anything not listed, however model-shaped, leaves only as its family.
   for (const [value, family] of [
+    ["gpt-4o-2030-12-31", "gpt"],
+    ["claude-opus-99-9-20301231", "claude"],
+    ["claude-3-5-sonnet-20241022", "claude"],
     ["gpt-12-34-56-78-90", "gpt"],
     ["gpt-123456789012345678901234567890", "gpt"],
-    ["gpt-4.123456", "gpt"],
     ["gpt-4o-acme-internal", "gpt"],
-    ["gpt-4-5-6-7-8-9", "gpt"],
-    ["claude-opus-5-5-5-5", "claude"],
-    ["claude-20991231", "claude"],
-    ["claude-opus-5-20991399", "claude"],
-    ["o3-12-34", "o3"],
-    ["gemini-2.5-pro-acme", "gemini"],
     ["claude-opus:latest", "claude"],
+    ["o3-12-34", "o3"],
+    ["gemini-9.9-pro", "gemini"],
   ])
     expect([value, safeModel(value)]).toEqual([value, family]);
   for (const unsafe of [

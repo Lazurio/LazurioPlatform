@@ -81,38 +81,40 @@ const modelFamilies: readonly string[] = [
 ];
 
 /**
- * The shapes of published model names, one fixed grammar per family: a tier
- * word from a closed list, a version of one or two digits with at most one
- * one-digit minor, and a release date. No shape repeats a part, so no
- * combination of numbers or words can spell anything else.
+ * The published model identifiers sent as they are: a fixed list, so nothing
+ * the source invents, a date or a version included, can pass. A model not
+ * listed here is reported as its family until it is added in a reviewed
+ * change.
  */
-const knownModels: readonly RegExp[] = [
-  // claude-opus-5-5, claude-sonnet-4-20250514
-  /^claude-(?:opus|sonnet|haiku|fable)-\d{1,2}(?:-\d)?(?:-20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))?$/,
-  // claude-3-5-sonnet-20241022
-  /^claude-\d(?:-\d)?-(?:opus|sonnet|haiku)(?:-20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))?$/,
-  // gpt-6.1-sol, gpt-4o-mini, gpt-5-codex, gpt-4o-2024-08-06
-  /^gpt-\d{1,2}(?:\.\d)?o?(?:-(?:mini|nano|pro|sol|turbo|codex|chat))?(?:-20[2-3]\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))?$/,
-  // o3, o4-mini, o3-pro
-  /^o[134](?:-(?:mini|pro))?$/,
-  // codex-mini
-  /^codex-(?:mini|max)$/,
-  // gemini-2.5-pro, gemini-2.0-flash-lite
-  /^gemini-\d(?:\.\d)?-(?:pro|flash|flash-lite)(?:-preview)?$/,
-];
+const knownModels: ReadonlySet<string> = new Set([
+  "claude-fable-5-1",
+  "claude-opus-5-5",
+  "claude-sonnet-5-5",
+  "claude-haiku-5-5",
+  "gpt-6.1-sol",
+  "gpt-5",
+  "gpt-5-mini",
+  "gpt-5-codex",
+  "gpt-4o",
+  "gpt-4o-mini",
+  "o3",
+  "o3-pro",
+  "o4-mini",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+]);
 
 /**
  * The model as the contract may carry it. The source's value is untrusted
- * text, so only a whole published name of a known shape is sent as it is. A
- * name of a known family in any other shape (a private fine-tune, a version
- * of many numbers) is reduced to the family from the fixed list; anything
- * else, a URL, a path or a provider prefix included, is `other`; a missing
- * value is `unknown`.
+ * text, so it is only ever mapped to a fixed value: a listed identifier, the
+ * family of any other name of a known family (a newer model, a fine-tune, a
+ * made-up version or date), `other` for anything else (a URL, a path, a
+ * provider prefix) and `unknown` when there is none.
  */
 export function safeModel(value: unknown): string {
   if (typeof value !== "string" || value.trim() === "") return "unknown";
   const name = value.trim().toLowerCase();
-  if (knownModels.some((shape) => shape.test(name))) return name;
+  if (knownModels.has(name)) return name;
   const family = modelFamilies.find(
     (candidate) => name === candidate || name.startsWith(`${candidate}-`),
   );
