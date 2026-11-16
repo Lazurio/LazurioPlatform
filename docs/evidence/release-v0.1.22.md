@@ -13,7 +13,7 @@ pull request as this file. Machines are opaque ids, as in the record: the first 
 key of v0.1.20's and v0.1.21's records, kept only by the release thread's station, so every Machine keeps the id it had
 there. Which Machine is which is kept only at the station.
 
-**This record is not a release.** The final `v0.1.22` is tagged only on the release owner's decision, after his own look
+**This record is not a release.** The final `v0.1.22` is tagged only on the release owner's decision, after their own look
 at the candidate's main change (a drag, a reload, Escape in Buddy's window). A final tagged with this record is the tree
 of `v0.1.22-rc.3` (release.yml's `qualified` job: the tag differs from the candidate only under `qualification/` and
 `docs/evidence/`).
@@ -86,7 +86,7 @@ By one thread. Read-only except the real work on the personal VM and the smoke t
    browser:
    - **the standard suite as the Owner and the member** (skill `lazurio-example-smoke-test`, `suite both`): **17 of 17
      required steps passed**; 7 optional passed, 1 optional INCONCLUSIVE (the member's refusal at the Owner test
-     account's Personal Environment, which her tailnet client could not reach: no proof either way);
+     account's Personal Environment, which the member's tailnet client could not reach: no proof either way);
    - **the main path as the Owner and the member**: every Environment each account lists; Apps of each own Work
      Environment (12 module tiles for the Owner, 11 for the member); Knowledgebase and the Design system started and
      opened from their tiles on their own origins with HTTP 200; the chat of each Work Environment answered a sum
@@ -95,7 +95,7 @@ By one thread. Read-only except the real work on the personal VM and the smoke t
      on the Owner's Personal Environment, whose state is `ready` (own ChatGPT, Remote Control on), where the card offers
      pairing by design (`stateMessage` in `src/launchpad/connections-view.ts`). The check was corrected and the Owner's
      main path ran again at 12:33:57–12:34:53Z: **10 of 10 required and 7 of 7 optional passed**;
-   - **the movable launcher as the Owner** on his Work Environment: **7 of 7 required steps passed** and 4 optional
+   - **the movable launcher as the Owner** on the Owner test account's Work Environment: **7 of 7 required steps passed** and 4 optional
      passed: the served `/.lazurio/shell.js` carries the movable launcher, the launcher is drawn, a drag moved it by
      400 × 300 px and it kept its place after a reload;
    - the Prostředí služeb carries only the Organization's AI pool service, with no module to start; the check that looked
