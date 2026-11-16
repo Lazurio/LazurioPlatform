@@ -978,10 +978,21 @@ async function installOrganization(
       ),
       ...outcome,
     };
-  const checks = catalogChecks({ kind: "catalog", organizations: [entry] });
+  // A module whose repository GitHub refused this identity is not shared
+  // with the person, a note and no warning (issue #946), as one its role
+  // excludes.
+  const denied = new Set(
+    repositories
+      .filter((entry) => entry.result === "denied")
+      .map((entry) => entry.path),
+  );
+  const checks = catalogChecks(
+    { kind: "catalog", organizations: [entry] },
+    (_directory, path) => denied.has(path),
+  );
   const organizationCheck = checks.find((check) => check.id === "organization");
   const warnings = checks.filter(
-    (check) => check.id === "module" && check.outcome !== "ok",
+    (check) => check.id === "module" && check.outcome === "warn",
   ).length;
   const modules = checks.filter((check) => check.id === "module").length;
   if (organizationCheck?.outcome !== "ok")

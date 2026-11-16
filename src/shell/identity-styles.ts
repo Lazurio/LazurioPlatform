@@ -11,6 +11,13 @@ export const identityCss = `
 .identity-glyph .org-mark { width: 24px; height: 24px; font-size: 10px; }
 /* Your personal Environment's glyph: your monogram as the rail draws it. */
 .identity-glyph .initials { display: grid; width: 24px; height: 24px; place-items: center; border-radius: var(--lz-radius-sm); background: var(--shell-mark); box-shadow: inset 0 0 0 1px var(--shell-mark-line); color: var(--shell-mark-ink); font-size: 10px; font-weight: 700; letter-spacing: 0.02em; }
+/* The Organization's badge on a person's photo (F39's addendum of
+   2026-11-16): half the photo's size on its lower right corner, past it by a
+   little, as a chat app marks its workspace. A ring in the colour under the
+   head parts it from the photo in either scheme; the glyph lets it out. */
+.identity-glyph--badged { overflow: visible; }
+.person-badged { position: relative; display: grid; flex: none; }
+.identity-glyph .person-badged > .org-badge { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 3px; font-size: 7px; font-weight: 700; letter-spacing: 0; line-height: 1; box-shadow: 0 0 0 1.5px var(--shell-badge-ring), inset 0 0 0 1px var(--shell-mark-line); }
 .identity-text { display: grid; flex: 1; min-width: 0; line-height: normal; }
 .identity-name, .identity-who { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identity-name { font-size: var(--lz-size-nav); font-weight: var(--lz-weight-akce); }
@@ -32,6 +39,7 @@ ${identityCss}
 .identity-glyph { width: 20px; height: 20px; font-size: 9px; }
 .identity-glyph > svg { width: 16px; height: 16px; }
 .identity-glyph .org-mark, .identity-glyph .initials { width: 20px; height: 20px; font-size: 9px; }
+.identity-glyph .person-badged > .org-badge { right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 2px; font-size: 6px; }
 .identity-text { display: flex; align-items: baseline; gap: 0.4em; }
 .identity-name { flex: 0 1 auto; min-width: 0; font-size: 1em; }
 .identity-who { flex: 0 100 auto; min-width: 0; font-size: 0.92em; }

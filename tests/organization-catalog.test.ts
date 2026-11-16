@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { cp, mkdtemp, realpath, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SyncEntry } from "../src/content/sync-record";
+import { catalogChecks, deniedBySync } from "../src/doctor/doctor";
 import {
   appsHomeParts,
   appsScopes,
@@ -977,6 +979,125 @@ posixTest(
           tabs: [],
         }),
       ).toEqual([{ kind: "empty", text: cs.catalogNoModules }]);
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "doctor: a module the person is not meant to have is a note, one they should have and do not asks for attention (issue #946)",
+  async () => {
+    await folderFixture(async (folder) => {
+      // An Organization with modules shared with a few people only: one
+      // materialized module, a restricted slot and a private one (the role
+      // scope leaves both out), one GitHub refused this identity, one
+      // the last synchronization removed when access ended, one slot without
+      // a repository, one that is simply not here yet and one whose access
+      // declaration cannot be classified.
+      const remote = (name: string) => ({
+        git: { url: `git@github.com:omega/${name}.git`, branch: "main" },
+      });
+      await writeOrganization(folder, "omega", {
+        slug: "omega",
+        state: "current",
+        modules: [{ id: "tracker" }],
+        slots: [
+          {
+            path: "workspace/finance",
+            slug: "finance",
+            default_access: "restricted",
+            required_roles: ["organization-admin"],
+            ...remote("finance"),
+          },
+          {
+            path: "workspace/payroll",
+            slug: "payroll",
+            default_access: "private",
+            ...remote("payroll"),
+          },
+          { path: "workspace/hr", slug: "hr", ...remote("hr") },
+          { path: "workspace/legal", slug: "legal", ...remote("legal") },
+          { path: "workspace/planned", slug: "planned" },
+          { path: "workspace/sales", slug: "sales", ...remote("sales") },
+          {
+            path: "workspace/odd",
+            slug: "odd",
+            default_access: "sometimes",
+            ...remote("odd"),
+          },
+        ],
+      });
+      const catalog = await readFolderCatalog(folder);
+      const omega = findCatalogOrganization(catalog, "omega");
+      expect(
+        omega?.modules.map((module) => [
+          module.module,
+          module.absent ?? false,
+          module.absence ?? null,
+        ]),
+      ).toEqual([
+        ["tracker", false, null],
+        ["finance", true, "restricted"],
+        ["payroll", true, "restricted"],
+        ["hr", true, null],
+        ["legal", true, null],
+        ["planned", true, "no-repository"],
+        ["sales", true, null],
+        ["odd", true, "access-unknown"],
+      ]);
+
+      // The last synchronization: GitHub refused `hr`, `legal`'s access
+      // ended; `sales` is absent without a reason (not cloned yet).
+      const at = "2026-11-15T21:00:00.000Z";
+      const entry = (path: string, reason?: string): SyncEntry => ({
+        organization: "omega",
+        root: join("organizations", "omega"),
+        path,
+        kind: "module",
+        branch: "main",
+        result: "absent",
+        ...(reason === undefined ? {} : { reason }),
+        at,
+      });
+      const record = [
+        entry("workspace/hr", "repository-denied"),
+        entry("workspace/legal", "access-ended"),
+        entry("workspace/sales"),
+        // A denial recorded for a slot whose access cannot be classified
+        // does not hide that declaration problem (review of #1013).
+        entry("workspace/odd", "repository-denied"),
+      ];
+      const modules = (denied?: Parameters<typeof catalogChecks>[1]) =>
+        catalogChecks(catalog, denied)
+          .filter(
+            (check) =>
+              check.id === "module" && check.context?.organization === "omega",
+          )
+          .map((check) => [
+            check.context?.module,
+            check.outcome,
+            check.reason ?? null,
+            check.context?.access ?? null,
+          ]);
+      expect(modules(deniedBySync(record))).toEqual([
+        ["tracker", "ok", null, null],
+        ["finance", "skipped", "module-not-shared", "restricted"],
+        // A private slot is the Organization Admin's only, too.
+        ["payroll", "skipped", "module-not-shared", "restricted"],
+        ["hr", "skipped", "module-not-shared", "repository-denied"],
+        ["legal", "skipped", "module-not-shared", "repository-denied"],
+        ["planned", "skipped", "module-without-repository", null],
+        // Should be here and is not: still a warning.
+        ["sales", "warn", "module-unavailable", null],
+        ["odd", "warn", "module-unavailable", null],
+      ]);
+      // Without a record (never synchronized), a refusal is not known: the
+      // module still asks for attention; the declaration's reasons stand.
+      expect(
+        modules()
+          .filter(([, outcome]) => outcome === "skipped")
+          .map(([module]) => module),
+      ).toEqual(["finance", "payroll", "planned"]);
     });
   },
   30_000,
