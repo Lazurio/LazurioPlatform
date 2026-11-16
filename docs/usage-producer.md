@@ -26,8 +26,9 @@ columns and named JSON keys only:
 
 Never read: thread titles, messages, prompts, scheduled task titles or prompts,
 paths, branches, pull requests. The model name is untrusted text, so it is
-rebuilt from known parts only (`safeModel`): a known family, then versions and
-published model words; anything else, a URL, a path, a provider prefix or a
+rebuilt from known parts only (`safeModel`): a known family, then at most five
+parts that are published model words or bounded numbers (a version of at most
+two digits per part, a release date, a size); anything else, a longer number a URL, a path, a provider prefix or a
 private label of a fine-tuned model, is sent as `other`. Ids leave the Environment only as digests
 (`usageId`): a stable version 8 UUID per occurrence, so a redelivery is a
 no-op at the Dashboard. When a table or column it needs is missing, the
@@ -43,11 +44,12 @@ adapter produces nothing (`unavailable`), never a guess; that includes
   queued, so no history is reconstructed;
 - switching off deletes the queue and the cursor at once;
 - the queue is bounded (`usageQueueMax`) and counts what it had to drop;
-- every change of the state happens under one kernel lock (`usage/lock`), and
-  a round re-reads the state under it and goes on only under the consent it
-  started with, before each batch and before it records an answer. Switching
-  off in the middle of a round therefore stops it before the next batch and
-  is never written over; a batch already on its way may still arrive.
+- every change of the state happens under one kernel lock (`usage/lock`). A
+  round sends each batch inside the lock, after re-reading the state and only
+  under the consent it started with, and records the answer before it lets
+  go. Switching off therefore waits for a send in progress (at most the
+  relay's 20-second timeout) and, once it returns, nothing more is sent and
+  no round can write consent back.
 
 ## Delivery
 
@@ -58,7 +60,8 @@ events through the Environment's relay at `/usage/events` (`deliveryOutcome`):
 | Answer | Batch | Round |
 | --- | --- | --- |
 | `202` | removed | next batch |
-| `400`, `413` (the batch itself is invalid) | removed, never resent | next batch |
+| `400` (the batch itself is invalid) | removed, never resent | next batch |
+| `413` (the request is too large, not its events) | kept | the same events in halved batches; a single event still too large stays queued |
 | `403` with `usage_not_collected` (a Personal or services Environment, or no assignee) | queue deleted | measuring switched off |
 | any other answer: `401`, `403` of another reason, `404`, `408`, `429`, `5xx` | kept | stops; the next round resends it |
 | no answer from the relay | kept | stops; the next round resends it |

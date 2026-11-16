@@ -3,6 +3,7 @@ import type {
   RelayTransport,
 } from "../organization-settings/relay";
 import type { UsageEvent } from "./events";
+import { usageBatchMaxEvents } from "./events";
 import {
   type DeliveryOutcome,
   enqueue,
@@ -19,16 +20,17 @@ import type { T3UsageRead } from "./t3-source";
 // batch is not accepted. Off means off: without consent no source is read
 // and nothing reaches the relay.
 //
-// The state is never held across a wait for the relay. Each step takes the
-// state's lock, reads the state again and goes on only under the consent the
-// round started with (src/usage/outbox.ts): switching off mid-round stops it
-// before the next batch and is never written over.
+// Each batch is one step under the state's lock: read the state again, go on
+// only under the consent the round started with, send, and record the answer
+// (src/usage/outbox.ts). Switching off waits for that step and, once it
+// returns, no batch is sent and no round writes consent back.
 
 /** The relay's path to the Dashboard's `POST /api/environment/v1/usage/events`. */
 export const usageRelayPath = "/usage/events";
 /** A run that ends this long after the last read is still found: its outcome is read again. */
 export const usageRereadMs = 2 * 60 * 60 * 1000;
-const relayTimeoutMs = 20_000;
+/** One send; below the state lock's timeout, so switching off outlasts a send in progress. */
+export const usageRelayTimeoutMs = 20_000;
 const answerMaxBytes = 4 * 1024;
 
 export type UsageRoundDeps = Readonly<{
@@ -70,7 +72,8 @@ export function deliveryOutcome(exchange: RelayExchange): DeliveryOutcome {
   if (exchange.kind === "failed") return "unreachable";
   const { status } = exchange;
   if (status === 202) return "delivered";
-  if (status === 400 || status === 413) return "refused";
+  if (status === 400) return "refused";
+  if (status === 413) return "too-large";
   if (status === 403 && errorCode(exchange.text) === "usage_not_collected")
     return "not-collected";
   return "retrying";
@@ -107,49 +110,52 @@ export async function usageRound(deps: UsageRoundDeps): Promise<UsageRound> {
 
   let outcome: DeliveryOutcome | null = null;
   let queued = 0;
+  let size = usageBatchMaxEvents;
   for (;;) {
     const step = await store.locked(async () => {
       const state = await store.read();
-      if (!sameConsent(state, enabledAt)) return "revoked" as const;
+      if (!sameConsent(state, enabledAt)) return { kind: "revoked" } as const;
+      const batch = nextBatch(state, size);
       queued = state.queue.length;
-      return nextBatch(state);
-    });
-    if (step === "revoked") return off(outcome);
-    if (step === null) break;
-    outcome = deliveryOutcome(
-      await deps.relay({
-        method: "POST",
-        path: usageRelayPath,
-        headers: { "content-type": "application/json" },
-        body: step.body,
-        timeoutMs: relayTimeoutMs,
-        maxBytes: answerMaxBytes,
-      }),
-    );
-    const answered: DeliveryOutcome = outcome;
-    const recorded = await store.locked(async () => {
-      const state = await store.read();
-      if (!sameConsent(state, enabledAt)) return "revoked" as const;
+      if (batch === null) return { kind: "empty" } as const;
+      // The send starts and ends inside the lock.
+      const answered = deliveryOutcome(
+        await deps.relay({
+          method: "POST",
+          path: usageRelayPath,
+          headers: { "content-type": "application/json" },
+          body: batch.body,
+          timeoutMs: usageRelayTimeoutMs,
+          maxBytes: answerMaxBytes,
+        }),
+      );
       if (answered === "not-collected") {
         // The Dashboard will not take this Environment's usage: stop
         // measuring and keep nothing, as if switched off.
         await store.purge();
-        return "revoked" as const;
+        return { kind: "revoked", answered } as const;
       }
       const drop = answered === "delivered" || answered === "refused";
       const next: UsageState = {
         ...state,
         queue: drop
-          ? state.queue.filter((event) => !step.ids.has(event.event_id))
+          ? state.queue.filter((event) => !batch.ids.has(event.event_id))
           : state.queue,
         lastDelivery: { at: now.toISOString(), outcome: answered },
       };
       await store.write(next);
       queued = next.queue.length;
-      return "recorded" as const;
+      return { kind: "answered", answered, sent: batch.ids.size } as const;
     });
-    if (recorded === "revoked") return off(outcome);
-    if (answered !== "delivered" && answered !== "refused") break;
+    if (step.kind === "revoked") return off(step.answered ?? outcome);
+    if (step.kind === "empty") break;
+    outcome = step.answered;
+    // Too large: the same events again in smaller batches, never dropped.
+    if (outcome === "too-large" && step.sent > 1) {
+      size = Math.ceil(step.sent / 2);
+      continue;
+    }
+    if (outcome !== "delivered" && outcome !== "refused") break;
   }
   if (read.kind !== "ready") return { kind: "unavailable", queued, outcome };
   return { kind: queued === 0 ? "delivered" : "waiting", queued, outcome };

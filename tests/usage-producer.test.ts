@@ -18,6 +18,7 @@ import {
 import {
   disableUsage,
   enableUsage,
+  type UsageStateStore,
   usageStateStore,
 } from "../src/usage/outbox";
 import { readT3Usage } from "../src/usage/t3-source";
@@ -350,34 +351,168 @@ test("switching off deletes the queue at once; an Environment the Dashboard does
   expect((await store.read()).enabled).toBe(false);
 });
 
-test("switching off during a multi-batch round sends no further batch and is never written over", async () => {
+/**
+ * A round of `batches` full batches with switching off started at `offAfterMs`
+ * (from inside the first send when null). Every send records whether off had
+ * already returned when it started.
+ */
+async function roundWithOff(
+  answers: number[],
+  offAfterMs: number | null,
+  batches = 3,
+) {
   const dir = await temp();
   const store = usageStateStore(dir);
   await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
-  const many = Array.from({ length: usageBatchMaxEvents * 3 }, (_, i) =>
-    event(i),
-  );
-  for (const answer of [202, 0, 503]) {
-    await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
-    const sent: Sent[] = [];
-    const round = await usageRound({
-      store,
-      read: () => ({ kind: "ready", events: many }),
-      // Switched off while the first batch waits for its answer.
-      relay: relay([answer, 202, 202], sent, () => disableUsage(store)),
-      now: () => new Date("2026-11-13T07:00:00.000Z"),
+  let offDone = false;
+  let off: Promise<void> | null = null;
+  const startOff = () => {
+    off ??= disableUsage(store).then(() => {
+      offDone = true;
     });
-    expect([answer, round.kind, sent.length]).toEqual([answer, "off", 1]);
+  };
+  const startedAfterOff: boolean[] = [];
+  const transport: RelayTransport = async () => {
+    startedAfterOff.push(offDone);
+    if (offAfterMs === null) startOff();
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    const status = answers.shift() ?? 202;
+    return status === 0
+      ? { kind: "failed", reason: "socket-absent" }
+      : { kind: "answer", status, type: "application/json", text: "{}" };
+  };
+  if (offAfterMs !== null) setTimeout(startOff, offAfterMs);
+  const round = await usageRound({
+    store,
+    read: () => ({
+      kind: "ready",
+      events: Array.from({ length: usageBatchMaxEvents * batches }, (_, i) =>
+        event(i),
+      ),
+    }),
+    relay: transport,
+    now: () => new Date("2026-11-13T07:00:00.000Z"),
+  });
+  if (offAfterMs !== null)
+    await new Promise((resolve) => setTimeout(resolve, offAfterMs + 1));
+  startOff();
+  await off;
+  return { dir, store, round, startedAfterOff };
+}
+
+test("switching off during a multi-batch round: no send starts after off returns, and consent is never written back", async () => {
+  for (const answer of [202, 0, 503]) {
+    const { dir, store, startedAfterOff } = await roundWithOff([answer], null);
+    expect([answer, startedAfterOff.includes(true)]).toEqual([answer, false]);
     expect((await store.read()).enabled).toBe(false);
     await expect(stat(join(dir, "usage", "state.json"))).rejects.toThrow();
   }
+});
+
+test("switching off completed by another process right after a batch step lets go of the lock is never followed by a send", async () => {
+  const base = usageStateStore(await temp());
+  await enableUsage(base, new Date("2026-11-12T00:00:00.000Z"));
+  let steps = 0;
+  let offDone = false;
+  // Another process switches off in the gap after the round's second locked
+  // step (its first batch) and before the round's next action.
+  const store: UsageStateStore = {
+    ...base,
+    async locked(work) {
+      const result = await base.locked(work);
+      steps += 1;
+      if (steps === 2) {
+        await disableUsage(base);
+        offDone = true;
+      }
+      return result;
+    },
+  };
+  const startedAfterOff: boolean[] = [];
+  const round = await usageRound({
+    store,
+    read: () => ({
+      kind: "ready",
+      events: Array.from({ length: usageBatchMaxEvents * 3 }, (_, i) =>
+        event(i),
+      ),
+    }),
+    relay: async () => {
+      startedAfterOff.push(offDone);
+      return {
+        kind: "answer",
+        status: 202,
+        type: "application/json",
+        text: "{}",
+      };
+    },
+    now: () => new Date("2026-11-13T07:00:00.000Z"),
+  });
+  expect(startedAfterOff).toEqual([false]);
+  expect(round.kind).toBe("off");
+  expect((await base.read()).enabled).toBe(false);
+});
+
+test("switching off at any moment of a round is never followed by a send", async () => {
+  for (const offAfterMs of [0, 1, 3, 6, 9, 12, 20]) {
+    const { store, startedAfterOff } = await roundWithOff([], offAfterMs, 5);
+    expect([offAfterMs, startedAfterOff.includes(true)]).toEqual([
+      offAfterMs,
+      false,
+    ]);
+    expect((await store.read()).enabled).toBe(false);
+  }
+});
+
+test("a request too large is sent again in smaller batches, and a single event that is still too large stays queued", async () => {
+  const store = usageStateStore(await temp());
+  await enableUsage(store, new Date("2026-11-12T00:00:00.000Z"));
+  const sizes: number[] = [];
+  const bySize: RelayTransport = async (input) => {
+    const count = (JSON.parse(input.body ?? "{}") as { events: unknown[] })
+      .events.length;
+    sizes.push(count);
+    return {
+      kind: "answer",
+      status: count > 2 ? 413 : 202,
+      type: "application/json",
+      text: "{}",
+    };
+  };
+  const round = await usageRound({
+    store,
+    read: () => ({
+      kind: "ready",
+      events: Array.from({ length: 8 }, (_, i) => event(i)),
+    }),
+    relay: bySize,
+    now: () => new Date("2026-11-13T07:00:00.000Z"),
+  });
+  expect([round.kind, round.queued]).toEqual(["delivered", 0]);
+  expect(sizes).toEqual([8, 4, 2, 2, 2, 2]);
+
+  const stuck = usageStateStore(await temp());
+  await enableUsage(stuck, new Date("2026-11-12T00:00:00.000Z"));
+  const alwaysTooLarge: RelayTransport = async () => ({
+    kind: "answer",
+    status: 413,
+    type: "application/json",
+    text: "{}",
+  });
+  const kept = await usageRound({
+    store: stuck,
+    read: () => ({ kind: "ready", events: [event(1), event(2)] }),
+    relay: alwaysTooLarge,
+    now: () => new Date("2026-11-13T07:00:00.000Z"),
+  });
+  expect(kept).toEqual({ kind: "waiting", queued: 2, outcome: "too-large" });
 });
 
 test("only an answer that establishes the batch is invalid drops it", async () => {
   const answer = (status: number, text = "{}") =>
     deliveryOutcome({ kind: "answer", status, type: "application/json", text });
   expect(answer(202)).toBe("delivered");
-  expect([answer(400), answer(413)]).toEqual(["refused", "refused"]);
+  expect([answer(400), answer(413)]).toEqual(["refused", "too-large"]);
   expect(answer(403, '{"error":"usage_not_collected"}')).toBe("not-collected");
   for (const kept of [
     answer(401),
@@ -475,6 +610,11 @@ test("a model name is rebuilt from known parts; a URL, a path or a private label
     "anthropic/claude-opus-5-5",
     "gpt-4o-acme-internal",
     "o3secret",
+    "gpt-123456789012345678901234567890",
+    "gpt-4.123456",
+    "claude-20991231",
+    "llama-12345b",
+    "gpt-4-5-6-7-8-9",
     "claude-opus:latest",
     "a model with spaces",
   ])

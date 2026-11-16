@@ -111,8 +111,18 @@ const modelWords: ReadonlySet<string> = new Set([
   "thinking",
   "exp",
 ]);
-/** A version, a date or a size: `5`, `6.1`, `4o`, `20241022`, `70b`. */
-const modelVersion = /^\d+(?:\.\d+)*[a-z]?$/;
+/**
+ * The bounded numeric parts of a published name: a version (`5`, `6.1`,
+ * `4o`, at most two digits per part), a release date (`20241022`) or a size
+ * (`70b`). A longer number can be a private identifier and is never sent.
+ */
+const modelNumbers: readonly RegExp[] = [
+  /^\d{1,2}(?:\.\d{1,2}){0,2}[a-z]?$/,
+  /^20[2-3]\d(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$/,
+  /^\d{1,3}b$/,
+];
+/** Parts of a model name after its family. */
+const modelPartsMax = 5;
 
 /**
  * The model as the contract may carry it. The source's value is untrusted
@@ -125,9 +135,16 @@ export function safeModel(value: unknown): string {
   if (typeof value !== "string" || value.trim() === "") return "unknown";
   const parts = value.trim().toLowerCase().split("-");
   const [family, ...rest] = parts;
-  if (family === undefined || !modelFamilies.has(family) || parts.length > 8)
+  if (
+    family === undefined ||
+    !modelFamilies.has(family) ||
+    rest.length > modelPartsMax
+  )
     return "other";
-  return rest.every((part) => modelVersion.test(part) || modelWords.has(part))
+  return rest.every(
+    (part) =>
+      modelWords.has(part) || modelNumbers.some((shape) => shape.test(part)),
+  )
     ? parts.join("-")
     : "other";
 }

@@ -16,11 +16,11 @@ import { type UsageEvent, usageBatch, usageBatchMaxEvents } from "./events";
 //
 // Every change of the state happens under one kernel lock (`usage/lock`,
 // `src/platform/flock.ts`), and every holder reads the state again first. A
-// round never carries a state across a wait for the relay: it checks under
-// the lock that the same consent (`enabledAt`) still stands before it sends
-// the next batch and before it records an answer, so switching off can
-// neither be undone by a round nor followed by another batch. A batch already
-// on its way when consent ends may still arrive; nothing after it is sent.
+// round sends each batch inside the lock, after checking that the same
+// consent (`enabledAt`) still stands, and records the answer before it lets
+// go. Switching off therefore waits for a send in progress (at most the
+// relay's timeout, `usageLockTimeoutMs` above it) and, once it returns,
+// nothing more is sent and no round can write consent back.
 
 const schemaVersion = 1;
 /** Events kept while the Dashboard cannot be reached (about a working month of one person). */
@@ -42,7 +42,10 @@ export type UsageState = Readonly<{
 /**
  * How the Dashboard answered a batch:
  * - `delivered` (202): accepted; removed from the queue;
- * - `refused` (400, 413): the batch itself is invalid; removed, never resent;
+ * - `refused` (400): the batch itself is invalid; removed, never resent;
+ * - `too-large` (413): the request is too large, not its events; the round
+ *   sends smaller batches, and a single event that is still too large stays
+ *   queued;
  * - `not-collected` (403 `usage_not_collected`): the Dashboard does not take
  *   this Environment's usage; measuring stops;
  * - `retrying`: anything that does not establish that, a 401, 403 of another
@@ -52,6 +55,7 @@ export type UsageState = Readonly<{
 export type DeliveryOutcome =
   | "delivered"
   | "refused"
+  | "too-large"
   | "not-collected"
   | "retrying"
   | "unreachable";
@@ -80,6 +84,7 @@ export const usageLockTimeoutMs = 30_000;
 const outcomes: readonly DeliveryOutcome[] = [
   "delivered",
   "refused",
+  "too-large",
   "not-collected",
   "retrying",
   "unreachable",
@@ -191,12 +196,16 @@ export function enqueue(
   };
 }
 
-/** The next delivery: at most one batch, its body and the ids it carries. */
+/** The next delivery: at most one batch of `size` events, its body and the ids it carries. */
 export function nextBatch(
   state: UsageState,
+  size: number = usageBatchMaxEvents,
 ): Readonly<{ body: string; ids: ReadonlySet<string> }> | null {
   if (state.queue.length === 0) return null;
-  const events = state.queue.slice(0, usageBatchMaxEvents);
+  const events = state.queue.slice(
+    0,
+    Math.max(1, Math.min(size, usageBatchMaxEvents)),
+  );
   return {
     body: usageBatch(events),
     ids: new Set(events.map((event) => event.event_id)),
