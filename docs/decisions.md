@@ -2331,6 +2331,8 @@ neither recommended everywhere but on the Team, which asks "whom" with the tool;
 that agents in every harness follow the line (generated text is not proof of delivery through a
 harness), and Codex's question tool in Environments before the T3 Code change.
 
+*Buddy GEN3 (note of 2026-11-16).* The addendum below describes Buddy GEN3's layer (`.agents/buddy/`, `.hermes.md`). Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy's own instructions and skills live in a separate `Buddy` folder beside the Lazurio Folder; the addendum stays in force for each person until their conversion.
+
 **Addendum 2026-10-21, decided by Matěj: Buddy's Lazurio layer lives in the Folder, in
 `.agents/buddy/` (root decision 0210 with its addenda of 2026-10-20 evening and night,
 #565, plan DEV-6676).** Buddy has four layers with clear owners; the Lazurio layer, his role,
@@ -22471,6 +22473,8 @@ packages.
 
 ## F60 — Buddy's bubble in the shell: his origin in the documents, the protocol `lazurio.buddy.*` v1 and `<lazurio-buddy>`'s launcher, panel and full screen
 
+*Buddy GEN3 (note of 2026-11-16).* This decision describes Buddy GEN3. Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy's window and its experience stay, but it opens Buddy's thread in the Environment's shared T3 Code server instead of a separate origin with a T3 Code server of its own. The text below stays in force for each person until their conversion and is rewritten with the Buddy GEN4 implementation.
+
 **Decided by Matěj (Organization Admin) on 2026-10-21: root decision 0210 point 8 with
 its addenda of 2026-10-20 (the bubble on every page of Lazurio but the Dashboard; the
 neutral guide without an Osobní Prostředí, in an Environment of another tailnet and on
@@ -23081,6 +23085,8 @@ while Buddy is in his corner.
 
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
+*Buddy GEN3 (note of 2026-11-16).* This decision describes Buddy GEN3. Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy is a standard T3 Code thread whose harness and model the person chooses, and the Hermes Agent leaves Lazurio. The text below stays in force for each person until their conversion and is then retired.
+
 **Decided by Matěj (Organization Admin) on 2026-10-22 (plan DEV-6676, root decision 0210
 point 7 and 8 with their addenda; the spike and its decisions in `drafts/buddy-t3-acp` of the
 Lazurio root, sections 8 and 9); the details below are proposed by the agent and implemented
@@ -23583,6 +23589,8 @@ nested `bun` and `bunx` all ran as 1.4.3; the second resolution came from the ca
 
 ## F63 — Buddy's sign-in and status: the Launchpad is a local client of Buddy's Hermes gateway
 
+*Buddy GEN3 (note of 2026-11-16).* This decision describes Buddy GEN3. Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy has no sign-in of his own and uses the tools the Environment is signed in to. The text below stays in force for each person until their conversion and is then retired.
+
 **Proposed on 2026-10-25 under plan DEV-6676 (Matěj's mandate for Buddy on the web of
 2026-10-21; root decisions 0207 and 0210 with their addenda), from the Buddy lead's shaping of
 Buddy's onboarding. Variant A below is decided by the Buddy lead as the implementing
@@ -23978,6 +23986,8 @@ Not in this revision:
 - the plain sentence for the same 400 in a running chat (Hermes's runtime half of #694).
 
 ## F64 — Buddy's persona: one source (`persona.json`) and one deriver (the Platform)
+
+*Buddy GEN3 (note of 2026-11-16).* The source and the deriver in this decision belong to Buddy GEN3; `SOUL.md`, the gateway drop-in and the Hermes provider name go with Hermes under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed). How Buddy GEN4 takes the persona is decided with its implementation.
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.4, §2 and
 §3.6; question Q5, decided by the Buddy lead as the architecture that root decision 0210 implies,
@@ -24445,6 +24455,8 @@ conversation or when it matters; you do not start every reply or question with i
 
 ## F65 — Buddy in Začínáme and Nastavení → Buddy: his step first, his persona changed in place, the agents' AI not locked behind him
 
+*Buddy GEN3 (note of 2026-11-16).* Buddy's sign-in step in Začínáme belongs to Buddy GEN3 and ends under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed), which drops Buddy's own sign-in. The text below stays in force for each person until their conversion.
+
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §3.2, §3.4 to
 §3.6, §3.9, §3.10 and PR 3) and the wireframe of HumanAndMachine-ai/prototypes-lazurio #90
 (`b24c4d0b`); implemented in this revision on F63 (#635) and F64 (#636), revised after Pablo's review of
@@ -24604,6 +24616,8 @@ Buddy with its menu, Odhlásit's confirm and a rename; no error of the page in t
   initial.
 
 ## F66 — Buddy's Telegram: his own bot from BotFather, connected in Nastavení → Buddy through Hermes's own writers
+
+*Buddy GEN3 (note of 2026-11-16).* Telegram is not part of Buddy GEN4's standard configuration under decision 0210's addendum of 2026-11-16 (decided, not yet deployed). The text below stays in force for people with Buddy GEN3 until their conversion and is then retired.
 
 **Proposed for plan DEV-6676 in the Buddy lead's shaping of 2026-10-25 (its §1.6, §2, §3.8,
 §3.9 and PR 5; questions Q1 and Q2 decided as recommended), built now on the Organization
