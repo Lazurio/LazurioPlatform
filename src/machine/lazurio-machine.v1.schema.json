@@ -50,6 +50,7 @@
         "network": { "$ref": "#/$defs/network" },
         "relationships": { "allOf": [{ "$ref": "#/$defs/relationships" }, { "type": "object", "properties": { "zone": { "const": "work" } } }] },
         "access_service": { "$ref": "#/$defs/access_service" },
+        "computers": { "$ref": "#/$defs/computers" },
         "entry": { "description": "The entry of the guest: finished values (`entry`), or on an auth-sourced document their templates (`entry_template`). An Organization work VM never carries `buddy`.", "type": "object" },
         "vault": { "$ref": "#/$defs/vault_work" },
         "services": {
@@ -115,6 +116,18 @@
                 "kind": { "const": "principal" },
                 "github_login": { "type": "string", "maxLength": 39, "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
                 "github_id": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+              }
+            },
+            {
+              "description": "Plan PCH M4: a personal Environment keyed on its owner's Lazurio account, without GitHub: the account is the pair issuer + subject (root decisions 0192 and 0244), never the subject alone; username is its display name. Machines emits it only for a pinned Platform at or above PLATFORM_HANDOVER_LAZURIO_ACCOUNT_OWNER_MINIMUM. A reader vendoring an earlier schema refuses a document carrying it.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["kind", "issuer", "subject", "username"],
+              "properties": {
+                "kind": { "const": "lazurio-account" },
+                "issuer": { "type": "string", "maxLength": 255, "pattern": "^https://[^\\s]+$" },
+                "subject": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" },
+                "username": { "type": "string", "minLength": 3, "maxLength": 32, "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" }
               }
             },
             {
@@ -401,7 +414,7 @@
           }
         },
         "environment_relay": {
-          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3), present only on an Organization work VM that declares its own identity at the Lazurio issuer: a unix socket only the operator account can reach, on which the Launchpad server asks the Dashboard as this Environment with exactly GET /organization/settings and POST /organization/settings/report. The Environment's key and tokens stay with the gateway.",
+          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3; LZD-0009 M9), present on every Environment with its own identity at the Lazurio issuer, of both kinds: a unix socket only the operator account (and a free Environment's person) can reach, on which the Launchpad and the Folder ask as this Environment. With the DEV-6653 workload identity of a work VM it answers GET /organization/settings and POST /organization/settings/report (the Dashboard); with the identity the Environment's agents act with (a free Environment's stock identity, a v2 Work Environment's own identity) also GET /shared-applications (the Dashboard's list of colleagues' applications) and POST /agent-entry/hand-over (Lazurio Auth's one-time hand-over), each with that identity's token of its one platform scope. Every other path answers 404. The Environment's keys and tokens stay with the gateway.",
           "type": "object",
           "additionalProperties": false,
           "required": ["socket"],
@@ -428,7 +441,7 @@
           "additionalProperties": false,
           "required": ["external_origin", "listen_port"],
           "properties": {
-            "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io.", "type": "string", "maxLength": 57, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.lazurio\\.io$" },
+            "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io, or https://buddy.<personal-dns-slug>.personal.lazurio.io in the personal zone (plan PCH M1).", "type": "string", "maxLength": 66, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.(?:personal\\.)?lazurio\\.io$" },
             "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
           }
         }
@@ -532,7 +545,7 @@
           }
         },
         "environment_relay": {
-          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3), present only on an Organization work VM that declares its own identity at the Lazurio issuer: a unix socket only the operator account can reach, on which the Launchpad server asks the Dashboard as this Environment with exactly GET /organization/settings and POST /organization/settings/report. The Environment's key and tokens stay with the gateway.",
+          "description": "The Environment relay of this Machine (DEV-6653, contract C3; root decision 0194 point 3; LZD-0009 M9), present on every Environment with its own identity at the Lazurio issuer, of both kinds: a unix socket only the operator account (and a free Environment's person) can reach, on which the Launchpad and the Folder ask as this Environment. With the DEV-6653 workload identity of a work VM it answers GET /organization/settings and POST /organization/settings/report (the Dashboard); with the identity the Environment's agents act with (a free Environment's stock identity, a v2 Work Environment's own identity) also GET /shared-applications (the Dashboard's list of colleagues' applications) and POST /agent-entry/hand-over (Lazurio Auth's one-time hand-over), each with that identity's token of its one platform scope. Every other path answers 404. The Environment's keys and tokens stay with the gateway.",
           "type": "object",
           "additionalProperties": false,
           "required": ["socket"],
@@ -602,6 +615,25 @@
           "type": "string",
           "maxLength": 265,
           "pattern": "^http://(?=[^:]{1,253}:8444$)[a-z0-9]+(?:-[a-z0-9]+)*(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+\\.[a-z]{2,63}:8444$"
+        }
+      }
+    },
+    "computers": {
+      "description": "The device channel of the Environment's Assigned User (HumanAndMachine-ai/Auth docs/device-channel-entry.md; Machines device-channel.ts, docs/machine-identity.md#computers): where the Launchpad checks the session proof the gateway's helper passes with an attached computer, and the subject of the Assigned User whose sessions it accepts. Present only together with the gateway's attach route: on a work Environment assigned to one person with at least one approved device, for a pinned LazurioPlatform that reads it; a reader vendoring an earlier schema refuses a document carrying it. It carries no token or proof.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_check_url", "assigned_subject"],
+      "properties": {
+        "session_check_url": {
+          "description": "The helper's check on loopback: GET with X-Lazurio-Computer-Session answers 200 {subject, deviceId, expiresIn[, username]} for a session it holds, 404 for any other proof; anything else means the check cannot be made.",
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^http://127\\.0\\.0\\.1:[1-9][0-9]{3,4}(?:/[A-Za-z0-9._~-]+)+$"
+        },
+        "assigned_subject": {
+          "description": "The Lazurio subject (Keycloak user id) of the Environment's Assigned User: the only subject whose session the Launchpad accepts.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         }
       }
     },

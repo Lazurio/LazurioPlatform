@@ -1,6 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
 import { generateKeyPairSync, type KeyObject, sign } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -254,6 +261,14 @@ test.skipIf(!posix)(
     await waitFor(() => fake.seen.length > 0);
     // The first message is `ready` of contract v3; no challenge exists.
     expect(fake.seen[0]).toEqual({ type: "ready", v: 3 });
+    // The broker places the agents' socket once the computer answered
+    // `initialize`, which follows `ready`.
+    await waitFor(() =>
+      stat(socketPath(home, "alex-macbook")).then(
+        () => true,
+        () => false,
+      ),
+    );
     expect((await callTool(home)).result).toEqual({
       content: [{ type: "text", text: "snap" }],
     });
@@ -776,5 +791,132 @@ test.skipIf(!posix)(
         })
       ).status,
     ).toBe(404);
+  },
+);
+
+test.skipIf(!posix)(
+  "the Launchpad with the Machine's computers: the attach route admits by the helper's check, and nothing without a proof",
+  async () => {
+    const { realpath } = await import("node:fs/promises");
+    const { initializeHandoverFolder } = await import(
+      "../src/folder/initialize-folder"
+    );
+    const { executionOs } = await import("../src/folder/platform");
+    const { presetProfile } = await import("../src/folder/presets");
+    const { startLaunchpad } = await import("../src/launchpad/server");
+    const { organizationWithEntry } = await import(
+      "./fixtures/machine-bindings"
+    );
+    const { freePort } = await import("./fixtures/ports");
+    const { computerSessionHeader } = await import(
+      "../src/computers/session-check"
+    );
+    const assigned = "00000000-0000-4000-8000-0000000000c1";
+    const proof = "p".repeat(43);
+    // The gateway helper's check endpoint.
+    const helper = Bun.serve({
+      hostname: "127.0.0.1",
+      port: 0,
+      fetch: (request) =>
+        request.headers.get(computerSessionHeader) === proof
+          ? Response.json({
+              subject: assigned,
+              deviceId: "alex-macbook",
+              expiresIn: 280,
+            })
+          : new Response(null, { status: 404 }),
+    });
+    cleanup.push(() => helper.stop(true));
+    const parent = await realpath(await mkdtemp(join(tmpdir(), "lzc-hosted-")));
+    cleanup.push(() => rm(parent, { recursive: true, force: true }));
+    const folder = join(parent, "Lazurio");
+    await mkdir(folder, { mode: 0o700 });
+    await mkdir(join(folder, "organizations"), { mode: 0o755 });
+    await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+    const preset = "hosted-organization-personal";
+    const machine = {
+      ...organizationWithEntry(freePort()),
+      computers: {
+        sessionCheckUrl: `http://127.0.0.1:${helper.port}/computers/session`,
+        assignedSubject: assigned,
+      },
+    };
+    const entry = machine.entry;
+    if (entry === undefined) throw new Error("The fixture has an entry");
+    await initializeHandoverFolder(folder, {
+      preset,
+      machine,
+      profile: presetProfile(preset, executionOs(process.platform)),
+    });
+    const home = join(parent, "home");
+    await mkdir(join(home, ".ssh"), { recursive: true, mode: 0o700 });
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher: async () => new Response("ok") },
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        platform: process.platform,
+        home,
+        uid: process.getuid?.(),
+        user: "alex",
+        today: () => "2026-11-13",
+        hostKeyPath: join(parent, "none.pub"),
+        tailnet: async () => ({
+          state: "unavailable",
+          reason: "tailscale-missing",
+        }),
+      },
+    );
+    cleanup.push(async () => {
+      await app.close();
+    });
+    const host = new URL(entry.externalOrigin).host;
+    const base = `127.0.0.1:${entry.listenPort}`;
+    const upgrade = { connection: "Upgrade", upgrade: "websocket" };
+    // Without a proof: 401 before any upgrade; with an unconfirmed one: 403.
+    expect(
+      (
+        await fetch(`http://${base}${attachPath}`, {
+          headers: { host, ...upgrade },
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await fetch(`http://${base}${attachPath}`, {
+          headers: {
+            host,
+            ...upgrade,
+            [computerSessionHeader]: "q".repeat(43),
+          },
+        })
+      ).status,
+    ).toBe(403);
+    // With the helper's confirmed proof: the session is ready at once.
+    const ws = new WebSocket(`ws://${base}${attachPath}`, {
+      headers: { host, [computerSessionHeader]: proof },
+    } as unknown as string[]);
+    const seen: Message[] = [];
+    ws.addEventListener("message", (event) => {
+      seen.push(JSON.parse(String(event.data)) as Message);
+    });
+    await waitFor(() => seen.length > 0);
+    expect(seen[0]).toEqual({ type: "ready", v: 3 });
+    ws.close();
   },
 );

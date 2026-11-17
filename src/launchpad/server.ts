@@ -31,6 +31,7 @@ import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createComputerAttach } from "../computers/attach-ws";
+import { createComputerSessionCheck } from "../computers/session-check";
 import {
   attachServers,
   type ComputersHost,
@@ -857,7 +858,14 @@ export async function startLaunchpad(
   // fragment token — the browser's session cookie is the credential. A
   // condition this start can name refuses it with `LaunchpadStartRefused`,
   // before anything listens, so the caller can serve Recovery mode instead.
-  const { entry } = await readStartState(folder, { locked: true });
+  const { entry, preferences: startPreferences } = await readStartState(
+    folder,
+    { locked: true },
+  );
+  // The device channel of the Assigned User (HumanAndMachine-ai/Auth
+  // docs/device-channel-entry.md) as the Machine's binding recorded it at
+  // start, like the hosted entry: without it the attach route answers 404.
+  const computersChannel = startPreferences.machine?.computers ?? null;
   // A public Environment (root decision 0204, decision F55): no first run,
   // no Integrace and no Nástroje, and Trezor only with its own vault, by the
   // entry recorded at start.
@@ -1477,9 +1485,20 @@ export async function startLaunchpad(
   // gateway admitted and whose proof the Launchpad checks, never a browser
   // session. Until the hosted entry names the helper's check endpoint there
   // is no `verifyGatewayProof`, and the route answers 404.
+  // A computer's session (contract v3): admitted only by the gateway helper's
+  // session proof, which this Launchpad checks itself at the helper's check
+  // endpoint named by the Machine's binding, never by a forwarded header.
   const computerAttach = createComputerAttach({
     home: sshHost.home,
     uid: sshHost.uid,
+    ...(computersChannel === null
+      ? {}
+      : {
+          verifyGatewayProof: createComputerSessionCheck({
+            checkUrl: computersChannel.sessionCheckUrl,
+            assignedSubject: computersChannel.assignedSubject,
+          }).verifyGatewayProof,
+        }),
     version: embeddedIdentity().version,
     servers: attachServers(computersHost),
     journal: (line) => console.log(JSON.stringify(line)),

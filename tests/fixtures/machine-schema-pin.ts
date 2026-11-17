@@ -5,4 +5,4 @@
 // optional `services` to the schema of Machines #1072, taken byte for byte
 // from its merge commit.
 export const vendoredSchemaPullRequest =
-  "https://github.com/HumanAndMachine-ai/Machines/pull/1099";
+  "https://github.com/HumanAndMachine-ai/Machines/pull/1370";

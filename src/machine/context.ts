@@ -205,11 +205,20 @@ export type OrganizationWorkspaceContext = Readonly<{
   network?: MachineNetwork;
   relationships?: MachineRelationships<"work">;
   access_service?: MachineAccessService;
+  // The device channel of the Assigned User (HumanAndMachine-ai/Auth
+  // docs/device-channel-entry.md): where the Launchpad checks the gateway
+  // helper's session proof and whose sessions it accepts. Machines writes it
+  // only together with the attach route, for a Platform that reads it.
+  computers?: MachineComputers;
   entry?: MachineEntry;
   vault?: MachineVault;
   services?: readonly MachineService[];
   installed: MachineInstalled;
   account: null;
+}>;
+export type MachineComputers = Readonly<{
+  session_check_url: string;
+  assigned_subject: string;
 }>;
 export type PersonalMachineContext = Readonly<{
   schema_version: "lazurio.machine.v1";
