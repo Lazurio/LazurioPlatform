@@ -90,6 +90,11 @@ import {
 import { type ModuleVerb, moduleVerbs } from "./modules/module-operations";
 import { processGuardCommand, runProcessGuard } from "./modules/process-guard";
 import {
+  ModuleReadinessUsageError,
+  moduleReadinessHelp,
+  runModuleReadinessCommand,
+} from "./modules/readiness-cli";
+import {
   createServiceManagerProcess,
   userManagerState,
 } from "./modules/service-manager-process";
@@ -532,6 +537,18 @@ async function runOtherCommand(args: string[]): Promise<number> {
       return 2;
     }
   }
+  // Whether a Module is ready as an Application (decision 0249, #423).
+  if (args[0] === "module" && args[1] === "readiness") {
+    try {
+      const { code, text } = await runModuleReadinessCommand(args);
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof ModuleReadinessUsageError)) throw error;
+      console.error(`${error.message}\n${moduleReadinessHelp}`);
+      return 2;
+    }
+  }
   // Every verb of the module lifecycle, `prepare` included (issue #114).
   if (args[0] === "module" && moduleVerbs.includes(args[1] as ModuleVerb)) {
     try {
@@ -743,6 +760,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(roleHelp);
     console.log(contentHelp);
     console.log(moduleHelp);
+    console.log(moduleReadinessHelp);
     console.log(updateHelp);
     console.log(recoverHelp);
     console.log(doctorHelp);

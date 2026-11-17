@@ -1,0 +1,88 @@
+# A Module ready as an Application
+
+Every Module with an app becomes an Application once it passes this check
+(decision [0249](decision-register.md#0249--module-and-application-two-terms-for-people-every-module-with-an-app-becomes-an-application-and-its-development-version-stays-in-the-environment)).
+This page says what "ready" means for each generation and how it is checked.
+The rules themselves are the [Module Standard](module-standard.md); this page
+does not add a second standard, it names which of its rules decide readiness.
+
+## Three parts of the check
+
+1. **Static, from the checkout:** `lazurio module readiness <absolute module
+   directory> [--app <package>] [--json]`. It reads the manifests, the app's
+   package, its source for markers, CI workflows and tags, without running
+   anything and without the network, so an agent runs it anywhere. It changes
+   nothing (decision 0173): an agent fixes the findings in the Module.
+2. **Contract tests in the Module's CI**, over the testing helpers of
+   `@lazurio/module-kit` (`/tools/testing` and `/testing`): who came and with
+   which role, the tool list by role, refusal without a role (`403
+   identity_unavailable`), refusal of a write without the writer, a stale
+   write ending in `record_changed`, and deep health. The static check asks
+   that the Module has them; CI proves they pass.
+3. **The rollout's readback** on the application host: the deployed
+   Application's health, and from outside its gateway's `401` with a `scope`
+   on `/mcp`, its protected-resource metadata and the host's scope at the
+   issuer. These need the live host and belong to the rollout, not to the
+   Module.
+
+## Verdicts
+
+| Verdict | Means |
+| --- | --- |
+| `no-application` | A Module without an app (V0): there is no Application. |
+| `not-ready` | A blocker: the Application cannot run from this Module. |
+| `ready-for-trial` | It can run as an Application, but live use still needs something: CI, contract tests, a release tag. |
+| `ready-for-live` | Nothing found: people may do their real work in it. |
+
+**Host conditions** are listed apart: what the application host must support
+for this Module (a static build, sibling data, a sibling API). They are not
+defects of the Module and do not lower its verdict; a rollout checks them
+against the host it deploys to and refuses where the host lacks them.
+
+## What "ready" means per generation
+
+Every generation with an app needs: a valid manifest and app declaration as
+the start path reads them; a built version (`start_script` or
+`build_output`); Bun pinned exactly with a committed `bun.lock`; no committed
+`.env` files; and, for live use, CI on the Module.
+
+- **V0, no app.** Nothing to deploy; the verdict is `no-application`.
+- **V1, content is part of the app** (a reference app such as a design
+  system). Usually a static build: the host condition `static-app` until the
+  application host serves static Applications. An own server additionally
+  needs `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and
+  a health path of its own (not `/`).
+- **V2, content beside the app** (a knowledge base, a website). As V1. The
+  content is changed only by a pull request to the Module; the Application
+  never writes it.
+- **V3, repository-db.** An own server with module-kit, `appAccess` and deep
+  health (503 until the data are open), and the writer rule below. Contract
+  tests for live use. A declared sibling's data (`workspace/<slug>/db`) is the
+  host condition `data-sibling`; a sibling's API is `api-sibling`. The
+  Application reads from a sibling only the contract the sibling documents with
+  a version, never its internal files, and says so plainly when the replica is
+  missing.
+- **V4, a database in Server Services.** As V3, over the same data port
+  (`store`). The development version uses a local database with preview data
+  and never a grant to the Application's database. A migration deployed
+  automatically only expands the schema; one that drops or narrows goes only
+  through an approved release with a restore from backup as the way back.
+
+## The writer rule
+
+On the application host the Application always gets
+`LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes, with `false` it refuses
+every mutation. A missing variable means the development version in an
+Environment: until the Module's writer moves to the application host it writes
+there only for the entries `local` and `environment`, never for `app`. Once the
+runtime states the deployment explicitly (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041)
+the App reads it from there. After the writer moved, the development version
+uses preview data. The static check looks for the variable (or module-kit's
+`dataWriter`) in a V3 or V4 app's source; the contract tests prove the four
+cases.
+
+## Limits of the static check
+
+It reads markers, not behaviour: a source that names `appAccess` or the writer
+variable is not proof that every route uses them, which the contract tests and
+review hold. It does not read secrets, the vault, deployed hosts or GitHub.
