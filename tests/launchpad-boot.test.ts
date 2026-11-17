@@ -27,6 +27,7 @@ import {
 } from "../src/launchpad/setup-state";
 import { shellDocument } from "../src/launchpad/shell-document";
 import { LaunchpadStartRefused } from "../src/launchpad/start-check";
+import { appsTheme } from "../src/launchpad/theme-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { parseShell, type ShellSetup } from "../src/shell/contract";
 import { environmentThemeCss } from "../src/shell/theme";
@@ -363,7 +364,9 @@ posixTest(
           html,
         );
       expect(themeStyle?.[1]).toBe(
-        environmentThemeCss(shellThemeOf({ theme: "lazurio", revision: 0 })),
+        environmentThemeCss(
+          appsTheme(shellThemeOf({ theme: "lazurio", revision: 0 })),
+        ),
       );
       expect(themeStyle?.index ?? -1).toBeGreaterThan(
         html.lastIndexOf('<link rel="stylesheet"'),
