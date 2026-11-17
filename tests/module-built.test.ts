@@ -168,6 +168,8 @@ async function staticModule(
     /** One runner for every owner of this host's apps, as the service
      * manager outlives a Launchpad; otherwise one per lifecycle. */
     runner?: ApplicationRunner;
+    /** The Launchpad's journal lines (LazurioPlatform#1035). */
+    journal?: (line: Readonly<Record<string, unknown>>) => void;
     /** More of plain's runtime declaration (its required slots). */
     plain?: Record<string, unknown>;
     /** site runs its own server (`start_script`), its build its client. */
@@ -259,6 +261,8 @@ async function staticModule(
     folder,
     owner: "launchpad",
     host,
+    stopRecords: join(home, "app-stops"),
+    journal: options.journal ?? (() => undefined),
     ...(options.readCatalog === undefined
       ? {}
       : { readCatalog: options.readCatalog }),
@@ -1777,7 +1781,10 @@ posixTest(
   async () => {
     const home = join(root, "home-sleep");
     await mkdir(home);
-    const fixture = await staticModule("sleep", home);
+    const journal: Readonly<Record<string, unknown>>[] = [];
+    const fixture = await staticModule("sleep", home, {
+      journal: (line) => journal.push(line),
+    });
     const { operations } = fixture;
     // The ports with an open connection at the next sweep.
     const open = new Set<number>();
@@ -1803,15 +1810,46 @@ posixTest(
       open.delete(fixture.port2);
       await sweepAt(15);
       expect(await state("alpha/site")).toBe("running");
-      // Twenty minutes without a connection: asleep, which is stopped like
-      // any app, with no record of its own.
+      // Twenty minutes without a connection: asleep, stopped like any app,
+      // and it says so: who stopped it and why, in the Launchpad's journal
+      // and in its status (LazurioPlatform#1035).
       await sweepAt(20);
       expect(answer(await operations.status("alpha/site"))).toMatchObject({
         state: "stopped",
         outcome: "not-managed",
         healthy: false,
         build: { mode: null, current: { commit: fixture.head() } },
+        lastStop: {
+          reason: "asleep",
+          by: "launchpad-sweep",
+          at: new Date(20 * 60_000).toISOString(),
+          unusedSince: new Date(0).toISOString(),
+          idleMinutes: 20,
+        },
       });
+      expect(journal).toContainEqual(
+        expect.objectContaining({
+          scope: "module-stop",
+          organization: "alpha",
+          module: "site",
+          reason: "asleep",
+          by: "launchpad-sweep",
+          recorded: true,
+        }),
+      );
+      // Another process reading the same account (a restarted Launchpad,
+      // or the CLI on the service manager) sees it too: a record, not memory.
+      const reader = createModuleOperations({
+        folder: fixture.folder,
+        owner: "launchpad",
+        host: fixture.host,
+        stopRecords: join(home, "app-stops"),
+        journal: () => undefined,
+      });
+      expect(answer(await reader.status("alpha/site")).lastStop?.reason).toBe(
+        "asleep",
+      );
+      await reader.close();
       expect((await fixture.page()).status).toBe(0);
       expect(await state("alpha/plain")).toBe("running");
       expect(await state("alpha/next")).toBe("running");
@@ -1843,11 +1881,16 @@ posixTest(
         mode: "built",
         served: { commit: second },
       });
+      // Running again: the reason of its last stop is retired.
+      expect(woken.lastStop).toBeUndefined();
       expect(await fixture.page()).toEqual({ status: 200, text: "<p>two</p>" });
       // An explicit Stop: stopped as it was, never started by a sweep.
       answer(await operations.start("alpha/plain"));
       expect(answer(await operations.stop("alpha/plain")).outcome).toBe(
         "group-stopped",
+      );
+      expect(answer(await operations.status("alpha/plain")).lastStop).toEqual(
+        expect.objectContaining({ reason: "stop-requested", by: "launchpad" }),
       );
       // The woken app's clock starts again; the development run, its
       // connection gone at 50, sleeps twenty minutes later.
@@ -1883,6 +1926,8 @@ posixTest(
       folder: fixture.folder,
       owner: "launchpad",
       host: fixture.host,
+      stopRecords: join(home, "app-stops"),
+      journal: () => undefined,
     });
     let evidence: boolean | null = null;
     let listed: RunningApp[] = [];

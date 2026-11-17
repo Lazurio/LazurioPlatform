@@ -18,6 +18,7 @@ import {
   processModuleHost,
   standardBun,
 } from "./module-operations";
+import type { StopRecord } from "./stop-record";
 
 /** `lazurio module start|prepare|stop|status|logs`: the terminal surface of the
  * module lifecycle (launchpad-parity B3). The Launchpad's
@@ -326,11 +327,19 @@ function describe(name: string, result: ModuleResult): string {
       : result.runtimeReason !== undefined
         ? [`  link    none (${result.runtimeReason})`]
         : []),
+    ...(result.lastStop === undefined ? [] : [stopLine(result.lastStop)]),
     ...(result.secretsNotProvided?.length
       ? [`  without optional secrets ${secretList(result.secretsNotProvided)}`]
       : []),
     ...(result.build === undefined ? [] : buildLines(result.build)),
   ].join("\n");
+}
+
+// Who stopped a stopped app last and why (LazurioPlatform#1035).
+function stopLine(stop: StopRecord): string {
+  if (stop.reason === "asleep")
+    return `  stopped asleep at ${stop.at}: no connection since ${stop.unusedSince ?? "?"} (${stop.idleMinutes ?? "?"} min idle); Open wakes it`;
+  return `  stopped at ${stop.at} by a Stop from ${stop.by === "cli" ? "the CLI" : "the Launchpad"}`;
 }
 
 // A built app's builds (decision F58), by short commits.

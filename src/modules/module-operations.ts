@@ -102,6 +102,14 @@ import {
 import { createSessionRunner } from "./session-runner";
 import { declaredSiblings, RequiredSlotRefused } from "./sibling-origins";
 import {
+  clearStopRecord,
+  readStopRecord,
+  type StopRecord,
+  type StopRecordKey,
+  stopRecordDirectory,
+  writeStopRecord,
+} from "./stop-record";
+import {
   applicationCoordinationLockFile,
   applicationUnitName,
   createSystemdUserRunner,
@@ -414,6 +422,9 @@ export type ModuleAnswer = Readonly<{
    * left it as it is, for this reason (`syncBlockedReasons`). Absent
    * otherwise. */
   sync?: Readonly<{ result: "blocked"; reason: string }>;
+  /** A stopped app: who stopped it last and why (LazurioPlatform#1035),
+   * from its stop record; absent when none is kept. */
+  lastStop?: StopRecord;
 }>;
 
 /** One built app's answer when `lazurio update` builds what changed (root
@@ -626,8 +637,48 @@ export function createModuleOperations(input: {
    * decision through this Environment's gh. Without one, no Personalspace
    * module runs (`personalspace-unverified`). */
   personalspace?: PersonalspaceHolderRead;
+  /** Where each app's last stop reason is kept (`stopRecordDirectory`);
+   * null keeps none. A test seam; by default the account's state. */
+  stopRecords?: string | null;
+  /** One structured line per automatic or explicit stop, with its reason
+   * (LazurioPlatform#1035). By default the Launchpad's journal (its
+   * stdout); the CLI keeps only the record, so its `--json` stays clean. */
+  journal?: (line: Readonly<Record<string, unknown>>) => void;
 }) {
   const { folder, owner, host } = input;
+  const stopRecords =
+    input.stopRecords === undefined
+      ? stopRecordDirectory(host.home)
+      : input.stopRecords;
+  const journal =
+    input.journal ??
+    (owner === "launchpad"
+      ? (line: Readonly<Record<string, unknown>>) =>
+          console.log(JSON.stringify(line))
+      : () => undefined);
+  const stopKey = (target: Target): StopRecordKey => ({
+    folder,
+    organization: target.organization,
+    module: target.module,
+    app: target.app,
+  });
+  // Every stop says who and why, in the journal and in the app's record.
+  async function recordStop(
+    target: Target,
+    record: StopRecord,
+    unit: string | null,
+  ) {
+    const kept = await writeStopRecord(stopRecords, stopKey(target), record);
+    journal({
+      scope: "module-stop",
+      organization: target.organization,
+      module: target.module,
+      app: target.app,
+      ...(unit === null ? {} : { unit }),
+      ...record,
+      recorded: kept,
+    });
+  }
   const holder = input.personalspace ?? unverifiedPersonalspace;
   // The catalog with its Personalspace group decided where the group can be
   // selected (its name, or for `ensure` an id the Personalspace alone may
@@ -1044,6 +1095,22 @@ export function createModuleOperations(input: {
     // module's checkout that the checkout rule refused (decision F23) are
     // named by their reason and file; any other throw is `operation-failed`.
     const failed = (error: unknown) => moduleFailure(operation, target, error);
+    // A start that leaves the app running retires its last stop reason.
+    if (operation === "start") {
+      const run = action;
+      action = async (lifecycle) => {
+        const result = await run(lifecycle);
+        const answer = result as Partial<ModuleAnswer> | null;
+        if (
+          answer?.kind === "module" &&
+          answer.state !== undefined &&
+          answer.state !== "stopped" &&
+          answer.state !== "ended"
+        )
+          await clearStopRecord(stopRecords, stopKey(target));
+        return result;
+      };
+    }
     if (owner === "launchpad") {
       try {
         let lifecycle = held.get(target.organizationDirectory);
@@ -1608,8 +1675,31 @@ export function createModuleOperations(input: {
         // read the app leaves it as that made it.
         if (inUse.get(key) !== seen) return;
         inUse.delete(key);
-        if (status.kind === "status" && status.state === "running")
-          await lifecycle.stop(selection);
+        if (status.kind !== "status" || status.state !== "running") return;
+        const unit = status.service?.unit ?? null;
+        const stopped = await lifecycle.stop(selection);
+        if (stopped.kind === "group-stopped")
+          await recordStop(
+            target,
+            {
+              reason: "asleep",
+              by: "launchpad-sweep",
+              at: new Date(at).toISOString(),
+              unusedSince: new Date(seen).toISOString(),
+              idleMinutes: Math.round(sleepTimes.idleMs / 60_000),
+            },
+            unit,
+          );
+        else
+          journal({
+            scope: "module-stop",
+            organization: target.organization,
+            module: target.module,
+            app: target.app,
+            reason: "asleep",
+            by: "launchpad-sweep",
+            result: stopped.kind,
+          });
       });
     }
   }
@@ -1783,7 +1873,8 @@ export function createModuleOperations(input: {
       ...(build === undefined ? {} : { build }),
       ...(sync === null ? {} : { sync }),
     };
-    if (status.kind === "not-managed")
+    if (status.kind === "not-managed") {
+      const lastStop = await readStopRecord(stopRecords, stopKey(target));
       return Object.freeze({
         ...base,
         outcome: pending ?? status.kind,
@@ -1791,7 +1882,9 @@ export function createModuleOperations(input: {
         healthy: false,
         service: null,
         runtime: null,
+        ...(lastStop === null ? {} : { lastStop }),
       });
+    }
     if (status.kind !== "status") return blocked(refusedAs, status.kind, where);
     const service =
       "service" in status && status.service
@@ -2176,6 +2269,7 @@ export function createModuleOperations(input: {
     if ("kind" in prepared) return prepared;
     const { target, runner: kind, selection } = prepared;
     return operate("stop", kind, target, async (lifecycle) => {
+      const before = await lifecycle.status(selection);
       const stopped = await lifecycle.stop(selection);
       if (stopped.kind !== "group-stopped" && stopped.kind !== "not-managed")
         return blocked("stop", stopped.kind, {
@@ -2184,6 +2278,17 @@ export function createModuleOperations(input: {
           app: target.app,
         });
       inUse.delete(useKey(target));
+      // Only a Stop that ended a run replaces the reason kept for it.
+      if (stopped.kind === "group-stopped" && before.kind === "status")
+        await recordStop(
+          target,
+          {
+            reason: "stop-requested",
+            by: owner,
+            at: new Date().toISOString(),
+          },
+          "service" in before && before.service ? before.service.unit : null,
+        );
       return Object.freeze({
         kind: "module" as const,
         operation: "stop" as const,
