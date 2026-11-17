@@ -66,6 +66,9 @@ export function withheldInPublic(
     (route.view === "integrations" &&
       tryPreset.withheld.includes("integrations")) ||
     (route.view === "vault" && !has.vault) ||
+    // Brain: a public Environment has no person's memory (plan LZD-0033
+    // R11b).
+    route.view === "memory" ||
     (route.view === "settings" && withheldSections.includes(route.section))
   );
 }

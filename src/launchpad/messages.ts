@@ -1725,6 +1725,46 @@ const en = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Open the vault",
   vaultLoadFailed: "The vault's state could not be read.",
+  // Apps → Brain (plan LZD-0033 R11b; "Brain" is a working name, the code
+  // says memory): the map of what the agents remember about the person.
+  memoryTitle: "Brain",
+  memoryFind: "Find a memory",
+  memoryFindNone: "Nothing found",
+  memoryRefresh: "Reload",
+  memoryZoomIn: "Zoom in",
+  memoryZoomOut: "Zoom out",
+  memoryZoomFit: "Whole map",
+  memoryLoading: "Reading the map…",
+  memoryEmpty:
+    "The memory is empty so far. What the agents learn about you is saved here and shows on the map.",
+  memoryAbsent: "This Environment has no memory yet.",
+  memoryNoAccess:
+    "The map cannot read this Environment's memory yet. An update of the Environment gives it access; try again later.",
+  memoryUnreachable:
+    "The memory is not answering right now. Try again in a moment.",
+  memoryFailed: "The map could not be read. Try again.",
+  memoryRetry: "Try again",
+  memoryNodesOne: "{count} memory",
+  memoryNodesFew: "{count} memories",
+  memoryNodesOther: "{count} memories",
+  memoryLinksOne: "{count} link",
+  memoryLinksFew: "{count} links",
+  memoryLinksOther: "{count} links",
+  memoryTruncated: "the map shows the first {count}",
+  memoryCanvasLabel:
+    "Map of memories. The mouse wheel or + and − zoom, the arrows move, 0 shows the whole map.",
+  memoryNoteClose: "Close",
+  memoryNoteLoading: "Reading…",
+  memoryNoteMissing: "This memory is no longer there.",
+  memoryNoteFailed: "This memory could not be read. Try again.",
+  memoryFacts: "What it remembers",
+  memoryLinks: "Links to",
+  memoryBacklinks: "Linked from",
+  guideMemoryMap:
+    "Each dot is one memory the agents saved about you and your work; a line joins memories that refer to each other.",
+  guideMemoryFind: "Find a memory by its name, or click a dot to open it.",
+  guideMemoryNote:
+    "An open memory shows what it says and what it is linked to. You only read it here; to change something, ask an agent in Chat.",
   // Apps → Vault (root decision 0198 point 5, the wireframe's Apps →
   // Trezor): the vault and the way into it; its "?" says the rule (decision
   // F56's addendum of 2026-10-18).
@@ -4034,6 +4074,44 @@ const cs: Record<MessageKey, string> = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Otevřít trezor",
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
+  memoryTitle: "Brain",
+  memoryFind: "Najít vzpomínku",
+  memoryFindNone: "Nic nenalezeno",
+  memoryRefresh: "Načíst znovu",
+  memoryZoomIn: "Přiblížit",
+  memoryZoomOut: "Oddálit",
+  memoryZoomFit: "Celá mapa",
+  memoryLoading: "Načítám mapu…",
+  memoryEmpty:
+    "Paměť je zatím prázdná. Co se o vás agenti dozvědí, uloží sem a objeví se to na mapě.",
+  memoryAbsent: "V tomto Prostředí paměť zatím není.",
+  memoryNoAccess:
+    "Mapa k paměti tohoto Prostředí zatím nemá přístup. Přidá ho aktualizace Prostředí; zkuste to později.",
+  memoryUnreachable: "Paměť teď neodpovídá. Zkuste to za chvíli znovu.",
+  memoryFailed: "Mapu se nepodařilo načíst. Zkuste to znovu.",
+  memoryRetry: "Zkusit znovu",
+  memoryNodesOne: "{count} vzpomínka",
+  memoryNodesFew: "{count} vzpomínky",
+  memoryNodesOther: "{count} vzpomínek",
+  memoryLinksOne: "{count} spojnice",
+  memoryLinksFew: "{count} spojnice",
+  memoryLinksOther: "{count} spojnic",
+  memoryTruncated: "mapa ukazuje prvních {count}",
+  memoryCanvasLabel:
+    "Mapa vzpomínek. Kolečko myši nebo + a − přibližuje, šipky posouvají, 0 ukáže celou mapu.",
+  memoryNoteClose: "Zavřít",
+  memoryNoteLoading: "Načítám…",
+  memoryNoteMissing: "Tahle vzpomínka už v paměti není.",
+  memoryNoteFailed: "Vzpomínku se nepodařilo načíst. Zkuste to znovu.",
+  memoryFacts: "Co si pamatuje",
+  memoryLinks: "Odkazuje na",
+  memoryBacklinks: "Odkazy sem",
+  guideMemoryMap:
+    "Každá tečka je jedna vzpomínka, kterou si agenti uložili o vás a vaší práci. Čára spojuje vzpomínky, které na sebe odkazují.",
+  guideMemoryFind:
+    "Vzpomínku najdete podle názvu, nebo ji otevřete kliknutím na tečku.",
+  guideMemoryNote:
+    "Otevřená vzpomínka ukáže, co v ní je a s čím souvisí. Tady ji jen čtete; když chcete něco změnit, řekněte to agentovi v Chatu.",
   vaultPageTitle: "Správce hesel",
   vaultPageWorkstation: "Správce hesel na tomto počítači není.",
   vaultPageNoVault:

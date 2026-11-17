@@ -383,6 +383,18 @@ export const devicesGuide = (copy: Copy, team: boolean): PageGuideInput => ({
   ],
 });
 
+/** Apps → Brain (plan LZD-0033 R11b): what a dot and a line are, how to
+ * find and open a memory, and that the page only reads it. */
+export const memoryGuide = (copy: Copy): PageGuideInput => ({
+  id: "apps-memory",
+  title: copy.memoryTitle,
+  steps: [
+    { text: copy.guideMemoryMap, at: "memory-graph" },
+    { text: copy.guideMemoryFind, at: "memory-find" },
+    { text: copy.guideMemoryNote, at: "memory-graph" },
+  ],
+});
+
 /** Settings → Obnova: Lazurio checks itself, what fails shows, an agent
  * repairs it. */
 export const recoveryGuide = (copy: Copy): PageGuideInput => ({
@@ -419,6 +431,7 @@ export function pageHelpOf(route: PageRoute): PageHelpId | null {
     case "settings":
     case "files":
     case "vault":
+    case "memory":
       return "page-help";
     default:
       return null;
@@ -560,6 +573,8 @@ export function pageGuide(
       }
       return plays("integrations", [custom]);
     }
+    case "memory":
+      return plays("apps-memory", [memoryGuide(copy)]);
     case "vault": {
       // One agent's request is a page of its own, without a "?".
       if (route.request !== undefined) return none;

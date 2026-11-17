@@ -376,6 +376,7 @@ export function catalogSelection(
     route.view === "files" ||
     route.view === "integrations" ||
     route.view === "vault" ||
+    route.view === "memory" ||
     route.view === "marketplace"
   )
     return { kind: "overview" };

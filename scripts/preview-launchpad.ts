@@ -182,6 +182,7 @@ import { microsoft365Description } from "../src/integrations/microsoft365-execut
 import type { NewTabHost } from "../src/launchpad/new-tab-routes";
 import { startLaunchpad } from "../src/launchpad/server";
 import { parseMachineContext } from "../src/machine/context";
+import { processMemoryHost } from "../src/memory/gbrain-reader";
 import { unixSocketTransport } from "../src/organization-settings/relay";
 import { serverServicesOf } from "../src/organizations/catalog";
 import { toolsEnvironmentOf } from "../src/tools/overview";
@@ -238,6 +239,16 @@ const composioOff = process.argv.slice(3).includes("composio-off");
 const publicEnvironment =
   process.argv[2] === "hosted" && process.argv.slice(3).includes("public");
 const microsoft365 = process.argv.slice(3).includes("microsoft365");
+// Apps → Brain (plan LZD-0033 R11b): with `memory=<home>` anywhere after the
+// mode, a personal preview reads the GBrain whose handover is in
+// `<home>/.gbrain/serve/lazurio-launchpad.json` (a disposable GBrain with
+// synthetic pages, never a person's memory); without it, the page says this
+// Environment has no memory yet.
+const memoryHome =
+  process.argv
+    .slice(3)
+    .find((argument) => argument.startsWith("memory="))
+    ?.slice("memory=".length) ?? null;
 // With `workspace-tabs` anywhere after the mode, the example Organization has
 // a dozen modules arranged into three tabs of its own (decision F32's
 // addendum of 2026-10-16), the setting `workspace.tabs` of its root.
@@ -1439,6 +1450,12 @@ const app = await startLaunchpad(
   // Služby serveru's Nová karta: its holder file and the fake hub above;
   // otherwise this process's (the parameter's default).
   services?.newTabHost,
+  undefined,
+  undefined,
+  undefined,
+  undefined,
+  // Apps → Brain: the given disposable GBrain, or none.
+  processMemoryHost(memoryHome ?? join(home, "no-memory")),
 );
 // The person's Lazurio account as the gateway relays it, with `shared-apps`
 // (decision 0231): `example`, assigned this work Environment, a member of
