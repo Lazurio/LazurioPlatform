@@ -10892,7 +10892,8 @@ check (root decision 0178) shows it before the waves.
 
 Verified by unit tests: `tests/shell-tokens.test.ts` (the vendored file's shape, the faces
 are the families `--lz-font-sans`, `--lz-font-heading` and `--lz-font-mono` name first, the
-elements' `:host`), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
+elements' `:host`), `tests/shell-interface.test.ts` (interface v1 grows by the family and
+loses nothing), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
 shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded hash).
 
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
