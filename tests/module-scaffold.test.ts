@@ -1126,13 +1126,14 @@ describe("planModuleScaffold with data (--data)", () => {
     );
     for (const path of added)
       expect(file(result, path)).toBe(
-        moduleTemplates.layers._data?.find(
-          (entry) =>
-            `app/v3/${entry.path
-              .slice("app/v1/".length)
-              .replace("dot-", ".")
-              .replace(/\.tmpl$/, "")}` === path,
-        )
+        moduleTemplates.layers._data
+          ?.find(
+            (entry) =>
+              `app/v3/${entry.path
+                .slice("app/v1/".length)
+                .replace("dot-", ".")
+                .replace(/\.tmpl$/, "")}` === path,
+          )
           ?.content.replaceAll("{{slug}}", "portal")
           .replaceAll("{{app_generation}}", "v3")
           .replaceAll("{{listener_id}}", "app") ?? "",
