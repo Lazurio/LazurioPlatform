@@ -15209,8 +15209,12 @@ addendum (c) change as follows; the rest is unchanged.
    operations that send at once (`sendMail`, and a message's `reply`, `replyAll`
    and `forward`, under `/me` and `/users/{user-id}`), whether or not sending is
    on, and carries a draft's `send` (`…/messages/{message-id}/send`) only where it
-   is on. So through Executor an agent sends only a draft that lies in the person's
-   Drafts, the one it showed them with its `webLink`. The document's id moves to
+   is on. So through Executor an agent can send only an existing draft in the
+   person's mailbox (in any folder: the kept paths include
+   `…/mailFolders/{mailFolder-id}/messages/{message-id}/send` and its
+   child-folder variant). The guard filters operation paths: it checks neither
+   which draft it is, nor its content, nor whether it changed after the
+   approval, which the rule of point 5 covers. The document's id moves to
    version 2 (`lazurio.m365.spec.v2`, with whether it sends), so every Environment
    rebuilds its document once, in place, connections kept. With the four pinned
    specs it is 2,799 paths without sending and 2,805 with it.
@@ -15220,8 +15224,9 @@ addendum (c) change as follows; the rest is unchanged.
    that approval under the same rule. Neither is a technical barrier: the
    connection's tokens lie on the Environment, readable by its agents (point 8 and
    the IT page), so an agent that broke the rule could call Graph directly with a
-   token that carries `Mail.Send`. The trimmed document makes the approved path the
-   only ordinary one; the tenant's barrier is its consent to `Mail.Send`.
+   token that carries `Mail.Send`. The trimmed document leaves "send an existing
+   draft" as the only ordinary way to send; that the approved text is what goes
+   out rests on the rule. The tenant's barrier is its consent to `Mail.Send`.
 5. **The Folder (`base-instructions-136`).** Mail is a draft read back and shown by
    its `webLink`; sent only after the person's consent to send, and then exactly
    the draft they approved (`POST /me/messages/{id}/send`). A draft that changed

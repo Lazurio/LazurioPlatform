@@ -805,10 +805,11 @@ Lazurio's side by itself.
   tenant's admin consents to. The document never carries the operations that
   send at once (`sendMail`, a message's `reply`, `replyAll`, `forward`), and a
   draft's `…/messages/{message-id}/send` only where `send_mail` is on, so an
-  agent sends only a draft that lies in the person's mailbox, after their
-  "publikuj". That is the Publication rule; the trimmed document keeps the
-  ordinary path to the draft they saw, and is not a barrier against an agent
-  that reads the connection's token. Microsoft's delegated scopes are
+  agent can send only a draft that lies in the person's mailbox. When it sends,
+  and that the text is the one the person approved (a changed draft needs a new
+  consent), is the Publication rule. The trimmed document checks only the
+  operation, not the draft's text, and is not a barrier against an agent that
+  reads the connection's token. Microsoft's delegated scopes are
   additive: once the tenant consented to `Mail.Send`, tokens carry it whether
   or not Lazurio asks, so the document, not the requested scopes, decides
   what Executor can send.
