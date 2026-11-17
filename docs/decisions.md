@@ -15176,8 +15176,13 @@ addendum (c) change as follows; the rest is unchanged.
    Outlook on, Outlook's mail part asks for `Mail.Send` beside `Mail.ReadWrite`; the
    spec is the same pinned file. Never `Mail.Send.Shared` (shared mailboxes, on
    behalf of others) or `MailboxSettings.ReadWrite`. A tenant that connected before
-   needs its admin's consent to `Mail.Send` before the next sign-in; accounts
-   already connected keep their old token's scopes until they sign in again.
+   needs its admin's consent to `Mail.Send` before the next sign-in. Microsoft's
+   delegated scopes are additive: once the tenant consented, an access token
+   carries every consented scope of Graph, requested or not (except one a
+   Conditional Access policy guards and the request did not name), so tokens of
+   accounts already connected carry `Mail.Send` from their next refresh, and so
+   do tokens where `send_mail` is off. What sends is therefore decided by the
+   document (point 3) and the rule (point 4), never by the requested scopes.
 3. **Only a draft that exists is sent.** The merged document never carries the
    operations that send at once (`sendMail`, and a message's `reply`, `replyAll`
    and `forward`, under `/me` and `/users/{user-id}`), whether or not sending is

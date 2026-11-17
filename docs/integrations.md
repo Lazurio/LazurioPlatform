@@ -808,7 +808,10 @@ Lazurio's side by itself.
   agent sends only a draft that lies in the person's mailbox, after their
   "publikuj". That is the Publication rule; the trimmed document keeps the
   ordinary path to the draft they saw, and is not a barrier against an agent
-  that reads the connection's token.
+  that reads the connection's token. Microsoft's delegated scopes are
+  additive: once the tenant consented to `Mail.Send`, tokens carry it whether
+  or not Lazurio asks, so the document, not the requested scopes, decides
+  what Executor can send.
 - **One sign-in, every app.** Executor 1.6.10 takes a sign-in's scopes from the
   integration's auth template and keeps one token pair per connection, which every
   operation of the integration uses: one Microsoft sign-in connects mail, calendar,
