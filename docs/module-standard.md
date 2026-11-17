@@ -727,10 +727,27 @@ unknown identity or a missing role grants nothing.
 
 **The Application is the sole writer of its data.** On the application host the
 App always gets `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes, with `false`
-it refuses every mutation. A missing variable means the development version in an
-Environment; until the Module's writer moves to the application host it writes
-there only for the entries `local` and `environment`, never for `app`, by the one
-rule `dataWriter` of [Effects and publication](#effects-and-publication). With
+it refuses every mutation, by the one rule `dataWriter` of
+[Effects and publication](#effects-and-publication).
+
+**Open: when an App may write without the variable** (decided by the Owner; until
+then Modules keep what they do today and nothing builds on either variant). In an
+Environment the Platform passes no `LAZURIO_RUNTIME_DATA_WRITER`, people still
+write there until the Module's writer moves, and the runtime does not yet state
+where the App runs (#1041, #1034). Two variants:
+
+- **A, transitional (recommended):** a missing variable means the development
+  version in an Environment. It writes only for the entries `local` and
+  `environment` and for its own background sync, never for `app` (a person who
+  has only the application). Once the runtime states the deployment
+  (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041), the App reads it from there instead.
+- **B, fail-closed:** a missing variable means no write. Before a development
+  version writes again, the Platform has to pass `LAZURIO_RUNTIME_DATA_WRITER=true`
+  on the Environment that is the writer (#1034); until then work in Environments
+  stops writing.
+
+A keeps people working until the writer moves, and B is stricter but stops
+writing in every Environment until #1034 ships. With
 repository-db the application host is then the sole sync host for the declared
 data repository, and development versions use preview data. Moving the writer
 names the old and new writer and its approved steps; until then the Application
@@ -981,8 +998,10 @@ A write is offered only while the App may write, and the tools, the HTTP API
 and the data port decide it by one rule (`dataWriter` of
 `@lazurio/module-kit/tools`): `LAZURIO_RUNTIME_DATA_WRITER=true` writes and any
 other value does not (an Application host always sets it, `true` or `false`);
-without the variable, in a development version in an Environment, only a local or
-Environment entry writes, to the Environment's own data.
+what it does without the variable is open (variant A: only a local or
+Environment entry and the background sync write, to the Environment's own data;
+variant B: nothing writes); see
+[Applications of an Organization](#applications-of-an-organization).
 
 ### What every App answers
 
