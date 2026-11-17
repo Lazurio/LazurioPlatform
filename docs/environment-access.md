@@ -339,9 +339,10 @@ Application User (the module kit's `appRole` `admin` and `user`).
   server is not one.
 - **Roles hold across Environments.** An application role holds for the Module on
   every Environment of the Organization. Application Admins without any setting are
-  the Module Contributors, the Module Maintainers, the Organization Admin and whoever
-  has the whole Environment where the application runs; the Module Reader role by
-  itself gives no application role. Module Contributors, Module Maintainers and the
+  the Organization Admin and whoever has the whole Environment where the application
+  runs. No Module role gives an application role (decision 0231 as amended on
+  2026-11-17): a Module Reader, Module Contributor or Module Maintainer who should use
+  the application gets an application role like anyone else. Module Contributors, Module Maintainers and the
   Organization Admin give the role of Application Admin or Application User to people,
   a Team or the whole Organization; the higher role holds, and the Organization Admin
   may remove any.
