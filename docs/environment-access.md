@@ -108,9 +108,11 @@ approves, while in Lazurio's personal tailnet the person approves their own devi
 (decision 0246, below). Every action
 is audited, and the service records each approval into the repository
 automatically as an audit entry without review, a record and not an input. In
-GEN4 a device approval is recorded in Lazurio Auth instead and is no audit
-record in the repository; moving the record there is a separate migration with
-no period of two writers. The rules (who may approve, and where an approved
+GEN4 the service records each approval itself as its audit entry, the one
+record of the approval, and Lazurio Auth keeps a copy of it for overviews and
+applications (decision 0245, amendment of 2026-11-17); the audit entry in the
+repository does not carry over, and moving the record is a separate migration
+with no period of two writers. The rules (who may approve, and where an approved
 device reaches) are boundaries of trust of the Organization they concern and
 change in its own Deployment Repo; until that is deployed, they change by a
 reviewed pull request to the host owner's deployment repository. Until the
@@ -339,9 +341,10 @@ Application User (the module kit's `appRole` `admin` and `user`).
   server is not one.
 - **Roles hold across Environments.** An application role holds for the Module on
   every Environment of the Organization. Application Admins without any setting are
-  the Module Contributors, the Module Maintainers, the Organization Admin and whoever
-  has the whole Environment where the application runs; the Module Reader role by
-  itself gives no application role. Module Contributors, Module Maintainers and the
+  the Organization Admin and whoever has the whole Environment where the application
+  runs. No Module role gives an application role (decision 0231 as amended on
+  2026-11-17): a Module Reader, Module Contributor or Module Maintainer who should use
+  the application gets an application role like anyone else. Module Contributors, Module Maintainers and the
   Organization Admin give the role of Application Admin or Application User to people,
   a Team or the whole Organization; the higher role holds, and the Organization Admin
   may remove any.
@@ -453,9 +456,12 @@ by default.
   Owner, by naming an Organization Admin, in GEN4 by appointing the Admin in the
   Organization's Deployment Repo, each appointment confirmed afresh in Lazurio
   (decision 0245). A device's owner switches on access to that device. No separate SSH grant is created.
-- **How it is applied.** In GEN4 (decision 0247) Lazurio Auth decides each entry
-  from these facts at the moment of entry and issues a short-lived credential for
-  it; a normal entry goes straight to the Environment and is recorded at issuance,
+- **How it is applied.** In GEN4 (decision 0247) entry passes two gates. Lazurio
+  Auth issues a short-lived credential for each entry from these facts at the
+  moment of entry, and the Organization's servers then admit it only when the
+  person and the device are within the boundaries Machines applied to them
+  (decision 0245, amended 2026-11-17): Auth's credential is necessary and never
+  sufficient. A normal entry goes straight to the Environment and is recorded at issuance,
   a service entry goes through the recording entry point; the holder's break-glass
   entry is the one entry Auth does not issue. Until that is deployed,
   and in GEN3: the service on the Conglomerate Host that approves devices

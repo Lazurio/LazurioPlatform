@@ -70,6 +70,10 @@ export type PageRoute =
    * 2026-10-18): `/vault`, and `/vault/requests/<id>` the page of one
    * agent's secret request (`request`, decision F54). */
   | Readonly<{ view: "vault"; request?: string }>
+  /** Brain (working name; plan LZD-0033 R11b), the map of the person's
+   * memory, a page of the Apps column under Trezor on a Personal
+   * Environment: `/memory`. */
+  | Readonly<{ view: "memory" }>
   /** A folder of the Documents folder (decision F35): `/files` is the
    * folder itself, `/files/<name>/<name>` one below it. */
   | Readonly<{ view: "files"; path: readonly string[] }>
@@ -106,6 +110,7 @@ export type PageFrame =
   | "files"
   | "integrations"
   | "vault"
+  | "memory"
   | "marketplace"
   | "settings";
 export const routeFrame = (route: PageRoute): PageFrame =>
@@ -117,9 +122,11 @@ export const routeFrame = (route: PageRoute): PageFrame =>
         ? "integrations"
         : route.view === "vault"
           ? "vault"
-          : route.view === "marketplace"
-            ? "marketplace"
-            : "catalog";
+          : route.view === "memory"
+            ? "memory"
+            : route.view === "marketplace"
+              ? "marketplace"
+              : "catalog";
 
 /** Trezor's old addresses in Settings (F54 as amended on 2026-10-18): what
  * `lazurio vault request` printed into agents' threads before, which keep
@@ -147,6 +154,7 @@ export const pagePaths: readonly string[] = [
   "/integrations/*",
   "/vault",
   "/vault/requests/:id",
+  "/memory",
   "/marketplace",
   "/marketplace/:offer",
   "/settings",
@@ -160,6 +168,9 @@ export function settingsPath(section: SettingsSection): string {
 
 /** Trezor's page in the Apps column. */
 export const vaultPath = "/vault";
+
+/** Brain's page in the Apps column (plan LZD-0033 R11b). */
+export const memoryPath = "/memory";
 
 export function organizationPath(organization: string): string {
   return `/o/${encodeURIComponent(organization)}`;
@@ -259,6 +270,7 @@ export function pageRoute(pathname: string): PageRoute {
   }
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
   if (path === "/marketplace") return { view: "marketplace" };
+  if (path === memoryPath) return { view: "memory" };
   if (path.startsWith("/marketplace/")) {
     const parts = path.slice("/marketplace/".length).split("/");
     const offer = parts.length === 1 ? segment(parts[0]) : null;
@@ -370,6 +382,7 @@ export function routePath(route: PageRoute): string {
     return route.offer === undefined
       ? "/marketplace"
       : `/marketplace/${encodeURIComponent(route.offer)}`;
+  if (route.view === "memory") return memoryPath;
   if (route.view === "vault")
     return route.request === undefined
       ? vaultPath
@@ -463,6 +476,11 @@ export function routeTitle(
           : `${folder} · ${copy.filesTitle} — ${copy.title}`,
     };
   }
+  if (route.view === "memory")
+    return {
+      heading: copy.memoryTitle,
+      document: `${copy.memoryTitle} — ${copy.title}`,
+    };
   if (route.view === "vault")
     return {
       heading: copy.vaultPageTitle,

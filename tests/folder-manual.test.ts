@@ -721,6 +721,8 @@ test("previews run beside the stable application: in the Environment browser whe
     "Per the handover, the user connects here over SSH.",
     "works with you in the clients they prefer, possibly several at once: ChatGPT Desktop (formerly Codex Desktop) over SSH, T3 Code on the web or in its desktop app, and Lazurio MausBot.",
     "the user may be working in another one meanwhile.",
+    // Plan LZD-0025 B9: the client is told per message, never inferred.
+    "T3 Code tells you with a `<message_origin>` line at its start. Without it (ChatGPT Desktop, an older T3 Code, a message from an unknown client), never infer the client from this manual or from the user connecting here over SSH, never write it into a record, and ask when something depends on it.",
     "OpenAI does not document this and older versions cannot do it, so check that the page really loaded.",
     "When you run in T3 Code or Lazurio MausBot, no port reaches the user.",
     "- **Starting a preview.** Run work in progress from the worktree beside the stable application",

@@ -10,8 +10,10 @@ import { environmentTheme, environmentThemeCss } from "../shell/theme";
 import { type VaultHost, vaultAnswer } from "../vault/flow";
 import { bootElementId, bootJson, type LaunchpadBoot } from "./boot";
 import { publicEntry } from "./chat";
+import { memoryListed } from "./memory-view";
 import { type MessageKey, messages } from "./messages";
 import { withOfflineGuide } from "./offline-guide";
+import { isPublicEnvironment } from "./public-environment";
 import { shellDocument } from "./shell-document";
 import { appsTheme } from "./theme-view";
 import { vaultListed } from "./vault-page-view";
@@ -125,43 +127,60 @@ export function withBoot(page: Response, boot: LaunchpadBoot): Response {
   );
   const theme =
     boot.shell?.theme === undefined ? null : appsTheme(boot.shell.theme);
-  return new HTMLRewriter()
-    .on("html", {
-      element(element) {
-        element.setAttribute("lang", boot.locale);
-        if (theme !== null)
-          element.setAttribute(environmentTheme.attribute, theme.id);
-      },
-    })
-    .on("[data-message]", {
-      element(element) {
-        const key = element.getAttribute("data-message");
-        if (key !== null && Object.hasOwn(copy, key))
-          element.setInnerContent(copy[key as MessageKey]);
-      },
-    })
-    .on("#catalog-status", {
-      element(element) {
-        element.setInnerContent(copy.catalogLoading);
-      },
-    })
-    .on("#vault-nav", {
-      element(element) {
-        if (boot.vaultInApps === true) element.removeAttribute("hidden");
-      },
-    })
-    .on("head", {
-      element(element) {
-        if (theme !== null)
+  return (
+    new HTMLRewriter()
+      .on("html", {
+        element(element) {
+          element.setAttribute("lang", boot.locale);
+          if (theme !== null)
+            element.setAttribute(environmentTheme.attribute, theme.id);
+        },
+      })
+      .on("[data-message]", {
+        element(element) {
+          const key = element.getAttribute("data-message");
+          if (key !== null && Object.hasOwn(copy, key))
+            element.setInnerContent(copy[key as MessageKey]);
+        },
+      })
+      .on("#catalog-status", {
+        element(element) {
+          element.setInnerContent(copy.catalogLoading);
+        },
+      })
+      .on("#vault-nav", {
+        element(element) {
+          if (boot.vaultInApps === true) element.removeAttribute("hidden");
+        },
+      })
+      // Brain (plan LZD-0033 R11b): only on a Personal Environment that is
+      // not public, as the page's script decides it (`memoryListed`).
+      .on("#memory-nav", {
+        element(element) {
+          if (
+            memoryListed(
+              boot.shell === null
+                ? null
+                : (currentEnvironment(boot.shell)?.kind ?? null),
+              isPublicEnvironment(boot.entry),
+            )
+          )
+            element.removeAttribute("hidden");
+        },
+      })
+      .on("head", {
+        element(element) {
+          if (theme !== null)
+            element.append(
+              `<style ${environmentTheme.attribute}>\n${environmentThemeCss(theme)}</style>`,
+              { html: true },
+            );
           element.append(
-            `<style ${environmentTheme.attribute}>\n${environmentThemeCss(theme)}</style>`,
+            `<script type="application/json" id="${bootElementId}">${bootJson(boot)}</script>`,
             { html: true },
           );
-        element.append(
-          `<script type="application/json" id="${bootElementId}">${bootJson(boot)}</script>`,
-          { html: true },
-        );
-      },
-    })
-    .transform(page);
+        },
+      })
+      .transform(page)
+  );
 }

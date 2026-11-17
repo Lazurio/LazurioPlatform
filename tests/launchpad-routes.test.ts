@@ -48,6 +48,13 @@ test("a path names the view and the settings section; the canonical path is one"
   // The Marketplace at the foot of the Apps column (F36 addendum).
   expect(pageRoute("/marketplace/")).toEqual({ view: "marketplace" });
   expect(routePath({ view: "marketplace" })).toBe("/marketplace");
+  // Brain, the map of the person's memory (plan LZD-0033 R11b): one page,
+  // nothing below it.
+  expect(pageRoute("/memory")).toEqual({ view: "memory" });
+  expect(pageRoute("/memory/")).toEqual({ view: "memory" });
+  expect(pageRoute("/memory/x")).toEqual({ view: "home" });
+  expect(pageRoute("/memoryx")).toEqual({ view: "home" });
+  expect(routePath({ view: "memory" })).toBe("/memory");
   expect(pagePaths).toEqual([
     "/",
     "/o/:organization",
@@ -64,6 +71,8 @@ test("a path names the view and the settings section; the canonical path is one"
     // Trezor, a page of the Apps column (F53's addendum of 2026-10-18).
     "/vault",
     "/vault/requests/:id",
+    // Brain under Trezor (plan LZD-0033 R11b).
+    "/memory",
     "/marketplace",
     "/marketplace/:offer",
     "/settings",

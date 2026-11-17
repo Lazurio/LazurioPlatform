@@ -17,6 +17,7 @@
   else if (trimmed === "/integrations" || trimmed.indexOf("/integrations/") === 0) frame = "integrations";
   else if (trimmed === "/marketplace" || trimmed.indexOf("/marketplace/") === 0) frame = "marketplace";
   else if (trimmed === "/vault" || trimmed.indexOf("/vault/") === 0 || trimmed === "/settings/vault" || trimmed === "/settings/vault/requests" || trimmed.indexOf("/settings/vault/requests/") === 0) frame = "vault";
+  else if (trimmed === "/memory") frame = "memory";
   else if (trimmed === "/settings" || trimmed.indexOf("/settings/") === 0) {
     frame = "settings";
     section = trimmed.slice("/settings/".length);
@@ -146,6 +147,7 @@ html[data-frame="catalog"] [data-view]:not([data-view~="catalog"]),
 html[data-frame="files"] [data-view]:not([data-view~="files"]),
 html[data-frame="integrations"] [data-view]:not([data-view~="integrations"]),
 html[data-frame="vault"] [data-view]:not([data-view~="vault"]),
+html[data-frame="memory"] [data-view]:not([data-view~="memory"]),
 html[data-frame="marketplace"] [data-view]:not([data-view~="marketplace"]),
 html[data-frame="settings"] [data-view]:not([data-view~="settings"]),
 html:not([data-frame]) [data-view]:not([data-view~="catalog"]),
@@ -160,6 +162,7 @@ html:not([data-section="recovery"]) #view-settings > [data-section="recovery"],
 html:not([data-section="buddy"]) #view-settings > [data-section="buddy"],
 html:not([data-frame="files"]) [data-section-action="files"],
 html:not([data-frame="vault"]) [data-section-action="vault"],
+html:not([data-frame="memory"]) [data-section-action="memory"],
 html:not([data-section="start"]) [data-section-action="start"],
 html:not([data-section="general"]) [data-section-action="general"],
 html:not([data-section="tools"]) [data-section-action="tools"],
@@ -1192,6 +1195,120 @@ button.browser-menu-item:disabled { opacity: 1; color: var(--lz-ink-faint); }
 .browser-toast-slot { position: absolute; z-index: 6; right: 16px; bottom: 18px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
 .browser-toast-region { position: fixed; z-index: 61; right: 16px; bottom: 28px; left: 16px; display: grid; justify-items: center; pointer-events: none; }
 .browser-toast { display: grid; gap: 6px; max-width: 100%; padding: 8px 8px 8px 16px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--lz-surface); box-shadow: var(--lz-shadow-float); color: var(--fg); font-size: 13.5px; pointer-events: auto; }
+/* Brain, the map of the person's memory (plan LZD-0033 R11b; memory-panel.ts):
+   the prototype's graph view (prototypes-lazurio buddy-memory.css) as a page
+   of the Apps column: the map fills the page under its header, "Najít
+   vzpomínku" at its top left, the zoom at its bottom right, the open memory
+   in a panel beside it (under it on a narrow screen). */
+.memory-view { --memory-paper: var(--lz-white); display: flex; flex-direction: column; flex: none; min-height: 0; height: calc(100dvh - 53px); background: var(--memory-paper); }
+.memory-state { display: grid; justify-items: start; gap: 12px; max-width: 34rem; margin: 0 auto; padding: 48px 24px; color: var(--muted-fg); font-size: 15px; text-wrap: pretty; }
+.memory-state[hidden] { display: none; }
+.memory-state p { margin: 0; }
+.memory-body { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 1fr); }
+.memory-body.has-note { grid-template-columns: minmax(0, 1fr) minmax(320px, 420px); }
+.memory-graph { position: relative; min-width: 0; min-height: 0; }
+.memory-canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.memory-canvas:active { cursor: grabbing; }
+.memory-canvas:focus-visible, .memory-icon:focus-visible, .memory-link:focus-visible { outline: 2px solid var(--lz-accent); outline-offset: 1px; }
+.memory-tools { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; pointer-events: none; }
+.memory-tools > * { pointer-events: auto; }
+.memory-find { position: relative; display: flex; align-items: center; gap: 6px; height: 32px; width: min(240px, 100%); padding: 0 10px; border: 1px solid var(--lz-line); border-radius: 6px; background: var(--memory-paper); color: var(--muted-fg); }
+.memory-find .icon { flex: none; width: 15px; height: 15px; }
+.memory-find input { flex: 1; width: auto; min-width: 0; height: 100%; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; background: transparent; color: var(--fg); font: inherit; font-size: 13px; }
+.memory-find input:focus-visible { outline: 0; box-shadow: none; }
+.memory-find input::-webkit-search-cancel-button { display: none; }
+.memory-find:focus-within { border-color: var(--lz-accent); }
+.memory-find-list { position: absolute; top: calc(100% + 4px); left: -1px; right: -1px; z-index: 2; margin: 0; padding: 4px; list-style: none; border: 1px solid var(--lz-line); border-radius: 6px; background: var(--memory-paper); box-shadow: var(--lz-shadow-float); }
+.memory-find-list li { display: grid; gap: 1px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+.memory-find-list li[aria-selected="true"] { background: var(--lz-gray-50); }
+@media (hover: hover) and (pointer: fine) { .memory-find-list li[role="option"]:hover { background: var(--lz-gray-50); } }
+.memory-find-title { overflow: hidden; color: var(--fg); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.memory-find-path, .memory-note-path { overflow: hidden; color: var(--lz-ink-faint); font-family: var(--font-mono); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.memory-find-none { color: var(--muted-fg); font-size: 13px; cursor: default !important; }
+.memory-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 2px; padding: 2px; border: 1px solid var(--lz-line); border-radius: 6px; background: var(--memory-paper); }
+button.memory-icon { display: inline-grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 6px; background: transparent; color: var(--lz-ink-muted); touch-action: manipulation; }
+.memory-icon .icon { width: 16px; height: 16px; }
+@media (hover: hover) and (pointer: fine) { .memory-icon:hover { background: var(--lz-gray-50); color: var(--lz-ink); } }
+.memory-icon:active { transform: scale(0.97); transition: transform 0.12s ease-out; }
+.memory-count[hidden] { display: none; }
+.memory-count { position: absolute; left: 8px; bottom: 8px; margin: 0; padding: 2px 4px; border-radius: 4px; background: color-mix(in srgb, var(--memory-paper) 85%, transparent); color: var(--lz-ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.memory-note { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-left: 1px solid var(--lz-gray-100); background: var(--memory-paper); }
+.memory-note[hidden] { display: none; }
+.memory-note-head { display: flex; align-items: flex-start; gap: 4px; padding: 10px 10px 10px 20px; border-bottom: 1px solid var(--lz-gray-100); }
+.memory-note-title { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 0; padding-top: 2px; }
+.memory-note-title h2 { margin: 0; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; text-wrap: balance; outline: 0; }
+.memory-note-body { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 16px 20px 24px; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.memory-note-body > * + * { margin-top: 16px; }
+.memory-note-hint { margin: 0; color: var(--muted-fg); }
+.memory-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--lz-gray-25); font-size: 12px; }
+.memory-props-row { display: contents; }
+.memory-props dt { color: var(--lz-ink-muted); }
+.memory-props dd { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; min-width: 0; }
+.memory-tag { padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--lz-blue-50); color: var(--lz-blue-700); font-size: 12px; }
+.memory-note-facts, .memory-note-links { display: grid; gap: 4px; }
+.memory-note-facts h3, .memory-note-links h3 { margin: 0; color: var(--muted-fg); font-size: 12px; font-weight: var(--lz-weight-akce); }
+.memory-note-facts ul, .memory-note-links ul { margin: 0; padding: 0; list-style: none; }
+.memory-note-facts li { display: grid; gap: 1px; padding: 6px 10px; border-radius: 6px; background: var(--lz-gray-25); }
+.memory-note-facts li + li { margin-top: 4px; }
+.memory-fact-since { color: var(--lz-ink-faint); font-size: 12px; }
+.memory-note-links li { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 2px 0; }
+.memory-note-links .memory-note-path { min-width: 0; }
+.memory-note-text > :first-child { margin-top: 0; }
+.memory-note-text p, .memory-note-text ul, .memory-note-text ol, .memory-note-text blockquote, .memory-note-text pre { margin: 0 0 10px; }
+.memory-note-text h3, .memory-note-text h4, .memory-note-text h5, .memory-note-text h6 { margin: 16px 0 6px; font-size: 14px; }
+.memory-note-text h3.memory-h1 { margin: 0 0 8px; font-size: 22px; font-weight: var(--lz-weight-title); line-height: 1.25; }
+.memory-note-text ul, .memory-note-text ol { padding-left: 20px; }
+.memory-note-text blockquote { padding-left: 10px; border-left: 2px solid var(--lz-line); color: var(--muted-fg); }
+.memory-note-text pre { overflow: auto; padding: 8px 10px; border-radius: 6px; background: var(--lz-gray-25); font-size: 12px; }
+.memory-note-text code { font-family: var(--font-mono); font-size: 0.92em; }
+button.memory-link { display: inline; height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--link); font: inherit; white-space: normal; text-align: left; text-decoration: underline; text-underline-offset: 0.2em; vertical-align: baseline; cursor: pointer; touch-action: manipulation; }
+.memory-link-missing { color: var(--muted-fg); }
+/* The graph's settings (R11c), the wireframe's Obsidian controls: the gear
+   at the graph's top right, the panel under it, the local graph's bar
+   beside "Najít vzpomínku". */
+button.memory-gear { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 1px solid var(--lz-line); background: var(--memory-paper); }
+button.memory-icon.is-on { background: var(--lz-gray-50); color: var(--lz-ink); }
+.memory-tools { right: 56px; flex-wrap: wrap; gap: 8px; }
+.memory-local { display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; padding: 0 2px 0 10px; border: 1px solid var(--lz-line); border-radius: 6px; background: var(--memory-paper); font-size: 13px; }
+.memory-local[hidden] { display: none; }
+.memory-local-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.memory-local-depth { display: inline-flex; gap: 2px; }
+.memory-local-depth button { width: 24px; height: 22px; padding: 0; border: 1px solid var(--lz-gray-100); border-radius: 3px; background: var(--memory-paper); color: var(--lz-ink-muted); font: inherit; font-size: 12px; touch-action: manipulation; }
+.memory-local-depth button[aria-pressed="true"] { border-color: var(--lz-ink); background: var(--lz-ink); color: var(--lz-white); }
+.memory-set { position: absolute; top: 50px; right: 12px; z-index: 2; width: 270px; max-width: calc(100% - 24px); max-height: calc(100% - 64px); overflow: auto; overscroll-behavior: contain; padding: 4px 0 8px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--memory-paper); box-shadow: var(--lz-shadow-float); font-size: 13px; }
+.memory-set[hidden] { display: none; }
+.memory-set-head { display: flex; justify-content: flex-end; gap: 2px; padding: 0 6px; }
+.memory-set-section + .memory-set-section { border-top: 1px solid var(--lz-gray-100); }
+button.memory-set-title { display: flex; width: 100%; height: auto; justify-content: flex-start; gap: 6px; padding: 8px 12px; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: var(--lz-weight-akce); text-align: left; }
+button.memory-set-title .icon { width: 14px; height: 14px; transition: transform 0.15s ease-out; }
+button.memory-set-title[aria-expanded="false"] .icon { transform: rotate(-90deg); }
+.memory-set-content { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 10px 32px; }
+.memory-set-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.memory-set-slider { display: flex; flex-direction: column; gap: 2px; }
+.memory-set-slider input { width: 100%; height: auto; padding: 0; border: 0; accent-color: var(--lz-ink); }
+.memory-set-search, .memory-set-group-row input { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border: 1px solid var(--lz-line); border-radius: 3px; background: var(--memory-paper); color: var(--lz-ink-muted); }
+.memory-set-search .icon { flex: none; width: 14px; height: 14px; }
+.memory-set-search input { flex: 1; width: auto; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: var(--fg); font: inherit; }
+.memory-set-search:focus-within { border-color: var(--lz-accent); }
+.memory-set-search input:focus-visible { outline: 0; box-shadow: none; }
+.memory-set-group-row { display: flex; align-items: center; gap: 6px; }
+.memory-set-group-row input { flex: 1; width: auto; min-width: 0; color: var(--fg); font: inherit; }
+button.memory-set-swatch { flex: none; width: 20px; height: 20px; padding: 0; border: 2px solid var(--memory-paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--lz-line); }
+button.memory-set-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--lz-ink); }
+.memory-set-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0 2px; }
+button.memory-set-add { align-self: flex-start; }
+.memory-nothing { position: absolute; inset: 50% 0 auto; margin: 0; padding: 0 24px; color: var(--muted-fg); font-size: 14px; text-align: center; transform: translateY(-50%); pointer-events: none; }
+.memory-nothing[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { button.memory-set-title .icon { transition: none; } }
+@media (max-width: 767px) {
+  .memory-body.has-note { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.2fr); }
+  .memory-note { border-left: 0; border-top: 1px solid var(--lz-gray-100); padding-bottom: env(safe-area-inset-bottom); }
+  .memory-find { width: 100%; }
+  .memory-set-search input, .memory-set-group-row input { font-size: 16px; }
+  .memory-find input { font-size: 16px; }
+  .memory-count { bottom: 52px; }
+}
+
 /* One line per action: a message with Zkusit znovu above the line of the
    tab taken away with Vrátit; a line without a button keeps its right edge. */
 .browser-toast-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
@@ -1734,6 +1851,8 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <symbol id="i-star" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 9C9 5.49997 14.5 5.5 14.5 9C14.5 11.5 12 10.9999 12 13.9999" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 18.01L12.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 11.5V16.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7.51L12.01 7.49889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 12H18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M4 9V5.6C4 4.71634 4.71634 4 5.6 4H9M15 4H18.4C19.2837 4 20 4.71634 20 5.6V9M20 15V18.4C20 19.2837 19.2837 20 18.4 20H15M9 20H5.6C4.71634 20 4 19.2837 4 18.4V15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 12H12M18 12H12M12 12V6M12 12V18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20 9L18.005 20.3463C17.8369 21.3026 17.0062 22 16.0353 22H7.96474C6.99379 22 6.1631 21.3026 5.99496 20.3463L4 9" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 6L15.375 6M3 6L8.625 6M8.625 6V4C8.625 2.89543 9.52043 2 10.625 2H13.375C14.4796 2 15.375 2.89543 15.375 4V6M8.625 6L15.375 6" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-user" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 20V19C5 15.134 8.13401 12 12 12V12C15.866 12 19 15.134 19 19V20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12C14.2091 12 16 10.2091 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8C8 10.2091 9.79086 12 12 12Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1750,6 +1869,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <symbol id="i-star-filled" viewBox="0 0 24 24" fill="currentColor" stroke-width="1.6"><path d="M8.58737 8.23597L11.1849 3.00376C11.5183 2.33208 12.4817 2.33208 12.8151 3.00376L15.4126 8.23597L21.2215 9.08017C21.9668 9.18848 22.2638 10.0994 21.7243 10.6219L17.5217 14.6918L18.5135 20.4414C18.6409 21.1798 17.8614 21.7428 17.1945 21.3941L12 18.678L6.80547 21.3941C6.1386 21.7428 5.35909 21.1798 5.48645 20.4414L6.47825 14.6918L2.27575 10.6219C1.73617 10.0994 2.03322 9.18848 2.77852 9.08017L8.58737 8.23597Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-integrations" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M4 14V18.4C4 18.7314 4.26863 19 4.6 19H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 14V18.4C19 18.7314 18.7314 19 18.4 19H14" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5H18.4C18.7314 5 19 5.26863 19 5.6V10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 10V5.6C4 5.26863 4.26863 5 4.6 5H10" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 19V20C14 21.1046 13.1046 22 12 22C10.8954 22 10 21.1046 10 20V19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 10H5C6.10457 10 7 10.8954 7 12C7 13.1046 6.10457 14 5 14H4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 10H20C21.1046 10 22 10.8954 22 12C22 13.1046 21.1046 14 20 14H19" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 5V4C14 2.89543 13.1046 2 12 2C10.8954 2 10 2.89543 10 4V5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M17 17L21 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11C3 15.4183 6.58172 19 11 19C13.213 19 15.2161 18.1015 16.6644 16.6493C18.1077 15.2022 19 13.2053 19 11C19 6.58172 15.4183 3 11 3C6.58172 3 3 6.58172 3 11Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-memory" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8.6 9.6L10.4 13.4M15.4 9.6L13.6 13.4M9 7.5H15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 9.5C6.38071 9.5 7.5 8.38071 7.5 7C7.5 5.61929 6.38071 4.5 5 4.5C3.61929 4.5 2.5 5.61929 2.5 7C2.5 8.38071 3.61929 9.5 5 9.5ZM19 9.5C20.3807 9.5 21.5 8.38071 21.5 7C21.5 5.61929 20.3807 4.5 19 4.5C17.6193 4.5 16.5 5.61929 16.5 7C16.5 8.38071 17.6193 9.5 19 9.5ZM12 19.5C13.3807 19.5 14.5 18.3807 14.5 17C14.5 15.6193 13.3807 14.5 12 14.5C10.6193 14.5 9.5 15.6193 9.5 17C9.5 18.3807 10.6193 19.5 12 19.5Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M16 12H17.4C17.7314 12 18 12.2686 18 12.6V19.4C18 19.7314 17.7314 20 17.4 20H6.6C6.26863 20 6 19.7314 6 19.4V12.6C6 12.2686 6.26863 12 6.6 12H8M16 12V8C16 6.66667 15.2 4 12 4C8.8 4 8 6.66667 8 8V12M16 12H8" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M13 17H20" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 7L10 12L5 17" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 12.5L8 14.5L7 18L8 21" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M17 20.5L16.5 18L14 17V13.5L17 12.5L21.5 13" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 5.5L18.5 7L15 7.5V10.5L17.5 9.5H19.5L21.5 10.5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 10.5L5 8.5L7.5 8L9.5 5L8.5 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
@@ -1791,7 +1911,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      addendum of 2026-10-18; not on this computer, ui.ts) and the
      favourites; no module list and no search. The Marketplace stands at the
      foot. -->
-<div class="column-apps" data-view="catalog files integrations vault marketplace">
+<div class="column-apps" data-view="catalog files integrations vault memory marketplace">
 <nav class="column-scroll" id="catalog-nav" aria-labelledby="catalog-nav-label">
 <span class="sr-only" id="catalog-nav-label" data-message="appsTitle">Apps</span>
 <ul class="menu column-top">
@@ -1802,6 +1922,10 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      never runs shows no Trezor; shown only where the boot document or the page's
      script decided this Environment lists it (plan DEV-6668 slice 6). -->
 <li id="vault-nav" hidden><a class="menu-item" href="/vault" id="vault-open" data-route data-guide="nav-vault"><svg class="icon" aria-hidden="true"><use href="#i-lock"/></svg><span class="menu-name" data-message="vaultPageTitle">Vault</span></a></li>
+<!-- Brain (working name; plan LZD-0033 R11b), the map of the person's memory:
+     only on a Personal Environment that is not public; hidden as written and
+     shown by the page's script once it knows the Environment's kind. -->
+<li id="memory-nav" hidden><a class="menu-item" href="/memory" id="memory-open" data-route data-guide="nav-memory"><svg class="icon" aria-hidden="true"><use href="#i-memory"/></svg><span class="menu-name" data-message="memoryTitle">Brain</span></a></li>
 </ul>
 <div class="column-favorites" id="catalog-favorites"></div>
 </nav>
@@ -1834,7 +1958,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <p id="update-error" hidden></p>
 <p id="update-state-invalid" hidden></p>
 </section>
-<ul class="menu" data-view="catalog files integrations vault marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span></a></li></ul>
+<ul class="menu" data-view="catalog files integrations vault memory marketplace"><li><a class="menu-item" href="/marketplace" id="marketplace-open" data-route><svg class="icon" aria-hidden="true"><use href="#i-shop"/></svg><span class="menu-name" data-message="appsMarketplace">Marketplace</span></a></li></ul>
 <ul class="menu" data-view="settings"><li><a class="menu-item" href="/" id="settings-back" data-route><svg class="icon" aria-hidden="true"><use href="#i-back"/></svg><span class="menu-name" data-message="settingsBack">Back</span></a></li></ul>
 </div>
 <!-- The column's right edge drags it wider or narrower (layout.ts). -->
@@ -1856,7 +1980,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <!-- Settings, Files and Trezor: a 52 px header with the breadcrumb and the
      page actions (T3 Code); Files and Trezor have their title alone in it.
      The Apps home has none: no top bar. -->
-<header class="topbar" data-view="settings files vault">
+<header class="topbar" data-view="settings files vault memory">
 <nav class="crumbs" id="crumbs" aria-labelledby="crumbs-label">
 <span class="sr-only" id="crumbs-label" data-message="settingsBreadcrumb">Where you are in Settings</span>
 <ol><li id="crumb-parent" data-view="settings"><a href="/settings/general" id="crumb-settings" data-message="settingsTitle" data-route>Settings</a></li><li id="crumb-organization" hidden><a href="/" id="crumb-org" data-route></a></li><li aria-current="page"><h1 id="page-heading" tabindex="-1">Launchpad</h1><button type="button" class="page-help" id="page-help" hidden><svg class="icon" aria-hidden="true"><use href="#i-help"/></svg></button></li></ol>
@@ -1866,6 +1990,7 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <button type="button" class="ghost" id="start-refresh" data-section-action="start"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="startRefresh">Check again</span></button>
 <button type="button" class="ghost" id="reload" data-section-action="general"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="reload">Reload profile</span></button>
 <button type="button" class="ghost" id="tools-refresh" data-section-action="tools"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
+<button type="button" class="ghost" id="memory-refresh" data-section-action="memory"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="memoryRefresh">Reload</span></button>
 <button type="button" class="ghost" id="vault-page-refresh" data-section-action="vault"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="toolsRefresh">Refresh status</span></button>
 <button type="button" class="ghost" id="connections-refresh" data-section-action="connections"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
 <button type="button" class="ghost" id="ssh-refresh" data-section-action="ssh"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="sshRefresh">Refresh</span></button>
@@ -1942,6 +2067,29 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      rule, the Environment's own vault with its state, and the way into
      Lazurio Vaultwarden on its own address; drawn by vault-page-panel.ts.
      The Launchpad never lists items or shows a value. -->
+<!-- Brain, Apps → Brain (working name; plan LZD-0033 R11b): the map of the
+     person's memory as the wireframe draws it (prototypes-lazurio
+     BuddyMemory, Obsidian's graph view), `/memory`, read only; drawn by
+     memory-panel.ts. No sentence explains it: its "?" does. -->
+<main id="view-memory" class="memory-view" data-view="memory">
+<div class="memory-state" id="memory-state" role="status" aria-live="polite"><p id="memory-state-line"></p><button type="button" id="memory-state-retry" hidden><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg><span data-message="memoryRetry">Try again</span></button></div>
+<div class="memory-body" id="memory-body">
+<div class="memory-graph" id="memory-graph" data-guide="memory-graph" hidden>
+<canvas class="memory-canvas" id="memory-canvas" tabindex="0" role="img"></canvas>
+<div class="memory-tools">
+<div class="memory-find" data-guide="memory-find"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="memory-find" autocomplete="off" spellcheck="false" enterkeyhint="go" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="memory-find-list"><ul class="memory-find-list" id="memory-find-list" role="listbox" hidden></ul></div>
+<div class="memory-local" id="memory-local" hidden></div>
+</div>
+<button type="button" class="ghost memory-icon memory-gear" id="memory-gear" aria-controls="memory-settings" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
+<aside class="memory-set" id="memory-settings" hidden></aside>
+<p class="memory-nothing" id="memory-nothing" role="status" data-message="memoryNothingShown" hidden>No memory matches the filter.</p>
+<div class="memory-zoom"><button type="button" class="ghost memory-icon" id="memory-zoom-in"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="ghost memory-icon" id="memory-zoom-out"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button><button type="button" class="ghost memory-icon" id="memory-zoom-fit"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button></div>
+<p class="memory-count" id="memory-count"></p>
+</div>
+<aside class="memory-note" id="memory-note" data-guide="memory-note" hidden></aside>
+</div>
+</main>
+
 <main id="view-vault" class="container" data-view="vault">
 <section id="section-vault" aria-labelledby="page-heading">
 <!-- How a vault works in an Organization (DEV-6631, design-system-lazurio#93):

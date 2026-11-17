@@ -42,6 +42,14 @@ export type AttachHost = Readonly<{
   /** This Environment's id, the challenge's `environment`. */
   environmentId: () => string;
   version: string;
+  /** Contract v3 (Agent Desktop, variant B of HumanAndMachine-ai/Machines#936):
+   * the Environment's gateway proved the computer and its person before the
+   * upgrade and passed a proof of the session with it. This checks that
+   * proof server to server, never by a forwarded header (decision F16), and
+   * answers whose session it is, or why not. When it is set, a session is
+   * admitted only by it: no challenge, no registry. When it is not, the
+   * session follows contract v1 as before. */
+  verifyGatewayProof?: (request: Request) => Promise<GatewayProof>;
   now?: () => number;
   journal?: (entry: Readonly<Record<string, string>>) => void;
   /** Test seams. */
@@ -51,6 +59,8 @@ export type AttachHost = Readonly<{
   checkMs?: number;
   attemptsPerMinute?: number;
   attemptsInAllPerMinute?: number;
+  /** Whether a broker already answers at a device's socket. */
+  socketAnswers?: (path: string, timeoutMs: number) => Promise<boolean>;
 }>;
 
 export type AttachData = {
@@ -61,6 +71,11 @@ export type AttachData = {
   nonce: string;
   ts: number;
   state: "challenge" | "checking" | "ready" | "closed";
+  /** The contract the session follows: 1 (the computer's signature) or 3
+   * (the gateway's proof). */
+  contract: 1 | 3;
+  /** Contract v3: the identity the gateway's proof named. */
+  identity: AttachIdentity | null;
   device: string | null;
   listeners: ((message: string) => void)[];
   closeReason: string | null;
@@ -70,6 +85,21 @@ export type AttachData = {
 };
 
 type AttachSocket = ServerWebSocket<AttachData>;
+
+/** Who a session belongs to once proved: the computer's id, its name as the
+ * person sees it, and whether it may still be served (asked while the
+ * session lasts; `false` ends it). */
+export type AttachIdentity = Readonly<{
+  device: string;
+  name: string;
+  stillAllowed: () => Promise<boolean>;
+}>;
+
+/** The answer to a gateway's proof of a computer's session (contract v3):
+ * its identity, or the reason it is refused before the upgrade. */
+export type GatewayProof =
+  | Readonly<{ ok: true; identity: AttachIdentity }>
+  | Readonly<{ ok: false; status: 401 | 403; reason: string }>;
 
 /** What the server can do with a request: the part of Bun's server this
  * needs. */
@@ -167,7 +197,12 @@ export function createComputerAttach(host: AttachHost) {
       reason,
       ...(ws.data.device === null ? {} : { device: ws.data.device }),
     });
-    send(ws, { type: "denied", reason });
+    send(
+      ws,
+      ws.data.contract === 3
+        ? { type: "denied", v: 3, reason }
+        : { type: "denied", reason },
+    );
     ws.data.state = "closed";
     try {
       ws.close(1008, reason);
@@ -243,15 +278,53 @@ export function createComputerAttach(host: AttachHost) {
       deny(ws, "bad-signature");
       return;
     }
-    if (
-      active.has(device) ||
-      (await socketAnswers(socketPath(host.home, device), 500))
-    ) {
+    await startSession(ws, {
+      device,
+      name: entry.name,
+      // The session belongs to the key it proved: a computer removed and
+      // paired again under the same id with another key ends it (review
+      // of #943).
+      stillAllowed: async () =>
+        (await registryEntry(host.home, host.uid, device))?.fingerprint ===
+        entry.fingerprint,
+    });
+  }
+
+  /** Starts the session of a computer whose identity is proved: refuses a
+   * second session of the same device, answers `ready` and hands the
+   * connection to the broker. How the identity was proved is the caller's:
+   * the computer's signature against the registry (contract v1) or the
+   * gateway's proof (contract v3). */
+  async function startSession(ws: AttachSocket, identity: AttachIdentity) {
+    const { device } = identity;
+    ws.data.device = device;
+    // The device is reserved before anything is awaited, so two sessions
+    // that open at once never both pass (review of #1036); every way out
+    // before the broker starts releases it.
+    if (active.has(device)) {
       deny(ws, "already-attached");
       return;
     }
-    if (ws.data.state !== "checking") return; // closed meanwhile
     active.add(device);
+    let answers: boolean;
+    try {
+      answers = await (host.socketAnswers ?? socketAnswers)(
+        socketPath(host.home, device),
+        500,
+      );
+    } catch (error) {
+      active.delete(device);
+      throw error;
+    }
+    if (answers) {
+      active.delete(device);
+      deny(ws, "already-attached");
+      return;
+    }
+    if (ws.data.state !== "checking") {
+      active.delete(device); // closed meanwhile
+      return;
+    }
     ws.data.state = "ready";
     journal({ operation: "attach", outcome: "ready", device });
     const closed = new Promise<string>((resolve) => {
@@ -268,6 +341,20 @@ export function createComputerAttach(host: AttachHost) {
       },
       closed,
       close: (reason) => {
+        // Contract v3: a session the gateway helper no longer confirms
+        // ("removed" to the broker) ends with a reason the computer can tell
+        // from the removal of its device: `denied` with `expired`, and the
+        // same reason on the close.
+        if (
+          ws.data.contract === 3 &&
+          reason === "removed" &&
+          ws.data.state === "ready"
+        ) {
+          ws.data.closeReason = "expired";
+          deny(ws, "expired");
+          end(ws, reason);
+          return;
+        }
         if (ws.data.state !== "closed") {
           ws.data.state = "closed";
           if (ws.data.closeReason === null) ws.data.closeReason = reason;
@@ -278,12 +365,15 @@ export function createComputerAttach(host: AttachHost) {
         end(ws, reason);
       },
     };
-    send(ws, { type: "ready" });
+    send(
+      ws,
+      ws.data.contract === 3 ? { type: "ready", v: 3 } : { type: "ready" },
+    );
     void runBroker({
       home: host.home,
       uid: host.uid,
       device,
-      name: entry.name,
+      name: identity.name,
       version: host.version,
       transport,
       stderr: () => undefined,
@@ -294,12 +384,7 @@ export function createComputerAttach(host: AttachHost) {
           ...line,
         }),
       saveTools: (tools) => writeTools(host.home, host.uid, device, tools),
-      // The session belongs to the key it proved: a computer removed and
-      // paired again under the same id with another key ends it (review
-      // of #943).
-      stillAllowed: async () =>
-        (await registryEntry(host.home, host.uid, device))?.fingerprint ===
-        entry.fingerprint,
+      stillAllowed: identity.stillAllowed,
       ...(host.checkMs === undefined ? {} : { checkMs: host.checkMs }),
       updating: {
         mark: () =>
@@ -315,6 +400,28 @@ export function createComputerAttach(host: AttachHost) {
       });
   }
 
+  /** A new attempt's state. */
+  const sessionData = (
+    address: string,
+    queryDevice: string | null,
+  ): AttachData => ({
+    computerAttach: true,
+    address,
+    queryDevice,
+    environment: host.environmentId(),
+    nonce: randomBytes(32).toString("base64url"),
+    ts: now(),
+    state: "challenge",
+    contract: 1,
+    identity: null,
+    device: null,
+    listeners: [],
+    closeReason: null,
+    resolveClosed: null,
+    lastHeard: now(),
+    timers: [],
+  });
+
   return Object.freeze({
     handles: (path: string) => path === attachPath,
 
@@ -325,7 +432,7 @@ export function createComputerAttach(host: AttachHost) {
       request: Request,
       server: UpgradeServer,
       peer: string | null,
-    ): Response | undefined {
+    ): Response | undefined | Promise<Response | undefined> {
       const headers = { "Cache-Control": "no-store" };
       if (request.method !== "GET")
         return new Response(null, {
@@ -343,7 +450,9 @@ export function createComputerAttach(host: AttachHost) {
       if (
         names.some((name) => name !== "device") ||
         names.length > 1 ||
-        (queryDevice !== null && !computerIdPattern.test(queryDevice))
+        (queryDevice !== null && !computerIdPattern.test(queryDevice)) ||
+        // Contract v3 names the computer by the gateway's proof only.
+        (host.verifyGatewayProof !== undefined && names.length > 0)
       )
         return new Response(null, { status: 400, headers });
       const forwarded = request.headers
@@ -360,21 +469,49 @@ export function createComputerAttach(host: AttachHost) {
           headers: { ...headers, "Retry-After": "60" },
         });
       }
-      const data: AttachData = {
-        computerAttach: true,
-        address,
-        queryDevice,
-        environment: host.environmentId(),
-        nonce: randomBytes(32).toString("base64url"),
-        ts: now(),
-        state: "challenge",
-        device: null,
-        listeners: [],
-        closeReason: null,
-        resolveClosed: null,
-        lastHeard: now(),
-        timers: [],
-      };
+      const verifyGatewayProof = host.verifyGatewayProof;
+      if (verifyGatewayProof !== undefined)
+        return (async () => {
+          let proof: GatewayProof;
+          try {
+            proof = await verifyGatewayProof(request);
+          } catch {
+            // The check could not be made: nothing is admitted, and the
+            // computer may try again.
+            journal({
+              operation: "attach",
+              outcome: "denied",
+              reason: "proof-unavailable",
+            });
+            return new Response(null, { status: 503, headers });
+          }
+          if (!proof.ok) {
+            journal({
+              operation: "attach",
+              outcome: "denied",
+              reason: proof.reason,
+            });
+            return new Response(null, { status: proof.status, headers });
+          }
+          if (!computerIdPattern.test(proof.identity.device)) {
+            journal({
+              operation: "attach",
+              outcome: "denied",
+              reason: "invalid-device",
+            });
+            return new Response(null, { status: 403, headers });
+          }
+          const data: AttachData = {
+            ...sessionData(address, null),
+            contract: 3,
+            identity: proof.identity,
+            state: "checking",
+          };
+          return server.upgrade(request, { data })
+            ? undefined
+            : new Response(null, { status: 400, headers });
+        })();
+      const data: AttachData = sessionData(address, queryDevice);
       return server.upgrade(request, { data })
         ? undefined
         : new Response(null, { status: 400, headers });
@@ -382,16 +519,6 @@ export function createComputerAttach(host: AttachHost) {
 
     websocket: {
       open(ws: AttachSocket) {
-        send(ws, {
-          type: "challenge",
-          v: 1,
-          environment: ws.data.environment,
-          nonce: ws.data.nonce,
-          ts: ws.data.ts,
-        });
-        const auth = setTimeout(() => {
-          if (ws.data.state === "challenge") deny(ws, "auth-timeout");
-        }, authMs);
         const ping = setInterval(() => {
           if (now() - ws.data.lastHeard > silentMs) {
             ws.data.closeReason = "computer-silent";
@@ -405,10 +532,29 @@ export function createComputerAttach(host: AttachHost) {
             ws.ping();
           } catch {}
         }, pingMs);
-        ws.data.timers.push(
-          auth as unknown as ReturnType<typeof setInterval>,
-          ping,
-        );
+        ws.data.timers.push(ping);
+        if (ws.data.contract === 3) {
+          const identity = ws.data.identity;
+          if (identity === null) {
+            deny(ws, "internal-error");
+            return;
+          }
+          startSession(ws, identity).catch(() => {
+            if (ws.data.state === "checking") deny(ws, "internal-error");
+          });
+          return;
+        }
+        send(ws, {
+          type: "challenge",
+          v: 1,
+          environment: ws.data.environment,
+          nonce: ws.data.nonce,
+          ts: ws.data.ts,
+        });
+        const auth = setTimeout(() => {
+          if (ws.data.state === "challenge") deny(ws, "auth-timeout");
+        }, authMs);
+        ws.data.timers.push(auth as unknown as ReturnType<typeof setInterval>);
       },
       message(ws: AttachSocket, message: string | Buffer) {
         ws.data.lastHeard = now();
