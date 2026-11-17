@@ -25664,8 +25664,10 @@ The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 - both only add exports.
 
 `lazurio module create` follows: `stackProfilesRelease` `2026.12` and
-`defaultScaffoldVersions.moduleKit` `0.4.0`. An existing Module changes its pin, its
-`bun.lock` and nothing else in its own pull request, and a template adopts the release
+`defaultScaffoldVersions.moduleKit` `0.4.0`. An existing Module changes its pin and its
+lockfile (`bun.lock`, or `uv.lock` for a Python app, whose `python-uv` scaffold
+follows the same pin although it is outside the profiles) and nothing else in its
+own pull request, and a template adopts the release
 in a release of its own. Because `2026.11` exists and point 6 names a release by the
 month of its decision, the addendum adds: a later release decided in a month that
 already has one takes the next month's name, so `<profile>@YYYY.MM` keeps its format.
