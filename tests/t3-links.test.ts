@@ -6,18 +6,20 @@ import { join } from "node:path";
 import type { MachineBinding } from "../src/folder/machine-binding";
 import { MachineUsageError, parseMachineArguments } from "../src/machine/cli";
 import {
-  decodeLabel,
   emptyT3LinksState,
-  encodeLabel,
   issueLinkPairing,
   linkClientPrefix,
+  pairingSettledAfterMs,
   parsePairing,
+  parsePairingIds,
   parseSessions,
   parseT3LinksState,
+  pendingSettledAfterMs,
   readT3LinksState,
   renewBeforeMs,
   retryAfterMs,
   runT3Links,
+  settleLinkPairing,
   syncT3Links,
   type T3LinkSeams,
   type T3LinksState,
@@ -32,12 +34,13 @@ import { binding, bindings } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 
 // The links between T3 Code servers (root decision 0157, amended 2026-11-17;
-// `src/t3-links/`), with the real code on both ends. Each end's T3 Code is a
+// `src/t3-links/`), with the real code on every end. Each end's T3 Code is a
 // fake that answers as T3 Code does: its CLI (`cli/auth.ts`,
 // `cliAuthFormat.ts`) and its RPC (`peerLinks.*`, `server.updateSettings`),
-// which alone writes its `settings.json`. SSH from the source runs the
-// target's `t3` and the target's real `issueLinkPairing`
-// (`lazurio machine t3-link-pair`). Every fixture is synthetic.
+// which alone writes its `settings.json`; it keeps one link per peer, as
+// T3 Code does. SSH from a source runs the target's `t3` and the target's
+// real `issueLinkPairing` and `settleLinkPairing`. Every fixture is
+// synthetic.
 
 const uid = process.getuid?.();
 const directories: string[] = [];
@@ -49,8 +52,10 @@ afterEach(async () => {
 const target = "lazurio-bob.lazurioexampleorganization";
 const origin = `https://t3code.${target}.lazurio.io`;
 const targetPeerId = "1a119ae1-ab2d-4e2b-90b9-354eb88cf486";
-const day = 24 * 60 * 60_000;
+const minute = 60_000;
+const day = 24 * 60 * minute;
 const start = Date.parse("2026-11-18T00:00:00.000Z");
+const iso = (time: number) => new Date(time).toISOString();
 
 const { team: _team, ...withoutTeam } = organization.owner;
 /** The work Environment whose handover names these inbound personal peers. */
@@ -114,15 +119,21 @@ type Link = {
   lastError: string | null;
   status: string;
 };
+type Source = {
+  home: string;
+  /** The label its running Chat answers with, which T3 Code names its
+   * session on the target by. */
+  label: string;
+  links: Link[];
+};
 
-/** Both ends as T3 Code would answer, and everything either end ran. */
+/** A target and its sources as T3 Code would answer, and everything run. */
 async function world(sourceSettings?: unknown, targetSettings?: unknown) {
   const w = {
     now: start,
-    sourceHome: await home(sourceSettings),
+    sources: {} as Record<string, Source>,
     targetHome: await home(targetSettings),
     targetBinding: workWith("lazurio-bob"),
-    links: [] as Link[],
     targetSessions: [
       {
         sessionId: randomUUID(),
@@ -138,87 +149,89 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
       env: unknown;
     }[],
     requests: [] as { side: string; tag: string; payload: unknown }[],
-    opened: { source: 0, target: 0 },
-    closed: { source: 0, target: 0 },
+    opened: 0,
+    closed: 0,
     sshDown: false,
     linkRefuses: false,
-    sessionsVisible: true,
+    /** The link is made, but its answer is lost. */
+    answerLost: false,
+    /** The link is made, but T3 Code answers a refusal. */
+    refusedAfterLink: false,
     revokeFails: false,
     serverDown: { source: false, target: false },
     duringSettings: async (_side: string): Promise<void> => undefined,
   };
+  const addSource = async (node: string, label = node) => {
+    w.sources[node] = { home: await home(sourceSettings), label, links: [] };
+    return w.sources[node] as Source;
+  };
+  await addSource("lazurio-bob", "Buddy");
   const answer = (stdout: string, exitCode = 0) => ({
     exitCode,
     stdout,
     stderr: "",
   });
-  const sessionsJson = (sessions: Session[]) =>
-    `${JSON.stringify(
-      sessions.map((session) => ({
-        ...session,
-        method: "bearer-access-token",
-      })),
-      null,
-      2,
-    )}\n`;
+  const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
   // The target's own `t3`.
   const targetRun: ToolRunner = async (command, _timeout, env) => {
     w.commands.push({ side: "target", command, env });
-    const [verb, object, action] = command.slice(1, 4);
+    const verb = command.slice(1, 4).join(" ");
     const last = command.at(-1) as string;
-    if (verb === "auth" && object === "session" && action === "list")
-      return answer(sessionsJson(w.sessionsVisible ? w.targetSessions : []));
-    if (verb === "auth" && object === "session" && action === "revoke") {
+    if (verb === "auth session list") return answer(json(w.targetSessions));
+    if (verb === "auth session revoke") {
       if (w.revokeFails) return answer("", 1);
-      w.targetSessions = w.targetSessions.filter(
-        (session) => session.sessionId !== last,
-      );
+      w.targetSessions = w.targetSessions.filter((s) => s.sessionId !== last);
       return answer("Revoked.\n");
     }
-    if (verb === "auth" && object === "pairing" && action === "create") {
+    if (verb === "auth pairing list")
+      return answer(json([...w.pairings.keys()].map((id) => ({ id }))));
+    if (verb === "auth pairing create") {
       const id = randomUUID();
       const credential = `pc-${randomUUID()}`;
       w.pairings.set(id, credential);
       w.issued.push(credential);
-      return answer(
-        `${JSON.stringify({ id, credential, scopes: [] }, null, 2)}\n`,
-      );
+      return answer(json({ id, credential, scopes: [] }));
     }
-    if (verb === "auth" && object === "pairing" && action === "revoke") {
+    if (verb === "auth pairing revoke") {
       w.pairings.delete(last);
       return answer("Revoked.\n");
     }
     return answer("", 1);
   };
-  // What only the running server writes.
+  // What only a running server writes.
   const serverSets = async (directory: string, value: boolean) => {
     const path = join(directory, ".t3", "userdata", "settings.json");
     const current = JSON.parse(await readFile(path, "utf8"));
     await writeFile(
       path,
-      `${JSON.stringify({ ...current, linkedEnvironmentsEnabled: value }, null, 2)}\n`,
+      json({ ...current, linkedEnvironmentsEnabled: value }),
     );
   };
-  const rpcOf = (side: "source" | "target") => async () => {
-    if (w.serverDown[side]) return "server-down" as const;
-    w.opened[side] += 1;
+  const on = async (directory: string) =>
+    (await settingsOf(directory)).linkedEnvironmentsEnabled === true;
+  const rpcOf = (side: string) => async () => {
+    const isTarget = side === "target";
+    if (w.serverDown[isTarget ? "target" : "source"])
+      return "server-down" as const;
+    w.opened += 1;
     const rpc: T3Rpc = {
       async request(tag, payload): Promise<RpcAnswer> {
         w.requests.push({ side, tag, payload });
-        const directory = side === "source" ? w.sourceHome : w.targetHome;
+        const source = w.sources[side];
+        const directory = isTarget ? w.targetHome : (source as Source).home;
         if (tag === "server.updateSettings") {
           await w.duringSettings(side);
           const patch = (payload as { patch: Record<string, unknown> }).patch;
           await serverSets(directory, patch.linkedEnvironmentsEnabled === true);
           return { ok: true, value: {} };
         }
-        if (side === "target") return { ok: false, error: "unexpected" };
+        if (source === undefined) return { ok: false, error: "unexpected" };
         if (tag === "peerLinks.list")
-          return { ok: true, value: { links: w.links } };
+          return { ok: true, value: { links: source.links } };
         if (tag === "peerLinks.unlink") {
           const id = (payload as { environmentId: string }).environmentId;
-          const removed = w.links.some((link) => link.environmentId === id);
-          w.links = w.links.filter((link) => link.environmentId !== id);
+          const removed = source.links.some((l) => l.environmentId === id);
+          source.links = source.links.filter((l) => l.environmentId !== id);
           return { ok: true, value: { removed } };
         }
         if (tag === "peerLinks.link") {
@@ -226,12 +239,10 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
           const id = [...w.pairings].find(
             ([, code]) => code === input.pairingCode,
           )?.[0];
-          const on = async (directory: string) =>
-            (await settingsOf(directory)).linkedEnvironmentsEnabled === true;
           if (
             w.linkRefuses ||
             id === undefined ||
-            !(await on(w.sourceHome)) ||
+            !(await on(source.home)) ||
             !(await on(w.targetHome))
           )
             return { ok: false, error: "PeerLinkError:pairing_rejected" };
@@ -239,30 +250,33 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
           w.targetSessions.push({
             sessionId: randomUUID(),
             subject: "mcp-client",
-            client: { label: `${linkClientPrefix}lazurio-bob` },
+            client: { label: `${linkClientPrefix}${source.label}` },
           });
           const link: Link = {
             environmentId: targetPeerId,
             label: "Example / lazurio-bob",
             urls: [input.url],
             access: "full-access",
-            linkedAt: new Date(w.now).toISOString(),
-            expiresAt: new Date(w.now + 30 * day).toISOString(),
-            lastReachedAt: new Date(w.now).toISOString(),
+            linkedAt: iso(w.now),
+            expiresAt: iso(w.now + 30 * day),
+            lastReachedAt: iso(w.now),
             lastError: null,
             status: "reachable",
           };
-          // T3 Code keeps one link per peer.
-          w.links = [
-            ...w.links.filter((found) => found.environmentId !== targetPeerId),
+          source.links = [
+            ...source.links.filter((l) => l.environmentId !== targetPeerId),
             link,
           ];
-          return { ok: true, value: link };
+          if (w.refusedAfterLink)
+            return { ok: false, error: "PeerLinkError:unreachable" };
+          return w.answerLost
+            ? { ok: false, error: "timeout" }
+            : { ok: true, value: link };
         }
         return { ok: false, error: "unknown" };
       },
       async close() {
-        w.closed[side] += 1;
+        w.closed += 1;
       },
     };
     return rpc;
@@ -275,62 +289,79 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
     path: "/usr/bin",
     t3: "/opt/t3",
     node: null,
-    label: async () => "Example / lazurio-bob",
     rpc: rpcOf("target"),
   });
-  // The source's SSH reaches the target's `t3` and its Lazurio.
-  const sourceRun: ToolRunner = async (command, timeout, env) => {
-    w.commands.push({ side: "source", command, env });
-    if (command[0] !== "ssh" || w.sshDown) return answer("", 255);
-    const remote = (command.at(-1) as string).split(" ");
-    if (remote[0] === '"$HOME/.local/bin/t3"')
-      return targetRun(
-        [
-          "/opt/t3",
-          ...remote
-            .slice(1)
-            .map((part) =>
-              part === '"$HOME/.t3"' ? join(w.targetHome, ".t3") : part,
-            ),
-        ],
-        timeout,
-        env,
-      );
-    if (remote[0] === '"$HOME/.local/bin/lazurio"') {
-      expect(remote.slice(1, 3)).toEqual(["machine", "t3-link-pair"]);
-      const issued = await issueLinkPairing(
-        targetSeams(),
-        w.targetBinding,
-        remote[4] as string,
-        remote[6] as string,
-      );
-      // What `lazurio machine t3-link-pair` prints.
-      return issued.kind === "issued"
-        ? answer(
-            `${JSON.stringify({ kind: "t3-link-pair", id: issued.id, credential: issued.credential })}\n`,
-          )
-        : answer(
-            JSON.stringify({ kind: "t3-link-pair", reason: issued.reason }),
-            1,
+  // A source's SSH reaches the target's `t3` and its Lazurio.
+  const sourceRun =
+    (node: string): ToolRunner =>
+    async (command, timeout, env) => {
+      w.commands.push({ side: node, command, env });
+      if (command[0] !== "ssh" || w.sshDown) return answer("", 255);
+      const remote = (command.at(-1) as string).split(" ");
+      if (remote[0] === '"$HOME/.local/bin/t3"')
+        return targetRun(
+          [
+            "/opt/t3",
+            ...remote
+              .slice(1)
+              .map((part) =>
+                part === '"$HOME/.t3"' ? join(w.targetHome, ".t3") : part,
+              ),
+          ],
+          timeout,
+          env,
+        );
+      if (remote[0] === '"$HOME/.local/bin/lazurio"') {
+        expect(remote[3]).toBe("--source");
+        if (remote[2] === "t3-link-settle")
+          return answer(
+            json({
+              kind: "t3-link-settle",
+              result: await settleLinkPairing(
+                targetSeams(),
+                w.targetBinding,
+                remote[4] as string,
+              ),
+            }),
           );
-    }
-    return answer("", 127);
-  };
-  const sourceSeams = (): T3LinkSeams => ({
-    run: sourceRun,
+        expect(remote.slice(1, 3)).toEqual(["machine", "t3-link-pair"]);
+        const issued = await issueLinkPairing(
+          targetSeams(),
+          w.targetBinding,
+          remote[4] as string,
+        );
+        // What `lazurio machine t3-link-pair` prints.
+        return issued.kind === "issued"
+          ? answer(
+              json({
+                kind: "t3-link-pair",
+                id: issued.id,
+                credential: issued.credential,
+              }),
+            )
+          : answer(json({ kind: "t3-link-pair", reason: issued.reason }), 1);
+      }
+      return answer("", 127);
+    };
+  const sourceSeams = (node = "lazurio-bob"): T3LinkSeams => ({
+    run: sourceRun(node),
     now: () => w.now,
-    home: w.sourceHome,
+    home: (w.sources[node] as Source).home,
     uid,
     path: "/usr/bin",
     t3: "/opt/t3",
-    node: "lazurio-bob",
-    label: async () => "lazurio-bob",
-    rpc: rpcOf("source"),
+    node,
+    rpc: rpcOf(node),
   });
+  const bob = () => w.sources["lazurio-bob"] as Source;
   return {
     w,
-    source: (machine: MachineBinding = bindings.personalAssigned) =>
-      syncT3Links(sourceSeams(), machine),
+    bob,
+    addSource,
+    source: (
+      machine: MachineBinding = bindings.personalAssigned,
+      node = "lazurio-bob",
+    ) => syncT3Links(sourceSeams(node), machine),
     target: (machine?: MachineBinding) =>
       syncT3Links(targetSeams(), machine ?? w.targetBinding),
     sourceSeams,
@@ -357,45 +388,38 @@ test("each end finds its role in its own handover only", () => {
   expect(t3LinkRole(null)).toEqual({ kind: "none" });
   expect(t3LinkOrigin(target)).toBe(origin);
   expect(t3LinkOrigin("bob;rm -rf ~")).toBeNull();
-  expect(decodeLabel(encodeLabel("Example / lazurio-bob"))).toBe(
-    "Example / lazurio-bob",
-  );
-  expect(decodeLabel("a b")).toBeUndefined();
-  expect(decodeLabel(encodeLabel("a\nb"))).toBeUndefined();
 });
 
 test("the source links once through its server, and a second look changes nothing", async () => {
-  const { w, source } = await world();
-  const first = await source();
-  expect(first).toMatchObject({
+  const { w, bob, source } = await world();
+  expect(await source()).toMatchObject({
     role: "source",
     result: "synced",
     switch: "on",
-    links: [{ environment: target, result: "linked", revoked: 0 }],
+    links: [{ environment: target, result: "linked" }],
   });
-  // Both switches were set by their servers; the person's members stay.
-  expect(await settingsOf(w.sourceHome)).toEqual({
+  expect(await settingsOf(bob().home)).toEqual({
     theme: "dark",
     linkedEnvironmentsEnabled: true,
   });
   expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(true);
-  expect(linkSessions(w.targetSessions)).toHaveLength(1);
-  expect(await stateOf(w.sourceHome)).toEqual({
+  expect(await stateOf(bob().home)).toEqual({
     ...emptyT3LinksState,
     enabledByLazurio: true,
     links: {
       [target]: {
         peerEnvironmentId: targetPeerId,
-        expiresAt: new Date(start + 30 * day).toISOString(),
+        linkedAt: iso(start),
+        expiresAt: iso(start + 30 * day),
       },
     },
   });
-  // The target recorded who paired and under which label, before the code.
+  // The target settled its code right away: the new session is Bob's by id.
+  const sessionId = linkSessions(w.targetSessions)[0]?.sessionId as string;
   expect((await stateOf(w.targetHome)).inbound).toEqual({
-    "lazurio-bob": "lazurio-bob",
+    "lazurio-bob": { sessions: [sessionId], pairing: null },
   });
-  // Each RPC session of a look is closed after it.
-  expect(w.closed).toEqual(w.opened);
+  expect(w.closed).toBe(w.opened);
 
   w.commands.length = 0;
   w.requests.length = 0;
@@ -409,19 +433,19 @@ test("the source links once through its server, and a second look changes nothin
 });
 
 test("the pairing code travels only in the RPC request that spends it", async () => {
-  const { w, source } = await world();
+  const { w, bob, source } = await world();
   const report = await source();
-  expect(w.issued).toHaveLength(1);
   const code = w.issued[0] as string;
-  // No process of either end got it on its command line or environment.
+  expect(w.issued).toHaveLength(1);
   for (const entry of w.commands)
     expect(JSON.stringify(entry)).not.toContain(code);
-  const carrying = w.requests.filter((request) =>
-    JSON.stringify(request).includes(code),
-  );
-  expect(carrying.map((request) => request.tag)).toEqual(["peerLinks.link"]);
+  expect(
+    w.requests
+      .filter((request) => JSON.stringify(request).includes(code))
+      .map((request) => request.tag),
+  ).toEqual(["peerLinks.link"]);
   expect(JSON.stringify(report)).not.toContain(code);
-  for (const directory of [w.sourceHome, w.targetHome]) {
+  for (const directory of [bob().home, w.targetHome]) {
     expect(await readFile(t3LinksStatePath(directory), "utf8")).not.toContain(
       code,
     );
@@ -430,76 +454,230 @@ test("the pairing code travels only in the RPC request that spends it", async ()
 });
 
 test("the switch is the server's: a change the server writes meanwhile survives", async () => {
-  const { w, source } = await world();
-  // While Lazurio's request is under way, the person changes another
-  // setting; only the server writes the file, so nothing of it is lost.
+  const { w, bob, source } = await world();
   w.duringSettings = async (side) => {
-    if (side !== "source") return;
-    const path = join(w.sourceHome, ".t3", "userdata", "settings.json");
+    if (side !== "lazurio-bob") return;
+    const path = join(bob().home, ".t3", "userdata", "settings.json");
     const current = JSON.parse(await readFile(path, "utf8"));
     await writeFile(path, JSON.stringify({ ...current, theme: "light" }));
   };
   await source();
-  expect(await settingsOf(w.sourceHome)).toEqual({
+  expect(await settingsOf(bob().home)).toEqual({
     theme: "light",
     linkedEnvironmentsEnabled: true,
   });
   expect(
-    w.requests.filter((request) => request.tag === "server.updateSettings"),
+    w.requests
+      .filter((request) => request.tag === "server.updateSettings")
+      .map((request) => [request.side, request.payload]),
   ).toEqual([
-    {
-      side: "source",
-      tag: "server.updateSettings",
-      payload: { patch: { linkedEnvironmentsEnabled: true } },
-    },
-    {
-      side: "target",
-      tag: "server.updateSettings",
-      payload: { patch: { linkedEnvironmentsEnabled: true } },
-    },
+    ["lazurio-bob", { patch: { linkedEnvironmentsEnabled: true } }],
+    ["target", { patch: { linkedEnvironmentsEnabled: true } }],
   ]);
 });
 
-test("renewal before seven days are left keeps exactly one session on the target", async () => {
-  const { w, source } = await world();
+test("renewal keeps exactly one session, Bob's by id, even after his label changed", async () => {
+  const { w, bob, source, target: targetLook } = await world();
   await source();
   const first = linkSessions(w.targetSessions)[0]?.sessionId;
-  w.now += 30 * day - renewBeforeMs + 60_000;
+  bob().label = "Buddy renamed";
+  w.now += 30 * day - renewBeforeMs + minute;
   expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "renewed", revoked: 1 }],
+    links: [{ environment: target, result: "renewed" }],
   });
   const sessions = linkSessions(w.targetSessions);
-  expect(sessions).toHaveLength(1);
+  expect(sessions.map((s) => s.client.label)).toEqual([
+    `${linkClientPrefix}Buddy renamed`,
+  ]);
   expect(sessions[0]?.sessionId).not.toBe(first);
+  expect(
+    (await stateOf(w.targetHome)).inbound["lazurio-bob"]?.sessions,
+  ).toEqual([sessions[0]?.sessionId as string]);
+  // Then the edge goes: the session Bob owns goes, whatever its label.
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ revoked: 1, switch: "off" });
+  expect(linkSessions(w.targetSessions)).toHaveLength(0);
   expect(w.targetSessions.some((s) => s.subject === "browser-session")).toBe(
     true,
   );
 });
 
-test("a failing link is linked again; an old session stays when the new one is not seen", async () => {
-  const { w, source } = await world();
+test("two sources with the same label and the person's own link keep each other's sessions", async () => {
+  const { w, addSource, source, target: targetLook } = await world();
+  w.targetBinding = workWith("lazurio-bob", "lazurio-carol");
+  await addSource("lazurio-carol", "Buddy");
   await source();
-  (w.links[0] as Link).lastError = "no longer accepts this link";
-  w.sessionsVisible = false;
+  w.now += minute;
+  await source(bindings.personalAssigned, "lazurio-carol");
+  // The person links from elsewhere under the same label, outside Lazurio.
+  const personal = {
+    sessionId: randomUUID(),
+    subject: "mcp-client",
+    client: { label: `${linkClientPrefix}Buddy` },
+  };
+  w.targetSessions.push(personal);
+  const inbound = (await stateOf(w.targetHome)).inbound;
+  const bobs = inbound["lazurio-bob"]?.sessions ?? [];
+  const carols = inbound["lazurio-carol"]?.sessions ?? [];
+  expect(bobs).toHaveLength(1);
+  expect(carols).toHaveLength(1);
+  expect(bobs[0]).not.toBe(carols[0]);
+  // Bob's edge goes: only his session.
+  w.targetBinding = workWith("lazurio-carol");
+  expect(await targetLook()).toMatchObject({ revoked: 1 });
+  expect(linkSessions(w.targetSessions).map((s) => s.sessionId)).toEqual([
+    carols[0] as string,
+    personal.sessionId,
+  ]);
+  // Carol renews: her earlier session goes, nobody else's.
+  w.now += 30 * day;
+  expect(
+    await source(bindings.personalAssigned, "lazurio-carol"),
+  ).toMatchObject({ links: [{ result: "renewed" }] });
+  const left = linkSessions(w.targetSessions).map((s) => s.sessionId);
+  expect(left).not.toContain(carols[0]);
+  expect(left).toContain(personal.sessionId);
+  expect(left).toHaveLength(2);
+});
+
+test("the target issues one code at a time, only for a source its handover names", async () => {
+  const { w, targetSeams } = await world();
+  w.targetBinding = workWith("lazurio-bob", "lazurio-carol");
+  const seams = targetSeams();
+  expect(await issueLinkPairing(seams, w.targetBinding, "lazurio-eve")).toEqual(
+    { kind: "refused", reason: "not-a-source" },
+  );
+  expect(
+    await issueLinkPairing(seams, bindings.personalAssigned, "lazurio-bob"),
+  ).toEqual({ kind: "refused", reason: "not-a-target" });
+  expect(
+    (await issueLinkPairing(seams, w.targetBinding, "lazurio-bob")).kind,
+  ).toBe("issued");
+  // Bob's code is out: Carol waits until it is settled.
+  expect(
+    await issueLinkPairing(seams, w.targetBinding, "lazurio-carol"),
+  ).toEqual({ kind: "refused", reason: "busy" });
+  // Bob asking again revokes his own code; until it has certainly expired
+  // without a session, nothing new is issued.
+  expect(await issueLinkPairing(seams, w.targetBinding, "lazurio-bob")).toEqual(
+    { kind: "refused", reason: "busy" },
+  );
+  expect(w.pairings.size).toBe(0);
+  w.now += pairingSettledAfterMs;
+  expect(
+    (await issueLinkPairing(seams, w.targetBinding, "lazurio-carol")).kind,
+  ).toBe("issued");
+  await writeFile(t3LinksStatePath(w.targetHome), "{");
+  expect(await issueLinkPairing(seams, w.targetBinding, "lazurio-bob")).toEqual(
+    { kind: "refused", reason: "state-unusable" },
+  );
+});
+
+test("a link made whose answer was lost is settled as Lazurio's, not taken for the person's", async () => {
+  const { w, bob, source } = await world();
+  w.answerLost = true;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "uncertain" }],
+  });
+  expect((await stateOf(bob().home)).pending).toEqual({
+    [target]: iso(start),
+  });
+  w.answerLost = false;
+  w.now += minute;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "current" }],
+  });
+  expect((await stateOf(bob().home)).links[target]?.peerEnvironmentId).toBe(
+    targetPeerId,
+  );
+  expect((await stateOf(bob().home)).pending).toEqual({});
+  // Still Lazurio's to forget.
+  expect(await source(bindings.personal)).toMatchObject({
+    unlinked: [target],
+  });
+  expect(bob().links).toHaveLength(0);
+});
+
+test("even a refusal is checked against T3 Code's list: a link made anyway is Lazurio's", async () => {
+  const { w, bob, source } = await world();
+  w.refusedAfterLink = true;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "linked" }],
+  });
+  expect((await stateOf(bob().home)).links[target]?.peerEnvironmentId).toBe(
+    targetPeerId,
+  );
+  expect((await stateOf(bob().home)).attempts).toEqual({});
+  w.refusedAfterLink = false;
+  expect(await source(bindings.personal)).toMatchObject({
+    unlinked: [target],
+  });
+});
+
+test("an uncertain pairing that made no link ends once its code has certainly expired", async () => {
+  const { w, bob, source } = await world();
+  await writeT3LinksState(bob().home, {
+    ...emptyT3LinksState,
+    enabledByLazurio: true,
+    pending: { [target]: iso(start) },
+  });
+  w.now += minute;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "uncertain" }],
+  });
+  expect(w.issued).toHaveLength(0);
+  w.now = start + pendingSettledAfterMs;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "linked" }],
+  });
+});
+
+test("a pairing cut off before its edge went is settled, and its link forgotten", async () => {
+  const { w, bob, source, target: targetLook } = await world();
+  // The link was made, then the look stopped before it recorded it.
+  w.answerLost = true;
+  await source();
+  w.answerLost = false;
+  expect(bob().links).toHaveLength(1);
+  // The edge goes before the next look.
+  w.now += minute;
+  expect(await source(bindings.personal)).toMatchObject({
+    unlinked: [target],
+    switch: "off",
+  });
+  expect(bob().links).toHaveLength(0);
+  expect((await stateOf(bob().home)).pending).toEqual({});
+  // And when the edge comes back, Lazurio links again: no orphan is left
+  // that looks like the person's.
+  w.now += minute;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "linked" }],
+  });
+  // The target's side of the same edge: its sessions go with the edge.
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ switch: "off" });
+  expect(linkSessions(w.targetSessions)).toHaveLength(0);
+});
+
+test("a failing link is linked again", async () => {
+  const { bob, w, source } = await world();
+  await source();
+  (bob().links[0] as Link).lastError = "no longer accepts this link";
   w.now += day;
   expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "renewed", revoked: 0 }],
+    links: [{ environment: target, result: "renewed" }],
   });
-  expect(
-    w.commands.some((entry) =>
-      String(entry.command.at(-1)).includes("session revoke"),
-    ),
-  ).toBe(false);
+  expect(linkSessions(w.targetSessions)).toHaveLength(1);
 });
 
 test("a refused link revokes its unspent code and waits a quarter of an hour", async () => {
-  const { w, source } = await world();
+  const { w, bob, source } = await world();
   w.linkRefuses = true;
   expect(await source()).toMatchObject({
     links: [{ environment: target, result: "failed", cause: "link-refused" }],
   });
   expect(w.pairings.size).toBe(0);
-  expect((await stateOf(w.sourceHome)).pending).toEqual({});
+  expect((await stateOf(bob().home)).pending).toEqual({});
   w.commands.length = 0;
   w.now += retryAfterMs - 1000;
   expect(await source()).toMatchObject({
@@ -511,19 +689,20 @@ test("a refused link revokes its unspent code and waits a quarter of an hour", a
   expect(await source()).toMatchObject({ links: [{ result: "linked" }] });
 });
 
-test("an unreachable target, an unknown label or a stopped server pairs nothing", async () => {
+test("an unreachable target, an unknown node or a stopped server pairs nothing", async () => {
   const one = await world();
   one.w.sshDown = true;
   expect(await one.source()).toMatchObject({
     links: [{ result: "failed", cause: "target-unreachable" }],
   });
+  expect((await stateOf(one.bob().home)).pending).toEqual({});
   const two = await world();
   expect(
     await syncT3Links(
-      { ...two.sourceSeams(), label: async () => undefined },
+      { ...two.sourceSeams(), node: null },
       bindings.personalAssigned,
     ),
-  ).toMatchObject({ links: [{ result: "failed", cause: "label-unknown" }] });
+  ).toMatchObject({ links: [{ result: "failed", cause: "node-unknown" }] });
   expect(two.w.commands).toHaveLength(0);
   const three = await world();
   three.w.serverDown.source = true;
@@ -534,49 +713,15 @@ test("an unreachable target, an unknown label or a stopped server pairs nothing"
   expect(three.w.commands).toHaveLength(0);
 });
 
-test("the target issues a code only for a source its handover names", async () => {
-  const { w, targetSeams } = await world();
-  const seams = targetSeams();
-  expect(
-    await issueLinkPairing(
-      seams,
-      w.targetBinding,
-      "lazurio-eve",
-      encodeLabel("x"),
-    ),
-  ).toEqual({ kind: "refused", reason: "not-a-source" });
-  expect(
-    await issueLinkPairing(
-      seams,
-      bindings.personalAssigned,
-      "lazurio-bob",
-      "eA",
-    ),
-  ).toEqual({ kind: "refused", reason: "not-a-target" });
-  expect(
-    await issueLinkPairing(seams, w.targetBinding, "lazurio-bob", "a b"),
-  ).toEqual({ kind: "refused", reason: "label-invalid" });
-  await writeFile(t3LinksStatePath(w.targetHome), "{");
-  expect(
-    await issueLinkPairing(
-      seams,
-      w.targetBinding,
-      "lazurio-bob",
-      encodeLabel("x"),
-    ),
-  ).toEqual({ kind: "refused", reason: "state-unusable" });
-  expect(w.issued).toHaveLength(0);
-});
-
-test("a link the person made to the same address is theirs: never renewed or forgotten", async () => {
-  const { w, source } = await world();
-  w.links.push({
+test("a link the person made to the same address, or over Lazurio's, is theirs", async () => {
+  const { w, bob, source } = await world();
+  bob().links.push({
     environmentId: targetPeerId,
     label: "Example / lazurio-bob",
     urls: [origin],
     access: "read-only",
     linkedAt: "2026-11-17T00:00:00.000Z",
-    expiresAt: new Date(start + 2 * day).toISOString(),
+    expiresAt: iso(start + 2 * day),
     lastReachedAt: "2026-11-17T00:00:00.000Z",
     lastError: null,
     status: "reachable",
@@ -586,20 +731,29 @@ test("a link the person made to the same address is theirs: never renewed or for
   });
   expect(w.issued).toHaveLength(0);
   expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
-  expect(w.links.map((link) => link.access)).toEqual(["read-only"]);
+  expect(bob().links.map((link) => link.access)).toEqual(["read-only"]);
+
+  // Lazurio's link, then the person links the same peer over it.
+  const over = await world();
+  await over.source();
+  (over.bob().links[0] as Link).linkedAt = iso(start + 1000);
+  over.w.now += day;
+  expect(await over.source()).toMatchObject({
+    links: [{ result: "person-link" }],
+  });
+  expect(await over.source(bindings.personal)).toMatchObject({ unlinked: [] });
+  expect(over.bob().links).toHaveLength(1);
 });
 
 test("when the edge goes the source forgets its own link and turns off only its own switch", async () => {
-  const { w, source } = await world();
+  const { w, bob, source } = await world();
   await source();
   expect(await source(bindings.personal)).toMatchObject({
     unlinked: [target],
     switch: "off",
   });
-  expect(w.links).toHaveLength(0);
-  expect((await settingsOf(w.sourceHome)).linkedEnvironmentsEnabled).toBe(
-    false,
-  );
+  expect(bob().links).toHaveLength(0);
+  expect((await settingsOf(bob().home)).linkedEnvironmentsEnabled).toBe(false);
   w.requests.length = 0;
   expect(await source(bindings.personal)).toEqual({
     role: "source",
@@ -607,58 +761,13 @@ test("when the edge goes the source forgets its own link and turns off only its 
   });
   expect(w.requests).toHaveLength(0);
 
-  // A switch the person had on stays on.
   const own = await world({ linkedEnvironmentsEnabled: true });
-  await writeT3LinksState(own.w.sourceHome, emptyT3LinksState);
+  await writeT3LinksState(own.bob().home, emptyT3LinksState);
   await own.source();
   await own.source(bindings.personal);
-  expect((await settingsOf(own.w.sourceHome)).linkedEnvironmentsEnabled).toBe(
+  expect((await settingsOf(own.bob().home)).linkedEnvironmentsEnabled).toBe(
     true,
   );
-});
-
-test("the target revokes exactly the sessions of the source whose edge went", async () => {
-  const { w, source, target: targetLook } = await world();
-  w.targetBinding = workWith("lazurio-bob", "lazurio-carol");
-  await source();
-  // Carol's link and the person's own link from their laptop.
-  w.targetSessions.push(
-    {
-      sessionId: randomUUID(),
-      subject: "mcp-client",
-      client: { label: `${linkClientPrefix}lazurio-carol` },
-    },
-    {
-      sessionId: randomUUID(),
-      subject: "mcp-client",
-      client: { label: `${linkClientPrefix}laptop` },
-    },
-  );
-  await writeT3LinksState(w.targetHome, {
-    ...(await stateOf(w.targetHome)),
-    inbound: { "lazurio-bob": "lazurio-bob", "lazurio-carol": "lazurio-carol" },
-  });
-  expect(await targetLook()).toMatchObject({ switch: "kept", revoked: 0 });
-  w.targetBinding = workWith("lazurio-carol");
-  expect(await targetLook()).toMatchObject({
-    sources: ["lazurio-carol"],
-    revoked: 1,
-  });
-  expect(linkSessions(w.targetSessions).map((s) => s.client.label)).toEqual([
-    `${linkClientPrefix}lazurio-carol`,
-    `${linkClientPrefix}laptop`,
-  ]);
-  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(true);
-  // With the last edge, the switch Lazurio turned on goes off.
-  w.targetBinding = workWith();
-  expect(await targetLook()).toMatchObject({ switch: "off", revoked: 1 });
-  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(
-    false,
-  );
-  expect(linkSessions(w.targetSessions).map((s) => s.client.label)).toEqual([
-    `${linkClientPrefix}laptop`,
-  ]);
-  expect(await targetLook()).toEqual({ role: "target", result: "idle" });
 });
 
 test("a revocation that failed on the target is tried again", async () => {
@@ -667,62 +776,67 @@ test("a revocation that failed on the target is tried again", async () => {
   w.targetBinding = workWith();
   w.revokeFails = true;
   expect(await targetLook()).toMatchObject({ revoked: "failed" });
-  expect((await stateOf(w.targetHome)).inbound).toEqual({
-    "lazurio-bob": "lazurio-bob",
-  });
+  expect(
+    (await stateOf(w.targetHome)).inbound["lazurio-bob"]?.sessions,
+  ).toHaveLength(1);
   w.revokeFails = false;
   expect(await targetLook()).toMatchObject({ revoked: 1 });
   expect(linkSessions(w.targetSessions)).toHaveLength(0);
 });
 
-test("a look cut off after its intent: the next one finishes or undoes it", async () => {
-  // The source recorded a pairing and was cut off after the link existed.
-  const { w, source } = await world();
-  await source();
-  await writeT3LinksState(w.sourceHome, {
-    ...(await stateOf(w.sourceHome)),
-    links: {},
-    pending: { [target]: new Date(start).toISOString() },
-  });
-  expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "current" }],
-  });
-  expect((await stateOf(w.sourceHome)).links[target]?.peerEnvironmentId).toBe(
-    targetPeerId,
-  );
-  // ...so it is still Lazurio's to forget when the edge goes.
-  expect(await source(bindings.personal)).toMatchObject({
-    unlinked: [target],
-  });
+test("a code still out for a removed edge is revoked and settled before the source is let go", async () => {
+  const { w, targetSeams, target: targetLook } = await world();
+  await targetLook();
+  expect(
+    (await issueLinkPairing(targetSeams(), w.targetBinding, "lazurio-bob"))
+      .kind,
+  ).toBe("issued");
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ settling: ["lazurio-bob"] });
+  expect(w.pairings.size).toBe(0);
+  w.now += pairingSettledAfterMs;
+  expect(await targetLook()).toMatchObject({ settling: [] });
+  expect((await stateOf(w.targetHome)).inbound).toEqual({});
+});
 
-  // The switch's intent was written, then the look died before the server
-  // answered: the switch stays off and the intent is undone with the edge.
+test("a look cut off after its intent: the next one finishes or undoes it", async () => {
   const cut = await world();
   cut.w.duringSettings = async () => {
     throw new Error("cut off");
   };
   await expect(cut.source()).rejects.toThrow("cut off");
-  expect((await stateOf(cut.w.sourceHome)).enabledByLazurio).toBe(true);
+  expect((await stateOf(cut.bob().home)).enabledByLazurio).toBe(true);
   expect(
-    (await settingsOf(cut.w.sourceHome)).linkedEnvironmentsEnabled,
+    (await settingsOf(cut.bob().home)).linkedEnvironmentsEnabled,
   ).toBeUndefined();
   cut.w.duringSettings = async () => undefined;
-  expect(await cut.source(bindings.personal)).toMatchObject({
-    switch: "off",
-  });
-  expect((await stateOf(cut.w.sourceHome)).enabledByLazurio).toBe(false);
+  expect(await cut.source(bindings.personal)).toMatchObject({ switch: "off" });
+  expect((await stateOf(cut.bob().home)).enabledByLazurio).toBe(false);
 
-  // The target recorded its source before the code existed: a link made
-  // from a code of a source whose look never confirmed is still revoked.
+  // The target recorded its code before it existed and never heard back:
+  // its own look settles it, so the session is the source's and goes with
+  // the edge.
   const pair = await world();
-  await pair.source();
-  await writeT3LinksState(pair.w.sourceHome, emptyT3LinksState);
+  await issueLinkPairing(
+    pair.targetSeams(),
+    pair.w.targetBinding,
+    "lazurio-bob",
+  );
+  const code = pair.w.issued[0] as string;
+  const pairingId = [...pair.w.pairings].find(([, c]) => c === code)?.[0];
+  pair.w.pairings.delete(pairingId as string);
+  pair.w.targetSessions.push({
+    sessionId: randomUUID(),
+    subject: "mcp-client",
+    client: { label: `${linkClientPrefix}anything` },
+  });
   pair.w.targetBinding = workWith();
-  expect(await pair.target()).toMatchObject({ revoked: 1, switch: "off" });
+  expect(await pair.target()).toMatchObject({ revoked: 1, settling: [] });
+  expect(linkSessions(pair.w.targetSessions)).toHaveLength(0);
 });
 
 test("a damaged state closes: the switch off and every linked session revoked, then a new state", async () => {
-  const { w, source, target: targetLook } = await world();
+  const { w, bob, source, target: targetLook } = await world();
   await source();
   w.targetSessions.push({
     sessionId: randomUUID(),
@@ -730,7 +844,6 @@ test("a damaged state closes: the switch off and every linked session revoked, t
     client: { label: `${linkClientPrefix}laptop` },
   });
   await writeFile(t3LinksStatePath(w.targetHome), "not json");
-  // Closing needs the server: until it answers, nothing is replaced.
   w.serverDown.target = true;
   expect(await targetLook()).toEqual({
     role: "target",
@@ -755,27 +868,22 @@ test("a damaged state closes: the switch off and every linked session revoked, t
     kind: "recorded",
     state: emptyT3LinksState,
   });
-  // The next looks build it again from the handovers.
   expect(await targetLook()).toMatchObject({ switch: "on" });
   w.now += day;
-  (w.links[0] as Link).lastError = "no longer accepts this link";
+  (bob().links[0] as Link).lastError = "no longer accepts this link";
   expect(await source()).toMatchObject({ links: [{ result: "renewed" }] });
 
-  // On the source a damaged state turns the switch off and forgets nothing.
-  await writeFile(t3LinksStatePath(w.sourceHome), '{"version":2}');
+  await writeFile(t3LinksStatePath(bob().home), '{"version":3}');
   expect(await source()).toEqual({
     role: "source",
     result: "closed",
     state: "damaged",
   });
-  expect((await settingsOf(w.sourceHome)).linkedEnvironmentsEnabled).toBe(
-    false,
-  );
-  expect(w.links).toHaveLength(1);
+  expect((await settingsOf(bob().home)).linkedEnvironmentsEnabled).toBe(false);
+  expect(bob().links).toHaveLength(1);
 });
 
-test("a missing state closes only where something may be open", async () => {
-  // A target with a linked session and no state: closed.
+test("a missing state closes where something may be open, with or without an edge", async () => {
   const open = await world(undefined, { linkedEnvironmentsEnabled: true });
   open.w.targetSessions.push({
     sessionId: randomUUID(),
@@ -788,14 +896,33 @@ test("a missing state closes only where something may be open", async () => {
     state: "missing",
   });
   expect(linkSessions(open.w.targetSessions)).toHaveLength(0);
-  // A first look with nothing open starts a state and goes on.
+
+  // The last edge went after the state did.
+  const gone = await world();
+  await gone.source();
+  await rm(t3LinksStatePath(gone.w.targetHome));
+  gone.w.targetBinding = workWith();
+  expect(await gone.target()).toEqual({
+    role: "target",
+    result: "closed",
+    state: "missing",
+  });
+  expect(linkSessions(gone.w.targetSessions)).toHaveLength(0);
+  expect((await settingsOf(gone.w.targetHome)).linkedEnvironmentsEnabled).toBe(
+    false,
+  );
+  await rm(t3LinksStatePath(gone.bob().home));
+  expect(await gone.source(bindings.personal)).toEqual({
+    role: "source",
+    result: "closed",
+    state: "missing",
+  });
+
   const fresh = await world();
   expect(await fresh.target()).toMatchObject({
     result: "synced",
     switch: "on",
   });
-  // Without edges and without a state, idle only once it is shown that
-  // nothing is open; the empty state then spares the next looks the check.
   const quiet = await world();
   expect(await quiet.target(workWith())).toEqual({
     role: "target",
@@ -805,7 +932,6 @@ test("a missing state closes only where something may be open", async () => {
     kind: "recorded",
     state: emptyT3LinksState,
   });
-  expect(quiet.w.requests).toHaveLength(0);
   quiet.w.commands.length = 0;
   expect(await quiet.target(workWith())).toEqual({
     role: "target",
@@ -814,50 +940,17 @@ test("a missing state closes only where something may be open", async () => {
   expect(quiet.w.commands).toHaveLength(0);
 });
 
-test("a target whose state went missing closes when its last edge goes", async () => {
-  const { w, source, target: targetLook } = await world();
-  await source();
-  expect(linkSessions(w.targetSessions)).toHaveLength(1);
-  await rm(t3LinksStatePath(w.targetHome));
-  w.targetBinding = workWith();
-  // Not idle: the switch is on and a linked session exists.
-  expect(await targetLook()).toEqual({
-    role: "target",
-    result: "closed",
-    state: "missing",
-  });
-  expect(linkSessions(w.targetSessions)).toHaveLength(0);
-  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(
-    false,
-  );
-  expect(await targetLook()).toEqual({ role: "target", result: "idle" });
-
-  // The same on a source without an edge whose switch is still on.
-  await rm(t3LinksStatePath(w.sourceHome));
-  expect(await source(bindings.personal)).toEqual({
-    role: "source",
-    result: "closed",
-    state: "missing",
-  });
-  expect((await settingsOf(w.sourceHome)).linkedEnvironmentsEnabled).toBe(
-    false,
-  );
-});
-
 test("a pairing over a missing state closes what is open before it issues a code", async () => {
   const { w, source, targetSeams } = await world();
   await source();
   const old = linkSessions(w.targetSessions)[0]?.sessionId;
   await rm(t3LinksStatePath(w.targetHome));
   w.commands.length = 0;
-  const issued = await issueLinkPairing(
-    targetSeams(),
-    w.targetBinding,
-    "lazurio-bob",
-    encodeLabel("lazurio-bob"),
-  );
-  expect(issued.kind).toBe("issued");
-  // The open session was revoked before the code existed.
+  w.now += day;
+  expect(
+    (await issueLinkPairing(targetSeams(), w.targetBinding, "lazurio-bob"))
+      .kind,
+  ).toBe("issued");
   const steps = w.commands
     .filter((entry) => entry.side === "target")
     .map((entry) => entry.command.slice(1, 4).join(" "));
@@ -866,16 +959,7 @@ test("a pairing over a missing state closes what is open before it issues a code
     steps.indexOf("auth pairing create"),
   );
   expect(w.targetSessions.some((s) => s.sessionId === old)).toBe(false);
-  // Then the new state records the source before the code, and the switch
-  // is Lazurio's again.
-  expect(await stateOf(w.targetHome)).toEqual({
-    ...emptyT3LinksState,
-    enabledByLazurio: true,
-    inbound: { "lazurio-bob": "lazurio-bob" },
-  });
-  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(true);
 
-  // When it cannot close, no code is issued and nothing is written.
   const stuck = await world();
   await stuck.source();
   await rm(t3LinksStatePath(stuck.w.targetHome));
@@ -886,7 +970,6 @@ test("a pairing over a missing state closes what is open before it issues a code
       stuck.targetSeams(),
       stuck.w.targetBinding,
       "lazurio-bob",
-      encodeLabel("lazurio-bob"),
     ),
   ).toEqual({ kind: "refused", reason: "close-failed" });
   expect(stuck.w.issued.length).toBe(before);
@@ -907,10 +990,15 @@ test("T3 Code's answers are taken only in their exact shapes", () => {
   expect(
     parseSessions('[{"sessionId":"x; reboot","subject":"mcp-client"}]'),
   ).toBeUndefined();
+  expect(parsePairingIds('[{"id":"p-1"},{"id":"p-2"}]')).toEqual([
+    "p-1",
+    "p-2",
+  ]);
+  expect(parsePairingIds('[{"id":"a b"}]')).toBeUndefined();
   expect(
     parseT3LinksState({ ...emptyT3LinksState, links: { "bad id": {} } }),
   ).toBeNull();
-  expect(parseT3LinksState({ ...emptyT3LinksState, version: 1 })).toBeNull();
+  expect(parseT3LinksState({ ...emptyT3LinksState, version: 2 })).toBeNull();
 });
 
 test("the loop runs one look at a time and stops", async () => {
@@ -949,27 +1037,17 @@ test("the loop runs one look at a time and stops", async () => {
   expect(cleared).toBe(true);
 });
 
-test("`lazurio machine t3-links` takes no option, `t3-link-pair` exactly its two", () => {
+test("`lazurio machine t3-links` takes no option, the target's two commands exactly --source", () => {
   expect(parseMachineArguments(["t3-links"]).command).toBe("t3-links");
   expect(() => parseMachineArguments(["t3-links", "--preset", "x"])).toThrow(
     MachineUsageError,
   );
-  expect(
-    parseMachineArguments([
-      "t3-link-pair",
-      "--source",
-      "lazurio-bob",
-      "--label",
-      "eA",
-    ]),
-  ).toMatchObject({
-    command: "t3-link-pair",
-    source: "lazurio-bob",
-    label: "eA",
-  });
-  expect(() =>
-    parseMachineArguments(["t3-link-pair", "--source", "lazurio-bob"]),
-  ).toThrow(MachineUsageError);
+  for (const command of ["t3-link-pair", "t3-link-settle"]) {
+    expect(
+      parseMachineArguments([command, "--source", "lazurio-bob"]),
+    ).toMatchObject({ command, source: "lazurio-bob" });
+    expect(() => parseMachineArguments([command])).toThrow(MachineUsageError);
+  }
   expect(() =>
     parseMachineArguments(["folder-refresh", "--source", "x"]),
   ).toThrow(MachineUsageError);

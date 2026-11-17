@@ -36,7 +36,11 @@ import {
   type RoutesWrite,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
-import { issueLiveLinkPairing, syncLiveT3Links } from "../t3-links/live";
+import {
+  issueLiveLinkPairing,
+  settleLiveLinkPairing,
+  syncLiveT3Links,
+} from "../t3-links/live";
 import { runTool } from "../tools/status";
 import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
 import { machineBinding, ownerOrganizationKey } from "./binding";
@@ -155,14 +159,19 @@ exists and revokes the sessions of linked T3 Code when one goes. Lazurio
 never creates or removes an edge; it is the Organization's record. Prints one
 JSON object without any pairing code or token; exit 1 when another look holds
 the lock (busy) or t3 is missing.
-machine t3-link-pair --source <node> --label <base64url>
+machine t3-link-pair --source <node>
 The target's half of one pairing, run by a source's look over its managed SSH
 route: only while this work Environment's handover names <node> as an inbound
-edge from a personal Machine, it records the source and the label it links
-under, turns linked environments on through the running T3 Code and prints
+edge from a personal Machine and no other source's code is out, it records
+the source, the time and the sessions of linked T3 Code that exist already,
+turns linked environments on through the running T3 Code and prints
 {"kind":"t3-link-pair","id":…,"credential":…} for the source to spend at
 once. The code reaches nothing but that standard output. Exit 1 with
 {"kind":"t3-link-pair","reason":…} when it refuses.
+machine t3-link-settle --source <node>
+Right after a source's link attempt: the session that appeared for its code
+becomes that source's, by id, and its earlier sessions are revoked. Prints
+{"kind":"t3-link-settle","result":"settled"|"pending"|"refused"}.
 Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
 object on stdout; text for people goes to stderr. A Folder whose lock another
 Lazurio operation still holds after the adoption check waited answers
@@ -186,7 +195,6 @@ const machineOptions = {
   detail: { type: "string" },
   coordination: { type: "string" },
   source: { type: "string" },
-  label: { type: "string" },
 } as const;
 
 function parseMachineTokens(args: string[]) {
@@ -212,7 +220,8 @@ export function parseMachineArguments(args: string[]) {
     command !== "folder-init" &&
     command !== "folder-refresh" &&
     command !== "t3-links" &&
-    command !== "t3-link-pair"
+    command !== "t3-link-pair" &&
+    command !== "t3-link-settle"
   )
     throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
@@ -220,11 +229,9 @@ export function parseMachineArguments(args: string[]) {
   if (
     ((command === "inspect" || command === "t3-links") &&
       tokens.length !== 0) ||
-    (command === "t3-link-pair"
-      ? values.source === undefined ||
-        values.label === undefined ||
-        tokens.length !== 2
-      : values.source !== undefined || values.label !== undefined) ||
+    (command === "t3-link-pair" || command === "t3-link-settle"
+      ? values.source === undefined || tokens.length !== 1
+      : values.source !== undefined) ||
     (command === "folder-refresh" &&
       tokens.some(
         (token) => token.kind === "option" && token.name !== "preset",
@@ -259,7 +266,6 @@ export function parseMachineArguments(args: string[]) {
     detail: value("detail") as "concise" | "technical" | undefined,
     coordination: value("coordination") as "direct" | "coordinator" | undefined,
     ...(values.source === undefined ? {} : { source: values.source }),
-    ...(values.label === undefined ? {} : { label: values.label }),
   };
 }
 
@@ -274,7 +280,6 @@ export async function runMachineCommand(
     command,
     preset: requestedPreset,
     source: pairSource,
-    label: pairLabel,
     ...values
   } = parseMachineArguments(args);
   try {
@@ -302,14 +307,25 @@ export async function runMachineCommand(
         result: { kind: "t3-links" as const, ...report },
       };
     }
-    if (command === "t3-link-pair") {
+    if (command === "t3-link-pair" || command === "t3-link-settle") {
       const operator = await readLinuxOperator();
       await requireInstalledProduct(await runningProduct(), operator.homedir);
+      if (command === "t3-link-settle") {
+        const settled = await settleLiveLinkPairing(
+          operator.homedir,
+          operator.uid,
+          pairSource as string,
+        );
+        const result = typeof settled === "string" ? settled : settled.result;
+        return {
+          code: result === "settled" || result === "pending" ? 0 : 1,
+          result: { kind: "t3-link-settle" as const, result },
+        };
+      }
       const answer = await issueLiveLinkPairing(
         operator.homedir,
         operator.uid,
         pairSource as string,
-        pairLabel as string,
       );
       return "kind" in answer && answer.kind === "issued"
         ? {

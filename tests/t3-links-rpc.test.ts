@@ -2,7 +2,6 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chatT3Label } from "../src/t3-links/live";
 import {
   bunSocket,
   linkScopes,
@@ -252,18 +251,6 @@ test("only a loopback origin is asked, and only a session in T3 Code's shape is 
   expect(
     parseIssuedSession(`{"sessionId":"a b","token":"${token}"}`),
   ).toBeUndefined();
-  const home = await homeWith("http://127.0.0.1:3773");
-  const asked: string[] = [];
-  expect(
-    await chatT3Label(home, process.getuid?.(), async (url) => {
-      asked.push(url);
-      return new Response(JSON.stringify({ label: " lazurio-bob " }));
-    }),
-  ).toBe("lazurio-bob");
-  expect(asked).toEqual(["http://127.0.0.1:3773/.well-known/t3/environment"]);
-  expect(await chatT3Label(await homeWith(null), process.getuid?.())).toBe(
-    undefined,
-  );
 });
 
 test("a message that arrives before anyone listens is kept for the first listener", async () => {

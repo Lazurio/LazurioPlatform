@@ -10,45 +10,18 @@ import {
 } from "../machine/context";
 import { resolveOnPath, runTool } from "../tools/status";
 import {
-  environmentLabel,
   issueLinkPairing,
   type PairingAnswer,
+  settleLinkPairing,
   syncT3Links,
   type T3LinkSeams,
   type T3LinksReport,
   withT3LinksLock,
 } from "./links";
-import { chatT3Origin, openChatT3Rpc } from "./rpc";
+import { openChatT3Rpc } from "./rpc";
 
 // What the links of `links.ts` take from this Environment outside tests: its
-// live handover, the user's `t3`, its running Chat's RPC and the label that
-// Chat answers with.
-
-type Fetch = (url: string, init: RequestInit) => Promise<Response>;
-
-/** The label the user's running Chat T3 Code answers with on loopback
- * (`/.well-known/t3/environment`), the one its service runs with
- * (`T3CODE_ENVIRONMENT_LABEL` of its unit). None when it does not run. */
-export async function chatT3Label(
-  home: string,
-  uid: number | undefined,
-  fetcher: Fetch = (url, init) => fetch(url, init),
-): Promise<string | undefined> {
-  const origin = await chatT3Origin(home, uid);
-  if (origin === undefined) return undefined;
-  try {
-    const response = await fetcher(`${origin}/.well-known/t3/environment`, {
-      signal: AbortSignal.timeout(5_000),
-      redirect: "error",
-    });
-    if (!response.ok) return undefined;
-    return environmentLabel(
-      ((await response.json()) as { label?: unknown }).label,
-    );
-  } catch {
-    return undefined;
-  }
-}
+// live handover, the user's `t3` and its running Chat's RPC.
 
 /** The user's `t3`: on PATH, else `~/.local/bin/t3`, where T3 Code's
  * installer links it. */
@@ -84,7 +57,6 @@ async function liveSeams(
     path,
     t3,
     node: machine.network?.headscaleHostname ?? null,
-    label: () => chatT3Label(home, uid),
     rpc: openChatT3Rpc({ home, uid, t3, run: runTool, env }),
   };
 }
@@ -112,13 +84,32 @@ export async function issueLiveLinkPairing(
   home: string,
   uid: number | undefined,
   sourceNode: string,
-  encodedLabel: string,
   source: MachineContextSource = productionMachineContextSource,
 ): Promise<PairingAnswer | Readonly<{ result: "busy" | "t3-missing" }>> {
   const machine = await liveMachine(source);
   const seams = await liveSeams(home, uid, machine);
   if (seams === undefined) return { result: "t3-missing" };
   return withT3LinksLock(home, () =>
-    issueLinkPairing(seams, machine, sourceNode, encodedLabel),
+    issueLinkPairing(seams, machine, sourceNode),
+  );
+}
+
+/** The target's settling of a source's code, under the same lock. */
+export async function settleLiveLinkPairing(
+  home: string,
+  uid: number | undefined,
+  sourceNode: string,
+  source: MachineContextSource = productionMachineContextSource,
+): Promise<
+  | "settled"
+  | "pending"
+  | "refused"
+  | Readonly<{ result: "busy" | "t3-missing" }>
+> {
+  const machine = await liveMachine(source);
+  const seams = await liveSeams(home, uid, machine);
+  if (seams === undefined) return { result: "t3-missing" };
+  return withT3LinksLock(home, () =>
+    settleLinkPairing(seams, machine, sourceNode),
   );
 }

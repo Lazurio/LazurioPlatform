@@ -9,7 +9,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { encodeLabel, syncT3Links } from "../src/t3-links/links";
+import { syncT3Links } from "../src/t3-links/links";
 import type { RpcAnswer } from "../src/t3-links/rpc";
 import { runTool } from "../src/tools/status";
 import { bindings } from "./fixtures/machine-bindings";
@@ -57,6 +57,7 @@ test("the target's commands run in its shell with its home, and the code reaches
       "#!/bin/sh",
       `printf 'lazurio %s\\n' "$*" >> "${root}/target.log"`,
       `printf 'lazurio %s\\n' "$*" >> "${root}/argv.log"`,
+      'if [ "$2" = "t3-link-settle" ]; then echo \'{"kind":"t3-link-settle","result":"settled"}\'; exit 0; fi',
       `echo '{"kind":"t3-link-pair","id":"pair-1","credential":"${code}"}'`,
     ].join("\n"),
   );
@@ -83,7 +84,6 @@ test("the target's commands run in its shell with its home, and the code reaches
       path: `${bin}:/usr/bin:/bin`,
       t3: "/nonexistent/t3",
       node: "lazurio-bob",
-      label: async () => "Example / lazurio-bob",
       rpc: async () => ({
         async request(tag, payload): Promise<RpcAnswer> {
           requests.push({ tag, payload });
@@ -111,9 +111,9 @@ test("the target's commands run in its shell with its home, and the code reaches
   expect(
     (await readFile(join(root, "target.log"), "utf8")).split("\n"),
   ).toEqual([
-    `t3 auth session list --json --base-dir ${base}`,
-    `lazurio machine t3-link-pair --source lazurio-bob --label ${encodeLabel("Example / lazurio-bob")}`,
+    "lazurio machine t3-link-pair --source lazurio-bob",
     `t3 auth pairing revoke --base-dir ${base} pair-1`,
+    "lazurio machine t3-link-settle --source lazurio-bob",
     "",
   ]);
   // Every process of the look, on either end: none had the code.
