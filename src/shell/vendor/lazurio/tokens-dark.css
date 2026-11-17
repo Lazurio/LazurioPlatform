@@ -1,0 +1,115 @@
+/*
+ * Lazurio - tmavý režim Grafit
+ *
+ * Tmavé hodnoty k `tokens.css`. Aplikace s tmavým režimem načte tenhle
+ * soubor hned za `tokens.css` (nebo za `components.css`, který tokeny
+ * načítá). Hodnoty odvozuje `tools/brand/grafit.py` a `bun run test`
+ * hlídá, že tu stojí přesně ty.
+ *
+ * Proč zvlášť: `tokens.css` drží jediný blok `:root` s tokeny `--lz-*`.
+ * Lazurio ho vkládá tak, jak je, do každé aplikace i do prvků shellu
+ * a jiný tvar jeho test odmítne (LazurioPlatform, `tests/shell-tokens.test.ts`).
+ * Tmavý blok v něm by navíc přepsal světlé hodnoty každému nástroji, který
+ * tokeny čte celé.
+ */
+
+/* Zapíná ho `data-scheme="dark"` na shellu aplikace nebo na <html>; bez
+ * něj platí světlý vzhled. Režim volí účet (Systém / Světlý / Tmavý)
+ * a atribut nastaví aplikace. Grafit platí pro produkt; web zůstává
+ * světlý.
+ *
+ * Plochy jdou po stupních: lišta a rám (`paper`) 205, stránka (`surface`)
+ * 235, karta a každý předmět na stránce (`white`) 265, šedá plocha v kartě
+ * (`gray-50`) 290 a vybraný řádek (`gray-100`) 315. Ve světlém režimu jsou
+ * stránka i karta bílé; v tmavém se karta od stránky zvedá o stupeň. Tichá
+ * linka leží nad kartou, aby karta měla obrys.
+ *
+ * Rampa se obrací: číslo stupně tu říká pořadí od plochy k inkoustu, ne
+ * světlost. `white` je karta, `gray-950` text a vybraný stav jde o stupeň
+ * dál od plochy, tedy do světlejší. Komponenty i aplikace, které berou
+ * stupně rampy, tak fungují v obou režimech bez vlastních pravidel. Pevně
+ * bílý text (tmavý pás) nese `deep-ink`.
+ *
+ * Role se tu vypisují znovu všechny, i ty, které jen ukazují na stupeň
+ * rampy: `var()` se vyhodnotí na prvku, kde je vlastnost deklarovaná,
+ * takže role zděděná z `:root` by nesla světlou hodnotu.
+ */
+[data-scheme="dark"] {
+	color-scheme: dark;
+
+	--lz-white: var(--lz-grafit-265);
+	--lz-gray-25: var(--lz-grafit-205);
+	--lz-gray-50: var(--lz-grafit-290);
+	--lz-gray-100: var(--lz-grafit-315);
+	--lz-gray-200: var(--lz-grafit-325);
+	--lz-gray-300: var(--lz-grafit-360);
+	--lz-gray-400: var(--lz-grafit-560);
+	--lz-gray-500: var(--lz-grafit-720);
+	--lz-gray-600: var(--lz-grafit-775);
+	--lz-gray-700: var(--lz-grafit-845);
+	--lz-gray-800: var(--lz-grafit-885);
+	--lz-gray-900: var(--lz-grafit-955);
+	--lz-gray-950: var(--lz-grafit-955);
+
+	/* Modrá: světlé tinty jsou tu tmavé podklady v odstínu rampy a akcent
+	 * jde o dva stupně výš, aby se na šedé četl. Tmavá polovina rampy se
+	 * nemění; nese tmavý pás značky a ten je tmavý v obou režimech. */
+	--lz-blue-50: #20253a;
+	--lz-blue-100: #293259;
+	--lz-blue-500: var(--lz-blue-300);
+	--lz-blue-600: var(--lz-blue-200);
+
+	/* Stavy po odstínech palety Svěží: světlý text na tlumeném podkladu. */
+	--lz-danger: #fe9aa3;
+	--lz-danger-bg: #3d2023;
+	--lz-danger-border: #8b4f55;
+	--lz-warning: #f0b871;
+	--lz-warning-bg: #372b1d;
+	--lz-warning-border: #76572e;
+	--lz-success: #7ad7ab;
+	--lz-success-bg: #153225;
+	--lz-success-border: #2f644c;
+	--lz-info: var(--lz-blue-200);
+	--lz-info-bg: var(--lz-blue-50);
+	--lz-info-border: #3b498b;
+
+	--lz-paper: var(--lz-grafit-205);
+	--lz-surface: var(--lz-grafit-235);
+	--lz-ink: var(--lz-grafit-955);
+	--lz-ink-muted: var(--lz-grafit-720);
+	--lz-ink-faint: var(--lz-grafit-560);
+	--lz-line: var(--lz-grafit-325);
+	--lz-line-faint: var(--lz-grafit-300);
+
+	--lz-accent: var(--lz-blue-300);
+	--lz-accent-strong: var(--lz-blue-200);
+	--lz-accent-soft: var(--lz-blue-50);
+	--lz-on-accent: var(--lz-grafit-205);
+
+	/* Tlačítko je světlá pilulka s textem v barvě karty; hover jde o stupeň
+	 * k ploše, stejně jako ve světlém režimu. */
+	--lz-accent-button: var(--lz-grafit-955);
+	--lz-accent-button-hover: var(--lz-grafit-885);
+
+	/* Na šedé se stín čte jen hlubší. */
+	--lz-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+/*
+ * Kontrastní kontrakt tmavého režimu (8. 11. 2026, spočítáno v `tools/brand/grafit.py`):
+ *   text 955 na liště 205 ...... 15,73:1, na stránce 14,63:1, na kartě 13,45:1
+ *   text 955 na vybraném 315 ... 11,42:1
+ *   tichý text 720 na kartě ..... 6,15:1, na vybraném řádku 5,22:1
+ *   blue-300 na stránce ......... 4,98:1, na kartě 4,58:1 -> AA, `accent`
+ *   blue-300 na ploše 290 ....... 4,23:1, na vybraném řádku 3,89:1 -> POD AA;
+ *                                  odkaz tam nese `accent-strong` (blue-200,
+ *                                  7,41:1 a 6,81:1)
+ *   slabý obsah 560 na kartě .... 3,28:1 -> `ink-faint`, nikdy text, stejně
+ *                                  jako ve světlém režimu
+ *   karta 265 na tlačítku 955 ... 13,45:1, na hoveru 885 10,86:1
+ *   on-accent 205 na blue-300 ... 5,36:1
+ *   linka 325 proti kartě ....... 1,23:1, tichá linka 300 1,13:1 -> obrys,
+ *                                  nikdy nositel informace
+ *   chyba na svém podkladu ...... 7,25:1, varování 7,73:1, úspěch 8,01:1,
+ *                                  informace 7,93:1
+ */

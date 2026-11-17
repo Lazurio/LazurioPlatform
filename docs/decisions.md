@@ -10919,6 +10919,56 @@ elements' `:host`), `tests/shell-interface.test.ts` (interface v1 grows by the f
 loses nothing), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
 shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded hash).
 
+### F36 addendum of 2026-11-17 (2): the theme Lazurio is dark in Grafit
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+awaits Matěj's decision (Organization Admin) with its pull request, after the addendum of
+2026-11-17.** Point 2 of the addendum of 2026-10-18 made the theme Lazurio light only,
+because the design system had no dark UI. Since 2026-11-08 it has one: the dark scheme
+Grafit, graphite greys in steps instead of near-black, chosen by the design system's owner
+over the prototype. Until now a dark device with the theme Lazurio showed T3 Code's own
+near-black palette in Chat, because the theme gave no dark values and the fork's gate fell
+back to it.
+
+1. **The values.** The theme's dark appearance is the design system's `tokens-dark.css`,
+   vendored from the same commit as `tokens.css` and resolved over it as a browser
+   resolves the rule (`src/theme/design-tokens-dark.ts`, `src/theme/palettes.ts`): the
+   rail and sidebar (`--lz-paper`) `#171717`, the page (`--lz-surface`) `#1e1e1e`, the
+   quiet and the selected surface (`--lz-gray-50`, `--lz-gray-100`) `#2b2b2b` and
+   `#313131`, the ink `#f0f0f0`, the accent the ramp's `blue-300` and the button a light
+   pill with ink of the rail's colour. `--lz-red-500` and `--lz-green-500` keep their
+   light values, as Grafit leaves them. Contrast holds as for every theme
+   (`tests/theme-palettes.test.ts`); the closest pair is the error graphic on the page,
+   3.03:1 against 3:1.
+2. **Who shows it.** Chat (the T3 Code fork's gate, point 11 of the addendum of
+   2026-10-18) and Automate (MausBot's Environment skin) already follow a theme's dark
+   values, so they show Grafit on a dark device with no release of their own. Settings
+   shows the Lazurio card with its light and dark windows, as the others.
+3. **Apps stays light** (0208 point 5): its page still hands the shell only the light
+   values (`appsTheme`), because part of its CSS draws from names no theme gives a value.
+   A dark page of its own is a change of its own.
+4. **A card's step.** Grafit lifts a card above the page (`--lz-white`, `#252525`).
+   Interface v1 does not promise `--lz-white`, so a fork draws its cards on the page's
+   surface, as under every theme. Promising a card colour is an interface change of its
+   own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Lazurio light only | Chat on a dark device keeps the near-black palette the design system replaced; rejected |
+| Put `tokens-dark.css` into the app's document beside the tokens | Restyles every `--lz-*` name under the dark attribute, beyond the promised ones, and the theme's style already carries the dark values; rejected |
+| Apps dark now | A half-dark page, as the addendum of 2026-10-18 says; left for its own change |
+| The theme's dark values from the design system's dark scheme (selected) | One source for both appearances, no fork release, the contrast held by the existing tests |
+
+**Honest limits.** In Chat, Grafit reaches the rail, the sidebar, the page and the
+selection; T3 Code's cards stay on the page's grey (point 4). The comment in the T3 Code
+fork's `theme.css` still says the dark mode of Lazurio keeps T3 Code's palettes; its next
+release should correct it, and nothing in its behaviour changes. Ring 0 with a browser
+check (root decision 0178) of Chat and Automate on a dark device comes before the waves.
+
+Verified by unit tests: `tests/theme-palettes.test.ts` (Lazurio's dark values are the dark
+scheme's, resolved over the tokens; text 4.5:1 and graphics 3:1 in dark),
+`tests/apps-view.test.ts` (the vendored file's recorded hash).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

@@ -10,7 +10,10 @@ import {
 // of its look group in Settings → Obecné. Pure and free of Node, so the page
 // and the server share it.
 //
-// Apps stays light until the design system has a dark UI (0208 point 5): the
+// Apps stays light (0208 point 5): only part of its page draws from the
+// promised names, so a dark device would get a half-dark page. The design
+// system has a dark scheme since 2026-11-08 (Grafit, the theme Lazurio's dark
+// values); the page's own dark is a change of its own. The
 // page hands the shell its theme without the dark values, so its document
 // only ever declares the light ones, whatever the device shows, and its root
 // carries no `data-lazurio-theme-dark`. Its `data-lazurio-appearance="device"`
