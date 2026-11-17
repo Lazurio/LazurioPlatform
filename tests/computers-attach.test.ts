@@ -5,6 +5,7 @@ import { createConnection } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  type AttachHost,
   attachMessage,
   attachPath,
   createComputerAttach,
@@ -45,6 +46,8 @@ async function setup(
     now?: () => number;
     attemptsPerMinute?: number;
     checkMs?: number;
+    verifyGatewayProof?: AttachHost["verifyGatewayProof"];
+    socketAnswers?: AttachHost["socketAnswers"];
   }> = {},
 ) {
   const home = await mkdtemp(join(tmpdir(), "lzc-"));
@@ -76,6 +79,12 @@ async function setup(
       ? {}
       : { attemptsPerMinute: options.attemptsPerMinute }),
     ...(options.checkMs === undefined ? {} : { checkMs: options.checkMs }),
+    ...(options.verifyGatewayProof === undefined
+      ? {}
+      : { verifyGatewayProof: options.verifyGatewayProof }),
+    ...(options.socketAnswers === undefined
+      ? {}
+      : { socketAnswers: options.socketAnswers }),
   });
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -367,20 +376,27 @@ test.skipIf(!posix)(
     const upgrade = { connection: "Upgrade", upgrade: "websocket" };
     const server = { upgrade: () => true };
     expect(
-      attach.upgrade(new Request(url, { method: "POST" }), server, "127.0.0.1")
-        ?.status,
+      (
+        await attach.upgrade(
+          new Request(url, { method: "POST" }),
+          server,
+          "127.0.0.1",
+        )
+      )?.status,
     ).toBe(405);
-    expect(attach.upgrade(new Request(url), server, "127.0.0.1")?.status).toBe(
-      426,
-    );
     expect(
-      attach.upgrade(
-        new Request(`${url}?device=A B`, { headers: upgrade }),
-        server,
-        "127.0.0.1",
+      (await attach.upgrade(new Request(url), server, "127.0.0.1"))?.status,
+    ).toBe(426);
+    expect(
+      (
+        await attach.upgrade(
+          new Request(`${url}?device=A B`, { headers: upgrade }),
+          server,
+          "127.0.0.1",
+        )
       )?.status,
     ).toBe(400);
-    const from = (address: string) =>
+    const from = async (address: string) =>
       attach.upgrade(
         new Request(url, {
           headers: {
@@ -391,11 +407,11 @@ test.skipIf(!posix)(
         server,
         "127.0.0.1",
       );
-    expect(from("203.0.113.7")).toBeUndefined();
-    expect(from("203.0.113.7")).toBeUndefined();
-    expect(from("203.0.113.7")?.status).toBe(429);
+    expect(await from("203.0.113.7")).toBeUndefined();
+    expect(await from("203.0.113.7")).toBeUndefined();
+    expect((await from("203.0.113.7"))?.status).toBe(429);
     // Another address has its own attempts; the gateway's last entry counts.
-    expect(from("203.0.113.8")).toBeUndefined();
+    expect(await from("203.0.113.8")).toBeUndefined();
   },
 );
 
@@ -532,5 +548,237 @@ test.skipIf(!posix)(
       (await fetch(`http://${base}/.lazurio/computers`, { headers: { host } }))
         .status,
     ).toBe(401);
+  },
+);
+
+// Contract v3 (Agent Desktop, variant B of HumanAndMachine-ai/Machines#936):
+// the gateway proves the computer and its person before the upgrade, and the
+// Launchpad checks the gateway's proof itself. A fake check stands for the
+// gateway helper's check endpoint here: the proof `ok-<device>` names that
+// device, anything else is refused.
+
+/** A fake check of the gateway's proof, and whether each device may still
+ * be served. */
+function fakeGateway() {
+  const allowed = new Set<string>();
+  const verifyGatewayProof = async (request: Request) => {
+    const proof = request.headers.get("x-test-gateway-proof") ?? "";
+    if (proof === "unavailable") throw new Error("helper down");
+    const device = proof.startsWith("ok-") ? proof.slice(3) : null;
+    if (device === null)
+      return { ok: false as const, status: 401 as const, reason: "no-proof" };
+    allowed.add(device);
+    return {
+      ok: true as const,
+      identity: {
+        device,
+        name: `Počítač ${device}`,
+        stillAllowed: async () => allowed.has(device),
+      },
+    };
+  };
+  return { allowed, verifyGatewayProof };
+}
+
+/** A computer on contract v3: no challenge, the gateway's proof in its
+ * upgrade, then MCP as the app answers it. */
+function computerV3(port: number, proof: string) {
+  const ws = new WebSocket(`ws://127.0.0.1:${port}${attachPath}`, {
+    headers: { "x-test-gateway-proof": proof },
+  } as unknown as string[]);
+  const seen: Message[] = [];
+  let opened = false;
+  let closeReason = "";
+  const closed = new Promise<number>((resolve) => {
+    ws.addEventListener("close", (event) => {
+      closeReason = event.reason;
+      resolve(event.code);
+    });
+  });
+  ws.addEventListener("open", () => {
+    opened = true;
+  });
+  ws.addEventListener("message", (event) => {
+    const message = JSON.parse(String(event.data)) as Message;
+    seen.push(message);
+    if (message.jsonrpc === undefined || message.id === undefined) return;
+    const reply = (result: unknown) =>
+      ws.send(JSON.stringify({ jsonrpc: "2.0", id: message.id, result }));
+    if (message.method === "initialize")
+      reply({
+        protocolVersion: "2025-06-18",
+        capabilities: { tools: {} },
+        serverInfo: { name: "lazurio-device", version: "0.2.0" },
+        _meta: { "io.lazurio/app": { version: "0.2.0", deviceLock: 1 } },
+      });
+    else if (message.method === "tools/list")
+      reply({ tools: [{ name: "desktop_snapshot", inputSchema: {} }] });
+    else if (message.method === "tools/call")
+      reply({ content: [{ type: "text", text: "snap" }] });
+    else reply({});
+  });
+  return {
+    ws,
+    seen,
+    closed,
+    opened: () => opened,
+    closeReason: () => closeReason,
+  };
+}
+
+test.skipIf(!posix)(
+  "contract v3: a computer the gateway proved is ready at once and agents reach it",
+  async () => {
+    const gateway = fakeGateway();
+    const { home, server } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+    });
+    const fake = computerV3(server.port as number, "ok-alex-macbook");
+    await waitFor(() => fake.seen.length > 0);
+    // The first message is `ready` of contract v3; no challenge exists.
+    expect(fake.seen[0]).toEqual({ type: "ready", v: 3 });
+    expect((await callTool(home)).result).toEqual({
+      content: [{ type: "text", text: "snap" }],
+    });
+    fake.ws.close();
+    await fake.closed;
+  },
+);
+
+test.skipIf(!posix)(
+  "contract v3: without the gateway's proof there is no upgrade; a check that cannot be made admits nothing",
+  async () => {
+    const gateway = fakeGateway();
+    const { attach, journal } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+    });
+    const url = `http://127.0.0.1${attachPath}`;
+    const upgrade = { connection: "Upgrade", upgrade: "websocket" };
+    let upgraded = 0;
+    const server = {
+      upgrade: () => {
+        upgraded += 1;
+        return true;
+      },
+    };
+    const attempt = (headers: Record<string, string>, query = "") =>
+      attach.upgrade(
+        new Request(`${url}${query}`, { headers: { ...upgrade, ...headers } }),
+        server,
+        "203.0.113.9",
+      );
+    expect((await attempt({}))?.status).toBe(401);
+    expect(journal.at(-1)).toMatchObject({
+      outcome: "denied",
+      reason: "no-proof",
+    });
+    expect(
+      (await attempt({ "x-test-gateway-proof": "unavailable" }))?.status,
+    ).toBe(503);
+    // A device id outside the pattern is refused even when the proof holds.
+    expect(
+      (await attempt({ "x-test-gateway-proof": "ok-Alex MacBook" }))?.status,
+    ).toBe(403);
+    // Contract v3 names the computer by the proof only, never by the URL.
+    expect(
+      (
+        await attempt(
+          { "x-test-gateway-proof": "ok-alex-macbook" },
+          "?device=alex-macbook",
+        )
+      )?.status,
+    ).toBe(400);
+    expect(upgraded).toBe(0);
+  },
+);
+
+test.skipIf(!posix)(
+  "contract v3: one session per device, refused with denied of v3",
+  async () => {
+    const gateway = fakeGateway();
+    const { server } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+    });
+    const first = computerV3(server.port as number, "ok-alex-macbook");
+    await waitFor(() => first.seen.some((m) => m.type === "ready"));
+    const second = computerV3(server.port as number, "ok-alex-macbook");
+    expect(await second.closed).toBe(1008);
+    expect(second.seen.at(-1)).toEqual({
+      type: "denied",
+      v: 3,
+      reason: "already-attached",
+    });
+    first.ws.close();
+    await first.closed;
+  },
+);
+
+test.skipIf(!posix)(
+  "contract v3: a session whose proof is no longer confirmed ends with denied expired, also on the close",
+  async () => {
+    const gateway = fakeGateway();
+    const { home, server } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+      checkMs: 30,
+    });
+    const fake = computerV3(server.port as number, "ok-alex-macbook");
+    await waitFor(() => fake.seen.some((m) => m.type === "ready"));
+    gateway.allowed.delete("alex-macbook");
+    expect(await fake.closed).toBe(1008);
+    expect(fake.seen.at(-1)).toEqual({
+      type: "denied",
+      v: 3,
+      reason: "expired",
+    });
+    expect(fake.closeReason()).toBe("expired");
+    await waitFor(() =>
+      readFile(auditPath(home), "utf8").then((text) =>
+        text.includes('"reason":"removed"'),
+      ),
+    );
+  },
+);
+
+test.skipIf(!posix)(
+  "contract v3: two simultaneous sessions of one device, only one is ready (review of #1036)",
+  async () => {
+    const gateway = fakeGateway();
+    // The check of the device's socket answers only once both sessions are
+    // waiting on it, so both pass every check made before it.
+    let waiting = 0;
+    let release = () => {};
+    const bothWaiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { server } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+      socketAnswers: async () => {
+        waiting += 1;
+        if (waiting === 2) release();
+        await Promise.race([
+          bothWaiting,
+          new Promise((resolve) => setTimeout(resolve, 1_000)),
+        ]);
+        return false;
+      },
+    });
+    const both = [
+      computerV3(server.port as number, "ok-alex-macbook"),
+      computerV3(server.port as number, "ok-alex-macbook"),
+    ];
+    await waitFor(() => both.every((fake) => fake.seen.length > 0));
+    const ready = both.filter((fake) =>
+      fake.seen.some((message) => message.type === "ready"),
+    );
+    const denied = both.filter((fake) =>
+      fake.seen.some(
+        (message) =>
+          message.type === "denied" && message.reason === "already-attached",
+      ),
+    );
+    expect(ready.length).toBe(1);
+    expect(denied.length).toBe(1);
+    for (const fake of both) fake.ws.close();
+    await Promise.all(both.map((fake) => fake.closed));
   },
 );
