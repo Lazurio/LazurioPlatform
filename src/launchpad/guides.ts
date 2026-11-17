@@ -389,9 +389,17 @@ export const memoryGuide = (copy: Copy): PageGuideInput => ({
   id: "apps-memory",
   title: copy.memoryTitle,
   steps: [
-    { text: copy.guideMemoryMap, at: "memory-graph" },
+    {
+      text: copy.guideMemoryMap,
+      sub: copy.guideMemoryMapSub,
+      at: "memory-graph",
+    },
     { text: copy.guideMemoryFind, at: "memory-find" },
-    { text: copy.guideMemoryNote, at: "memory-graph" },
+    {
+      text: copy.guideMemoryNote,
+      sub: copy.guideMemoryNoteSub,
+      at: "memory-graph",
+    },
   ],
 });
 

@@ -1758,13 +1758,19 @@ const en = {
   memoryNoteMissing: "This memory is no longer there.",
   memoryNoteFailed: "This memory could not be read. Try again.",
   memoryFacts: "What it remembers",
+  memoryPropTags: "Tags",
+  memoryPropType: "Kind",
+  memoryPropUpdated: "Changed",
   memoryLinks: "Links to",
   memoryBacklinks: "Linked from",
   guideMemoryMap:
-    "Each dot is one memory the agents saved about you and your work; a line joins memories that refer to each other.",
+    "Each dot is one memory the agents saved about you and your work.",
+  guideMemoryMapSub: "A line joins memories that refer to each other.",
   guideMemoryFind: "Find a memory by its name, or click a dot to open it.",
   guideMemoryNote:
-    "An open memory shows what it says and what it is linked to. You only read it here; to change something, ask an agent in Chat.",
+    "An open memory shows what it says and what it is linked to.",
+  guideMemoryNoteSub:
+    "You only read it here. To change something, ask an agent in Chat.",
   // Apps → Vault (root decision 0198 point 5, the wireframe's Apps →
   // Trezor): the vault and the way into it; its "?" says the rule (decision
   // F56's addendum of 2026-10-18).
@@ -4104,14 +4110,19 @@ const cs: Record<MessageKey, string> = {
   memoryNoteMissing: "Tahle vzpomínka už v paměti není.",
   memoryNoteFailed: "Vzpomínku se nepodařilo načíst. Zkuste to znovu.",
   memoryFacts: "Co si pamatuje",
+  memoryPropTags: "Štítky",
+  memoryPropType: "Druh",
+  memoryPropUpdated: "Změněno",
   memoryLinks: "Odkazuje na",
   memoryBacklinks: "Odkazy sem",
   guideMemoryMap:
-    "Každá tečka je jedna vzpomínka, kterou si agenti uložili o vás a vaší práci. Čára spojuje vzpomínky, které na sebe odkazují.",
+    "Každá tečka je jedna vzpomínka, kterou si agenti uložili o vás a vaší práci.",
+  guideMemoryMapSub: "Čára spojuje vzpomínky, které na sebe odkazují.",
   guideMemoryFind:
     "Vzpomínku najdete podle názvu, nebo ji otevřete kliknutím na tečku.",
-  guideMemoryNote:
-    "Otevřená vzpomínka ukáže, co v ní je a s čím souvisí. Tady ji jen čtete; když chcete něco změnit, řekněte to agentovi v Chatu.",
+  guideMemoryNote: "Otevřená vzpomínka ukáže, co v ní je a s čím souvisí.",
+  guideMemoryNoteSub:
+    "Tady ji jen čtete. Když chcete něco změnit, řekněte to agentovi v Chatu.",
   vaultPageTitle: "Správce hesel",
   vaultPageWorkstation: "Správce hesel na tomto počítači není.",
   vaultPageNoVault:

@@ -1230,17 +1230,21 @@ button.memory-icon { display: inline-grid; width: 30px; height: 30px; padding: 0
 .memory-icon .icon { width: 16px; height: 16px; }
 @media (hover: hover) and (pointer: fine) { .memory-icon:hover { background: var(--lz-gray-50); color: var(--lz-ink); } }
 .memory-icon:active { transform: scale(0.97); transition: transform 0.12s ease-out; }
+.memory-count[hidden] { display: none; }
 .memory-count { position: absolute; left: 8px; bottom: 8px; margin: 0; padding: 2px 4px; border-radius: 4px; background: color-mix(in srgb, var(--memory-paper) 85%, transparent); color: var(--lz-ink-faint); font-size: 12px; font-variant-numeric: tabular-nums; pointer-events: none; }
 .memory-note { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-left: 1px solid var(--lz-gray-100); background: var(--memory-paper); }
 .memory-note[hidden] { display: none; }
 .memory-note-head { display: flex; align-items: flex-start; gap: 4px; padding: 10px 10px 10px 20px; border-bottom: 1px solid var(--lz-gray-100); }
-.memory-note-title { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; padding-top: 4px; }
+.memory-note-title { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 0; padding-top: 2px; }
 .memory-note-title h2 { margin: 0; font-size: 16px; line-height: 1.3; overflow-wrap: anywhere; text-wrap: balance; outline: 0; }
 .memory-note-body { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 16px 20px 24px; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
 .memory-note-body > * + * { margin-top: 16px; }
 .memory-note-hint { margin: 0; color: var(--muted-fg); }
-.memory-note-tags { display: flex; flex-wrap: wrap; gap: 4px 8px; margin: 0; }
-.memory-tag { color: var(--lz-accent); font-size: 13px; }
+.memory-props { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; padding: 8px 10px; border-radius: 6px; background: var(--lz-gray-25); font-size: 12px; }
+.memory-props-row { display: contents; }
+.memory-props dt { color: var(--lz-ink-muted); }
+.memory-props dd { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; min-width: 0; }
+.memory-tag { padding: 0 6px; border-radius: var(--lz-radius-pill); background: var(--lz-blue-50); color: var(--lz-blue-700); font-size: 12px; }
 .memory-note-facts, .memory-note-links { display: grid; gap: 4px; }
 .memory-note-facts h3, .memory-note-links h3 { margin: 0; color: var(--muted-fg); font-size: 12px; font-weight: var(--lz-weight-akce); }
 .memory-note-facts ul, .memory-note-links ul { margin: 0; padding: 0; list-style: none; }
@@ -1252,6 +1256,7 @@ button.memory-icon { display: inline-grid; width: 30px; height: 30px; padding: 0
 .memory-note-text > :first-child { margin-top: 0; }
 .memory-note-text p, .memory-note-text ul, .memory-note-text ol, .memory-note-text blockquote, .memory-note-text pre { margin: 0 0 10px; }
 .memory-note-text h3, .memory-note-text h4, .memory-note-text h5, .memory-note-text h6 { margin: 16px 0 6px; font-size: 14px; }
+.memory-note-text h3.memory-h1 { margin: 0 0 8px; font-size: 22px; font-weight: var(--lz-weight-title); line-height: 1.25; }
 .memory-note-text ul, .memory-note-text ol { padding-left: 20px; }
 .memory-note-text blockquote { padding-left: 10px; border-left: 2px solid var(--lz-line); color: var(--muted-fg); }
 .memory-note-text pre { overflow: auto; padding: 8px 10px; border-radius: 6px; background: var(--lz-gray-25); font-size: 12px; }

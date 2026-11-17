@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { memoryGuide, pageGuide } from "../src/launchpad/guides";
 import {
   findNodes,
   fitView,
@@ -20,6 +21,7 @@ import {
   parseMemoryPage,
 } from "../src/launchpad/memory-view";
 import { messages } from "../src/launchpad/messages";
+import { parseGuides } from "../src/shell/guide-content";
 
 const cs = messages("cs", "personal");
 const en = messages("en", "personal");
@@ -252,4 +254,27 @@ test("the view frames the map; find matches words without case or diacritics", (
     "people/bob",
   ]);
   expect(findNodes(nodes, "  ")).toEqual([]);
+});
+
+test('the "?" of Brain plays an explanation the shell accepts, in both languages', () => {
+  for (const copy of [cs, en]) {
+    const guide = memoryGuide(copy);
+    expect(parseGuides([guide])?.map((entry) => entry.id)).toEqual([
+      "apps-memory",
+    ]);
+    expect(
+      pageGuide(
+        { view: "memory" },
+        {
+          kind: "personal",
+          locale: "cs",
+          composio: null,
+          vault: null as never,
+          start: null,
+          tools: null,
+        },
+        copy,
+      ).help,
+    ).toBe("apps-memory");
+  }
 });

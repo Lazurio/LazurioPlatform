@@ -162,10 +162,14 @@ export function createMemoryPanel(
     }
     if (stateBox !== null) stateBox.hidden = true;
     const map = model as Extract<MemoryMapModel, { state: "ready" }>;
-    if (countLine !== null)
+    // As in the wireframe, the map carries no count; only a cut map says
+    // so, since it does not show everything.
+    if (countLine !== null) {
+      countLine.hidden = !map.truncated;
       countLine.textContent = map.truncated
         ? `${memoryCount(nodes.length, links.length, copy, locale)} · ${memoryTruncatedLine(nodes.length, copy, locale)}`
-        : memoryCount(nodes.length, links.length, copy, locale);
+        : "";
+    }
     canvas?.setAttribute(
       "aria-label",
       `${copy.memoryCanvasLabel} ${memoryCount(nodes.length, links.length, copy, locale)}`,
@@ -756,15 +760,11 @@ export function createMemoryPanel(
     );
     heading.id = "memory-note-heading";
     heading.tabIndex = -1;
-    const meta = [shown.id];
-    if (page?.state === "ready" && page.type !== "") meta.push(page.type);
-    const updated =
-      page?.state === "ready" ? memoryDate(page.updated, locale) : null;
-    if (updated !== null) meta.push(updated);
-    titleBox.append(
-      heading,
-      element("span", "memory-note-path", meta.join(" · ")),
-    );
+    // The folder above the title, as the wireframe has it.
+    const folder = shown.id.includes("/")
+      ? shown.id.slice(0, shown.id.lastIndexOf("/"))
+      : "/";
+    titleBox.append(element("span", "memory-note-path", folder), heading);
     const closeButton = element("button", "ghost memory-icon");
     closeButton.type = "button";
     closeButton.setAttribute("aria-label", copy.memoryNoteClose);
@@ -787,11 +787,28 @@ export function createMemoryPanel(
         ),
       );
     else {
-      if (page.tags.length > 0) {
-        const tags = element("p", "memory-note-tags");
-        for (const tag of page.tags)
-          tags.append(element("span", "memory-tag", `#${tag}`));
-        content.append(tags);
+      // Its properties in the wireframe's box: tags, kind, last change.
+      const updated = memoryDate(page.updated, locale);
+      const rows: [string, Node[]][] = [];
+      if (page.tags.length > 0)
+        rows.push([
+          copy.memoryPropTags,
+          page.tags.map((tag) => element("span", "memory-tag", `#${tag}`)),
+        ]);
+      if (page.type !== "")
+        rows.push([copy.memoryPropType, [document.createTextNode(page.type)]]);
+      if (updated !== null)
+        rows.push([copy.memoryPropUpdated, [document.createTextNode(updated)]]);
+      if (rows.length > 0) {
+        const props = element("dl", "memory-props");
+        for (const [label, value] of rows) {
+          const row = element("div", "memory-props-row");
+          const dd = element("dd");
+          dd.append(...value);
+          row.append(element("dt", undefined, label), dd);
+          props.append(row);
+        }
+        content.append(props);
       }
       if (page.facts.length > 0) {
         const facts = element("section", "memory-note-facts");
@@ -810,17 +827,11 @@ export function createMemoryPanel(
       }
       const text = element("div", "memory-note-text");
       for (const block of markdownBlocks(page.body)) {
-        // The page's own title as its first heading says it twice.
-        if (
-          block.kind === "heading" &&
-          block.level === 1 &&
-          text.childElementCount === 0 &&
-          block.text.trim() === page.title.trim()
-        )
-          continue;
         if (block.kind === "heading") {
           const level = Math.min(6, Math.max(3, block.level + 2));
           const node = element(`h${level}` as "h3");
+          // The page's own top heading keeps the wireframe's size.
+          if (block.level === 1) node.className = "memory-h1";
           node.append(...runs(block.text, page.id));
           text.append(node);
         } else if (block.kind === "list") {
