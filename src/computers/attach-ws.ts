@@ -71,6 +71,15 @@ export type AttachData = {
 
 type AttachSocket = ServerWebSocket<AttachData>;
 
+/** Who a session belongs to once proved: the computer's id, its name as the
+ * person sees it, and whether it may still be served (asked while the
+ * session lasts; `false` ends it). */
+export type AttachIdentity = Readonly<{
+  device: string;
+  name: string;
+  stillAllowed: () => Promise<boolean>;
+}>;
+
 /** What the server can do with a request: the part of Bun's server this
  * needs. */
 export type UpgradeServer = Readonly<{
@@ -243,6 +252,25 @@ export function createComputerAttach(host: AttachHost) {
       deny(ws, "bad-signature");
       return;
     }
+    await startSession(ws, {
+      device,
+      name: entry.name,
+      // The session belongs to the key it proved: a computer removed and
+      // paired again under the same id with another key ends it (review
+      // of #943).
+      stillAllowed: async () =>
+        (await registryEntry(host.home, host.uid, device))?.fingerprint ===
+        entry.fingerprint,
+    });
+  }
+
+  /** Starts the session of a computer whose identity is proved: refuses a
+   * second session of the same device, answers `ready` and hands the
+   * connection to the broker. How the identity was proved is the caller's:
+   * today the computer's signature against the registry (contract v1). */
+  async function startSession(ws: AttachSocket, identity: AttachIdentity) {
+    const { device } = identity;
+    ws.data.device = device;
     if (
       active.has(device) ||
       (await socketAnswers(socketPath(host.home, device), 500))
@@ -283,7 +311,7 @@ export function createComputerAttach(host: AttachHost) {
       home: host.home,
       uid: host.uid,
       device,
-      name: entry.name,
+      name: identity.name,
       version: host.version,
       transport,
       stderr: () => undefined,
@@ -294,12 +322,7 @@ export function createComputerAttach(host: AttachHost) {
           ...line,
         }),
       saveTools: (tools) => writeTools(host.home, host.uid, device, tools),
-      // The session belongs to the key it proved: a computer removed and
-      // paired again under the same id with another key ends it (review
-      // of #943).
-      stillAllowed: async () =>
-        (await registryEntry(host.home, host.uid, device))?.fingerprint ===
-        entry.fingerprint,
+      stillAllowed: identity.stillAllowed,
       ...(host.checkMs === undefined ? {} : { checkMs: host.checkMs }),
       updating: {
         mark: () =>
