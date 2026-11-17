@@ -5,6 +5,8 @@ import { join } from "node:path";
 // macro (imported with `{ type: "macro" }`), because a browser bundle turns
 // an imported stylesheet into a stylesheet of the page, never into text, and
 // the elements need the text inside their shadow roots.
-export function vendorText(file: "tokens.css" | "symbol-color.svg"): string {
+export function vendorText(
+  file: "tokens.css" | "tokens-dark.css" | "symbol-color.svg",
+): string {
   return readFileSync(join(import.meta.dir, "vendor", "lazurio", file), "utf8");
 }
