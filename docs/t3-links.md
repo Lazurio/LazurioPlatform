@@ -77,7 +77,12 @@ switch on, or on the target a session of a linked T3 Code), fails closed: the
 switch goes off through the server and, on the target, every session of a
 linked T3 Code is revoked; only then is a new state written (`closed`), and
 the next looks build again from the handovers. A source keeps its links when
-it closes, since the target is where access is granted. Closing needs the
+it closes, since the target is where access is granted. This holds with
+or without an edge: a missing state is idle only once the switch is shown to
+be off and, on the target, no linked session exists; an empty state is then
+written so later looks need not ask T3 Code again. A pairing request over a
+missing state closes what may be open the same way before it records the
+source and issues a code, and issues none when it cannot. Closing needs the
 running server; until it answers nothing is replaced (`close-failed`). A
 target with a damaged state issues no code.
 

@@ -794,16 +794,105 @@ test("a missing state closes only where something may be open", async () => {
     result: "synced",
     switch: "on",
   });
-  // Without edges and without a state nothing is asked or written.
+  // Without edges and without a state, idle only once it is shown that
+  // nothing is open; the empty state then spares the next looks the check.
   const quiet = await world();
   expect(await quiet.target(workWith())).toEqual({
     role: "target",
     result: "idle",
   });
   expect(await readT3LinksState(quiet.w.targetHome, uid)).toEqual({
-    kind: "missing",
+    kind: "recorded",
+    state: emptyT3LinksState,
   });
   expect(quiet.w.requests).toHaveLength(0);
+  quiet.w.commands.length = 0;
+  expect(await quiet.target(workWith())).toEqual({
+    role: "target",
+    result: "idle",
+  });
+  expect(quiet.w.commands).toHaveLength(0);
+});
+
+test("a target whose state went missing closes when its last edge goes", async () => {
+  const { w, source, target: targetLook } = await world();
+  await source();
+  expect(linkSessions(w.targetSessions)).toHaveLength(1);
+  await rm(t3LinksStatePath(w.targetHome));
+  w.targetBinding = workWith();
+  // Not idle: the switch is on and a linked session exists.
+  expect(await targetLook()).toEqual({
+    role: "target",
+    result: "closed",
+    state: "missing",
+  });
+  expect(linkSessions(w.targetSessions)).toHaveLength(0);
+  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(
+    false,
+  );
+  expect(await targetLook()).toEqual({ role: "target", result: "idle" });
+
+  // The same on a source without an edge whose switch is still on.
+  await rm(t3LinksStatePath(w.sourceHome));
+  expect(await source(bindings.personal)).toEqual({
+    role: "source",
+    result: "closed",
+    state: "missing",
+  });
+  expect((await settingsOf(w.sourceHome)).linkedEnvironmentsEnabled).toBe(
+    false,
+  );
+});
+
+test("a pairing over a missing state closes what is open before it issues a code", async () => {
+  const { w, source, targetSeams } = await world();
+  await source();
+  const old = linkSessions(w.targetSessions)[0]?.sessionId;
+  await rm(t3LinksStatePath(w.targetHome));
+  w.commands.length = 0;
+  const issued = await issueLinkPairing(
+    targetSeams(),
+    w.targetBinding,
+    "lazurio-bob",
+    encodeLabel("lazurio-bob"),
+  );
+  expect(issued.kind).toBe("issued");
+  // The open session was revoked before the code existed.
+  const steps = w.commands
+    .filter((entry) => entry.side === "target")
+    .map((entry) => entry.command.slice(1, 4).join(" "));
+  expect(steps.indexOf("auth session revoke")).toBeGreaterThan(-1);
+  expect(steps.indexOf("auth session revoke")).toBeLessThan(
+    steps.indexOf("auth pairing create"),
+  );
+  expect(w.targetSessions.some((s) => s.sessionId === old)).toBe(false);
+  // Then the new state records the source before the code, and the switch
+  // is Lazurio's again.
+  expect(await stateOf(w.targetHome)).toEqual({
+    ...emptyT3LinksState,
+    enabledByLazurio: true,
+    inbound: { "lazurio-bob": "lazurio-bob" },
+  });
+  expect((await settingsOf(w.targetHome)).linkedEnvironmentsEnabled).toBe(true);
+
+  // When it cannot close, no code is issued and nothing is written.
+  const stuck = await world();
+  await stuck.source();
+  await rm(t3LinksStatePath(stuck.w.targetHome));
+  stuck.w.revokeFails = true;
+  const before = stuck.w.issued.length;
+  expect(
+    await issueLinkPairing(
+      stuck.targetSeams(),
+      stuck.w.targetBinding,
+      "lazurio-bob",
+      encodeLabel("lazurio-bob"),
+    ),
+  ).toEqual({ kind: "refused", reason: "close-failed" });
+  expect(stuck.w.issued.length).toBe(before);
+  expect(await readT3LinksState(stuck.w.targetHome, uid)).toEqual({
+    kind: "missing",
+  });
 });
 
 test("T3 Code's answers are taken only in their exact shapes", () => {

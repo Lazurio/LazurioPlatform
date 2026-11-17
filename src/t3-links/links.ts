@@ -953,15 +953,16 @@ export async function syncT3Links(
   const edges =
     role.kind === "source" ? role.targets.length : role.sources.length;
   const recorded = await readT3LinksState(seams.home, seams.uid);
-  // Nothing to do and nothing of Lazurio's to undo: T3 Code is not asked.
+  // Nothing to do and, by a recorded state, nothing of Lazurio's to undo:
+  // T3 Code is not asked. Only a recorded state says so; a missing one is
+  // looked at first, below.
   if (
     edges === 0 &&
-    (recorded.kind === "missing" ||
-      (recorded.kind === "recorded" &&
-        !recorded.state.enabledByLazurio &&
-        Object.keys(recorded.state.links).length === 0 &&
-        Object.keys(recorded.state.pending).length === 0 &&
-        Object.keys(recorded.state.inbound).length === 0))
+    recorded.kind === "recorded" &&
+    !recorded.state.enabledByLazurio &&
+    Object.keys(recorded.state.links).length === 0 &&
+    Object.keys(recorded.state.pending).length === 0 &&
+    Object.keys(recorded.state.inbound).length === 0
   )
     return { role: role.kind, result: "idle" };
   const rpcs = lazyRpc(seams);
@@ -973,8 +974,11 @@ export async function syncT3Links(
       recorded.kind === "missing" &&
       !(await mayBeOpen(seams, role.kind))
     ) {
+      // Shown to be closed: an empty state from here on, so the next looks
+      // without an edge are idle without asking T3 Code again.
       state = emptyT3LinksState;
       await persist(state);
+      if (edges === 0) return { role: role.kind, result: "idle" };
     } else {
       // Missing while something may be open, or damaged: fail closed. The
       // new state is written only once everything is closed.
@@ -1012,6 +1016,7 @@ export type PairingAnswer =
         | "state-unusable"
         | "server-down"
         | "switch-failed"
+        | "close-failed"
         | "pairing-failed";
     }>;
 
@@ -1033,7 +1038,7 @@ export async function issueLinkPairing(
   const label = decodeLabel(encodedLabel);
   if (label === undefined) return { kind: "refused", reason: "label-invalid" };
   const recorded = await readT3LinksState(seams.home, seams.uid);
-  // A state that is not there yet starts here; a damaged one is the look's.
+  // A damaged state is the look's to close; no code is issued over it.
   if (recorded.kind === "damaged")
     return { kind: "refused", reason: "state-unusable" };
   let state = recorded.kind === "recorded" ? recorded.state : emptyT3LinksState;
@@ -1042,6 +1047,16 @@ export async function issueLinkPairing(
     const rpc = await rpcs.get();
     if (typeof rpc === "string")
       return { kind: "refused", reason: "server-down" };
+    // A missing state while something may be open closes first, as a look
+    // does: the switch off and every linked session revoked, so no session
+    // outlives the ownership a new state would no longer record. No code is
+    // issued when closing fails.
+    if (
+      recorded.kind === "missing" &&
+      (await mayBeOpen(seams, "target")) &&
+      !(await close(seams, rpc, "target"))
+    )
+      return { kind: "refused", reason: "close-failed" };
     const on = await linkedEnvironmentsOn(seams.home);
     if (on === null) return { kind: "refused", reason: "switch-failed" };
     state = {
