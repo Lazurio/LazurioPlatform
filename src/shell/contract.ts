@@ -869,6 +869,10 @@ export type AccountApplication = Readonly<{
   url: string;
   /** The person's application role there (decision 0234). */
   role: "admin" | "user";
+  /** The Application serves an MCP server at `<url>/mcp` (plan LZD-0037), so
+   * Apps may offer to connect it to the Environment's agents. A hint of the
+   * source only: Apps checks it by its own probe before it offers anything. */
+  mcp?: boolean;
 }>;
 
 /** At most this many Applications in one account document. */
@@ -1005,7 +1009,7 @@ export function parseAccountApplications(
   const read: AccountApplication[] = [];
   for (const entry of value) {
     if (!isRecord(entry)) return false;
-    const { organization, module, name, url, role } = entry;
+    const { organization, module, name, url, role, mcp } = entry;
     if (
       typeof organization !== "string" ||
       !slugs.has(organization.toLowerCase()) ||
@@ -1018,7 +1022,17 @@ export function parseAccountApplications(
     const key = `${organization.toLowerCase()}/${module}`;
     if (seen.has(key)) return false;
     seen.add(key);
-    read.push(Object.freeze({ organization, module, name, url, role }));
+    // `mcp` is a hint: a value that is no boolean is left out, never the entry.
+    read.push(
+      Object.freeze({
+        organization,
+        module,
+        name,
+        url,
+        role,
+        ...(typeof mcp === "boolean" ? { mcp } : {}),
+      }),
+    );
   }
   return Object.freeze(read);
 }

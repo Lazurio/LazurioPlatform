@@ -75,6 +75,20 @@ test("valid: each Application in its exact shape and the account's order, unknow
   ]);
 });
 
+test("`mcp` is a boolean hint: kept when it is one, left out otherwise, never refusing the entry", () => {
+  const read = applicationsOf([
+    { ...deals, mcp: true },
+    {
+      ...deals,
+      module: "ledger",
+      url: "https://ledger.example.lazurio.app",
+      mcp: "yes",
+    },
+  ]);
+  expect(read?.applications?.[0]?.mcp).toBe(true);
+  expect(read?.applications?.[1]).not.toHaveProperty("mcp");
+});
+
 test("absent or null is none known; the rest of the document is read as without it", () => {
   expect(applicationsOf(undefined)?.applications).toBeUndefined();
   expect(applicationsOf(null)?.applications).toBeUndefined();
