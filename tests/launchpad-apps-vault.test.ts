@@ -164,6 +164,8 @@ test("the Apps column is Všechny moduly, Soubory, Integrace and Trezor, in this
     ["files-open", "/files", "filesTitle"],
     ["integrations-open", "/integrations", "integrationsTitle"],
     ["vault-open", "/vault", "vaultPageTitle"],
+    // Brain under Trezor (plan LZD-0033 R11b).
+    ["memory-open", "/memory", "memoryTitle"],
   ]);
   // Each moves within the page, and Trezor's opens its page in Apps.
   for (const link of links)
@@ -257,7 +259,7 @@ test("Trezor's page is a view of its own with Files' header: its title alone, no
   const header = elements.find(
     (node) => node.tag === "header" && classes(node).includes("topbar"),
   ) as Element;
-  expect(views(header)).toEqual(["settings", "files", "vault"]);
+  expect(views(header)).toEqual(["settings", "files", "vault", "memory"]);
   expect(views(byId("crumb-parent"))).toEqual(["settings"]);
   expect(inside(byId("page-heading"), header)).toBe(true);
   const refresh = byId("vault-page-refresh");
@@ -271,6 +273,7 @@ test("the first paint shows exactly the frame of the route, Trezor's too, and it
     "files",
     "integrations",
     "vault",
+    "memory",
     "marketplace",
     "settings",
   ];
