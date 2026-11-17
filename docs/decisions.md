@@ -15209,10 +15209,12 @@ addendum (c) change as follows; the rest is unchanged.
    operations that send at once (`sendMail`, and a message's `reply`, `replyAll`
    and `forward`, under `/me` and `/users/{user-id}`), whether or not sending is
    on, and carries a draft's `send` (`…/messages/{message-id}/send`) only where it
-   is on. So through Executor an agent can send only a draft that lies in the
-   person's Drafts. The guard limits the operation, not the text: it checks
-   neither the draft's content nor whether it changed after the approval, which
-   the rule of point 5 covers. The document's id moves to
+   is on. So through Executor an agent can send only an existing draft in the
+   person's mailbox (in any folder: the kept paths include
+   `…/mailFolders/{mailFolder-id}/messages/{message-id}/send` and its
+   child-folder variant). The guard filters operation paths: it checks neither
+   which draft it is, nor its content, nor whether it changed after the
+   approval, which the rule of point 5 covers. The document's id moves to
    version 2 (`lazurio.m365.spec.v2`, with whether it sends), so every Environment
    rebuilds its document once, in place, connections kept. With the four pinned
    specs it is 2,799 paths without sending and 2,805 with it.
