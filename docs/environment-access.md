@@ -456,9 +456,12 @@ by default.
   Owner, by naming an Organization Admin, in GEN4 by appointing the Admin in the
   Organization's Deployment Repo, each appointment confirmed afresh in Lazurio
   (decision 0245). A device's owner switches on access to that device. No separate SSH grant is created.
-- **How it is applied.** In GEN4 (decision 0247) Lazurio Auth decides each entry
-  from these facts at the moment of entry and issues a short-lived credential for
-  it; a normal entry goes straight to the Environment and is recorded at issuance,
+- **How it is applied.** In GEN4 (decision 0247) entry passes two gates. Lazurio
+  Auth issues a short-lived credential for each entry from these facts at the
+  moment of entry, and the Organization's servers then admit it only when the
+  person and the device are within the boundaries Machines applied to them
+  (decision 0245, amended 2026-11-17): Auth's credential is necessary and never
+  sufficient. A normal entry goes straight to the Environment and is recorded at issuance,
   a service entry goes through the recording entry point; the holder's break-glass
   entry is the one entry Auth does not issue. Until that is deployed,
   and in GEN3: the service on the Conglomerate Host that approves devices
