@@ -702,14 +702,16 @@ through `appAccess`; how the role was derived is Lazurio Auth's (decisions 0231,
 0249). Until Auth itself holds the Module roles, a person enters through the whole
 Environment, the Organization Admin role or a role given in the Application.
 
-**A new version.** By default every merge to `main` that passes the Module's checks
-is deployed: the data are backed up first, the new version starts beside the
-running one and is switched to only when its health is good, and otherwise the
-previous version stays. An Organization may instead require a release approved on
-GitHub, with a version number and release notes. The mode and who approves are
-boundaries of trust in the Organization's Deployment Repo (decision 0245); every
-rollout keeps its Plan, Permit, readback and evidence for the exact commit
-(decision 0205). Until the application host deploys this way, a version is
+**A new version.** By default every merge to `main` is deployed; an Organization
+may instead require a release approved on GitHub, with a version number and
+release notes (decision 0249). Every rollout keeps its Plan, Permit, readback and
+evidence for the exact commit (decision 0205). Who approves a release, the
+safeguards of an automatic deployment and where the mode is recorded are open in
+0249; its proposal is green checks on the merged commit, a backup of the data
+before the switch, the new version started beside the running one and switched
+to only when its health is good, and the mode with its approvers in the
+Deployment Repo (decision 0245). A Module is built so that this works: one
+process, deep health, and in `app/v4` migrations that only expand. Until the application host deploys this way, a version is
 deployed through a reviewed pull request to the Deployment Repo, and its merge is
 the approval (decision 0239). In `app/v4` an automatically deployed migration only
 expands the schema; one that drops or narrows it goes only through an approved
