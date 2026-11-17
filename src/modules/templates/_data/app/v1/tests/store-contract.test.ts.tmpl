@@ -226,3 +226,21 @@ test("a stored document that is not this collection's record is refused, never o
     rmSync(file);
   }
 });
+
+test("two writes of the same content from the same base: one succeeds, the other is refused", () => {
+  const { revision: base } = saved(store.save("notes", "same", { title: "Base" }, null, writer));
+  let first: ReturnType<Store["save"]> | undefined;
+  const second = repositoryDbStore({
+    mountRoot: mount,
+    specs,
+    // The first writer saves the same content from the same base after the
+    // second one checked the base and before it writes.
+    beforeWrite: () => {
+      first = store.save("notes", "same", { title: "Same" }, base, writer);
+    },
+  });
+  const late = second.save("notes", "same", { title: "Same" }, base, writer);
+  const won = saved(first as ReturnType<Store["save"]>);
+  expect(late).toEqual({ ok: false, reason: "record_changed", current_revision: won.revision });
+  expect(store.get("notes", "same")).toMatchObject({ revision: won.revision });
+});
