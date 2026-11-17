@@ -36,6 +36,7 @@ import {
   type RoutesWrite,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
+import { syncLiveT3Links } from "../t3-links/live";
 import { runTool } from "../tools/status";
 import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
 import { machineBinding, ownerOrganizationKey } from "./binding";
@@ -142,6 +143,18 @@ preset the handover derives), template-upgrade-required (a newer product rendere
 nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.
+machine t3-links
+Look once at the links between this Environment's Chat T3 Code and the T3 Code
+of the Environments its edges reach (root decision 0157, amended 2026-11-17),
+as the Launchpad does every five minutes. On a personal Remote Environment it
+turns T3 Code's linked environments on, pairs each assigned Work Environment
+over its managed SSH route and links it, renews a link with less than seven
+days left and forgets one whose edge went. On a work Remote Environment it
+turns linked environments on while an inbound edge from a personal Machine
+exists and revokes the sessions of linked T3 Code when one goes. Lazurio
+never creates or removes an edge; it is the Organization's record. Prints one
+JSON object without any pairing code or token; exit 1 when another look holds
+the lock (busy) or t3 is missing.
 Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
 object on stdout; text for people goes to stderr. A Folder whose lock another
 Lazurio operation still holds after the adoption check waited answers
@@ -187,13 +200,15 @@ export function parseMachineArguments(args: string[]) {
   if (
     command !== "inspect" &&
     command !== "folder-init" &&
-    command !== "folder-refresh"
+    command !== "folder-refresh" &&
+    command !== "t3-links"
   )
     throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
-    (command === "inspect" && tokens.length !== 0) ||
+    ((command === "inspect" || command === "t3-links") &&
+      tokens.length !== 0) ||
     (command === "folder-refresh" &&
       tokens.some(
         (token) => token.kind === "option" && token.name !== "preset",
@@ -252,6 +267,20 @@ export async function runMachineCommand(
       if (!isAuthSourced(observed.context))
         machineBinding(observed.context, observed.digest);
       return { code: 0, result: machineInspection(observed) };
+    }
+    if (command === "t3-links") {
+      // The same look as the Launchpad's tick, as the declared operator of
+      // the installed product, under the same lock (src/t3-links/).
+      const operator = await readLinuxOperator();
+      await requireInstalledProduct(await runningProduct(), operator.homedir);
+      const report = await syncLiveT3Links(operator.homedir, operator.uid);
+      const failed =
+        "result" in report &&
+        (report.result === "busy" || report.result === "t3-missing");
+      return {
+        code: failed ? 1 : 0,
+        result: { kind: "t3-links" as const, ...report },
+      };
     }
     // An auth-sourced handover resolves through its receipt, and only once
     // the receipt names a person (machine-assignment-pending before).

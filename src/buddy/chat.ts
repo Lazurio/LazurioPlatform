@@ -388,9 +388,11 @@ async function insideGitWorkTree(directory: string): Promise<boolean> {
  * as T3 Code keeps it, and one with comments, which T3 Code reads but a
  * rewrite would drop, stays the person's. So does a link or another kind of
  * file on the way. */
-type Settings = Readonly<{ raw: string | null; document: Json }>;
+export type Settings = Readonly<{ raw: string | null; document: Json }>;
 
-async function readSettings(
+/** Also the reader of the one member of the Chat's settings that the
+ * links between T3 Code servers own (`src/t3-links/settings.ts`). */
+export async function readSettings(
   directories: readonly string[],
   path: string,
 ): Promise<Settings | "unsafe"> {
@@ -440,7 +442,7 @@ async function ensureDirectory(directory: string) {
  * only while it still holds `raw` (null: while it is absent); false when
  * another writer changed it meanwhile and nothing was replaced. `between`
  * runs between that last comparison and the rename (tests only). */
-async function replaceIfUnchanged(
+export async function replaceIfUnchanged(
   path: string,
   raw: string | null,
   contents: string,

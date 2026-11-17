@@ -172,6 +172,9 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     // The Environment's routes from its home access service (root decision
     // 0224), where the handover declares it.
     routesAtStart: routesAtStart(context, base),
+    // The links between T3 Code servers along the Environment's edges (root
+    // decision 0157, amended 2026-11-17): exactly where it sets Executor up.
+    t3LinksAtStart: executorAtStart(context, base),
     // ChatGPT's apps in the operator's Codex (decision F42's addendum of
     // 2026-10-27): exactly where it sets Executor up.
     codexAppsAtStart: executorAtStart(context, base),
