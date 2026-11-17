@@ -726,8 +726,9 @@ permissions on every server request through `appAccess` of `@lazurio/module-kit`
 unknown identity or a missing role grants nothing.
 
 **The Application is the sole writer of its data.** On the application host the
-App always gets `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes, with `false`
-it refuses every mutation, by the one rule `dataWriter` of
+App always gets `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes; with `false`
+or any other value it neither writes, pulls nor publishes, by the one rule
+`dataWriter` of
 [Effects and publication](#effects-and-publication).
 
 **Open: when an App may write without the variable** (decided by the Owner; until
@@ -737,10 +738,12 @@ write there until the Module's writer moves, and the runtime does not yet state
 where the App runs (#1041, #1034). Two variants:
 
 - **A, transitional (recommended):** a missing variable means the development
-  version in an Environment. It writes only for the entries `local` and
-  `environment` and for its own background sync, never for `app` (a person who
-  has only the application). Once the runtime states the deployment
-  (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041), the App reads it from there instead.
+  version in an Environment. Only the entries `local` and `environment` write,
+  and so does the data sync host itself (at start, in the background and after
+  their requests); a request from the entry `app` (a person who has only the
+  application) only reads and syncs nothing, and its write is refused. A runtime
+  that states `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes
+  without `true`, with or without the writer variable.
 - **B, fail-closed:** a missing variable means no write. Before a development
   version writes again, the Platform has to pass `LAZURIO_RUNTIME_DATA_WRITER=true`
   on the Environment that is the writer (#1034); until then work in Environments
@@ -1002,7 +1005,7 @@ and the data port decide it by one rule (`dataWriter` of
 `@lazurio/module-kit/tools`): `LAZURIO_RUNTIME_DATA_WRITER=true` writes and any
 other value does not (an Application host always sets it, `true` or `false`);
 what it does without the variable is open (variant A: only a local or
-Environment entry and the background sync write, to the Environment's own data;
+Environment entry and the data sync host write, to the Environment's own data;
 variant B: nothing writes); see
 [Applications of an Organization](#applications-of-an-organization).
 
