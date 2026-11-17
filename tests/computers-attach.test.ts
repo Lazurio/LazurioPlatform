@@ -584,8 +584,12 @@ function computerV3(port: number, proof: string) {
   } as unknown as string[]);
   const seen: Message[] = [];
   let opened = false;
+  let closeReason = "";
   const closed = new Promise<number>((resolve) => {
-    ws.addEventListener("close", (event) => resolve(event.code));
+    ws.addEventListener("close", (event) => {
+      closeReason = event.reason;
+      resolve(event.code);
+    });
   });
   ws.addEventListener("open", () => {
     opened = true;
@@ -609,7 +613,13 @@ function computerV3(port: number, proof: string) {
       reply({ content: [{ type: "text", text: "snap" }] });
     else reply({});
   });
-  return { ws, seen, closed, opened: () => opened };
+  return {
+    ws,
+    seen,
+    closed,
+    opened: () => opened,
+    closeReason: () => closeReason,
+  };
 }
 
 test.skipIf(!posix)(
@@ -700,7 +710,7 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "contract v3: a device the gateway no longer allows loses its session",
+  "contract v3: a session whose proof is no longer confirmed ends with denied expired, also on the close",
   async () => {
     const gateway = fakeGateway();
     const { home, server } = await setup({
@@ -710,7 +720,13 @@ test.skipIf(!posix)(
     const fake = computerV3(server.port as number, "ok-alex-macbook");
     await waitFor(() => fake.seen.some((m) => m.type === "ready"));
     gateway.allowed.delete("alex-macbook");
-    await fake.closed;
+    expect(await fake.closed).toBe(1008);
+    expect(fake.seen.at(-1)).toEqual({
+      type: "denied",
+      v: 3,
+      reason: "expired",
+    });
+    expect(fake.closeReason()).toBe("expired");
     await waitFor(() =>
       readFile(auditPath(home), "utf8").then((text) =>
         text.includes('"reason":"removed"'),

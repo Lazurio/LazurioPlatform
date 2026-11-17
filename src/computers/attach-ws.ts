@@ -321,6 +321,20 @@ export function createComputerAttach(host: AttachHost) {
       },
       closed,
       close: (reason) => {
+        // Contract v3: a session the gateway helper no longer confirms
+        // ("removed" to the broker) ends with a reason the computer can tell
+        // from the removal of its device: `denied` with `expired`, and the
+        // same reason on the close.
+        if (
+          ws.data.contract === 3 &&
+          reason === "removed" &&
+          ws.data.state === "ready"
+        ) {
+          ws.data.closeReason = "expired";
+          deny(ws, "expired");
+          end(ws, reason);
+          return;
+        }
         if (ws.data.state !== "closed") {
           ws.data.state = "closed";
           if (ws.data.closeReason === null) ws.data.closeReason = reason;
