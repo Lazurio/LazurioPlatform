@@ -25668,9 +25668,11 @@ The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 lockfile (`bun.lock`, or `uv.lock` for a Python app, whose `python-uv` scaffold
 follows the same pin although it is outside the profiles) and nothing else in its
 own pull request, and a template adopts the release
-in a release of its own. Because `2026.11` exists and point 6 names a release by the
-month of its decision, the addendum adds: a later release decided in a month that
-already has one takes the next month's name, so `<profile>@YYYY.MM` keeps its format.
+in a release of its own. Point 6 names a release by the month of its decision; this addendum adds that
+when that name is already taken, the release takes the first later month whose name
+is still free, so every `<profile>@YYYY.MM` names one release and names grow with
+every release. Decided in November 2026, whose `2026.11` is taken, this release is
+`2026.12`; a release decided in December 2026 after it would be `2027.01`.
 The tables of `2026.11` stay in [stack-profiles.md](stack-profiles.md#2026-11). This
 replaces the v0.3.0 bump that #919 asked for.
 

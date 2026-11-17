@@ -307,7 +307,11 @@ release.
 
 ### Releases
 
-- A release is named by the year and month of its decision, `YYYY.MM`. One
+- A release is named `YYYY.MM` by the month of its decision; when that name is
+  already taken, it takes the first later month whose name is still free. So
+  every name is unique, names grow with every release, and the registry's format
+  stays valid (a second release decided in November 2026 is `2026.12`; a release
+  decided in December 2026 after it is `2027.01`). One
   release covers all four profiles; it may change only some of them, and the
   others carry over unchanged. A security patch inside a release is
   `YYYY.MM.P` (`2026.11.1`) and changes patch versions only. The Marketplace
@@ -363,10 +367,9 @@ v0.4.0.
   Using `appAccess` and the tools is the Module's own change, done when it
   becomes an Application or offers tools; the pin alone changes no behaviour.
 - **A template** adopts it in a release of its own, as every release.
-- **The name.** `2026.11` already exists and a release is named by the month of
-  its decision. A later release decided in a month that already has one takes
-  the next month's name, so the registry's format `<profile>@YYYY.MM` stays
-  valid.
+- **The name.** It was decided in November 2026, whose name `2026.11` is taken,
+  so it takes the first later free month, `2026.12`
+  ([Releases](#releases)).
 
 ## Verification of release 2026.12
 
