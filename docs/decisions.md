@@ -15222,7 +15222,7 @@ addendum (c) change as follows; the rest is unchanged.
    the IT page), so an agent that broke the rule could call Graph directly with a
    token that carries `Mail.Send`. The trimmed document makes the approved path the
    only ordinary one; the tenant's barrier is its consent to `Mail.Send`.
-5. **The Folder (`base-instructions-135`).** Mail is a draft read back and shown by
+5. **The Folder (`base-instructions-136`).** Mail is a draft read back and shown by
    its `webLink`; sent only after the person's consent to send, and then exactly
    the draft they approved (`POST /me/messages/{id}/send`). A draft that changed
    after the approval needs a new consent to its new text, unless the earlier
