@@ -95,14 +95,15 @@ rollout asks for the evidence the Organization's release mode needs.
 
 On the application host the Application always gets
 `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes, with `false` it refuses
-every mutation. A missing variable means the development version in an
-Environment: until the Module's writer moves to the application host it writes
-there only for the entries `local` and `environment`, never for `app`. Once the
-runtime states the deployment explicitly (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041)
-the App reads it from there. After the writer moved, the development version
-uses preview data. The static check looks for the variable (or module-kit's
-`dataWriter`) in a V3 or V4 app's source; the contract tests prove the four
-cases.
+every mutation. What an App may do without the variable, in a development
+version in an Environment, is open and decided by the Owner (Module Standard,
+Applications of an Organization): variant A (recommended) lets only the entries
+`local` and `environment` and the background sync write there, never `app`,
+until the runtime states the deployment (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041);
+variant B writes nothing without the variable until the Platform passes `true`
+to the writing Environment (#1034). Either way the App must read the variable,
+so the static check looks for it (or module-kit's `dataWriter`) in a V3 or V4
+app's source, and the contract tests prove the cases of the chosen variant.
 
 ## Limits of the static check
 
