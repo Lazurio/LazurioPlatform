@@ -833,9 +833,8 @@ transports over the same handler (Matěj 2026-11-05 and 2026-11-17, amendments
 of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 
 **Status.** The registry, both transports and the test helpers are in
-`@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` (Lazurio/module-kit#6,
-not yet released; the stack profiles move the pin with the profile release that
-adopts it). The Application host's gateway admits `/mcp` today (Machines
+`@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
+v0.4.0, which the stack profiles pin from release 2026.12. The Application host's gateway admits `/mcp` today (Machines
 v0.12.244 and later states the scope, below). Lazurio does not yet offer an
 Organization's App MCP server in Integrations by itself; until it does, the
 person adds it under Integrations → Custom. `lazurio module create` gives a
