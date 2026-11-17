@@ -86,3 +86,18 @@ test("the write revision and the audit bundle the data port stores pass a strict
     (root) => expect(validateDataDirectory(root, strict)).toEqual({ documents: 1, problems: [] }),
   );
 });
+
+test("a record that is not an object fails even a schema of optional fields", () => {
+  const optional = {
+    notes: { schemaVersion: "note.v1", record: z.object({ title: z.string().optional() }) },
+  };
+  withData(
+    {
+      "notes/a.yaml": "schemaVersion: note.v1\nid: a\nrecord: null\n",
+      "notes/b.yaml": "schemaVersion: note.v1\nid: b\nrecord: [1]\n",
+      "notes/c.yaml": "schemaVersion: note.v1\nid: c\nrecord: 5\n",
+      "notes/d.yaml": "schemaVersion: note.v1\nid: d\n",
+    },
+    (root) => expect(validateDataDirectory(root, optional).problems).toHaveLength(4),
+  );
+});

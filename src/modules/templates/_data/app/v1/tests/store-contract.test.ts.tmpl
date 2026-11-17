@@ -176,3 +176,53 @@ test("pages keep the order of the ids, in any letter case and script", () => {
   expect(mixed.sort()).toEqual(["m-A", "m-Z", "m-a", "m-b", "m-č"]);
   expect(new Set(mixed).size).toBe(5);
 });
+
+test("canonically equivalent ids are two ids, and paging keeps both", () => {
+  const composed = "e-\u00e9";
+  const decomposed = "e-e\u0301";
+  saved(store.save("notes", composed, { title: "composed" }, null, writer));
+  saved(store.save("notes", decomposed, { title: "decomposed" }, null, writer));
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  do {
+    const page = store.list("notes", { cursor, limit: 1 });
+    if (!("items" in page)) throw new Error("not a page");
+    seen.push(...page.items.map((item) => item.id));
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  expect(seen.filter((id) => id === composed || id === decomposed).length).toBe(2);
+});
+
+test("a value that is not an object is refused even by a schema of optional fields", () => {
+  const optional = repositoryDbStore({
+    mountRoot: mount,
+    specs: {
+      notes: { schemaVersion: "note.v1", record: z.object({ title: z.string().optional() }) },
+    },
+  });
+  for (const value of [null, [], 5, "text", undefined])
+    expect(optional.save("notes", "o", value, null, writer)).toMatchObject({
+      reason: "invalid_input",
+    });
+  expect(store.get("notes", "o")).toEqual({ ok: false, reason: "not_found" });
+});
+
+test("a stored document that is not this collection's record is refused, never overwritten", () => {
+  const cases: Record<string, string> = {
+    "x-version": "schemaVersion: note.v2\nid: x-version\nrecord:\n  title: Other\n",
+    "x-id": "schemaVersion: note.v1\nid: someone-else\nrecord:\n  title: Other\n",
+    "x-norecord": "schemaVersion: note.v1\nid: x-norecord\n",
+    "x-yaml": "schemaVersion: [note.v1\n",
+  };
+  for (const [id, content] of Object.entries(cases)) {
+    const file = join(mount, `data/notes/${id}.yaml`);
+    writeFileSync(file, content);
+    expect([id, store.get("notes", id)]).toMatchObject([id, { reason: "invalid_document" }]);
+    expect([id, store.save("notes", id, { title: "Mine" }, null, writer)]).toMatchObject([
+      id,
+      { reason: "invalid_document" },
+    ]);
+    expect(readFileSync(file, "utf8")).toBe(content);
+    rmSync(file);
+  }
+});

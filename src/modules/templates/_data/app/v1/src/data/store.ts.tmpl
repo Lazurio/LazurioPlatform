@@ -34,7 +34,8 @@ export type StoreRefusal =
   | Readonly<{ ok: false; reason: "record_changed"; current_revision: Revision | null }>
   | Readonly<{ ok: false; reason: "not_found" }>
   | Readonly<{ ok: false; reason: "data_read_only" }>
-  | Readonly<{ ok: false; reason: "invalid_input"; message: string }>;
+  | Readonly<{ ok: false; reason: "invalid_input"; message: string }>
+  | Readonly<{ ok: false; reason: "invalid_document"; message: string }>;
 
 export type Saved = Readonly<{ ok: true; revision: Revision }>;
 
@@ -62,9 +63,11 @@ export const RECORD_METADATA: readonly string[] = [
   "updatedByChannel",
 ];
 
-/** The domain fields of a stored record, the part its schema validates. */
-export function domainPart(record: unknown): Record<string, unknown> {
-  if (record === null || typeof record !== "object" || Array.isArray(record)) return {};
+/** The domain fields of a stored record, the part its schema validates. A
+ * value that is not a plain object is returned as it is, so the schema refuses
+ * it instead of seeing an empty record. */
+export function domainPart(record: unknown): unknown {
+  if (record === null || typeof record !== "object" || Array.isArray(record)) return record;
   return Object.fromEntries(
     Object.entries(record as Record<string, unknown>).filter(
       ([key]) => !RECORD_METADATA.includes(key),

@@ -52,8 +52,11 @@ export function revisionOf(record: unknown): Revision {
   return `rev:${token}:${fingerprint}`;
 }
 
-/** The order of repository-db's `listIds()`, which the cursor follows too. */
-const order = (left: string, right: string) => left.localeCompare(right, "en");
+/** A total order of ids, used for sorting and for the cursor alike: the order
+ * of repository-db's `listIds()`, then code points for ids it ranks equal
+ * (`"é"` and `"e\u0301"` are two ids). */
+const order = (left: string, right: string) =>
+  left.localeCompare(right, "en") || (left < right ? -1 : left > right ? 1 : 0);
 const encodeCursor = (id: string) => Buffer.from(id, "utf8").toString("base64url");
 const decodeCursor = (cursor: string) => Buffer.from(cursor, "base64url").toString("utf8");
 
@@ -81,15 +84,33 @@ export function repositoryDbStore(options: {
 
   /** One read of a document: its record and the file revision of the same
    * bytes, so the write is bound to exactly the version that was checked. */
-  const snapshot = (directory: string, id: string) => {
+  const snapshot = (
+    directory: string,
+    id: string,
+    spec: CollectionSpec,
+  ):
+    | { ok: true; fileRevision: string | null; record: unknown }
+    | { ok: false; message: string } => {
     const path = relative(options.mountRoot, join(directory, documentFileName(id)));
     const text = readDataFile(options.mountRoot, path);
-    if (text === null) return { fileRevision: null, record: undefined };
-    const envelope = parseYaml(text) as { record?: unknown };
-    return {
-      fileRevision: recordRevisionFromBytes(Buffer.from(text, "utf8")),
-      record: envelope.record,
-    };
+    if (text === null) return { ok: true, fileRevision: null, record: undefined };
+    let envelope: unknown;
+    try {
+      envelope = parseYaml(text);
+    } catch {
+      return { ok: false, message: `${path} is not YAML.` };
+    }
+    // The same envelope checks as repository-db's get: a document that is not
+    // this collection's record is refused, never overwritten.
+    if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope))
+      return { ok: false, message: `${path} is not a mapping.` };
+    const { schemaVersion, id: storedId, record } = envelope as Record<string, unknown>;
+    if (schemaVersion !== spec.schemaVersion)
+      return { ok: false, message: `${path} has schemaVersion ${JSON.stringify(schemaVersion)}.` };
+    if (storedId !== id)
+      return { ok: false, message: `${path} names the id ${JSON.stringify(storedId)}.` };
+    if (record === undefined) return { ok: false, message: `${path} has no record.` };
+    return { ok: true, fileRevision: recordRevisionFromBytes(Buffer.from(text, "utf8")), record };
   };
 
   return {
@@ -102,10 +123,14 @@ export function repositoryDbStore(options: {
         .listIds()
         .sort(order)
         .filter((id) => after === null || order(id, after) > 0);
-      const items: StoredRecord[] = ids.slice(0, limit).map((id) => {
-        const record = collection.getOrThrow(id).record;
-        return { id, record, revision: revisionOf(record) };
-      });
+      const spec = specs[name] as CollectionSpec;
+      const items: StoredRecord[] = [];
+      for (const id of ids.slice(0, limit)) {
+        const current = snapshot(collection.directoryPath, id, spec);
+        if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
+        if (current.record !== undefined)
+          items.push({ id, record: current.record, revision: revisionOf(current.record) });
+      }
       const last = items.at(-1);
       return {
         items,
@@ -116,9 +141,11 @@ export function repositoryDbStore(options: {
     get(name, id): StoredRecord | StoreRefusal {
       const collection = open(name);
       if (collection === undefined) return unknownCollection;
-      const document = collection.get(id);
-      if (document === undefined) return { ok: false, reason: "not_found" };
-      return { id, record: document.record, revision: revisionOf(document.record) };
+      const spec = specs[name] as CollectionSpec;
+      const current = snapshot(collection.directoryPath, id, spec);
+      if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
+      if (current.record === undefined) return { ok: false, reason: "not_found" };
+      return { id, record: current.record, revision: revisionOf(current.record) };
     },
 
     save(name, id, record, baseRevision, context: WriteContext): Saved | StoreRefusal {
@@ -129,7 +156,10 @@ export function repositoryDbStore(options: {
       const parsed = spec.record.safeParse(domainPart(record));
       if (!parsed.success)
         return { ok: false, reason: "invalid_input", message: parsed.error.message };
-      const current = snapshot(collection.directoryPath, id);
+      if (parsed.data === null || typeof parsed.data !== "object" || Array.isArray(parsed.data))
+        return { ok: false, reason: "invalid_input", message: "A record is an object." };
+      const current = snapshot(collection.directoryPath, id, spec);
+      if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
       const currentRevision = current.record === undefined ? null : revisionOf(current.record);
       if (currentRevision !== baseRevision)
         return { ok: false, reason: "record_changed", current_revision: currentRevision };
@@ -147,11 +177,11 @@ export function repositoryDbStore(options: {
         collection.put(id, next, {}, { baseRevision: current.fileRevision });
       } catch (error) {
         if (error instanceof RepositoryDbError && error.code === "record_changed") {
-          const now = snapshot(collection.directoryPath, id);
+          const now = snapshot(collection.directoryPath, id, spec);
           return {
             ok: false,
             reason: "record_changed",
-            current_revision: now.record === undefined ? null : revisionOf(now.record),
+            current_revision: now.ok && now.record !== undefined ? revisionOf(now.record) : null,
           };
         }
         throw error;
