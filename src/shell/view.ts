@@ -471,26 +471,13 @@ export type EnvironmentGlyph =
     }>
   /** The person a work Environment is assigned to (F36's addendum of
    * 2026-11-03): their GitHub photo, round, and their initials where it
-   * does not load; their name for the words. `organization`, where the
-   * page knows it, is the Organization the Environment belongs to, drawn
-   * as a badge on the photo's corner (F39's addendum of 2026-11-16): an
-   * optional member of v1, which an older view skips. */
+   * does not load; their name for the words. */
   | Readonly<{
       kind: "person";
       name: string;
       avatar: string | null;
       initials: string;
-      organization?: OrganizationBadge;
     }>;
-
-/** An Organization's badge on a person's photo (F39's addendum of
- * 2026-11-16): its name for the words, its avatar, and its initials where
- * it has none or the picture does not load. */
-export type OrganizationBadge = Readonly<{
-  name: string;
-  avatar: string | null;
-  initials: string;
-}>;
 
 /** An Organization's mark: its avatar, its initials and its name. */
 export const organizationGlyph = (
@@ -591,27 +578,13 @@ function rowWho(
     .join(" · ");
 }
 
-/** A person's mark: their photo, their initials where it does not load,
- * and the badge of the Organization the Environment belongs to where one is
- * given (a head names it; a row of the list does not, its heading does). */
-const ownerGlyph = (
-  owner: EnvironmentOwner,
-  organization?: ShellOrganization,
-): EnvironmentGlyph =>
+/** A person's mark: their photo, their initials where it does not load. */
+const ownerGlyph = (owner: EnvironmentOwner): EnvironmentGlyph =>
   Object.freeze({
     kind: "person",
     name: owner.name ?? owner.login,
     avatar: githubPhoto(owner.login),
     initials: initialsOf(owner.name ?? owner.login).slice(0, 2),
-    ...(organization === undefined
-      ? {}
-      : {
-          organization: Object.freeze({
-            name: organization.name,
-            avatar: organization.avatar,
-            initials: initialsOf(organization.name),
-          }),
-        }),
   });
 
 /** The kind under an Environment's name in its head (F36's addendum of
@@ -644,8 +617,6 @@ export const buddyPicture = (shell: Shell): string | null =>
 
 /** What the picker shows of an Environment in a space: the photo of the
  * person a work Environment is assigned to (F36's addendum of 2026-11-03),
- * with the badge of the space's Organization on its corner (F39's addendum
- * of 2026-11-16),
  * Buddy's picture for a personal one where the document names Buddy (your
  * initials, else those of `name`, if it does not load; F36's addendum of
  * 2026-11-05), else your initials, the space's Organization's mark where
@@ -658,9 +629,7 @@ export function environmentGlyph(
   name: string,
 ): EnvironmentGlyph {
   const owner = environmentOwner(environment);
-  const organization =
-    space === personalSpace ? undefined : organizationOf(shell, space);
-  if (owner !== null) return ownerGlyph(owner, organization);
+  if (owner !== null) return ownerGlyph(owner);
   const picture = buddyPicture(shell);
   if (environment.kind === "personal" && picture !== null)
     return {
@@ -671,6 +640,8 @@ export function environmentGlyph(
     };
   if (environment.kind === "personal" && shell.operator.initials !== null)
     return { kind: "initials", text: shell.operator.initials };
+  const organization =
+    space === personalSpace ? undefined : organizationOf(shell, space);
   return organization !== undefined
     ? organizationGlyph(organization)
     : { kind: "icon", icon: kindIcons[environment.kind] };
@@ -788,25 +759,16 @@ export function elementIdentity(
   );
 }
 
-/** The Organization a glyph shows, in words: whose avatar the mark is, or
- * whose badge is on a person's photo (F39's addendum of 2026-11-16); null
- * where it shows none or the name already is the Organization's. */
-export function identityOrganization(identity: IdentityLook): string | null {
-  const glyph = identity.glyph;
-  const organization =
-    glyph.kind === "avatar"
-      ? glyph.organization
-      : glyph.kind === "person"
-        ? (glyph.organization?.name ?? null)
-        : null;
-  return organization === identity.name ? null : organization;
-}
-
 /** An identity in words, where nothing draws its mark (a tab's title, a
- * tooltip): the Organization its glyph shows (`identityOrganization`), the
- * name and who it is for. */
+ * tooltip): the Organization whose avatar the mark is (unless the name is
+ * already its), the name and who it is for. */
 export function identityText(identity: IdentityLook): string {
-  return [identityOrganization(identity), identity.name, identity.who]
+  const organization =
+    identity.glyph.kind === "avatar" &&
+    identity.glyph.organization !== identity.name
+      ? identity.glyph.organization
+      : null;
+  return [organization, identity.name, identity.who]
     .filter((part): part is string => part !== null && part !== "")
     .join(" · ");
 }

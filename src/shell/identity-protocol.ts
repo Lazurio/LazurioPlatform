@@ -5,11 +5,7 @@ import {
   identityRequestOf as requestOf,
 } from "../browser/contract/pure";
 import { isEnvironmentId, isShellUrl } from "./contract";
-import type {
-  EnvironmentGlyph,
-  EnvironmentIdentity,
-  OrganizationBadge,
-} from "./view";
+import type { EnvironmentGlyph, EnvironmentIdentity } from "./view";
 
 // How the Environment browser's view learns how the shell names its
 // Environment (F39's addendum of 2026-10-12). The view (another origin, in a
@@ -32,9 +28,7 @@ import type {
 // from its parent window, on its parent's origin. What the answer says is
 // the shell's: `identity` is an `EnvironmentIdentity` or null (the host does
 // not know that Environment), display words, an Organization's avatar
-// address and initials (also as the badge on a person's photo, F39's
-// addendum of 2026-11-16, an optional member an older view skips), nothing
-// else, and the view takes it only about its
+// address and initials, nothing else, and the view takes it only about its
 // own Environment. Pure: no DOM, shared by the shell, the view and their
 // tests.
 
@@ -70,29 +64,9 @@ const glyphIcons: readonly string[] = [
   "building",
 ];
 
-/** An Organization's badge on a person's photo (F39's addendum of
- * 2026-11-16), or null: its name, its avatar on a shell address or none,
- * its initials. */
-function parseBadge(value: unknown): OrganizationBadge | null {
-  return isRecord(value) &&
-    display(value.name, 128) &&
-    (value.avatar === null || isShellUrl(value.avatar)) &&
-    display(value.initials, 8)
-    ? Object.freeze({
-        name: value.name,
-        avatar: value.avatar as string | null,
-        initials: value.initials,
-      })
-    : null;
-}
-
 /** A glyph of these four kinds and their exact members, or null. A
  * person's (F36's addendum of 2026-11-03) is the newest: a view of an older
- * release does not read it and draws the identity its own server gave. Its
- * Organization's badge (F39's addendum of 2026-11-16) is an optional member:
- * absent or not a badge (an address the shell does not allow, a name that
- * is no display text), the photo alone, so the person is still drawn. An
- * older view skips it. */
+ * release does not read it and draws the identity its own server gave. */
 export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
   if (!isRecord(value)) return null;
   switch (value.kind) {
@@ -107,8 +81,7 @@ export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
             initials: value.initials,
           })
         : null;
-    case "person": {
-      const badge = parseBadge(value.organization);
+    case "person":
       return display(value.name, 128) &&
         (value.avatar === null || isShellUrl(value.avatar)) &&
         display(value.initials, 8)
@@ -117,10 +90,8 @@ export function parseEnvironmentGlyph(value: unknown): EnvironmentGlyph | null {
             name: value.name,
             avatar: value.avatar as string | null,
             initials: value.initials,
-            ...(badge === null ? {} : { organization: badge }),
           })
         : null;
-    }
     case "initials":
       return display(value.text, 8)
         ? Object.freeze({ kind: "initials", text: value.text })

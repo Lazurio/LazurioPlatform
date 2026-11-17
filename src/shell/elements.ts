@@ -55,7 +55,6 @@ import {
   columnHead,
   elementIdentity,
   hereOf,
-  identityOrganization,
   identityText,
   initialsOf,
   personalSpace,
@@ -1168,13 +1167,7 @@ export class LazurioColumnHead extends ShellElement {
     picker.setAttribute("aria-expanded", "false");
     picker.setAttribute(
       "aria-label",
-      fillShell(copy.pick, {
-        // The Organization its badge shows, which a screen reader would not
-        // hear inside the button's own label (F39's addendum of 2026-11-16).
-        name: [identityOrganization(model.picker), model.picker.name]
-          .filter((part): part is string => part !== null)
-          .join(" · "),
-      }),
+      fillShell(copy.pick, { name: model.picker.name }),
     );
     // The whole identity on hover, where the column cuts the name or the
     // kind under it ("Pracovní Prostředí", F36's addendum of 2026-11-03).

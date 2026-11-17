@@ -51,7 +51,6 @@ import {
   parseEntryAnswer,
   parsePromptHandoff,
 } from "./chat-view";
-import { createComputersPanel } from "./computers-panel";
 import { createConnectionsPanel } from "./connections-panel";
 import { parseConnectionsOverview } from "./connections-view";
 import { type ContentTransport, createContentClient } from "./content-client";
@@ -1487,14 +1486,6 @@ const connections = createConnectionsPanel({
   locale: () => locale,
   computer: () => profileState !== null && profileState.preset !== "local",
 });
-// Settings → Connections → Počítače pro agenty (decision F75): read with
-// Connections; shown only where this Environment uses people's computers.
-const computersPanel = createComputersPanel({
-  get: (path) => get(path),
-  post: (path, body) => post(path, body),
-  copy: () => copy,
-  locale: () => locale,
-});
 // Apps → Vault, Apps → Trezor (root decision 0198 point 5, F53's addendum of
 // 2026-10-18): read on first view; the server adds the person the gateway
 // admitted to the vault.
@@ -1732,12 +1723,6 @@ const shell = createShell({
       !connections.loaded
     )
       void connections.refresh();
-    if (
-      route.view === "settings" &&
-      route.section === "connections" &&
-      !computersPanel.loaded
-    )
-      void computersPanel.refresh();
     if (route.view === "vault" && !vaultPage.loaded) void vaultPage.refresh();
     vaultRequests.show(route);
     if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
@@ -1937,7 +1922,6 @@ function relabel() {
   recovery.render();
   ssh.render();
   connections.render();
-  computersPanel.render();
   theme.render();
   ownInstructions.render();
   vaultPage.render();

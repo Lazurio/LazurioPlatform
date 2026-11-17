@@ -24,7 +24,6 @@ import {
   type EnvironmentIdentity,
   elementIdentity,
   environmentIdentity,
-  identityOrganization,
   identityText,
   titleWithIdentity,
   viewIdentity,
@@ -155,17 +154,12 @@ const acmeMark = {
   initials: "AW",
 } as const;
 
-// The badge of the Organization a person's work Environment belongs to, on
-// their photo's corner (F39's addendum of 2026-11-16).
-const acmeBadge = { name: "Acme Works", avatar, initials: "AW" } as const;
-
 // A person's photo (F36's addendum of 2026-11-03): the GitHub account's.
 const janaPhoto = {
   kind: "person",
   name: "jana",
   avatar: "https://github.com/jana.png?size=96",
   initials: "JA",
-  organization: acmeBadge,
 } as const;
 
 describe("one identity names an Environment", () => {
@@ -289,7 +283,6 @@ describe("one identity names an Environment", () => {
         name: "petr",
         avatar: "https://github.com/petr.png?size=96",
         initials: "PE",
-        organization: acmeBadge,
       },
     });
     // An account in another language keeps no name of its own.
@@ -318,11 +311,9 @@ describe("one identity names an Environment", () => {
     const shell = parsed(acmeDocument());
     const identity = environmentIdentity(shell, "vm-01.acme", cs);
     expect(titleWithIdentity("Inbox (3)", identity)).toBe(
-      "Inbox (3) — Acme Works · jana · Pracovní Prostředí",
+      "Inbox (3) — jana · Pracovní Prostředí",
     );
-    expect(titleWithIdentity("", identity)).toBe(
-      "Acme Works · jana · Pracovní Prostředí",
-    );
+    expect(titleWithIdentity("", identity)).toBe("jana · Pracovní Prostředí");
     expect(titleWithIdentity("Inbox (3)", null)).toBe("Inbox (3)");
     expect(titleWithIdentity("", null)).toBe("");
   });
@@ -334,10 +325,9 @@ describe("one identity names an Environment", () => {
       if (found === null) throw new Error("listed");
       return found;
     };
-    // A person's Environment: the person, and the Organization of the
-    // badge on their photo (F39's addendum of 2026-11-16).
+    // A person's Environment: no Organization mark, the person instead.
     expect(identityText(identity("vm-01.acme"))).toBe(
-      "Acme Works · jana · Pracovní Prostředí",
+      "jana · Pracovní Prostředí",
     );
     expect(identityText(identity("jana"))).toBe("Buddy");
     expect(identityText(identity("vm-02.acme"))).toBe(
@@ -347,159 +337,6 @@ describe("one identity names an Environment", () => {
     expect(
       identityText({ glyph: acmeMark, name: "Acme Works", who: "Dashboard" }),
     ).toBe("Acme Works · Dashboard");
-  });
-});
-
-// Matěj, 2026-11-16 (F39's addendum): in the Environment browser's bar he saw
-// that it is his work Environment, not whose Organization's. An icon is
-// enough: the Organization's badge on the person's photo, as a chat app
-// marks its workspace; its name in the tooltip and the accessible name.
-describe("the Organization's badge on a person's photo", () => {
-  const glyphOf = (shell: Shell, id: string) =>
-    environmentIdentity(shell, id, cs)?.glyph;
-
-  test("only a person's work Environment carries it; personal, Team and Automated ones are as they were", () => {
-    const shell = parsed(acmeDocument());
-    expect(glyphOf(shell, "vm-01.acme")).toEqual(janaPhoto);
-    for (const id of ["jana", "vm-02.acme", "vm-03.acme"])
-      expect(glyphOf(shell, id)).not.toHaveProperty("organization", acmeBadge);
-    expect(glyphOf(shell, "jana")?.kind).toBe("initials");
-    expect(glyphOf(shell, "vm-02.acme")).toEqual(acmeMark);
-    expect(glyphOf(shell, "vm-03.acme")).toEqual(acmeMark);
-  });
-
-  test("without the Organization's avatar its initials; in no Organization's space, the photo alone", () => {
-    const bare = parsed(
-      acmeDocument({
-        organizations: [{ ...acmeDocument().organizations[0], avatar: null }],
-      }),
-    );
-    expect(glyphOf(bare, "vm-01.acme")).toEqual({
-      ...janaPhoto,
-      organization: { ...acmeBadge, avatar: null },
-    });
-    // In a space that is no Organization's, there is none to show.
-    const glyph = environmentIdentity(
-      parsed(acmeDocument()),
-      "vm-01.acme",
-      cs,
-      "personal",
-    )?.glyph;
-    expect(glyph).toEqual({
-      kind: "person",
-      name: "jana",
-      avatar: "https://github.com/jana.png?size=96",
-      initials: "JA",
-    });
-    expect(glyph).not.toHaveProperty("organization");
-  });
-
-  test("a long name is whole in words, the badge keeps its initials", () => {
-    const long = "Acme Works International Holding and Subsidiaries Group";
-    const shell = parsed(
-      acmeDocument({
-        organizations: [{ ...acmeDocument().organizations[0], name: long }],
-      }),
-    );
-    const identity = environmentIdentity(shell, "vm-01.acme", cs);
-    expect(identity?.glyph).toEqual({
-      ...janaPhoto,
-      organization: { name: long, avatar, initials: "AW" },
-    });
-    if (identity === undefined || identity === null) throw new Error("listed");
-    expect(identityText(identity)).toBe(`${long} · jana · Pracovní Prostředí`);
-    expect(identityOrganization(identity)).toBe(long);
-    // Never twice where the name already is the Organization's.
-    expect(identityOrganization({ ...identity, name: long })).toBeNull();
-  });
-
-  // Contract v1 only grows (F50 point 3): the badge is an optional member.
-  test("a newer app's answer reads in an older view as the photo alone", () => {
-    // The person glyph as views read it before 2026-11-16, verbatim: it
-    // takes the members it knows and leaves the rest.
-    const olderPerson = (value: Record<string, unknown>) =>
-      typeof value.name === "string" &&
-      (value.avatar === null || typeof value.avatar === "string") &&
-      typeof value.initials === "string"
-        ? {
-            kind: "person",
-            name: value.name,
-            avatar: value.avatar,
-            initials: value.initials,
-          }
-        : null;
-    const sent = JSON.parse(
-      JSON.stringify(
-        environmentIdentity(parsed(acmeDocument()), "vm-01.acme", cs),
-      ),
-    );
-    expect(sent.glyph.organization).toEqual(acmeBadge);
-    expect(olderPerson(sent.glyph)).toEqual({
-      kind: "person",
-      name: "jana",
-      avatar: "https://github.com/jana.png?size=96",
-      initials: "JA",
-    });
-  });
-
-  test("an older app's answer reads in a newer view as the photo alone", () => {
-    const older = {
-      id: "vm-01.acme",
-      name: "jana",
-      who: "Pracovní Prostředí",
-      glyph: {
-        kind: "person" as const,
-        name: "jana",
-        avatar: "https://github.com/jana.png?size=96",
-        initials: "JA",
-      },
-    };
-    const read = parseEnvironmentIdentity(older);
-    expect(read).toEqual(older);
-    expect(read?.glyph).not.toHaveProperty("organization");
-    expect(parseEmbeddedIdentity(JSON.stringify(older))).toEqual(older);
-  });
-
-  test("the badge crosses the wire and the view's page as itself, and only as display words and a shell address", () => {
-    const identity = environmentIdentity(
-      parsed(acmeDocument()),
-      "vm-01.acme",
-      cs,
-    );
-    if (identity === null) throw new Error("listed");
-    expect(
-      parseEnvironmentIdentity(JSON.parse(JSON.stringify(identity))),
-    ).toEqual(identity);
-    const hostile = {
-      ...identity,
-      glyph: {
-        ...janaPhoto,
-        organization: { ...acmeBadge, name: "</script><script>alert(1)" },
-      },
-    } as EnvironmentIdentity;
-    const text = identityJson(hostile);
-    expect(text).not.toContain("<");
-    expect(parseEmbeddedIdentity(text)).toEqual(hostile);
-    // A badge that is no badge leaves the person drawn without it.
-    const { organization: _badge, ...photoAlone } = janaPhoto;
-    for (const organization of [
-      null,
-      "Acme Works",
-      { ...acmeBadge, avatar: "http://example.com/a.png" },
-      { ...acmeBadge, avatar: "javascript:alert(1)" },
-      { ...acmeBadge, avatar: `${avatar}#x` },
-      { ...acmeBadge, name: "" },
-      { ...acmeBadge, name: "x".repeat(129) },
-      { ...acmeBadge, name: "line\nbreak" },
-      { ...acmeBadge, initials: "TOO-LONG!" },
-      { name: "Acme Works", initials: "AW" },
-    ]) {
-      const read = parseEnvironmentIdentity({
-        ...identity,
-        glyph: { ...janaPhoto, organization },
-      });
-      expect(read?.glyph).toEqual(photoAlone);
-    }
   });
 });
 

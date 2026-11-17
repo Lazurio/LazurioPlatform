@@ -4,7 +4,6 @@ import {
   type EnvironmentIdentity,
   type IdentityLook,
   identityText,
-  type OrganizationBadge,
 } from "./view";
 
 // The one drawing of how the shell names an Environment (F39's addendum of
@@ -46,30 +45,12 @@ export function organizationMark(
 }
 
 /** A person's GitHub photo, round, or their initials when it does not load
- * (F36's addendum of 2026-11-03); with the Organization the Environment
- * belongs to as a small badge on its lower right corner, as a chat app
- * marks its workspace (F39's addendum of 2026-11-16): the Organization's
- * avatar, or its initials as `organizationMark` falls back. The badge is a
- * picture of the Organization's name, so whoever cannot see it hears it. */
+ * (F36's addendum of 2026-11-03). */
 export function personMark(
   avatar: string | null,
   initials: string,
-  organization?: OrganizationBadge,
 ): HTMLSpanElement {
-  const photo = pictureMark("org-mark person-mark", avatar, initials);
-  if (organization === undefined) return photo;
-  const holder = span("person-badged");
-  // One letter: two do not read at a badge's size; the name is in its
-  // label and in the head's tooltip.
-  const badge = organizationMark(
-    organization.avatar,
-    [...organization.initials][0] ?? organization.initials,
-  );
-  badge.classList.add("org-badge");
-  badge.setAttribute("role", "img");
-  badge.setAttribute("aria-label", organization.name);
-  holder.append(photo, badge);
-  return holder;
+  return pictureMark("org-mark person-mark", avatar, initials);
 }
 
 function pictureMark(
@@ -101,13 +82,9 @@ export function drawIdentity(
   const mark = look.glyph;
   if (mark.kind === "avatar")
     glyph.append(organizationMark(mark.avatar, mark.initials));
-  else if (mark.kind === "person") {
-    glyph.append(personMark(mark.avatar, mark.initials, mark.organization));
-    // The badge reaches past the photo's corner, so the glyph lets it out.
-    if (mark.organization !== undefined)
-      glyph.classList.add("identity-glyph--badged");
-  } else if (mark.kind === "initials")
-    glyph.append(span("initials", mark.text));
+  else if (mark.kind === "person")
+    glyph.append(personMark(mark.avatar, mark.initials));
+  else if (mark.kind === "initials") glyph.append(span("initials", mark.text));
   else glyph.append(icon(mark.icon, 18));
   const text = span("identity-text");
   text.append(span("identity-name", look.name));

@@ -222,7 +222,6 @@ a.tab:hover { color: var(--shell-ink); }
   --shell-control: var(--lazurio-control, rgb(255 255 255 / 0.06));
   --shell-raised: var(--lazurio-raised, rgb(255 255 255 / 0.12));
   --shell-raised-shadow: none;
-  --shell-badge-ring: var(--lazurio-surface, #1c1c1e);
 }
 /* A narrow host (a fork's icon-only sidebar): the glyphs alone. */
 :host { container-type: inline-size; }
