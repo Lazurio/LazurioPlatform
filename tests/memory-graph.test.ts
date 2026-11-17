@@ -167,7 +167,10 @@ test("the map is every page and the links between them, once per direction", asy
     title: "Bob",
     type: "person",
     updated: "2026-11-17T11:00:00.000000Z",
+    // Listed newest first (created_desc): the first row is the newest.
+    born: 2,
   });
+  expect(graph.nodes.map((node) => node.born)).toEqual([2, 1, 0]);
   // A link to a page the map does not have and a link to itself are left
   // out; links cut across calls are followed.
   expect(graph.links).toEqual([

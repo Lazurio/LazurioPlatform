@@ -21,6 +21,11 @@ export type MemoryNode = Readonly<{
   /** GBrain's page type (person, company, project, concept, …). */
   type: string;
   updated: string | null;
+  /** When it came into the memory among the map's pages: 0 the oldest
+   * (Zobrazení → Animovat replays the memory growing in this order).
+   * GBrain's listing carries no creation time, so this is its rank in
+   * `list_pages` sorted `created_desc`. */
+  born: number;
 }>;
 
 /** A link between two pages, one per direction. */
@@ -103,7 +108,7 @@ async function pagesOf(reader: GbrainReader, handover: MemoryHandover) {
   let truncated = false;
   for (let offset = 0; ; offset += pageLimit) {
     const answer = await reader.call(handover, "list_pages", {
-      sort: "slug",
+      sort: "created_desc",
       limit: pageLimit,
       ...(offset > 0 ? { offset } : {}),
     });
@@ -117,6 +122,7 @@ async function pagesOf(reader: GbrainReader, handover: MemoryHandover) {
         title: text(row.title).trim() || slug,
         type: text(row.type).trim() || "note",
         updated: text(row.updated_at_iso) || text(row.updated_at) || null,
+        born: 0,
       });
     }
     if (!truncatedOf(answer.meta) || list.length === 0) break;
@@ -125,7 +131,15 @@ async function pagesOf(reader: GbrainReader, handover: MemoryHandover) {
       break;
     }
   }
-  return { nodes: nodes.slice(0, memoryPageCap), truncated };
+  const kept = nodes.slice(0, memoryPageCap);
+  // Newest first in the listing: the last row is the oldest.
+  return {
+    nodes: kept.map((node, index) => ({
+      ...node,
+      born: kept.length - 1 - index,
+    })),
+    truncated,
+  };
 }
 
 /** Every link of one page (`get_links`, following its cursor). */

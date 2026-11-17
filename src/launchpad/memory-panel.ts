@@ -1,6 +1,7 @@
 import {
   findNodes,
   fitView,
+  forcesOf,
   type LayoutLink,
   type LayoutNode,
   layoutForces,
@@ -9,16 +10,26 @@ import {
   tick,
 } from "./memory-layout";
 import {
+  defaultMemorySettings,
+  loadMemorySettings,
+  type MemorySettings,
+  memoryGroupOf,
+  saveMemorySettings,
+  settingRanges,
+  shownGraph,
+  swatches,
+} from "./memory-settings";
+import {
   type MemoryMapModel,
   type MemoryPageModel,
   markdownBlocks,
   markdownRuns,
   memoryCount,
   memoryDate,
-  memoryGroup,
   memoryRetries,
   memoryStateLine,
   memoryTruncatedLine,
+  memoryTypeLabel,
   parseMemoryMap,
   parseMemoryPage,
 } from "./memory-view";
@@ -64,6 +75,18 @@ export function createMemoryPanel(
   const zoomIn = $<HTMLButtonElement>("memory-zoom-in");
   const zoomOut = $<HTMLButtonElement>("memory-zoom-out");
   const zoomFit = $<HTMLButtonElement>("memory-zoom-fit");
+  const gear = $<HTMLButtonElement>("memory-gear");
+  const settingsBox = $<HTMLElement>("memory-settings");
+  const localBar = $<HTMLElement>("memory-local");
+  const nothingShown = $<HTMLElement>("memory-nothing");
+  /** The viewer's own browser keeps the graph's settings (R11c). */
+  const storage = (): Storage | null => {
+    try {
+      return window.localStorage;
+    } catch {
+      return null;
+    }
+  };
   const reduced = () =>
     window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
 
@@ -73,7 +96,20 @@ export function createMemoryPanel(
   let nodes: LayoutNode[] = [];
   let links: LayoutLink[] = [];
   let titles = new Map<string, string>();
-  let groups = new Map<string, ReturnType<typeof memoryGroup>>();
+  /** Every memory of the map and its links, as read; `nodes` and `links`
+   * are what the map shows of them (filters, local graph, animation). */
+  let data: Extract<MemoryMapModel, { state: "ready" }> | null = null;
+  let settings: MemorySettings = loadMemorySettings(storage());
+  let simForces = forcesOf(settings.forces);
+  /** The memory whose local graph the map shows, or null for all. */
+  let localCenter: string | null = null;
+  /** While Animovat plays: the memories born before it show. */
+  let step: number | null = null;
+  let animation: ReturnType<typeof setInterval> | undefined;
+  let settingsOpen = false;
+  /** Where each memory last stood, so a change of what shows keeps it. */
+  const positions = new Map<string, LayoutNode>();
+  let colors = new Map<string, number>();
   let neighbours = new Map<string, Set<string>>();
   let view: View = { k: 1, x: 0, y: 0 };
   let size = { w: 0, h: 0 };
@@ -114,36 +150,58 @@ export function createMemoryPanel(
   }
 
   function setGraph(map: Extract<MemoryMapModel, { state: "ready" }>) {
-    const previous = new Map(nodes.map((node) => [node.id, node]));
-    const laid = layoutOf(
-      map.nodes.map((node) => node.id),
-      map.links,
-      previous,
+    const first = data === null;
+    data = map;
+    titles = new Map(map.nodes.map((node) => [node.id, node.title]));
+    if (chosen !== null && !titles.has(chosen)) chosen = null;
+    if (localCenter !== null && !titles.has(localCenter)) localCenter = null;
+    recolor();
+    relayout(first || !fitted);
+  }
+
+  /** The colour group of each memory, by the settings' groups. */
+  function recolor() {
+    colors = new Map(
+      (data?.nodes ?? []).map((node) => [
+        node.id,
+        memoryGroupOf(settings.groups, node),
+      ]),
     );
+  }
+
+  /** Lays out what the map shows now; `fit` settles it quietly and frames
+   * it, as the wireframe does on open and on a new local graph. */
+  function relayout(fit: boolean) {
+    if (data === null) return;
+    const shown = shownGraph(
+      data.nodes,
+      data.links,
+      settings,
+      localCenter,
+      step,
+    );
+    const laid = layoutOf(shown.ids, shown.links, positions);
     nodes = laid.nodes;
     links = laid.links;
-    titles = new Map(map.nodes.map((node) => [node.id, node.title]));
-    groups = new Map(
-      map.nodes.map((node) => [node.id, memoryGroup(node.id, node.type)]),
-    );
+    for (const node of nodes) positions.set(node.id, node);
     neighbours = new Map(nodes.map((node) => [node.id, new Set<string>()]));
     for (const link of links) {
       neighbours.get(link.source.id)?.add(link.target.id);
       neighbours.get(link.target.id)?.add(link.source.id);
     }
-    if (chosen !== null && !titles.has(chosen)) chosen = null;
-    if (previous.size === 0 || !fitted) {
-      // Settle quietly, then frame the whole map, as the wireframe does on
-      // open; with reduced motion it settles fully and stands still.
+    if (nothingShown !== null) nothingShown.hidden = nodes.length > 0;
+    if (fit) {
+      // With reduced motion it settles fully and stands still.
       alpha = 1;
       const steps = reduced() ? 300 : 120;
       for (let index = 0; index < steps; index += 1)
-        alpha = tick(nodes, links, alpha);
+        alpha = tick(nodes, links, alpha, simForces);
       measure();
       view = fitView(nodes, size.w, size.h);
       fitted = size.w > 0;
       alpha = reduced() ? 0 : 0.12;
-    } else alpha = Math.max(alpha, 0.3);
+    } else alpha = Math.max(alpha, reduced() ? 0 : 0.3);
+    drawLocal();
     run();
   }
 
@@ -175,6 +233,8 @@ export function createMemoryPanel(
       `${copy.memoryCanvasLabel} ${memoryCount(nodes.length, links.length, copy, locale)}`,
     );
     relabel(copy);
+    drawSettings();
+    drawLocal();
     measure();
     if (!fitted && size.w > 0) {
       view = fitView(nodes, size.w, size.h);
@@ -236,11 +296,15 @@ export function createMemoryPanel(
     const line = token(style, "--lz-gray-300", "#cfcfd4");
     const dot = token(style, "--lz-gray-500", "#8a8a93");
     const accent = token(style, "--lz-accent", "#2f6bff");
-    const swatch = {
-      person: token(style, "--lz-green-600", "#1f8a4c"),
-      company: token(style, "--lz-expressive-orange-figure", "#d9730d"),
-      idea: token(style, "--lz-expressive-orchid-figure", "#c065b8"),
+    const swatchColor = new Map(
+      swatches.map((swatch) => [swatch.id, token(style, swatch.token, dot)]),
+    );
+    const groupColor = (id: string): string => {
+      const index = colors.get(id) ?? -1;
+      const group = index < 0 ? undefined : settings.groups[index];
+      return group === undefined ? dot : (swatchColor.get(group.color) ?? dot);
     };
+    const show = settings.display;
     const font = token(style, "--lz-font-sans", "sans-serif");
     const ratio = window.devicePixelRatio || 1;
     context.setTransform(1, 0, 0, 1, 0, 0);
@@ -258,7 +322,7 @@ export function createMemoryPanel(
       focus === null || id === focus || neighbours.get(focus)?.has(id) === true;
     const fade = (id: string) => (lit(id) ? 1 : 0.15);
     // Links.
-    context.lineWidth = 1 / Math.max(view.k, 0.35);
+    context.lineWidth = show.linkThickness / Math.max(view.k, 0.35);
     for (const link of links) {
       const on =
         focus !== null &&
@@ -269,14 +333,36 @@ export function createMemoryPanel(
       context.moveTo(link.source.x, link.source.y);
       context.lineTo(link.target.x, link.target.y);
       context.stroke();
+      if (show.arrows) {
+        // Šipky: a head at the target's edge, as the wireframe draws it.
+        const angle = Math.atan2(
+          link.target.y - link.source.y,
+          link.target.x - link.source.x,
+        );
+        const r = radiusOf(link.target, show.nodeSize) + 1;
+        const tipX = link.target.x - Math.cos(angle) * r;
+        const tipY = link.target.y - Math.sin(angle) * r;
+        const head = 3 + 2.5 * show.linkThickness;
+        context.fillStyle = context.strokeStyle;
+        context.beginPath();
+        context.moveTo(tipX, tipY);
+        context.lineTo(
+          tipX - Math.cos(angle - 0.45) * head,
+          tipY - Math.sin(angle - 0.45) * head,
+        );
+        context.lineTo(
+          tipX - Math.cos(angle + 0.45) * head,
+          tipY - Math.sin(angle + 0.45) * head,
+        );
+        context.closePath();
+        context.fill();
+      }
     }
     // Dots.
     for (const node of nodes) {
-      const r = radiusOf(node);
+      const r = radiusOf(node, show.nodeSize);
       context.globalAlpha = fade(node.id);
-      const group = groups.get(node.id) ?? null;
-      context.fillStyle =
-        node.id === hovered ? accent : group === null ? dot : swatch[group];
+      context.fillStyle = node.id === hovered ? accent : groupColor(node.id);
       context.beginPath();
       context.arc(node.x, node.y, r, 0, Math.PI * 2);
       context.fill();
@@ -291,7 +377,12 @@ export function createMemoryPanel(
     }
     // Labels come with zoom; the hovered dot, its neighbours and the open
     // memory always show theirs, at a readable size.
-    const zoomAlpha = Math.min(1, Math.max(0, (view.k - 0.51) / 0.43));
+    // Zobrazení popisků (Obsidian's text fade threshold, −3 to 3).
+    const threshold = 0.85 * 2 ** (show.textFade * 0.5);
+    const zoomAlpha = Math.min(
+      1,
+      Math.max(0, (view.k - threshold * 0.6) / (threshold * 0.5)),
+    );
     context.textAlign = "center";
     context.textBaseline = "top";
     context.lineJoin = "round";
@@ -303,7 +394,7 @@ export function createMemoryPanel(
       context.font = `500 ${11 * scale}px ${font}`;
       context.globalAlpha = alphaHere;
       const label = titles.get(node.id) ?? node.id;
-      const y = node.y + radiusOf(node) + 4;
+      const y = node.y + radiusOf(node, show.nodeSize) + 4;
       context.strokeStyle = paper;
       context.lineWidth = 3 * scale;
       context.strokeText(label, node.x, y);
@@ -318,7 +409,7 @@ export function createMemoryPanel(
     frame = requestAnimationFrame(() => {
       frame = 0;
       if (alpha > layoutForces.alphaMin) {
-        alpha = tick(nodes, links, alpha);
+        alpha = tick(nodes, links, alpha, simForces);
         drawSoon();
       }
       draw();
@@ -379,7 +470,10 @@ export function createMemoryPanel(
       const dy = node.y - world.y;
       const distance = dx * dx + dy * dy;
       // A finger is wider than a dot: at least 12 px around it on screen.
-      const reach = Math.max(radiusOf(node) + 2, 12 / view.k);
+      const reach = Math.max(
+        radiusOf(node, settings.display.nodeSize) + 2,
+        12 / view.k,
+      );
       if (distance <= reach * reach && distance < bestDistance) {
         best = node;
         bestDistance = distance;
@@ -638,6 +732,11 @@ export function createMemoryPanel(
 
   let opener: HTMLElement | null = null;
   function open(id: string, glide: boolean) {
+    // An open local graph follows the memory opened from it.
+    if (localCenter !== null && localCenter !== id) {
+      localCenter = id;
+      relayout(true);
+    }
     opener =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -651,6 +750,8 @@ export function createMemoryPanel(
   function close() {
     chosen = null;
     pageRequest += 1;
+    // The local graph is the open memory's (as in the wireframe).
+    if (localCenter !== null) setLocal(null);
     if (note !== null) {
       note.hidden = true;
       note.replaceChildren();
@@ -772,7 +873,11 @@ export function createMemoryPanel(
     closeButton.innerHTML =
       '<svg class="icon" aria-hidden="true"><use href="#i-x"/></svg>';
     closeButton.addEventListener("click", close);
-    head.append(titleBox, closeButton);
+    localButton = iconButton("i-memory", copy.memoryLocal, () =>
+      setLocal(localCenter === shown.id ? null : shown.id),
+    );
+    drawLocalButton();
+    head.append(titleBox, localButton, closeButton);
     const content = element("div", "memory-note-body");
     if (page === null)
       content.append(element("p", "memory-note-hint", copy.memoryNoteLoading));
@@ -796,7 +901,10 @@ export function createMemoryPanel(
           page.tags.map((tag) => element("span", "memory-tag", `#${tag}`)),
         ]);
       if (page.type !== "")
-        rows.push([copy.memoryPropType, [document.createTextNode(page.type)]]);
+        rows.push([
+          copy.memoryPropType,
+          [document.createTextNode(memoryTypeLabel(page.type, copy))],
+        ]);
       if (updated !== null)
         rows.push([copy.memoryPropUpdated, [document.createTextNode(updated)]]);
       if (rows.length > 0) {
@@ -870,6 +978,499 @@ export function createMemoryPanel(
         glideTo(shown.id);
       });
     }
+  }
+
+  // ---- Nastavení grafu (R11c) ---------------------------------------------
+
+  /** Settings changed: kept in this browser and drawn at once; forces and
+   * what shows lay the map out again, the rest only redraw. */
+  function changeSettings(
+    next: MemorySettings,
+    layout: "none" | "move" | "fit",
+  ) {
+    settings = next;
+    simForces = forcesOf(settings.forces);
+    saveMemorySettings(storage(), settings);
+    recolor();
+    if (layout === "none") drawSoon();
+    else relayout(layout === "fit");
+  }
+
+  const swatchLabel = (copy: Copy, id: string): string =>
+    ({
+      green: copy.memorySwatchGreen,
+      orange: copy.memorySwatchOrange,
+      orchid: copy.memorySwatchOrchid,
+      blue: copy.memorySwatchBlue,
+      vermilion: copy.memorySwatchVermilion,
+      yellow: copy.memorySwatchYellow,
+      mint: copy.memorySwatchMint,
+      ink: copy.memorySwatchInk,
+    })[id] ?? id;
+  const fill = (template: string, values: Readonly<Record<string, string>>) =>
+    template.replace(/\{(\w+)\}/g, (_, key: string) => values[key] ?? "");
+
+  /** Which sections are open, as the wireframe opens them first. */
+  const sections = {
+    filters: true,
+    groups: true,
+    display: false,
+    forces: false,
+  };
+  let picking: number | null = null;
+
+  function iconButton(icon: string, label: string, onClick: () => void) {
+    const button = element("button", "ghost memory-icon");
+    button.type = "button";
+    button.setAttribute("aria-label", label);
+    button.title = label;
+    button.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${icon}"/></svg>`;
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function toggleRow(
+    label: string,
+    on: boolean,
+    change: (on: boolean) => void,
+  ) {
+    const row = element("div", "memory-set-row");
+    const button = element("button", "switch");
+    button.type = "button";
+    button.setAttribute("role", "switch");
+    button.setAttribute("aria-checked", String(on));
+    button.setAttribute("aria-label", label);
+    button.addEventListener("click", () => change(!on));
+    row.append(element("span", undefined, label), button);
+    return row;
+  }
+
+  function slider(
+    label: string,
+    value: number,
+    range: Readonly<{ min: number; max: number; step: number }>,
+    change: (value: number) => void,
+  ) {
+    const box = element("label", "memory-set-slider");
+    const input = element("input");
+    input.type = "range";
+    input.min = String(range.min);
+    input.max = String(range.max);
+    input.step = String(range.step);
+    input.value = String(value);
+    input.addEventListener("input", () => change(Number(input.value)));
+    box.append(element("span", undefined, label), input);
+    return box;
+  }
+
+  function section(
+    key: keyof typeof sections,
+    title: string,
+    content: () => Node[],
+  ) {
+    const box = element("section", "memory-set-section");
+    const head = element("button", "memory-set-title");
+    head.type = "button";
+    head.setAttribute("aria-expanded", String(sections[key]));
+    head.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-chevron-down"/></svg>`;
+    head.append(document.createTextNode(title));
+    head.addEventListener("click", () => {
+      sections[key] = !sections[key];
+      drawSettings();
+    });
+    box.append(head);
+    if (sections[key]) {
+      const body = element("div", "memory-set-content");
+      body.append(...content());
+      box.append(body);
+    }
+    return box;
+  }
+
+  function drawSettings() {
+    if (gear !== null) {
+      const copy = input.copy();
+      gear.setAttribute("aria-expanded", String(settingsOpen));
+      gear.setAttribute("aria-label", copy.memorySettings);
+      gear.title = copy.memorySettings;
+      gear.classList.toggle("is-on", settingsOpen);
+    }
+    if (settingsBox === null) return;
+    settingsBox.hidden = !settingsOpen;
+    if (!settingsOpen) {
+      settingsBox.replaceChildren();
+      return;
+    }
+    const copy = input.copy();
+    // Keep the focus where it was across a redraw of the panel.
+    const focused = document.activeElement?.getAttribute("data-set") ?? null;
+    settingsBox.setAttribute("aria-label", copy.memorySettings);
+    const head = element("div", "memory-set-head");
+    head.append(
+      iconButton("i-refresh", copy.memorySettingsReset, () => {
+        picking = null;
+        changeSettings(defaultMemorySettings, "fit");
+        drawSettings();
+      }),
+      iconButton("i-x", copy.memoryNoteClose, () => {
+        settingsOpen = false;
+        drawSettings();
+        gear?.focus();
+      }),
+    );
+    const s = settings;
+    const search = element("label", "memory-set-search");
+    search.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-search"/></svg>`;
+    const searchInput = element("input");
+    searchInput.type = "search";
+    searchInput.value = s.filters.search;
+    searchInput.placeholder = copy.memorySearch;
+    searchInput.title = copy.memorySearchHint;
+    searchInput.setAttribute("aria-label", copy.memorySearch);
+    searchInput.dataset.set = "search";
+    searchInput.autocomplete = "off";
+    searchInput.spellcheck = false;
+    searchInput.addEventListener("input", () =>
+      changeSettings(
+        {
+          ...settings,
+          filters: { ...settings.filters, search: searchInput.value },
+        },
+        "move",
+      ),
+    );
+    search.append(searchInput);
+    const local = localCenter !== null;
+    const filters = section("filters", copy.memoryFilters, () => [
+      search,
+      ...(local
+        ? [
+            slider(
+              fill(copy.memoryDepth, { count: String(s.local.depth) }),
+              s.local.depth,
+              settingRanges.depth,
+              (depth) => {
+                changeSettings(
+                  { ...settings, local: { ...settings.local, depth } },
+                  "fit",
+                );
+                drawSettings();
+              },
+            ),
+            toggleRow(copy.memoryIncoming, s.local.incoming, (incoming) => {
+              changeSettings(
+                { ...settings, local: { ...settings.local, incoming } },
+                "fit",
+              );
+              drawSettings();
+            }),
+            toggleRow(copy.memoryOutgoing, s.local.outgoing, (outgoing) => {
+              changeSettings(
+                { ...settings, local: { ...settings.local, outgoing } },
+                "fit",
+              );
+              drawSettings();
+            }),
+          ]
+        : [
+            toggleRow(copy.memoryOrphans, s.filters.orphans, (orphans) => {
+              changeSettings(
+                { ...settings, filters: { ...settings.filters, orphans } },
+                "move",
+              );
+              drawSettings();
+            }),
+          ]),
+    ]);
+    const groups = section("groups", copy.memoryGroups, () => {
+      const out: Node[] = s.groups.map((group, index) => {
+        const box = element("div", "memory-set-group");
+        const row = element("div", "memory-set-group-row");
+        const query = element("input");
+        query.value = group.query;
+        query.placeholder = copy.memoryGroupPlaceholder;
+        query.setAttribute(
+          "aria-label",
+          fill(copy.memoryGroupQuery, { count: String(index + 1) }),
+        );
+        query.dataset.set = `group-${index}`;
+        query.autocomplete = "off";
+        query.spellcheck = false;
+        query.addEventListener("input", () =>
+          changeSettings(
+            {
+              ...settings,
+              groups: settings.groups.map((item, at) =>
+                at === index ? { ...item, query: query.value } : item,
+              ),
+            },
+            "none",
+          ),
+        );
+        const swatch = swatches.find((item) => item.id === group.color);
+        const color = element("button", "memory-set-swatch");
+        color.type = "button";
+        color.style.background = `var(${swatch?.token ?? "--lz-ink"})`;
+        color.setAttribute(
+          "aria-label",
+          fill(copy.memoryGroupColor, {
+            color: swatchLabel(copy, group.color),
+          }),
+        );
+        color.setAttribute("aria-expanded", String(picking === index));
+        color.addEventListener("click", () => {
+          picking = picking === index ? null : index;
+          drawSettings();
+        });
+        const remove = iconButton("i-x", copy.memoryGroupRemove, () => {
+          picking = null;
+          changeSettings(
+            {
+              ...settings,
+              groups: settings.groups.filter((_, at) => at !== index),
+            },
+            "none",
+          );
+          drawSettings();
+        });
+        row.append(query, color, remove);
+        box.append(row);
+        if (picking === index) {
+          const palette = element("div", "memory-set-palette");
+          for (const item of swatches) {
+            const option = element("button", "memory-set-swatch");
+            option.type = "button";
+            option.style.background = `var(${item.token})`;
+            option.setAttribute("aria-label", swatchLabel(copy, item.id));
+            option.setAttribute(
+              "aria-pressed",
+              String(item.id === group.color),
+            );
+            option.addEventListener("click", () => {
+              picking = null;
+              changeSettings(
+                {
+                  ...settings,
+                  groups: settings.groups.map((entry, at) =>
+                    at === index ? { ...entry, color: item.id } : entry,
+                  ),
+                },
+                "none",
+              );
+              drawSettings();
+            });
+            palette.append(option);
+          }
+          box.append(palette);
+        }
+        return box;
+      });
+      const add = element("button", "memory-set-add", copy.memoryGroupAdd);
+      add.type = "button";
+      add.addEventListener("click", () => {
+        const color =
+          swatches[settings.groups.length % swatches.length]?.id ?? "blue";
+        changeSettings(
+          { ...settings, groups: [...settings.groups, { query: "", color }] },
+          "none",
+        );
+        drawSettings();
+        settingsBox
+          ?.querySelector<HTMLInputElement>(
+            `[data-set="group-${settings.groups.length - 1}"]`,
+          )
+          ?.focus();
+      });
+      out.push(add);
+      return out;
+    });
+    const display = section("display", copy.memoryDisplay, () => {
+      const animate = element(
+        "button",
+        "memory-set-add",
+        step === null ? copy.memoryAnimate : copy.memoryAnimateStop,
+      );
+      animate.type = "button";
+      animate.addEventListener("click", () => {
+        if (step === null) startAnimation();
+        else stopAnimation();
+        drawSettings();
+      });
+      return [
+        toggleRow(copy.memoryArrows, s.display.arrows, (arrows) => {
+          changeSettings(
+            { ...settings, display: { ...settings.display, arrows } },
+            "none",
+          );
+          drawSettings();
+        }),
+        slider(
+          copy.memoryTextFade,
+          s.display.textFade,
+          settingRanges.textFade,
+          (textFade) =>
+            changeSettings(
+              { ...settings, display: { ...settings.display, textFade } },
+              "none",
+            ),
+        ),
+        slider(
+          copy.memoryNodeSize,
+          s.display.nodeSize,
+          settingRanges.nodeSize,
+          (nodeSize) =>
+            changeSettings(
+              { ...settings, display: { ...settings.display, nodeSize } },
+              "none",
+            ),
+        ),
+        slider(
+          copy.memoryLinkThickness,
+          s.display.linkThickness,
+          settingRanges.linkThickness,
+          (linkThickness) =>
+            changeSettings(
+              { ...settings, display: { ...settings.display, linkThickness } },
+              "none",
+            ),
+        ),
+        animate,
+      ];
+    });
+    const forces = section("forces", copy.memoryForces, () => [
+      slider(
+        copy.memoryCenterForce,
+        s.forces.center,
+        settingRanges.center,
+        (center) =>
+          changeSettings(
+            { ...settings, forces: { ...settings.forces, center } },
+            "move",
+          ),
+      ),
+      slider(
+        copy.memoryRepelForce,
+        s.forces.repel,
+        settingRanges.repel,
+        (repel) =>
+          changeSettings(
+            { ...settings, forces: { ...settings.forces, repel } },
+            "move",
+          ),
+      ),
+      slider(copy.memoryLinkForce, s.forces.link, settingRanges.link, (link) =>
+        changeSettings(
+          { ...settings, forces: { ...settings.forces, link } },
+          "move",
+        ),
+      ),
+      slider(
+        copy.memoryLinkDistance,
+        s.forces.distance,
+        settingRanges.distance,
+        (distance) =>
+          changeSettings(
+            { ...settings, forces: { ...settings.forces, distance } },
+            "move",
+          ),
+      ),
+    ]);
+    settingsBox.replaceChildren(head, filters, groups, display, forces);
+    if (focused !== null)
+      settingsBox
+        .querySelector<HTMLElement>(`[data-set="${focused}"]`)
+        ?.focus();
+  }
+  gear?.addEventListener("click", () => {
+    settingsOpen = !settingsOpen;
+    drawSettings();
+  });
+
+  // ---- Animovat: the memory growing, oldest first -------------------------
+
+  function startAnimation() {
+    if (data === null) return;
+    const count = data.nodes.length;
+    step = 0;
+    relayout(false);
+    animation = setInterval(() => {
+      if (step === null) return;
+      step += Math.max(1, Math.round(count / 80));
+      if (step >= count) {
+        stopAnimation();
+        drawSettings();
+        return;
+      }
+      relayout(false);
+    }, 60);
+  }
+  function stopAnimation() {
+    if (animation !== undefined) clearInterval(animation);
+    animation = undefined;
+    if (step === null) return;
+    step = null;
+    relayout(false);
+  }
+
+  // ---- Místní graf: the open memory's links to a depth ---------------------
+
+  function setLocal(center: string | null) {
+    localCenter = center;
+    relayout(true);
+    if (settingsOpen) drawSettings();
+    drawLocalButton();
+  }
+  /** The bar beside "Najít vzpomínku" while the map shows a local graph:
+   * whose links, the depth 1 to 3, and back to the whole graph. */
+  function drawLocal() {
+    if (localBar === null) return;
+    const copy = input.copy();
+    localBar.hidden = localCenter === null;
+    localBar.replaceChildren();
+    if (localCenter === null) return;
+    const label = element(
+      "span",
+      "memory-local-label",
+      `${copy.memoryLocalOf}: `,
+    );
+    label.append(
+      element("strong", undefined, titles.get(localCenter) ?? localCenter),
+    );
+    const depths = element("div", "memory-local-depth");
+    depths.setAttribute("role", "group");
+    depths.setAttribute(
+      "aria-label",
+      fill(copy.memoryDepth, { count: "" }).replace(/[:\s]+$/, ""),
+    );
+    for (const depth of [1, 2, 3]) {
+      const button = element("button", undefined, String(depth));
+      button.type = "button";
+      button.setAttribute(
+        "aria-pressed",
+        String(settings.local.depth === depth),
+      );
+      button.title = fill(copy.memoryDepth, { count: String(depth) });
+      button.addEventListener("click", () => {
+        changeSettings(
+          { ...settings, local: { ...settings.local, depth } },
+          "fit",
+        );
+        if (settingsOpen) drawSettings();
+      });
+      depths.append(button);
+    }
+    localBar.append(
+      label,
+      depths,
+      iconButton("i-x", copy.memoryWholeGraph, () => setLocal(null)),
+    );
+  }
+  let localButton: HTMLButtonElement | null = null;
+  function drawLocalButton() {
+    if (localButton === null) return;
+    const on = localCenter !== null && localCenter === chosen;
+    localButton.setAttribute("aria-pressed", String(on));
+    localButton.classList.toggle("is-on", on);
   }
 
   return Object.freeze({

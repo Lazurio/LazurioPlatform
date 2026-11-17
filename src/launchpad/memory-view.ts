@@ -14,6 +14,7 @@ export type MemoryMapModel =
         id: string;
         title: string;
         type: string;
+        born: number;
       }>[];
       links: readonly Readonly<{ source: string; target: string }>[];
       truncated: boolean;
@@ -80,7 +81,17 @@ export function parseMemoryMap(value: unknown): MemoryMapModel {
     const id = str(item?.id);
     return id === ""
       ? []
-      : [{ id, title: str(item?.title) || id, type: str(item?.type) }];
+      : [
+          {
+            id,
+            title: str(item?.title) || id,
+            type: str(item?.type),
+            born:
+              typeof item?.born === "number" && Number.isFinite(item.born)
+                ? item.born
+                : 0,
+          },
+        ];
   });
   const ids = new Set(nodes.map((node) => node.id));
   const links = (Array.isArray(input.links) ? input.links : []).flatMap(
@@ -138,6 +149,23 @@ export function memoryGroup(id: string, type: string): MemoryGroup {
   if (folder === "companies" || kind === "company") return "company";
   if (folder === "ideas" || kind === "idea") return "idea";
   return null;
+}
+
+/** A GBrain page type as the page names it: the known ones in the page's
+ * language (the coordinator's review of R11b, 2026-11-17); any other as
+ * GBrain wrote it, since it is the memory's own word. */
+export function memoryTypeLabel(type: string, copy: Copy): string {
+  const known: Readonly<Record<string, MessageKey>> = {
+    person: "memoryTypePerson",
+    company: "memoryTypeCompany",
+    project: "memoryTypeProject",
+    concept: "memoryTypeConcept",
+    idea: "memoryTypeIdea",
+    meeting: "memoryTypeMeeting",
+    note: "memoryTypeNote",
+  };
+  const key = known[type.toLowerCase()];
+  return key === undefined ? type : copy[key];
 }
 
 /** The sentence of a map that has nothing to draw. */

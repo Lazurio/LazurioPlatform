@@ -144,20 +144,48 @@ function tree(nodes: readonly LayoutNode[]): Quad | null {
   return root;
 }
 
+/** The four sliders of the wireframe's Síly, in Obsidian's units. */
+export type SliderForces = Readonly<{
+  center: number;
+  repel: number;
+  link: number;
+  distance: number;
+}>;
+
+/** The sliders as d3-force takes them, by the wireframe's conversion
+ * (`docs/buddy-memory-graph.md`): distance × 0.3, repulsion × −22, centre
+ * × 0.09, link strength ÷ the smaller degree. */
+export function forcesOf(sliders: SliderForces) {
+  return Object.freeze({
+    ...layoutForces,
+    distance: sliders.distance * 0.3,
+    charge: -sliders.repel * 22,
+    center: sliders.center * 0.09,
+    link: sliders.link,
+  });
+}
+
 /** One step of the simulation at `alpha`; returns the next alpha. */
 export function tick(
   nodes: readonly LayoutNode[],
   links: readonly LayoutLink[],
   alpha: number,
+  forces: ReturnType<typeof forcesOf> = forcesOf({
+    center: 0.52,
+    repel: 10,
+    link: 1,
+    distance: 250,
+  }),
 ): number {
-  const f = layoutForces;
+  const f = forces;
   // Links: a spring toward the distance, split by degree as d3 does.
   for (const link of links) {
     const { source, target } = link;
     let dx = target.x + target.vx - source.x - source.vx || 1e-6;
     let dy = target.y + target.vy - source.y - source.vy || 1e-6;
     let length = Math.sqrt(dx * dx + dy * dy);
-    const strength = 1 / Math.max(1, Math.min(source.degree, target.degree));
+    const strength =
+      f.link / Math.max(1, Math.min(source.degree, target.degree));
     length = ((length - f.distance) / length) * alpha * strength;
     dx *= length;
     dy *= length;
@@ -214,11 +242,15 @@ export function tick(
   return alpha + (0 - alpha) * f.alphaDecay;
 }
 
-/** The radius of a node's dot: bigger with more links, as Obsidian's. */
-export const radiusOf = (node: Pick<LayoutNode, "degree">): number =>
-  3 + Math.sqrt(node.degree) * 1.6;
+/** The radius of a node's dot: bigger with more links, the wireframe's
+ * formula, times Zobrazení's node size. */
+export const radiusOf = (node: Pick<LayoutNode, "degree">, size = 1): number =>
+  size * (4 + Math.sqrt(node.degree) * 2.4);
 
-/** The view that frames every node with a margin, at most 1.1× zoom. */
+/** The view that frames every node with a margin, at most 1.1× zoom,
+ * centred on the nodes' centre of mass rather than on their extremes: one
+ * lone memory far out does not pull the map off the middle (the
+ * coordinator's review of R11b, 2026-11-17). */
 export function fitView(
   nodes: readonly Pick<LayoutNode, "x" | "y">[],
   width: number,
@@ -226,25 +258,23 @@ export function fitView(
 ): Readonly<{ k: number; x: number; y: number }> {
   if (nodes.length === 0 || width <= 0 || height <= 0)
     return { k: 1, x: width / 2, y: height / 2 };
-  let x0 = Number.POSITIVE_INFINITY;
-  let y0 = Number.POSITIVE_INFINITY;
-  let x1 = Number.NEGATIVE_INFINITY;
-  let y1 = Number.NEGATIVE_INFINITY;
+  let cx = 0;
+  let cy = 0;
   for (const node of nodes) {
-    x0 = Math.min(x0, node.x);
-    y0 = Math.min(y0, node.y);
-    x1 = Math.max(x1, node.x);
-    y1 = Math.max(y1, node.y);
+    cx += node.x / nodes.length;
+    cy += node.y / nodes.length;
+  }
+  let rx = 0;
+  let ry = 0;
+  for (const node of nodes) {
+    rx = Math.max(rx, Math.abs(node.x - cx));
+    ry = Math.max(ry, Math.abs(node.y - cy));
   }
   const k = Math.min(
     1.1,
-    Math.max(0.05, Math.min(width / (x1 - x0 + 140), height / (y1 - y0 + 140))),
+    Math.max(0.05, Math.min(width / (2 * rx + 140), height / (2 * ry + 140))),
   );
-  return {
-    k,
-    x: width / 2 - ((x0 + x1) / 2) * k,
-    y: height / 2 - ((y0 + y1) / 2) * k,
-  };
+  return { k, x: width / 2 - cx * k, y: height / 2 - cy * k };
 }
 
 /** Ids of the nodes whose title or id holds every word of the query

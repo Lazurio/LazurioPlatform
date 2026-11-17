@@ -50,7 +50,11 @@ test("the map's answer is read defensively; every state has its sentence", () =>
     parseMemoryMap({
       kind: "memory",
       state: "ready",
-      nodes: [{ id: "a", title: "A", type: "person" }, { id: "" }, { id: "b" }],
+      nodes: [
+        { id: "a", title: "A", type: "person", born: 1 },
+        { id: "" },
+        { id: "b" },
+      ],
       links: [
         { source: "a", target: "b" },
         { source: "a", target: "gone" },
@@ -60,8 +64,8 @@ test("the map's answer is read defensively; every state has its sentence", () =>
   ).toEqual({
     state: "ready",
     nodes: [
-      { id: "a", title: "A", type: "person" },
-      { id: "b", title: "b", type: "" },
+      { id: "a", title: "A", type: "person", born: 1 },
+      { id: "b", title: "b", type: "", born: 0 },
     ],
     links: [{ source: "a", target: "b" }],
     truncated: true,
