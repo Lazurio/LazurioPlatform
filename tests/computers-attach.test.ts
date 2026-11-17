@@ -47,6 +47,7 @@ async function setup(
     attemptsPerMinute?: number;
     checkMs?: number;
     verifyGatewayProof?: AttachHost["verifyGatewayProof"];
+    socketAnswers?: AttachHost["socketAnswers"];
   }> = {},
 ) {
   const home = await mkdtemp(join(tmpdir(), "lzc-"));
@@ -81,6 +82,9 @@ async function setup(
     ...(options.verifyGatewayProof === undefined
       ? {}
       : { verifyGatewayProof: options.verifyGatewayProof }),
+    ...(options.socketAnswers === undefined
+      ? {}
+      : { socketAnswers: options.socketAnswers }),
   });
   const server = Bun.serve({
     hostname: "127.0.0.1",
@@ -732,5 +736,49 @@ test.skipIf(!posix)(
         text.includes('"reason":"removed"'),
       ),
     );
+  },
+);
+
+test.skipIf(!posix)(
+  "contract v3: two simultaneous sessions of one device, only one is ready (review of #1036)",
+  async () => {
+    const gateway = fakeGateway();
+    // The check of the device's socket answers only once both sessions are
+    // waiting on it, so both pass every check made before it.
+    let waiting = 0;
+    let release = () => {};
+    const bothWaiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { server } = await setup({
+      verifyGatewayProof: gateway.verifyGatewayProof,
+      socketAnswers: async () => {
+        waiting += 1;
+        if (waiting === 2) release();
+        await Promise.race([
+          bothWaiting,
+          new Promise((resolve) => setTimeout(resolve, 1_000)),
+        ]);
+        return false;
+      },
+    });
+    const both = [
+      computerV3(server.port as number, "ok-alex-macbook"),
+      computerV3(server.port as number, "ok-alex-macbook"),
+    ];
+    await waitFor(() => both.every((fake) => fake.seen.length > 0));
+    const ready = both.filter((fake) =>
+      fake.seen.some((message) => message.type === "ready"),
+    );
+    const denied = both.filter((fake) =>
+      fake.seen.some(
+        (message) =>
+          message.type === "denied" && message.reason === "already-attached",
+      ),
+    );
+    expect(ready.length).toBe(1);
+    expect(denied.length).toBe(1);
+    for (const fake of both) fake.ws.close();
+    await Promise.all(both.map((fake) => fake.closed));
   },
 );

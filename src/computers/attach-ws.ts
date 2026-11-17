@@ -59,6 +59,8 @@ export type AttachHost = Readonly<{
   checkMs?: number;
   attemptsPerMinute?: number;
   attemptsInAllPerMinute?: number;
+  /** Whether a broker already answers at a device's socket. */
+  socketAnswers?: (path: string, timeoutMs: number) => Promise<boolean>;
 }>;
 
 export type AttachData = {
@@ -296,15 +298,33 @@ export function createComputerAttach(host: AttachHost) {
   async function startSession(ws: AttachSocket, identity: AttachIdentity) {
     const { device } = identity;
     ws.data.device = device;
-    if (
-      active.has(device) ||
-      (await socketAnswers(socketPath(host.home, device), 500))
-    ) {
+    // The device is reserved before anything is awaited, so two sessions
+    // that open at once never both pass (review of #1036); every way out
+    // before the broker starts releases it.
+    if (active.has(device)) {
       deny(ws, "already-attached");
       return;
     }
-    if (ws.data.state !== "checking") return; // closed meanwhile
     active.add(device);
+    let answers: boolean;
+    try {
+      answers = await (host.socketAnswers ?? socketAnswers)(
+        socketPath(host.home, device),
+        500,
+      );
+    } catch (error) {
+      active.delete(device);
+      throw error;
+    }
+    if (answers) {
+      active.delete(device);
+      deny(ws, "already-attached");
+      return;
+    }
+    if (ws.data.state !== "checking") {
+      active.delete(device); // closed meanwhile
+      return;
+    }
     ws.data.state = "ready";
     journal({ operation: "attach", outcome: "ready", device });
     const closed = new Promise<string>((resolve) => {
