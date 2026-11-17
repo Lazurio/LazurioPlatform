@@ -352,9 +352,9 @@ Application User (the module kit's `appRole` `admin` and `user`).
   give the role of Application Admin or Application User to people, a Team or the
   whole Organization; the higher role holds, and the Organization Admin may remove
   any. Access to an application never gives access to its Module.
-- **Availability.** Until the Organization's application host serves the
-  Application, the person on whose Environment the development version runs may make
-  it available to the Organization. People with an active membership of the
+- **Availability.** The person on whose Environment the development version runs
+  may make it available to the Organization, as before; whether this sharing ends
+  once the Module has its Application is open in decision 0249. People with an active membership of the
   Organization and a role see it in Apps of their Launchpad, or on their Lazurio
   account without an Environment, and the gateway admits them to that application
   only (see app-only entry below). The target is the Application the Organization
