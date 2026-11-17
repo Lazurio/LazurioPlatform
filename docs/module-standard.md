@@ -881,9 +881,11 @@ and whether its answer carries text other people wrote (`untrustedContent`).
   something (`open_revision`). They never change data, never shadow a server
   tool and exist only on the page.
 - **Identity.** Both transports read who came only through `appAccess`, for
-  every call. Without a stated person the App answers `403`
-  `identity_unavailable` before any MCP processing; the gateway already sent an
-  unauthenticated `/mcp` call a `401`. The App never sees the Bearer token and
+  every call. When Lazurio did not say who came (`entry: unknown`) the App
+  answers `403` `identity_unavailable` before any MCP processing; the gateway
+  already sent an unauthenticated `/mcp` call a `401`. A local entry (`entry:
+  local`, an Application Admin without a name, in a Module version in an
+  Environment) is a valid caller on both transports. The App never sees the Bearer token and
   cannot tell an MCP call from a browser call: both come as `entry: app` (or
   `environment`) with `source: gateway`, so the registry records the channel
   itself.
@@ -907,17 +909,20 @@ Each tool declares what it does to the data:
 
 The rule of Publication holds for tools as for everything else
 ([Data](#boundaries-and-dependencies): publishing a data change is a
-Publication). A tool never completes a Publication: it saves a draft where the
-data layer has drafts, or prepares the change that a person publishes in the
-interface. A write tool that would publish data is not offered in a production
-application, with one exception: a kind of record for which the Owner allowed
-agents in advance to publish, with the decision recorded (a plan or a
-decision). Such a tool names it in `publicationConsent`; it is the person's
-prior consent to that Publication under the rules of Publication, it covers
-only that kind of record, and the tool still is not offered in the read-only
-mode. A tool never completes an approval, a signature, a sending, a
-deletion or a person's confirmation; it prepares it and the last step stays a
-button the person presses. An agent's own rules say the same (Publication only
+Publication). Two rules follow:
+
+- **Never by a tool:** an approval, a signature, a sending, a deletion or a
+  person's confirmation. A tool prepares it and the last step stays a button
+  the person presses. No consent changes this.
+- **A publication of data only with the Owner's recorded prior consent.**
+  Otherwise a tool saves a draft where the data layer has drafts, or prepares
+  the change that a person publishes in the interface, and a write tool that
+  would publish data is not offered in a production application. The one
+  exception is a kind of record for which the Owner allowed agents in advance
+  to publish, with the decision recorded (a plan or a decision): such a tool
+  names it in `publicationConsent`. That is the person's prior consent to that
+  Publication under the rules of Publication; it covers only that kind of
+  record, and the tool is still not offered in the read-only mode. An agent's own rules say the same (Publication only
 on the person's word); the App holds it as well. Whether a production App may
 let a tool publish an ordinary data change on a person's role is an open
 decision of the Owner for every other kind of record (LZD-0037, D1); until it
@@ -927,10 +932,12 @@ Executor's approval of a tool annotated `destructiveHint` is no such consent:
 by default it returns the pause to the agent, not to the person
 ([Integrations](integrations.md#approvals)).
 
-A write is offered only while the App may write: `LAZURIO_RUNTIME_DATA_WRITER`
-is `true` (an Application host always sets it, `true` or `false`); without the
-variable, in a Module version in an Environment, only a local or Environment
-entry writes, to the Environment's own data (`dataWriter`).
+A write is offered only while the App may write, and the tools, the HTTP API
+and the data port decide it by one rule (`dataWriter` of
+`@lazurio/module-kit/tools`): `LAZURIO_RUNTIME_DATA_WRITER=true` writes and any
+other value does not (an Application host always sets it, `true` or `false`);
+without the variable, in a Module version in an Environment, only a local or
+Environment entry writes, to the Environment's own data.
 
 ### What every App answers
 
@@ -1015,8 +1022,10 @@ production Apps in Integrations and the person confirms by signing in
 
 The App's tests check the names, input schemas and annotations of its tools,
 the list per role and writer mode, that each tool calls the same domain
-operation as its button, the refusals above and that no tool completes a
-Publication. Modules that exist converge in a pull request of their own.
+operation as its button, the refusals above, that no tool completes an
+approval, a signature, a sending, a deletion or a person's confirmation, and
+that a write publishing data is offered in production only with
+`publicationConsent`, on both transports. Modules that exist converge in a pull request of their own.
 
 ## App generations
 
@@ -1090,10 +1099,13 @@ The port holds, in both generations:
 - **An opaque revision, unique per write.** A write carries the revision it
   was based on and ends with `record_changed` and the current revision when the
   record changed meanwhile, never by overwriting it. The revision is new and
-  unique for every write (a content fingerprint in repository-db, a random
-  value or operation id in a `revision` column in Dolt), never a counter:
-  Dolt merges concurrent transactions by cell, so two writes of the same
-  counter and content would both pass. The revision does not survive the move
+  unique for every write, never derived from the content alone and never a
+  counter: after A → B → A a content fingerprint repeats, and Dolt merges
+  concurrent transactions by cell, so two writes of the same counter and
+  content would both pass. Every writer stores a new random value or operation
+  id in the record's `revision` field (repository-db) or `revision` column
+  (Dolt), a direct writer included. The port compares that value and the
+  content, so a direct change that kept the old value is still a change. The revision does not survive the move
   to `app/v4`: after the move a client reads the record again.
 - **Atomic writes.** Several records change in one commit (repository-db) or
   one transaction with one `DOLT_COMMIT` (Dolt).
@@ -1106,8 +1118,10 @@ The port holds, in both generations:
 - **History** of a record (who, when, what) in the same shape from Git and from
   Dolt's history tables.
 - **Lists by an opaque cursor**, which each implementation encodes its own way.
-- **The read-only mode in the port.** Without the writer flag the port answers
-  `data_read_only` itself, before any error of the data layer; a Dolt
+- **The read-only mode in the port.** When `dataWriter` (above) says the App
+  may not write, the port answers `data_read_only` itself, before any error of
+  the data layer; the service passes the same decision to the port, which
+  never takes one of its own; a Dolt
   application without the writer role holds a read-only grant as well.
 - **No raw errors.** A serialization failure of the database (`40001`) is
   retried a bounded number of times and then becomes `record_changed` (one
@@ -1121,20 +1135,23 @@ The port holds, in both generations:
   may do with either.
 
 `store-contract` runs against both implementations in CI, `app/v4` against a
-`dolt sql-server` of the pinned version, and covers: the stale revision, two
+`dolt sql-server` of the pinned version, and covers: the stale revision, a
+stale write after A → B → A, a direct change that kept the old revision, two
 concurrent writes of the same record with the same content, two concurrent
 writes breaking a rule across records, the read-only mode, history and paging.
 Repository-db's single writer or a Git conflict keeps the concurrent cases in
 `app/v3`; in `app/v4` only the unique revision does.
 
-**Direct writes beside the App.** In `app/v3` agents may still change the data
-repository directly, for a bulk import or a clean-up, with
-`repository-db origin --kind agent` and only on the person's word; the per-record
-revision makes the App refuse a stale save instead of overwriting their change.
-The App remains the only writer through the interface and the tools, and on its
-host the only sync host. Whether `app/v4` admits direct writes beside the App
-is an open decision (LZD-0037); the database's access contract for an
-Organization's App is proposed in Machines#1350.
+**Direct writes beside the App.** A production application is the only
+writer of its data ([Production applications](#production-applications-of-an-organization)).
+In a Module version in an Environment agents may change its data directly, for
+a bulk import or a clean-up, with `repository-db origin --kind agent` and only
+on the person's word; they store a new revision with every change, and the
+port refuses a stale save instead of overwriting it. Whether agents may also
+write a production application's data directly, in `app/v3` or `app/v4`, is an
+open decision (LZD-0037); until it is decided they change production data
+only through the App's interface and tools. The database's access contract for
+an Organization's App is proposed in Machines#1350.
 
 **Moving a Module from `app/v3` to `app/v4`**, as a generation transition:
 
@@ -1293,10 +1310,10 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
-| `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data and no tool completes a Publication, an approval, a signature, a sending, a deletion or a person's confirmation ([Tools for agents](#tools-for-agents-mcp-and-webmcp)) | Rule only |
+| `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data; no tool completes an approval, a signature, a sending, a deletion or a person's confirmation, and a tool publishes data only with the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([Tools for agents](#tools-for-agents-mcp-and-webmcp)) | Rule only |
 | `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a write that publishes data is not offered in a production application unless it names the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
 | `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
-| `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, whose revision is unique per write and whose implementations pass one `store-contract` ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
+| `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, which decides writes by the same `dataWriter` rule as the tools, whose revision is unique per write (never content alone, never a counter) and whose implementations pass one `store-contract` including A → B → A ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
 
 ## GEN3
 
