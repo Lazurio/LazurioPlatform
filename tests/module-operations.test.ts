@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterAll, beforeAll, expect, spyOn, test } from "bun:test";
 import { cp, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -378,15 +378,27 @@ posixTest(
           state: "running",
           service: { invocationId: invocation },
         });
-        // Stop from the CLI, then the page sees it stopped.
-        expect(await cli("stop", "alpha/web")).toEqual({
-          code: 0,
-          body: {
-            ...stopped,
-            operation: "stop",
-            outcome: "group-stopped",
-          },
-        });
+        // Stop from the CLI, then the page sees it stopped. The CLI keeps
+        // the reason only in the record and prints no journal line of its
+        // own, so its `--json` stays one document (#1035).
+        const printed = spyOn(console, "log");
+        try {
+          expect(await cli("stop", "alpha/web")).toEqual({
+            code: 0,
+            body: {
+              ...stopped,
+              operation: "stop",
+              outcome: "group-stopped",
+            },
+          });
+          expect(
+            printed.mock.calls.filter((call) =>
+              String(call[0]).includes('"module-stop"'),
+            ),
+          ).toEqual([]);
+        } finally {
+          printed.mockRestore();
+        }
         // …and who stopped it: the CLI's Stop, kept for every owner (#1035).
         expect(await http.status("alpha/web")).toEqual({
           code: 200,
