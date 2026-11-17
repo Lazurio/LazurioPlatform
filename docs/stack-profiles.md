@@ -2,7 +2,7 @@
 
 **Decided by Matěj (Operator) on 2026-11-03, decision
 [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
-Current release: `2026.12` (proposed, to be decided by the Operator).** A stack profile names the exact tools a kind of
+Current release: `2026.12`.** A stack profile names the exact tools a kind of
 Module is built with and why. A Module is born in one profile release, and its
 tools change only in one of two planned ways: a transition to the next App
 generation or a new release of its profile. Nothing else moves them, so a
@@ -339,7 +339,7 @@ except one pin of the common base:
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` |
 
-## Release 2026.12 (proposed)
+## Release 2026.12
 
 One change, in the common base: `@lazurio/module-kit` moves from v0.2.0 to
 v0.4.0.
@@ -362,9 +362,9 @@ v0.4.0.
   becomes an Application or offers tools; the pin alone changes no behaviour.
 - **A template** adopts it in a release of its own, as every release.
 - **The name.** `2026.11` already exists and a release is named by the month of
-  its decision. The proposal is that a later release decided in a month that
-  already has one takes the next month's name, so the registry's format
-  `<profile>@YYYY.MM` stays valid.
+  its decision. A later release decided in a month that already has one takes
+  the next month's name, so the registry's format `<profile>@YYYY.MM` stays
+  valid.
 
 ## Verification of release 2026.12
 

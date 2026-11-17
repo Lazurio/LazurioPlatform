@@ -25655,7 +25655,7 @@ the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a plant
 record of a collection without a schema failed `validate:data`, and `validate:db`
 without `db/` failed. Not verified: `app-database`, macOS and Windows.
 
-**Addendum: release 2026.12 (proposed 2026-11-17; to be decided by the Operator).**
+**Addendum: release 2026.12 (2026-11-17; approved under the Operator's night mandate by the coordinating agent, to be confirmed by the Operator).**
 The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 - v0.3.0 brought `appAccess` (decision 0231), which every Application needs on
   every request;
@@ -25667,7 +25667,7 @@ The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 `defaultScaffoldVersions.moduleKit` `0.4.0`. An existing Module changes its pin, its
 `bun.lock` and nothing else in its own pull request, and a template adopts the release
 in a release of its own. Because `2026.11` exists and point 6 names a release by the
-month of its decision, the proposal adds: a later release decided in a month that
+month of its decision, the addendum adds: a later release decided in a month that
 already has one takes the next month's name, so `<profile>@YYYY.MM` keeps its format.
 The tables of `2026.11` stay in [stack-profiles.md](stack-profiles.md#2026-11). This
 replaces the v0.3.0 bump that #919 asked for.
