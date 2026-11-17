@@ -1737,9 +1737,9 @@ const en = {
   memoryLoading: "Reading the map…",
   memoryEmpty:
     "The memory is empty so far. What the agents learn about you is saved here and shows on the map.",
-  memoryAbsent: "This Environment has no memory yet.",
+  memoryAbsent: "{This} has no memory yet.",
   memoryNoAccess:
-    "The map cannot read this Environment's memory yet. An update of the Environment gives it access; try again later.",
+    "The map cannot read the memory of {this} yet. The next update gives it access; try again later.",
   memoryUnreachable:
     "The memory is not answering right now. Try again in a moment.",
   memoryFailed: "The map could not be read. Try again.",
@@ -4090,9 +4090,9 @@ const cs: Record<MessageKey, string> = {
   memoryLoading: "Načítám mapu…",
   memoryEmpty:
     "Paměť je zatím prázdná. Co se o vás agenti dozvědí, uloží sem a objeví se to na mapě.",
-  memoryAbsent: "V tomto Prostředí paměť zatím není.",
+  memoryAbsent: "{V tomto} paměť zatím není.",
   memoryNoAccess:
-    "Mapa k paměti tohoto Prostředí zatím nemá přístup. Přidá ho aktualizace Prostředí; zkuste to později.",
+    "Mapa k paměti {tohoto} zatím nemá přístup. Přidá ho příští aktualizace; zkuste to později.",
   memoryUnreachable: "Paměť teď neodpovídá. Zkuste to za chvíli znovu.",
   memoryFailed: "Mapu se nepodařilo načíst. Zkuste to znovu.",
   memoryRetry: "Zkusit znovu",
@@ -4107,7 +4107,7 @@ const cs: Record<MessageKey, string> = {
     "Mapa vzpomínek. Kolečko myši nebo + a − přibližuje, šipky posouvají, 0 ukáže celou mapu.",
   memoryNoteClose: "Zavřít",
   memoryNoteLoading: "Načítám…",
-  memoryNoteMissing: "Tahle vzpomínka už v paměti není.",
+  memoryNoteMissing: "Tato vzpomínka už v paměti není.",
   memoryNoteFailed: "Vzpomínku se nepodařilo načíst. Zkuste to znovu.",
   memoryFacts: "Co si pamatuje",
   memoryPropTags: "Štítky",
