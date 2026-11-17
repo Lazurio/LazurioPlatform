@@ -143,9 +143,9 @@ const immediateSend =
 /** Whether a path of the document sends mail where `sends` says how: an
  * immediate send never stays, a draft's `send` only where the parts send
  * (decision F42 addendum (c), addendum of 2026-11-17). So through Executor
- * an agent can send only a draft that lies in the person's mailbox, the
- * one the person was shown. A rule agents keep, Publication, decides when;
- * this keeps the ordinary path to the draft the person saw. */
+ * an agent can send only an existing draft in the person's mailbox, in any
+ * folder. The filter limits the operation, not which draft or its text:
+ * that the approved text goes out, and when, is the Publication rule. */
 export function microsoft365PathKept(path: string, sends: boolean): boolean {
   if (immediateSend.test(path)) return false;
   return sends || !draftSend.test(path);

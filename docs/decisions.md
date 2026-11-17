@@ -15209,8 +15209,12 @@ addendum (c) change as follows; the rest is unchanged.
    operations that send at once (`sendMail`, and a message's `reply`, `replyAll`
    and `forward`, under `/me` and `/users/{user-id}`), whether or not sending is
    on, and carries a draft's `send` (`…/messages/{message-id}/send`) only where it
-   is on. So through Executor an agent sends only a draft that lies in the person's
-   Drafts, the one it showed them with its `webLink`. The document's id moves to
+   is on. So through Executor an agent can send only an existing draft in the
+   person's mailbox (in any folder: the kept paths include
+   `…/mailFolders/{mailFolder-id}/messages/{message-id}/send` and its
+   child-folder variant). The guard filters operation paths: it checks neither
+   which draft it is, nor its content, nor whether it changed after the
+   approval, which the rule of point 5 covers. The document's id moves to
    version 2 (`lazurio.m365.spec.v2`, with whether it sends), so every Environment
    rebuilds its document once, in place, connections kept. With the four pinned
    specs it is 2,799 paths without sending and 2,805 with it.
@@ -15220,8 +15224,9 @@ addendum (c) change as follows; the rest is unchanged.
    that approval under the same rule. Neither is a technical barrier: the
    connection's tokens lie on the Environment, readable by its agents (point 8 and
    the IT page), so an agent that broke the rule could call Graph directly with a
-   token that carries `Mail.Send`. The trimmed document makes the approved path the
-   only ordinary one; the tenant's barrier is its consent to `Mail.Send`.
+   token that carries `Mail.Send`. The trimmed document leaves "send an existing
+   draft" as the only ordinary way to send; that the approved text is what goes
+   out rests on the rule. The tenant's barrier is its consent to `Mail.Send`.
 5. **The Folder (`base-instructions-136`).** Mail is a draft read back and shown by
    its `webLink`; sent only after the person's consent to send, and then exactly
    the draft they approved (`POST /me/messages/{id}/send`). A draft that changed
@@ -25650,7 +25655,7 @@ the empty `seed/`), `bun run build` passed for `vite-react` and `astro`, a plant
 record of a collection without a schema failed `validate:data`, and `validate:db`
 without `db/` failed. Not verified: `app-database`, macOS and Windows.
 
-**Addendum: release 2026.12 (proposed 2026-11-17; to be decided by the Operator).**
+**Addendum: release 2026.12 (2026-11-17; approved under the Operator's night mandate by the coordinating agent, to be confirmed by the Operator).**
 The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 - v0.3.0 brought `appAccess` (decision 0231), which every Application needs on
   every request;
@@ -25659,11 +25664,15 @@ The common base pins `@lazurio/module-kit` v0.4.0 instead of v0.2.0:
 - both only add exports.
 
 `lazurio module create` follows: `stackProfilesRelease` `2026.12` and
-`defaultScaffoldVersions.moduleKit` `0.4.0`. An existing Module changes its pin, its
-`bun.lock` and nothing else in its own pull request, and a template adopts the release
-in a release of its own. Because `2026.11` exists and point 6 names a release by the
-month of its decision, the proposal adds: a later release decided in a month that
-already has one takes the next month's name, so `<profile>@YYYY.MM` keeps its format.
+`defaultScaffoldVersions.moduleKit` `0.4.0`. An existing Module changes its pin and its
+lockfile (`bun.lock`, or `uv.lock` for a Python app, whose `python-uv` scaffold
+follows the same pin although it is outside the profiles) and nothing else in its
+own pull request, and a template adopts the release
+in a release of its own. Point 6 names a release by the month of its decision; this addendum adds that
+when that name is already taken, the release takes the first later month whose name
+is still free, so every `<profile>@YYYY.MM` names one release and names grow with
+every release. Decided in November 2026, whose `2026.11` is taken, this release is
+`2026.12`; a release decided in December 2026 after it would be `2027.01`.
 The tables of `2026.11` stay in [stack-profiles.md](stack-profiles.md#2026-11). This
 replaces the v0.3.0 bump that #919 asked for.
 

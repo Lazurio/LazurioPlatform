@@ -2,7 +2,7 @@
 
 **Decided by Matěj (Operator) on 2026-11-03, decision
 [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
-Current release: `2026.12` (proposed, to be decided by the Operator).** A stack profile names the exact tools a kind of
+Current release: `2026.12`.** A stack profile names the exact tools a kind of
 Module is built with and why. A Module is born in one profile release, and its
 tools change only in one of two planned ways: a transition to the next App
 generation or a new release of its profile. Nothing else moves them, so a
@@ -307,7 +307,11 @@ release.
 
 ### Releases
 
-- A release is named by the year and month of its decision, `YYYY.MM`. One
+- A release is named `YYYY.MM` by the month of its decision; when that name is
+  already taken, it takes the first later month whose name is still free. So
+  every name is unique, names grow with every release, and the registry's format
+  stays valid (a second release decided in November 2026 is `2026.12`; a release
+  decided in December 2026 after it is `2027.01`). One
   release covers all four profiles; it may change only some of them, and the
   others carry over unchanged. A security patch inside a release is
   `YYYY.MM.P` (`2026.11.1`) and changes patch versions only. The Marketplace
@@ -339,7 +343,7 @@ except one pin of the common base:
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` |
 
-## Release 2026.12 (proposed)
+## Release 2026.12
 
 One change, in the common base: `@lazurio/module-kit` moves from v0.2.0 to
 v0.4.0.
@@ -353,18 +357,19 @@ v0.4.0.
   contract tests of a V3 or V4 Application use. v0.3.0 and v0.4.0 only add
   exports: nothing a Module already imports changes or disappears.
 - **What an existing Module changes.** In its own pull request:
-  - its pin, `"@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0"` (a
-    Python app: `tag = "v0.4.0"`);
-  - `bun install` to refresh `bun.lock`;
-  - `bun run check`.
+  - a Bun app: its pin, `"@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0"`,
+    then `bun install` to refresh `bun.lock`, then `bun run check`;
+  - a Python app (`python-uv`, outside the profiles, but its scaffold follows the
+    same module-kit pin): `tag = "v0.4.0"` of `lazurio-module-kit` in
+    `pyproject.toml`, then `uv lock --upgrade-package lazurio-module-kit` to
+    refresh `uv.lock`, then `uv sync --frozen` and `bun run check` as its CI does.
 
   Using `appAccess` and the tools is the Module's own change, done when it
   becomes an Application or offers tools; the pin alone changes no behaviour.
 - **A template** adopts it in a release of its own, as every release.
-- **The name.** `2026.11` already exists and a release is named by the month of
-  its decision. The proposal is that a later release decided in a month that
-  already has one takes the next month's name, so the registry's format
-  `<profile>@YYYY.MM` stays valid.
+- **The name.** It was decided in November 2026, whose name `2026.11` is taken,
+  so it takes the first later free month, `2026.12`
+  ([Releases](#releases)).
 
 ## Verification of release 2026.12
 
@@ -375,9 +380,12 @@ On 2026-11-17 on Linux x64 with Bun 1.4.4, the plans of `lazurio module create`
 (`/tools`, `/webmcp` and `/tools/testing` present), and `bun install` and
 `bun run check` passed in each (type check, Biome and the tests; the data
 module also validated its empty seed). `bun run build` passed for the three
-static stacks. Not verified: `python-uv` (its `lazurio-module-kit` tag),
-macOS and Windows, and the existing Modules and templates, which adopt the
-release in their own pull requests.
+static stacks. The `python-uv` plan, with its pinned uv 0.11.6, locked
+`lazurio-module-kit` from the tag v0.4.0 (commit `7cc0c4cf`) into `uv.lock`, and
+`uv sync --frozen`, ruff, pyright and its pytest tests passed; the Python
+package inside that tag still names its own version 0.2.0, which changes nothing
+for the lock. Not verified: macOS and Windows, and the existing Modules and
+templates, which adopt the release in their own pull requests.
 
 ## Verification of release 2026.11
 
