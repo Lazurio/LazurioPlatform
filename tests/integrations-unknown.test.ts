@@ -411,6 +411,33 @@ test("the Folder tells agents that an unknown app is not a disconnected one, in 
   }
 });
 
+// Other platforms (#439): one short rule in the manual's Integrace section,
+// no per-platform list; AGENTS.md, at its byte budget, does not carry it.
+test("the manual tells agents to check a platform's rules before automating on it, in both languages", () => {
+  for (const [locale, rule] of [
+    [
+      "cs",
+      "- **Cizí platformy.** Než na sociální síti nebo jiné cizí platformě sám publikuješ, posíláš zprávy nebo reaguješ, ověř, že její pravidla takovou automatizaci dovolují",
+    ],
+    [
+      "en",
+      "- **Other platforms.** Before you publish, send messages or react on a social network or another external platform yourself, check that its rules allow such automation",
+    ],
+  ] as const) {
+    const outputs = renderOutputs({
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationEntry,
+      profile: presetProfile("hosted-organization-personal", "linux", {
+        locale,
+      }),
+      tools: [],
+      toolNotes: {},
+    });
+    expect(outputs["manual/working-here.md"]).toContain(rule);
+    expect(outputs["AGENTS.md"]).not.toContain(rule);
+  }
+});
+
 // The race (decision F42, addendum of 2026-10-27): a reading of the
 // Folder's Organizations while `lazurio update` fast-forwards the owner's
 // root is read again, so the account stays connected; where it never
