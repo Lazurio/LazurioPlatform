@@ -547,8 +547,8 @@ function fromThisPersonalEnvironment(
       en: "- Lazurio links this Environment's T3 Code with the T3 Code of these Work Environments. Find a link with `t3_environment_links`; pass its `environmentId` to the T3 Code tools that are to work there (with the `threadId` of that Environment's thread, for `delegate_task` as `target.environmentId` with `target.projectId`).",
     }),
     pick({
-      cs: "- Propojení zakládá, obnovuje a ruší jen Lazurio. Když chybí nebo hlásí chybu, sám ho nepáruj, o párovací kód nežádej a `t3 environment` ani `t3 auth` nepoužívej; Lazurio ho do pěti minut založí nebo obnoví a do té doby pracuješ přes SSH.",
-      en: "- Only Lazurio creates, renews and ends the links. When one is missing or reports an error, never pair it yourself, never ask for a pairing code and never use `t3 environment` or `t3 auth`; Lazurio creates or renews it within five minutes, and until then you work over SSH.",
+      cs: "- Propojení zakládá, obnovuje a ruší jen Lazurio: sám ho nepáruj, o párovací kód nežádej a `t3 environment` ani `t3 auth` nepoužívej. Lazurio se na propojení dívá každých pět minut a po nezdaru to zkusí znovu nejdřív za čtvrt hodiny. Dokud propojení chybí nebo hlásí chybu, pracuj přes SSH. Když nevznikne ani do půl hodiny, například protože T3 Code tady nebo v Pracovním Prostředí neběží nebo Prostředí není dostupné, řekni uživateli, že propojení s tím Prostředím zatím nefunguje: dokud příčina trvá, samo nevznikne.",
+      en: "- Only Lazurio creates, renews and ends the links: never pair one yourself, never ask for a pairing code and never use `t3 environment` or `t3 auth`. Lazurio looks at the links every five minutes and after a failure tries again no sooner than a quarter of an hour later. While a link is missing or reports an error, work over SSH. When it is still not there after half an hour, for example because T3 Code is not running here or in the Work Environment or the Environment cannot be reached, tell the user that the link with that Environment does not work yet: while the cause lasts, it will not come by itself.",
     }),
   ];
 }

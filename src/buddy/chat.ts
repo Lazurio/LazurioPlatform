@@ -390,8 +390,8 @@ async function insideGitWorkTree(directory: string): Promise<boolean> {
  * file on the way. */
 export type Settings = Readonly<{ raw: string | null; document: Json }>;
 
-/** Also the reader of the one member of the Chat's settings that the
- * links between T3 Code servers own (`src/t3-links/settings.ts`). */
+/** Also how the links between T3 Code servers read the Chat's beta switch
+ * (`src/t3-links/settings.ts`); they never write the file. */
 export async function readSettings(
   directories: readonly string[],
   path: string,
@@ -442,7 +442,7 @@ async function ensureDirectory(directory: string) {
  * only while it still holds `raw` (null: while it is absent); false when
  * another writer changed it meanwhile and nothing was replaced. `between`
  * runs between that last comparison and the rename (tests only). */
-export async function replaceIfUnchanged(
+async function replaceIfUnchanged(
   path: string,
   raw: string | null,
   contents: string,

@@ -9,62 +9,49 @@ import {
 import { acquireFileLock, type FileLock } from "../platform/flock";
 import { readOwnFile, replaceFile } from "../ssh-access/environments";
 import type { ToolRunner } from "../tools/status";
+import type { OpenT3Rpc, T3Rpc } from "./rpc";
 import {
   chatT3Home,
-  type LinkedSetting,
-  setLinkedEnvironments,
+  linkedEnvironmentsKey,
+  linkedEnvironmentsOn,
 } from "./settings";
 
 // Links between T3 Code servers along the edge from a person's Personal
 // Environment to the Work Environments assigned to them (root decision 0157,
-// amended 2026-11-17, with 0246, 0247 and 0091; plan step R4c). The
-// Organization records the edge in its Deployment Repo and its Owner
-// confirms it; Lazurio never creates or removes one. Inside an edge that
-// exists, Lazurio pairs, renews and ends the link itself, and T3 Code stays
-// as it is, so threads use its standard tools (`t3_environment_links`,
-// `environmentId`, `delegate_task` with `target.environmentId`).
+// amended 2026-11-17, with 0246, 0247 and 0091). The Organization records the
+// edge in its Deployment Repo and its Owner confirms it; Lazurio never
+// creates or removes one. Inside an edge that exists Lazurio pairs, renews
+// and ends the link itself, and T3 Code stays as it is: threads use its
+// standard tools. The whole behaviour is described in `docs/t3-links.md`.
 //
-// Each end acts only on what its own handover says, once per tick
-// (`syncT3Links`):
+// Each end acts only on its own handover:
 //
-// - **The source**, a personal Machine, links its Chat's T3 Code to each
-//   assigned Work Environment (`assignedEnvironments`, the same peers its SSH
-//   routes come from) at `https://t3code.<Environment id>.lazurio.io`, whose
-//   gateway passes the four paths of the link only from this Machine's
-//   tailnet address and only while the Organization records the edge. It
-//   turns the Chat's beta switch on, asks the target over the managed SSH
-//   route (`ssh <Environment id>`) for a one-time pairing code with a short
-//   life (`t3 auth pairing create`), links with it under the label its own
-//   running T3 Code answers with (`t3 environment link` with
-//   `T3CODE_ENVIRONMENT_LABEL`), reads the link back and revokes on the
-//   target the sessions of its earlier links, so one session stays. A link
-//   is renewed by the same steps once it has less than seven days left
-//   (T3 Code's token lives 30 days and has no refresh), when T3 Code reports
-//   it expired or failing, or when it is gone; a failed attempt is retried
-//   after a quarter of an hour. When an edge goes, its link is forgotten
-//   here (`t3 environment unlink`); the target ends its own session. The beta
-//   switch goes off with the last link, only where Lazurio turned it on.
-// - **The target**, a work Machine, turns its Chat's beta switch on while
-//   its handover names an inbound SSH peer that is a personal Machine (the
-//   edge seen from this end) and, when such a peer goes, revokes every
-//   session of a linked T3 Code (`T3 Code · <label>`, subject `mcp-client`)
-//   and, with the last one, turns the switch off where Lazurio turned it on.
-//   Turning the switch off already makes T3 Code refuse linked clients.
+// - **The source**, a personal Machine, links its running Chat to each
+//   assigned Work Environment through the Chat's own RPC (`rpc.ts`): the
+//   beta switch through `server.updateSettings`, the link through
+//   `peerLinks.link` with a one-time code the target issues for it over the
+//   managed SSH route (`lazurio machine t3-link-pair` there). A link is
+//   Lazurio's only by the peer id it recorded; a link at the same address
+//   that Lazurio did not make is the person's and is never renewed or
+//   forgotten. Renewal comes seven days before T3 Code's 30-day token ends
+//   or when the link fails; a failed attempt waits fifteen minutes.
+// - **The target**, a work Machine, records which inbound source asked for a
+//   code under which label, before it issues one. When an inbound edge goes,
+//   it revokes exactly the sessions of that source's label, and with its last
+//   edge it turns the switch off where Lazurio turned it on.
 //
-// The pairing code is a secret: it travels from the target's standard
-// output, over SSH, into this process's memory and onto the command line of
-// the one `t3 environment link` that spends it, a run of seconds; it lives
-// two minutes and is revoked on the target when that run fails. It is never
-// written to a file, a log, the state or a report, and neither is the token,
-// which only T3 Code holds. Every value that reaches the target's shell is
-// one checked token. What is recorded (`~/.local/state/lazurio/t3-links.json`,
-// 0600) is which links Lazurio made, until when, which inbound peers it saw,
-// whether it turned the switch on and when an attempt last failed.
+// Every change that opens something is written to the state first, as an
+// intent (the switch Lazurio is turning on, the pairing under way, the
+// source and label a code is issued for), and confirmed after it, so a look
+// cut off at any point leaves a state from which the next look knows what to
+// undo. A state that is there but cannot be read, or that is missing while
+// something of Lazurio's may be open, closes: the switch goes off and, on
+// the target, every session of a linked T3 Code is revoked; only then is a
+// new state written, and the next look builds again from the handover.
 //
-// The first link into each Work Environment is meant to be confirmed once
-// by the person with a button in Lazurio (0157); until that confirmation is
-// built with the rework of Lazurio Auth, Lazurio pairs inside an edge the
-// Owner confirmed without it, as 0157 allows.
+// The pairing code goes from the target's T3 Code to its Lazurio, over SSH
+// into this process and into the RPC request on loopback; it is never on a
+// command line, in a file, a log, the state or a report.
 
 /** Renew a link once it has this little left of T3 Code's 30 days. */
 export const renewBeforeMs = 7 * 24 * 60 * 60_000;
@@ -123,36 +110,58 @@ export function t3LinkRole(
   return { kind: "none" };
 }
 
+// ---- Labels -------------------------------------------------------------------
+
+/** A label as T3 Code keeps one: trimmed, one line, at most 128 characters. */
+export function environmentLabel(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const label = value.trim();
+  return label.length > 0 && label.length <= 128 && !/\p{Cc}/u.test(label)
+    ? label
+    : undefined;
+}
+
+/** A label as one shell-safe token (base64url of its UTF-8). */
+export const encodeLabel = (label: string) =>
+  Buffer.from(label, "utf8").toString("base64url");
+export function decodeLabel(token: string): string | undefined {
+  if (!/^[A-Za-z0-9_-]{1,256}$/.test(token)) return undefined;
+  const label = Buffer.from(token, "base64url").toString("utf8");
+  return encodeLabel(label) === token ? environmentLabel(label) : undefined;
+}
+
 // ---- State ----------------------------------------------------------------
 
 export type LinkFailure =
   | "label-unknown"
   | "target-unreachable"
   | "pairing-refused"
-  | "link-refused"
-  | "link-unconfirmed";
+  | "link-refused";
 
 type RecordedLink = Readonly<{ peerEnvironmentId: string; expiresAt: string }>;
 type FailedAttempt = Readonly<{ at: string; cause: LinkFailure }>;
 
 export type T3LinksState = Readonly<{
-  version: 1;
-  /** Whether Lazurio turned the Chat's beta switch on. */
+  version: 2;
+  /** Lazurio turned the Chat's beta switch on, or is turning it on. */
   enabledByLazurio: boolean;
-  /** The links Lazurio made, by Environment id (source). */
+  /** Source: the links Lazurio made, by Environment id, with their peer id. */
   links: Readonly<Record<string, RecordedLink>>;
-  /** The last failed attempt, by Environment id (source). */
+  /** Source: a pairing under way, by Environment id, since when. */
+  pending: Readonly<Record<string, string>>;
+  /** Source: the last failed attempt, by Environment id. */
   attempts: Readonly<Record<string, FailedAttempt>>;
-  /** The inbound personal peers seen last (target). */
-  sources: readonly string[];
+  /** Target: the inbound sources, each with the label it paired under. */
+  inbound: Readonly<Record<string, string | null>>;
 }>;
 
 export const emptyT3LinksState: T3LinksState = Object.freeze({
-  version: 1,
+  version: 2,
   enabledByLazurio: false,
   links: {},
+  pending: {},
   attempts: {},
-  sources: [],
+  inbound: {},
 });
 
 export const t3LinksStatePath = (home: string) =>
@@ -165,7 +174,6 @@ const failures: readonly LinkFailure[] = [
   "target-unreachable",
   "pairing-refused",
   "link-refused",
-  "link-unconfirmed",
 ];
 const idToken = /^[A-Za-z0-9-]{1,64}$/;
 const peerName = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -174,80 +182,95 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const instant = (value: unknown): value is string =>
   typeof value === "string" && !Number.isNaN(Date.parse(value));
 
-/** The state as recorded, exactly; null when it is there but is not. */
+/** The state as recorded, exactly; null for anything else. */
 export function parseT3LinksState(value: unknown): T3LinksState | null {
   if (
     !isRecord(value) ||
-    value.version !== 1 ||
+    value.version !== 2 ||
     typeof value.enabledByLazurio !== "boolean" ||
     !isRecord(value.links) ||
+    !isRecord(value.pending) ||
     !isRecord(value.attempts) ||
-    !Array.isArray(value.sources)
+    !isRecord(value.inbound)
   )
     return null;
   const links: Record<string, RecordedLink> = {};
-  for (const [environment, link] of Object.entries(value.links)) {
+  for (const [name, link] of Object.entries(value.links)) {
     if (
-      !isEnvironmentId(environment) ||
+      !isEnvironmentId(name) ||
       !isRecord(link) ||
       typeof link.peerEnvironmentId !== "string" ||
       !idToken.test(link.peerEnvironmentId) ||
       !instant(link.expiresAt)
     )
       return null;
-    links[environment] = {
+    links[name] = {
       peerEnvironmentId: link.peerEnvironmentId,
       expiresAt: link.expiresAt,
     };
   }
+  const pending: Record<string, string> = {};
+  for (const [name, at] of Object.entries(value.pending)) {
+    if (!isEnvironmentId(name) || !instant(at)) return null;
+    pending[name] = at;
+  }
   const attempts: Record<string, FailedAttempt> = {};
-  for (const [environment, attempt] of Object.entries(value.attempts)) {
+  for (const [name, attempt] of Object.entries(value.attempts)) {
     if (
-      !isEnvironmentId(environment) ||
+      !isEnvironmentId(name) ||
       !isRecord(attempt) ||
       !instant(attempt.at) ||
       !failures.includes(attempt.cause as LinkFailure)
     )
       return null;
-    attempts[environment] = {
-      at: attempt.at,
-      cause: attempt.cause as LinkFailure,
-    };
+    attempts[name] = { at: attempt.at, cause: attempt.cause as LinkFailure };
   }
-  if (
-    !value.sources.every(
-      (name) => typeof name === "string" && peerName.test(name),
+  const inbound: Record<string, string | null> = {};
+  for (const [name, label] of Object.entries(value.inbound)) {
+    if (
+      !peerName.test(name) ||
+      !(label === null || environmentLabel(label) === label)
     )
-  )
-    return null;
+      return null;
+    inbound[name] = label as string | null;
+  }
   return {
-    version: 1,
+    version: 2,
     enabledByLazurio: value.enabledByLazurio,
     links,
+    pending,
     attempts,
-    sources: [...(value.sources as string[])].sort(),
+    inbound,
   };
 }
 
-/** The recorded state; empty when there is none, null when a file is there
- * that is not the state. */
+export type RecordedState =
+  | Readonly<{ kind: "recorded"; state: T3LinksState }>
+  | Readonly<{ kind: "missing" }>
+  | Readonly<{ kind: "damaged" }>;
+
+/** The recorded state: missing, recorded, or damaged (a file is there that
+ * is not the state, or cannot be read). */
 export async function readT3LinksState(
   home: string,
   uid: number | undefined,
-): Promise<T3LinksState | null> {
+): Promise<RecordedState> {
   const observed = await readOwnFile(t3LinksStatePath(home), uid).catch(
     () => ({ kind: "refused" }) as const,
   );
-  if (observed.kind === "missing") return emptyT3LinksState;
-  if (observed.kind !== "file") return null;
+  if (observed.kind === "missing") return { kind: "missing" };
+  if (observed.kind !== "file") return { kind: "damaged" };
   try {
-    return parseT3LinksState(JSON.parse(observed.bytes.toString("utf8")));
+    const state = parseT3LinksState(
+      JSON.parse(observed.bytes.toString("utf8")),
+    );
+    return state === null ? { kind: "damaged" } : { kind: "recorded", state };
   } catch {
-    return null;
+    return { kind: "damaged" };
   }
 }
 
-async function writeT3LinksState(home: string, state: T3LinksState) {
+export async function writeT3LinksState(home: string, state: T3LinksState) {
   const path = t3LinksStatePath(home);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   await replaceFile(
@@ -260,7 +283,7 @@ async function writeT3LinksState(home: string, state: T3LinksState) {
 
 // ---- T3 Code's answers ------------------------------------------------------
 
-export type LocalLink = Readonly<{
+export type LinkSummary = Readonly<{
   environmentId: string;
   urls: readonly string[];
   expiresAt: number;
@@ -273,6 +296,35 @@ export type LinkSession = Readonly<{
   label: string | null;
 }>;
 
+function linkSummary(item: unknown): LinkSummary | undefined {
+  if (
+    !isRecord(item) ||
+    typeof item.environmentId !== "string" ||
+    !idToken.test(item.environmentId) ||
+    !Array.isArray(item.urls) ||
+    !item.urls.every((url) => typeof url === "string") ||
+    !instant(item.expiresAt) ||
+    !(item.lastError === null || typeof item.lastError === "string")
+  )
+    return undefined;
+  return {
+    environmentId: item.environmentId,
+    urls: item.urls as string[],
+    expiresAt: Date.parse(item.expiresAt),
+    status: typeof item.status === "string" ? item.status : "reachable",
+    lastError: item.lastError,
+  };
+}
+
+/** `peerLinks.list`'s answer. */
+export function parseLinkList(value: unknown): LinkSummary[] | undefined {
+  if (!isRecord(value) || !Array.isArray(value.links)) return undefined;
+  const links = value.links.map(linkSummary);
+  return links.every((link) => link !== undefined)
+    ? (links as LinkSummary[])
+    : undefined;
+}
+
 // T3 Code may log before its answer (Lazurio/t3code#210), so the answer is
 // read from the first line that opens it.
 function jsonFrom(stdout: string, open: "[" | "{"): unknown {
@@ -284,34 +336,6 @@ function jsonFrom(stdout: string, open: "[" | "{"): unknown {
   } catch {
     return undefined;
   }
-}
-
-/** `t3 environment list --json`. */
-export function parseLocalLinks(stdout: string): LocalLink[] | undefined {
-  const value = jsonFrom(stdout, "[");
-  if (!Array.isArray(value)) return undefined;
-  const links: LocalLink[] = [];
-  for (const item of value) {
-    if (
-      !isRecord(item) ||
-      typeof item.environmentId !== "string" ||
-      !idToken.test(item.environmentId) ||
-      !Array.isArray(item.urls) ||
-      !item.urls.every((url) => typeof url === "string") ||
-      !instant(item.expiresAt) ||
-      typeof item.status !== "string" ||
-      !(item.lastError === null || typeof item.lastError === "string")
-    )
-      return undefined;
-    links.push({
-      environmentId: item.environmentId,
-      urls: item.urls as string[],
-      expiresAt: Date.parse(item.expiresAt),
-      status: item.status,
-      lastError: item.lastError,
-    });
-  }
-  return links;
 }
 
 /** `t3 auth session list --json`, without anything but what is needed. */
@@ -337,8 +361,9 @@ export function parseSessions(stdout: string): LinkSession[] | undefined {
   return sessions;
 }
 
-/** `t3 auth pairing create --json`: its id and the code itself, which never
- * leaves this process but for the one command that spends it. */
+/** A pairing as T3 Code prints it (`t3 auth pairing create --json`) and as
+ * `lazurio machine t3-link-pair` passes it on: its id and the code, which
+ * never leaves memory but for the RPC request that spends it. */
 export function parsePairing(
   stdout: string,
 ): Readonly<{ id: string; credential: string }> | undefined {
@@ -371,9 +396,12 @@ export type T3LinkSeams = Readonly<{
   path: string | undefined;
   /** The local `t3`, absolute. */
   t3: string;
-  /** The label this Environment's running Chat T3 Code answers with; none
-   * when it does not answer. */
+  /** This Machine's tailnet node, as the edges name it; none when unknown. */
+  node: string | null;
+  /** The label the running Chat answers with; none when it does not. */
   label: () => Promise<string | undefined>;
+  /** The running Chat's RPC, for one look. */
+  rpc: OpenT3Rpc;
 }>;
 
 const remoteTimeoutMs = 45_000;
@@ -386,11 +414,13 @@ const environment = (seams: T3LinkSeams) => ({
   ...(seams.path ? { PATH: seams.path } : {}),
 });
 
-/** `t3 <command…>` on the target, over the managed route `ssh <id>`, as its
- * account and on its Chat's home. Every argument is one checked token. */
+/** A command on the target, over the managed route `ssh <id>`, as its
+ * account: its `t3` on its Chat's home, or its `lazurio`. Every argument is
+ * one checked token. */
 async function onTarget(
   seams: T3LinkSeams,
   target: string,
+  program: "t3" | "lazurio",
   command: readonly string[],
   positional: string | null = null,
 ) {
@@ -401,10 +431,9 @@ async function onTarget(
   )
     return undefined;
   const remote = [
-    '"$HOME/.local/bin/t3"',
+    `"$HOME/.local/bin/${program}"`,
     ...command,
-    "--base-dir",
-    '"$HOME/.t3"',
+    ...(program === "t3" ? ["--base-dir", '"$HOME/.t3"'] : []),
     ...(positional === null ? [] : [positional]),
   ].join(" ");
   const result = await seams
@@ -428,33 +457,15 @@ async function onTarget(
   return result === "timeout" || result.exitCode !== 0 ? undefined : result;
 }
 
-async function local(
-  seams: T3LinkSeams,
-  command: readonly string[],
-  extra: Readonly<Record<string, string>> = {},
-) {
+async function local(seams: T3LinkSeams, command: readonly string[]) {
   const result = await seams
-    .run([seams.t3, ...command], localTimeoutMs, {
-      ...environment(seams),
-      ...extra,
-    })
+    .run([seams.t3, ...command], localTimeoutMs, environment(seams))
     .catch(() => "timeout" as const);
   return result === "timeout" || result.exitCode !== 0 ? undefined : result;
 }
 
-const listLocalLinks = async (seams: T3LinkSeams) => {
-  const result = await local(seams, [
-    "environment",
-    "list",
-    "--base-dir",
-    base(seams),
-    "--json",
-  ]);
-  return result === undefined ? undefined : parseLocalLinks(result.stdout);
-};
-
 const targetSessions = async (seams: T3LinkSeams, target: string) => {
-  const result = await onTarget(seams, target, [
+  const result = await onTarget(seams, target, "t3", [
     "auth",
     "session",
     "list",
@@ -463,78 +474,97 @@ const targetSessions = async (seams: T3LinkSeams, target: string) => {
   return result === undefined ? undefined : parseSessions(result.stdout);
 };
 
-type Linked = Readonly<{ kind: "linked"; link: LocalLink; revoked: number }>;
+/** The running Chat's RPC, opened at most once per look and closed after. */
+function lazyRpc(seams: T3LinkSeams) {
+  let opened: Promise<T3Rpc | "server-down" | "refused"> | undefined;
+  return {
+    get: () => {
+      opened ??= seams.rpc();
+      return opened;
+    },
+    async close() {
+      if (opened === undefined) return;
+      const rpc = await opened;
+      if (typeof rpc !== "string") await rpc.close();
+    },
+  };
+}
+
+async function setSwitch(rpc: T3Rpc, on: boolean) {
+  const answer = await rpc.request("server.updateSettings", {
+    patch: { [linkedEnvironmentsKey]: on },
+  });
+  return answer.ok;
+}
+
+type Persist = (state: T3LinksState) => Promise<void>;
+
+// ---- The source -------------------------------------------------------------
+
+type Linked = Readonly<{ kind: "linked"; link: LinkSummary; revoked: number }>;
 type Failed = Readonly<{ kind: "failed"; cause: LinkFailure }>;
 
-/** One pairing and link into `target`, and the sessions of the earlier links
- * of this source revoked there once the new one is in place. */
+/** One pairing and link into `target`; then the sessions of this source's
+ * earlier links there are revoked, once the new one is seen. */
 async function pairAndLink(
   seams: T3LinkSeams,
+  rpc: T3Rpc,
   target: string,
   origin: string,
   label: string,
+  node: string,
 ): Promise<Linked | Failed> {
   const client = `${linkClientPrefix}${label}`;
   const before = await targetSessions(seams, target);
   if (before === undefined)
     return { kind: "failed", cause: "target-unreachable" };
-  const issued = await onTarget(seams, target, [
-    "auth",
-    "pairing",
-    "create",
-    "--ttl",
-    pairingTtl,
+  const issued = await onTarget(seams, target, "lazurio", [
+    "machine",
+    "t3-link-pair",
+    "--source",
+    node,
     "--label",
-    "lazurio-link",
-    "--json",
+    encodeLabel(label),
   ]);
   const pairing =
     issued === undefined ? undefined : parsePairing(issued.stdout);
   if (pairing === undefined)
     return { kind: "failed", cause: "pairing-refused" };
-  const linked = await local(
-    seams,
-    [
-      "environment",
-      "link",
-      "--base-dir",
-      base(seams),
-      "--pairing-code",
-      pairing.credential,
-      "--access",
-      linkAccess,
-      origin,
-    ],
-    { T3CODE_ENVIRONMENT_LABEL: label },
-  );
-  if (linked === undefined) {
+  const answer = await rpc.request("peerLinks.link", {
+    url: origin,
+    pairingCode: pairing.credential,
+    access: linkAccess,
+  });
+  const link = answer.ok ? linkSummary(answer.value) : undefined;
+  if (link === undefined) {
     // An unspent code is not left behind.
-    await onTarget(seams, target, ["auth", "pairing", "revoke"], pairing.id);
+    await onTarget(
+      seams,
+      target,
+      "t3",
+      ["auth", "pairing", "revoke"],
+      pairing.id,
+    );
     return { kind: "failed", cause: "link-refused" };
   }
-  const link = (await listLocalLinks(seams))?.find((found) =>
-    found.urls.includes(origin),
-  );
-  if (link === undefined) return { kind: "failed", cause: "link-unconfirmed" };
   const earlier = before.filter(
     (session) => session.subject === "mcp-client" && session.label === client,
   );
-  const after = await targetSessions(seams, target);
   const known = new Set(earlier.map((session) => session.sessionId));
-  const fresh = (after ?? []).filter(
+  const fresh = ((await targetSessions(seams, target)) ?? []).filter(
     (session) =>
       session.subject === "mcp-client" &&
       session.label === client &&
       !known.has(session.sessionId),
   );
   let revoked = 0;
-  // Only once the new session is seen, so a link is never left without one.
   if (fresh.length > 0)
     for (const session of earlier)
       if (
         (await onTarget(
           seams,
           target,
+          "t3",
           ["auth", "session", "revoke"],
           session.sessionId,
         )) !== undefined
@@ -555,85 +585,126 @@ export type T3LinkResult =
       environment: string;
       result: "waiting" | "failed";
       cause: LinkFailure;
-    }>;
+    }>
+  | Readonly<{ environment: string; result: "person-link" }>;
+
+export type SwitchResult = "on" | "off" | "kept" | "unknown" | "failed";
 
 export type T3LinksReport =
   | Readonly<{ role: "none" }>
   | Readonly<{ role: "source" | "target"; result: "idle" }>
   | Readonly<{
+      role: "source" | "target";
+      result: "server-down" | "closed" | "close-failed";
+      state?: "missing" | "damaged";
+    }>
+  | Readonly<{
       role: "source";
       result: "synced";
-      setting: LinkedSetting | "kept";
+      switch: SwitchResult;
       links: readonly T3LinkResult[];
       unlinked: readonly string[];
-      stateRecovered?: true;
     }>
   | Readonly<{
       role: "target";
       result: "synced";
-      setting: LinkedSetting | "kept";
+      switch: SwitchResult;
       sources: readonly string[];
       revoked: number | "failed";
-      stateRecovered?: true;
     }>;
 
 const iso = (time: number) => new Date(time).toISOString();
-const switchedOff = (setting: LinkedSetting) =>
-  setting === "written" || setting === "unchanged" || setting === "absent";
 
 async function reconcileSource(
   seams: T3LinkSeams,
+  rpc: T3Rpc,
   targets: readonly AssignedEnvironment[],
-  state: T3LinksState,
-) {
+  initial: T3LinksState,
+  persist: Persist,
+): Promise<T3LinksReport> {
   const now = seams.now();
-  let enabledByLazurio = state.enabledByLazurio;
-  const links: Record<string, RecordedLink> = { ...state.links };
-  const attempts: Record<string, FailedAttempt> = { ...state.attempts };
+  let state = initial;
+  const update = async (next: T3LinksState) => {
+    state = next;
+    await persist(state);
+  };
   const desired = new Set(targets.map((target) => target.environment));
-  let setting: LinkedSetting | "kept" = "kept";
-  if (desired.size > 0) {
-    setting = await setLinkedEnvironments(seams.home, true);
-    if (setting === "written") enabledByLazurio = true;
+  const on = await linkedEnvironmentsOn(seams.home);
+  let switched: SwitchResult = on === null ? "unknown" : "kept";
+  if (desired.size > 0 && on === false) {
+    // Intent first: Lazurio owns the switch from before it turns it on.
+    await update({ ...state, enabledByLazurio: true });
+    switched = (await setSwitch(rpc, true)) ? "on" : "failed";
   }
-  const results: T3LinkResult[] = [];
   const unlinked: string[] = [];
-  // A link whose edge went: forgotten here; the target ends its session.
-  for (const [name, link] of Object.entries(links)) {
+  // Only links Lazurio made, by their recorded peer id.
+  for (const [name, link] of Object.entries(state.links)) {
     if (desired.has(name)) continue;
-    const forgotten = await local(seams, [
-      "environment",
-      "unlink",
-      "--base-dir",
-      base(seams),
-      link.peerEnvironmentId,
-    ]);
-    if (forgotten !== undefined) {
-      delete links[name];
-      unlinked.push(name);
-    }
+    const answer = await rpc.request("peerLinks.unlink", {
+      environmentId: link.peerEnvironmentId,
+    });
+    if (!answer.ok) continue;
+    const { [name]: _gone, ...links } = state.links;
+    await update({ ...state, links });
+    unlinked.push(name);
   }
-  for (const name of Object.keys(attempts))
-    if (!desired.has(name)) delete attempts[name];
-  const switchedOn = setting === "written" || setting === "unchanged";
-  const listed =
-    desired.size > 0 && switchedOn ? await listLocalLinks(seams) : undefined;
+  const stale = Object.keys({ ...state.pending, ...state.attempts }).filter(
+    (name) => !desired.has(name),
+  );
+  if (stale.length > 0)
+    await update({
+      ...state,
+      pending: Object.fromEntries(
+        Object.entries(state.pending).filter(([name]) => desired.has(name)),
+      ),
+      attempts: Object.fromEntries(
+        Object.entries(state.attempts).filter(([name]) => desired.has(name)),
+      ),
+    });
+  const results: T3LinkResult[] = [];
+  const switchOn =
+    desired.size > 0 && (on === true || switched === "on")
+      ? await rpc.request("peerLinks.list", {})
+      : undefined;
+  const listed = switchOn?.ok ? parseLinkList(switchOn.value) : undefined;
   let label: string | undefined | null = null;
   if (listed !== undefined)
     for (const name of desired) {
       const origin = t3LinkOrigin(name) as string;
       const found = listed.find((link) => link.urls.includes(origin));
+      const recorded = state.links[name];
+      // A link at this address is Lazurio's when its peer id is the one
+      // recorded, or when a pairing of Lazurio's was cut off before it was
+      // recorded; any other one that still works is the person's.
+      const ours =
+        found !== undefined &&
+        (recorded?.peerEnvironmentId === found.environmentId ||
+          state.pending[name] !== undefined);
+      if (found !== undefined && !ours && found.status !== "expired") {
+        results.push({ environment: name, result: "person-link" });
+        continue;
+      }
       if (
         found !== undefined &&
+        ours &&
         found.status !== "expired" &&
         found.lastError === null &&
         found.expiresAt - now > renewBeforeMs
       ) {
-        links[name] = {
-          peerEnvironmentId: found.environmentId,
-          expiresAt: iso(found.expiresAt),
-        };
-        delete attempts[name];
+        const { [name]: _done, ...pending } = state.pending;
+        const { [name]: _ok, ...attempts } = state.attempts;
+        await update({
+          ...state,
+          links: {
+            ...state.links,
+            [name]: {
+              peerEnvironmentId: found.environmentId,
+              expiresAt: iso(found.expiresAt),
+            },
+          },
+          pending,
+          attempts,
+        });
         results.push({
           environment: name,
           result: "current",
@@ -641,7 +712,7 @@ async function reconcileSource(
         });
         continue;
       }
-      const attempt = attempts[name];
+      const attempt = state.attempts[name];
       if (
         attempt !== undefined &&
         now - Date.parse(attempt.at) < retryAfterMs
@@ -654,12 +725,34 @@ async function reconcileSource(
         continue;
       }
       if (label === null) label = await seams.label().catch(() => undefined);
-      const outcome: Linked | Failed =
-        label === undefined
-          ? { kind: "failed", cause: "label-unknown" }
-          : await pairAndLink(seams, name, origin, label);
+      let outcome: Linked | Failed;
+      if (label === undefined || seams.node === null)
+        outcome = { kind: "failed", cause: "label-unknown" };
+      else {
+        // Intent first: a pairing cut off here is still known as Lazurio's.
+        await update({
+          ...state,
+          pending: { ...state.pending, [name]: iso(now) },
+        });
+        outcome = await pairAndLink(
+          seams,
+          rpc,
+          name,
+          origin,
+          label,
+          seams.node,
+        );
+      }
+      const { [name]: _settled, ...pending } = state.pending;
       if (outcome.kind === "failed") {
-        attempts[name] = { at: iso(now), cause: outcome.cause };
+        await update({
+          ...state,
+          pending,
+          attempts: {
+            ...state.attempts,
+            [name]: { at: iso(now), cause: outcome.cause },
+          },
+        });
         results.push({
           environment: name,
           result: "failed",
@@ -667,11 +760,19 @@ async function reconcileSource(
         });
         continue;
       }
-      links[name] = {
-        peerEnvironmentId: outcome.link.environmentId,
-        expiresAt: iso(outcome.link.expiresAt),
-      };
-      delete attempts[name];
+      const { [name]: _cleared, ...attempts } = state.attempts;
+      await update({
+        ...state,
+        links: {
+          ...state.links,
+          [name]: {
+            peerEnvironmentId: outcome.link.environmentId,
+            expiresAt: iso(outcome.link.expiresAt),
+          },
+        },
+        pending,
+        attempts,
+      });
       results.push({
         environment: name,
         result: found === undefined ? "linked" : "renewed",
@@ -682,25 +783,32 @@ async function reconcileSource(
   // The switch goes off with the last link, only where Lazurio turned it on.
   if (
     desired.size === 0 &&
-    enabledByLazurio &&
-    Object.keys(links).length === 0
+    state.enabledByLazurio &&
+    Object.keys(state.links).length === 0 &&
+    Object.keys(state.pending).length === 0
   ) {
-    setting = await setLinkedEnvironments(seams.home, false);
-    if (switchedOff(setting)) enabledByLazurio = false;
+    if (on === false || (await setSwitch(rpc, false))) {
+      await update({ ...state, enabledByLazurio: false });
+      switched = "off";
+    } else switched = "failed";
   }
-  const next: T3LinksState = {
-    version: 1,
-    enabledByLazurio,
-    links,
-    attempts,
-    sources: state.sources,
+  return {
+    role: "source",
+    result: "synced",
+    switch: switched,
+    links: results,
+    unlinked,
   };
-  return { state: next, report: { setting, links: results, unlinked } };
 }
 
-/** Revokes every session of a linked T3 Code here; the count, or undefined
- * when T3 Code could not be asked or refused. */
-async function revokeLinkSessions(seams: T3LinkSeams) {
+// ---- The target -------------------------------------------------------------
+
+/** Revokes the sessions of linked T3 Code here that `which` selects; the
+ * count, or undefined when T3 Code could not be asked or refused one. */
+async function revokeLinkSessions(
+  seams: T3LinkSeams,
+  which: (session: LinkSession) => boolean,
+) {
   const listed = await local(seams, [
     "auth",
     "session",
@@ -713,7 +821,9 @@ async function revokeLinkSessions(seams: T3LinkSeams) {
     listed === undefined ? undefined : parseSessions(listed.stdout);
   if (sessions === undefined) return undefined;
   let revoked = 0;
-  for (const session of sessions.filter(isLinkSession)) {
+  for (const session of sessions.filter(
+    (session) => isLinkSession(session) && which(session),
+  )) {
     const done = await local(seams, [
       "auth",
       "session",
@@ -730,36 +840,108 @@ async function revokeLinkSessions(seams: T3LinkSeams) {
 
 async function reconcileTarget(
   seams: T3LinkSeams,
+  rpc: T3Rpc,
   sources: readonly string[],
-  state: T3LinksState,
-) {
-  let enabledByLazurio = state.enabledByLazurio;
-  let setting: LinkedSetting | "kept" = "kept";
-  if (sources.length > 0) {
-    setting = await setLinkedEnvironments(seams.home, true);
-    if (setting === "written") enabledByLazurio = true;
-  }
-  if (sources.length === 0 && enabledByLazurio) {
-    // Off first: T3 Code then refuses every linked client at once.
-    setting = await setLinkedEnvironments(seams.home, false);
-    if (switchedOff(setting)) enabledByLazurio = false;
-  }
-  const gone = state.sources.filter((name) => !sources.includes(name));
-  let revoked: number | "failed" = 0;
-  if (gone.length > 0) revoked = (await revokeLinkSessions(seams)) ?? "failed";
-  const next: T3LinksState = {
-    version: 1,
-    enabledByLazurio,
-    links: state.links,
-    attempts: state.attempts,
-    // A revocation that failed is tried again by the next tick.
-    sources:
-      revoked === "failed"
-        ? [...new Set([...state.sources, ...sources])].sort()
-        : [...sources],
+  initial: T3LinksState,
+  persist: Persist,
+): Promise<T3LinksReport> {
+  let state = initial;
+  const update = async (next: T3LinksState) => {
+    state = next;
+    await persist(state);
   };
-  return { state: next, report: { setting, sources: [...sources], revoked } };
+  // Every current source is recorded before anything is opened for it.
+  const unseen = sources.filter((name) => !(name in state.inbound));
+  if (unseen.length > 0)
+    await update({
+      ...state,
+      inbound: {
+        ...state.inbound,
+        ...Object.fromEntries(unseen.map((name) => [name, null])),
+      },
+    });
+  const on = await linkedEnvironmentsOn(seams.home);
+  let switched: SwitchResult = on === null ? "unknown" : "kept";
+  if (sources.length > 0 && on === false) {
+    await update({ ...state, enabledByLazurio: true });
+    switched = (await setSwitch(rpc, true)) ? "on" : "failed";
+  }
+  // With the last edge, off first: T3 Code then refuses every linked client
+  // at once; only where Lazurio turned it on.
+  if (sources.length === 0 && state.enabledByLazurio && on !== false)
+    switched = (await setSwitch(rpc, false)) ? "off" : "failed";
+  let revoked: number | "failed" = 0;
+  for (const [name, label] of Object.entries(state.inbound)) {
+    if (sources.includes(name)) continue;
+    // Exactly the sessions of the label this source paired under.
+    const count =
+      label === null
+        ? 0
+        : await revokeLinkSessions(
+            seams,
+            (session) => session.label === `${linkClientPrefix}${label}`,
+          );
+    if (count === undefined) {
+      revoked = "failed";
+      continue;
+    }
+    if (revoked !== "failed") revoked += count;
+    const { [name]: _gone, ...inbound } = state.inbound;
+    await update({ ...state, inbound });
+  }
+  if (
+    sources.length === 0 &&
+    state.enabledByLazurio &&
+    switched !== "failed" &&
+    Object.keys(state.inbound).length === 0
+  )
+    await update({ ...state, enabledByLazurio: false });
+  return {
+    role: "target",
+    result: "synced",
+    switch: switched,
+    sources: [...sources],
+    revoked,
+  };
 }
+
+// ---- Closing ------------------------------------------------------------------
+
+/** Whether something of Lazurio's may be open without a state that says so:
+ * the switch on, or on the target a session of a linked T3 Code. */
+async function mayBeOpen(seams: T3LinkSeams, role: "source" | "target") {
+  if ((await linkedEnvironmentsOn(seams.home)) !== false) return true;
+  if (role === "source") return false;
+  const listed = await local(seams, [
+    "auth",
+    "session",
+    "list",
+    "--base-dir",
+    base(seams),
+    "--json",
+  ]);
+  const sessions =
+    listed === undefined ? undefined : parseSessions(listed.stdout);
+  return sessions === undefined || sessions.some(isLinkSession);
+}
+
+/** Fails closed: the switch off and, on the target, every session of a
+ * linked T3 Code revoked. True only when both are done. */
+async function close(
+  seams: T3LinkSeams,
+  rpc: T3Rpc,
+  role: "source" | "target",
+) {
+  if (
+    (await linkedEnvironmentsOn(seams.home)) !== false &&
+    !(await setSwitch(rpc, false))
+  )
+    return false;
+  if (role === "source") return true;
+  return (await revokeLinkSessions(seams, () => true)) !== undefined;
+}
+
+// ---- One look -----------------------------------------------------------------
 
 /** One look at the links of this Machine, from its own handover. */
 export async function syncT3Links(
@@ -768,42 +950,135 @@ export async function syncT3Links(
 ): Promise<T3LinksReport> {
   const role = t3LinkRole(machine);
   if (role.kind === "none") return { role: "none" };
+  const edges =
+    role.kind === "source" ? role.targets.length : role.sources.length;
   const recorded = await readT3LinksState(seams.home, seams.uid);
-  const state = recorded ?? emptyT3LinksState;
-  const recovered =
-    recorded === null ? ({ stateRecovered: true } as const) : {};
   // Nothing to do and nothing of Lazurio's to undo: T3 Code is not asked.
   if (
-    recorded !== null &&
-    !state.enabledByLazurio &&
-    Object.keys(state.links).length === 0 &&
-    state.sources.length === 0 &&
-    (role.kind === "source"
-      ? role.targets.length === 0
-      : role.sources.length === 0)
+    edges === 0 &&
+    (recorded.kind === "missing" ||
+      (recorded.kind === "recorded" &&
+        !recorded.state.enabledByLazurio &&
+        Object.keys(recorded.state.links).length === 0 &&
+        Object.keys(recorded.state.pending).length === 0 &&
+        Object.keys(recorded.state.inbound).length === 0))
   )
     return { role: role.kind, result: "idle" };
-  if (role.kind === "source") {
-    const { state: next, report } = await reconcileSource(
-      seams,
-      role.targets,
-      state,
-    );
-    await writeT3LinksState(seams.home, next);
-    return { role: "source", result: "synced", ...report, ...recovered };
+  const rpcs = lazyRpc(seams);
+  const persist: Persist = (state) => writeT3LinksState(seams.home, state);
+  try {
+    let state: T3LinksState;
+    if (recorded.kind === "recorded") state = recorded.state;
+    else if (
+      recorded.kind === "missing" &&
+      !(await mayBeOpen(seams, role.kind))
+    ) {
+      state = emptyT3LinksState;
+      await persist(state);
+    } else {
+      // Missing while something may be open, or damaged: fail closed. The
+      // new state is written only once everything is closed.
+      const rpc = await rpcs.get();
+      const closed =
+        typeof rpc !== "string" && (await close(seams, rpc, role.kind));
+      if (closed) await persist(emptyT3LinksState);
+      return {
+        role: role.kind,
+        result: closed ? "closed" : "close-failed",
+        state: recorded.kind,
+      };
+    }
+    const rpc = await rpcs.get();
+    if (typeof rpc === "string")
+      return { role: role.kind, result: "server-down" };
+    return role.kind === "source"
+      ? await reconcileSource(seams, rpc, role.targets, state, persist)
+      : await reconcileTarget(seams, rpc, role.sources, state, persist);
+  } finally {
+    await rpcs.close();
   }
-  const { state: next, report } = await reconcileTarget(
-    seams,
-    role.sources,
-    state,
-  );
-  await writeT3LinksState(seams.home, next);
-  return { role: "target", result: "synced", ...report, ...recovered };
 }
 
+// ---- The target's half of a pairing ----------------------------------------
+
+export type PairingAnswer =
+  | Readonly<{ kind: "issued"; id: string; credential: string }>
+  | Readonly<{
+      kind: "refused";
+      reason:
+        | "not-a-target"
+        | "not-a-source"
+        | "label-invalid"
+        | "state-unusable"
+        | "server-down"
+        | "switch-failed"
+        | "pairing-failed";
+    }>;
+
+/** On the target: a one-time code for the inbound source `source` that links
+ * under `label`, issued only while this Machine's handover names `source` as
+ * an inbound edge. The source and its label are recorded, and the switch is
+ * on, before the code exists. */
+export async function issueLinkPairing(
+  seams: T3LinkSeams,
+  machine: MachineBinding | null | undefined,
+  source: string,
+  encodedLabel: string,
+): Promise<PairingAnswer> {
+  const role = t3LinkRole(machine);
+  if (role.kind !== "target")
+    return { kind: "refused", reason: "not-a-target" };
+  if (!role.sources.includes(source))
+    return { kind: "refused", reason: "not-a-source" };
+  const label = decodeLabel(encodedLabel);
+  if (label === undefined) return { kind: "refused", reason: "label-invalid" };
+  const recorded = await readT3LinksState(seams.home, seams.uid);
+  // A state that is not there yet starts here; a damaged one is the look's.
+  if (recorded.kind === "damaged")
+    return { kind: "refused", reason: "state-unusable" };
+  let state = recorded.kind === "recorded" ? recorded.state : emptyT3LinksState;
+  const rpcs = lazyRpc(seams);
+  try {
+    const rpc = await rpcs.get();
+    if (typeof rpc === "string")
+      return { kind: "refused", reason: "server-down" };
+    const on = await linkedEnvironmentsOn(seams.home);
+    if (on === null) return { kind: "refused", reason: "switch-failed" };
+    state = {
+      ...state,
+      enabledByLazurio: state.enabledByLazurio || !on,
+      inbound: { ...state.inbound, [source]: label },
+    };
+    await writeT3LinksState(seams.home, state);
+    if (!on && !(await setSwitch(rpc, true)))
+      return { kind: "refused", reason: "switch-failed" };
+  } finally {
+    await rpcs.close();
+  }
+  const issued = await local(seams, [
+    "auth",
+    "pairing",
+    "create",
+    "--base-dir",
+    base(seams),
+    "--ttl",
+    pairingTtl,
+    "--label",
+    "lazurio-link",
+    "--json",
+  ]);
+  const pairing =
+    issued === undefined ? undefined : parsePairing(issued.stdout);
+  return pairing === undefined
+    ? { kind: "refused", reason: "pairing-failed" }
+    : { kind: "issued", ...pairing };
+}
+
+// ---- Lock and loop ------------------------------------------------------------
+
 /** `work` under the one lock of every writer of the links, the Launchpad's
- * tick and `lazurio machine t3-links` alike: a kernel `flock`, released
- * when its holder ends. */
+ * tick and `lazurio machine t3-links` or `t3-link-pair` alike: a kernel
+ * `flock`, released when its holder ends. */
 export async function withT3LinksLock<T>(
   home: string,
   work: () => Promise<T>,

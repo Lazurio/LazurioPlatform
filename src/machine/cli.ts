@@ -36,7 +36,7 @@ import {
   type RoutesWrite,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
-import { syncLiveT3Links } from "../t3-links/live";
+import { issueLiveLinkPairing, syncLiveT3Links } from "../t3-links/live";
 import { runTool } from "../tools/status";
 import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
 import { machineBinding, ownerOrganizationKey } from "./binding";
@@ -155,6 +155,14 @@ exists and revokes the sessions of linked T3 Code when one goes. Lazurio
 never creates or removes an edge; it is the Organization's record. Prints one
 JSON object without any pairing code or token; exit 1 when another look holds
 the lock (busy) or t3 is missing.
+machine t3-link-pair --source <node> --label <base64url>
+The target's half of one pairing, run by a source's look over its managed SSH
+route: only while this work Environment's handover names <node> as an inbound
+edge from a personal Machine, it records the source and the label it links
+under, turns linked environments on through the running T3 Code and prints
+{"kind":"t3-link-pair","id":…,"credential":…} for the source to spend at
+once. The code reaches nothing but that standard output. Exit 1 with
+{"kind":"t3-link-pair","reason":…} when it refuses.
 Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
 object on stdout; text for people goes to stderr. A Folder whose lock another
 Lazurio operation still holds after the adoption check waited answers
@@ -177,6 +185,8 @@ const machineOptions = {
   locale: { type: "string" },
   detail: { type: "string" },
   coordination: { type: "string" },
+  source: { type: "string" },
+  label: { type: "string" },
 } as const;
 
 function parseMachineTokens(args: string[]) {
@@ -201,7 +211,8 @@ export function parseMachineArguments(args: string[]) {
     command !== "inspect" &&
     command !== "folder-init" &&
     command !== "folder-refresh" &&
-    command !== "t3-links"
+    command !== "t3-links" &&
+    command !== "t3-link-pair"
   )
     throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
@@ -209,6 +220,11 @@ export function parseMachineArguments(args: string[]) {
   if (
     ((command === "inspect" || command === "t3-links") &&
       tokens.length !== 0) ||
+    (command === "t3-link-pair"
+      ? values.source === undefined ||
+        values.label === undefined ||
+        tokens.length !== 2
+      : values.source !== undefined || values.label !== undefined) ||
     (command === "folder-refresh" &&
       tokens.some(
         (token) => token.kind === "option" && token.name !== "preset",
@@ -242,6 +258,8 @@ export function parseMachineArguments(args: string[]) {
     locale: value("locale") as "cs" | "en" | undefined,
     detail: value("detail") as "concise" | "technical" | undefined,
     coordination: value("coordination") as "direct" | "coordinator" | undefined,
+    ...(values.source === undefined ? {} : { source: values.source }),
+    ...(values.label === undefined ? {} : { label: values.label }),
   };
 }
 
@@ -255,6 +273,8 @@ export async function runMachineCommand(
   const {
     command,
     preset: requestedPreset,
+    source: pairSource,
+    label: pairLabel,
     ...values
   } = parseMachineArguments(args);
   try {
@@ -281,6 +301,32 @@ export async function runMachineCommand(
         code: failed ? 1 : 0,
         result: { kind: "t3-links" as const, ...report },
       };
+    }
+    if (command === "t3-link-pair") {
+      const operator = await readLinuxOperator();
+      await requireInstalledProduct(await runningProduct(), operator.homedir);
+      const answer = await issueLiveLinkPairing(
+        operator.homedir,
+        operator.uid,
+        pairSource as string,
+        pairLabel as string,
+      );
+      return "kind" in answer && answer.kind === "issued"
+        ? {
+            code: 0,
+            result: {
+              kind: "t3-link-pair" as const,
+              id: answer.id,
+              credential: answer.credential,
+            },
+          }
+        : {
+            code: 1,
+            result: {
+              kind: "t3-link-pair" as const,
+              reason: "reason" in answer ? answer.reason : answer.result,
+            },
+          };
     }
     // An auth-sourced handover resolves through its receipt, and only once
     // the receipt names a person (machine-assignment-pending before).

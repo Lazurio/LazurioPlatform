@@ -17,52 +17,69 @@ creates or removes an edge. Inside one, it pairs, renews and ends the link
 itself, and T3 Code is not changed.
 
 Each end acts only on its own handover. The Launchpad looks every five
-minutes, and `lazurio machine t3-links` looks once, under the same lock.
+minutes, where it sets Executor up; `lazurio machine t3-links` looks once.
+Both take the same lock.
 
 | | Personal Environment (source) | Work Environment (target) |
 |---|---|---|
 | Edge, as its handover shows it | an assigned peer (`access: "assigned"`, its Environment id, account and host key) | an inbound SSH peer that is a personal Machine |
-| `linkedEnvironmentsEnabled` in `~/.t3/userdata/settings.json` | on while it has an edge | on while it has an edge |
-| Pairing | asks the target over `ssh <Environment id>` for a code (`t3 auth pairing create --ttl 2m`), links to `https://t3code.<Environment id>.lazurio.io` with `full-access` under its running Chat's label | issues the code it is asked for |
-| Renewal | the same steps once fewer than seven days are left of the 30-day token, or when T3 Code reports the link expired or failing; then revokes on the target the sessions of its earlier links | nothing of its own |
-| Failure | waits 15 minutes before the next attempt; an unspent code is revoked on the target | — |
-| Edge removed | forgets the link (`t3 environment unlink`) | turns the switch off and revokes every session of a linked T3 Code (`T3 Code · <label>`, subject `mcp-client`) |
+| `linkedEnvironmentsEnabled` | on while it has an edge, through its running server | on while it has an edge, through its running server |
+| Pairing | asks the target over `ssh <Environment id>` for a code (`lazurio machine t3-link-pair --source <its node> --label <its Chat's label>`) and links to `https://t3code.<Environment id>.lazurio.io` with `full-access` through its server (`peerLinks.link`) | records the source and its label, turns its switch on, then issues a code that lives two minutes (`t3 auth pairing create`), only for a source its handover names |
+| Renewal | the same steps once fewer than seven days are left of the 30-day token, or when T3 Code reports the link expired or failing; then the target's sessions of its earlier links are revoked, once the new one is seen | — |
+| Failure | the next attempt no sooner than 15 minutes later; an unspent code is revoked on the target | — |
+| Edge removed | forgets its own link (`peerLinks.unlink` by its recorded peer id) | revokes exactly the sessions of that source's label (`T3 Code · <label>`, subject `mcp-client`) |
 | Switch off | with the last link, only where Lazurio turned it on | with the last edge, only where Lazurio turned it on |
 
-The target ends its own sessions because the source loses its SSH route
-together with the edge. Turning the target's switch off already makes T3 Code
-refuse linked clients; the revocation removes the sessions too.
+The target ends the sessions itself because the source loses its SSH route
+together with the edge.
+
+## T3 Code's own API
+
+Every change of T3 Code goes through the running server, the one owner of its
+settings (decision F51) and of its links: the Chat's RPC over `/ws` on
+loopback, the one T3 Code's own clients use (`packages/contracts/src/rpc.ts`).
+The switch is `server.updateSettings` with `{patch: {linkedEnvironmentsEnabled}}`,
+the link `peerLinks.link`, `peerLinks.list` and `peerLinks.unlink`. The file
+`settings.json` is only read. A look takes a session of T3 Code's own for
+itself: `t3 auth session issue` with exactly `access:read`, `access:write` and
+`settings:write` and a life of two minutes prints the token on its standard
+output; it goes into the `Authorization` header of the WebSocket upgrade and
+the session is revoked when the look ends. No lasting secret is added. Without
+a running server nothing changes: a look answers `server-down`.
 
 ## Secrets
 
-The pairing code travels from the target's standard output, over SSH, into
-the Platform's memory and onto the command line of the one
-`t3 environment link` that spends it. That run takes seconds, the code lives
-two minutes and is single-use, and it is revoked on the target when the run
-fails. T3 Code's CLI takes the code only as a flag; a way that avoids the
-command line would need a change to T3 Code. The code and the link's token
-never reach a file, a log, the state or a report. Every value that reaches the
-target's shell is checked as one token first.
+The pairing code goes from the target's T3 Code to its Lazurio, over SSH to
+the source's Lazurio and into the one `peerLinks.link` request on loopback. It
+is on no command line of either end, and it never reaches a file, a log, the
+state or a report; neither does the session's token. Every value that reaches
+the target's shell is checked as one token first (the label travels as
+base64url). The tests prove this on both ends with real processes.
 
-The state, `~/.local/state/lazurio/t3-links.json` (0600), records which links
-Lazurio made and until when, the inbound peers it last saw, whether Lazurio
-turned the switch on and when an attempt last failed. A state that cannot be
-read is replaced; the report says so (`stateRecovered`).
+## Ownership and recovery
 
-## The Chat's settings
+What Lazurio owns is exact, and it is recorded before anything is opened:
 
-T3 Code keeps its settings and watches `settings.json`; before each write of
-its own it reads the file again. The Platform writes one member,
-`linkedEnvironmentsEnabled`, replacing the file atomically and only while it
-still holds what was read, as it does for Buddy's settings
-(`src/buddy/chat.ts`). Every other member stays as T3 Code wrote it. A file
-with comments, one T3 Code could not decode, a link or another kind of file is
-left alone. Elsewhere the Chat's settings are written only through T3 Code
-(decision F51); a command of T3 Code's own for this switch would replace the
-file write and needs a change to the fork.
+- the source records each link by the peer id T3 Code returned; a link at the
+  same address it did not make is the person's (`person-link`) and is never
+  renewed or forgotten;
+- the target records the inbound source and the label it pairs under before
+  the code exists, and revokes only that label's sessions when that edge
+  goes; other sources' links and the person's own stay;
+- `enabledByLazurio` is written before Lazurio turns a switch on, and a
+  pairing under way (`pending`) before the code is asked for; a link a cut-off
+  look made is then still Lazurio's.
 
-Buddy GEN3's own T3 Code (`~/.t3-buddy`) is not linked: its guard keeps linked
-environments off, and Buddy GEN4 is a thread of the Chat's T3 Code.
+The state is `~/.local/state/lazurio/t3-links.json` (0600). A look cut off at
+any point leaves a state the next look finishes or undoes. A state that is
+there but cannot be read, or that is missing while something may be open (the
+switch on, or on the target a session of a linked T3 Code), fails closed: the
+switch goes off through the server and, on the target, every session of a
+linked T3 Code is revoked; only then is a new state written (`closed`), and
+the next looks build again from the handovers. A source keeps its links when
+it closes, since the target is where access is granted. Closing needs the
+running server; until it answers nothing is replaced (`close-failed`). A
+target with a damaged state issues no code.
 
 ## The first link and its confirmation
 
@@ -77,8 +94,8 @@ Work Environment, and needs:
   reads before its first pairing, issued and revocable in one place (Lazurio
   Auth after its rework);
 - the Launchpad page and its route, behind the person's own sign-in;
-- a state for a link that waits for confirmation, so the look reports
-  `waiting-for-confirmation` instead of pairing.
+- a state for a link that waits for confirmation, so the look reports it
+  instead of pairing.
 
 Renewal needs no confirmation.
 
@@ -86,18 +103,30 @@ Renewal needs no confirmation.
 
 The generated `AGENTS.md` of a Personal Environment lists its assigned Work
 Environments in „Z tohoto Osobního Prostředí“ (template revision
-`base-instructions-139`); with the links it also says how to find and use
-them through T3 Code's tools (`t3_environment_links`, `environmentId` with the
+`base-instructions-139`). With the links it says how to find and use them
+through T3 Code's tools (`t3_environment_links`, `environmentId` with the
 target's `threadId`, `delegate_task` with `target.environmentId` and
-`target.projectId`) and that only Lazurio pairs, renews and ends them, so an
-agent never asks for a pairing code or runs `t3 environment` or `t3 auth`.
-Buddy GEN4's own instructions in `~/Buddy` are not generated yet; when they
-are, the same two points belong there. Buddy GEN3's skills are not changed:
-its T3 Code is not linked.
+`target.projectId`), that only Lazurio pairs, renews and ends them, how often
+it tries and that a link that does not come within half an hour is reported to
+the user, since a stopped T3 Code or an unreachable Environment keeps it away.
+Buddy GEN4's own instructions are not generated yet; when they are, the same
+points belong there. Buddy GEN3's own T3 Code (`~/.t3-buddy`) is not linked:
+its guard keeps linked environments off.
+
+## Known limits
+
+- The source names itself to the target by its handover's
+  `network.headscale_hostname`; the target accepts it only when its own
+  handover names that node as an inbound personal peer.
+- Two sources that link under the same label are one label to the target.
+- A person who turned the switch on by hand before Lazurio's first look with
+  an edge sees it closed once and then turned on as Lazurio's.
 
 ## Not covered here
 
 - The gateway's paths (Machines) and T3 Code's guard against incoming links in
-  a Personal Environment (fork) are separate changes.
+  a Personal Environment (fork) are separate changes, and both must be in
+  place before links are relied on.
 - A live trial needs the edge recorded and applied in the Organization's
-  Deployment Repo and the gateway released.
+  Deployment Repo, the gateway released and this change released to both
+  Environments.

@@ -9,15 +9,17 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { syncT3Links } from "../src/t3-links/links";
+import { encodeLabel, syncT3Links } from "../src/t3-links/links";
+import type { RpcAnswer } from "../src/t3-links/rpc";
 import { runTool } from "../src/tools/status";
 import { bindings } from "./fixtures/machine-bindings";
 
-// The same look as tests/t3-links.test.ts, with real processes: `ssh` is a
+// The same look as tests/t3-links.test.ts with real processes: `ssh` is a
 // script that runs the remote command in a real shell with the target's
-// home, as OpenSSH hands it to the target account's shell, and both ends'
-// `t3` are scripts that log their argv. It proves the quoting of what
-// reaches the target and where the pairing code goes. Synthetic fixtures.
+// home, as OpenSSH hands it to the target account's shell, and the target's
+// `lazurio` and `t3` are scripts that log their argv. It proves the quoting
+// of what reaches the target and that the pairing code is on no process's
+// command line. Synthetic fixtures.
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -30,7 +32,7 @@ async function script(path: string, text: string) {
   await chmod(path, 0o755);
 }
 
-test("the remote command runs in the target's shell with its home, and a refused link revokes its code there", async () => {
+test("the target's commands run in its shell with its home, and the code reaches no command line", async () => {
   const root = await mkdtemp(join(tmpdir(), "lazurio-t3-links-proc-"));
   directories.push(root);
   const home = join(root, "source");
@@ -43,36 +45,35 @@ test("the remote command runs in the target's shell with its home, and a refused
   ])
     await mkdir(directory, { recursive: true });
   await writeFile(join(home, ".t3", "userdata", "settings.json"), "{}\n");
+  const code = "code-0123456789";
   // `ssh … -- <id> <remote>`: the remote command in a shell, as the target.
   await script(
     join(bin, "ssh"),
-    `#!/bin/sh\nfor last; do :; done\nHOME="${targetHome}" exec sh -c "$last"\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >> "${root}/argv.log"\nfor last; do :; done\nHOME="${targetHome}" exec sh -c "$last"\n`,
+  );
+  await script(
+    join(targetHome, ".local", "bin", "lazurio"),
+    [
+      "#!/bin/sh",
+      `printf 'lazurio %s\\n' "$*" >> "${root}/target.log"`,
+      `printf 'lazurio %s\\n' "$*" >> "${root}/argv.log"`,
+      `echo '{"kind":"t3-link-pair","id":"pair-1","credential":"${code}"}'`,
+    ].join("\n"),
   );
   await script(
     join(targetHome, ".local", "bin", "t3"),
     [
       "#!/bin/sh",
-      `printf '%s\\n' "$*" >> "${root}/target.log"`,
+      `printf 't3 %s\\n' "$*" >> "${root}/target.log"`,
+      `printf 't3 %s\\n' "$*" >> "${root}/argv.log"`,
       'case "$1 $2 $3" in',
       '  "auth session list") echo "[]" ;;',
-      `  "auth pairing create") echo '{"id":"pair-1","credential":"code-0123456789"}' ;;`,
       '  "auth pairing revoke") echo "Revoked." ;;',
       "  *) exit 1 ;;",
       "esac",
     ].join("\n"),
   );
-  const t3 = join(bin, "t3-local");
-  await script(
-    t3,
-    [
-      "#!/bin/sh",
-      `printf '%s|%s\\n' "$T3CODE_ENVIRONMENT_LABEL" "$*" >> "${root}/local.log"`,
-      'case "$1 $2" in',
-      '  "environment list") echo "[]" ;;',
-      "  *) exit 1 ;;",
-      "esac",
-    ].join("\n"),
-  );
+  const requests: { tag: string; payload: unknown }[] = [];
   const report = await syncT3Links(
     {
       run: runTool,
@@ -80,8 +81,25 @@ test("the remote command runs in the target's shell with its home, and a refused
       home,
       uid: process.getuid?.(),
       path: `${bin}:/usr/bin:/bin`,
-      t3,
-      label: async () => "lazurio-bob",
+      t3: "/nonexistent/t3",
+      node: "lazurio-bob",
+      label: async () => "Example / lazurio-bob",
+      rpc: async () => ({
+        async request(tag, payload): Promise<RpcAnswer> {
+          requests.push({ tag, payload });
+          if (tag === "server.updateSettings") {
+            await writeFile(
+              join(home, ".t3", "userdata", "settings.json"),
+              '{"linkedEnvironmentsEnabled":true}\n',
+            );
+            return { ok: true, value: {} };
+          }
+          if (tag === "peerLinks.list")
+            return { ok: true, value: { links: [] } };
+          return { ok: false, error: "PeerLinkError:pairing_rejected" };
+        },
+        async close() {},
+      }),
     },
     bindings.personalAssigned,
   );
@@ -93,16 +111,17 @@ test("the remote command runs in the target's shell with its home, and a refused
   expect(
     (await readFile(join(root, "target.log"), "utf8")).split("\n"),
   ).toEqual([
-    `auth session list --json --base-dir ${base}`,
-    `auth pairing create --ttl 2m --label lazurio-link --json --base-dir ${base}`,
-    `auth pairing revoke --base-dir ${base} pair-1`,
+    `t3 auth session list --json --base-dir ${base}`,
+    `lazurio machine t3-link-pair --source lazurio-bob --label ${encodeLabel("Example / lazurio-bob")}`,
+    `t3 auth pairing revoke --base-dir ${base} pair-1`,
     "",
   ]);
-  const local = (await readFile(join(root, "local.log"), "utf8"))
-    .split("\n")
-    .filter((line) => line !== "");
-  expect(local.filter((line) => line.includes("code-0123456789"))).toEqual([
-    `lazurio-bob|environment link --base-dir ${join(home, ".t3")} --pairing-code code-0123456789 --access full-access https://t3code.lazurio-bob.lazurioexampleorganization.lazurio.io`,
-  ]);
-  expect(JSON.stringify(report)).not.toContain("code-0123456789");
+  // Every process of the look, on either end: none had the code.
+  expect(await readFile(join(root, "argv.log"), "utf8")).not.toContain(code);
+  expect(
+    requests
+      .filter((request) => JSON.stringify(request).includes(code))
+      .map((request) => request.tag),
+  ).toEqual(["peerLinks.link"]);
+  expect(JSON.stringify(report)).not.toContain(code);
 });

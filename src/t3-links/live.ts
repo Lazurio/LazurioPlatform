@@ -1,78 +1,40 @@
 import { constants } from "node:fs";
 import { access } from "node:fs/promises";
 import { join } from "node:path";
+import type { MachineBinding } from "../folder/machine-binding";
 import { machineBinding } from "../machine/binding";
 import {
   type MachineContextSource,
   productionMachineContextSource,
   readMachineContext,
 } from "../machine/context";
-import { readOwnFile } from "../ssh-access/environments";
 import { resolveOnPath, runTool } from "../tools/status";
 import {
+  environmentLabel,
+  issueLinkPairing,
+  type PairingAnswer,
   syncT3Links,
   type T3LinkSeams,
   type T3LinksReport,
   withT3LinksLock,
 } from "./links";
-import { chatT3Home } from "./settings";
+import { chatT3Origin, openChatT3Rpc } from "./rpc";
 
 // What the links of `links.ts` take from this Environment outside tests: its
-// live handover, the user's `t3` and the label its running Chat answers with.
-
-/** The origin of a T3 Code server on this Machine's loopback, as its runtime
- * state names it; anything else is not asked. */
-export function loopbackOrigin(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  try {
-    const url = new URL(value);
-    return url.protocol === "http:" &&
-      ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) &&
-      url.pathname === "/" &&
-      url.search === "" &&
-      url.username === "" &&
-      url.password === ""
-      ? url.origin
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** A label as T3 Code keeps one: trimmed, one line, at most 128 characters. */
-export function environmentLabel(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const label = value.trim();
-  return label.length > 0 && label.length <= 128 && !/\p{Cc}/u.test(label)
-    ? label
-    : undefined;
-}
+// live handover, the user's `t3`, its running Chat's RPC and the label that
+// Chat answers with.
 
 type Fetch = (url: string, init: RequestInit) => Promise<Response>;
 
-/** The label the user's running Chat T3 Code answers with: its runtime state
- * (`~/.t3/userdata/server-runtime.json`) names its loopback origin, and its
- * descriptor there (`/.well-known/t3/environment`) the label the service runs
- * with (`T3CODE_ENVIRONMENT_LABEL` of its unit). None when it does not run. */
+/** The label the user's running Chat T3 Code answers with on loopback
+ * (`/.well-known/t3/environment`), the one its service runs with
+ * (`T3CODE_ENVIRONMENT_LABEL` of its unit). None when it does not run. */
 export async function chatT3Label(
   home: string,
   uid: number | undefined,
   fetcher: Fetch = (url, init) => fetch(url, init),
 ): Promise<string | undefined> {
-  const observed = await readOwnFile(
-    join(home, chatT3Home, "userdata", "server-runtime.json"),
-    uid,
-  ).catch(() => undefined);
-  if (observed?.kind !== "file") return undefined;
-  let origin: string | undefined;
-  try {
-    origin = loopbackOrigin(
-      (JSON.parse(observed.bytes.toString("utf8")) as { origin?: unknown })
-        .origin,
-    );
-  } catch {
-    return undefined;
-  }
+  const origin = await chatT3Origin(home, uid);
   if (origin === undefined) return undefined;
   try {
     const response = await fetcher(`${origin}/.well-known/t3/environment`, {
@@ -105,6 +67,33 @@ export async function userT3(
   }
 }
 
+async function liveSeams(
+  home: string,
+  uid: number | undefined,
+  machine: MachineBinding,
+): Promise<T3LinkSeams | undefined> {
+  const path = process.env.PATH;
+  const t3 = await userT3(home, path);
+  if (t3 === undefined) return undefined;
+  const env = { HOME: home, ...(path ? { PATH: path } : {}) };
+  return {
+    run: runTool,
+    now: Date.now,
+    home,
+    uid,
+    path,
+    t3,
+    node: machine.network?.headscaleHostname ?? null,
+    label: () => chatT3Label(home, uid),
+    rpc: openChatT3Rpc({ home, uid, t3, run: runTool, env }),
+  };
+}
+
+const liveMachine = async (source: MachineContextSource) => {
+  const observed = await readMachineContext(source);
+  return machineBinding(observed.context, observed.digest);
+};
+
 /** One look at this Environment's links under their lock, from the live
  * handover; `t3-missing` without the user's `t3`. */
 export async function syncLiveT3Links(
@@ -112,19 +101,24 @@ export async function syncLiveT3Links(
   uid: number | undefined,
   source: MachineContextSource = productionMachineContextSource,
 ): Promise<T3LinksReport | Readonly<{ result: "busy" | "t3-missing" }>> {
-  const observed = await readMachineContext(source);
-  const machine = machineBinding(observed.context, observed.digest);
-  const path = process.env.PATH;
-  const t3 = await userT3(home, path);
-  if (t3 === undefined) return { result: "t3-missing" };
-  const seams: T3LinkSeams = {
-    run: runTool,
-    now: Date.now,
-    home,
-    uid,
-    path,
-    t3,
-    label: () => chatT3Label(home, uid),
-  };
+  const machine = await liveMachine(source);
+  const seams = await liveSeams(home, uid, machine);
+  if (seams === undefined) return { result: "t3-missing" };
   return withT3LinksLock(home, () => syncT3Links(seams, machine));
+}
+
+/** The target's half of a pairing, under the same lock as the looks. */
+export async function issueLiveLinkPairing(
+  home: string,
+  uid: number | undefined,
+  sourceNode: string,
+  encodedLabel: string,
+  source: MachineContextSource = productionMachineContextSource,
+): Promise<PairingAnswer | Readonly<{ result: "busy" | "t3-missing" }>> {
+  const machine = await liveMachine(source);
+  const seams = await liveSeams(home, uid, machine);
+  if (seams === undefined) return { result: "t3-missing" };
+  return withT3LinksLock(home, () =>
+    issueLinkPairing(seams, machine, sourceNode, encodedLabel),
+  );
 }
