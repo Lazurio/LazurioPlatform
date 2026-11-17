@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -50,19 +51,25 @@ const runtime = (extra: Record<string, unknown>, healthPath = "/health") => ({
   ...extra,
 });
 
+const serverPackage = (
+  dependencies: Record<string, string>,
+  healthPath = "/health",
+) =>
+  JSON.stringify({
+    name: "fixture",
+    packageManager: "bun@1.3.4",
+    scripts: { dev: "bun run dev", start: "bun run server.ts" },
+    dependencies,
+    lazurio: { runtime: runtime({ start_script: "start" }, healthPath) },
+  });
+
 /** A V3 server app that meets every static requirement. */
 function readyServer(): Files {
   return {
     "lazurio.module.json": manifest(["app/v3/package.json"]),
-    "app/v3/package.json": JSON.stringify({
-      name: "fixture",
-      packageManager: "bun@1.3.4",
-      scripts: { dev: "bun run dev", start: "bun run server.ts" },
-      dependencies: {
-        "@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0",
-        "@lazurio/repository-db": "github:Lazurio/repository-db#v3.3.0",
-      },
-      lazurio: { runtime: runtime({ start_script: "start" }) },
+    "app/v3/package.json": serverPackage({
+      "@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0",
+      "@lazurio/repository-db": "github:Lazurio/repository-db#v3.3.0",
     }),
     "app/v3/bun.lock": "{}",
     "app/v3/server.ts":
@@ -73,24 +80,65 @@ function readyServer(): Files {
   };
 }
 
-async function fixture<T>(files: Files, run: (root: string) => Promise<T>) {
+function git(root: string, ...args: string[]) {
+  const result = spawnSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "/usr/bin:/bin",
+      GIT_AUTHOR_NAME: "Fixture",
+      GIT_AUTHOR_EMAIL: "fixture@example.invalid",
+      GIT_COMMITTER_NAME: "Fixture",
+      GIT_COMMITTER_EMAIL: "fixture@example.invalid",
+      GIT_CONFIG_NOSYSTEM: "1",
+      HOME: root,
+    },
+  });
+  if (result.status !== 0) throw new Error(`git ${args[0]}: ${result.stderr}`);
+}
+
+/** A Module checkout: `files` committed, `untracked` only on disk. With
+ * `repository: false` it is a plain directory without Git. */
+async function fixture<T>(
+  files: Files,
+  run: (root: string) => Promise<T>,
+  options: { untracked?: Files; repository?: boolean } = {},
+) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "module-ready-")));
-  try {
-    for (const [path, content] of Object.entries(files)) {
+  const write = async (all: Files) => {
+    for (const [path, content] of Object.entries(all)) {
       const target = join(root, path);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, content);
     }
+  };
+  try {
+    await write(files);
+    if (options.repository !== false) {
+      git(root, "init", "-q");
+      git(root, "add", "-A");
+      git(root, "commit", "-q", "-m", "fixture");
+    }
+    await write(options.untracked ?? {});
     return await run(root);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 }
 
-const assess = (files: Files) =>
-  fixture(files, async (root) =>
-    assessReadiness(await readReadinessInput(root)),
+const assess = (
+  files: Files,
+  options?: { untracked?: Files; repository?: boolean },
+  app?: string,
+) =>
+  fixture(
+    files,
+    async (root) => assessReadiness(await readReadinessInput(root, app)),
+    options,
   );
+
+const ids = (result: { findings: readonly { id: string }[] }) =>
+  result.findings.map((item) => item.id).sort();
 
 test("dependency specs name their version", () => {
   expect(specVersion("github:Lazurio/module-kit#v0.3.0")).toEqual([0, 3, 0]);
@@ -107,12 +155,11 @@ posixTest("a Module without an app is V0 and has no Application", async () => {
 });
 
 posixTest(
-  "a V3 server that meets the static requirements is ready for live use (no Git, so no tag finding)",
+  "a V3 server that meets the static requirements is ready for live use, without a release tag",
   async () => {
     const result = await assess(readyServer());
     expect(result.generation).toBe("V3");
-    // Outside a Git checkout the tag cannot be read, so it is not reported.
-    expect(result.findings.map((item) => item.id)).toEqual([]);
+    expect(result.findings).toEqual([]);
     expect(result.verdict).toBe("ready-for-live");
   },
 );
@@ -121,26 +168,21 @@ posixTest(
   "a V3 server without the module kit, appAccess, the writer guard and deep health is not ready",
   async () => {
     const files = readyServer();
-    files["app/v3/package.json"] = JSON.stringify({
-      name: "fixture",
-      packageManager: "bun@1.3.4",
-      scripts: { dev: "bun run dev", start: "bun run server.ts" },
-      dependencies: {
+    files["app/v3/package.json"] = serverPackage(
+      {
         "@lazurio/module-kit": "github:Lazurio/module-kit#v0.2.0",
         "@lazurio/repository-db": "github:Lazurio/repository-db#v3.3.0",
       },
-      lazurio: { runtime: runtime({ start_script: "start" }, "/") },
-    });
+      "/",
+    );
     files["app/v3/server.ts"] = "export {};\n";
     delete files["app/v3/tests/contract.test.ts"];
-    files[".env"] = "SECRET=x\n";
     const result = await assess(files);
     expect(result.verdict).toBe("not-ready");
-    expect(result.findings.map((item) => item.id).sort()).toEqual(
+    expect(ids(result)).toEqual(
       [
         "app-access",
         "contract-tests",
-        "env-file",
         "health-shallow",
         "module-kit",
         "writer-guard",
@@ -150,7 +192,81 @@ posixTest(
 );
 
 posixTest(
-  "an app with only a development script, no Bun pin and no lockfile is not ready",
+  "an app in app/v3 is V3 by its directory even without a direct repository-db dependency",
+  async () => {
+    const files = readyServer();
+    files["app/v3/package.json"] = serverPackage({
+      "@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0",
+      "@example/data-wrapper": "1.0.0",
+    });
+    files["app/v3/server.ts"] = "const access = appAccess(request);\n";
+    const result = await assess(files);
+    expect(result.generation).toBe("V3");
+    expect(ids(result)).toEqual(["writer-guard"]);
+  },
+);
+
+posixTest(
+  "committed environment files anywhere are found, an ignored local one is not, and an untracked lockfile does not count",
+  async () => {
+    const files = readyServer();
+    delete files["app/v3/bun.lock"];
+    files[".env.staging"] = "A=1\n";
+    files["tools/.env"] = "B=2\n";
+    files[".env.example"] = "A=\n";
+    files[".gitignore"] = "/.env\n";
+    const result = await assess(files, {
+      untracked: { ".env": "LOCAL=1\n", "app/v3/bun.lock": "{}" },
+    });
+    expect(ids(result)).toEqual(["env-file", "lockfile"]);
+    const env = result.findings.find((item) => item.id === "env-file");
+    expect(env?.message).toContain(".env.staging");
+    expect(env?.message).toContain("tools/.env");
+    expect(env?.message).not.toContain(".env.example");
+    expect(env?.message).not.toContain(", .env)");
+  },
+);
+
+posixTest(
+  "without Git the committed evidence is unknown, so the verdict is at most a trial",
+  async () => {
+    const result = await assess(readyServer(), { repository: false });
+    expect(ids(result)).toEqual(["git-unavailable"]);
+    expect(result.verdict).toBe("ready-for-trial");
+  },
+);
+
+posixTest(
+  "an app outside the Module named by --app is refused and nothing of it is read",
+  async () => {
+    const outer = await realpath(await mkdtemp(join(tmpdir(), "outside-")));
+    try {
+      await mkdir(join(outer, "app"), { recursive: true });
+      await writeFile(
+        join(outer, "app/package.json"),
+        serverPackage({ "@lazurio/module-kit": "0.4.0" }),
+      );
+      await writeFile(join(outer, "app/secret.ts"), "appAccess(\n");
+      await fixture(readyServer(), async (root) => {
+        const input = await readReadinessInput(
+          root,
+          `../${outer.split("/").pop()}/app/package.json`,
+        );
+        expect(input.app?.declarationError).toBe("app-not-declared");
+        expect(input.app?.pkg).toBeNull();
+        expect(input.app?.source).toBe("");
+        const result = assessReadiness(input);
+        expect(result.verdict).toBe("not-ready");
+        expect(ids(result)).toEqual(["declaration-invalid"]);
+      });
+    } finally {
+      await rm(outer, { recursive: true, force: true });
+    }
+  },
+);
+
+posixTest(
+  "an app with only a development script and no Bun pin is not ready",
   async () => {
     const result = await assess({
       "lazurio.module.json": manifest(["app/v1/package.json"]),
@@ -161,7 +277,7 @@ posixTest(
       }),
     });
     expect(result.generation).toBe("V1");
-    expect(result.findings.map((item) => item.id).sort()).toEqual(
+    expect(ids(result)).toEqual(
       ["built-version-missing", "bun-pin", "ci-missing", "lockfile"].sort(),
     );
     expect(result.verdict).toBe("not-ready");

@@ -10,8 +10,10 @@ does not add a second standard, it names which of its rules decide readiness.
 
 1. **Static, from the checkout:** `lazurio module readiness <absolute module
    directory> [--app <package>] [--json]`. It reads the manifests, the app's
-   package, its source for markers, CI workflows and tags, without running
-   anything and without the network, so an agent runs it anywhere. It changes
+   package, the files Git tracks and the app's tracked source for markers,
+   and the CI workflows, without running anything and without the network, so
+   an agent runs it anywhere. It reads only an app the manifest declares,
+   through the start path's reader. It changes
    nothing (decision 0173): an agent fixes the findings in the Module.
 2. **Contract tests in the Module's CI**, over the testing helpers of
    `@lazurio/module-kit` (`/tools/testing` and `/testing`): who came and with
@@ -19,11 +21,13 @@ does not add a second standard, it names which of its rules decide readiness.
    identity_unavailable`), refusal of a write without the writer, a stale
    write ending in `record_changed`, and deep health. The static check asks
    that the Module has them; CI proves they pass.
-3. **The rollout's readback** on the application host: the deployed
-   Application's health, and from outside its gateway's `401` with a `scope`
-   on `/mcp`, its protected-resource metadata and the host's scope at the
-   issuer. These need the live host and belong to the rollout, not to the
-   Module.
+3. **The rollout** on the application host: the release evidence the
+   Organization's release mode asks for (by default a merge to `main` with
+   green checks, or an approved release where the Organization switched that
+   on), the deployed Application's health, and from outside its gateway's
+   `401` with a `scope` on `/mcp`, its protected-resource metadata and the
+   host's scope at the issuer. These need the live host and the
+   Organization's rule and belong to the rollout, not to the Module.
 
 ## Verdicts
 
@@ -31,7 +35,7 @@ does not add a second standard, it names which of its rules decide readiness.
 | --- | --- |
 | `no-application` | A Module without an app (V0): there is no Application. |
 | `not-ready` | A blocker: the Application cannot run from this Module. |
-| `ready-for-trial` | It can run as an Application, but live use still needs something: CI, contract tests, a release tag. |
+| `ready-for-trial` | It can run as an Application, but live use still needs something (CI, contract tests), or the evidence could not be read (Git did not list the committed files). |
 | `ready-for-live` | Nothing found: people may do their real work in it. |
 
 **Host conditions** are listed apart: what the application host must support
@@ -44,7 +48,9 @@ against the host it deploys to and refuses where the host lacks them.
 Every generation with an app needs: a valid manifest and app declaration as
 the start path reads them; a built version (`start_script` or
 `build_output`); Bun pinned exactly with a committed `bun.lock`; no committed
-`.env` files; and, for live use, CI on the Module.
+`.env*` file anywhere in the Module (`.env.example` excepted); and, for live
+use, CI on the Module. A release tag is not a requirement of the Module: the
+rollout asks for the evidence the Organization's release mode needs.
 
 - **V0, no app.** Nothing to deploy; the verdict is `no-application`.
 - **V1, content is part of the app** (a reference app such as a design
@@ -85,4 +91,7 @@ cases.
 
 It reads markers, not behaviour: a source that names `appAccess` or the writer
 variable is not proof that every route uses them, which the contract tests and
-review hold. It does not read secrets, the vault, deployed hosts or GitHub.
+review hold. The generation comes from the data layer the app depends on and
+otherwise from its directory `app/v<N>/`. Without Git the committed files and
+the source markers are unknown, which it reports instead of passing them. It
+does not read secrets, the vault, deployed hosts or GitHub.

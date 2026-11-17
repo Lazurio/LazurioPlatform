@@ -9,9 +9,10 @@ import { readModuleApplication } from "./read-application";
  * the static half of the check, read from the checkout without running
  * anything or using the network. The runtime half is the Module's own
  * contract tests in its CI over `@lazurio/module-kit` testing helpers, which
- * this check asks for; the live probe of a deployed Application's gateway
- * belongs to the rollout. It measures and reports and changes nothing
- * (decision 0173): an agent fixes the findings in the Module. */
+ * this check asks for; the live probe of a deployed Application's gateway and
+ * the release evidence of the Organization's release mode belong to the
+ * rollout. It measures and reports and changes nothing (decision 0173): an
+ * agent fixes the findings in the Module. */
 
 export type Generation = "V0" | "V1" | "V2" | "V3" | "V4";
 export type Verdict =
@@ -21,7 +22,8 @@ export type Verdict =
   | "ready-for-live";
 
 /** `blocker`: the Application cannot run from this Module. `live`: it may run
- * as a trial, not for people's real work. */
+ * as a trial, not for people's real work, or the evidence for live use could
+ * not be read. */
 export type FindingLevel = "blocker" | "live";
 
 export type Finding = Readonly<{
@@ -51,29 +53,24 @@ export type Readiness = Readonly<{
 /** Everything the assessment needs, read once from the checkout. */
 export type ReadinessInput = Readonly<{
   manifest: unknown;
-  /** Null when the Module has no app, or the selected app could not be read. */
+  /** Null when the Module declares no app or its manifest does not parse. */
   app: Readonly<{
     package: string;
-    /** The error the start path's reader raised, or null. */
+    /** Why the selected app could not be read as the start path reads it;
+     * nothing else of the app is read then. */
     declarationError: string | null;
     pkg: Readonly<Record<string, unknown>> | null;
-    /** Repository-relative files of the app's package directory, build
-     * outputs and dependencies excluded. */
-    files: readonly string[];
     /** Concatenated source text of the app (bounded), for markers only. */
     source: string;
-    /** Whether the plan the start path makes has an own server or a static
-     * build, and the health paths of its HTTP listeners. */
     server: boolean;
     staticBuild: boolean;
     healthPaths: readonly string[];
     slots: readonly string[];
   }> | null;
-  /** Repository-relative files at the Module's root level that matter. */
-  rootFiles: readonly string[];
+  /** Files Git tracks in the Module, relative to its root; null when Git
+   * could not say (no repository, Git missing). */
+  tracked: readonly string[] | null;
   workflows: readonly string[];
-  /** Tags that point at the checkout's HEAD; null when Git could not say. */
-  tagsAtHead: readonly string[] | null;
 }>;
 
 const MODULE_KIT_FLOOR = [0, 3, 0] as const;
@@ -108,18 +105,19 @@ function atLeast(
   return true;
 }
 
-/** Where the data are (decision 0249): the generation of the selected app. */
+/** Where the data are (decision 0249). The data layer wins over the
+ * directory, because a Module created before the generation rule may keep an
+ * app with data in `app/v1` or `app/v2` (Module Standard, App generations);
+ * otherwise the directory `app/v<N>/` names it. A data layer reached through
+ * a wrapper is still caught by its directory. */
 export function generationOf(input: ReadinessInput): Generation {
   if (input.app === null) return "V0";
   const deps = dependencies(input.app.pkg);
-  if (input.app.package.startsWith("app/v4/") || "mysql2" in deps) return "V4";
-  if ("@lazurio/repository-db" in deps) return "V3";
-  if (
-    input.app.package.startsWith("app/v2/") ||
-    input.rootFiles.some(
-      (file) => file === "data/v2" || file.startsWith("data/v2/"),
-    )
-  )
+  const directory = /^app\/v([1-4])\//.exec(input.app.package)?.[1];
+  if ("mysql2" in deps || directory === "4") return "V4";
+  if ("@lazurio/repository-db" in deps || directory === "3") return "V3";
+  const tracked = input.tracked ?? [];
+  if (directory === "2" || tracked.some((file) => file.startsWith("data/v2/")))
     return "V2";
   return "V1";
 }
@@ -149,25 +147,22 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "lazurio.module.json must declare apps explicitly (an empty list for a Module without an app).",
     );
   if (apps !== null && apps.length === 0)
-    return Object.freeze({
-      schema_version: "lazurio.module-readiness.v1",
-      module: moduleId,
-      app: null,
-      generation: "V0",
-      verdict: "no-application",
-      findings: Object.freeze([]),
-      hostConditions: Object.freeze([]),
-    });
+    return finish(moduleId, null, "V0", [], [], "no-application");
   const app = input.app;
   if (findings.length > 0 || app === null)
     return finish(moduleId, null, null, findings, hostConditions);
-  const generation = generationOf(input);
-  if (app.declarationError !== null)
+  // Nothing else of an app the start path refuses is read or judged.
+  if (app.declarationError !== null) {
     add(
       "declaration-invalid",
       "blocker",
       `The app's declaration is refused by the start path: ${app.declarationError}`,
     );
+    return finish(moduleId, app.package, null, findings, hostConditions);
+  }
+  const generation = generationOf(input);
+  const appDir = dirname(app.package);
+  const inApp = (name: string) => (appDir === "." ? name : `${appDir}/${name}`);
   // The built version (decision F58): an own server, or a static build.
   if (!app.server && !app.staticBuild)
     add(
@@ -198,11 +193,6 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "blocker",
       'package.json must pin Bun exactly in packageManager ("bun@x.y.z").',
     );
-  const appDir = dirname(app.package);
-  const lockfile = (name: string) =>
-    app.files.includes(appDir === "." ? name : `${appDir}/${name}`);
-  if (!lockfile("bun.lock") && !lockfile("bun.lockb"))
-    add("lockfile", "blocker", "The app has no committed bun.lock.");
   if (app.server) {
     const kit = dependencies(app.pkg)["@lazurio/module-kit"];
     const version = kit === undefined ? null : specVersion(kit);
@@ -212,7 +202,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
         "blocker",
         `The server needs @lazurio/module-kit ${MODULE_KIT_FLOOR.join(".")} or newer (found ${kit ?? "none"}).`,
       );
-    if (!/\bapp_?[Aa]ccess\s*\(/.test(app.source))
+    if (input.tracked !== null && !/\bapp_?[Aa]ccess\s*\(/.test(app.source))
       add(
         "app-access",
         "blocker",
@@ -220,6 +210,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       );
   }
   if (
+    input.tracked !== null &&
     (generation === "V3" || generation === "V4") &&
     !/LAZURIO_RUNTIME_DATA_WRITER|\bdataWriter\b/.test(app.source)
   )
@@ -228,15 +219,30 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "blocker",
       "The app never reads LAZURIO_RUNTIME_DATA_WRITER: on the application host it writes only with true, and in a development version only for the entries local and environment.",
     );
-  const envFiles = [...input.rootFiles, ...app.files].filter((file) =>
-    /(^|\/)\.env(\.(?!example$)[^/]+)?$/.test(file),
-  );
-  if (envFiles.length > 0)
+  // What Git tracks: committed files, never the working directory.
+  if (input.tracked === null)
     add(
-      "env-file",
-      "blocker",
-      `Committed environment files (${envFiles.join(", ")}): secrets come from the vault, never from .env files.`,
+      "git-unavailable",
+      "live",
+      "Git could not list the Module's committed files, so the lockfile, environment files and the markers in the source (appAccess, the writer rule, contract tests) were not checked.",
     );
+  else {
+    const tracked = input.tracked;
+    if (
+      !tracked.includes(inApp("bun.lock")) &&
+      !tracked.includes(inApp("bun.lockb"))
+    )
+      add("lockfile", "blocker", "The app has no committed bun.lock.");
+    const envFiles = tracked.filter((file) =>
+      /(^|\/)\.env(\.(?!example$)[^/]+)?$/.test(file),
+    );
+    if (envFiles.length > 0)
+      add(
+        "env-file",
+        "blocker",
+        `Committed environment files (${envFiles.join(", ")}): secrets come from the vault, never from .env files.`,
+      );
+  }
   for (const slot of app.slots) {
     if (slot.endsWith("/db"))
       hostConditions.push(
@@ -253,7 +259,10 @@ export function assessReadiness(input: ReadinessInput): Readiness {
         }),
       );
   }
-  // What live use asks for beyond a trial.
+  // What live use asks for beyond a trial. A release tag is not among them:
+  // by default every checked merge to `main` is deployed (decision 0249), and
+  // the rollout asks for an approved release where the Organization's mode
+  // requires one.
   if (input.workflows.length === 0)
     add(
       "ci-missing",
@@ -261,6 +270,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "The Module has no CI workflow in .github/workflows.",
     );
   if (
+    input.tracked !== null &&
     app.server &&
     (generation === "V3" || generation === "V4") &&
     !/@lazurio\/module-kit\/(?:tools\/)?testing/.test(app.source)
@@ -269,12 +279,6 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "contract-tests",
       "live",
       "No contract tests over @lazurio/module-kit testing helpers (role list, refusal without a role or without the writer, deep health).",
-    );
-  if (input.tagsAtHead !== null && input.tagsAtHead.length === 0)
-    add(
-      "release-tag",
-      "live",
-      "The checked-out commit carries no release tag.",
     );
   return finish(moduleId, app.package, generation, findings, hostConditions);
 }
@@ -285,18 +289,21 @@ function finish(
   generation: Generation | null,
   findings: Finding[],
   hostConditions: HostCondition[],
+  verdict?: Verdict,
 ): Readiness {
-  const verdict: Verdict = findings.some((item) => item.level === "blocker")
-    ? "not-ready"
-    : findings.length > 0
-      ? "ready-for-trial"
-      : "ready-for-live";
+  const judged: Verdict =
+    verdict ??
+    (findings.some((item) => item.level === "blocker")
+      ? "not-ready"
+      : findings.length > 0
+        ? "ready-for-trial"
+        : "ready-for-live");
   return Object.freeze({
     schema_version: "lazurio.module-readiness.v1",
     module,
     app,
     generation,
-    verdict,
+    verdict: judged,
     findings: Object.freeze(findings),
     hostConditions: Object.freeze(hostConditions),
   });
@@ -304,62 +311,37 @@ function finish(
 
 // --- Reading the checkout -------------------------------------------------
 
-const SKIPPED = new Set([
-  "node_modules",
-  ".git",
-  "dist",
-  "build",
-  ".astro",
-  ".next",
-  ".turbo",
-  "coverage",
-  ".venv",
-  "__pycache__",
-  "db",
-]);
 const SOURCE = /\.(?:[cm]?[jt]sx?|py)$/;
-const MAX_FILES = 4000;
+const SKIPPED =
+  /(^|\/)(node_modules|dist|build|\.astro|\.next|\.turbo|coverage|\.venv|__pycache__)\//;
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 
-async function listFiles(root: string, relative: string, out: string[]) {
-  if (out.length >= MAX_FILES) return;
-  let entries: import("node:fs").Dirent[];
-  try {
-    entries = await readdir(join(root, relative), { withFileTypes: true });
-  } catch {
-    return;
-  }
-  for (const entry of entries) {
-    if (out.length >= MAX_FILES) return;
-    const path = relative === "" ? entry.name : `${relative}/${entry.name}`;
-    if (entry.isSymbolicLink()) continue;
-    if (entry.isDirectory()) {
-      if (!SKIPPED.has(entry.name)) await listFiles(root, path, out);
-    } else if (entry.isFile()) out.push(path);
-  }
-}
-
-async function exists(path: string) {
-  try {
-    await lstat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function tagsAt(moduleDirectory: string): string[] | null {
-  const result = spawnSync("git", ["tag", "--points-at", "HEAD"], {
+function gitFiles(moduleDirectory: string): string[] | null {
+  const result = spawnSync("git", ["ls-files", "-z"], {
     cwd: moduleDirectory,
     encoding: "utf8",
-    timeout: 10_000,
+    timeout: 20_000,
+    maxBuffer: 64 * 1024 * 1024,
     env: {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
       GIT_TERMINAL_PROMPT: "0",
     },
   });
-  if (result.status !== 0) return null;
-  return result.stdout.split("\n").filter((line) => line.trim() !== "");
+  if (result.status !== 0 || typeof result.stdout !== "string") return null;
+  return result.stdout.split("\0").filter((file) => file !== "");
+}
+
+async function workflowFiles(moduleDirectory: string): Promise<string[]> {
+  try {
+    const entries = await readdir(join(moduleDirectory, ".github/workflows"), {
+      withFileTypes: true,
+    });
+    return entries
+      .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
+      .map((entry) => `.github/workflows/${entry.name}`);
+  } catch {
+    return [];
+  }
 }
 
 export async function readReadinessInput(
@@ -375,83 +357,93 @@ export async function readReadinessInput(
     // An unreadable manifest is reported as one that does not parse.
     manifest = null;
   }
-  const rootFiles: string[] = [];
-  for (const name of [".env", ".env.local", ".env.production", ".env.example"])
-    if (await exists(join(moduleDirectory, name))) rootFiles.push(name);
-  if (await exists(join(moduleDirectory, "data/v2"))) rootFiles.push("data/v2");
-  const workflowFiles: string[] = [];
-  await listFiles(moduleDirectory, ".github/workflows", workflowFiles);
-  const workflows = workflowFiles.filter((file) => /\.ya?ml$/.test(file));
-  let app: ReadinessInput["app"] = null;
+  const tracked = gitFiles(moduleDirectory);
+  const workflows = await workflowFiles(moduleDirectory);
+  let declared: readonly string[] = [];
   let selected: string | null = null;
   try {
     const parsed = parseModuleManifest(manifest);
-    if (parsed.apps !== null && parsed.apps.length > 0)
-      selected = requestedPackage ?? parsed.default_app;
+    declared = parsed.apps ?? [];
+    if (declared.length > 0) selected = requestedPackage ?? parsed.default_app;
   } catch {
     selected = null;
   }
-  if (selected !== null) {
-    let declarationError: string | null = null;
-    let server = false;
-    let staticBuild = false;
-    let healthPaths: string[] = [];
-    let slots: readonly string[] = [];
-    try {
-      const plan = await readModuleApplication(moduleDirectory, selected);
-      if (plan.kind !== "declared-runtime-plan")
-        declarationError = `app selection ${plan.kind}`;
-      else {
-        server = plan.runtime.server !== null;
-        staticBuild = plan.runtime.static !== null;
-        healthPaths = plan.listeners.flatMap((listener) =>
-          listener.health.kind === "http" && "path" in listener.health
-            ? [String(listener.health.path)]
-            : [],
-        );
-        const declared = plan.runtime.optional.required_module_slots;
-        slots = Array.isArray(declared) ? declared : [];
-      }
-    } catch (error) {
-      declarationError = error instanceof Error ? error.message : String(error);
-    }
-    let pkg: Record<string, unknown> | null = null;
-    try {
-      const value = await readCheckoutJson(join(moduleDirectory, selected));
-      if (value && typeof value === "object" && !Array.isArray(value))
-        pkg = value as Record<string, unknown>;
-    } catch {
-      pkg = null;
-    }
-    const appDir = dirname(selected);
-    const files: string[] = [];
-    await listFiles(moduleDirectory, appDir === "." ? "" : appDir, files);
-    let source = "";
-    for (const file of files) {
-      if (!SOURCE.test(file) || source.length > MAX_SOURCE_BYTES) continue;
-      try {
-        source += `\n${await readFile(join(moduleDirectory, file), "utf8")}`;
-      } catch {
-        // An unreadable file is no marker; the start path reports it.
-      }
-    }
-    app = Object.freeze({
-      package: selected,
-      declarationError,
-      pkg,
-      files,
-      source,
-      server,
-      staticBuild,
-      healthPaths,
-      slots,
+  if (selected === null)
+    return Object.freeze({ manifest, app: null, tracked, workflows });
+  const refused = (reason: string) =>
+    Object.freeze({
+      manifest,
+      app: Object.freeze({
+        package: selected,
+        declarationError: reason,
+        pkg: null,
+        source: "",
+        server: false,
+        staticBuild: false,
+        healthPaths: [],
+        slots: [],
+      }),
+      tracked,
+      workflows,
     });
+  // Only an app the manifest declares is read, and only through the start
+  // path's reader, which refuses paths outside the Module and symlinks.
+  if (!declared.includes(selected)) return refused("app-not-declared");
+  let plan: Awaited<ReturnType<typeof readModuleApplication>>;
+  try {
+    plan = await readModuleApplication(moduleDirectory, selected);
+  } catch (error) {
+    return refused(error instanceof Error ? error.message : String(error));
+  }
+  if (plan.kind !== "declared-runtime-plan")
+    return refused(`app selection ${plan.kind}`);
+  const declaredSlots = plan.runtime.optional.required_module_slots;
+  let pkg: Record<string, unknown> | null = null;
+  try {
+    const value = await readCheckoutJson(join(moduleDirectory, selected));
+    if (value && typeof value === "object" && !Array.isArray(value))
+      pkg = value as Record<string, unknown>;
+  } catch (error) {
+    return refused(error instanceof Error ? error.message : String(error));
+  }
+  // Source markers come only from tracked files of the app's own directory,
+  // which Git lists inside the Module and never through a symlink.
+  const appDir = dirname(selected);
+  const prefix = appDir === "." ? "" : `${appDir}/`;
+  let source = "";
+  for (const file of tracked ?? []) {
+    if (
+      !file.startsWith(prefix) ||
+      !SOURCE.test(file) ||
+      SKIPPED.test(file) ||
+      source.length > MAX_SOURCE_BYTES
+    )
+      continue;
+    try {
+      const path = join(moduleDirectory, file);
+      if (!(await lstat(path)).isFile()) continue;
+      source += `\n${await readFile(path, "utf8")}`;
+    } catch {
+      // An unreadable file is no marker; the start path reports it.
+    }
   }
   return Object.freeze({
     manifest,
-    app,
-    rootFiles,
+    app: Object.freeze({
+      package: selected,
+      declarationError: null,
+      pkg,
+      source,
+      server: plan.runtime.server !== null,
+      staticBuild: plan.runtime.static !== null,
+      healthPaths: plan.listeners.flatMap((listener) =>
+        listener.health.kind === "http" && "path" in listener.health
+          ? [String(listener.health.path)]
+          : [],
+      ),
+      slots: Array.isArray(declaredSlots) ? declaredSlots : [],
+    }),
+    tracked,
     workflows,
-    tagsAtHead: tagsAt(moduleDirectory),
   });
 }
