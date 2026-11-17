@@ -769,7 +769,10 @@ not a substitute for Lazurio sign-in. Buddy's bubble appears in an Application o
 for a person who has Buddy (decision 0180 as amended by 0249); Buddy is then one
 more client of the same tools, through the Application's MCP server connected in
 the person's Work Environment or the development version's page tools there, and
-never gets more than the person's role. A Module adds nothing for the bubble.
+never gets more than the person's role. How the bubble gets onto an Application
+is open in 0249 (proposed: the application host's gateway adds it, so a Module
+would carry no code for it); until it is decided, the standard asks nothing of a
+Module for the bubble.
 
 The generated `manual/admin.md` describes the Organization Admin's part (the
 release mode, the entry switch, roles, verification); `admin-request` gives
