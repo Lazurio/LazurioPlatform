@@ -110,5 +110,8 @@ It reads markers, not behaviour: a source that names `appAccess` or the writer
 variable is not proof that every route uses them, which the contract tests and
 review hold. The generation comes from the data layer the app depends on and
 otherwise from its directory `app/v<N>/`. Without Git the committed files and
-the source markers are unknown, which it reports instead of passing them. It
+the source markers are unknown, which it reports instead of passing them. Source is read up to 1 MiB per file
+and 4 MiB in total; a marker found counts, and a marker missing while some
+committed source was not read is reported as `source-incomplete`, never as
+absent. It
 does not read secrets, the vault, deployed hosts or GitHub.

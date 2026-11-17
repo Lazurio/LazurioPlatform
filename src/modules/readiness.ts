@@ -61,6 +61,9 @@ export type ReadinessInput = Readonly<{
     pkg: Readonly<Record<string, unknown>> | null;
     /** Concatenated source text of the app (bounded), for markers only. */
     source: string;
+    /** Committed source files that were not read (over a limit, or Git
+     * failed); a marker missing from `source` is then unknown, not absent. */
+    sourceSkipped: readonly string[];
     server: boolean;
     staticBuild: boolean;
     healthPaths: readonly string[];
@@ -201,6 +204,15 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "blocker",
       'package.json must pin Bun exactly in packageManager ("bun@x.y.z").',
     );
+  // A marker found in the source counts; a missing one counts as absent only
+  // when the whole committed source was read. Otherwise it is unknown.
+  const sourceKnown = input.tracked !== null && app.sourceSkipped.length === 0;
+  let markerUnknown = false;
+  const lacks = (marker: RegExp) => {
+    if (marker.test(app.source)) return false;
+    if (!sourceKnown) markerUnknown = true;
+    return sourceKnown;
+  };
   if (app.server) {
     const kit = dependencies(app.pkg)["@lazurio/module-kit"];
     const version = kit === undefined ? null : specVersion(kit);
@@ -210,7 +222,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
         "blocker",
         `The server needs @lazurio/module-kit ${MODULE_KIT_FLOOR.join(".")} or newer (found ${kit ?? "none"}).`,
       );
-    if (input.tracked !== null && !/\bapp_?[Aa]ccess\s*\(/.test(app.source))
+    if (lacks(/\bapp_?[Aa]ccess\s*\(/))
       add(
         "app-access",
         "blocker",
@@ -218,9 +230,8 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       );
   }
   if (
-    input.tracked !== null &&
     (generation === "V3" || generation === "V4") &&
-    !/LAZURIO_RUNTIME_DATA_WRITER|\bdataWriter\b/.test(app.source)
+    lacks(/LAZURIO_RUNTIME_DATA_WRITER|\bdataWriter\b/)
   )
     add(
       "writer-guard",
@@ -279,15 +290,20 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "The Module has no committed CI workflow in .github/workflows.",
     );
   if (
-    input.tracked !== null &&
     app.server &&
     (generation === "V3" || generation === "V4") &&
-    !/@lazurio\/module-kit\/(?:tools\/)?testing/.test(app.source)
+    lacks(/@lazurio\/module-kit\/(?:tools\/)?testing/)
   )
     add(
       "contract-tests",
       "live",
       "No contract tests over @lazurio/module-kit testing helpers (role list, refusal without a role or without the writer, deep health).",
+    );
+  if (markerUnknown && input.tracked !== null)
+    add(
+      "source-incomplete",
+      "blocker",
+      `Not all committed source of the app was read (${app.sourceSkipped.slice(0, 5).join(", ")}${app.sourceSkipped.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, or Git could not read it), so whether it calls appAccess, reads the writer rule or has contract tests is unknown. Split oversized source files.`,
     );
   return finish(moduleId, app.package, generation, findings, hostConditions);
 }
@@ -372,36 +388,50 @@ function committedTree(moduleDirectory: string): TreeEntry[] | null {
 function committedSource(
   moduleDirectory: string,
   entries: readonly TreeEntry[],
-): string {
+): { text: string; skipped: string[] } {
   const picked: string[] = [];
+  const skipped: string[] = [];
   let total = 0;
   for (const entry of entries) {
-    if (entry.size < 0 || entry.size > MAX_BLOB_BYTES) continue;
-    if (total + entry.size > MAX_SOURCE_BYTES) break;
+    if (
+      entry.size < 0 ||
+      entry.size > MAX_BLOB_BYTES ||
+      total + entry.size > MAX_SOURCE_BYTES
+    ) {
+      skipped.push(entry.path);
+      continue;
+    }
     picked.push(entry.path);
     total += entry.size;
   }
-  if (picked.length === 0) return "";
+  if (picked.length === 0) return { text: "", skipped };
   const result = git(
     moduleDirectory,
     ["cat-file", "--batch"],
     picked.map((path) => `HEAD:./${path}\n`).join(""),
   );
-  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) return "";
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout))
+    return { text: "", skipped: [...skipped, ...picked] };
   const out = result.stdout;
   const parts: string[] = [];
   let offset = 0;
-  while (offset < out.length) {
+  for (const path of picked) {
     const newline = out.indexOf(10, offset);
-    if (newline < 0) break;
+    if (newline < 0) {
+      skipped.push(path);
+      continue;
+    }
     const header = out.subarray(offset, newline).toString("utf8").split(" ");
     offset = newline + 1;
-    if (header[1] !== "blob") continue;
+    if (header[1] !== "blob") {
+      skipped.push(path);
+      continue;
+    }
     const size = Number(header[2]);
     parts.push(out.subarray(offset, offset + size).toString("utf8"));
     offset += size + 1;
   }
-  return parts.join("\n");
+  return { text: parts.join("\n"), skipped };
 }
 
 export async function readReadinessInput(
@@ -444,6 +474,7 @@ export async function readReadinessInput(
         declarationError: reason,
         pkg: null,
         source: "",
+        sourceSkipped: [],
         server: false,
         staticBuild: false,
         healthPaths: [],
@@ -476,7 +507,7 @@ export async function readReadinessInput(
   // directory, read from Git's objects at HEAD.
   const appDir = dirname(selected);
   const prefix = appDir === "." ? "" : `${appDir}/`;
-  const source = committedSource(
+  const { text: source, skipped: sourceSkipped } = committedSource(
     moduleDirectory,
     (files ?? []).filter(
       (entry) =>
@@ -492,6 +523,7 @@ export async function readReadinessInput(
       declarationError: null,
       pkg,
       source,
+      sourceSkipped,
       server: plan.runtime.server !== null,
       staticBuild: plan.runtime.static !== null,
       healthPaths: plan.listeners.flatMap((listener) =>

@@ -437,3 +437,27 @@ posixTest(
     expect(result.verdict).toBe("not-ready");
   },
 );
+
+posixTest(
+  "a committed source file over the read limit makes its markers unknown, never absent",
+  async () => {
+    const files = readyServer();
+    files["app/v3/server.ts"] =
+      `const access = appAccess(request);\nconst writer = process.env.LAZURIO_RUNTIME_DATA_WRITER;\n// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    const result = await assess(files);
+    expect(ids(result)).toEqual(["source-incomplete"]);
+    expect(result.findings[0]?.message).toContain("app/v3/server.ts");
+    expect(result.verdict).toBe("not-ready");
+  },
+);
+
+posixTest(
+  "a marker found in the read source counts even when another file was skipped",
+  async () => {
+    const files = readyServer();
+    files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    const result = await assess(files);
+    expect(result.findings).toEqual([]);
+    expect(result.verdict).toBe("ready-for-live");
+  },
+);
