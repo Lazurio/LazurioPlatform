@@ -306,6 +306,25 @@ function freeze(value: unknown): void {
   }
 }
 
+/** Whether this Platform reads every shape of a schema-valid handover. The
+ * vendored schema (Machines#1370) also accepts shapes whose reader is not
+ * implemented here yet, which Machines writes only for a Platform at or above
+ * their minimum: a personal owner keyed on the Lazurio account (plan PCH M4,
+ * the pair issuer + subject) and Buddy's origin in the personal zone (PCH M1).
+ * Such a handover is refused whole, never projected into a binding that
+ * would drop or misread them. */
+function readHere(input: unknown): boolean {
+  const document = input as {
+    owner?: { kind?: unknown };
+    entry?: { buddy?: { external_origin?: unknown } };
+  };
+  if (document.owner?.kind === "lazurio-account") return false;
+  const buddy = document.entry?.buddy?.external_origin;
+  if (typeof buddy === "string" && buddy.endsWith(".personal.lazurio.io"))
+    return false;
+  return true;
+}
+
 /** A handover the vendored schema accepts, auth-sourced or not. */
 export function parseMachineHandover(bytes: Uint8Array): MachineHandover {
   try {
@@ -314,6 +333,7 @@ export function parseMachineHandover(bytes: Uint8Array): MachineHandover {
       new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes),
     );
     if (!validate(input)) throw new Error("Schema mismatch");
+    if (!readHere(input)) throw new Error("Not read by this Platform");
     freeze(input);
     return input;
   } catch {

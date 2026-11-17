@@ -31,7 +31,6 @@ import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createComputerAttach } from "../computers/attach-ws";
-import { createComputerSessionCheck } from "../computers/session-check";
 import {
   attachServers,
   type ComputersHost,
@@ -39,6 +38,7 @@ import {
   computersAllowed,
   installedEntry,
 } from "../computers/computers";
+import { createComputerSessionCheck } from "../computers/session-check";
 import { processConnectionsHost } from "../connections/host";
 import {
   type ConnectionsHost,

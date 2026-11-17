@@ -2488,7 +2488,7 @@ const en = {
   computersAgentsMissing: "Agents do not have it in Executor yet.",
   computersRemove: "Remove",
   computersRemoveConfirm:
-    "Remove {name}? Agents lose it at once. To use it again, connect it again in Lazurio Agent Desktop.",
+    "Remove {name} from this Environment? An open session ends within about 15 seconds. The computer can connect again whenever it is still an approved device of your Organization's network and its switch is on in Lazurio App; then it appears here again. To stop that for good, the Organization removes the device from its network.",
   computersRemoveYes: "Remove computer",
   computersCancel: "Cancel",
   computersRemoveFailed: "The computer could not be removed. Try again.",
@@ -4822,7 +4822,7 @@ const cs: Record<MessageKey, string> = {
   computersAgentsMissing: "Agenti ho zatím nemají v Executoru.",
   computersRemove: "Odebrat",
   computersRemoveConfirm:
-    "Odebrat {name}? Agenti o něj hned přijdou. Abyste ho znovu používali, připojte ho znovu v Lazurio Agent Desktop.",
+    "Odebrat {name} z tohoto Prostředí? Otevřené spojení skončí asi do 15 sekund. Počítač se ale může znovu připojit, dokud je schváleným zařízením v síti vaší Organizace a má v Lazurio App zapnutý vypínač; pak se tu znovu objeví. Natrvalo to zastaví jen odebrání zařízení ze sítě Organizace.",
   computersRemoveYes: "Odebrat počítač",
   computersCancel: "Zrušit",
   computersRemoveFailed: "Počítač se nepodařilo odebrat. Zkuste to znovu.",

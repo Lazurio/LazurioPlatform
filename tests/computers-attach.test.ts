@@ -528,6 +528,9 @@ test.skipIf(!posix)(
     });
     const fake = computer(server.port as number, "ok-alex-macbook");
     await waitFor(() => fake.seen.some((m) => m.type === "ready"));
+    // The broker is connected before the proof stops being confirmed, so
+    // the history records the end of a session that began.
+    await waitFor(historyHas(home, '"connected"'));
     gateway.allowed.delete("alex-macbook");
     clock.advance(60_000);
     expect(await fake.closed).toBe(1008);
@@ -918,5 +921,57 @@ test.skipIf(!posix)(
     await waitFor(() => seen.length > 0);
     expect(seen[0]).toEqual({ type: "ready", v: 3 });
     ws.close();
+  },
+);
+
+test.skipIf(!posix)(
+  "a proof that expires while the session starts is denied before ready (review of #1050)",
+  async () => {
+    let at = Date.now();
+    // The socket check takes longer than the proof lasts (300 s here).
+    const { server } = await setup({
+      now: () => at,
+      socketAnswers: async () => {
+        at += 301_000;
+        return false;
+      },
+    });
+    const fake = computer(server.port as number, "ok-alex-macbook");
+    expect(await fake.closed).toBe(1008);
+    expect(fake.seen.some((message) => message.type === "ready")).toBe(false);
+    expect(fake.seen.at(-1)).toEqual({
+      type: "denied",
+      v: 3,
+      reason: "expired",
+    });
+  },
+);
+
+test.skipIf(!posix)(
+  "past the deadline nothing is forwarded either way, even before the timer runs (review of #1050)",
+  async () => {
+    let at = Date.now();
+    const { home, server } = await setup({
+      now: () => at,
+      // No timer ever fires on its own here.
+      setTimer: () => () => undefined,
+    });
+    const fake = computer(server.port as number, "ok-alex-macbook");
+    await waitFor(() => fake.seen.some((message) => message.type === "ready"));
+    await waitFor(() =>
+      stat(socketPath(home, "alex-macbook")).then(
+        () => true,
+        () => false,
+      ),
+    );
+    const before = fake.seen.length;
+    // The proof's deadline passes with no timer: the computer's next message
+    // ends the session instead of reaching the broker.
+    at += 301_000;
+    fake.ws.send(JSON.stringify({ jsonrpc: "2.0", method: "notifications/x" }));
+    expect(await fake.closed).toBe(1008);
+    const after = fake.seen.slice(before);
+    expect(after.at(-1)).toEqual({ type: "denied", v: 3, reason: "expired" });
+    expect(after.some((message) => message.jsonrpc !== undefined)).toBe(false);
   },
 );

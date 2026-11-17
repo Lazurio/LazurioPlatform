@@ -340,6 +340,13 @@ export function createComputerAttach(host: AttachHost) {
       if (ws.data.state === "checking") deny(ws, "internal-error");
       return;
     }
+    // The proof may have run out while the start waited for the socket or
+    // the record's lock: such a session is never ready (review of #1050).
+    if (now() >= identity.deadline()) {
+      active.delete(device);
+      deny(ws, "expired");
+      return;
+    }
     ws.data.state = "ready";
     journal({ operation: "attach", outcome: "ready", device });
     // The session is served while its record exists: a removal ends it at
@@ -356,6 +363,12 @@ export function createComputerAttach(host: AttachHost) {
     const transport: BrokerTransport = {
       send: (line) => {
         if (ws.data.state !== "ready") return;
+        // Past the proof's deadline nothing reaches the computer, even before
+        // the deadline's timer has run.
+        if (now() >= identity.deadline()) {
+          expire(ws, "expired");
+          return;
+        }
         try {
           ws.send(line);
         } catch {}
@@ -542,6 +555,11 @@ export function createComputerAttach(host: AttachHost) {
         ws.data.lastHeard = now();
         if (typeof message !== "string") return;
         if (ws.data.state !== "ready") return;
+        // Past the proof's deadline nothing reaches the broker either.
+        if (now() >= ws.data.identity.deadline()) {
+          expire(ws, "expired");
+          return;
+        }
         for (const listener of ws.data.listeners) listener(message);
       },
       pong(ws: AttachSocket) {
