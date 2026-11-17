@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rename, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
@@ -102,7 +102,11 @@ function git(root: string, ...args: string[]) {
 async function fixture<T>(
   files: Files,
   run: (root: string) => Promise<T>,
-  options: { untracked?: Files; repository?: boolean } = {},
+  options: {
+    untracked?: Files;
+    repository?: boolean;
+    after?: (root: string) => Promise<void>;
+  } = {},
 ) {
   const root = await realpath(await mkdtemp(join(tmpdir(), "module-ready-")));
   const write = async (all: Files) => {
@@ -120,6 +124,7 @@ async function fixture<T>(
       git(root, "commit", "-q", "-m", "fixture");
     }
     await write(options.untracked ?? {});
+    await options.after?.(root);
     return await run(root);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -128,7 +133,11 @@ async function fixture<T>(
 
 const assess = (
   files: Files,
-  options?: { untracked?: Files; repository?: boolean },
+  options?: {
+    untracked?: Files;
+    repository?: boolean;
+    after?: (root: string) => Promise<void>;
+  },
   app?: string,
 ) =>
   fixture(
@@ -348,3 +357,57 @@ posixTest(
     ).rejects.toThrow("Usage");
   },
 );
+
+posixTest(
+  "source markers come from the committed tree, never through a symlinked directory",
+  async () => {
+    const outer = await realpath(await mkdtemp(join(tmpdir(), "outside-src-")));
+    try {
+      await writeFile(join(outer, "access.ts"), "appAccess(request);\n");
+      const files = readyServer();
+      files["app/v3/server.ts"] =
+        "const writer = process.env.LAZURIO_RUNTIME_DATA_WRITER;\n";
+      files["app/v3/sub/access.ts"] = "export {};\n";
+      const result = await assess(files, {
+        after: async (root) => {
+          await rename(join(root, "app/v3/sub"), join(root, "app/v3/sub-old"));
+          await symlink(outer, join(root, "app/v3/sub"));
+        },
+      });
+      expect(ids(result)).toEqual(["app-access"]);
+    } finally {
+      await rm(outer, { recursive: true, force: true });
+    }
+  },
+);
+
+posixTest(
+  "committed evidence is HEAD's: a staged deletion hides no .env file, .envrc counts, a staged lockfile does not",
+  async () => {
+    const files = readyServer();
+    files[".env.staging"] = "A=1\n";
+    files[".envrc"] = "export B=2\n";
+    delete files["app/v3/bun.lock"];
+    const result = await assess(files, {
+      untracked: { "app/v3/bun.lock": "{}" },
+      after: async (root) => {
+        git(root, "rm", "-q", "--cached", ".env.staging");
+        git(root, "add", "app/v3/bun.lock");
+      },
+    });
+    expect(ids(result)).toEqual(["env-file", "lockfile"]);
+    const env = result.findings.find((item) => item.id === "env-file");
+    expect(env?.message).toContain(".env.staging");
+    expect(env?.message).toContain(".envrc");
+  },
+);
+
+posixTest("an uncommitted CI workflow does not count", async () => {
+  const files = readyServer();
+  delete files[".github/workflows/ci.yml"];
+  const result = await assess(files, {
+    untracked: { ".github/workflows/ci.yml": "on: push\n" },
+  });
+  expect(ids(result)).toEqual(["ci-missing"]);
+  expect(result.verdict).toBe("ready-for-trial");
+});

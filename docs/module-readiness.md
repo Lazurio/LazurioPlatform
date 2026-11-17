@@ -10,8 +10,9 @@ does not add a second standard, it names which of its rules decide readiness.
 
 1. **Static, from the checkout:** `lazurio module readiness <absolute module
    directory> [--app <package>] [--json]`. It reads the manifests, the app's
-   package, the files Git tracks and the app's tracked source for markers,
-   and the CI workflows, without running anything and without the network, so
+   package, and from the tree committed at `HEAD` the files, the CI workflows
+   and the app's source for markers (read from Git's objects, never through a
+   symlink), without running anything and without the network, so
    an agent runs it anywhere. It reads only an app the manifest declares,
    through the start path's reader. It changes
    nothing (decision 0173): an agent fixes the findings in the Module.

@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { lstat, readdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { readCheckoutJson } from "../providers/owned-json";
 import { parseModuleManifest } from "./manifest";
@@ -67,7 +66,8 @@ export type ReadinessInput = Readonly<{
     healthPaths: readonly string[];
     slots: readonly string[];
   }> | null;
-  /** Files Git tracks in the Module, relative to its root; null when Git
+  /** Regular files committed at HEAD in the Module (never the index or the
+   * working directory), relative to its root; null when Git
    * could not say (no repository, Git missing). */
   tracked: readonly string[] | null;
   workflows: readonly string[];
@@ -233,8 +233,9 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       !tracked.includes(inApp("bun.lockb"))
     )
       add("lockfile", "blocker", "The app has no committed bun.lock.");
-    const envFiles = tracked.filter((file) =>
-      /(^|\/)\.env(\.(?!example$)[^/]+)?$/.test(file),
+    const envFiles = tracked.filter(
+      (file) =>
+        /(^|\/)\.env[^/]*$/.test(file) && !/(^|\/)\.env\.example$/.test(file),
     );
     if (envFiles.length > 0)
       add(
@@ -263,11 +264,11 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   // by default every checked merge to `main` is deployed (decision 0249), and
   // the rollout asks for an approved release where the Organization's mode
   // requires one.
-  if (input.workflows.length === 0)
+  if (input.tracked !== null && input.workflows.length === 0)
     add(
       "ci-missing",
       "live",
-      "The Module has no CI workflow in .github/workflows.",
+      "The Module has no committed CI workflow in .github/workflows.",
     );
   if (
     input.tracked !== null &&
@@ -316,10 +317,14 @@ const SKIPPED =
   /(^|\/)(node_modules|dist|build|\.astro|\.next|\.turbo|coverage|\.venv|__pycache__)\//;
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
 
-function gitFiles(moduleDirectory: string): string[] | null {
-  const result = spawnSync("git", ["ls-files", "-z"], {
+const MAX_BLOB_BYTES = 1024 * 1024;
+
+type TreeEntry = Readonly<{ mode: string; size: number; path: string }>;
+
+function git(moduleDirectory: string, args: string[], input?: string) {
+  return spawnSync("git", args, {
     cwd: moduleDirectory,
-    encoding: "utf8",
+    input,
     timeout: 20_000,
     maxBuffer: 64 * 1024 * 1024,
     env: {
@@ -327,21 +332,68 @@ function gitFiles(moduleDirectory: string): string[] | null {
       GIT_TERMINAL_PROMPT: "0",
     },
   });
-  if (result.status !== 0 || typeof result.stdout !== "string") return null;
-  return result.stdout.split("\0").filter((file) => file !== "");
 }
 
-async function workflowFiles(moduleDirectory: string): Promise<string[]> {
-  try {
-    const entries = await readdir(join(moduleDirectory, ".github/workflows"), {
-      withFileTypes: true,
+/** The committed tree at HEAD (never the index or the working directory),
+ * relative to the Module's root; null when Git could not say. */
+function committedTree(moduleDirectory: string): TreeEntry[] | null {
+  const result = git(moduleDirectory, [
+    "ls-tree",
+    "-r",
+    "-z",
+    "--long",
+    "HEAD",
+  ]);
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) return null;
+  const entries: TreeEntry[] = [];
+  for (const record of result.stdout.toString("utf8").split("\0")) {
+    const match = /^(\d{6}) (\w+) [0-9a-f]+ +(-|\d+)\t(.+)$/s.exec(record);
+    if (!match) continue;
+    entries.push({
+      mode: match[1] as string,
+      size: match[3] === "-" ? -1 : Number(match[3]),
+      path: match[4] as string,
     });
-    return entries
-      .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
-      .map((entry) => `.github/workflows/${entry.name}`);
-  } catch {
-    return [];
   }
+  return entries;
+}
+
+/** The committed content of regular files at HEAD, read from Git's objects,
+ * so a symlink anywhere in the working directory cannot redirect it; bounded
+ * per file and in total. */
+function committedSource(
+  moduleDirectory: string,
+  entries: readonly TreeEntry[],
+): string {
+  const picked: string[] = [];
+  let total = 0;
+  for (const entry of entries) {
+    if (entry.size < 0 || entry.size > MAX_BLOB_BYTES) continue;
+    if (total + entry.size > MAX_SOURCE_BYTES) break;
+    picked.push(entry.path);
+    total += entry.size;
+  }
+  if (picked.length === 0) return "";
+  const result = git(
+    moduleDirectory,
+    ["cat-file", "--batch"],
+    picked.map((path) => `HEAD:./${path}\n`).join(""),
+  );
+  if (result.status !== 0 || !Buffer.isBuffer(result.stdout)) return "";
+  const out = result.stdout;
+  const parts: string[] = [];
+  let offset = 0;
+  while (offset < out.length) {
+    const newline = out.indexOf(10, offset);
+    if (newline < 0) break;
+    const header = out.subarray(offset, newline).toString("utf8").split(" ");
+    offset = newline + 1;
+    if (header[1] !== "blob") continue;
+    const size = Number(header[2]);
+    parts.push(out.subarray(offset, offset + size).toString("utf8"));
+    offset += size + 1;
+  }
+  return parts.join("\n");
 }
 
 export async function readReadinessInput(
@@ -357,8 +409,14 @@ export async function readReadinessInput(
     // An unreadable manifest is reported as one that does not parse.
     manifest = null;
   }
-  const tracked = gitFiles(moduleDirectory);
-  const workflows = await workflowFiles(moduleDirectory);
+  const tree = committedTree(moduleDirectory);
+  // Regular files only: a symlink or a submodule is no committed file.
+  const files =
+    tree?.filter((entry) => /^100(644|755)$/.test(entry.mode)) ?? null;
+  const tracked = files?.map((entry) => entry.path) ?? null;
+  const workflows = (tracked ?? []).filter((file) =>
+    /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file),
+  );
   let declared: readonly string[] = [];
   let selected: string | null = null;
   try {
@@ -406,27 +464,19 @@ export async function readReadinessInput(
   } catch (error) {
     return refused(error instanceof Error ? error.message : String(error));
   }
-  // Source markers come only from tracked files of the app's own directory,
-  // which Git lists inside the Module and never through a symlink.
+  // Source markers come only from committed regular files of the app's own
+  // directory, read from Git's objects at HEAD.
   const appDir = dirname(selected);
   const prefix = appDir === "." ? "" : `${appDir}/`;
-  let source = "";
-  for (const file of tracked ?? []) {
-    if (
-      !file.startsWith(prefix) ||
-      !SOURCE.test(file) ||
-      SKIPPED.test(file) ||
-      source.length > MAX_SOURCE_BYTES
-    )
-      continue;
-    try {
-      const path = join(moduleDirectory, file);
-      if (!(await lstat(path)).isFile()) continue;
-      source += `\n${await readFile(path, "utf8")}`;
-    } catch {
-      // An unreadable file is no marker; the start path reports it.
-    }
-  }
+  const source = committedSource(
+    moduleDirectory,
+    (files ?? []).filter(
+      (entry) =>
+        entry.path.startsWith(prefix) &&
+        SOURCE.test(entry.path) &&
+        !SKIPPED.test(entry.path),
+    ),
+  );
   return Object.freeze({
     manifest,
     app: Object.freeze({
