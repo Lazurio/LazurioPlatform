@@ -57,10 +57,7 @@ export const adminRequest: readonly Text[] = [
     "6. **Tell the user** where the request is, who got it and what happens next, including what they will then do themselves (signing in at Getting started after leaving the pool, say). Continue with everything that does not wait for the Organization Admin, and look at the request's state during later work instead of reminding repeatedly.",
   ),
   blank,
-  t(
-    "## Druhy žádosti pro Aplikaci",
-    "## Application request kinds",
-  ),
+  t("## Druhy žádosti pro Aplikaci", "## Application request kinds"),
   t(
     "Pro všechny tři druhy uveď Organizaci, modul (slug a repozitář), skutečný odkaz, pokud už existuje, a co má Admin Organizace schválit. Potřebná tajemství uváděj jen názvem, účelem a stavem v trezoru Organizace; hodnoty nikdy. Nevyžaduj jméno Prostředí od člověka, který má používat jen aplikaci.",
     "For all three kinds give the Organization, module (slug and repository), actual link if one exists and what the Organization Admin is to approve. List required secrets only by name, purpose and state in the Organization's vault, never values. Do not require an Environment's name from someone who is to use only the app.",
