@@ -59,6 +59,8 @@ export type AttachHost = Readonly<{
   checkMs?: number;
   attemptsPerMinute?: number;
   attemptsInAllPerMinute?: number;
+  /** How often a contract v3 session's deadline is looked at. */
+  deadlineMs?: number;
   /** Whether a broker already answers at a device's socket. */
   socketAnswers?: (path: string, timeoutMs: number) => Promise<boolean>;
 }>;
@@ -93,6 +95,10 @@ export type AttachIdentity = Readonly<{
   device: string;
   name: string;
   stillAllowed: () => Promise<boolean>;
+  /** Contract v3: when the session's proof stops being confirmed at the
+   * latest (epoch ms), moved by every confirmation; the session ends then
+   * with `denied`/`expired` even if no check has run since. */
+  deadline?: () => number;
 }>;
 
 /** The answer to a gateway's proof of a computer's session (contract v3):
@@ -327,6 +333,17 @@ export function createComputerAttach(host: AttachHost) {
     }
     ws.data.state = "ready";
     journal({ operation: "attach", outcome: "ready", device });
+    const deadline = identity.deadline;
+    if (ws.data.contract === 3 && deadline !== undefined)
+      ws.data.timers.push(
+        setInterval(() => {
+          if (ws.data.state === "ready" && now() >= deadline()) {
+            ws.data.closeReason = "expired";
+            deny(ws, "expired");
+            end(ws, "expired");
+          }
+        }, host.deadlineMs ?? 1_000),
+      );
     const closed = new Promise<string>((resolve) => {
       ws.data.resolveClosed = resolve;
     });

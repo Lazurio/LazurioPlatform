@@ -1,0 +1,392 @@
+{
+  "_source": "HumanAndMachine-ai/Auth workspace/agent-entry-cases.json, device.launchpad, at 1ab5d3542a9ad271d3a865192d9f04a020ac5557 (docs/device-channel-entry.md). Copied verbatim; the Launchpad runs every case.",
+  "attach": [
+    {
+      "id": "a-confirmed-proof-is-ready",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [],
+      "expected": {
+        "upgrade": true,
+        "message": {
+          "type": "ready",
+          "v": 3
+        },
+        "closeIn": 280
+      }
+    },
+    {
+      "id": "another-device-of-the-person-is-ready-beside-it",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [
+        "mira-desktop"
+      ],
+      "expected": {
+        "upgrade": true,
+        "message": {
+          "type": "ready",
+          "v": 3
+        },
+        "closeIn": 280
+      }
+    },
+    {
+      "id": "a-second-session-of-the-device-is-denied",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [
+        "mira-laptop"
+      ],
+      "expected": {
+        "upgrade": true,
+        "message": {
+          "type": "denied",
+          "v": 3,
+          "reason": "already-attached"
+        }
+      }
+    },
+    {
+      "id": "a-device-query-is-refused-by-the-launchpad",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": "device=mira-laptop"
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [],
+      "expected": {
+        "status": 400
+      }
+    },
+    {
+      "id": "no-proof-is-refused-before-the-upgrade",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": false,
+        "query": ""
+      },
+      "check": null,
+      "attached": [],
+      "expected": {
+        "status": 401
+      }
+    },
+    {
+      "id": "a-proof-the-helper-does-not-confirm-is-refused",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 404
+      },
+      "attached": [],
+      "expected": {
+        "status": 403
+      }
+    },
+    {
+      "id": "a-proof-of-another-person-is-refused",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000b1",
+          "deviceId": "bob-laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [],
+      "expected": {
+        "status": 403
+      }
+    },
+    {
+      "id": "a-device-id-outside-the-pattern-is-refused",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "Mira_Laptop",
+          "expiresIn": 280
+        }
+      },
+      "attached": [],
+      "expected": {
+        "status": 403
+      }
+    },
+    {
+      "id": "an-ended-proof-is-refused",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 0
+        }
+      },
+      "attached": [],
+      "expected": {
+        "status": 403
+      }
+    },
+    {
+      "id": "a-proof-beyond-a-tokens-lifetime-is-refused",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 301
+        }
+      },
+      "attached": [],
+      "expected": {
+        "status": 403
+      }
+    },
+    {
+      "id": "a-short-token-gives-the-launchpad-a-short-deadline",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 30
+        }
+      },
+      "attached": [],
+      "expected": {
+        "upgrade": true,
+        "message": {
+          "type": "ready",
+          "v": 3
+        },
+        "closeIn": 30
+      }
+    },
+    {
+      "id": "an-unavailable-check-answers-503",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "request": {
+        "proof": true,
+        "query": ""
+      },
+      "check": {
+        "unreachable": true
+      },
+      "attached": [],
+      "expected": {
+        "status": 503
+      }
+    }
+  ],
+  "recheck": [
+    {
+      "id": "a-confirmed-proof-keeps-the-session",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "expected": {
+        "action": "keep",
+        "closeIn": 280
+      }
+    },
+    {
+      "id": "a-renewed-token-moves-the-launchpads-deadline",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 300
+        }
+      },
+      "expected": {
+        "action": "keep",
+        "closeIn": 300
+      }
+    },
+    {
+      "id": "a-proof-the-helper-ended-closes-the-session",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "status": 404
+      },
+      "expected": {
+        "action": "close",
+        "message": {
+          "type": "denied",
+          "v": 3,
+          "reason": "expired"
+        }
+      }
+    },
+    {
+      "id": "an-unreachable-helper-closes-the-session",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "unreachable": true
+      },
+      "expected": {
+        "action": "close",
+        "message": {
+          "type": "denied",
+          "v": 3,
+          "reason": "expired"
+        }
+      }
+    },
+    {
+      "id": "a-proof-now-of-another-person-closes-the-session",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000b1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 280
+        }
+      },
+      "expected": {
+        "action": "close",
+        "message": {
+          "type": "denied",
+          "v": 3,
+          "reason": "expired"
+        }
+      }
+    },
+    {
+      "id": "a-proof-without-time-left-closes-the-session",
+      "environment": {
+        "assignedUser": "00000000-0000-4000-8000-0000000000c1"
+      },
+      "check": {
+        "status": 200,
+        "body": {
+          "subject": "00000000-0000-4000-8000-0000000000c1",
+          "deviceId": "mira-laptop",
+          "expiresIn": 0
+        }
+      },
+      "expected": {
+        "action": "close",
+        "message": {
+          "type": "denied",
+          "v": 3,
+          "reason": "expired"
+        }
+      }
+    }
+  ]
+}
