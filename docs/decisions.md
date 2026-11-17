@@ -15153,6 +15153,70 @@ button never connected WhatsApp.
 Points 3 and 5 are unchanged. Tested: `revealControl` (`tests/tools-view.test.ts`) and
 the cards (`tests/integrations-page.test.ts`, `tests/integrations-composio-ready.test.ts`).
 
+**Addendum 2026-11-17, decided by Matěj as the Owner: the Microsoft 365 company app
+sends mail the person approved (`send_mail`).** Addendum (c) of 2026-10-14 read and
+drafted mail and never sent it; its point 3 left `Mail.Send` out and its alternatives
+said "a later setting field may add sending". Matěj decided on 2026-11-17 that agents
+may send an e-mail after the person approves it, "stejně jako to máme teďka: agent
+připraví draft, dá ho uživateli a uživatel pak řekne: ‚Ano, publikuj.‘ Tím pádem to
+agent pošle", the Publication rule every other mail path already follows. Root
+decision 0162 already said that the Organization turns sending on deliberately, as a
+separate extension of the permissions with the admin's consent. Points 3, 8 and 9 of
+addendum (c) change as follows; the rest is unchanged.
+
+1. **An optional switch of the setting.** `settings.integrations.microsoft365` gains
+   `send_mail` (boolean, optional, absent and `false` off), one more report item
+   (`integrations.microsoft365.send_mail`) applied with the other four. A setting
+   written before stays valid, and a tenant whose admin never consented to
+   `Mail.Send` keeps connecting: only an Organization that turns sending on asks
+   for it. Readers first: an Organization writes the field only once its
+   Environments run a release that knows it, since an older reader refuses the
+   whole `settings` section, Composio's switch included.
+2. **One scope, own mailbox only.** Where `send_mail` is on and the setting turns
+   Outlook on, Outlook's mail part asks for `Mail.Send` beside `Mail.ReadWrite`; the
+   spec is the same pinned file. Never `Mail.Send.Shared` (shared mailboxes, on
+   behalf of others) or `MailboxSettings.ReadWrite`. A tenant that connected before
+   needs its admin's consent to `Mail.Send` before the next sign-in; accounts
+   already connected keep their old token's scopes until they sign in again.
+3. **Only a draft that exists is sent.** The merged document never carries the
+   operations that send at once (`sendMail`, and a message's `reply`, `replyAll`
+   and `forward`, under `/me` and `/users/{user-id}`), whether or not sending is
+   on, and carries a draft's `send` (`…/messages/{message-id}/send`) only where it
+   is on. So through Executor an agent sends only a draft that lies in the person's
+   Drafts, the one it showed them with its `webLink`. The document's id moves to
+   version 2 (`lazurio.m365.spec.v2`, with whether it sends), so every Environment
+   rebuilds its document once, in place, connections kept. With the four pinned
+   specs it is 2,799 paths without sending and 2,805 with it.
+4. **What holds and what does not.** When an agent sends is the Publication rule:
+   the person's "publikuj", or consent given in advance and not taken back. Executor
+   holds the write for approval (`waiting_for_interaction`), and the agent gives
+   that approval under the same rule. Neither is a technical barrier: the
+   connection's tokens lie on the Environment, readable by its agents (point 8 and
+   the IT page), so an agent that broke the rule could call Graph directly with a
+   token that carries `Mail.Send`. The trimmed document makes the approved path the
+   only ordinary one; the tenant's barrier is its consent to `Mail.Send`.
+5. **The Folder (`base-instructions-132`).** Mail is a draft read back and shown by
+   its `webLink`; sent only after the person's consent to send, and then exactly
+   the draft they saw (`POST /me/messages/{id}/send`), shown again if it changed;
+   where `send` is missing or Microsoft answers `403`, sending is not on there, the
+   draft stays and the agent says so.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| `Mail.Send` as part of Outlook for every Organization | One switch fewer; but every tenant connected before fails its next sign-in (`AADSTS65001`) until its admin consents again, and a company that does not want agents sending has to refuse Outlook whole; rejected |
+| Keep `sendMail` and the immediate replies in the document | Fewer requests for a reply; but an agent could send a text the person never saw in their mailbox; rejected: a draft first, then its `send` |
+| Tokens out of the agents' reach, sending confirmed by the person outside the agent | A real barrier; but a broker of its own for every company app and a confirmation surface in the Launchpad; not now, a decision of its own |
+| `Mail.Send.Shared` for shared mailboxes and "send as" | What some teams use; but Exchange permissions besides the scope and another mailbox to choose; out of scope |
+
+Verified by tests: the setting with and without `send_mail` valid, `send_mail` as
+text refused with Core's code and pointer (`tests/organization-settings.test.ts`,
+`tests/organization-schema.test.ts`); sending asking only Outlook's mail part for
+`Mail.Send`, never `Mail.Send.Shared` or `MailboxSettings.ReadWrite`, nothing
+without Outlook, another document id; the immediate sends never in the document, a
+draft's `send` only where sending is on, a calendar event's `forward` and the
+drafting operations kept; the four pinned specs merged both ways
+(`tests/integrations-microsoft365.test.ts`). On a real tenant: see the pull request.
+
 ## F43 — The Environment vault: one Vaultwarden account per Environment, its Bitwarden CLI pinned, one session for its agents
 
 > **Superseded in part by [F53](#f53--every-environment-owns-its-vault-its-own-organization-in-the-networks-vaultwarden-created-by-its-technical-account)

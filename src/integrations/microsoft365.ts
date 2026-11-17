@@ -66,16 +66,23 @@ const part = (
     scopes: Object.freeze([...scopes]),
   });
 
-/** The four parts. Mail is read and drafted (`Mail.ReadWrite`), never sent:
- * `Mail.Send` and `MailboxSettings.ReadWrite`, which the curated mail spec
- * declares, are not asked for. */
+const mailSpec = Object.freeze({
+  file: "mail.json",
+  sha256: "fe66b9a7ea6572077a996bc959a8617b7599369ae54f2b02f926490c4edee62a",
+});
+
+/** The scope that sends mail from the signed-in person's own mailbox. Only
+ * the mail part that sends asks for it; never `Mail.Send.Shared` (shared
+ * mailboxes, on behalf of others) or `MailboxSettings.ReadWrite`. */
+export const microsoft365SendScope = "Mail.Send";
+
+/** The parts. Mail is read and drafted (`Mail.ReadWrite`); it is sent only
+ * where the Organization turned sending on (`send_mail`, decision F42
+ * addendum (c), addendum of 2026-11-17), and then only as a draft that
+ * already exists (`mergeMicrosoft365Specs`). `MailboxSettings.ReadWrite`,
+ * which the curated mail spec declares, is never asked for. */
 export const microsoft365Parts = Object.freeze({
-  mail: part(
-    "mail",
-    "mail.json",
-    "fe66b9a7ea6572077a996bc959a8617b7599369ae54f2b02f926490c4edee62a",
-    ["Mail.ReadWrite"],
-  ),
+  mail: part("mail", mailSpec.file, mailSpec.sha256, ["Mail.ReadWrite"]),
   calendar: part(
     "calendar",
     "calendar.json",
@@ -96,6 +103,15 @@ export const microsoft365Parts = Object.freeze({
   ),
 });
 
+/** The mail part where the Organization turned sending on: the same pinned
+ * spec, one more scope. It stands in place of `mail`. */
+export const microsoft365MailSendPart = part(
+  "mail",
+  mailSpec.file,
+  mailSpec.sha256,
+  ["Mail.ReadWrite", microsoft365SendScope],
+);
+
 /** Which parts each app of the setting brings: Outlook its mail and
  * calendar, OneDrive the files, SharePoint its sites and the files (whose
  * drive-item operations walk a library's folders). */
@@ -108,9 +124,11 @@ export const microsoft365AppParts: Readonly<
 });
 
 /** The parts of the apps the setting turns on, each once, in a fixed
- * order, so the same apps always make the same document. */
+ * order, so the same apps always make the same document. Sending changes
+ * only Outlook's mail part, so it needs Outlook. */
 export function microsoft365PartsOf(
   apps: readonly string[],
+  sendMail = false,
 ): readonly Microsoft365Part[] {
   const wanted = new Set(
     apps.flatMap((app) =>
@@ -120,10 +138,16 @@ export function microsoft365PartsOf(
       ).map((item) => item.key),
     ),
   );
-  return Object.values(microsoft365Parts).filter((item) =>
-    wanted.has(item.key),
-  );
+  return Object.values(microsoft365Parts)
+    .filter((item) => wanted.has(item.key))
+    .map((item) =>
+      sendMail && item.key === "mail" ? microsoft365MailSendPart : item,
+    );
 }
+
+/** Whether a set of parts sends mail. */
+export const microsoft365Sends = (parts: readonly Microsoft365Part[]) =>
+  parts.some((item) => item.scopes.includes(microsoft365SendScope));
 
 /** The scopes one sign-in asks for: the sign-in's and the union of the
  * parts', in order and once. */
@@ -138,13 +162,19 @@ export function microsoft365Scopes(
   ]);
 }
 
-/** The identity of the document these parts make: the merge's version and
- * the pinned bytes of every part. Kept in the integration's description, so
- * applying again builds nothing while it matches. */
+/** The identity of the document these parts make: the merge's version, the
+ * pinned bytes of every part and whether it sends (which keeps the draft's
+ * `send`). Kept in the integration's description, so applying again builds
+ * nothing while it matches. Version 2 drops the operations that send at
+ * once, so every document of version 1 is built again once. */
 export function microsoft365SpecId(parts: readonly Microsoft365Part[]): string {
   return createHash("sha256")
     .update(
-      JSON.stringify(["lazurio.m365.spec.v1", parts.map((p) => p.sha256)]),
+      JSON.stringify([
+        "lazurio.m365.spec.v2",
+        parts.map((p) => p.sha256),
+        microsoft365Sends(parts),
+      ]),
     )
     .digest("hex")
     .slice(0, 16);
@@ -200,7 +230,10 @@ export function microsoft365Here(
   if (!organizationGoverns(preset)) return null;
   const setting = settings.integrations?.microsoft365;
   if (setting === undefined) return null;
-  return Object.freeze({ setting, parts: microsoft365PartsOf(setting.apps) });
+  return Object.freeze({
+    setting,
+    parts: microsoft365PartsOf(setting.apps, setting.send_mail === true),
+  });
 }
 
 /** Whether Microsoft returns a sign-in to this Launchpad's own callback:

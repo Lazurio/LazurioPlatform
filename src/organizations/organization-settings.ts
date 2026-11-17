@@ -149,6 +149,11 @@ const contract = objectNode({
         callbacks: arrayLeaf(stringLeaf(launchpadCallbackPattern), {
           maxItems: microsoft365CallbacksMax,
         }),
+        // Whether agents may send mail the person approved (decision F42
+        // addendum (c), addendum of 2026-11-17): Outlook's mail part asks
+        // for `Mail.Send`, which the tenant's admin consents to. Absent and
+        // `false` are off; optional, so a setting written before stays valid.
+        send_mail: booleanLeaf,
       },
       ["tenant_id", "client_id", "apps", "callbacks"],
     ),
@@ -180,6 +185,7 @@ export const organizationSettingsKeys = Object.freeze([
   "integrations.microsoft365.client_id",
   "integrations.microsoft365.apps",
   "integrations.microsoft365.callbacks",
+  "integrations.microsoft365.send_mail",
   "tools",
   "workspace.tabs",
 ] as const);
@@ -198,6 +204,8 @@ export type Microsoft365Setting = Readonly<{
   client_id: string;
   apps: readonly string[];
   callbacks: readonly string[];
+  /** Whether agents may send mail the person approved; absent is off. */
+  send_mail?: boolean;
 }>;
 
 /** A key name that looks like it carries a secret. The Microsoft 365 company

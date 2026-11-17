@@ -40,6 +40,7 @@ const ungoverned: OrganizationSettingsEntry[] = [
   { key: "integrations.microsoft365.client_id", governed: false, value: null },
   { key: "integrations.microsoft365.apps", governed: false, value: null },
   { key: "integrations.microsoft365.callbacks", governed: false, value: null },
+  { key: "integrations.microsoft365.send_mail", governed: false, value: null },
   { key: "tools", governed: false, value: null },
   { key: "workspace.tabs", governed: false, value: null },
 ];
@@ -56,6 +57,7 @@ test("the settings vocabulary is the upstream one", () => {
     "integrations.microsoft365.client_id",
     "integrations.microsoft365.apps",
     "integrations.microsoft365.callbacks",
+    "integrations.microsoft365.send_mail",
     "tools",
     "workspace.tabs",
   ]);
@@ -275,10 +277,33 @@ test("the Microsoft 365 company app is identifiers beside Composio, and never re
         governed: true,
         value: [callback],
       },
+      {
+        key: "integrations.microsoft365.send_mail",
+        governed: false,
+        value: null,
+      },
       { key: "tools", governed: false, value: null },
       { key: "workspace.tabs", governed: false, value: null },
     ],
     issues: [],
+  });
+  // Sending turned on is one more governed leaf; a setting written before
+  // it existed stays valid.
+  const sending = {
+    integrations: { microsoft365: { ...microsoft365, send_mail: true } },
+  };
+  const verdict = organizationSettings(
+    parseCanonicalOrganization(manifest(sending)),
+  );
+  expect(verdict.status).toBe("valid");
+  expect(
+    verdict.effective?.find(
+      (entry) => entry.key === "integrations.microsoft365.send_mail",
+    ),
+  ).toEqual({
+    key: "integrations.microsoft365.send_mail",
+    governed: true,
+    value: true,
   });
   // No callback registered yet: every Environment signs in through its
   // Environment browser.
@@ -375,6 +400,11 @@ test("access requests are accepted and ignored: the other settings beside them s
         key: "integrations.microsoft365.callbacks",
         governed: true,
         value: [callback],
+      },
+      {
+        key: "integrations.microsoft365.send_mail",
+        governed: false,
+        value: null,
       },
       { key: "tools", governed: false, value: null },
       { key: "workspace.tabs", governed: true, value: tabs },
