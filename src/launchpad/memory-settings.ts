@@ -234,10 +234,11 @@ export type ShownGraph = Readonly<{
   links: readonly Readonly<{ source: string; target: string }>[];
 }>;
 
-/** The graph the map shows: the search's memories (or the local graph of
- * `center` to its depth, in the directions chosen), without lone memories
- * where the filter says so (never in the local graph), and while it
- * animates only the memories born before `step`. */
+/** The graph the map shows: the search's memories, or the local graph of
+ * `center` to its depth in the directions chosen with the search applied
+ * (the centre always shows); without lone memories where the filter says
+ * so (never in the local graph); and while it animates only the memories
+ * born before `step`. */
 export function shownGraph(
   nodes: readonly (QueryNode & Readonly<{ born?: number }>)[],
   links: readonly Readonly<{ source: string; target: string }>[],
@@ -246,6 +247,7 @@ export function shownGraph(
   step: number | null = null,
 ): ShownGraph {
   let ids: Set<string>;
+  const query = parseMemoryQuery(settings.filters.search);
   if (center !== null && nodes.some((node) => node.id === center)) {
     const reach = new Set([center]);
     let frontier = [center];
@@ -266,9 +268,18 @@ export function shownGraph(
         }
       frontier = next;
     }
-    ids = reach;
+    // The search applies here too, as the wireframe's local graph keeps
+    // every filter but lone memories; its centre always shows.
+    ids = new Set(
+      nodes
+        .filter(
+          (node) =>
+            reach.has(node.id) &&
+            (node.id === center || matchMemoryQuery(query, node)),
+        )
+        .map((node) => node.id),
+    );
   } else {
-    const query = parseMemoryQuery(settings.filters.search);
     ids = new Set(
       nodes
         .filter((node) => matchMemoryQuery(query, node))

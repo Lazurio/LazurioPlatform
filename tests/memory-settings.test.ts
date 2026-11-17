@@ -130,7 +130,8 @@ test("what shows: the search, lone memories, the local graph and the animation",
       "people/bob",
     ).ids,
   ).toEqual(["people/bob", "companies/example"]);
-  // A local graph keeps lone memories off its rule and ignores the search.
+  // A local graph keeps its centre and lone memories off its rule, and
+  // applies the search (the wireframe: every other filter still holds).
   expect(
     shownGraph(
       nodes,
@@ -138,7 +139,15 @@ test("what shows: the search, lone memories, the local graph and the animation",
       { ...settings, filters: { search: "kava", orphans: false } },
       "people/bob",
     ).ids,
-  ).toHaveLength(3);
+  ).toEqual(["people/bob"]);
+  expect(
+    shownGraph(
+      nodes,
+      links,
+      { ...settings, filters: { search: "path:companies", orphans: true } },
+      "people/bob",
+    ).ids,
+  ).toEqual(["people/bob", "companies/example"]);
   // Animovat: only memories born before the step.
   expect(shownGraph(nodes, links, settings, null, 2).ids).toEqual([
     "people/bob",

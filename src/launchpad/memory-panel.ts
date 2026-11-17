@@ -190,6 +190,11 @@ export function createMemoryPanel(
       neighbours.get(link.target.id)?.add(link.source.id);
     }
     if (nothingShown !== null) nothingShown.hidden = nodes.length > 0;
+    // The canvas names what it shows now, after a filter or a local graph.
+    canvas?.setAttribute(
+      "aria-label",
+      `${input.copy().memoryCanvasLabel} ${memoryCount(nodes.length, links.length, input.copy(), input.locale())}`,
+    );
     if (fit) {
       // With reduced motion it settles fully and stands still.
       alpha = 1;
@@ -200,7 +205,15 @@ export function createMemoryPanel(
       view = fitView(nodes, size.w, size.h);
       fitted = size.w > 0;
       alpha = reduced() ? 0 : 0.12;
-    } else alpha = Math.max(alpha, reduced() ? 0 : 0.3);
+    } else if (reduced()) {
+      // Reduced motion: the changed layout settles at once, unanimated, so
+      // the forces still work (review of #1031).
+      alpha = 0.3;
+      for (let index = 0; index < 200; index += 1)
+        alpha = tick(nodes, links, alpha, simForces);
+      alpha = 0;
+      drawSoon();
+    } else alpha = Math.max(alpha, 0.3);
     drawLocal();
     run();
   }
@@ -1019,9 +1032,15 @@ export function createMemoryPanel(
   };
   let picking: number | null = null;
 
-  function iconButton(icon: string, label: string, onClick: () => void) {
+  function iconButton(
+    icon: string,
+    label: string,
+    onClick: () => void,
+    key?: string,
+  ) {
     const button = element("button", "ghost memory-icon");
     button.type = "button";
+    if (key !== undefined) button.dataset.set = key;
     button.setAttribute("aria-label", label);
     button.title = label;
     button.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#${icon}"/></svg>`;
@@ -1029,37 +1048,53 @@ export function createMemoryPanel(
     return button;
   }
 
+  /** A switch that changes in place: no redraw, so it keeps its focus. */
   function toggleRow(
+    key: string,
     label: string,
-    on: boolean,
+    get: () => boolean,
     change: (on: boolean) => void,
   ) {
     const row = element("div", "memory-set-row");
     const button = element("button", "switch");
     button.type = "button";
+    button.dataset.set = `switch-${key}`;
     button.setAttribute("role", "switch");
-    button.setAttribute("aria-checked", String(on));
+    button.setAttribute("aria-checked", String(get()));
     button.setAttribute("aria-label", label);
-    button.addEventListener("click", () => change(!on));
+    button.addEventListener("click", () => {
+      change(!get());
+      button.setAttribute("aria-checked", String(get()));
+    });
     row.append(element("span", undefined, label), button);
     return row;
   }
 
+  /** A slider that changes in place, also while dragged; `labelOf` names
+   * its value where the label carries it (the local depth). */
   function slider(
+    key: string,
     label: string,
     value: number,
     range: Readonly<{ min: number; max: number; step: number }>,
     change: (value: number) => void,
+    labelOf?: (value: number) => string,
   ) {
     const box = element("label", "memory-set-slider");
     const input = element("input");
     input.type = "range";
+    input.dataset.set = `slider-${key}`;
     input.min = String(range.min);
     input.max = String(range.max);
     input.step = String(range.step);
     input.value = String(value);
-    input.addEventListener("input", () => change(Number(input.value)));
-    box.append(element("span", undefined, label), input);
+    const text = element("span", undefined, labelOf?.(value) ?? label);
+    input.addEventListener("input", () => {
+      const next = Number(input.value);
+      change(next);
+      if (labelOf !== undefined) text.textContent = labelOf(next);
+    });
+    box.append(text, input);
     return box;
   }
 
@@ -1071,6 +1106,7 @@ export function createMemoryPanel(
     const box = element("section", "memory-set-section");
     const head = element("button", "memory-set-title");
     head.type = "button";
+    head.dataset.set = `section-${key}`;
     head.setAttribute("aria-expanded", String(sections[key]));
     head.innerHTML = `<svg class="icon" aria-hidden="true"><use href="#i-chevron-down"/></svg>`;
     head.append(document.createTextNode(title));
@@ -1087,7 +1123,10 @@ export function createMemoryPanel(
     return box;
   }
 
-  function drawSettings() {
+  /** Draws the panel again where its structure changes (a section, the
+   * groups, the local graph), keeping the focus on the same control or on
+   * `focusKey`. */
+  function drawSettings(focusKey?: string) {
     if (gear !== null) {
       const copy = input.copy();
       gear.setAttribute("aria-expanded", String(settingsOpen));
@@ -1103,15 +1142,21 @@ export function createMemoryPanel(
     }
     const copy = input.copy();
     // Keep the focus where it was across a redraw of the panel.
-    const focused = document.activeElement?.getAttribute("data-set") ?? null;
+    const focused =
+      focusKey ?? document.activeElement?.getAttribute("data-set") ?? null;
     settingsBox.setAttribute("aria-label", copy.memorySettings);
     const head = element("div", "memory-set-head");
     head.append(
-      iconButton("i-refresh", copy.memorySettingsReset, () => {
-        picking = null;
-        changeSettings(defaultMemorySettings, "fit");
-        drawSettings();
-      }),
+      iconButton(
+        "i-refresh",
+        copy.memorySettingsReset,
+        () => {
+          picking = null;
+          changeSettings(defaultMemorySettings, "fit");
+          drawSettings("reset");
+        },
+        "reset",
+      ),
       iconButton("i-x", copy.memoryNoteClose, () => {
         settingsOpen = false;
         drawSettings();
@@ -1146,40 +1191,49 @@ export function createMemoryPanel(
       ...(local
         ? [
             slider(
-              fill(copy.memoryDepth, { count: String(s.local.depth) }),
+              "depth",
+              copy.memoryDepth,
               s.local.depth,
               settingRanges.depth,
-              (depth) => {
+              (depth) =>
                 changeSettings(
                   { ...settings, local: { ...settings.local, depth } },
                   "fit",
-                );
-                drawSettings();
-              },
+                ),
+              (depth) => fill(copy.memoryDepth, { count: String(depth) }),
             ),
-            toggleRow(copy.memoryIncoming, s.local.incoming, (incoming) => {
-              changeSettings(
-                { ...settings, local: { ...settings.local, incoming } },
-                "fit",
-              );
-              drawSettings();
-            }),
-            toggleRow(copy.memoryOutgoing, s.local.outgoing, (outgoing) => {
-              changeSettings(
-                { ...settings, local: { ...settings.local, outgoing } },
-                "fit",
-              );
-              drawSettings();
-            }),
+            toggleRow(
+              "incoming",
+              copy.memoryIncoming,
+              () => settings.local.incoming,
+              (incoming) =>
+                changeSettings(
+                  { ...settings, local: { ...settings.local, incoming } },
+                  "fit",
+                ),
+            ),
+            toggleRow(
+              "outgoing",
+              copy.memoryOutgoing,
+              () => settings.local.outgoing,
+              (outgoing) =>
+                changeSettings(
+                  { ...settings, local: { ...settings.local, outgoing } },
+                  "fit",
+                ),
+            ),
           ]
         : [
-            toggleRow(copy.memoryOrphans, s.filters.orphans, (orphans) => {
-              changeSettings(
-                { ...settings, filters: { ...settings.filters, orphans } },
-                "move",
-              );
-              drawSettings();
-            }),
+            toggleRow(
+              "orphans",
+              copy.memoryOrphans,
+              () => settings.filters.orphans,
+              (orphans) =>
+                changeSettings(
+                  { ...settings, filters: { ...settings.filters, orphans } },
+                  "move",
+                ),
+            ),
           ]),
     ]);
     const groups = section("groups", copy.memoryGroups, () => {
@@ -1217,22 +1271,31 @@ export function createMemoryPanel(
             color: swatchLabel(copy, group.color),
           }),
         );
+        color.dataset.set = `swatch-${index}`;
         color.setAttribute("aria-expanded", String(picking === index));
         color.addEventListener("click", () => {
           picking = picking === index ? null : index;
-          drawSettings();
+          drawSettings(`swatch-${index}`);
         });
-        const remove = iconButton("i-x", copy.memoryGroupRemove, () => {
-          picking = null;
-          changeSettings(
-            {
-              ...settings,
-              groups: settings.groups.filter((_, at) => at !== index),
-            },
-            "none",
-          );
-          drawSettings();
-        });
+        const remove = iconButton(
+          "i-x",
+          copy.memoryGroupRemove,
+          () => {
+            picking = null;
+            changeSettings(
+              {
+                ...settings,
+                groups: settings.groups.filter((_, at) => at !== index),
+              },
+              "none",
+            );
+            // The next group's removal, or the button that adds one.
+            drawSettings(
+              index < settings.groups.length ? `remove-${index}` : "add",
+            );
+          },
+          `remove-${index}`,
+        );
         row.append(query, color, remove);
         box.append(row);
         if (picking === index) {
@@ -1242,6 +1305,7 @@ export function createMemoryPanel(
             option.type = "button";
             option.style.background = `var(${item.token})`;
             option.setAttribute("aria-label", swatchLabel(copy, item.id));
+            option.dataset.set = `palette-${index}-${item.id}`;
             option.setAttribute(
               "aria-pressed",
               String(item.id === group.color),
@@ -1257,7 +1321,7 @@ export function createMemoryPanel(
                 },
                 "none",
               );
-              drawSettings();
+              drawSettings(`swatch-${index}`);
             });
             palette.append(option);
           }
@@ -1267,6 +1331,7 @@ export function createMemoryPanel(
       });
       const add = element("button", "memory-set-add", copy.memoryGroupAdd);
       add.type = "button";
+      add.dataset.set = "add";
       add.addEventListener("click", () => {
         const color =
           swatches[settings.groups.length % swatches.length]?.id ?? "blue";
@@ -1274,12 +1339,7 @@ export function createMemoryPanel(
           { ...settings, groups: [...settings.groups, { query: "", color }] },
           "none",
         );
-        drawSettings();
-        settingsBox
-          ?.querySelector<HTMLInputElement>(
-            `[data-set="group-${settings.groups.length - 1}"]`,
-          )
-          ?.focus();
+        drawSettings(`group-${settings.groups.length - 1}`);
       });
       out.push(add);
       return out;
@@ -1291,20 +1351,26 @@ export function createMemoryPanel(
         step === null ? copy.memoryAnimate : copy.memoryAnimateStop,
       );
       animate.type = "button";
+      animate.dataset.set = "animate";
       animate.addEventListener("click", () => {
         if (step === null) startAnimation();
         else stopAnimation();
-        drawSettings();
+        animate.textContent =
+          step === null ? copy.memoryAnimate : copy.memoryAnimateStop;
       });
       return [
-        toggleRow(copy.memoryArrows, s.display.arrows, (arrows) => {
-          changeSettings(
-            { ...settings, display: { ...settings.display, arrows } },
-            "none",
-          );
-          drawSettings();
-        }),
+        toggleRow(
+          "arrows",
+          copy.memoryArrows,
+          () => settings.display.arrows,
+          (arrows) =>
+            changeSettings(
+              { ...settings, display: { ...settings.display, arrows } },
+              "none",
+            ),
+        ),
         slider(
+          "textFade",
           copy.memoryTextFade,
           s.display.textFade,
           settingRanges.textFade,
@@ -1315,6 +1381,7 @@ export function createMemoryPanel(
             ),
         ),
         slider(
+          "nodeSize",
           copy.memoryNodeSize,
           s.display.nodeSize,
           settingRanges.nodeSize,
@@ -1325,6 +1392,7 @@ export function createMemoryPanel(
             ),
         ),
         slider(
+          "linkThickness",
           copy.memoryLinkThickness,
           s.display.linkThickness,
           settingRanges.linkThickness,
@@ -1339,6 +1407,7 @@ export function createMemoryPanel(
     });
     const forces = section("forces", copy.memoryForces, () => [
       slider(
+        "center",
         copy.memoryCenterForce,
         s.forces.center,
         settingRanges.center,
@@ -1349,6 +1418,7 @@ export function createMemoryPanel(
           ),
       ),
       slider(
+        "repel",
         copy.memoryRepelForce,
         s.forces.repel,
         settingRanges.repel,
@@ -1358,13 +1428,19 @@ export function createMemoryPanel(
             "move",
           ),
       ),
-      slider(copy.memoryLinkForce, s.forces.link, settingRanges.link, (link) =>
-        changeSettings(
-          { ...settings, forces: { ...settings.forces, link } },
-          "move",
-        ),
+      slider(
+        "link",
+        copy.memoryLinkForce,
+        s.forces.link,
+        settingRanges.link,
+        (link) =>
+          changeSettings(
+            { ...settings, forces: { ...settings.forces, link } },
+            "move",
+          ),
       ),
       slider(
+        "distance",
         copy.memoryLinkDistance,
         s.forces.distance,
         settingRanges.distance,
@@ -1398,7 +1474,10 @@ export function createMemoryPanel(
       step += Math.max(1, Math.round(count / 80));
       if (step >= count) {
         stopAnimation();
-        drawSettings();
+        const button = settingsBox?.querySelector<HTMLElement>(
+          '[data-set="animate"]',
+        );
+        if (button) button.textContent = input.copy().memoryAnimate;
         return;
       }
       relayout(false);
@@ -1425,6 +1504,12 @@ export function createMemoryPanel(
   function drawLocal() {
     if (localBar === null) return;
     const copy = input.copy();
+    // Keep the focus on the same depth across the redraw of the bar.
+    const focused =
+      document.activeElement instanceof HTMLElement &&
+      localBar.contains(document.activeElement)
+        ? (document.activeElement.dataset.set ?? null)
+        : null;
     localBar.hidden = localCenter === null;
     localBar.replaceChildren();
     if (localCenter === null) return;
@@ -1455,8 +1540,9 @@ export function createMemoryPanel(
           { ...settings, local: { ...settings.local, depth } },
           "fit",
         );
-        if (settingsOpen) drawSettings();
+        syncDepthSlider();
       });
+      button.dataset.set = `depth-${depth}`;
       depths.append(button);
     }
     localBar.append(
@@ -1464,6 +1550,22 @@ export function createMemoryPanel(
       depths,
       iconButton("i-x", copy.memoryWholeGraph, () => setLocal(null)),
     );
+    if (focused !== null)
+      localBar.querySelector<HTMLElement>(`[data-set="${focused}"]`)?.focus();
+  }
+  /** The settings' depth slider follows a depth chosen in the bar, in
+   * place. */
+  function syncDepthSlider() {
+    const slider = settingsBox?.querySelector<HTMLInputElement>(
+      '[data-set="slider-depth"]',
+    );
+    if (!slider) return;
+    slider.value = String(settings.local.depth);
+    const text = slider.previousElementSibling;
+    if (text !== null)
+      text.textContent = fill(input.copy().memoryDepth, {
+        count: String(settings.local.depth),
+      });
   }
   let localButton: HTMLButtonElement | null = null;
   function drawLocalButton() {
