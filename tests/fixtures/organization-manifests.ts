@@ -985,6 +985,12 @@ const company = (value: Record<string, unknown>) => ({
 /** Microsoft 365 company apps that break the closed tree: a secret, or
  * anything that could carry one, never passes. */
 export const microsoft365Refusals: readonly SettingsCase[] = [
+  // Sending is a switch: a word or a list of mailboxes is not.
+  [
+    "send_mail as text",
+    company({ ...microsoft365, send_mail: "yes" }),
+    [issue("settings_type_invalid", `${at365}/send_mail`)],
+  ],
   // A public client has no secret: the field does not exist.
   [
     "client secret",

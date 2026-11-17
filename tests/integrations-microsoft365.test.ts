@@ -9,6 +9,7 @@ import { mfaRequired } from "../src/integrations/connect";
 import {
   type Microsoft365Part,
   microsoft365AuthTemplate,
+  microsoft365MailSendPart,
   microsoft365Parts,
   microsoft365PartsOf,
   microsoft365Scopes,
@@ -22,6 +23,7 @@ import {
   Microsoft365SpecError,
   mergeMicrosoft365Specs,
   microsoft365Description,
+  microsoft365PathKept,
   readBounded,
 } from "../src/integrations/microsoft365-executor";
 import type { IntegrationsOverview } from "../src/integrations/model";
@@ -295,6 +297,98 @@ test("the setting's apps choose the parts and one sign-in's scopes: least privil
   );
 });
 
+test("sending turned on asks only Outlook's mail part for Mail.Send, and makes another document", () => {
+  const sending = microsoft365PartsOf(allApps, true);
+  expect(sending.map((item) => item.key)).toEqual([
+    "mail",
+    "calendar",
+    "files",
+    "sites",
+  ]);
+  expect(sending[0]).toBe(microsoft365MailSendPart);
+  // The same pinned spec: one more scope, nothing else.
+  expect(microsoft365MailSendPart.url).toBe(microsoft365Parts.mail.url);
+  expect(microsoft365MailSendPart.sha256).toBe(microsoft365Parts.mail.sha256);
+  expect(microsoft365Scopes(sending)).toEqual([
+    "openid",
+    "profile",
+    "email",
+    "offline_access",
+    "User.Read",
+    "Mail.ReadWrite",
+    "Mail.Send",
+    "Calendars.ReadWrite",
+    "Files.ReadWrite.All",
+    "Sites.Read.All",
+  ]);
+  // Never the shared mailboxes' scope or the mailbox settings.
+  for (const scope of ["Mail.Send.Shared", "MailboxSettings.ReadWrite"])
+    expect(microsoft365Scopes(sending)).not.toContain(scope);
+  // Without Outlook there is no mail to send.
+  expect(
+    microsoft365Scopes(microsoft365PartsOf(["one_drive"], true)),
+  ).not.toContain("Mail.Send");
+  expect(microsoft365SpecId(sending)).not.toBe(
+    microsoft365SpecId(microsoft365PartsOf(allApps)),
+  );
+});
+
+test("only a draft's send stays, and only where sending is on: nothing sends at once", () => {
+  const draftSends = [
+    "/me/messages/{message-id}/send",
+    "/me/mailFolders/{mailFolder-id}/messages/{message-id}/send",
+    "/users/{user-id}/mailFolders/{mailFolder-id}/childFolders/{mailFolder-id1}/messages/{message-id}/send",
+  ];
+  const immediate = [
+    "/me/sendMail",
+    "/users/{user-id}/sendMail",
+    "/me/messages/{message-id}/reply",
+    "/me/messages/{message-id}/replyAll",
+    "/me/messages/{message-id}/forward",
+    "/users/{user-id}/mailFolders/{mailFolder-id}/messages/{message-id}/forward",
+  ];
+  const drafting = [
+    "/me/messages",
+    "/me/messages/{message-id}",
+    "/me/messages/{message-id}/createReply",
+    "/me/messages/{message-id}/createReplyAll",
+    "/me/messages/{message-id}/createForward",
+    "/me/events/{event-id}/forward",
+  ];
+  for (const path of immediate) {
+    expect(microsoft365PathKept(path, true), path).toBe(false);
+    expect(microsoft365PathKept(path, false), path).toBe(false);
+  }
+  for (const path of draftSends) {
+    expect(microsoft365PathKept(path, true), path).toBe(true);
+    expect(microsoft365PathKept(path, false), path).toBe(false);
+  }
+  for (const path of drafting) {
+    expect(microsoft365PathKept(path, true), path).toBe(true);
+    expect(microsoft365PathKept(path, false), path).toBe(true);
+  }
+  // In the merged document.
+  const mail = synthetic(
+    Object.fromEntries(
+      ["/me/messages", ...draftSends, ...immediate].map((path) => [
+        path,
+        { post: { operationId: path } },
+      ]),
+    ),
+    {},
+    ["Mail.ReadWrite", "Mail.Send"],
+  );
+  const merged = (parts: Microsoft365Part[]) =>
+    Object.keys(
+      JSON.parse(mergeMicrosoft365Specs([{ key: "mail", text: mail }], parts))
+        .paths,
+    ).sort();
+  expect(merged([microsoft365Parts.mail])).toEqual(["/me/messages"]);
+  expect(merged([microsoft365MailSendPart])).toEqual(
+    ["/me/messages", ...draftSends].sort(),
+  );
+});
+
 test("the parts merge into one document: every path, a shared component once, one scheme of the union", () => {
   const document = JSON.parse(
     mergeMicrosoft365Specs(
@@ -396,17 +490,34 @@ test.skipIf(process.env.LAZURIO_M365_SPECS === undefined)(
   "the four pinned specs merge within Executor's 32 MiB",
   async () => {
     const directory = process.env.LAZURIO_M365_SPECS as string;
-    const parts = microsoft365PartsOf(allApps);
-    const text = await buildMicrosoft365Spec(parts, async (url) =>
-      readFile(join(directory, url.slice(url.lastIndexOf("/") + 1))),
-    );
-    expect(text.length).toBeLessThan(executorSpecCharsMax);
-    console.log(
-      JSON.stringify({
-        mergedChars: text.length,
-        paths: Object.keys(JSON.parse(text).paths).length,
-      }),
-    );
+    for (const sending of [false, true]) {
+      const parts = microsoft365PartsOf(allApps, sending);
+      const text = await buildMicrosoft365Spec(parts, async (url) =>
+        readFile(join(directory, url.slice(url.lastIndexOf("/") + 1))),
+      );
+      expect(text.length).toBeLessThan(executorSpecCharsMax);
+      const paths = Object.keys(JSON.parse(text).paths);
+      // Nothing in the real specs sends at once; a draft's send only where
+      // sending is on.
+      const sends = paths.filter((path) =>
+        /\/(?:sendMail|send|reply|replyAll|forward)$/.test(path),
+      );
+      expect(
+        sends.filter(
+          (path) => !/\/events\/|\/messages\/[^/]+\/send$/.test(path),
+        ),
+      ).toEqual([]);
+      expect(
+        sends.some((path) => path.endsWith("/messages/{message-id}/send")),
+      ).toBe(sending);
+      console.log(
+        JSON.stringify({
+          sending,
+          mergedChars: text.length,
+          paths: paths.length,
+        }),
+      );
+    }
   },
 );
 

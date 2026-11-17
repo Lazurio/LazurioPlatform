@@ -12,6 +12,7 @@ import {
   microsoft365Endpoints,
   microsoft365PartsOf,
   microsoft365Scopes,
+  microsoft365Sends,
   microsoft365Slug,
   microsoft365SpecId,
 } from "./microsoft365";
@@ -132,6 +133,24 @@ function canonical(value: unknown): string {
   });
 }
 
+/** Operations of the curated mail spec that send mail. `send` sends a
+ * draft that already exists in the mailbox; the others (`sendMail`, and
+ * `reply`, `replyAll` and `forward` without a draft) send at once. */
+const draftSend = /\/messages\/\{[^/]+\}\/send$/;
+const immediateSend =
+  /(?:\/sendMail|\/messages\/\{[^/]+\}\/(?:reply|replyAll|forward))$/;
+
+/** Whether a path of the document sends mail where `sends` says how: an
+ * immediate send never stays, a draft's `send` only where the parts send
+ * (decision F42 addendum (c), addendum of 2026-11-17). So through Executor
+ * an agent can send only a draft that lies in the person's mailbox, the
+ * one the person was shown. A rule agents keep, Publication, decides when;
+ * this keeps the ordinary path to the draft the person saw. */
+export function microsoft365PathKept(path: string, sends: boolean): boolean {
+  if (immediateSend.test(path)) return false;
+  return sends || !draftSend.test(path);
+}
+
 /**
  * The one document of the enabled parts: their paths and their components
  * merged, a component that several parts define identically kept once, any
@@ -147,6 +166,7 @@ export function mergeMicrosoft365Specs(
   charsMax: number = executorSpecCharsMax,
 ): string {
   let base: Json | null = null;
+  const sends = microsoft365Sends(parts);
   const paths: Json = {};
   const components: Record<string, Json> = {};
   for (const document of documents) {
@@ -171,6 +191,7 @@ export function mergeMicrosoft365Specs(
     )
       throw new Microsoft365SpecError("spec-conflict");
     for (const [path, item] of Object.entries(docPaths)) {
+      if (!microsoft365PathKept(path, sends)) continue;
       if (
         Object.hasOwn(paths, path) &&
         canonical(paths[path]) !== canonical(item)
@@ -415,7 +436,10 @@ export async function applyMicrosoft365(
   setting: Microsoft365Setting,
   fetchSpec: SpecFetch = fetchPinnedSpec,
   /** The pinned parts of the setting's apps; tests give their own. */
-  parts: readonly Microsoft365Part[] = microsoft365PartsOf(setting.apps),
+  parts: readonly Microsoft365Part[] = microsoft365PartsOf(
+    setting.apps,
+    setting.send_mail === true,
+  ),
 ): Promise<Microsoft365Applied> {
   if (executor === null)
     return { outcome: "failed", detail: "executor-unavailable" };

@@ -773,7 +773,8 @@ Lazurio's side by itself.
   `https://launchpad.<machine>.<github-org-login>.lazurio.io/api/integrations/oauth/callback`:
   any other host would receive the authorization response. Closed: no other key,
   so never a `client_secret`. Each leaf is one report item
-  (`integrations.microsoft365.tenant_id`, …).
+  (`integrations.microsoft365.tenant_id`, …). `send_mail` (optional boolean) turns
+  sending of approved mail on.
 - **One integration, built from pinned specs.** Once the Folder recorded the
   setting (F45), the Launchpad applies it to Executor: ONE OpenAPI integration
   `m365` and one manual client `microsoft365` of the Environment. `apps` chooses
@@ -781,7 +782,7 @@ Lazurio's side by itself.
 
   | App | Parts (Executor's curated Graph specs) | Delegated scopes beyond `openid profile email offline_access User.Read` |
   | --- | --- | --- |
-  | Outlook (`outlook`) | mail, calendar | `Mail.ReadWrite`, `Calendars.ReadWrite` |
+  | Outlook (`outlook`) | mail, calendar | `Mail.ReadWrite`, `Calendars.ReadWrite`; `Mail.Send` where `send_mail` is on |
   | OneDrive (`one_drive`) | files | `Files.ReadWrite.All` |
   | SharePoint (`share_point`) | files, sites (walking a library's folders needs the files' drive items) | `Files.ReadWrite.All`, `Sites.Read.All` |
 
@@ -793,11 +794,24 @@ Lazurio's side by itself.
   components (a component several parts define identically kept once, any other
   overlap `spec-conflict`), replaces their own security schemes with one of the
   union of the scopes, and gives Executor the document as a blob (all four:
-  13.2 million characters, 2,825 paths, under Executor's 32 MiB). The integration's
-  description names the document's id, so applying again downloads nothing while
-  it matches; other apps rebuild it in place. The auth template names the tenant
-  (never `common`) and the union of the scopes. No `Mail.Send`, no
-  `MailboxSettings.ReadWrite`. Applying never touches an account.
+  13.2 million characters, 2,799 paths, or 2,805 with sending, under Executor's
+  32 MiB). The integration's description names the document's id, so applying
+  again downloads nothing while it matches; other apps rebuild it in place. The
+  auth template names the tenant (never `common`) and the union of the scopes.
+  Never `MailboxSettings.ReadWrite` or `Mail.Send.Shared`. Applying never touches
+  an account.
+- **Sending only a draft, only where it is on** (F42 addendum of 2026-11-17).
+  The optional `send_mail` adds `Mail.Send` to Outlook's mail part, which the
+  tenant's admin consents to. The document never carries the operations that
+  send at once (`sendMail`, a message's `reply`, `replyAll`, `forward`), and a
+  draft's `…/messages/{message-id}/send` only where `send_mail` is on, so an
+  agent sends only a draft that lies in the person's mailbox, after their
+  "publikuj". That is the Publication rule; the trimmed document keeps the
+  ordinary path to the draft they saw, and is not a barrier against an agent
+  that reads the connection's token. Microsoft's delegated scopes are
+  additive: once the tenant consented to `Mail.Send`, tokens carry it whether
+  or not Lazurio asks, so the document, not the requested scopes, decides
+  what Executor can send.
 - **One sign-in, every app.** Executor 1.6.10 takes a sign-in's scopes from the
   integration's auth template and keeps one token pair per connection, which every
   operation of the integration uses: one Microsoft sign-in connects mail, calendar,
