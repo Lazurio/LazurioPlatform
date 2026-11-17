@@ -787,8 +787,8 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   It may rely on the mark, on the names `declares.tokens` lists in
   `src/shell/interface.ts` (what T3 Code's mapping needs: the surfaces, ink, line,
   accent, black buttons, the grey steps it uses, the signal colours with their surfaces,
-  the type and the radii) and on the faces of Inter Tight Variable and Geist Mono from
-  `/.lazurio/fonts/`; never on the values, or on any other `--lz-*` name the shell
+  the type and the radii) and on the faces of Inter Variable, Inter Tight Variable and
+  Geist Mono from `/.lazurio/fonts/`; never on the values, or on any other `--lz-*` name the shell
   happens to declare, which the design system may change or drop. MausBot gets the same
   tokens and mark and reads neither, so it looks as before. Since the addendum of
   2026-10-18 the tokens' style ends with `:root { --lazurio-color-scheme: light; }`:
