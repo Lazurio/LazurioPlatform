@@ -170,6 +170,11 @@ const catalog: Catalog = {
         executable: false,
         reason: "no-app",
       }),
+      module("archive", {
+        executable: false,
+        preparationRefused: true,
+        reason: "default-app-invalid",
+      }),
     ]),
   ],
   personalspace: organization("personalspace", [], {
@@ -247,10 +252,26 @@ test("without the account's Applications, or without the group's slug, every til
   expect(tile(before, "deals").development).toBeNull();
 });
 
-test("a Module without an app here keeps saying so, even with an Application", () => {
-  const tiles = tilesWith({ slug: "example", list: [application("notes")] });
-  expect(tile(tiles, "notes").action.kind).toBe("say");
-  expect(tile(tiles, "notes").development).toBeNull();
+test("a Module whose app cannot start here still opens its Application, without a development version", () => {
+  const tiles = tilesWith({
+    slug: "example",
+    list: [application("notes"), application("archive")],
+  });
+  // No app on this Environment, and a preparation the Launchpad refused.
+  for (const id of ["notes", "archive"]) {
+    expect(tile(tiles, id).action).toEqual({
+      kind: "open",
+      target: {
+        kind: "application",
+        href: `https://${id}.example.lazurio.app/`,
+      },
+    });
+    expect(tile(tiles, id).development).toBeNull();
+  }
+  // Without an Application the same tiles keep saying why nothing opens.
+  const before = tilesWith();
+  expect(tile(before, "notes").action.kind).toBe("say");
+  expect(tile(before, "archive").action.kind).toBe("say");
 });
 
 test("favourites follow the same tile", () => {

@@ -428,12 +428,12 @@ export function appsTiles(
     const target = tileTarget(catalog, group.organization, item.module, entry);
     const key = moduleFavorite(item.module.module);
     // One tile per Module (decision 0249): where the person may open its
-    // Application, the tile opens it and this Environment's app from `main`
-    // is its development version, in the menu.
-    const application =
-      target.kind === "hosted" || target.kind === "start"
-        ? moduleApplication(applications, item.module.module)
-        : null;
+    // Application, the tile opens it, whether or not this Environment's app
+    // can start (a missing secret or a refused preparation is no reason to
+    // withhold an Application hosted elsewhere). This Environment's app from
+    // `main` is then its development version, in the menu, only where it can
+    // be opened here.
+    const application = moduleApplication(applications, item.module.module);
     return {
       kind: "module",
       key,
