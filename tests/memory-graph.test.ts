@@ -37,6 +37,8 @@ function fakeGbrain(
     status?: number;
     down?: boolean;
     refuse?: string;
+    /** One tool refuses with this code; the others answer. */
+    refuseTool?: Readonly<{ tool: string; code: string }>;
     json?: boolean;
   }> = {},
 ) {
@@ -60,6 +62,8 @@ function fakeGbrain(
     let answer: unknown;
     if (options.refuse !== undefined)
       answer = result({ code: options.refuse }, undefined, true);
+    else if (options.refuseTool?.tool === name)
+      answer = result({ code: options.refuseTool?.code }, undefined, true);
     else if (name === "list_pages") {
       const offset = args.offset ?? 0;
       const slice = pages.slice(offset, offset + args.limit);
@@ -368,4 +372,53 @@ test("not on this Environment, a wrong method or query", async () => {
   expect((await get(memory, "/api/memory/page?slug=%2Fetc")).status).toBe(400);
   expect(memory.handles("/api/memory")).toBe(true);
   expect(memory.handles("/api/memory/x")).toBe(false);
+});
+
+test("only a missing page counts as missing; any other refusal is a failed reading", async () => {
+  const read = (fake: ReturnType<typeof fakeGbrain>) =>
+    readMemoryGraph(createGbrainReader(host(fake))).then(
+      (graph) => `read ${graph.links.length}`,
+      (error) => error.fault,
+    );
+  // A page gone between the listing and its links: read, without its links.
+  expect(
+    await read(
+      fakeGbrain(sample, {
+        refuseTool: { tool: "get_links", code: "page_not_found" },
+      }),
+    ),
+  ).toBe("read 0");
+  expect(
+    await read(
+      fakeGbrain(sample, {
+        refuseTool: { tool: "get_links", code: "unknown_tool" },
+      }),
+    ),
+  ).toBe("failed");
+  const page = (fake: ReturnType<typeof fakeGbrain>) =>
+    readMemoryPage(createGbrainReader(host(fake)), "people/bob").then(
+      (found) => (found === null ? "missing" : "read"),
+      (error) => error.fault,
+    );
+  expect(
+    await page(
+      fakeGbrain(sample, {
+        refuseTool: { tool: "get_page", code: "page_not_found" },
+      }),
+    ),
+  ).toBe("missing");
+  expect(
+    await page(
+      fakeGbrain(sample, {
+        refuseTool: { tool: "get_page", code: "internal_error" },
+      }),
+    ),
+  ).toBe("failed");
+  expect(
+    await page(
+      fakeGbrain(sample, {
+        refuseTool: { tool: "get_backlinks", code: "unknown_tool" },
+      }),
+    ),
+  ).toBe("failed");
 });

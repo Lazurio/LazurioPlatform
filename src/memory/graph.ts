@@ -146,9 +146,10 @@ async function linksOf(
         ...(cursor === undefined ? {} : { cursor }),
       });
     } catch (error) {
-      // A page that went away meanwhile has no links.
-      if (error instanceof ToolRefused) return out;
-      throw error;
+      // A page that went away meanwhile has no links; any other refusal is
+      // a fault of the reading, never a quietly shorter map.
+      if (isPageNotFound(error)) return out;
+      throw asFault(error);
     }
     const list = rows(answer.value);
     for (const row of list)
@@ -160,6 +161,15 @@ async function linksOf(
   }
   return out.filter(isMemorySlug);
 }
+
+/** GBrain's answer that no page has the slug (or none this key may read:
+ * a private page answers the same, by GBrain's rule). */
+const isPageNotFound = (error: unknown): boolean =>
+  error instanceof ToolRefused && error.code === "page_not_found";
+
+/** Any other refusal of a tool is a failed reading. */
+const asFault = (error: unknown): unknown =>
+  error instanceof ToolRefused ? new MemoryUnavailable("failed") : error;
 
 /** Runs `work` over `items`, `limit` at a time, in order of the results. */
 async function pool<T, R>(
@@ -217,8 +227,8 @@ export async function readMemoryPage(
   try {
     answer = await reader.call(handover, "get_page", { slug });
   } catch (error) {
-    if (error instanceof ToolRefused) return null;
-    throw error;
+    if (isPageNotFound(error)) return null;
+    throw asFault(error);
   }
   const page = record(answer.value);
   if (page === null) throw new MemoryUnavailable("failed");
