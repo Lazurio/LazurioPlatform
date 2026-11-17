@@ -124,19 +124,33 @@ export function createComputerSessionCheck(
     first: Extract<CheckAnswer, { kind: "confirmed" }>,
   ): AttachIdentity {
     let deadline = now() + first.expiresIn * 1000;
+    let over = false;
     return {
       device: first.deviceId,
       name: first.deviceId,
       deadline: () => deadline,
       stillAllowed: async () => {
-        if (now() >= deadline) return false;
+        // The deadline holds across the check: a confirmation that comes
+        // back after the deadline it was asked under revives nothing and
+        // moves nothing (review of #1050). Once over, the session stays over.
+        const before = deadline;
+        if (over || now() >= before) {
+          over = true;
+          return false;
+        }
         const answer = await check(proof);
+        if (over || now() >= before) {
+          over = true;
+          return false;
+        }
         if (
           answer.kind !== "confirmed" ||
           answer.subject !== first.subject ||
           answer.deviceId !== first.deviceId
-        )
+        ) {
+          over = true;
           return false;
+        }
         deadline = now() + answer.expiresIn * 1000;
         return true;
       },

@@ -5,44 +5,72 @@ import {
   mkdtemp,
   readFile,
   rm,
-  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { computerHelp } from "../src/computers/cli";
 import type { ComputersHost } from "../src/computers/computers";
-import { readRegistry, registryPath } from "../src/computers/registry";
+import {
+  auditPath,
+  computersDirectory,
+  readRecord,
+  recordPath,
+  toolsPath,
+} from "../src/computers/state";
+import type { ExecutorEndpoint } from "../src/integrations/executor-client";
 import {
   computerDetail,
   parseComputers,
 } from "../src/launchpad/computers-panel";
-import {
-  computerCallback,
-  createComputersRoutes,
-} from "../src/launchpad/computers-routes";
-import type { AdmittedPerson } from "../src/launchpad/hosted-trust";
+import { createComputersRoutes } from "../src/launchpad/computers-routes";
 import { messages } from "../src/launchpad/messages";
 
-// People's computers for agents in the Launchpad (decision F75): the
-// pairing page Lazurio Agent Desktop opens, its form and JSON answers, the
-// callback only on 127.0.0.1, the list of Settings → Connections and the
-// removal. A temporary home, host key and installed entry stand in for the
-// account's; Executor is absent, so the pairing reports it.
+// People's computers for agents in the Launchpad (decision F75) on contract
+// v3: the list of Settings → Connections reads the records the computers'
+// first attaches created, and the removal deletes the record, its server in
+// Executor and its tool list, while the history stays. Contract v1's
+// pairing, the page and `POST /api/computers`, is gone. A temporary home and
+// a fake Executor stand in for the account's.
 
 const posix = process.platform !== "win32";
-const wire = (bytes: Buffer) =>
-  Buffer.concat([Buffer.from([0, 0, 0, bytes.length]), bytes]);
-const keyOf = (seed: number) =>
-  `ssh-ed25519 ${Buffer.concat([wire(Buffer.from("ssh-ed25519")), wire(Buffer.alloc(32, seed))]).toString("base64")}`;
-const person: AdmittedPerson = { subject: null, username: "alex" };
-const callback = "http://127.0.0.1:53111/cb";
-const state = "s7d2Kq9xWm4Lr8Tp";
+
+/** A fake Executor: every call is noted and every removal succeeds. */
+async function fakeExecutor(home: string) {
+  const dataDir = join(home, ".executor");
+  await mkdir(join(dataDir, "server-control"), {
+    recursive: true,
+    mode: 0o700,
+  });
+  await writeFile(
+    join(dataDir, "server-control", "auth.json"),
+    JSON.stringify({ token: "t".repeat(32) }),
+    { mode: 0o600 },
+  );
+  const calls: { method: string; path: string }[] = [];
+  const endpoint: ExecutorEndpoint = {
+    dataDir,
+    port: 4789,
+    uid: process.getuid?.() ?? 0,
+    ownsListener: async () => true,
+    transport: async (input) => {
+      calls.push({ method: input.method, path: input.path });
+      return {
+        kind: "answer",
+        status: 200,
+        type: "application/json",
+        text: JSON.stringify({ removed: true }),
+      };
+    },
+  };
+  return { endpoint, calls };
+}
 
 async function withRoutes(
-  allowed: boolean,
   run: (
     routes: ReturnType<typeof createComputersRoutes>,
     home: string,
+    calls: readonly { method: string; path: string }[],
   ) => Promise<void>,
 ) {
   const parent = await mkdtemp(join(tmpdir(), "lazurio-computers-"));
@@ -51,272 +79,202 @@ async function withRoutes(
   const entry = join(home, ".local", "bin", "lazurio");
   await writeFile(entry, "#!/bin/sh\n");
   await chmod(entry, 0o700);
+  const executor = await fakeExecutor(home);
   const host: ComputersHost = {
     platform: "linux",
     home,
     uid: process.getuid?.(),
-    today: () => "2026-11-12",
-    channelUrl: async () =>
-      "wss://launchpad.alex-work.example/.lazurio/computers/attach",
     executorCommand: async () => entry,
-    executor: null,
-    allowed: async () => allowed,
+    executor: executor.endpoint,
+    allowed: async () => true,
     locale: async () => "cs",
-    environmentName: async () => "Osobní Prostředí",
     version: "test",
   };
   const routes = createComputersRoutes({
     host: () => host,
-    page: async () => ({ locale: "cs", kind: null }),
     headers: { "Cache-Control": "no-store" },
   });
   try {
-    await run(routes, home);
+    await run(routes, home, executor.calls);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
 }
 
-const pageUrl = (overrides: Record<string, string> = {}) => {
-  const url = new URL("https://launchpad.example/connect/computer");
-  for (const [name, value] of Object.entries({
-    name: "Alex <MacBook>",
-    os: "macos",
-    pubkey: keyOf(1),
-    callback,
-    state,
-    ...overrides,
-  }))
-    url.searchParams.set(name, value);
-  return url;
-};
+/** A record as a computer's first attach writes it. */
+async function writeRecord(
+  home: string,
+  record: Readonly<{
+    deviceId: string;
+    name: string;
+    os: string | null;
+    executor: string | null;
+  }>,
+) {
+  await mkdir(computersDirectory(home), { recursive: true, mode: 0o700 });
+  await writeFile(recordPath(home, record.deviceId), JSON.stringify(record), {
+    mode: 0o600,
+  });
+}
 
-test("the callback is exactly http://127.0.0.1:<port>/<path>", () => {
-  expect(computerCallback(callback)?.href).toBe(callback);
-  for (const refused of [
-    "https://127.0.0.1:53111/cb",
-    "http://localhost:53111/cb",
-    "http://127.0.0.1/cb",
-    "http://127.0.0.1:80/cb",
-    "http://127.0.0.1:53111/cb?x=1",
-    "http://127.0.0.1:53111/cb#x",
-    "http://user@127.0.0.1:53111/cb",
-    "http://127.0.0.1.example:53111/cb",
-    "http://[::1]:53111/cb",
-    "javascript:alert(1)",
-  ])
-    expect(computerCallback(refused)).toBeNull();
-});
+const api = new URL("https://launchpad.example/api/computers");
+const removeUrl = new URL("https://launchpad.example/api/computers/remove");
 
 test.skipIf(!posix)(
-  "the page names the computer, its key and the promise",
+  "the list reads the records of the computers that attached, and their activity",
   () =>
-    withRoutes(true, async (routes) => {
-      const url = pageUrl();
-      const page = await routes.page(new Request(url), url);
-      expect(page.status).toBe(200);
-      // A script-free form under `no-referrer` would post `Origin: null`.
-      expect(page.headers.get("Referrer-Policy")).toBe("same-origin");
-      expect(page.headers.get("Content-Security-Policy")).toContain(
-        "form-action 'self' http://127.0.0.1:53111",
-      );
-      expect(page.headers.get("Content-Security-Policy")).toContain(
-        "default-src 'none'",
-      );
-      const html = await page.text();
-      expect(html).toContain("Alex &lt;MacBook&gt;");
-      expect(html).not.toContain("<MacBook>");
-      expect(html).toContain("macOS");
-      expect(html).toContain("SHA256:");
-      expect(html).toContain("Povolit agentům tento počítač");
-      expect(html).toContain('action="/api/computers"');
-      expect(html).not.toContain("<script");
-    }),
-);
-
-test.skipIf(!posix)(
-  "an invalid request or a Team Environment shows no form",
-  async () => {
-    await withRoutes(true, async (routes) => {
-      for (const overrides of [
-        { callback: "http://evil.example:53111/cb" },
-        { state: "short" },
-        { os: "linux" },
-        { pubkey: "ssh-rsa AAAA" },
-        { name: "" },
-      ]) {
-        const url = pageUrl(overrides);
-        const page = await routes.page(new Request(url), url);
-        expect(page.status).toBe(400);
-        expect(await page.text()).not.toContain("<form");
-      }
-    });
-    await withRoutes(false, async (routes) => {
-      const url = pageUrl();
-      const page = await routes.page(new Request(url), url);
-      expect(page.status).toBe(409);
-      expect(await page.text()).toContain("ne z Týmového Prostředí");
-    });
-  },
-);
-
-test.skipIf(!posix)(
-  "the form pairs the computer and returns to the application",
-  () =>
-    withRoutes(true, async (routes, home) => {
-      const body = new URLSearchParams({
-        name: "Alex MacBook",
+    withRoutes(async (routes, home) => {
+      const empty = await routes.handle(new Request(api), api);
+      expect(await empty.json()).toEqual({
+        kind: "computers",
+        supported: true,
+        computers: [],
+      });
+      await writeRecord(home, {
+        deviceId: "alex-macbook",
+        name: "MacBook Pro Matěje",
         os: "macos",
-        publicKey: keyOf(1),
-        callback,
-        state,
-      }).toString();
-      const answer = await routes.handle(
-        new Request("https://launchpad.example/api/computers", {
-          method: "POST",
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body,
-        }),
-        new URL("https://launchpad.example/api/computers"),
-        person,
-      );
-      expect(answer.status).toBe(303);
-      const location = new URL(answer.headers.get("Location") as string);
-      expect(location.origin).toBe("http://127.0.0.1:53111");
-      expect(location.pathname).toBe("/cb");
-      expect(location.searchParams.get("state")).toBe(state);
-      const result = JSON.parse(
-        Buffer.from(
-          location.searchParams.get("result") as string,
-          "base64url",
-        ).toString(),
-      );
-      expect(result).toEqual({
-        deviceId: "alex-macbook",
-        environment: { name: "Osobní Prostředí" },
-        channel: {
-          url: "wss://launchpad.alex-work.example/.lazurio/computers/attach",
-        },
+        executor: "po_macbook",
       });
-      // The key goes to the registry, never to authorized_keys.
-      expect(
-        await readFile(join(home, ".ssh", "authorized_keys"), "utf8").catch(
-          () => "none",
-        ),
-      ).toBe("none");
-      const registry = await readRegistry(home, process.getuid?.());
-      expect("computers" in registry && registry.computers).toEqual([
-        {
-          deviceId: "alex-macbook",
-          name: "Alex MacBook",
-          os: "macos",
-          publicKey: keyOf(1),
-          fingerprint: expect.stringMatching(/^SHA256:/),
-          addedBy: "alex",
-          added: "2026-11-12",
-          executor: null,
-        },
-      ]);
-      expect((await stat(registryPath(home))).mode & 0o777).toBe(0o600);
-
-      // The same key again (the application retries): the same computer.
-      const again = await routes.handle(
-        new Request("https://launchpad.example/api/computers", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: "Alex MacBook",
+      await writeRecord(home, {
+        deviceId: "alex-windows",
+        name: "alex-windows",
+        os: null,
+        executor: null,
+      });
+      // A tool list and the history are no records.
+      await writeFile(toolsPath(home, "alex-macbook"), "[]", { mode: 0o600 });
+      await writeFile(
+        auditPath(home),
+        `${JSON.stringify({ ts: "2026-11-17T10:00:00.000Z", device: "alex-macbook", event: "connected", version: "0.2.0", system: "macos" })}\n`,
+        { mode: 0o600 },
+      );
+      const list = await routes.handle(new Request(api), api);
+      expect(list.status).toBe(200);
+      expect(await list.clone().json()).toEqual({
+        kind: "computers",
+        supported: true,
+        computers: [
+          {
+            deviceId: "alex-macbook",
+            name: "MacBook Pro Matěje",
             os: "macos",
-            publicKey: keyOf(1),
-          }),
-        }),
-        new URL("https://launchpad.example/api/computers"),
-        person,
-      );
-      expect(await again.json()).toMatchObject({
-        kind: "computer-paired",
-        outcome: "already-present",
-        deviceId: "alex-macbook",
-        agents: "executor-unavailable",
+            connected: false,
+            lastActivity: "2026-11-17T10:00:00.000Z",
+            agents: "executor",
+            appVersion: "0.2.0",
+            appSystem: "macos",
+            updating: false,
+          },
+          {
+            deviceId: "alex-windows",
+            name: "alex-windows",
+            os: null,
+            connected: false,
+            lastActivity: null,
+            agents: "missing",
+            appVersion: null,
+            appSystem: null,
+            updating: false,
+          },
+        ],
       });
-
-      // Another computer of the same name gets its own id.
-      const second = await routes.handle(
-        new Request("https://launchpad.example/api/computers", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: "Alex MacBook",
-            os: "windows",
-            publicKey: keyOf(2),
-          }),
-        }),
-        new URL("https://launchpad.example/api/computers"),
-        person,
-      );
-      expect(await second.json()).toMatchObject({ deviceId: "alex-macbook-2" });
-
-      const list = await routes.handle(
-        new Request("https://launchpad.example/api/computers"),
-        new URL("https://launchpad.example/api/computers"),
-        person,
-      );
-      const overview = parseComputers(await list.json());
       expect(
-        overview?.computers?.map((item) => [
+        parseComputers(await list.json())?.computers?.map((item) => [
           item.deviceId,
+          item.name,
           item.os,
-          item.connected,
         ]),
       ).toEqual([
-        ["alex-macbook", "macos", false],
-        ["alex-macbook-2", "windows", false],
+        ["alex-macbook", "MacBook Pro Matěje", "macos"],
+        ["alex-windows", "alex-windows", null],
       ]);
-
-      const removed = await routes.handle(
-        new Request("https://launchpad.example/api/computers/remove", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ deviceId: "alex-macbook" }),
-        }),
-        new URL("https://launchpad.example/api/computers/remove"),
-        person,
-      );
-      expect(await removed.json()).toEqual({
-        kind: "computer-removed",
-        deviceId: "alex-macbook",
-        agents: "none",
-      });
-      const after = await readRegistry(home, process.getuid?.());
-      expect(
-        "computers" in after && after.computers.map((c) => c.deviceId),
-      ).toEqual(["alex-macbook-2"]);
     }),
 );
 
-test.skipIf(!posix)("a form with a foreign callback pairs nothing", () =>
-  withRoutes(true, async (routes, home) => {
-    const answer = await routes.handle(
-      new Request("https://launchpad.example/api/computers", {
+test.skipIf(!posix)(
+  "the removal takes the record, Executor's server and the tool list, keeps the history and says what follows",
+  () =>
+    withRoutes(async (routes, home, calls) => {
+      await writeRecord(home, {
+        deviceId: "alex-macbook",
+        name: "MacBook Pro Alexe",
+        os: "macos",
+        executor: "po_macbook",
+      });
+      await writeFile(toolsPath(home, "alex-macbook"), "[]", { mode: 0o600 });
+      const history = `${JSON.stringify({ ts: "2026-11-17T10:00:00.000Z", device: "alex-macbook", event: "connected" })}\n`;
+      await writeFile(auditPath(home), history, { mode: 0o600 });
+      const remove = (body: unknown) =>
+        routes.handle(
+          new Request(removeUrl, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(body),
+          }),
+          removeUrl,
+        );
+      const removed = await remove({ deviceId: "alex-macbook" });
+      expect(removed.status).toBe(200);
+      const answer = (await removed.json()) as Record<string, unknown>;
+      expect(answer).toMatchObject({
+        kind: "computer-removed",
+        deviceId: "alex-macbook",
+        agents: "removed",
+      });
+      // The answer says when the session ends and how the computer comes
+      // back.
+      expect(answer.note).toContain("broker's next check");
+      expect(answer.note).toContain("attach again");
+      expect(calls).toEqual([
+        { method: "DELETE", path: "/api/mcp/servers/po_macbook" },
+      ]);
+      expect(await readRecord(home, "alex-macbook")).toBeNull();
+      expect(
+        await readFile(toolsPath(home, "alex-macbook")).then(
+          () => true,
+          () => false,
+        ),
+      ).toBe(false);
+      expect(await readFile(auditPath(home), "utf8")).toBe(history);
+      // Again: nothing to remove.
+      const again = await remove({ deviceId: "alex-macbook" });
+      expect(again.status).toBe(404);
+      expect(await again.json()).toEqual({
+        kind: "blocked",
+        reason: "not-found",
+      });
+      expect((await remove({ deviceId: "A B" })).status).toBe(400);
+      expect((await remove({ deviceId: "x", other: 1 })).status).toBe(400);
+    }),
+);
+
+test.skipIf(!posix)("the pairing of contract v1 is gone", () =>
+  withRoutes(async (routes, home) => {
+    const posted = await routes.handle(
+      new Request(api, {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
           name: "Alex MacBook",
           os: "macos",
-          publicKey: keyOf(1),
-          callback: "https://evil.example/cb",
-          state,
-        }).toString(),
+          publicKey: "ssh-ed25519 AAAA",
+        }),
       }),
-      new URL("https://launchpad.example/api/computers"),
-      person,
+      api,
     );
-    expect(answer.status).toBe(400);
-    expect(answer.headers.get("Location")).toBeNull();
-    const registry = await readRegistry(home, process.getuid?.());
-    expect("computers" in registry && registry.computers).toEqual([]);
+    expect(posted.status).toBe(404);
+    expect(routes.handlesRetired("/connect/computer")).toBe(true);
+    expect(routes.retired().status).toBe(404);
+    expect(await readRecord(home, "alex-macbook")).toBeNull();
   }),
 );
+
+test("the CLI's help says what a removal means", () => {
+  expect(computerHelp).toContain("broker's next check");
+  expect(computerHelp).toContain("attach again");
+  expect(computerHelp).not.toContain("paired");
+});
 
 test("the list's line says what the person needs", () => {
   const copy = messages("cs");
@@ -361,51 +319,3 @@ test("the list's line says what the person needs", () => {
   });
   expect(parseComputers({ kind: "other" })).toBeNull();
 });
-
-test.skipIf(!posix)(
-  "a system name with diacritics keeps its letters on the page and in the list",
-  () =>
-    withRoutes(true, async (routes) => {
-      const name = "MacBook Pro Matěje";
-      const url = pageUrl({ name });
-      const page = await routes.page(new Request(url), url);
-      const html = await page.text();
-      expect(html).toContain("MacBook Pro Matěje");
-      expect(html).toContain('name="name" value="MacBook Pro Matěje"');
-      for (const [sent, id, key] of [
-        [name, "macbook-pro-mateje", 1],
-        ["Matěj’s MacBook Air", "matej-s-macbook-air", 2],
-        ["Počítač Žofie Šťastné", "pocitac-zofie-stastne", 3],
-      ] as const) {
-        const answer = await routes.handle(
-          new Request("https://launchpad.example/api/computers", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: sent,
-              os: "macos",
-              publicKey: keyOf(key),
-            }),
-          }),
-          new URL("https://launchpad.example/api/computers"),
-          person,
-        );
-        expect(await answer.json()).toMatchObject({ deviceId: id });
-      }
-      const list = await routes.handle(
-        new Request("https://launchpad.example/api/computers"),
-        new URL("https://launchpad.example/api/computers"),
-        person,
-      );
-      expect(
-        parseComputers(await list.json())?.computers?.map((item) => [
-          item.deviceId,
-          item.name,
-        ]),
-      ).toEqual([
-        ["macbook-pro-mateje", "MacBook Pro Matěje"],
-        ["matej-s-macbook-air", "Matěj’s MacBook Air"],
-        ["pocitac-zofie-stastne", "Počítač Žofie Šťastné"],
-      ]);
-    }),
-);

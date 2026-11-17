@@ -4,9 +4,10 @@ type Copy = Readonly<Record<MessageKey, string>>;
 type Answer = Promise<{ value: unknown; ok: boolean }>;
 
 // Settings → Connections → Počítače pro agenty (decision F75): the people's
-// computers paired through Lazurio Agent Desktop, each with its system,
-// whether it is attached now and its last activity, and its removal after a
-// confirmation. Pairing itself starts in the application, never here. The
+// computers that attached through Lazurio Agent Desktop, each with its
+// system, whether it is attached now and its last activity, and its removal
+// after a confirmation. A computer is added by its first attach, never
+// here. The
 // group shows only where this Environment uses people's computers (the
 // server says so); every server value is drawn as text.
 

@@ -1,55 +1,43 @@
 import { constants } from "node:fs";
-import { access, rm } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type ExecutorEndpoint,
   executorCall,
 } from "../integrations/executor-client";
 import {
-  addedByLabel,
-  type KeyRefusal,
   type KeysLocation,
   listComputerKeys,
-  parseDeviceKey,
   removeComputerKey,
 } from "../ssh-access/keys";
 import { socketAnswers } from "./broker";
-import { type RegistryEntry, readRegistry, updateRegistry } from "./registry";
 import {
   type ComputerOs,
   computerIdPattern,
-  displayName,
-  freeComputerId,
-  isComputerOs,
   isUpdating,
   lastActivity,
-  readRecord,
-  recordPath,
+  listRecords,
   removeState,
   socketPath,
-  socketPathFits,
+  updateRecord,
 } from "./state";
 
 // People's computers for agents (Lazurio Agent Desktop, root decisions 0240
-// and 0241, decision F75 and its addendum of 2026-11-13): one use case for
-// the Launchpad's `/connect/computer` and `/api/computers` and for `lazurio
-// computer list` and `remove`. A computer is paired by its entry in the
-// registry (`./registry`) and its MCP server in this Environment's
-// Executor, which every agent and bot uses. The computer itself is never
-// reached from here: it opens its own WebSocket session to
-// `/.lazurio/computers/attach` while its owner's switch is on
-// (`./attach-ws`).
+// and 0241, decision F75): one use case for the Launchpad's `/api/computers`
+// (Settings → Connections) and for `lazurio computer list` and `remove`. A
+// computer is known here by its record (`./state`), which its first attach
+// over contract v3 creates (`./attach-ws`), and by its MCP server in this
+// Environment's Executor, which every agent and bot uses. Whether it may
+// attach is the gateway's and Lazurio Auth's, never this Environment's: there
+// is no pairing and no registry of computers or keys. The computer itself is
+// never reached from here: it opens its own WebSocket session to
+// `/.lazurio/computers/attach` while its owner's switch is on.
 
-/** Where people's computers are paired, for the account this process runs
+/** Where people's computers are kept, for the account this process runs
  * as. Trusted composition, never HTTP input. */
 export type ComputersHost = KeysLocation &
   Readonly<{
     platform: string;
-    /** Today's date as the registry writes it (UTC, `YYYY-MM-DD`). */
-    today: () => string;
-    /** The computer's session address, `wss://<launchpad host>/.lazurio/
-     * computers/attach`; null where this Launchpad has no external origin. */
-    channelUrl: () => Promise<string | null>;
     /** The absolute installed `lazurio` Executor runs as the computer's MCP
      * server; null where it is not installed. */
     executorCommand: () => Promise<string | null>;
@@ -60,9 +48,6 @@ export type ComputersHost = KeysLocation &
     allowed: () => Promise<boolean>;
     /** The Folder's language, for Executor's server name. */
     locale: () => Promise<"cs" | "en">;
-    /** This Environment's name as Lazurio shows it, for the application's
-     * panel (`result.environment.name`); absent or null: none is sent. */
-    environmentName?: () => Promise<string | null>;
     version: string;
   }>;
 
@@ -88,29 +73,12 @@ export async function installedEntry(home: string): Promise<string | null> {
   }
 }
 
-/** The computer's session address of a Launchpad's external origin. */
-export function channelUrlOf(origin: string): string | null {
-  try {
-    const url = new URL(origin);
-    if (url.protocol === "https:")
-      return `wss://${url.host}/.lazurio/computers/attach`;
-    if (url.protocol === "http:" && url.hostname === "127.0.0.1")
-      return `ws://${url.host}/.lazurio/computers/attach`;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-/** One paired computer as the Launchpad and `lazurio computer list` show
- * it. */
+/** One computer that attached, as the Launchpad and `lazurio computer list`
+ * show it. */
 export type ComputerView = Readonly<{
   deviceId: string;
   name: string;
   os: ComputerOs | null;
-  addedBy: string;
-  added: string;
-  fingerprint: string;
   /** The computer is attached now: its broker's socket answers. */
   connected: boolean;
   /** The last line of its history, ISO time; null without one. */
@@ -135,7 +103,7 @@ export type ComputersOverview =
   | Readonly<{
       kind: "computers";
       supported: false;
-      reason: "not-here" | "unsupported-platform" | "registry-unreadable";
+      reason: "not-here" | "unsupported-platform" | "state-unreadable";
     }>;
 
 const supportedPlatform = (host: ComputersHost) => host.platform === "linux";
@@ -151,29 +119,26 @@ export async function listComputers(
     };
   if (!(await host.allowed()))
     return { kind: "computers", supported: false, reason: "not-here" };
-  const [registry, activity] = await Promise.all([
-    readRegistry(host.home, host.uid),
+  const [read, activity] = await Promise.all([
+    listRecords(host.home),
     lastActivity(host.home),
   ]);
-  if ("refused" in registry)
-    return { kind: "computers", supported: false, reason: registry.refused };
+  if ("refused" in read)
+    return { kind: "computers", supported: false, reason: read.refused };
   const computers = await Promise.all(
-    registry.computers.map(async (entry): Promise<ComputerView> => {
+    read.records.map(async (record): Promise<ComputerView> => {
       const [connected, updating] = await Promise.all([
-        socketAnswers(socketPath(host.home, entry.deviceId), 500),
-        isUpdating(host.home, entry.deviceId),
+        socketAnswers(socketPath(host.home, record.deviceId), 500),
+        isUpdating(host.home, record.deviceId),
       ]);
-      const seen = activity.get(entry.deviceId);
+      const seen = activity.get(record.deviceId);
       return {
-        deviceId: entry.deviceId,
-        name: entry.name,
-        os: entry.os,
-        addedBy: entry.addedBy,
-        added: entry.added,
-        fingerprint: entry.fingerprint,
+        deviceId: record.deviceId,
+        name: record.name,
+        os: record.os,
         connected,
         lastActivity: seen?.ts ?? null,
-        agents: entry.executor ? "executor" : "missing",
+        agents: record.executor ? "executor" : "missing",
         appVersion: seen?.version ?? null,
         appSystem: seen?.system ?? null,
         updating: !connected && updating,
@@ -181,69 +146,6 @@ export async function listComputers(
     }),
   );
   return { kind: "computers", supported: true, computers };
-}
-
-/** Where the computer opens its session (contract v1 section 2). */
-export type ComputerChannel = Readonly<{ url: string }>;
-
-export type PairRefusal =
-  | KeyRefusal
-  | "invalid-name"
-  | "invalid-os"
-  | "invalid-added-by"
-  | "not-here"
-  | "unsupported-platform"
-  | "channel-unavailable"
-  | "no-free-id"
-  | "registry-unreadable"
-  | "registry-busy";
-
-/** Refusals of what was sent, as opposed to the state of this
- * Environment. */
-export const pairInputRefusals: ReadonlySet<PairRefusal> = new Set<PairRefusal>(
-  [
-    "key-missing",
-    "private-key",
-    "multiple-lines",
-    "options-not-allowed",
-    "unsupported-type",
-    "invalid-key",
-    "not-a-public-key",
-    "invalid-name",
-    "invalid-os",
-    "invalid-added-by",
-  ],
-);
-
-export type PairAnswer =
-  | Readonly<{
-      kind: "computer-paired";
-      outcome: "added" | "already-present";
-      deviceId: string;
-      name: string;
-      channel: ComputerChannel;
-      /** This Environment's name for the application's panel, or null. */
-      environment: Readonly<{ name: string }> | null;
-      /** Whether Executor now has the computer's MCP server. */
-      agents: "executor" | "executor-unavailable" | "executor-failed";
-    }>
-  | Readonly<{ kind: "blocked"; reason: PairRefusal }>;
-
-/** What the pairing page shows before the person confirms: the checked
- * name, system and the key's fingerprint, or why it cannot be paired. */
-export function pairingRequest(
-  input: Readonly<{ name: unknown; os: unknown; publicKey: unknown }>,
-):
-  | Readonly<{ name: string; os: ComputerOs; fingerprint: string }>
-  | Readonly<{ refused: PairRefusal }> {
-  const name = displayName(input.name);
-  if (name === null || freeComputerId(name, new Set()) === null)
-    return { refused: "invalid-name" };
-  if (!isComputerOs(input.os)) return { refused: "invalid-os" };
-  const key = parseDeviceKey(input.publicKey);
-  if ("refused" in key) return { refused: key.refused };
-  if (key.type !== "ssh-ed25519") return { refused: "unsupported-type" };
-  return { name, os: input.os, fingerprint: key.fingerprint };
 }
 
 // Executor's name of the computer's server: "Počítač: <name>".
@@ -310,116 +212,33 @@ export async function unregisterComputerServer(
   );
 }
 
-/** Pairs a computer: its entry in the registry and its server in
- * Executor. The same key again answers the computer it already is, so the
- * application may simply retry. Nothing is written to `authorized_keys`. */
-export async function pairComputer(
-  host: ComputersHost,
-  input: Readonly<{
-    name: unknown;
-    os: unknown;
-    publicKey: unknown;
-    addedBy: unknown;
-  }>,
-): Promise<PairAnswer> {
-  const request = pairingRequest(input);
-  if ("refused" in request) return { kind: "blocked", reason: request.refused };
-  const addedBy = addedByLabel(input.addedBy);
-  if (addedBy === null) return { kind: "blocked", reason: "invalid-added-by" };
-  if (!supportedPlatform(host))
-    return { kind: "blocked", reason: "unsupported-platform" };
-  if (!(await host.allowed())) return { kind: "blocked", reason: "not-here" };
-  const key = parseDeviceKey(input.publicKey);
-  if ("refused" in key || key.type !== "ssh-ed25519")
-    return { kind: "blocked", reason: "invalid-key" };
-  const url = await host.channelUrl();
-  if (url === null) return { kind: "blocked", reason: "channel-unavailable" };
-  // A computer still on the old SSH path keeps its id (contract v1,
-  // Přechod z v0).
-  const legacy = await listComputerKeys(host);
-  const legacyIds =
-    "computers" in legacy ? legacy.computers.map((c) => c.device) : [];
-  type Paired = Readonly<{
-    outcome: "added" | "already-present";
-    entry: RegistryEntry;
-  }> | null;
-  const paired = await updateRegistry<Paired>(
-    host.home,
-    host.uid,
-    (computers) => {
-      const known = computers.find(
-        (entry) => entry.fingerprint === key.fingerprint,
-      );
-      if (known !== undefined)
-        return {
-          computers: null,
-          result: { outcome: "already-present", entry: known },
-        };
-      const deviceId = freeComputerId(
-        request.name,
-        new Set([...computers.map((entry) => entry.deviceId), ...legacyIds]),
-      );
-      if (deviceId === null || !socketPathFits(host.home, deviceId))
-        return { computers: null, result: null };
-      const entry: RegistryEntry = {
-        deviceId,
-        name: request.name,
-        os: request.os,
-        publicKey: `${key.type} ${key.key}`,
-        fingerprint: key.fingerprint,
-        addedBy,
-        added: host.today(),
-        executor: null,
-      };
-      return {
-        computers: [...computers, entry],
-        result: { outcome: "added", entry },
-      };
+/** Executor as a computer's first attach uses it (`AttachHost.servers`):
+ * the command `lazurio computer mcp --device <id>`, named in the Folder's
+ * language. */
+export function attachServers(host: () => Promise<ComputersHost>) {
+  return Object.freeze({
+    register: async (
+      input: Readonly<{ deviceId: string; name: string }>,
+    ): Promise<string | "executor-unavailable" | "executor-failed"> => {
+      const current = await host();
+      const command = await current.executorCommand();
+      if (command === null) return "executor-unavailable";
+      return registerComputerServer(current.executor, {
+        command,
+        deviceId: input.deviceId,
+        name: input.name,
+        locale: await current.locale(),
+      });
     },
-  );
-  if (paired === null) return { kind: "blocked", reason: "no-free-id" };
-  if ("refused" in paired) return { kind: "blocked", reason: paired.refused };
-  let agents: "executor" | "executor-unavailable" | "executor-failed" =
-    "executor";
-  if (paired.entry.executor === null) {
-    const command = await host.executorCommand();
-    const registered =
-      command === null
-        ? "executor-unavailable"
-        : await registerComputerServer(host.executor, {
-            command,
-            deviceId: paired.entry.deviceId,
-            name: request.name,
-            locale: await host.locale(),
-          });
-    if (
-      registered === "executor-unavailable" ||
-      registered === "executor-failed"
-    )
-      agents = registered;
-    else
-      await updateRegistry(host.home, host.uid, (computers) => ({
-        computers: computers.map((entry) =>
-          entry.deviceId === paired.entry.deviceId
-            ? { ...entry, executor: registered }
-            : entry,
-        ),
-        result: null,
-      }));
-  }
-  const environmentName = displayName(
-    await (host.environmentName?.() ?? Promise.resolve(null)).catch(() => null),
-  );
-  return {
-    kind: "computer-paired",
-    outcome: paired.outcome,
-    deviceId: paired.entry.deviceId,
-    name: paired.entry.name,
-    channel: { url },
-    environment: environmentName === null ? null : { name: environmentName },
-    agents,
-  };
+    unregister: async (slug: string) =>
+      unregisterComputerServer((await host()).executor, slug),
+  });
 }
+
+/** What a removal means for the computer, in the answer of the API and of
+ * `lazurio computer remove`. */
+export const removalNote =
+  "Its open session ends at the broker's next check at the latest. A computer the gateway still admits as an approved device may attach again, which creates it anew.";
 
 export type RemoveAnswer =
   | Readonly<{
@@ -428,20 +247,16 @@ export type RemoveAnswer =
       /** Executor's server: removed, there was none, or it stayed (the
        * person removes it in Apps → Integrace → Vlastní). */
       agents: "removed" | "none" | "left";
+      note: string;
     }>
   | Readonly<{
       kind: "blocked";
-      reason:
-        | "invalid-id"
-        | "not-found"
-        | "unsupported-platform"
-        | "registry-unreadable"
-        | "registry-busy";
+      reason: "invalid-id" | "not-found" | "unsupported-platform";
     }>;
 
-/** Removes a computer: its registry entry first (it can no longer attach,
- * and an attached session ends within a check), a leftover SSH line of the
- * old path, then Executor's server and its state. */
+/** Removes a computer: its record first (an open session ends at the
+ * broker's next check), then its server in Executor and its tool list. The
+ * history stays. */
 export async function removeComputer(
   host: ComputersHost,
   deviceId: unknown,
@@ -450,77 +265,44 @@ export async function removeComputer(
     return { kind: "blocked", reason: "invalid-id" };
   if (!supportedPlatform(host))
     return { kind: "blocked", reason: "unsupported-platform" };
-  const removed = await updateRegistry(host.home, host.uid, (computers) => {
-    const entry = computers.find((item) => item.deviceId === deviceId);
-    return entry === undefined
-      ? { computers: null, result: null }
-      : {
-          computers: computers.filter((item) => item.deviceId !== deviceId),
-          result: entry,
-        };
-  });
-  if (removed !== null && "refused" in removed)
-    return { kind: "blocked", reason: removed.refused };
-  const legacy = await removeComputerKey(host, deviceId);
-  const legacyRecord = await readRecord(host.home, deviceId);
-  if (removed === null && legacy.kind === "blocked")
-    return { kind: "blocked", reason: "not-found" };
-  const slug = removed?.executor ?? legacyRecord?.executor ?? null;
+  const { before } = await updateRecord(
+    host.home,
+    host.uid,
+    deviceId,
+    (current) => (current === null ? undefined : null),
+  );
+  if (before === null) return { kind: "blocked", reason: "not-found" };
   let agents: "removed" | "none" | "left" = "none";
-  if (slug)
-    agents = (await unregisterComputerServer(host.executor, slug))
+  if (before.executor)
+    agents = (await unregisterComputerServer(host.executor, before.executor))
       ? "removed"
       : "left";
   await removeState(host.home, deviceId);
-  return { kind: "computer-removed", deviceId, agents };
+  return { kind: "computer-removed", deviceId, agents, note: removalNote };
 }
 
-/** What the move from the SSH path did (contract v1, Přechod z v0). */
-export type Migration = Readonly<{
-  moved: readonly string[];
+/** What the cleanup of the old SSH path did. */
+export type SshCleanup = Readonly<{
+  removed: readonly string[];
   failed: readonly string[];
 }>;
 
-/** Moves every computer of the old SSH path into the registry: its key,
- * name, system and Executor's server stay; its line leaves
- * `authorized_keys`, its old record goes. Every other line stays byte for
- * byte. Run once as the Launchpad starts; nothing to do is quick. */
-export async function migrateSshComputers(
-  host: ComputersHost,
-): Promise<Migration> {
-  const legacy = await listComputerKeys(host);
+/** Removes every computer's line of the old SSH path (contract v0,
+ * `lazurio-computer:` lines) from `authorized_keys`: such a line would let a
+ * computer around the gateway. Every other line stays byte for byte. Run once
+ * as the installed Launchpad starts; nothing to do is quick. */
+export async function cleanupSshComputers(
+  location: KeysLocation,
+): Promise<SshCleanup> {
+  const legacy = await listComputerKeys(location);
   if (!("computers" in legacy) || legacy.computers.length === 0)
-    return { moved: [], failed: [] };
-  const moved: string[] = [];
+    return { removed: [], failed: [] };
+  const removed: string[] = [];
   const failed: string[] = [];
-  for (const line of legacy.computers) {
-    const record = await readRecord(host.home, line.device);
-    const entered = await updateRegistry(host.home, host.uid, (computers) => {
-      if (computers.some((entry) => entry.deviceId === line.device))
-        return { computers: null, result: true };
-      const entry: RegistryEntry = {
-        deviceId: line.device,
-        name: record?.name ?? line.device,
-        os: record?.os ?? null,
-        publicKey: `ssh-ed25519 ${line.key}`,
-        fingerprint: line.fingerprint,
-        addedBy: line.addedBy,
-        added: line.added,
-        executor: record?.executor ?? null,
-      };
-      return { computers: [...computers, entry], result: true };
-    });
-    if (entered !== true) {
-      failed.push(line.device);
-      continue;
-    }
-    const removed = await removeComputerKey(host, line.device);
-    if (removed.kind === "blocked") {
-      failed.push(line.device);
-      continue;
-    }
-    await rm(recordPath(host.home, line.device), { force: true });
-    moved.push(line.device);
+  for (const device of new Set(legacy.computers.map((line) => line.device))) {
+    const answer = await removeComputerKey(location, device);
+    if (answer.kind === "blocked") failed.push(device);
+    else removed.push(device);
   }
-  return { moved, failed };
+  return { removed, failed };
 }

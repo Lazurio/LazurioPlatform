@@ -535,11 +535,13 @@ export function removeDeviceKey(
 //
 //   restrict,command="<entry> computer attach --device <id>" ssh-ed25519 <base64> lazurio-computer:<id>:<added-by>:<YYYY-MM-DD>
 //
-// The HTTPS path replaced it (contract v1): nothing writes such a line any
-// more. The Launchpad moves each one it finds into the computers' registry
-// (`../computers/computers` migrateSshComputers) and removes it here. Only a
-// line of exactly this shape is a computer's: F49's page neither lists nor
-// removes it. Every other line stays as it is.
+// The HTTPS path replaced it: nothing writes such a line any more, and since
+// contract v3 a computer attaches only through the Environment's gateway. The
+// installed Launchpad removes every such line it finds
+// (`../computers/computers` cleanupSshComputers), since it would let a
+// computer around the gateway. Only a line of exactly this shape is a
+// computer's: F49's page neither lists nor removes it. Every other line stays
+// as it is.
 
 const computerMarkerPattern =
   /^lazurio-computer:([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?):([a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?):(\d{4}-\d{2}-\d{2})$/;

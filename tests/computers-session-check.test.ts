@@ -9,6 +9,7 @@ import {
   createComputerSessionCheck,
 } from "../src/computers/session-check";
 import cases from "./fixtures/device-launchpad-cases.json";
+import { type ManualClock, manualClock } from "./fixtures/manual-clock";
 
 // The Launchpad's side of contract v3 against every `device.launchpad` case
 // of Lazurio Auth's oracle (tests/fixtures/device-launchpad-cases.json, pinned
@@ -77,7 +78,6 @@ async function launchpad(checkUrl: string, assignedUser: string) {
   const attach = createComputerAttach({
     home,
     uid: process.getuid?.(),
-    environmentId: () => "launchpad.mira-work.example",
     version: "test",
     verifyGatewayProof: sessionCheck.verifyGatewayProof,
   });
@@ -251,34 +251,58 @@ for (const c of cases.recheck)
       expect(admitted.identity.deadline?.()).toBe(at + expected.closeIn * 1000);
   });
 
+/** A Launchpad on a clock the test moves (`./fixtures/manual-clock`): the
+ * check of the gateway's proof and the session's timers follow the same
+ * time. The journal notes when each line was written. */
+async function timedLaunchpad(
+  checkUrl: string,
+  assignedUser: string,
+  clock: ManualClock,
+  fetcher?: (input: string, init: RequestInit) => Promise<Response>,
+) {
+  const home = await mkdtemp(join(tmpdir(), "lzs-"));
+  cleanup.push(() => rm(home, { recursive: true, force: true }));
+  const sessionCheck = createComputerSessionCheck({
+    checkUrl,
+    assignedSubject: assignedUser,
+    now: clock.now,
+    ...(fetcher === undefined ? {} : { fetcher }),
+  });
+  const journal: Record<string, string>[] = [];
+  const attach = createComputerAttach({
+    home,
+    uid: process.getuid?.(),
+    version: "test",
+    verifyGatewayProof: sessionCheck.verifyGatewayProof,
+    now: clock.now,
+    setTimer: clock.setTimer,
+    journal: (line) => journal.push({ ...line, at: String(clock.now()) }),
+  });
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    websocket: attach.websocket,
+    fetch(request, server) {
+      return attach.upgrade(request, server, "127.0.0.1") ?? undefined;
+    },
+  });
+  cleanup.push(() => server.stop(true));
+  return { home, attach, server, journal };
+}
+
+/** When the journal said a session expired, by the test's clock. */
+const expiredAt = (journal: readonly Record<string, string>[]) => {
+  const at = journal.find((line) => line.reason === "expired")?.at;
+  return at === undefined ? undefined : Number(at);
+};
+
 test.skipIf(!posix)(
   "an open session whose proof is no longer confirmed ends with denied expired",
   async () => {
     const assigned = "00000000-0000-4000-8000-0000000000c1";
     const helper = fakeHelper();
-    const home = await mkdtemp(join(tmpdir(), "lzs-"));
-    cleanup.push(() => rm(home, { recursive: true, force: true }));
-    const sessionCheck = createComputerSessionCheck({
-      checkUrl: helper.url,
-      assignedSubject: assigned,
-    });
-    const attach = createComputerAttach({
-      home,
-      uid: process.getuid?.(),
-      environmentId: () => "launchpad.mira-work.example",
-      version: "test",
-      verifyGatewayProof: sessionCheck.verifyGatewayProof,
-      checkMs: 30,
-    });
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      websocket: attach.websocket,
-      fetch(request, server) {
-        return attach.upgrade(request, server, "127.0.0.1") ?? undefined;
-      },
-    });
-    cleanup.push(() => server.stop(true));
+    const clock = manualClock();
+    const { server } = await timedLaunchpad(helper.url, assigned, clock);
     const proof = newProof();
     helper.answers.set(proof, {
       status: 200,
@@ -287,6 +311,8 @@ test.skipIf(!posix)(
     const fake = computer(server.port as number, proof);
     await waitFor(() => fake.seen.some((m) => m.type === "ready"));
     helper.answers.set(proof, { status: 404 });
+    // The next check comes within the contract's 60 seconds.
+    clock.advance(60_000);
     expect(await fake.closed).toBe(1008);
     expect(fake.seen.at(-1)).toEqual({
       type: "denied",
@@ -297,54 +323,161 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "a session ends at the deadline of its last confirmed check, without another check",
+  "a confirmation of one second is checked again before its deadline, and every confirmation moves the next check",
   async () => {
     const assigned = "00000000-0000-4000-8000-0000000000c1";
-    const helper = fakeHelper();
-    const home = await mkdtemp(join(tmpdir(), "lzs-"));
-    cleanup.push(() => rm(home, { recursive: true, force: true }));
-    let at = Date.now();
-    const sessionCheck = createComputerSessionCheck({
-      checkUrl: helper.url,
-      assignedSubject: assigned,
-      now: () => at,
-    });
-    const attach = createComputerAttach({
-      home,
-      uid: process.getuid?.(),
-      environmentId: () => "launchpad.mira-work.example",
-      version: "test",
-      verifyGatewayProof: sessionCheck.verifyGatewayProof,
-      now: () => at,
-      // No recheck during the test, only the deadline.
-      checkMs: 3_600_000,
-      deadlineMs: 20,
-    });
-    const server = Bun.serve({
-      hostname: "127.0.0.1",
-      port: 0,
-      websocket: attach.websocket,
-      fetch(request, server) {
-        return attach.upgrade(request, server, "127.0.0.1") ?? undefined;
-      },
-    });
-    cleanup.push(() => server.stop(true));
+    const clock = manualClock();
     const proof = newProof();
-    helper.answers.set(proof, {
-      status: 200,
-      body: { subject: assigned, deviceId: "mira-laptop", expiresIn: 30 },
-    });
+    // When the helper was asked, by the test's clock.
+    const asked: number[] = [];
+    const fetcher = async () => {
+      asked.push(clock.now());
+      return Response.json({
+        subject: assigned,
+        deviceId: "mira-laptop",
+        expiresIn: 1,
+      });
+    };
+    const { server, journal } = await timedLaunchpad(
+      "http://127.0.0.1:9/check",
+      assigned,
+      clock,
+      fetcher,
+    );
     const fake = computer(server.port as number, proof);
     await waitFor(() => fake.seen.some((m) => m.type === "ready"));
-    at += 29_000;
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    const admitted = asked[0] as number;
+    expect(asked.length).toBe(1);
+    // Half the time to the deadline at the latest: checked at 500 ms.
+    clock.advance(500);
+    await waitFor(() => asked.length === 2);
+    expect(asked[1]).toBe(admitted + 500);
+    expect(asked[1] as number).toBeLessThan(admitted + 1_000);
+    // The confirmation moved the deadline and the next check from its own
+    // time; past the first deadline the session lives on.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    clock.advance(500);
+    await waitFor(() => asked.length === 3);
+    expect(asked[2]).toBe(admitted + 1_000);
+    expect(expiredAt(journal)).toBeUndefined();
+    expect(fake.seen.some((m) => m.type === "denied")).toBe(false);
+    fake.ws.close();
+    await fake.closed;
+  },
+);
+
+test.skipIf(!posix)(
+  "a long confirmation is still checked again within 60 seconds",
+  async () => {
+    const assigned = "00000000-0000-4000-8000-0000000000c1";
+    const clock = manualClock();
+    const asked: number[] = [];
+    const fetcher = async () => {
+      asked.push(clock.now());
+      return Response.json({
+        subject: assigned,
+        deviceId: "mira-laptop",
+        expiresIn: 300,
+      });
+    };
+    const { server } = await timedLaunchpad(
+      "http://127.0.0.1:9/check",
+      assigned,
+      clock,
+      fetcher,
+    );
+    const fake = computer(server.port as number, newProof());
+    await waitFor(() => fake.seen.some((m) => m.type === "ready"));
+    clock.advance(59_999);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(asked.length).toBe(1);
+    clock.advance(1);
+    await waitFor(() => asked.length === 2);
+    expect(asked[1]).toBe((asked[0] as number) + 60_000);
+    fake.ws.close();
+    await fake.closed;
+  },
+);
+
+test("a confirmation that arrives after the deadline revives nothing and moves no deadline", async () => {
+  const assigned = "00000000-0000-4000-8000-0000000000c1";
+  let at = 1_000_000;
+  let calls = 0;
+  const sessionCheck = createComputerSessionCheck({
+    checkUrl: "http://127.0.0.1:9/check",
+    assignedSubject: assigned,
+    now: () => at,
+    fetcher: async () => {
+      calls += 1;
+      // The recheck starts at 999 ms and comes back at 1001 ms, past the
+      // deadline of 1000 ms (review of #1050).
+      if (calls > 1) at = 1_000_000 + 1_001;
+      return Response.json({
+        subject: assigned,
+        deviceId: "mira-laptop",
+        expiresIn: 1,
+      });
+    },
+  });
+  const admitted = await sessionCheck.verifyGatewayProof(
+    new Request("http://127.0.0.1/", {
+      headers: { [computerSessionHeader]: newProof() },
+    }),
+  );
+  expect(admitted.ok).toBe(true);
+  if (!admitted.ok) return;
+  expect(admitted.identity.deadline()).toBe(1_001_000);
+  at = 1_000_000 + 999;
+  expect(await admitted.identity.stillAllowed()).toBe(false);
+  expect(admitted.identity.deadline()).toBe(1_001_000);
+  // Nor does a later one: the session is over.
+  expect(await admitted.identity.stillAllowed()).toBe(false);
+  expect(admitted.identity.deadline()).toBe(1_001_000);
+});
+
+test.skipIf(!posix)(
+  "a session ends exactly at the deadline of its last confirmed check, without another check",
+  async () => {
+    const assigned = "00000000-0000-4000-8000-0000000000c1";
+    const clock = manualClock();
+    let calls = 0;
+    // The first check confirms 30 seconds; the recheck never comes back.
+    const fetcher = (_input: string, _init: RequestInit) => {
+      calls += 1;
+      return calls === 1
+        ? Promise.resolve(
+            Response.json({
+              subject: assigned,
+              deviceId: "mira-laptop",
+              expiresIn: 30,
+            }),
+          )
+        : new Promise<Response>(() => undefined);
+    };
+    const { server, journal } = await timedLaunchpad(
+      "http://127.0.0.1:9/check",
+      assigned,
+      clock,
+      fetcher,
+    );
+    const fake = computer(server.port as number, newProof());
+    await waitFor(() => fake.seen.some((m) => m.type === "ready"));
+    const deadline = clock.now() + 30_000;
+    clock.advance(29_999);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(calls).toBe(2);
+    expect(expiredAt(journal)).toBeUndefined();
     expect(fake.seen.some((message) => message.type === "denied")).toBe(false);
-    at += 1_000;
+    clock.advance(1);
+    // Closed at the deadline itself, not a moment after.
+    expect(expiredAt(journal)).toBe(deadline);
     expect(await fake.closed).toBe(1008);
     expect(fake.seen.at(-1)).toEqual({
       type: "denied",
       v: 3,
       reason: "expired",
     });
+    // Nothing is served after it: no timer of the session is left.
+    expect(clock.pending()).toEqual([]);
   },
 );

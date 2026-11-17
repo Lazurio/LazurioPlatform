@@ -5,20 +5,22 @@ import {
   lstat,
   mkdir,
   open,
+  readdir,
   rename,
   rm,
 } from "node:fs/promises";
 import { join } from "node:path";
-import { deviceName } from "../ssh-access/keys";
+import { acquireFileLock, type FileLock } from "../platform/flock";
 import { writeDurableFile } from "../update/durable-file";
 
 // A person's computer for agents (Lazurio Agent Desktop, root decisions 0240
-// and 0241, decision F75): what this Environment keeps about each paired
-// computer, owned here and nowhere else.
+// and 0241, decision F75): what this Environment keeps about each computer
+// that attached, owned here and nowhere else.
 //
 //   ~/.local/state/lazurio/computers/            0700
 //     <id>.json        the computer's record: its name as the person sees it,
 //                      its system and Executor's server (never a key)
+//     records.lock     the lock of every writer of a record
 //     <id>.sock        the broker's socket while the computer is attached
 //     <id>.tools.json  the computer's tool list from its last session, so an
 //                      agent's MCP server can list tools while it is away
@@ -26,9 +28,12 @@ import { writeDurableFile } from "../update/durable-file";
 //                      outcome and duration; never arguments, screen content
 //                      or a password
 //
-// The one truth of whether a computer may connect is its line in
-// `authorized_keys` (`../ssh-access/keys`); a record without that line is a
-// leftover and is listed by nothing.
+// Whether a computer may attach is never decided here: on contract v3 the
+// Environment's gateway admits an approved device of the Assigned User and
+// the Launchpad checks the gateway's proof (`./session-check`). A computer's
+// first attach creates its record (`./attach-ws`); `lazurio computer remove`
+// deletes it, which ends its open session at the broker's next check. There
+// is no registry of computers or of their keys.
 
 /** The directory of every computer's state. */
 export const computersDirectory = (home: string) =>
@@ -72,29 +77,12 @@ export function displayName(raw: unknown): string | null {
   return name === "" ? null : name;
 }
 
-/** A free id for `name`: its F49 device name, and on a collision the same
- * with `-2`, `-3`, … within 40 characters. */
-export function freeComputerId(
-  name: string,
-  taken: ReadonlySet<string>,
-): string | null {
-  const base = deviceName(name);
-  if (base === null) return null;
-  if (!taken.has(base)) return base;
-  for (let suffix = 2; suffix < 1000; suffix++) {
-    const tail = `-${suffix}`;
-    const candidate = `${base.slice(0, 40 - tail.length).replace(/-+$/, "")}${tail}`;
-    if (computerIdPattern.test(candidate) && !taken.has(candidate))
-      return candidate;
-  }
-  return null;
-}
-
 /** What the record keeps. */
 export type ComputerRecord = Readonly<{
   deviceId: string;
   name: string;
-  os: ComputerOs;
+  /** As the computer's `initialize` named it; null until it names one. */
+  os: ComputerOs | null;
   /** Executor's slug of the computer's MCP server, once registered. */
   executor: string | null;
 }>;
@@ -150,21 +138,114 @@ export async function readRecord(
   if (value === null || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   const name = displayName(record.name);
-  if (record.deviceId !== id || name === null || !isComputerOs(record.os))
+  if (
+    record.deviceId !== id ||
+    name === null ||
+    (record.os !== null && !isComputerOs(record.os))
+  )
     return null;
   return {
     deviceId: id,
     name,
-    os: record.os,
+    os: isComputerOs(record.os) ? record.os : null,
     executor: typeof record.executor === "string" ? record.executor : null,
   };
 }
 
-/** Removes a computer's state: its tool list, its update mark and the
- * record of the old SSH path; its socket is the broker's. */
+const recordName = /^([a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?)\.json$/;
+
+/** Every computer's record, by id. A missing directory is none; one that
+ * cannot be read is refused, never guessed. */
+export async function listRecords(
+  home: string,
+): Promise<
+  | Readonly<{ records: readonly ComputerRecord[] }>
+  | Readonly<{ refused: "state-unreadable" }>
+> {
+  let names: string[];
+  try {
+    names = await readdir(computersDirectory(home));
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? { records: [] }
+      : { refused: "state-unreadable" };
+  }
+  const ids = names
+    .map((name) => recordName.exec(name)?.[1])
+    .filter((id): id is string => id !== undefined)
+    .sort();
+  const records: ComputerRecord[] = [];
+  for (const id of ids) {
+    const record = await readRecord(home, id);
+    if (record !== null) records.push(record);
+  }
+  return { records };
+}
+
+const recordsLockName = "records.lock";
+const recordsLockTimeoutMs = 10_000;
+// One writer at a time in this process, and one across processes through the
+// lock: the Launchpad's attach and `lazurio computer remove` alike, so that a
+// removal never comes back by a write that read the record before it.
+const recordQueues = new Map<string, Promise<void>>();
+
+/** Changes one computer's record in one read, change and atomic write
+ * (temporary file 0600, rename) under the records' lock. `change` answers
+ * the new record, null to delete it, or undefined to write nothing; the
+ * answer is the record before and after. */
+export function updateRecord(
+  home: string,
+  uid: number | undefined,
+  id: string,
+  change: (current: ComputerRecord | null) => ComputerRecord | null | undefined,
+): Promise<
+  Readonly<{ before: ComputerRecord | null; after: ComputerRecord | null }>
+> {
+  if (!computerIdPattern.test(id))
+    return Promise.reject(new Error("Invalid computer id"));
+  const key = computersDirectory(home);
+  const previous = recordQueues.get(key) ?? Promise.resolve();
+  const run = previous.then(async () => {
+    const directory = await ensureComputersDirectory(home, uid);
+    const lock: FileLock = await acquireFileLock(
+      join(directory, recordsLockName),
+      { timeoutMs: recordsLockTimeoutMs },
+    );
+    try {
+      const before = await readRecord(home, id);
+      const next = change(before);
+      if (next === undefined) return { before, after: before };
+      if (next === null) {
+        await rm(recordPath(home, id), { force: true });
+        return { before, after: null };
+      }
+      const after: ComputerRecord = { ...next, deviceId: id };
+      await writeDurableFile(
+        directory,
+        `${id}.json`,
+        Buffer.from(`${JSON.stringify(after)}\n`, "utf8"),
+      );
+      return { before, after };
+    } finally {
+      await lock.release();
+    }
+  });
+  const settled = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  recordQueues.set(key, settled);
+  void settled.then(() => {
+    if (recordQueues.get(key) === settled) recordQueues.delete(key);
+  });
+  return run;
+}
+
+/** Removes what is left of a computer once its record is gone: its tool
+ * list and its update mark. Its socket is the broker's, the history
+ * stays. */
 export async function removeState(home: string, id: string): Promise<void> {
   if (!computerIdPattern.test(id)) return;
-  await rm(recordPath(home, id), { force: true });
   await rm(toolsPath(home, id), { force: true });
   await rm(updatingPath(home, id), { force: true });
 }
