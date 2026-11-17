@@ -94,12 +94,14 @@ rollout asks for the evidence the Organization's release mode needs.
 ## The writer rule
 
 On the application host the Application always gets
-`LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes, with `false` it refuses
-every mutation. What an App may do without the variable, in a development
+`LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes; with `false` or any other
+value it neither writes, pulls nor publishes. What an App may do without the variable, in a development
 version in an Environment, is open and decided by the Owner (Module Standard,
 Applications of an Organization): variant A (recommended) lets only the entries
-`local` and `environment` and the background sync write there, never `app`,
-until the runtime states the deployment (`LAZURIO_RUNTIME_DEPLOYMENT`, #1041);
+`local` and `environment` and the data sync host (at start, in the background
+and after their requests) write there, while a request from `app` only reads,
+and a runtime stating `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never
+writes without `true`;
 variant B writes nothing without the variable until the Platform passes `true`
 to the writing Environment (#1034). Either way the App must read the variable,
 so the static check looks for it (or module-kit's `dataWriter`) in a V3 or V4
