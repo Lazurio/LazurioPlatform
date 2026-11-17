@@ -1,0 +1,259 @@
+import { expect, test } from "bun:test";
+import { parseAccount } from "../src/launchpad/account";
+import {
+  type AppsTile,
+  appsScope,
+  appsSections,
+  favoriteTiles,
+  moduleApplication,
+  type TileApplications,
+} from "../src/launchpad/apps-view";
+import type { CatalogGroupEntry } from "../src/launchpad/catalog-view";
+import type { PublicEntry } from "../src/launchpad/chat";
+import { messages } from "../src/launchpad/messages";
+import type {
+  Catalog,
+  CatalogModule,
+  CatalogOrganization,
+} from "../src/organizations/catalog";
+import {
+  type AccountApplication,
+  accountApplicationsMax,
+  parseShellAccount,
+} from "../src/shell/contract";
+import { accountDocument } from "./fixtures/account-document";
+
+// Decision 0249 in Apps: one tile per Module. Where the account names the
+// Module's Application (`applications`, additive in `lazurio.account.v1`),
+// the tile opens it at the Organization's own address and this
+// Environment's app from `main` is the Module's development version, in the
+// tile's menu. Without the member every tile behaves as before. Example
+// names only.
+
+const cs = messages("cs");
+
+// --- The contract ----------------------------------------------------------
+
+const deals = {
+  organization: "example",
+  module: "deals",
+  name: "Deals",
+  url: "https://deals.example.lazurio.app",
+  role: "user" as const,
+};
+
+const applicationsOf = (value: unknown) =>
+  parseShellAccount(accountDocument({ applications: value }));
+
+test("valid: each Application in its exact shape and the account's order, unknown members dropped", () => {
+  const read = applicationsOf([
+    { ...deals, state: "running", extra: 1 },
+    {
+      ...deals,
+      organization: "Other-Example",
+      module: "ledger",
+      name: "Ledger",
+      url: "https://ledger.other-example.lazurio.app",
+      role: "admin",
+    },
+  ]);
+  expect(read?.applications).toEqual([
+    {
+      organization: "example",
+      module: "deals",
+      name: "Deals",
+      url: "https://deals.example.lazurio.app",
+      role: "user",
+    },
+    {
+      organization: "Other-Example",
+      module: "ledger",
+      name: "Ledger",
+      url: "https://ledger.other-example.lazurio.app",
+      role: "admin",
+    },
+  ]);
+});
+
+test("absent or null is none known; the rest of the document is read as without it", () => {
+  expect(applicationsOf(undefined)?.applications).toBeUndefined();
+  expect(applicationsOf(null)?.applications).toBeUndefined();
+  expect(applicationsOf(undefined)).not.toBeNull();
+});
+
+test("an entry out of shape makes the whole document invalid", () => {
+  for (const bad of [
+    "deals",
+    [{ ...deals, organization: "unlisted" }],
+    [{ ...deals, url: "http://deals.example.lazurio.app" }],
+    [{ ...deals, url: "https://deals.example.lazurio.app/" }],
+    [{ ...deals, role: "owner" }],
+    [{ ...deals, module: " deals" }],
+    [{ ...deals, name: "" }],
+    [deals, { ...deals, organization: "EXAMPLE" }],
+    Array.from({ length: accountApplicationsMax + 1 }, (_, index) => ({
+      ...deals,
+      module: `m${index}`,
+      url: `https://m${index}.example.lazurio.app`,
+    })),
+  ])
+    expect(applicationsOf(bad)).toBeNull();
+});
+
+test("Apps reads them only from a document valid as a whole, else none", () => {
+  expect(
+    parseAccount(accountDocument({ applications: [deals] }))?.applications,
+  ).toEqual([deals]);
+  expect(parseAccount(accountDocument())?.applications).toEqual([]);
+  expect(
+    parseAccount(accountDocument({ applications: [{ ...deals, role: 1 }] }))
+      ?.applications,
+  ).toEqual([]);
+});
+
+// --- The tiles -------------------------------------------------------------
+
+const module = (
+  id: string,
+  extra: Partial<CatalogModule> = {},
+): CatalogModule => ({
+  organization: "example",
+  module: id,
+  path: `workspace/${id}`,
+  teams: ["workspace"],
+  teamsSource: "default",
+  apps: [{ package: "app/v1/package.json", kind: "runtime-declared" }],
+  defaultApp: "app/v1/package.json",
+  state: "current",
+  executable: true,
+  ...extra,
+});
+const organization = (
+  slug: string,
+  modules: CatalogModule[],
+  extra: Partial<CatalogOrganization> = {},
+): CatalogOrganization => ({
+  directory: `${slug}_GEN3`,
+  organization: slug,
+  displayName: "Example Works",
+  state: "current",
+  issues: [],
+  executable: true,
+  teams: [],
+  modules,
+  repositories: [],
+  ...extra,
+});
+const catalog: Catalog = {
+  kind: "catalog",
+  organizations: [
+    organization("Example", [
+      module("deals"),
+      module("planner"),
+      module("notes", {
+        apps: [],
+        defaultApp: null,
+        executable: false,
+        reason: "no-app",
+      }),
+    ]),
+  ],
+  personalspace: organization("personalspace", [], {
+    directory: "personalspace",
+    displayName: "Personalspace",
+    state: null,
+  }),
+};
+const entry: PublicEntry = {
+  launchpadOrigin: "https://launchpad.vm-03.example.lazurio.io",
+  t3codeOrigin: "https://t3code.vm-03.example.lazurio.io",
+  moduleOriginTemplate: "https://{module}.vm-03.example.lazurio.io",
+};
+const group = (): CatalogGroupEntry => {
+  const found = appsScope(catalog, { view: "home" }, cs);
+  if (found === null || found.sections === null)
+    throw new Error("The fixture has an Organization");
+  return found;
+};
+const application = (
+  module: string,
+  organization = "example",
+): AccountApplication => ({
+  organization,
+  module,
+  name: module,
+  url: `https://${module}.${organization}.lazurio.app`,
+  role: "user",
+});
+const tilesWith = (applications?: TileApplications) =>
+  appsSections(catalog, group(), cs, entry, [], false, applications).flatMap(
+    (section) => section.tiles,
+  );
+const tile = (tiles: readonly AppsTile[], id: string) => {
+  const found = tiles.find(
+    (item) => item.kind === "module" && item.entry.module.module === id,
+  );
+  if (found === undefined || found.kind !== "module")
+    throw new Error(`No tile ${id}`);
+  return found;
+};
+
+test("a Module with an Application: the tile opens the Application, the development version is in the menu", () => {
+  const tiles = tilesWith({
+    slug: "example",
+    list: [application("deals"), application("planner", "other-example")],
+  });
+  expect(tile(tiles, "deals").action).toEqual({
+    kind: "open",
+    target: { kind: "application", href: "https://deals.example.lazurio.app/" },
+  });
+  expect(tile(tiles, "deals").development).toEqual({
+    kind: "hosted",
+    href: "https://deals.vm-03.example.lazurio.io/",
+  });
+  // Another Organization's Application of a Module with the same slug is not this one's.
+  expect(tile(tiles, "planner").action).toEqual({
+    kind: "open",
+    target: {
+      kind: "hosted",
+      href: "https://planner.vm-03.example.lazurio.io/",
+    },
+  });
+  expect(tile(tiles, "planner").development).toBeNull();
+});
+
+test("without the account's Applications, or without the group's slug, every tile is as before", () => {
+  const before = tilesWith();
+  for (const applications of [
+    undefined,
+    { slug: null, list: [application("deals")] },
+    { slug: "example", list: [] },
+  ])
+    expect(tilesWith(applications)).toEqual(before);
+  expect(tile(before, "deals").development).toBeNull();
+});
+
+test("a Module without an app here keeps saying so, even with an Application", () => {
+  const tiles = tilesWith({ slug: "example", list: [application("notes")] });
+  expect(tile(tiles, "notes").action.kind).toBe("say");
+  expect(tile(tiles, "notes").development).toBeNull();
+});
+
+test("favourites follow the same tile", () => {
+  const [favourite] = favoriteTiles(catalog, group(), cs, entry, ["m:deals"], {
+    slug: "example",
+    list: [application("deals")],
+  });
+  expect(favourite?.action).toEqual({
+    kind: "open",
+    target: { kind: "application", href: "https://deals.example.lazurio.app/" },
+  });
+});
+
+test("the match ignores the Organization's case and needs the exact Module", () => {
+  const list = [application("deals", "Example")];
+  expect(moduleApplication({ slug: "example", list }, "deals")).toEqual(
+    list[0] ?? null,
+  );
+  expect(moduleApplication({ slug: "example", list }, "deal")).toBeNull();
+});

@@ -846,6 +846,34 @@ export type AccountSharedApplication = Readonly<{
 /** At most this many shared applications in one account document. */
 export const accountSharedApplicationsMax = 64;
 
+/** One Application the person may open (decision 0249): the released
+ * version of a Module at its Organization's own address
+ * (`https://<module>.<organization>.lazurio.app`, decision 0239), entered
+ * with the person's Lazurio account and no source code. Apps joins it with
+ * the tile of the same Module by `organization` and `module`: the tile then
+ * opens the Application, and the app this Environment runs from `main` is
+ * the Module's development version, in the tile's menu. A person with an
+ * application role but not the Module gets a tile of the Application alone
+ * (decision 0231). The list is display only; the Application's gateway
+ * decides every request. */
+export type AccountApplication = Readonly<{
+  /** The Organization's Dashboard slug, one of the document's
+   * `organizations`. */
+  organization: string;
+  /** The Module's slug, as Auth keys it. */
+  module: string;
+  /** The Application's display name. */
+  name: string;
+  /** The Application's https origin: an origin exactly, no path, query or
+   * trailing slash (`isAccountApplicationOrigin`). */
+  url: string;
+  /** The person's application role there (decision 0234). */
+  role: "admin" | "user";
+}>;
+
+/** At most this many Applications in one account document. */
+export const accountApplicationsMax = 128;
+
 export type ShellAccount = Readonly<{
   schema: typeof accountSchema;
   /** The language `name` and `who` are worded in. */
@@ -876,6 +904,10 @@ export type ShellAccount = Readonly<{
    * Dashboard's order. Absent: none. Apps lists them as applications, never
    * as Modules (`parseAccountSharedApplications`). */
   sharedApplications?: readonly AccountSharedApplication[];
+  /** The Applications the person may open (decision 0249, additive in v1),
+   * in the Dashboard's order. Absent: none known. Apps joins each with the
+   * tile of its Module (`parseAccountApplications`). */
+  applications?: readonly AccountApplication[];
 }>;
 
 const accountPersonalSpace = "personal";
@@ -953,6 +985,44 @@ export function parseAccountSharedApplications(
   return Object.freeze(read);
 }
 
+/** The `applications` member of `lazurio.account.v1` (decision 0249):
+ * absent or null is none known (`undefined`); otherwise a list of at most
+ * `accountApplicationsMax` entries in their exact shape
+ * (`AccountApplication`), each naming an Organization of `organizations`
+ * (by its slug, ignoring case) and an https origin, with no Module twice in
+ * one Organization; `false` for anything else, which makes the whole
+ * document invalid, as `sharedApplications` does. Members it does not know
+ * are ignored. */
+export function parseAccountApplications(
+  value: unknown,
+  organizations: readonly Pick<ShellOrganization, "slug">[],
+): readonly AccountApplication[] | undefined | false {
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.length > accountApplicationsMax)
+    return false;
+  const slugs = new Set(organizations.map((entry) => entry.slug.toLowerCase()));
+  const seen = new Set<string>();
+  const read: AccountApplication[] = [];
+  for (const entry of value) {
+    if (!isRecord(entry)) return false;
+    const { organization, module, name, url, role } = entry;
+    if (
+      typeof organization !== "string" ||
+      !slugs.has(organization.toLowerCase()) ||
+      !isShellSlug(module) ||
+      !text(name, 128) ||
+      !isAccountApplicationOrigin(url) ||
+      (role !== "admin" && role !== "user")
+    )
+      return false;
+    const key = `${organization.toLowerCase()}/${module}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    read.push(Object.freeze({ organization, module, name, url, role }));
+  }
+  return Object.freeze(read);
+}
+
 /** The account document, when the input is a valid `lazurio.account.v1`;
  * null otherwise, as a whole. The shared entries are read by the shell's own
  * parser (`entries`), with one narrowing: the account crosses origins (the
@@ -960,7 +1030,7 @@ export function parseAccountSharedApplications(
  * address and an Organization's Dashboard page are absolute https URLs,
  * never paths. The account-only members may be absent (`last` none,
  * `lastBySpace` and `favourites` empty, `openApps` `tab`, `buddy` none,
- * `sharedApplications` none); present, they have their exact shape and name
+ * `sharedApplications` and `applications` none); present, they have their exact shape and name
  * only listed Environments and Organizations: `buddy`'s origin
  * (`parseShellBuddy`) is that of a listed Environment of kind `personal`,
  * and every shared application (`parseAccountSharedApplications`, at most
@@ -1075,6 +1145,14 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
   );
   if (sharedApplications === false) return null;
 
+  // The Applications the person may open (decision 0249): each of an
+  // Organization the document lists, at an https origin.
+  const applications = parseAccountApplications(
+    input.applications,
+    shared.organizations,
+  );
+  if (applications === false) return null;
+
   return Object.freeze({
     schema: accountSchema,
     locale: shared.locale,
@@ -1087,6 +1165,7 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     preferences: Object.freeze({ openApps }),
     ...(buddy === undefined ? {} : { buddy }),
     ...(sharedApplications === undefined ? {} : { sharedApplications }),
+    ...(applications === undefined ? {} : { applications }),
   });
 }
 

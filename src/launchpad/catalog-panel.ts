@@ -8,7 +8,10 @@ import type {
   CatalogRepository,
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import type { AccountSharedApplication } from "../shell/contract";
+import type {
+  AccountApplication,
+  AccountSharedApplication,
+} from "../shell/contract";
 import { icon } from "../shell/icons";
 import { initialsOf, type SwitchTab } from "../shell/view";
 import {
@@ -39,6 +42,7 @@ import {
   appsSectionHead,
   appsSpaceOf,
   favoriteTiles,
+  groupDashboardSlug,
   guestLook,
   moduleAccessTarget,
   moduleDescription,
@@ -51,6 +55,7 @@ import {
   type ShareInput,
   sharedApplicationsSection,
   shareTarget,
+  type TileApplications,
   type TileTarget,
   tileShareTarget,
   tileTarget,
@@ -269,6 +274,7 @@ export function createCatalogPanel(
         favourites: AccountFavourites;
         login: string | null;
         sharedApplications: readonly AccountSharedApplication[] | null;
+        applications: readonly AccountApplication[];
       }>
     | null
     | undefined;
@@ -286,6 +292,7 @@ export function createCatalogPanel(
               ),
               login: value.login,
               sharedApplications: value.sharedApplications,
+              applications: value.applications,
             };
     })
     .catch(() => {
@@ -293,6 +300,12 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
+  // The Applications the person may open (decision 0249), matched with this
+  // group's Module tiles by its Dashboard slug; none until the account is read.
+  const tileApplications = (group: CatalogGroupEntry): TileApplications => ({
+    slug: account ? groupDashboardSlug(group, options.dashboard) : null,
+    list: account?.applications ?? [],
+  });
   // "Zpřístupnit kolegům" (decision 0231): what shareTarget needs besides
   // the Module and its page here, where the Dashboard leads back.
   const shareInput = (): ShareInput => ({
@@ -532,12 +545,24 @@ export function createCatalogPanel(
   // a plain click starts it first (without the script the link is the
   // overview).
   function openLink(
-    target: Extract<TileTarget, { kind: "hosted" } | { kind: "start" }>,
+    target: Extract<
+      TileTarget,
+      { kind: "hosted" } | { kind: "start" } | { kind: "application" }
+    >,
     name: string,
     className: string,
   ): HTMLAnchorElement {
     const copy = options.copy();
     const link = element("a", className);
+    // A Module's Application (decision 0249) is no app of this Environment:
+    // it always opens in a new tab, without a frame (decision 0248).
+    if (target.kind === "application") {
+      link.title = copy.appsOpenApplicationNamed.replace("{name}", name);
+      link.href = target.href;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      return link;
+    }
     const mode = openMode();
     link.title = (
       mode === "same" ? copy.appsOpenAppNamedSame : copy.appsOpenAppNamed
@@ -773,6 +798,21 @@ export function createCatalogPanel(
       );
       info.addEventListener("click", close);
       list.append(info);
+    }
+    // The Module's development version (decision 0249): where the tile opens
+    // its Application, this Environment's app from `main`, for the people who
+    // build it; a tile here means the Module is in this Environment.
+    if (item.kind === "module" && item.development !== null) {
+      const development = openLink(
+        item.development,
+        item.name,
+        "tile-menu-item",
+      );
+      development.title = copy.appsDevelopmentHint;
+      development.setAttribute("role", "menuitem");
+      development.append(svg("external"), copy.appsDevelopment);
+      development.addEventListener("click", close);
+      list.append(development);
     }
     // A guest Module's repository on GitHub, beside its overview.
     if (item.kind === "guest" && item.guest.url !== null) {
@@ -1138,6 +1178,7 @@ export function createCatalogPanel(
       copy,
       options.entry(),
       favoritesOf(group),
+      tileApplications(group),
     );
     if (items.length === 0) {
       favoritesBox.replaceChildren(
@@ -1373,6 +1414,7 @@ export function createCatalogPanel(
         copy,
         { dashboard: options.dashboard, current: options.here()?.id ?? null },
       ),
+      applications: tileApplications(group),
     }))
       parts.push(
         part.kind === "empty"
