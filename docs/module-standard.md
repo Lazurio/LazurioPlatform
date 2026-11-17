@@ -699,8 +699,10 @@ Organization Admin may switch the entry through the Module off ("application rol
 only"); then only roles given in the Application decide. Access to an Application
 never gives access to the Module. The App itself learns only the application role,
 through `appAccess`; how the role was derived is Lazurio Auth's (decisions 0231,
-0249). Until Auth itself holds the Module roles, a person enters through the whole
-Environment, the Organization Admin role or a role given in the Application.
+0249). Until Auth itself holds the Module roles, a person enters the Application only
+through a role given in it or the Organization Admin role; having the whole of an
+Environment makes someone Application Admin only of the development version
+running there, never of the Application on the application host.
 
 **A new version.** By default every merge to `main` is deployed; an Organization
 may instead require a release approved on GitHub, with a version number and
