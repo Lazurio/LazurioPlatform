@@ -1407,6 +1407,7 @@ People are told about two things only, a Module and an Application. A **Module**
 
 **Open, with proposals.** This decision does not settle the following; each is decided separately and folded in then:
 
+- whether an Organization chooses approved releases once for all its Applications or for each Application (proposed: for each Application, with automatic deployment as the default, since the sensitive Applications are those where the entry through the Module is switched off too);
 - who may approve a release where an Organization switched approved releases on (proposed: the Module Maintainers of that Module, with the Organization Admin able to require others);
 - the safeguards of an automatic deployment and where an Organization records its release mode (proposed: green checks on the merged commit, a backup of the Application's data before the switch, a return to the previous version when the new one does not become healthy, and the mode with its approvers as a boundary of trust in the Deployment Repo of 0245);
 - whether an Application is published by itself once its Module passes the check or after one confirmation of the Organization Admin (proposed: by itself, with the Organization Admin able to stop it and the host refusing an Application beyond its capacity);
