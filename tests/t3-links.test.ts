@@ -745,6 +745,30 @@ test("a link the person made to the same address, or over Lazurio's, is theirs",
   expect(over.bob().links).toHaveLength(1);
 });
 
+test("an expired link the person made stays theirs: no pairing over it, no change of its access, no removal with the edge", async () => {
+  const { w, bob, source } = await world();
+  bob().links.push({
+    environmentId: targetPeerId,
+    label: "Example / lazurio-bob",
+    urls: [origin],
+    access: "read-only",
+    linkedAt: "2026-11-01T00:00:00.000Z",
+    expiresAt: iso(start - day),
+    lastReachedAt: "2026-11-01T00:00:00.000Z",
+    lastError: null,
+    status: "expired",
+  });
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "person-link" }],
+  });
+  expect(w.issued).toHaveLength(0);
+  expect(bob().links.map((link) => [link.access, link.status])).toEqual([
+    ["read-only", "expired"],
+  ]);
+  expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
+  expect(bob().links).toHaveLength(1);
+});
+
 test("when the edge goes the source forgets its own link and turns off only its own switch", async () => {
   const { w, bob, source } = await world();
   await source();

@@ -795,7 +795,9 @@ async function reconcileSource(
           ...state.get(),
           links: without(state.get().links, name),
         });
-      if (found !== undefined && !ours && found.status !== "expired") {
+      // A link Lazurio did not record is the person's whatever its status:
+      // an expired one stays theirs to renew or remove (docs/t3-links.md).
+      if (found !== undefined && !ours) {
         results.push({ environment: name, result: "person-link" });
         continue;
       }
