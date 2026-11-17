@@ -43,6 +43,22 @@ for this Module (a static build, sibling data, a sibling API). They are not
 defects of the Module and do not lower its verdict; a rollout checks them
 against the host it deploys to and refuses where the host lacks them.
 
+## Before people see it
+
+None of the three parts says whether a person finds their way in the
+Application, and `ready-for-live` is not "done". Before an Application is
+shown to people as ready, someone walks through it as a person who sees it for
+the first time, on its real data (the agent with the `ui-craft` skill, then
+the people who decide):
+- within a few seconds it is clear what the page holds and what to do;
+- the main action is found without searching;
+- long lists and long texts have an order, a filter and a clear first step;
+- it works on a phone.
+
+What does not pass is reported with screenshots as not ready, whatever the
+verdict says. A larger rebuild of the interface is shown first as a prototype
+on real data, before it is built.
+
 ## What "ready" means per generation
 
 Every generation with an app needs: a valid manifest and app declaration as
