@@ -1,0 +1,142 @@
+// The data port over repository-db (app/v3): one document <id>.yaml per record
+// in db/data/<collection>/. Every write stores a new random `revision` and the
+// audit bundle (`updatedAt`, `updatedBy*`) in the record; the revision the port
+// hands out combines that value with a fingerprint of the content, so a stale
+// save after A -> B -> A, or after a direct change that kept the old value, is
+// refused. The domain schema validates the record without these fields.
+import { createHash, randomUUID } from "node:crypto";
+import { RepositoryDb, RepositoryDbError } from "@lazurio/repository-db";
+import { type CollectionSpec, collections } from "../domain/collections";
+import type {
+  Page,
+  Revision,
+  Saved,
+  Store,
+  StoredRecord,
+  StoreRefusal,
+  WriteContext,
+} from "./store";
+
+/** The fields the port writes into every record besides its domain fields. */
+export const RECORD_METADATA = ["revision", "updatedAt", "updatedBySubject", "updatedByChannel"];
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, entry]) => [key, canonical(entry)]),
+    );
+  return value;
+}
+
+function domainPart(record: unknown): Record<string, unknown> {
+  if (record === null || typeof record !== "object" || Array.isArray(record)) return {};
+  return Object.fromEntries(
+    Object.entries(record as Record<string, unknown>).filter(
+      ([key]) => !RECORD_METADATA.includes(key),
+    ),
+  );
+}
+
+/** The revision of a stored record: its write token and its content. */
+export function revisionOf(record: unknown): Revision {
+  const token =
+    record !== null &&
+    typeof record === "object" &&
+    typeof (record as { revision?: unknown }).revision === "string"
+      ? (record as { revision: string }).revision
+      : "none";
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify(canonical(domainPart(record))))
+    .digest("hex")
+    .slice(0, 16);
+  return `rev:${token}:${fingerprint}`;
+}
+
+const encodeCursor = (id: string) => Buffer.from(id, "utf8").toString("base64url");
+const decodeCursor = (cursor: string) => Buffer.from(cursor, "base64url").toString("utf8");
+
+export function repositoryDbStore(options: {
+  /** The data checkout, the Module's db/. */
+  mountRoot: string;
+  specs?: Readonly<Record<string, CollectionSpec>>;
+}): Store {
+  const specs = options.specs ?? collections;
+  const db = RepositoryDb.open(options.mountRoot);
+  const open = (name: string) => {
+    const spec = specs[name];
+    return spec === undefined
+      ? undefined
+      : db.collection<Record<string, unknown>>(name, { schemaVersion: spec.schemaVersion });
+  };
+  const unknownCollection: StoreRefusal = {
+    ok: false,
+    reason: "invalid_input",
+    message: "No such collection.",
+  };
+
+  return {
+    list(name, page = {}): Page | StoreRefusal {
+      const collection = open(name);
+      if (collection === undefined) return unknownCollection;
+      const limit = Math.min(Math.max(page.limit ?? 50, 1), 200);
+      const after = page.cursor ? decodeCursor(page.cursor) : null;
+      const ids = collection.listIds().filter((id) => after === null || id > after);
+      const items: StoredRecord[] = ids.slice(0, limit).map((id) => {
+        const record = collection.getOrThrow(id).record;
+        return { id, record, revision: revisionOf(record) };
+      });
+      const last = items.at(-1);
+      return {
+        items,
+        next_cursor: ids.length > limit && last !== undefined ? encodeCursor(last.id) : null,
+      };
+    },
+
+    get(name, id): StoredRecord | StoreRefusal {
+      const collection = open(name);
+      if (collection === undefined) return unknownCollection;
+      const document = collection.get(id);
+      if (document === undefined) return { ok: false, reason: "not_found" };
+      return { id, record: document.record, revision: revisionOf(document.record) };
+    },
+
+    save(name, id, record, baseRevision, context: WriteContext): Saved | StoreRefusal {
+      if (!context.canWrite) return { ok: false, reason: "data_read_only" };
+      const spec = specs[name];
+      const collection = open(name);
+      if (spec === undefined || collection === undefined) return unknownCollection;
+      const parsed = spec.record.safeParse(domainPart(record));
+      if (!parsed.success)
+        return { ok: false, reason: "invalid_input", message: parsed.error.message };
+      const current = collection.get(id);
+      const currentRevision = current === undefined ? null : revisionOf(current.record);
+      if (currentRevision !== baseRevision)
+        return { ok: false, reason: "record_changed", current_revision: currentRevision };
+      const next: Record<string, unknown> = {
+        ...(parsed.data as Record<string, unknown>),
+        revision: randomUUID(),
+        updatedAt: new Date().toISOString(),
+        updatedBySubject: context.subject ?? "local",
+        updatedByChannel: context.channel,
+      };
+      try {
+        // The file's own revision closes the gap between the check and the write.
+        collection.put(id, next, {}, { baseRevision: collection.revision(id) });
+      } catch (error) {
+        if (error instanceof RepositoryDbError && error.code === "record_changed") {
+          const now = collection.get(id);
+          return {
+            ok: false,
+            reason: "record_changed",
+            current_revision: now === undefined ? null : revisionOf(now.record),
+          };
+        }
+        throw error;
+      }
+      return { ok: true, revision: revisionOf(next) };
+    },
+  };
+}

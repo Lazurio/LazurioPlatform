@@ -839,7 +839,10 @@ v0.12.244 and later states the scope, below). Lazurio does not yet offer an
 Organization's App MCP server in Integrations by itself; until it does, the
 person adds it under Integrations → Custom. `lazurio module create` gives a
 `bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
-`get_app_context` and a test); the other stacks write no tools yet.
+`get_app_context` and a test), and every Module with data (`--data`) the
+data port (`src/data/store.ts` over repository-db, with
+`tests/store-contract.test.ts`) and the same registry; a `vite-react` or
+`astro` App with data routes them once it has a server of its own.
 
 ### Which Apps and which tools
 

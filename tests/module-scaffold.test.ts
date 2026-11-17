@@ -1102,18 +1102,24 @@ describe("planModuleScaffold with data (--data)", () => {
     expect(file(result, "AGENTS.md")).toContain("`portal-data`");
     expect(file(result, "AGENTS.md")).toContain("bun run validate:db");
     // Beside the generation, the layer _data adds the schemas of the
-    // collections, the validation of the data and its test, and seed/; of the
-    // other files only those four differ: the README names the profile
-    // app-data.
+    // collections, the validation of the data and its test, seed/, the data
+    // port with its repository-db implementation and contract test, and the
+    // registry of tools for agents with its test; of the other files only
+    // those four differ: the README names the profile app-data.
     const moved = without.files.map((entry) => ({
       path: atGeneration(entry.path),
       content: atGeneration(entry.content),
     }));
     const added = [
       "app/v3/seed/.gitkeep",
+      "app/v3/src/agent-tools.test.ts",
+      "app/v3/src/agent-tools.ts",
+      "app/v3/src/data/repository-db-store.ts",
+      "app/v3/src/data/store.ts",
       "app/v3/src/domain/collections.ts",
       "app/v3/src/validate-data.ts",
       "app/v3/tests/data.test.ts",
+      "app/v3/tests/store-contract.test.ts",
     ];
     expect(result.files.map((entry) => entry.path)).toEqual(
       [...moved.map((entry) => entry.path), ...added].sort(),
@@ -1126,7 +1132,10 @@ describe("planModuleScaffold with data (--data)", () => {
               .slice("app/v1/".length)
               .replace("dot-", ".")
               .replace(/\.tmpl$/, "")}` === path,
-        )?.content ?? "",
+        )
+          ?.content.replaceAll("{{slug}}", "portal")
+          .replaceAll("{{app_generation}}", "v3")
+          .replaceAll("{{listener_id}}", "app") ?? "",
       );
     const changed = result.files
       .filter((entry) => !added.includes(entry.path))

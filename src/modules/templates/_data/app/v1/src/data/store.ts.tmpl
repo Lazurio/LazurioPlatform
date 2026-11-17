@@ -1,0 +1,48 @@
+// The data port of this Module (Lazurio Module Standard, "One data port under
+// the tools"). The interface's HTTP API and the tools for agents reach the data
+// only through it, never through the files of db/ or Git. It starts generic,
+// over the collections of src/domain/collections.ts; as the domain grows, name
+// its operations on top of it (`listPlans`, `savePlan(id, plan, baseRevision)`).
+// app/v4 implements the same port over its database and passes the same
+// tests/store-contract.test.ts, so moving to the database changes no tool.
+
+/** An opaque revision: new and unique for every write, never derived from the
+ * content alone and never a counter. Compare it, never parse it. */
+export type Revision = string;
+
+/** Who writes and through which channel, recorded with the change. It is the
+ * App's statement, not a proof. `canWrite` is the App's one writer decision
+ * (`dataWriter` of `@lazurio/module-kit/tools`), passed in by the service; the
+ * port never decides it on its own. */
+export type WriteContext = Readonly<{
+  subject: string | null;
+  channel: "ui" | "mcp" | "webmcp" | "import";
+  canWrite: boolean;
+}>;
+
+export type StoredRecord = Readonly<{ id: string; record: unknown; revision: Revision }>;
+
+export type Page = Readonly<{ items: readonly StoredRecord[]; next_cursor: string | null }>;
+
+export type StoreRefusal =
+  | Readonly<{ ok: false; reason: "record_changed"; current_revision: Revision | null }>
+  | Readonly<{ ok: false; reason: "not_found" }>
+  | Readonly<{ ok: false; reason: "data_read_only" }>
+  | Readonly<{ ok: false; reason: "invalid_input"; message: string }>;
+
+export type Saved = Readonly<{ ok: true; revision: Revision }>;
+
+export interface Store {
+  /** One page of a collection, ordered by id; the cursor is opaque. */
+  list(collection: string, page?: { cursor?: string | null; limit?: number }): Page | StoreRefusal;
+  get(collection: string, id: string): StoredRecord | StoreRefusal;
+  /** Creates (`baseRevision` null) or changes a record, refusing a stale base
+   * with `record_changed` instead of overwriting it. */
+  save(
+    collection: string,
+    id: string,
+    record: unknown,
+    baseRevision: Revision | null,
+    context: WriteContext,
+  ): Saved | StoreRefusal;
+}

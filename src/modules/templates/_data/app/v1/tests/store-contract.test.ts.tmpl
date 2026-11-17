@@ -1,0 +1,144 @@
+// The contract of the data port (Lazurio Module Standard, "One data port under
+// the tools"), against repository-db in a temporary data repository. app/v4
+// runs the same cases against its database. The collection here is a test
+// one, so the contract holds whatever src/domain/collections.ts declares.
+import { afterAll, beforeAll, expect, test } from "bun:test";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { z } from "zod";
+import { repositoryDbStore } from "../src/data/repository-db-store";
+import type { Saved, Store, WriteContext } from "../src/data/store";
+
+const specs = {
+  notes: { schemaVersion: "note.v1", record: z.object({ title: z.string().min(1) }) },
+};
+const writer: WriteContext = {
+  subject: "2659b76d-0000-4000-8000-000000000001",
+  channel: "mcp",
+  canWrite: true,
+};
+
+let root = "";
+let mount = "";
+let store: Store;
+
+function git(cwd: string, ...args: string[]) {
+  const result = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+  if (result.status !== 0) throw new Error(`git ${args.join(" ")}: ${result.stderr}`);
+}
+
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), "store-contract-"));
+  git(root, "init", "--bare", "--initial-branch", "v3", "origin.git");
+  git(root, "clone", join(root, "origin.git"), "mount");
+  mount = join(root, "mount");
+  git(mount, "config", "user.email", "contract@example.invalid");
+  git(mount, "config", "user.name", "Store contract");
+  git(mount, "checkout", "-B", "v3");
+  writeFileSync(
+    join(mount, "repository-db.yaml"),
+    [
+      "schema_version: repository-db.config.v1",
+      "app: contract",
+      "data_repo:",
+      `  remote: ${join(root, "origin.git")}`,
+      "  branch: v3",
+      "schema:",
+      "  name: contract-data",
+      "  version: 3.0.0",
+      "layout:",
+      "  data: data",
+      "  generated: generated",
+      "  scripts: scripts",
+      "generated_manifest: []",
+      "validate: []",
+      "",
+    ].join("\n"),
+  );
+  writeFileSync(join(mount, ".gitignore"), "/.repository-db/\n");
+  for (const directory of ["data/notes", "generated", "scripts"]) {
+    mkdirSync(join(mount, directory), { recursive: true });
+    writeFileSync(join(mount, directory, ".gitkeep"), "");
+  }
+  git(mount, "add", "--all");
+  git(mount, "commit", "--message", "contract: bootstrap");
+  store = repositoryDbStore({ mountRoot: mount, specs });
+});
+
+afterAll(() => rmSync(root, { recursive: true, force: true }));
+
+function saved(result: ReturnType<Store["save"]>): Saved {
+  if (!result.ok) throw new Error(`not saved: ${JSON.stringify(result)}`);
+  return result;
+}
+
+test("a record is created from no revision and read back with its revision", () => {
+  const { revision } = saved(store.save("notes", "a", { title: "First" }, null, writer));
+  const read = store.get("notes", "a");
+  expect(read).toMatchObject({
+    id: "a",
+    revision,
+    record: { title: "First", updatedByChannel: "mcp" },
+  });
+});
+
+test("a stale revision is refused with the current one, never overwritten", () => {
+  const first = saved(store.save("notes", "b", { title: "One" }, null, writer));
+  const second = saved(store.save("notes", "b", { title: "Two" }, first.revision, writer));
+  expect(store.save("notes", "b", { title: "Late" }, first.revision, writer)).toEqual({
+    ok: false,
+    reason: "record_changed",
+    current_revision: second.revision,
+  });
+});
+
+test("after A -> B -> A a write based on the first A is refused", () => {
+  const a1 = saved(store.save("notes", "c", { title: "A" }, null, writer));
+  const b = saved(store.save("notes", "c", { title: "B" }, a1.revision, writer));
+  const a2 = saved(store.save("notes", "c", { title: "A" }, b.revision, writer));
+  expect(a2.revision).not.toBe(a1.revision);
+  expect(store.save("notes", "c", { title: "Late" }, a1.revision, writer)).toMatchObject({
+    reason: "record_changed",
+  });
+});
+
+test("a direct change that kept the old revision is still a change", () => {
+  const { revision } = saved(store.save("notes", "d", { title: "Before" }, null, writer));
+  const file = join(mount, "data/notes/d.yaml");
+  writeFileSync(
+    file,
+    readFileSync(file, "utf8").replace("title: Before", "title: Changed directly"),
+  );
+  expect(store.save("notes", "d", { title: "Mine" }, revision, writer)).toMatchObject({
+    reason: "record_changed",
+  });
+});
+
+test("without the writer decision nothing is written", () => {
+  expect(store.save("notes", "e", { title: "No" }, null, { ...writer, canWrite: false })).toEqual({
+    ok: false,
+    reason: "data_read_only",
+  });
+  expect(store.get("notes", "e")).toEqual({ ok: false, reason: "not_found" });
+});
+
+test("a record that does not match its schema is refused", () => {
+  expect(store.save("notes", "f", { title: "" }, null, writer)).toMatchObject({
+    reason: "invalid_input",
+  });
+});
+
+test("lists page by an opaque cursor", () => {
+  for (const id of ["p1", "p2", "p3"]) saved(store.save("notes", id, { title: id }, null, writer));
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  do {
+    const page = store.list("notes", { cursor, limit: 2 });
+    if (!("items" in page)) throw new Error("not a page");
+    seen.push(...page.items.map((item) => item.id));
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  expect(seen.filter((id) => id.startsWith("p"))).toEqual(["p1", "p2", "p3"]);
+});
