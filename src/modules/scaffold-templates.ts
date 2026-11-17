@@ -83,6 +83,12 @@ import astroStarlightReadmeMd from "./templates/astro-starlight/README.md.tmpl" 
 import bunServiceAppV1PackageJson from "./templates/bun-service/app/v1/package.json.tmpl" with {
   type: "text",
 };
+import bunServiceAppV1SrcAgentToolsTestTs from "./templates/bun-service/app/v1/src/agent-tools.test.ts.tmpl" with {
+  type: "text",
+};
+import bunServiceAppV1SrcAgentToolsTs from "./templates/bun-service/app/v1/src/agent-tools.ts.tmpl" with {
+  type: "text",
+};
 import bunServiceAppV1SrcAppTestTs from "./templates/bun-service/app/v1/src/app.test.ts.tmpl" with {
   type: "text",
 };
@@ -229,6 +235,8 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
     "bun-service": layer({
       "README.md.tmpl": bunServiceReadmeMd,
       "app/v1/package.json.tmpl": bunServiceAppV1PackageJson,
+      "app/v1/src/agent-tools.test.ts.tmpl": bunServiceAppV1SrcAgentToolsTestTs,
+      "app/v1/src/agent-tools.ts.tmpl": bunServiceAppV1SrcAgentToolsTs,
       "app/v1/src/app.test.ts.tmpl": bunServiceAppV1SrcAppTestTs,
       "app/v1/src/app.ts.tmpl": bunServiceAppV1SrcAppTs,
       "app/v1/src/server.ts.tmpl": bunServiceAppV1SrcServerTs,

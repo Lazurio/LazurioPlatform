@@ -838,8 +838,9 @@ not yet released; the stack profiles move the pin with the profile release that
 adopts it). The Application host's gateway admits `/mcp` today (Machines
 v0.12.244 and later states the scope, below). Lazurio does not yet offer an
 Organization's App MCP server in Integrations by itself; until it does, the
-person adds it under Integrations → Custom. `lazurio module create` writes no
-tools yet.
+person adds it under Integrations → Custom. `lazurio module create` gives a
+`bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
+`get_app_context` and a test); the other stacks write no tools yet.
 
 ### Which Apps and which tools
 

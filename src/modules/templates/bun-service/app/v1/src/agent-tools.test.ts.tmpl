@@ -1,0 +1,33 @@
+import { expect, test } from "bun:test";
+import {
+  hostedEnvironment,
+  mcpCall,
+  mcpTool,
+  mcpToolNames,
+} from "@lazurio/module-kit/tools/testing";
+import pkg from "../package.json" with { type: "json" };
+import { agentTools } from "./agent-tools.ts";
+
+const env = hostedEnvironment({ listener: "{{listener_id}}" });
+
+test("an Application User sees the tools of the role, get_app_context first", async () => {
+  expect(await mcpToolNames(agentTools(env), { role: "user" })).toEqual(["get_app_context"]);
+});
+
+test("get_app_context names this Module and its version", async () => {
+  const { isError, structured } = await mcpTool(agentTools(env), "get_app_context", {});
+  expect(isError).toBe(false);
+  expect(structured.module).toBe("{{slug}}");
+  expect(structured.app_version).toBe(pkg.version);
+});
+
+test("without a stated person /mcp answers nothing", async () => {
+  const { status, body } = await mcpCall(
+    agentTools(env),
+    "tools/list",
+    {},
+    { caller: { role: "none" } },
+  );
+  expect(status).toBe(403);
+  expect(body).toEqual({ error: "identity_unavailable" });
+});

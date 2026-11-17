@@ -130,7 +130,9 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // in `check` and names its profile in its README, and Bun is 1.4.4, so only
 // `none` keeps the root's hash; before it they were ddb885f1… (vite-react),
 // ed2e5210… (astro), 43278ddd… (astro-starlight), ac73b3f7… (bun-service)
-// and 4d7a1b23… (python-uv).
+// and 4d7a1b23… (python-uv). Since the tools for agents (Module Standard,
+// MS-16) a bun-service answers /mcp with its tool registry
+// (`src/agent-tools.ts` and its test); before it bun-service was 7b725564….
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
     "sha256:30ea162d4cd37d27859233381e609b32c6ef2ce990804dc20443ba4b24f454fd",
@@ -139,7 +141,7 @@ const rootTreeHashes: Readonly<Record<string, string>> = {
   "astro-starlight":
     "sha256:3af8198097e5c47d06efb00e273a84dcac51f2828d56e9280bdf576111f63477",
   "bun-service":
-    "sha256:7b725564df0a90015e653202f3c01e39b47bb2a1159e159a6cc983b82672356f",
+    "sha256:3b836cc9fe1910c9efea0ac3b3496863f0d1eebeffdb908344f32f41082d4c83",
   "python-uv":
     "sha256:805de1ea8f81075234ca74c67825e326fe63f79edbac510b0a7c7029ced9d956",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
