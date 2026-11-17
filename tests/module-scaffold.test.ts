@@ -133,15 +133,15 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // and 4d7a1b23… (python-uv).
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:6a18f1687e5d56ae8f2d6bb2b0a46c018d6770121b8a468b1c0ce1c25e65efda",
+    "sha256:30ea162d4cd37d27859233381e609b32c6ef2ce990804dc20443ba4b24f454fd",
   astro:
-    "sha256:88557027d216599bf7778766a40cd67b6b913380bb5abc96e772922777db3c4c",
+    "sha256:19a02de565eda200e257394946423939541aafec8868b5cbde29a6ad26e0a5cb",
   "astro-starlight":
-    "sha256:5eed7b22eeade5208effb00f70e4988d0b17acd831f07e0178aea3accc5b0ead",
+    "sha256:3af8198097e5c47d06efb00e273a84dcac51f2828d56e9280bdf576111f63477",
   "bun-service":
-    "sha256:988457d075c7449beee4ad613f6eb4b1dd541c9fca0cd8c12e2388c10fa22f76",
+    "sha256:7b725564df0a90015e653202f3c01e39b47bb2a1159e159a6cc983b82672356f",
   "python-uv":
-    "sha256:90056d267db80fce4fbdf867fdcb2568f9b4ecf967be12ffad52c8366017ff50",
+    "sha256:805de1ea8f81075234ca74c67825e326fe63f79edbac510b0a7c7029ced9d956",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
 };
 
@@ -154,7 +154,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:dfb5ab9c44210a17c84560b0195f049181289c37978a7f6110a725fc02ccb3ad",
+      "sha256:f9292594aa7de468859465997ad5df64984a52569441e2a8c39fc65dd2d6cdd0",
     );
   });
 
