@@ -872,7 +872,8 @@ and whether its answer carries text other people wrote (`untrustedContent`).
   no aliases such as `/v1/mcp`.
 - **The page.** `GET /api/agent-tools` lists the tools for the person who has
   the page open; `POST /api/agent-tools/<name>` calls one, only from the App's
-  own origin. The page registers them with `registerAgentTools` of
+  own origin (scheme, host and port exactly) and only as `application/json`,
+  so a page of another site or another local port cannot call it. The page registers them with `registerAgentTools` of
   `@lazurio/module-kit/webmcp`, which looks up the WebMCP API
   (`document.modelContext`, `navigator.modelContext`) and registers nothing
   without it; the page works the same.
@@ -909,13 +910,19 @@ The rule of Publication holds for tools as for everything else
 Publication). A tool never completes a Publication: it saves a draft where the
 data layer has drafts, or prepares the change that a person publishes in the
 interface. A write tool that would publish data is not offered in a production
-application. A tool never completes an approval, a signature, a sending, a
+application, with one exception: a kind of record for which the Owner allowed
+agents in advance to publish, with the decision recorded (a plan or a
+decision). Such a tool names it in `publicationConsent`; it is the person's
+prior consent to that Publication under the rules of Publication, it covers
+only that kind of record, and the tool still is not offered in the read-only
+mode. A tool never completes an approval, a signature, a sending, a
 deletion or a person's confirmation; it prepares it and the last step stays a
 button the person presses. An agent's own rules say the same (Publication only
 on the person's word); the App holds it as well. Whether a production App may
 let a tool publish an ordinary data change on a person's role is an open
-decision of the Owner (LZD-0037, D1); until it is decided and a mechanism for
-the person's consent on both transports is built and verified, it may not.
+decision of the Owner for every other kind of record (LZD-0037, D1); until it
+is decided and a mechanism for the person's consent on both transports is
+built and verified, it may not.
 Executor's approval of a tool annotated `destructiveHint` is no such consent:
 by default it returns the pause to the agent, not to the person
 ([Integrations](integrations.md#approvals)).
@@ -1287,7 +1294,7 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
 | `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data and no tool completes a Publication, an approval, a signature, a sending, a deletion or a person's confirmation ([Tools for agents](#tools-for-agents-mcp-and-webmcp)) | Rule only |
-| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a write that publishes data is not offered in a production application ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
+| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a write that publishes data is not offered in a production application unless it names the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
 | `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
 | `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, whose revision is unique per write and whose implementations pass one `store-contract` ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
 
