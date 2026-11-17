@@ -703,12 +703,12 @@ in the deployment declaration and the application itself allowing mutations only
 `LAZURIO_RUNTIME_DATA_WRITER=true`, rejecting them for `false` or a missing value. A
 second writer is never a rehearsal.
 
-An optional `/mcp` endpoint uses Streamable HTTP and a Lazurio Auth Bearer access
-token obtained through Lazurio sign-in, with the Application host's audience and a
-role for the selected application. The gateway validates token and role.
-Unauthenticated calls return 401 with a Bearer challenge pointing to protected-resource
-metadata; invalid tokens, wrong audiences and missing application roles are denied.
-A fixed shared token is not a substitute for Lazurio sign-in.
+A production application may offer its tools to agents through `/mcp` and
+WebMCP, behind the gateway and by the application roles above, as
+[Tools for agents](#tools-for-agents-mcp-and-webmcp) describes; the rollout
+then checks `401` without a token and the refusal of an invalid token, a wrong
+audience and a missing application role through the real gateway. A fixed
+shared token is not a substitute for Lazurio sign-in.
 
 The generated `manual/admin.md` describes the Organization Admin's checklist,
 approval and verification; `admin-request` gives everyone else one request in
@@ -812,48 +812,220 @@ handler, `onShutdown()` for `SIGTERM`, the development server options and
 `viteShutdownPlugin()`, which closes Vite's open connections on `SIGTERM` so that
 it exits 0. It does not grow into a framework.
 
-## Tools for agents (WebMCP)
+## Tools for agents (MCP and WebMCP)
 
-People and agents work in the same Apps. An agent opens an App in the
-Environment browser and could click through it like a person, which is slow
-and breaks when the page changes. So an App with an interface for people
-offers its main actions as WebMCP tools: the page registers them, and an agent
-lists and calls them with `agent-browser webmcp list` and `webmcp invoke`
-([Environment browser](environment-browser.md); Matěj 2026-11-05, amendment of
-[0171](decision-register.md#0171--lazurio-module-standard)).
+People and agents work in the same Apps. A colleague's agent works with an
+Organization's App in two ways, and both reach the same tools:
+
+- **as an MCP server**, connected once in the colleague's Environment
+  (Integrations, Executor) and signed in as that person: every agent and bot of
+  the Environment then calls the App's tools by that person's application role;
+- **in the page**, when the agent has the App open in the Environment browser
+  (the right panel of the agent's chat shows it): the page registers the same
+  tools as WebMCP tools and the agent calls them with `agent-browser webmcp
+  list` and `webmcp invoke` ([Environment browser](environment-browser.md)),
+  with the page's own session.
+
+Clicking through the page like a person is slow and breaks when the page
+changes; a second, agent-only API would drift from what people may do. So an
+App defines its tools once, on its server, and offers them through two
+transports over the same handler (Matěj 2026-11-05 and 2026-11-17, amendments
+of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
+
+**Status.** The registry, both transports and the test helpers are in
+`@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` (Lazurio/module-kit#6,
+not yet released; the stack profiles move the pin with the profile release that
+adopts it). The Application host's gateway admits `/mcp` today (Machines
+v0.12.244 and later states the scope, below). Lazurio does not yet offer an
+Organization's App MCP server in Integrations by itself; until it does, the
+person adds it under Integrations → Custom. `lazurio module create` writes no
+tools yet.
+
+### Which Apps and which tools
 
 - **Which Apps.** Every App with an interface where people do something:
   create, edit, search, assign, prepare, approve. A website or a knowledge base
   that people only read (`astro`, `astro-starlight`) needs none; a service
-  without an interface (`bun-service`) has its API instead.
-- **Which actions.** The ones a person does most and the ones an agent is asked
-  to do: find a record, open it, fill or change it, prepare a document. A tool
-  names one action (`snake_case`, verb first, in English: `find_revision`,
-  `update_measurement`); its description, in the Organization's language, says
-  what it does and what it returns; its input is a JSON Schema.
-- **The same path as the interface.** A tool calls the same server API the
-  interface calls, with the page's own session, so the server checks it on every
-  request like a click ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key)).
-  It never offers more than the interface offers the current person and never
-  takes a shortcut around a check the interface has.
-- **Publication stays with the person.** A tool may prepare a publication,
-  sending, signature or deletion, but never completes it on its own: the last
-  step stays a button the person presses, or a confirmation the page asks the
-  person for. An agent's own rules say the same (Publication only on the
-  person's word); the App holds it as well.
-- **Without WebMCP nothing changes.** The App looks up the API
-  (`document.modelContext` in Chrome 156, `navigator.modelContext` in the
-  proposed standard) and registers its tools only when it is there; the page
-  works the same without it. A tool's answer is text or JSON for the agent; a
-  refusal is an answer with the reason, never a thrown page error.
-- **Tested like the interface.** The App's tests check the names and input
-  schemas of its tools and that each tool goes through the same API call as
-  its button.
+  without an interface (`bun-service`) offers its tools through `/mcp` only.
+- **Which tools.** The actions a person does most and the ones an agent is
+  asked to do: find a record, read it, fill or change it, prepare a document,
+  produce a PDF. A tool names one action (`snake_case`, verb first, in English:
+  `find_revisions`, `update_measurement`); its description, in the
+  Organization's language, says what it does and what it returns; its input and
+  output are JSON Schema.
+- **Never more than the interface.** A tool offers a person exactly what the
+  interface offers that person: the same role, the same rules, the same
+  redaction. It calls the Module's domain service, the one the interface's API
+  calls, never the data files, the repository-db checkout or SQL directly.
 
-Modules that exist converge in a pull request of their own; `lazurio module
-create` writes no tools yet. The Environment browser has WebMCP on from the
-release that turns on its features (Lazurio/LazurioPlatform#883); a browser
-without it simply finds no tools.
+### One registry, two transports
+
+The App's server keeps one registry (`createToolRegistry` of
+`@lazurio/module-kit/tools`). Each tool states its name, description, input
+and output schema, the least application role (`user` or `admin`), its effect
+and whether its answer carries text other people wrote (`untrustedContent`).
+
+- **`/mcp`.** A stateless MCP server: Streamable HTTP with JSON answers, `POST`
+  only (`405` with `Allow: POST` otherwise), no batches, a bounded body (64 KiB
+  by default), JSON only, an unsupported `MCP-Protocol-Version` refused, and a
+  request whose `Origin` is not the App's own refused. `/mcp` is the only path:
+  no aliases such as `/v1/mcp`.
+- **The page.** `GET /api/agent-tools` lists the tools for the person who has
+  the page open; `POST /api/agent-tools/<name>` calls one, only from the App's
+  own origin (scheme, host and port exactly) and only as `application/json`,
+  so a page of another site or another local port cannot call it. The page registers them with `registerAgentTools` of
+  `@lazurio/module-kit/webmcp`, which looks up the WebMCP API
+  (`document.modelContext`, `navigator.modelContext`) and registers nothing
+  without it; the page works the same.
+- **View tools of the page.** A page may add tools that only open or show
+  something (`open_revision`). They never change data, never shadow a server
+  tool and exist only on the page.
+- **Identity.** Both transports read who came only through `appAccess`, for
+  every call. When Lazurio did not say who came (`entry: unknown`) the App
+  answers `403` `identity_unavailable` before any MCP processing; the gateway
+  already sent an unauthenticated `/mcp` call a `401`. A local entry (`entry:
+  local`, an Application Admin without a name, in a Module version in an
+  Environment) is a valid caller on both transports. The App never sees the Bearer token and
+  cannot tell an MCP call from a browser call: both come as `entry: app` (or
+  `environment`) with `source: gateway`, so the registry records the channel
+  itself.
+- **The list follows the role and the writer mode.** `tools/list` and the page
+  manifest contain only the tools the caller's role and the App's writer mode
+  allow; a hidden tool called directly is refused (`forbidden`,
+  `data_read_only`), an unknown one is `unknown_tool`.
+
+### Effects and publication
+
+Each tool declares what it does to the data:
+
+- `read` changes nothing: finding, reading, computing, producing a file such as
+  a PDF. The effect follows the data, not the HTTP method: a PDF export is a
+  read and works in the read-only mode too.
+- `prepare` changes no shared data and prepares a step a person completes in
+  the interface: an approval, a signature, a sending.
+- `write` changes data and says with `publishesData` whether the change is a
+  publication of data (one commit and push in repository-db, `DOLT_COMMIT` in a
+  database) or only a draft.
+
+The rule of Publication holds for tools as for everything else
+([Data](#boundaries-and-dependencies): publishing a data change is a
+Publication). Two rules follow:
+
+- **Never by a tool:** an approval, a signature, a sending, a deletion or a
+  person's confirmation. A tool prepares it and the last step stays a button
+  the person presses. No consent changes this.
+- **A publication of data only with the Owner's recorded prior consent.**
+  Otherwise a tool saves a draft where the data layer has drafts, or prepares
+  the change that a person publishes in the interface, and a write tool that
+  would publish data is not offered in a production application. The one
+  exception is a kind of record for which the Owner allowed agents in advance
+  to publish, with the decision recorded (a plan or a decision): such a tool
+  names it in `publicationConsent`. That is the person's prior consent to that
+  Publication under the rules of Publication; it covers only that kind of
+  record, and the tool is still not offered in the read-only mode. An agent's own rules say the same (Publication only
+on the person's word); the App holds it as well. Whether a production App may
+let a tool publish an ordinary data change on a person's role is an open
+decision of the Owner for every other kind of record (LZD-0037, D1); until it
+is decided and a mechanism for the person's consent on both transports is
+built and verified, it may not.
+Executor's approval of a tool annotated `destructiveHint` is no such consent:
+by default it returns the pause to the agent, not to the person
+([Integrations](integrations.md#approvals)).
+
+A write is offered only while the App may write, and the tools, the HTTP API
+and the data port decide it by one rule (`dataWriter` of
+`@lazurio/module-kit/tools`): `LAZURIO_RUNTIME_DATA_WRITER=true` writes and any
+other value does not (an Application host always sets it, `true` or `false`);
+without the variable, in a Module version in an Environment, only a local or
+Environment entry writes, to the Environment's own data.
+
+### What every App answers
+
+- **`get_app_context`.** Every registry answers it: module, App version, data
+  generation (`v3`, `v4`…), `production` (an Organization's App on an
+  Application host) or `environment` (a Module version in an Environment),
+  entry, application role, person and whether the caller may change data now.
+  An agent checks it before it changes anything, so it knows whether it works
+  with real data or with a development copy. Until the runtime states the
+  deployment itself (Lazurio/LazurioPlatform#1041), an App on a host is the one
+  whose runtime sets `LAZURIO_RUNTIME_DATA_WRITER`.
+- **Answers and refusals.** A tool returns JSON data (an object) and optional
+  files, or a refusal `{ ok: false, reason, message }`; it never throws for an
+  expected outcome. The common reasons, the same in the App's own HTTP API, on
+  `/mcp` and on the page: `identity_unavailable`, `forbidden`, `unknown_tool`,
+  `invalid_input` (with the issues), `not_found`, `record_changed` (with
+  `current_revision`), `data_read_only`, `unavailable` and `internal_error`; a
+  Module adds domain reasons of its own in `snake_case`. On `/mcp` a refusal is
+  a tool result with `isError: true` and `structuredContent`, never a protocol
+  error; a file is an embedded resource, bounded in size. `unknown` stays
+  distinct from `not_found`: when the App cannot tell, it says so, and the
+  agent does not write again blindly.
+- **Annotations.** `readOnlyHint` for `read` and `prepare`, `destructiveHint`
+  only for a write that publishes data, `idempotentHint`, `openWorldHint:
+  false`; on the page also `untrustedContentHint` for answers with text other
+  people wrote, which the agent treats as data, never as instructions.
+- **The App's version.** `serverInfo.version` is the App's released version,
+  never a fixed number. The server's `instructions` carry the domain's rules
+  the agent should know, in the Organization's language.
+- **Lists page.** A list takes an opaque cursor and a limit, so the data layer
+  under it can change.
+- **Audit.** Every call writes one line: channel, tool, entry, subject, role,
+  outcome and duration, never the input, the answer or a token.
+
+### The Application host's gateway
+
+The gateway admits `/mcp` and `/mcp/*` only with a Lazurio Auth Bearer access
+token whose audience is the Application host's client and which carries
+`application-user:<module>` or `application-admin:<module>` (with
+`environment-app`, which Auth adds itself) or `environment-full`; it removes
+the cookie, `Authorization` and every client copy of the identity headers
+before the App. Without a token it answers `401` with `WWW-Authenticate:
+Bearer resource_metadata=…, scope="<host client>-mcp"`, with a token without
+the role `403 insufficient_scope`; the protected-resource metadata at
+`/.well-known/oauth-protected-resource` name the issuer and `scopes_supported`
+(Machines v0.12.244 and later: Keycloak takes the audience only from that
+scope). The MCP client registers itself at the issuer under Auth's
+registration policy and the person signs in and consents; a fixed shared token
+or a public endpoint is never an access path. An App checks in its own tests
+the list per role, the refusal without a role, the read-only mode and
+`record_changed` on both transports (`@lazurio/module-kit/tools/testing`); the
+rollout checks `401` without a token and the refusal of a wrong audience or a
+missing role through the real gateway.
+
+### Production App and the Module version in an Environment
+
+- **The production App** (`<module>.<org>.lazurio.app`) holds the real data.
+  Agents work with it only through its MCP server or its page, by the role of
+  the person who connected; never by a copy of its data or a direct
+  connection to its database.
+- **The Module version in an Environment** runs from the Module's checkout with
+  preview data (repository-db checkout or a local database seeded by the
+  Module). Agents use it to develop and test: its `/mcp` on the loopback
+  address and its page tools answer as `entry: local`, an Application Admin
+  without a name, and `get_app_context` says `environment`. It is not an
+  Integration and is never connected as one.
+
+### Connecting the App in a colleague's Environment
+
+The person adds the App's MCP server (`https://<module>.<org>.lazurio.app/mcp`)
+in their Environment under Integrations; Executor registers itself as the MCP
+client, the person signs in with their Lazurio account and consents, and the
+connection then serves every agent and bot of that Environment, by that
+person's application role (decisions 0172 and 0196: the Environment is the
+boundary). The sign-in is the person's consent: an agent never connects it for
+them. A person without a role in the App gets a connection that answers
+`403`. The target is that Lazurio offers the MCP servers of the Organization's
+production Apps in Integrations and the person confirms by signing in
+(LZD-0037); until then the person adds it as a custom server.
+
+### Tested like the interface
+
+The App's tests check the names, input schemas and annotations of its tools,
+the list per role and writer mode, that each tool calls the same domain
+operation as its button, the refusals above, that no tool completes an
+approval, a signature, a sending, a deletion or a person's confirmation, and
+that a write publishing data is offered in production only with
+`publicationConsent`, on both transports. Modules that exist converge in a pull request of their own.
 
 ## App generations
 
@@ -906,6 +1078,101 @@ without it simply finds no tools.
   them. The pull request that moves or deletes the directory adds those paths to
   the root `.gitignore`, and the rules stay until every checkout of the Module is
   verified clean.
+
+### One data port under the tools, from `app/v3` to `app/v4`
+
+An App's tools, its HTTP API and its interface never touch the data layer
+directly. They call the Module's domain service, and the service calls one
+port, `app/v<N>/src/data/store.ts`, named by operations of the domain
+(`listRevisions`, `getRevision`, `saveRevisionFields(id, changes,
+baseRevision)`, `publish(…)`), never by files, Git or SQL. The layout is the
+`app-data` stack profile's ([stack profiles](stack-profiles.md)): a
+repository-db implementation in `app/v3`, a Dolt one in `app/v4`
+(`app-database`), and one domain test suite, `tests/store-contract.ts`, that
+both pass. That is why moving to the database changes no tool: the tool
+contract above stays, the implementation of the port changes.
+
+The port holds, in both generations:
+
+- **A stable id.** A record is a collection and an id; the id survives the move
+  to `app/v4` unchanged (the table's primary key) and tools refer to it.
+- **An opaque revision, unique per write.** A write carries the revision it
+  was based on and ends with `record_changed` and the current revision when the
+  record changed meanwhile, never by overwriting it. The revision is new and
+  unique for every write, never derived from the content alone and never a
+  counter: after A → B → A a content fingerprint repeats, and Dolt merges
+  concurrent transactions by cell, so two writes of the same counter and
+  content would both pass. Every writer stores a new random value or operation
+  id in the record's `revision` field (repository-db) or `revision` column
+  (Dolt), a direct writer included. The port compares that value and the
+  content, so a direct change that kept the old value is still a change. The revision does not survive the move
+  to `app/v4`: after the move a client reads the record again.
+- **Atomic writes.** Several records change in one commit (repository-db) or
+  one transaction with one `DOLT_COMMIT` (Dolt).
+- **Author and channel.** A change records the person's `subject` as its author
+  (`<subject> <<subject>@subject.lazurio.invalid>`) and trailers
+  `Lazurio-Subject` and `Lazurio-Channel` (`ui`, `mcp`, `webmcp`, `import`), in
+  the Git commit or with `DOLT_COMMIT --author`. It is the App's statement, not
+  a proof: the data layer proves only that the App wrote
+  ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key), point 5).
+- **History** of a record (who, when, what) in the same shape from Git and from
+  Dolt's history tables.
+- **Lists by an opaque cursor**, which each implementation encodes its own way.
+- **The read-only mode in the port.** When `dataWriter` (above) says the App
+  may not write, the port answers `data_read_only` itself, before any error of
+  the data layer; the service passes the same decision to the port, which
+  never takes one of its own; a Dolt
+  application without the writer role holds a read-only grant as well.
+- **No raw errors.** A serialization failure of the database (`40001`) is
+  retried a bounded number of times and then becomes `record_changed` (one
+  record) or the domain's refusal (a rule across records), never an SQL error.
+  A rule across several records (a balance never below zero) is guarded by one
+  row each write updates with its unique revision; checking a sum alone does
+  not protect it.
+- **Drafts are optional.** A data layer may keep unpublished drafts (a working
+  tree, a Dolt branch) and publish them; an Organization's App usually writes
+  one operation as one publication. The tool contract above decides what a tool
+  may do with either.
+
+`store-contract` runs against both implementations in CI, `app/v4` against a
+`dolt sql-server` of the pinned version, and covers: the stale revision, a
+stale write after A → B → A, a direct change that kept the old revision, two
+concurrent writes of the same record with the same content, two concurrent
+writes breaking a rule across records, the read-only mode, history and paging.
+Repository-db's single writer or a Git conflict keeps the concurrent cases in
+`app/v3`; in `app/v4` only the unique revision does.
+
+**Direct writes beside the App.** A production application is the only
+writer of its data ([Production applications](#production-applications-of-an-organization)).
+In a Module version in an Environment agents may change its data directly, for
+a bulk import or a clean-up, with `repository-db origin --kind agent` and only
+on the person's word; they store a new revision with every change, and the
+port refuses a stale save instead of overwriting it. Whether agents may also
+write a production application's data directly, in `app/v3` or `app/v4`, is an
+open decision (LZD-0037); until it is decided they change production data
+only through the App's interface and tools. The database's access contract for
+an Organization's App is proposed in Machines#1350.
+
+**Moving a Module from `app/v3` to `app/v4`**, as a generation transition:
+
+1. Create `app/v4` beside `app/v3` in the same Module; both keep the same tool
+   registry and pass the same `store-contract`.
+2. Freeze writes to the `app/v3` data at a recorded commit.
+3. Migrate with evidence: the record counts match and every record makes the
+   round trip (v3 → v4 → v3) unchanged; ids stay, revisions are new.
+4. Try the way back, an export from `app/v4` to `app/v3`, on a copy.
+5. Switching `default_app` to `app/v4` is the decision of the Module
+   Maintainer or the user, as for every generation, never an automatic step;
+   deploying the switched release of an Organization's production App is the
+   Organization Admin's approval. `app/v3` stays as the generation kept for a
+   return until it is deleted.
+
+The App reads its database connection only on the server, from runtime
+secrets of its server service (proposed in Machines#1350:
+`LAZURIO_RUNTIME_SECRET_LAZURIO_SERVICE_<ID>_HOST`, `_PORT`, `_USER`,
+`_PASSWORD`, `_DATABASE`), never from `.env` and never in the browser. A Module
+version in an Environment uses its own `dolt sql-server` of the pinned version
+with the Module's seed data, as in CI, never a copy of production.
 
 ## CI
 
@@ -1025,7 +1292,7 @@ of the Platform is an issue in this repository, without Organization content.
   `module-nonconformant` for after the cutover, which has no date; this repository
   has no such check.
 
-## Requirements MS-01 to MS-15
+## Requirements MS-01 to MS-18
 
 | ID | Requirement | Enforced in this repository |
 | --- | --- | --- |
@@ -1043,7 +1310,10 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
-| `MS-15` | An App with an interface for people registers its main actions as WebMCP tools that go through the same server API as the interface and never complete a publication, sending, signature or deletion on their own ([Tools for agents](#tools-for-agents-webmcp)) | Rule only |
+| `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data; no tool completes an approval, a signature, a sending, a deletion or a person's confirmation, and a tool publishes data only with the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([Tools for agents](#tools-for-agents-mcp-and-webmcp)) | Rule only |
+| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a write that publishes data is not offered in a production application unless it names the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
+| `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
+| `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, which decides writes by the same `dataWriter` rule as the tools, whose revision is unique per write (never content alone, never a counter) and whose implementations pass one `store-contract` including A → B → A ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
 
 ## GEN3
 

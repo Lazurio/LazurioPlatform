@@ -187,6 +187,12 @@ tests/
 - `tests/store-contract.ts` runs against repository-db in a fixture repository
   in `app/v3` and against Dolt in `app/v4`. Both implementations passing the
   same suite is what verifies the transition.
+- The App's tools for agents (`/mcp` and WebMCP) call the domain service over
+  this port, never the data, so the transition changes no tool. What the port
+  holds in both generations (a revision unique per write, `record_changed`,
+  author and channel, the read-only mode, no raw database errors) and the
+  steps of the transition are in the Module Standard
+  ([One data port](module-standard.md#one-data-port-under-the-tools-from-appv3-to-appv4)).
 
 Left out deliberately:
 
