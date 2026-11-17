@@ -1263,10 +1263,48 @@ button.memory-icon { display: inline-grid; width: 30px; height: 30px; padding: 0
 .memory-note-text code { font-family: var(--font-mono); font-size: 0.92em; }
 button.memory-link { display: inline; height: auto; padding: 0; border: 0; border-radius: 0; background: none; color: var(--link); font: inherit; white-space: normal; text-align: left; text-decoration: underline; text-underline-offset: 0.2em; vertical-align: baseline; cursor: pointer; touch-action: manipulation; }
 .memory-link-missing { color: var(--muted-fg); }
+/* The graph's settings (R11c), the wireframe's Obsidian controls: the gear
+   at the graph's top right, the panel under it, the local graph's bar
+   beside "Najít vzpomínku". */
+button.memory-gear { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border: 1px solid var(--lz-line); background: var(--memory-paper); }
+button.memory-icon.is-on { background: var(--lz-gray-50); color: var(--lz-ink); }
+.memory-tools { right: 56px; flex-wrap: wrap; gap: 8px; }
+.memory-local { display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; padding: 0 2px 0 10px; border: 1px solid var(--lz-line); border-radius: 6px; background: var(--memory-paper); font-size: 13px; }
+.memory-local[hidden] { display: none; }
+.memory-local-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.memory-local-depth { display: inline-flex; gap: 2px; }
+.memory-local-depth button { width: 24px; height: 22px; padding: 0; border: 1px solid var(--lz-gray-100); border-radius: 3px; background: var(--memory-paper); color: var(--lz-ink-muted); font: inherit; font-size: 12px; touch-action: manipulation; }
+.memory-local-depth button[aria-pressed="true"] { border-color: var(--lz-ink); background: var(--lz-ink); color: var(--lz-white); }
+.memory-set { position: absolute; top: 50px; right: 12px; z-index: 2; width: 270px; max-width: calc(100% - 24px); max-height: calc(100% - 64px); overflow: auto; overscroll-behavior: contain; padding: 4px 0 8px; border: 1px solid var(--lz-line); border-radius: var(--lz-radius-md); background: var(--memory-paper); box-shadow: var(--lz-shadow-float); font-size: 13px; }
+.memory-set[hidden] { display: none; }
+.memory-set-head { display: flex; justify-content: flex-end; gap: 2px; padding: 0 6px; }
+.memory-set-section + .memory-set-section { border-top: 1px solid var(--lz-gray-100); }
+button.memory-set-title { display: flex; width: 100%; height: auto; justify-content: flex-start; gap: 6px; padding: 8px 12px; border: 0; border-radius: 0; background: transparent; color: var(--fg); font: inherit; font-weight: var(--lz-weight-akce); text-align: left; }
+button.memory-set-title .icon { width: 14px; height: 14px; transition: transform 0.15s ease-out; }
+button.memory-set-title[aria-expanded="false"] .icon { transform: rotate(-90deg); }
+.memory-set-content { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 10px 32px; }
+.memory-set-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.memory-set-slider { display: flex; flex-direction: column; gap: 2px; }
+.memory-set-slider input { width: 100%; height: auto; padding: 0; border: 0; accent-color: var(--lz-ink); }
+.memory-set-search, .memory-set-group-row input { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border: 1px solid var(--lz-line); border-radius: 3px; background: var(--memory-paper); color: var(--lz-ink-muted); }
+.memory-set-search .icon { flex: none; width: 14px; height: 14px; }
+.memory-set-search input { flex: 1; width: auto; min-width: 0; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; background: transparent; color: var(--fg); font: inherit; }
+.memory-set-search:focus-within { border-color: var(--lz-accent); }
+.memory-set-search input:focus-visible { outline: 0; box-shadow: none; }
+.memory-set-group-row { display: flex; align-items: center; gap: 6px; }
+.memory-set-group-row input { flex: 1; width: auto; min-width: 0; color: var(--fg); font: inherit; }
+button.memory-set-swatch { flex: none; width: 20px; height: 20px; padding: 0; border: 2px solid var(--memory-paper); border-radius: 50%; box-shadow: 0 0 0 1px var(--lz-line); }
+button.memory-set-swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--lz-ink); }
+.memory-set-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 0 2px; }
+button.memory-set-add { align-self: flex-start; }
+.memory-nothing { position: absolute; inset: 50% 0 auto; margin: 0; padding: 0 24px; color: var(--muted-fg); font-size: 14px; text-align: center; transform: translateY(-50%); pointer-events: none; }
+.memory-nothing[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { button.memory-set-title .icon { transition: none; } }
 @media (max-width: 767px) {
   .memory-body.has-note { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1.2fr); }
   .memory-note { border-left: 0; border-top: 1px solid var(--lz-gray-100); padding-bottom: env(safe-area-inset-bottom); }
   .memory-find { width: 100%; }
+  .memory-set-search input, .memory-set-group-row input { font-size: 16px; }
   .memory-find input { font-size: 16px; }
   .memory-count { bottom: 52px; }
 }
@@ -2040,7 +2078,11 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <canvas class="memory-canvas" id="memory-canvas" tabindex="0" role="img"></canvas>
 <div class="memory-tools">
 <div class="memory-find" data-guide="memory-find"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input type="search" id="memory-find" autocomplete="off" spellcheck="false" enterkeyhint="go" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="memory-find-list"><ul class="memory-find-list" id="memory-find-list" role="listbox" hidden></ul></div>
+<div class="memory-local" id="memory-local" hidden></div>
 </div>
+<button type="button" class="ghost memory-icon memory-gear" id="memory-gear" aria-controls="memory-settings" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg></button>
+<aside class="memory-set" id="memory-settings" hidden></aside>
+<p class="memory-nothing" id="memory-nothing" role="status" data-message="memoryNothingShown" hidden>No memory matches the filter.</p>
 <div class="memory-zoom"><button type="button" class="ghost memory-icon" id="memory-zoom-in"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg></button><button type="button" class="ghost memory-icon" id="memory-zoom-out"><svg class="icon" aria-hidden="true"><use href="#i-minus"/></svg></button><button type="button" class="ghost memory-icon" id="memory-zoom-fit"><svg class="icon" aria-hidden="true"><use href="#i-fit"/></svg></button></div>
 <p class="memory-count" id="memory-count"></p>
 </div>
