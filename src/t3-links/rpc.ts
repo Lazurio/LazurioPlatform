@@ -124,6 +124,9 @@ export type ConnectSocket = (
 export const bunSocket: ConnectSocket = (url, headers) => {
   const socket = new WebSocket(url, { headers } as unknown as string[]);
   const messages: ((data: string) => void)[] = [];
+  // What arrives before anyone listens (a server's first ping) is kept and
+  // handed to the first listener, never dropped.
+  const early: string[] = [];
   const closes: (() => void)[] = [];
   const opened = new Promise<boolean>((resolve) => {
     socket.addEventListener("open", () => resolve(true));
@@ -135,6 +138,7 @@ export const bunSocket: ConnectSocket = (url, headers) => {
       typeof event.data === "string"
         ? event.data
         : Buffer.from(event.data as ArrayBuffer).toString("utf8");
+    if (messages.length === 0) early.push(data);
     for (const listener of messages) listener(data);
   });
   socket.addEventListener("close", () => {
@@ -143,7 +147,10 @@ export const bunSocket: ConnectSocket = (url, headers) => {
   return {
     send: (data) => socket.send(data),
     close: () => socket.close(),
-    onMessage: (listener) => messages.push(listener),
+    onMessage: (listener) => {
+      messages.push(listener);
+      for (const data of early.splice(0)) listener(data);
+    },
     onClose: (listener) => closes.push(listener),
     opened,
   };

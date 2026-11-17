@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chatT3Label } from "../src/t3-links/live";
 import {
+  bunSocket,
   linkScopes,
   loopbackOrigin,
   openChatT3Rpc,
@@ -263,4 +264,29 @@ test("only a loopback origin is asked, and only a session in T3 Code's shape is 
   expect(await chatT3Label(await homeWith(null), process.getuid?.())).toBe(
     undefined,
   );
+});
+
+test("a message that arrives before anyone listens is kept for the first listener", async () => {
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch: (request, current) =>
+      current.upgrade(request)
+        ? undefined
+        : new Response("no", { status: 400 }),
+    websocket: {
+      open(socket) {
+        socket.send(JSON.stringify({ _tag: "Ping" }));
+      },
+      message() {},
+    },
+  });
+  servers.push(server);
+  const socket = bunSocket(`ws://127.0.0.1:${server.port}/ws`, {});
+  expect(await socket.opened).toBe(true);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  const received: string[] = [];
+  socket.onMessage((data) => received.push(data));
+  expect(received).toEqual(['{"_tag":"Ping"}']);
+  socket.close();
 });
