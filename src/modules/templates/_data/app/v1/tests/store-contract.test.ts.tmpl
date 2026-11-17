@@ -12,7 +12,7 @@ import { repositoryDbStore } from "../src/data/repository-db-store";
 import type { Saved, Store, WriteContext } from "../src/data/store";
 
 const specs = {
-  notes: { schemaVersion: "note.v1", record: z.object({ title: z.string().min(1) }) },
+  notes: { schemaVersion: "note.v1", record: z.strictObject({ title: z.string().min(1) }) },
 };
 const writer: WriteContext = {
   subject: "2659b76d-0000-4000-8000-000000000001",
@@ -141,4 +141,38 @@ test("lists page by an opaque cursor", () => {
     cursor = page.next_cursor;
   } while (cursor !== null);
   expect(seen.filter((id) => id.startsWith("p"))).toEqual(["p1", "p2", "p3"]);
+});
+
+test("a second writer between the check and the write is never overwritten", () => {
+  const { revision } = saved(store.save("notes", "w", { title: "Base" }, null, writer));
+  const file = join(mount, "data/notes/w.yaml");
+  const racing = repositoryDbStore({
+    mountRoot: mount,
+    specs,
+    beforeWrite: () =>
+      writeFileSync(
+        file,
+        readFileSync(file, "utf8").replace("title: Base", "title: Second writer"),
+      ),
+  });
+  expect(racing.save("notes", "w", { title: "First writer" }, revision, writer)).toMatchObject({
+    reason: "record_changed",
+  });
+  expect(readFileSync(file, "utf8")).toContain("title: Second writer");
+});
+
+test("pages keep the order of the ids, in any letter case and script", () => {
+  for (const id of ["m-a", "m-A", "m-b", "m-č", "m-Z"])
+    saved(store.save("notes", id, { title: id }, null, writer));
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  do {
+    const page = store.list("notes", { cursor, limit: 1 });
+    if (!("items" in page)) throw new Error("not a page");
+    seen.push(...page.items.map((item) => item.id));
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  const mixed = seen.filter((id) => id.startsWith("m-"));
+  expect(mixed.sort()).toEqual(["m-A", "m-Z", "m-a", "m-b", "m-č"]);
+  expect(new Set(mixed).size).toBe(5);
 });

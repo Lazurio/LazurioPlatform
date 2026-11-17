@@ -14,6 +14,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { domainPart } from "./data/store";
 import { type CollectionSpec, collections } from "./domain/collections";
 
 export type DataCheck = Readonly<{ documents: number; problems: readonly string[] }>;
@@ -74,7 +75,9 @@ function validateDocument(path: string, id: string, spec: CollectionSpec): strin
     problems.push(
       `${path}: id is ${JSON.stringify(envelope.id)}, the file name says ${JSON.stringify(id)}`,
     );
-  const record = spec.record.safeParse(envelope.record);
+  // The schema validates the domain part, as the data port does: the write
+  // revision and the audit bundle the port stores are not domain fields.
+  const record = spec.record.safeParse(domainPart(envelope.record));
   if (!record.success) problems.push(`${path}: ${z.prettifyError(record.error)}`);
   return problems;
 }

@@ -5,6 +5,12 @@
 // its operations on top of it (`listPlans`, `savePlan(id, plan, baseRevision)`).
 // app/v4 implements the same port over its database and passes the same
 // tests/store-contract.test.ts, so moving to the database changes no tool.
+//
+// What the scaffold gives is the single-record part of the port: get, list and
+// save with a revision unique per write. The history of a record and a change
+// of several records in one write are the Module's to add when it needs them,
+// each with its cases in tests/store-contract.test.ts (the standard's "One data
+// port" names both).
 
 /** An opaque revision: new and unique for every write, never derived from the
  * content alone and never a counter. Compare it, never parse it. */
@@ -45,4 +51,23 @@ export interface Store {
     baseRevision: Revision | null,
     context: WriteContext,
   ): Saved | StoreRefusal;
+}
+
+/** The fields the port writes into every record besides its domain fields:
+ * the write revision and the audit bundle. */
+export const RECORD_METADATA: readonly string[] = [
+  "revision",
+  "updatedAt",
+  "updatedBySubject",
+  "updatedByChannel",
+];
+
+/** The domain fields of a stored record, the part its schema validates. */
+export function domainPart(record: unknown): Record<string, unknown> {
+  if (record === null || typeof record !== "object" || Array.isArray(record)) return {};
+  return Object.fromEntries(
+    Object.entries(record as Record<string, unknown>).filter(
+      ([key]) => !RECORD_METADATA.includes(key),
+    ),
+  );
 }

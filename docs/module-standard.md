@@ -840,8 +840,11 @@ Organization's App MCP server in Integrations by itself; until it does, the
 person adds it under Integrations → Custom. `lazurio module create` gives a
 `bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
 `get_app_context` and a test), and every Module with data (`--data`) the
-data port (`src/data/store.ts` over repository-db, with
-`tests/store-contract.test.ts`) and the same registry; a `vite-react` or
+single-record part of the data port (`src/data/store.ts`: get, list and save
+with a revision unique per write, over repository-db, with
+`tests/store-contract.test.ts`) and the same registry; a record's history and
+a change of several records in one write the Module adds with their contract
+cases when it needs them; a `vite-react` or
 `astro` App with data routes them once it has a server of its own.
 
 ### Which Apps and which tools

@@ -64,3 +64,25 @@ test("a wrong record, envelope or collection fails", () => {
     },
   );
 });
+
+test("the write revision and the audit bundle the data port stores pass a strict schema", () => {
+  const strict = {
+    notes: { schemaVersion: "note.v1", record: z.strictObject({ title: z.string().min(1) }) },
+  };
+  withData(
+    {
+      "notes/a.yaml": [
+        "schemaVersion: note.v1",
+        "id: a",
+        "record:",
+        "  title: First",
+        "  revision: 6f1c",
+        "  updatedAt: 2026-11-18T00:00:00.000Z",
+        "  updatedBySubject: local",
+        "  updatedByChannel: ui",
+        "",
+      ].join("\n"),
+    },
+    (root) => expect(validateDataDirectory(root, strict)).toEqual({ documents: 1, problems: [] }),
+  );
+});
