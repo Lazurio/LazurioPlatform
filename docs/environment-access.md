@@ -108,9 +108,11 @@ approves, while in Lazurio's personal tailnet the person approves their own devi
 (decision 0246, below). Every action
 is audited, and the service records each approval into the repository
 automatically as an audit entry without review, a record and not an input. In
-GEN4 a device approval is recorded in Lazurio Auth instead and is no audit
-record in the repository; moving the record there is a separate migration with
-no period of two writers. The rules (who may approve, and where an approved
+GEN4 the service records each approval itself as its audit entry, the one
+record of the approval, and Lazurio Auth keeps a copy of it for overviews and
+applications (decision 0245, amendment of 2026-11-17); the audit entry in the
+repository does not carry over, and moving the record is a separate migration
+with no period of two writers. The rules (who may approve, and where an approved
 device reaches) are boundaries of trust of the Organization they concern and
 change in its own Deployment Repo; until that is deployed, they change by a
 reviewed pull request to the host owner's deployment repository. Until the
