@@ -15224,9 +15224,13 @@ addendum (c) change as follows; the rest is unchanged.
    only ordinary one; the tenant's barrier is its consent to `Mail.Send`.
 5. **The Folder (`base-instructions-135`).** Mail is a draft read back and shown by
    its `webLink`; sent only after the person's consent to send, and then exactly
-   the draft they saw (`POST /me/messages/{id}/send`), shown again if it changed;
-   where `send` is missing or Microsoft answers `403`, sending is not on there, the
-   draft stays and the agent says so.
+   the draft they approved (`POST /me/messages/{id}/send`). A draft that changed
+   after the approval needs a new consent to its new text, unless the earlier
+   consent explicitly covered such a change. Where the Integration has no `send`
+   operation, sending is not on there; where Microsoft refuses a send (a `403`,
+   say), the draft stays and the agent reports the refusal with Microsoft's
+   error, naming a cause only when it knows it (a `403` can also come from an
+   access policy or mailbox permissions).
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
