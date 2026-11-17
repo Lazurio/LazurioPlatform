@@ -411,3 +411,29 @@ posixTest("an uncommitted CI workflow does not count", async () => {
   expect(ids(result)).toEqual(["ci-missing"]);
   expect(result.verdict).toBe("ready-for-trial");
 });
+
+posixTest(
+  "a V3 app with only a static build has no server for its data",
+  async () => {
+    const result = await assess({
+      "lazurio.module.json": manifest(["app/v3/package.json"]),
+      "app/v3/package.json": JSON.stringify({
+        name: "fixture",
+        packageManager: "bun@1.3.4",
+        scripts: { dev: "vite", build: "vite build" },
+        dependencies: {
+          "@lazurio/repository-db": "github:Lazurio/repository-db#v3.3.0",
+        },
+        lazurio: {
+          runtime: runtime({ build_script: "build", build_output: "dist" }),
+        },
+      }),
+      "app/v3/bun.lock": "{}",
+      "app/v3/src/main.ts": "const writer = 'LAZURIO_RUNTIME_DATA_WRITER';\n",
+      ".github/workflows/ci.yml": "on: push\n",
+    });
+    expect(result.generation).toBe("V3");
+    expect(ids(result)).toEqual(["data-without-server"]);
+    expect(result.verdict).toBe("not-ready");
+  },
+);

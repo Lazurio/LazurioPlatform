@@ -78,7 +78,7 @@ rollout asks for the evidence the Organization's release mode needs.
 - **V2, content beside the app** (a knowledge base, a website). As V1. The
   content is changed only by a pull request to the Module; the Application
   never writes it.
-- **V3, repository-db.** An own server with module-kit, `appAccess` and deep
+- **V3, repository-db.** An own server is required (`data-without-server` otherwise): all access to the data, `/mcp` and the page tools run in it, and it serves the built interface. The server has module-kit, `appAccess` and deep
   health (503 until the data are open), and the writer rule below. Contract
   tests for live use. A declared sibling's data (`workspace/<slug>/db`) is the
   host condition `data-sibling`; a sibling's API is `api-sibling`. The

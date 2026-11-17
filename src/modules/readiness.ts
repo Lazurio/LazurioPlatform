@@ -170,6 +170,14 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "blocker",
       "The app runs only its development script: declare start_script (own server) or build_output (static build) in lazurio.runtime.",
     );
+  // Data behind a store need a server of the App's own: all access to the
+  // data runs there (profile app-data), and so do /mcp and the page tools.
+  if ((generation === "V3" || generation === "V4") && !app.server)
+    add(
+      "data-without-server",
+      "blocker",
+      "The app keeps records (V3 or V4) but has no server of its own: declare start_script with a Bun.serve server that holds the data port, /mcp and the page tools, and serves the built interface.",
+    );
   if (app.staticBuild && !app.server)
     hostConditions.push(
       Object.freeze({
