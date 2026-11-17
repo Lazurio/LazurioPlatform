@@ -207,10 +207,10 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   // A marker found in the source counts; a missing one counts as absent only
   // when the whole committed source was read. Otherwise it is unknown.
   const sourceKnown = input.tracked !== null && app.sourceSkipped.length === 0;
-  let markerUnknown = false;
-  const lacks = (marker: RegExp) => {
+  const unknownMarkers: { name: string; level: FindingLevel }[] = [];
+  const lacks = (marker: RegExp, name: string, level: FindingLevel) => {
     if (marker.test(app.source)) return false;
-    if (!sourceKnown) markerUnknown = true;
+    if (!sourceKnown) unknownMarkers.push({ name, level });
     return sourceKnown;
   };
   if (app.server) {
@@ -222,7 +222,7 @@ export function assessReadiness(input: ReadinessInput): Readiness {
         "blocker",
         `The server needs @lazurio/module-kit ${MODULE_KIT_FLOOR.join(".")} or newer (found ${kit ?? "none"}).`,
       );
-    if (lacks(/\bapp_?[Aa]ccess\s*\(/))
+    if (lacks(/\bapp_?[Aa]ccess\s*\(/, "appAccess", "blocker"))
       add(
         "app-access",
         "blocker",
@@ -231,7 +231,11 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   }
   if (
     (generation === "V3" || generation === "V4") &&
-    lacks(/LAZURIO_RUNTIME_DATA_WRITER|\bdataWriter\b/)
+    lacks(
+      /LAZURIO_RUNTIME_DATA_WRITER|\bdataWriter\b/,
+      "the writer rule",
+      "blocker",
+    )
   )
     add(
       "writer-guard",
@@ -292,19 +296,29 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   if (
     app.server &&
     (generation === "V3" || generation === "V4") &&
-    lacks(/@lazurio\/module-kit\/(?:tools\/)?testing/)
+    lacks(/@lazurio\/module-kit\/(?:tools\/)?testing/, "contract tests", "live")
   )
     add(
       "contract-tests",
       "live",
       "No contract tests over @lazurio/module-kit testing helpers (role list, refusal without a role or without the writer, deep health).",
     );
-  if (markerUnknown && input.tracked !== null)
+  // Unknown evidence keeps the level of the requirement it stands for: an
+  // unknown blocker-level marker blocks, an unknown live-only one does not.
+  if (unknownMarkers.length > 0 && input.tracked !== null) {
+    const level: FindingLevel = unknownMarkers.some(
+      (item) => item.level === "blocker",
+    )
+      ? "blocker"
+      : "live";
+    const names = unknownMarkers.map((item) => item.name).join(", ");
+    const files = app.sourceSkipped.slice(0, 5).join(", ");
     add(
       "source-incomplete",
-      "blocker",
-      `Not all committed source of the app was read (${app.sourceSkipped.slice(0, 5).join(", ")}${app.sourceSkipped.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, or Git could not read it), so whether it calls appAccess, reads the writer rule or has contract tests is unknown. Split oversized source files.`,
+      level,
+      `Not all committed source of the app was read (${files}${app.sourceSkipped.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, or Git could not read it), so whether it has ${names} is unknown. Split oversized source files.`,
     );
+  }
   return finish(moduleId, app.package, generation, findings, hostConditions);
 }
 

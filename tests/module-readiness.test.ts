@@ -461,3 +461,18 @@ posixTest(
     expect(result.verdict).toBe("ready-for-live");
   },
 );
+
+posixTest(
+  "an unknown live-only marker is live evidence, not a blocker, and the message names only it",
+  async () => {
+    const files = readyServer();
+    files["app/v3/tests/contract.test.ts"] =
+      `import { mcpCall } from "@lazurio/module-kit/tools/testing";\n// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    const result = await assess(files);
+    expect(ids(result)).toEqual(["source-incomplete"]);
+    expect(result.findings[0]?.level).toBe("live");
+    expect(result.findings[0]?.message).toContain("contract tests");
+    expect(result.findings[0]?.message).not.toContain("appAccess");
+    expect(result.verdict).toBe("ready-for-trial");
+  },
+);
