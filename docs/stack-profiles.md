@@ -2,7 +2,7 @@
 
 **Decided by Matěj (Operator) on 2026-11-03, decision
 [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
-Current release: `2026.11`.** A stack profile names the exact tools a kind of
+Current release: `2026.12`.** A stack profile names the exact tools a kind of
 Module is built with and why. A Module is born in one profile release, and its
 tools change only in one of two planned ways: a transition to the next App
 generation or a new release of its profile. Nothing else moves them, so a
@@ -66,7 +66,7 @@ Every profile builds on this base.
 | Bun: runtime, package manager, tests | `packageManager: "bun@1.4.4"` | The App's runtime ([Bun is the App's runtime](module-standard.md#bun-is-the-apps-runtime), F62). 1.4 brought `bun test --parallel`, `--changed` and `--isolate`. |
 | `@types/bun` | `1.4.4` | Always the pinned Bun's own version. |
 | `@biomejs/biome` | `2.6.4` | Lint and format with one tool and one configuration. |
-| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` | The one runtime library Modules share (`MS-10`). |
+| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.4.0` | The one runtime library Modules share (`MS-10`): `appAccess`, who came and with which application role (0231), and the tools for agents with their test helpers (`/tools`, `/webmcp`, `/tools/testing`). |
 | Tests | `bun test`, built in | The tests run on the same runtime as the App and add no dependency. |
 | CI | the one Linux workflow of the standard ([CI](module-standard.md#ci)) | Unchanged. |
 
@@ -307,7 +307,11 @@ release.
 
 ### Releases
 
-- A release is named by the year and month of its decision, `YYYY.MM`. One
+- A release is named `YYYY.MM` by the month of its decision; when that name is
+  already taken, it takes the first later month whose name is still free. So
+  every name is unique, names grow with every release, and the registry's format
+  stays valid (a second release decided in November 2026 is `2026.12`; a release
+  decided in December 2026 after it is `2027.01`). One
   release covers all four profiles; it may change only some of them, and the
   others carry over unchanged. A security patch inside a release is
   `YYYY.MM.P` (`2026.11.1`) and changes patch versions only. The Marketplace
@@ -330,7 +334,58 @@ release.
 
 ### Earlier releases
 
-None yet. `2026.11` is the first release.
+#### 2026.11
+
+Decided on 2026-11-03 (F69). Every table on this page holds for `2026.11`
+except one pin of the common base:
+
+| Tool | Exact pin in `2026.11` |
+| --- | --- |
+| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` |
+
+## Release 2026.12
+
+One change, in the common base: `@lazurio/module-kit` moves from v0.2.0 to
+v0.4.0.
+
+- **Why.** v0.3.0 brought `appAccess`, the only way a Module learns who came and
+  with which application role (decision 0231). Every Application needs it on
+  every server request, and the check that a Module is ready as an
+  Application (`lazurio module readiness`, #1048) asks for 0.3.0 or newer. v0.4.0 adds the one
+  tool contract for agents (`/tools`, `/webmcp`) and its test helpers
+  (`/tools/testing`), which the Module Standard's tools for agents and the
+  contract tests of a V3 or V4 Application use. v0.3.0 and v0.4.0 only add
+  exports: nothing a Module already imports changes or disappears.
+- **What an existing Module changes.** In its own pull request:
+  - a Bun app: its pin, `"@lazurio/module-kit": "github:Lazurio/module-kit#v0.4.0"`,
+    then `bun install` to refresh `bun.lock`, then `bun run check`;
+  - a Python app (`python-uv`, outside the profiles, but its scaffold follows the
+    same module-kit pin): `tag = "v0.4.0"` of `lazurio-module-kit` in
+    `pyproject.toml`, then `uv lock --upgrade-package lazurio-module-kit` to
+    refresh `uv.lock`, then `uv sync --frozen` and `bun run check` as its CI does.
+
+  Using `appAccess` and the tools is the Module's own change, done when it
+  becomes an Application or offers tools; the pin alone changes no behaviour.
+- **A template** adopts it in a release of its own, as every release.
+- **The name.** It was decided in November 2026, whose name `2026.11` is taken,
+  so it takes the first later free month, `2026.12`
+  ([Releases](#releases)).
+
+## Verification of release 2026.12
+
+On 2026-11-17 on Linux x64 with Bun 1.4.4, the plans of `lazurio module create`
+(`planModuleScaffold` with this release's pins) were written out for
+`vite-react`, `vite-react --data`, `astro`, `astro-starlight` and
+`bun-service`. Each installed `@lazurio/module-kit` v0.4.0 from its tag
+(`/tools`, `/webmcp` and `/tools/testing` present), and `bun install` and
+`bun run check` passed in each (type check, Biome and the tests; the data
+module also validated its empty seed). `bun run build` passed for the three
+static stacks. The `python-uv` plan, with its pinned uv 0.11.6, locked
+`lazurio-module-kit` from the tag v0.4.0 (commit `7cc0c4cf`) into `uv.lock`, and
+`uv sync --frozen`, ruff, pyright and its pytest tests passed; the Python
+package inside that tag still names its own version 0.2.0, which changes nothing
+for the lock. Not verified: macOS and Windows, and the existing Modules and
+templates, which adopt the release in their own pull requests.
 
 ## Verification of release 2026.11
 
