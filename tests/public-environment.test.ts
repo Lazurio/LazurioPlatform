@@ -469,6 +469,8 @@ test("a public Environment withholds Integrace, Trezor without its vault and Nas
     "/settings/vault",
     "/settings/vault/requests/abcdefghijklmnopqrstuvwx",
     "/settings/tools",
+    // A public Environment has no person's memory (plan LZD-0033 R11b).
+    "/memory",
   ])
     expect([path, withheldInPublic(pageRoute(path))]).toEqual([path, true]);
   for (const path of [

@@ -75,6 +75,11 @@ test("the page's first frame is the frame its route shows", () => {
     "/vault/x",
     "/vaultx",
     "/settings/vaultx",
+    // Brain (plan LZD-0033 R11b).
+    "/memory",
+    "/memory/",
+    "/memory/x",
+    "/memoryx",
     "/settings",
     "/settings/",
     "/settings/start",

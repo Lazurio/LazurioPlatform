@@ -96,6 +96,7 @@ import {
 import { processExecutorEndpoint } from "../integrations/executor-client";
 import { readMachineContext } from "../machine/context";
 import { hostedOperatorFolder } from "../machine/operator";
+import { type MemoryHost, processMemoryHost } from "../memory/gbrain-reader";
 import { createApplicationLifecycle } from "../modules/lifecycle";
 import {
   createModuleOperations,
@@ -240,6 +241,7 @@ import {
   type MarketplaceRegistry,
 } from "./marketplace-registry";
 import { mausbotPairingPath, mintMausbotPairing } from "./mausbot";
+import { createMemoryRoutes } from "./memory-routes";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
 import { newModuleDescription } from "./new-module-view";
@@ -840,6 +842,10 @@ export async function startLaunchpad(
         ? null
         : join(installed.base, "marketplace", "registry.json"),
   }),
+  // Where Apps → Brain reads the person's memory (plan LZD-0033 R11b): the
+  // GBrain handover in this user's home. Trusted composition, never HTTP
+  // input; tests supply their own.
+  memoryHost?: MemoryHost | undefined,
 ) {
   const pill = installed?.pill;
   const organizationDirectory = discovery?.organizationDirectory;
@@ -1225,6 +1231,25 @@ export async function startLaunchpad(
   const vaultPage = createVaultPageRoutes({
     host: vaultHostOf,
     setup: () => vault.running(),
+    headers,
+  });
+  // Apps → Brain (plan LZD-0033 R11b): the person's memory, read only, only
+  // on a Personal Environment that is not public (a public one has no
+  // person's memory to show).
+  const memory = createMemoryRoutes({
+    here: async () => {
+      if (publicEnvironment) return false;
+      const current = await withFolderReadLock(state, () =>
+        readFolderState(state),
+      );
+      const preset = current.preferences.preset.name;
+      return (
+        Object.hasOwn(presetKinds, preset) &&
+        environmentKind(preset as PresetName, current.preferences.machine) ===
+          "personal"
+      );
+    },
+    host: () => memoryHost ?? processMemoryHost(),
     headers,
   });
   // An agent's secret request (decision F54): the same vault host, so the
@@ -2721,6 +2746,16 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         try {
           return await ssh.handle(request, url);
+        } catch {
+          return response({ error: "operation-failed" }, 500);
+        }
+      }
+      if (memory.handles(url.pathname)) {
+        if (closing) return response({ error: "closing" }, 503);
+        // A large memory is read page by page on the loopback.
+        server.timeout(request, 120);
+        try {
+          return await memory.handle(request, url);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }

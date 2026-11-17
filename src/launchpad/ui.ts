@@ -102,6 +102,8 @@ import {
 } from "./machine-view";
 import { createMarketplacePanel } from "./marketplace-panel";
 import type { MarketplaceAnswer } from "./marketplace-refresh";
+import { createMemoryPanel } from "./memory-panel";
+import { memoryListed } from "./memory-view";
 import { type MessageKey, messages } from "./messages";
 import { moduleCopy } from "./module-view";
 import { createNewModuleDialog } from "./new-module-dialog";
@@ -1192,8 +1194,18 @@ const vaultHere = () =>
     profileState?.preset ?? null,
     entryKnown ? isPublicEnvironment(entry) : null,
   );
+// Brain (plan LZD-0033 R11b): under Trezor, only on a Personal Environment
+// that is not public, once the page knows both (`memoryListed`).
+const memoryNav = document.querySelector<HTMLElement>("#memory-nav");
+const memoryOpen = document.querySelector<HTMLAnchorElement>("#memory-open");
+const memoryHere = () =>
+  memoryListed(
+    kindOf(shellDocument),
+    entryKnown ? isPublicEnvironment(entry) : null,
+  );
 function drawVaultNav() {
   if (vaultNav !== null) vaultNav.hidden = !vaultHere();
+  if (memoryNav !== null) memoryNav.hidden = !memoryHere();
 }
 drawVaultNav();
 // The shell document the elements were last given, with the page's own
@@ -1508,6 +1520,14 @@ const vaultPage = createVaultPagePanel({
     if (framed) drawGuide(shell.route());
   },
 });
+// Apps → Brain (plan LZD-0033 R11b): the map of the person's memory, read
+// on first view and on its Reload.
+const memoryPanel = createMemoryPanel({
+  get: (path) => get(path),
+  copy: () => copy,
+  locale: () => locale,
+  shown: () => (framed ? shell.route().view === "memory" : false),
+});
 // Trezor's video where the approved video of how a vault works is true of
 // this Environment (guides.ts `vaultHelp`): in place, under the page's
 // heading, open as the page opens, its "?" closing and reopening it
@@ -1699,7 +1719,13 @@ const shell = createShell({
   place: (route) =>
     isPublicEnvironment(entry)
       ? publicRoute(route, { vault: vaultHere() })
-      : route,
+      : // Brain is a Personal Environment's page; anywhere else its
+        // address shows the Apps home.
+        route.view === "memory" &&
+          shellDocument !== null &&
+          kindOf(shellDocument) !== "personal"
+        ? { view: "home" }
+        : route,
   // Escape is the guide's while it explains a page (decision F56): it
   // closes the explanation and the page stays.
   guiding: () => guideAttention.playing() !== null,
@@ -1742,6 +1768,11 @@ const shell = createShell({
     vaultRequests.show(route);
     if (route.view === "vault") vaultOpen?.setAttribute("aria-current", "page");
     else vaultOpen?.removeAttribute("aria-current");
+    if (route.view === "memory") {
+      memoryOpen?.setAttribute("aria-current", "page");
+      if (!memoryPanel.loaded) void memoryPanel.refresh();
+      else memoryPanel.render();
+    } else memoryOpen?.removeAttribute("aria-current");
     if (framed && route.view === "settings") {
       // Settings read what only they show the first time they are shown;
       // back in Tento Environment or Začínáme the content is read again, and
@@ -1941,6 +1972,7 @@ function relabel() {
   theme.render();
   ownInstructions.render();
   vaultPage.render();
+  memoryPanel.render();
   if (framed) marketplace.render();
   newModuleDialog.render();
   for (const video of [...Object.values(helpVideos), startVideo])
