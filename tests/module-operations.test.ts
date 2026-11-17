@@ -387,9 +387,17 @@ posixTest(
             outcome: "group-stopped",
           },
         });
+        // …and who stopped it: the CLI's Stop, kept for every owner (#1035).
         expect(await http.status("alpha/web")).toEqual({
           code: 200,
-          body: stopped,
+          body: {
+            ...stopped,
+            lastStop: {
+              reason: "stop-requested",
+              by: "cli",
+              at: expect.any(String),
+            },
+          },
         });
         // Stopping again is idempotent; the journal outlives the unit.
         expect((await http.post("alpha/web", "stop")).body).toMatchObject({
