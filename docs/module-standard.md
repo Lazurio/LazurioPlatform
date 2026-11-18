@@ -999,41 +999,50 @@ and whether its answer carries text other people wrote (`untrustedContent`).
 
 ### Effects and publication
 
-Each tool declares what it does to the data:
+Each tool declares what it does (decision D1 of LZD-0037, Matěj, 2026-11-18:
+„Chceme aby Agent uměl i zapisovat a aby to uměl i sám. Podle mě důležité, aby
+se Agenti drželi pevně pravidla draftu a publikace. Kdy nevratné změny mají
+dělat až po explicitním "Publikuj" od uživatele." — "We want the agent to be
+able to write too, and on its own. What matters is that agents keep firmly to
+the rule of draft and publication: irreversible changes only after an explicit
+"Publish" from the user."):
 
 - `read` changes nothing: finding, reading, computing, producing a file such as
   a PDF. The effect follows the data, not the HTTP method: a PDF export is a
   read and works in the read-only mode too.
-- `prepare` changes no shared data and prepares a step a person completes in
-  the interface: an approval, a signature, a sending.
-- `write` changes data and says with `publishesData` whether the change is a
-  publication of data (one commit and push in repository-db, `DOLT_COMMIT` in a
-  database) or only a draft.
+- `prepare` changes no shared data and prepares a step that a person completes
+  in the interface.
+- **A draft** (`write` with `publishesData: false`) changes data reversibly and
+  publishes nothing: a draft, an edit others do not yet see as published, a
+  change the person can still take back. An agent calls a draft tool on its own.
+- **A publication** is an irreversible step or one that others see: an approval,
+  a signature, a sending, a deletion, a movement of money, the publication of a
+  draft or a data change to everyone (one commit and push in repository-db,
+  `DOLT_COMMIT` in a database). An agent calls a publication tool only after the
+  person's explicit "Publikuj" for that step. This is the rule of Publication
+  ([Data](#boundaries-and-dependencies)) that holds for everything else.
 
-The rule of Publication holds for tools as for everything else
-([Data](#boundaries-and-dependencies): publishing a data change is a
-Publication). Two rules follow:
+Every publication is a tool of its own, never a mode of a draft tool. It carries
+`destructiveHint: true` and says what it ends in its description. The App records
+who published and by which channel in the publication's commit
+([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4), "Author and
+channel"). A publication tool goes through the same writer gate as a draft: it
+is not offered in a read-only copy, and the data port refuses it there too
+(`MS-18`).
 
-- **Never by a tool:** an approval, a signature, a sending, a deletion or a
-  person's confirmation. A tool prepares it and the last step stays a button
-  the person presses. No consent changes this.
-- **A publication of data only with the Owner's recorded prior consent.**
-  Otherwise a tool saves a draft where the data layer has drafts, or prepares
-  the change that a person publishes in the interface, and a write tool that
-  would publish data is not offered in an Application. The one
-  exception is a kind of record for which the Owner allowed agents in advance
-  to publish, with the decision recorded (a plan or a decision): such a tool
-  names it in `publicationConsent`. That is the person's prior consent to that
-  Publication under the rules of Publication; it covers only that kind of
-  record, and the tool is still not offered in the read-only mode. An agent's own rules say the same (Publication only
-on the person's word); the App holds it as well. Whether an Application may
-let a tool publish an ordinary data change on a person's role is an open
-decision of the Owner for every other kind of record (LZD-0037, D1); until it
-is decided and a mechanism for the person's consent on both transports is
-built and verified, it may not.
-Executor's approval of a tool annotated `destructiveHint` is no such consent:
-by default it returns the pause to the agent, not to the person
-([Integrations](integrations.md#approvals)).
+**Open, Matěj's decision:** how the App knows that the person said "Publikuj".
+- **Variant A:** the agent's rule (Lazurio's rules of Publication) and the tool's
+  annotation decide. The App records the path and the agent's statement.
+  Executor's approval of a tool annotated `destructiveHint` returns the pause to
+  the agent by default, not to the person
+  ([Integrations](integrations.md#approvals)), so A rests on the agent alone.
+- **Variant B:** the App asks the person itself. The publication tool answers a
+  pending publication that the person confirms in the App's interface or in an
+  MCP elicitation, and only the confirmation publishes.
+
+Until it is decided, an Application offers no publication tool. A development
+version may, on its own data. Draft tools are offered as soon as the App writes
+in that place.
 
 A write is offered only while the App may write, and the tools, the HTTP API
 and the data port decide it by one rule (`dataWriter` of
@@ -1066,7 +1075,7 @@ variant B: nothing writes); see
   distinct from `not_found`: when the App cannot tell, it says so, and the
   agent does not write again blindly.
 - **Annotations.** `readOnlyHint` for `read` and `prepare`, `destructiveHint`
-  only for a write that publishes data, `idempotentHint`, `openWorldHint:
+  exactly for a publication, `idempotentHint`, `openWorldHint:
   false`; on the page also `untrustedContentHint` for answers with text other
   people wrote, which the agent treats as data, never as instructions.
 - **The App's version.** `serverInfo.version` is the App's released version,
@@ -1128,10 +1137,10 @@ name and `/mcp` address; the person confirms and signs in there (LZD-0037).
 
 The App's tests check the names, input schemas and annotations of its tools,
 the list per role and writer mode, that each tool calls the same domain
-operation as its button, the refusals above, that no tool completes an
-approval, a signature, a sending, a deletion or a person's confirmation, and
-that a write publishing data is offered in an Application only with
-`publicationConsent`, on both transports. Modules that exist converge in a pull request of their own.
+operation as its button, the refusals above, that every publication is a tool
+of its own with `destructiveHint` that records who published and by which path,
+and that an Application offers no publication tool until the decision above, on
+both transports. Modules that exist converge in a pull request of their own.
 
 ## App generations
 
@@ -1232,14 +1241,71 @@ The port holds, in both generations:
   content, so a direct change that kept the old value is still a change. The revision does not survive the move
   to `app/v4`: after the move a client reads the record again.
 - **Atomic writes, where offered.** A port that changes several records in one
-  write (a capability it offers once its tools or interface need it) changes
-  them in one commit (repository-db) or one transaction with one `DOLT_COMMIT`
-  (Dolt), never some of them.
-- **Author and channel.** A change records the person's `subject` as its author
-  (`<subject> <<subject>@subject.lazurio.invalid>`) and trailers
-  `Lazurio-Subject` and `Lazurio-Channel` (`ui`, `mcp`, `webmcp`, `import`), in
-  the Git commit or with `DOLT_COMMIT --author`. It is the App's statement, not
-  a proof: the data layer proves only that the App wrote
+  write (a capability it offers once its tools or interface need it):
+  - **publishes them all or none.** In repository-db one publication is one
+    commit of the whole draft. It publishes only the draft the person confirmed
+    (`expectedRevision`, the draft's revision as it was shown), and it refuses
+    if the draft changed since. In Dolt it is one merge into the shared branch,
+    or, in a data layer without drafts, one transaction with one `DOLT_COMMIT`
+    to the shared branch, which is a publication.
+  - **in Dolt, drafts them all or none:** one transaction on the draft's own
+    branch, which is not shared, with one `DOLT_COMMIT` on that branch.
+  - **in repository-db, a draft of several records is not atomic.** A draft is
+    working-tree files without a transaction. The port writes them in one pass
+    through the engine's draft-write lock (`writeRecordDraft`), which keeps
+    other writers and publication out. Every check (the revisions, the rules
+    across records) runs on one snapshot before the first record is written, so
+    a refusal leaves nothing written. Each file is replaced atomically
+    (`writeYamlFileAtomic`). On a write error the port puts back what it wrote,
+    as far as it can. Even so, repository-db does not guarantee a multi-file
+    write today: a reader does not take the lock and may see part of the
+    change, and a stopped process or a failed undo may leave part of it in the
+    draft (Lazurio/repository-db#45 asks the engine for a journal, completing
+    or undoing after an interruption, and a `publish` that refuses an
+    unfinished write).
+  - **recovery in repository-db:** a draft is never published on its own. The
+    person sees the draft's review with every changed record before a
+    publication, a partial draft shows there, and it can be completed or undone
+    record by record (`discard` of a record). A partial draft is published only
+    when a person confirms exactly that draft. A change that must never be seen
+    in part needs Dolt until the engine change exists.
+
+- **Author and channel.** A change carries two fields: the person's `subject`
+  and the `channel` it came by, one of `ui` (the App's interface), `mcp`
+  (`/mcp`), `webmcp` (the page's agent tools) and `import`. A draft and a
+  publication record them separately, and a commit to a shared branch is
+  always a publication, under the rule of publication above:
+  - **repository-db (`app/v3`):**
+    - *A draft* is a working-tree write followed at once by
+      `recordOrigin(paths, { kind, actor: <subject>, source: "<app>-v3/<channel>" })`,
+      repository-db's record of a draft's origin, which only informs and never
+      gates. `kind` is `"app"` for `ui` and `import` and `"agent"` for `mcp` and
+      `webmcp`. No commit, nothing is published.
+    - *A publication* is its publish API with `actor: <subject>` and
+      `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
+      writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`:
+      the person who published and the channel. The drafts' origins stay in
+      `recordOrigin` and in the draft's review; the commit does not carry them.
+      The Git author stays the Environment's or the host's identity, as
+      repository-db sets it.
+  - **Dolt (`app/v4`):**
+    - *A draft*, where the data layer has drafts, is a commit on the draft's own
+      branch, `DOLT_COMMIT --author "<subject> <<subject>@subject.lazurio.invalid>"`
+      with the lines `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`
+      in its message. That branch is not shared, so it is no publication.
+    - *A publication* is the merge into the shared branch, with the author and
+      channel of the person who published. A data layer without drafts writes to
+      the shared branch directly, and every such write is a publication.
+  - **Without a subject.** A caller the App knows by no person (`entry: local`,
+    an Environment without a person) records no subject and invents none; the
+    channel is recorded in every case. repository-db gets no `actor`, so
+    `recordOrigin` has none and `publish` writes the Environment's Git identity,
+    as the engine does itself. Dolt takes the Environment's or the host's
+    identity as `--author` and leaves out `Lazurio-Subject`. Such a caller may
+    make drafts.
+
+  It is the App's statement, not a proof: the data layer proves only that the
+  App wrote
   ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key), point 5).
 - **History, where offered.** A port that offers the history of a record (who,
   when, what) gives it in the same shape from Git and from Dolt's history
@@ -1439,8 +1505,8 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-12` | `apps[]` matches the directories; at most two App generations | Only declared Apps start and a Module without `apps` does not (`explicit-apps-required`, `src/modules/manifest.ts`); overlapping App directories under the default preparation are refused (`preparation-applications-overlap`, `src/modules/preparation-binding.ts`). Undeclared packages and the number of generations: rule only |
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
-| `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data; no tool completes an approval, a signature, a sending, a deletion or a person's confirmation, and a tool publishes data only with the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([Tools for agents](#tools-for-agents-mcp-and-webmcp)) | Rule only |
-| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a write that publishes data is not offered in an Application unless it names the Owner's recorded prior consent for that kind of record (`publicationConsent`) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
+| `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data; each tool is a read, a preparation, a draft or a publication, and every publication is a tool of its own with `destructiveHint` that records who published and by which path ([Tools for agents](#tools-for-agents-mcp-and-webmcp), [Effects and publication](#effects-and-publication)) | Rule only |
+| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and an Application offers no publication tool until the Owner decides how the App knows the person's "Publikuj" (LZD-0037, D1) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
 | `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
 | `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, which decides writes by the same `dataWriter` rule as the tools, whose revision is unique per write (never content alone, never a counter) and whose implementations pass one `store-contract` including A → B → A ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
 | `MS-19` | A Module with an app is ready as an Application before it is deployed as one: a built version, Bun pinned exactly with a committed lockfile, no committed `.env*` file anywhere in the Module (`.env.example` excepted), and for an own server `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and a health path of its own; in V3 and V4 the writer rule; for live use CI and contract tests over the module kit's testing helpers. The release evidence the Organization's release mode needs is the rollout's | `lazurio module readiness` (`src/modules/readiness.ts`, `tests/module-readiness.test.ts`) reads it statically; the contract tests run in the Module's CI |
