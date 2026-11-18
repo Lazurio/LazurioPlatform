@@ -1246,31 +1246,37 @@ The port holds, in both generations:
   (Dolt), never some of them.
 - **Author and channel.** A change carries two fields: the person's `subject`
   and the `channel` it came by, one of `ui` (the App's interface), `mcp`
-  (`/mcp`), `webmcp` (the page's agent tools) and `import`. The port gives them
-  back in the same shape from both generations.
-  - **A publication** records them in its commit, and it records the person who
-    published, not every draft's author before:
-    - **repository-db (`app/v3`):** through its publish API, `actor: <subject>`
-      and `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
-      writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`.
-      The Git author of the commit stays the Environment's or the host's
-      identity, as repository-db sets it.
-    - **Dolt (`app/v4`):** `DOLT_COMMIT --author "<subject>
-      <<subject>@subject.lazurio.invalid>"`, and in the commit message the lines
-      `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`.
-  - **A draft** is not published (a working-tree write in repository-db, a
-    change before its `DOLT_COMMIT` in Dolt), so no commit carries it, and
-    attributing it publishes nothing. Where an
-    App shows who changed a draft, the port keeps that in the record itself, as
-    a field `changed_by: { subject, channel }` that it writes on every draft
-    write, the same in both generations. An App that does not show it needs no
-    such field.
+  (`/mcp`), `webmcp` (the page's agent tools) and `import`. A draft and a
+  publication record them separately, and a commit to a shared branch is
+  always a publication, under the rule of publication above:
+  - **repository-db (`app/v3`):**
+    - *A draft* is a working-tree write followed at once by
+      `recordOrigin(paths, { kind, actor: <subject>, source: "<app>-v3/<channel>" })`,
+      repository-db's record of a draft's origin, which only informs and never
+      gates. `kind` is `"app"` for `ui` and `import` and `"agent"` for `mcp` and
+      `webmcp`. No commit, nothing is published.
+    - *A publication* is its publish API with `actor: <subject>` and
+      `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
+      writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`:
+      the person who published and the channel. The drafts' origins stay in
+      `recordOrigin` and in the draft's review; the commit does not carry them.
+      The Git author stays the Environment's or the host's identity, as
+      repository-db sets it.
+  - **Dolt (`app/v4`):**
+    - *A draft*, where the data layer has drafts, is a commit on the draft's own
+      branch, `DOLT_COMMIT --author "<subject> <<subject>@subject.lazurio.invalid>"`
+      with the lines `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`
+      in its message. That branch is not shared, so it is no publication.
+    - *A publication* is the merge into the shared branch, with the author and
+      channel of the person who published. A data layer without drafts writes to
+      the shared branch directly, and every such write is a publication.
   - **Without a subject.** A caller the App knows by no person (`entry: local`,
-    the development version's own tools) records no subject: repository-db's
-    `actor` is left out, so the Environment's Git identity stands as the actor,
-    a Dolt commit takes the database's own author without a `Lazurio-Subject`
-    line, and `changed_by` has `subject: null`. The channel is recorded in every
-    case. The App never invents a person.
+    an Environment without a person) records no subject and invents none; the
+    channel is recorded in every case. repository-db gets no `actor`, so
+    `recordOrigin` has none and `publish` writes the Environment's Git identity,
+    as the engine does itself. Dolt takes the Environment's or the host's
+    identity as `--author` and leaves out `Lazurio-Subject`. Such a caller may
+    make drafts.
 
   It is the App's statement, not a proof: the data layer proves only that the
   App wrote
