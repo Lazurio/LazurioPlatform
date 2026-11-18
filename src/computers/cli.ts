@@ -15,28 +15,35 @@ import {
   computersAllowed,
   installedEntry,
   listComputers,
+  removalNote,
   removeComputer,
 } from "./computers";
-import { registryEntry } from "./registry";
-import { computerIdPattern, isUpdating, readTools, socketPath } from "./state";
+import {
+  computerIdPattern,
+  isUpdating,
+  readRecord,
+  readTools,
+  socketPath,
+} from "./state";
 
 /** `lazurio computer`: people's computers for agents (decision F75, Lazurio
  * Agent Desktop). */
 export const computerHelp = `computer list [--json]
-  The people's computers paired with this Environment (Settings →
+  The people's computers that attached to this Environment (Settings →
   Connections): each one's id, name, system, whether it is attached now and
   its last activity. Read locally; nothing is changed.
 computer remove <id> [--json]
-  Removes a paired computer from the registry (an attached session ends
-  within a minute), its MCP server from Executor and its state. The history
-  stays.
+  Removes a computer's record, its MCP server from Executor and its tool
+  list. The history stays. ${removalNote}
 computer mcp --device <id>
   The MCP server of one computer for agents, on stdin and stdout; Executor
   runs it as "Počítač: <name>". While the computer is not attached it
   answers the tools of its last session and a tool call says why it cannot
   run. One agent controls the computer at a time.
 The computer itself attaches over HTTPS: its application opens a WebSocket
-to the Launchpad's /.lazurio/computers/attach while its switch is on.`;
+to the Launchpad's /.lazurio/computers/attach while its switch is on, and
+the Environment's gateway admits it as an approved device of the Assigned
+User. Its first attach creates it here.`;
 
 /** Whether the preset of this Environment's Folder allows a person's
  * computer, and the Folder's language; a Folder that cannot be read allows
@@ -70,8 +77,6 @@ export function processComputersHost(context: CliContext): ComputersHost {
   };
   return {
     ...ssh,
-    // The CLI pairs nothing: the pairing is the Launchpad's.
-    channelUrl: async () => null,
     executorCommand: () => installedEntry(ssh.home),
     executor: processExecutorEndpoint(context.env),
     allowed: async () => (await read()).allowed,
@@ -114,16 +119,8 @@ export async function runComputerSession(
     process.stderr.write(`Usage: computer ${args[0]} --device <id>\n`);
     return exitUsage;
   }
-  if (args[0] !== "mcp") {
-    // The SSH path is gone (contract v1): nothing attaches here any more.
-    process.stderr.write(
-      "lazurio computer attach is gone: a computer attaches over HTTPS. Update Lazurio Agent Desktop.\n",
-    );
-    return exitUsage;
-  }
   const host = processComputersHost(context);
-  const entry = await registryEntry(host.home, host.uid, device);
-  const name = entry?.name ?? device;
+  const name = (await readRecord(host.home, device))?.name ?? device;
   return runAgentEntry({
     socket: socketPath(host.home, device),
     name,
@@ -180,7 +177,7 @@ export async function runComputerCommand(
         code: exitOk,
         stdout:
           overview.computers.length === 0
-            ? "No computer is paired. A person pairs one in Lazurio Agent Desktop through Settings → Connections."
+            ? "No computer has attached. A person switches control on in Lazurio Agent Desktop on an approved device; its first attach adds it here."
             : overview.computers
                 .map(
                   (computer) =>
@@ -203,8 +200,8 @@ export async function runComputerCommand(
             code,
             stdout:
               answer.agents === "left"
-                ? `Removed ${answer.deviceId}. Its server stayed in Executor; remove it in Apps → Integrace → Vlastní.`
-                : `Removed ${answer.deviceId}.`,
+                ? `Removed ${answer.deviceId}. Its server stayed in Executor; remove it in Apps → Integrace → Vlastní. ${answer.note}`
+                : `Removed ${answer.deviceId}. ${answer.note}`,
           }
         : { code, stderr: `Not removed: ${answer.reason}.` };
     }

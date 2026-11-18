@@ -320,9 +320,8 @@ export async function runCli(args: string[]): Promise<number> {
     return runGithubCredential(args.slice(2));
   // A person's computer for agents (decision F75): `mcp` speaks MCP on stdin
   // and stdout until its agent leaves, never followed by the update notice,
-  // and ends the process itself since stdin may stay open. `attach`, the old
-  // SSH path, only says it is gone.
-  if (args[0] === "computer" && (args[1] === "attach" || args[1] === "mcp")) {
+  // and ends the process itself since stdin may stay open.
+  if (args[0] === "computer" && args[1] === "mcp") {
     const code = await runComputerSession(args.slice(1), processContext());
     await new Promise<void>((resolve) =>
       process.stdout.write("", () => resolve()),

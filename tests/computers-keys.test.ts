@@ -9,12 +9,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  type ComputersHost,
-  migrateSshComputers,
-} from "../src/computers/computers";
-import { readRegistry } from "../src/computers/registry";
-import { recordPath } from "../src/computers/state";
+import { cleanupSshComputers } from "../src/computers/computers";
+import { readRecord, recordPath } from "../src/computers/state";
 import {
   addDeviceKey,
   type KeysLocation,
@@ -27,11 +23,12 @@ import {
 } from "../src/ssh-access/keys";
 
 // The old SSH path of a person's computer (contract v0, decision F75 before
-// its addendum of 2026-11-13): nothing writes its restricted line any more.
-// The Launchpad reads such a line, moves it into the computers' registry and
-// removes it; F49's page neither lists nor removes it, and every other line
-// of `authorized_keys` stays byte for byte. Every test runs in a temporary
-// home.
+// its addendum of 2026-11-13): nothing writes its restricted line any more,
+// and since contract v3 a computer attaches only through the gateway. The
+// installed Launchpad removes such a line, since it would let a computer
+// around the gateway; F49's page neither lists nor removes it, and every
+// other line of `authorized_keys` stays byte for byte. Every test runs in a
+// temporary home.
 
 const posix = process.platform !== "win32";
 const wire = (bytes: Buffer) =>
@@ -124,34 +121,24 @@ test.skipIf(!posix)(
 );
 
 test.skipIf(!posix)(
-  "the move from SSH puts each old computer into the registry and takes its line out",
+  "the cleanup takes every old computer's line out, and leaves every other byte and its record",
   () =>
     withHome(async (location, file) => {
-      const host: ComputersHost = {
-        ...location,
-        platform: "linux",
-        today: () => "2026-11-13",
-        channelUrl: async () => null,
-        executorCommand: async () => null,
-        executor: null,
-        allowed: async () => true,
-        locale: async () => "cs",
-        version: "test",
-      };
-      const other = `${keyOf(9)} provisioning@host\n`;
+      // Lines of every kind around them, CRLF and a missing final newline
+      // included: they stay exactly as they are.
+      const before = `# provisioning\r\n${keyOf(9)} provisioning@host\n\n`;
+      const between = `restrict ${keyOf(8)} someone-else\n`;
+      const after = `${keyOf(7)} last-line-without-newline`;
       await writeFile(
         file,
-        `${other}${legacyLine(1, "alex-macbook")}\n${legacyLine(2, "alex-windows")}\n`,
+        `${before}${legacyLine(1, "alex-macbook")}\n${between}${legacyLine(2, "alex-windows")}\n${legacyLine(3, "alex-macbook")}\n${after}`,
         { mode: 0o600 },
       );
-      // The old record of one of them: its name, system and Executor's
-      // server go with it.
+      // An old record stays: the computer's next attach over the gateway
+      // keeps its name.
       await mkdir(
         join(location.home, ".local", "state", "lazurio", "computers"),
-        {
-          recursive: true,
-          mode: 0o700,
-        },
+        { recursive: true, mode: 0o700 },
       );
       await writeFile(
         recordPath(location.home, "alex-macbook"),
@@ -163,44 +150,40 @@ test.skipIf(!posix)(
         }),
         { mode: 0o600 },
       );
-      expect(await migrateSshComputers(host)).toEqual({
-        moved: ["alex-macbook", "alex-windows"],
+      expect(await cleanupSshComputers(location)).toEqual({
+        removed: ["alex-macbook", "alex-windows"],
         failed: [],
       });
-      expect(await readFile(file, "utf8")).toBe(other);
-      expect(
-        await stat(recordPath(location.home, "alex-macbook")).then(
-          () => true,
-          () => false,
-        ),
-      ).toBe(false);
-      const registry = await readRegistry(location.home, location.uid);
-      expect("computers" in registry && registry.computers).toEqual([
-        {
-          deviceId: "alex-macbook",
-          name: "MacBook Pro Alexe",
-          os: "macos",
-          publicKey: keyOf(1),
-          fingerprint: parsed(1).fingerprint,
-          addedBy: "alex",
-          added: "2026-11-12",
-          executor: "po_ta_macbook",
-        },
-        {
-          deviceId: "alex-windows",
-          name: "alex-windows",
-          os: null,
-          publicKey: keyOf(2),
-          fingerprint: parsed(2).fingerprint,
-          addedBy: "alex",
-          added: "2026-11-12",
-          executor: null,
-        },
-      ]);
-      // Nothing to do the second time.
-      expect(await migrateSshComputers(host)).toEqual({
-        moved: [],
+      expect(await readFile(file, "utf8")).toBe(`${before}${between}${after}`);
+      expect((await stat(file)).mode & 0o777).toBe(0o600);
+      expect(await readRecord(location.home, "alex-macbook")).toEqual({
+        deviceId: "alex-macbook",
+        name: "MacBook Pro Alexe",
+        os: "macos",
+        executor: "po_ta_macbook",
+      });
+      // Nothing to do the second time, and a file without such lines is
+      // never written.
+      const { mtimeMs } = await stat(file);
+      expect(await cleanupSshComputers(location)).toEqual({
+        removed: [],
         failed: [],
       });
+      expect((await stat(file)).mtimeMs).toBe(mtimeMs);
     }),
+);
+
+test.skipIf(!posix)("the cleanup without authorized_keys does nothing", () =>
+  withHome(async (location, file) => {
+    expect(await cleanupSshComputers(location)).toEqual({
+      removed: [],
+      failed: [],
+    });
+    expect(
+      await stat(file).then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(false);
+  }),
 );

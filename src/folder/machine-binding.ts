@@ -272,7 +272,37 @@ export type MachineBinding = Readonly<{
    * root 0224), exactly as the handover's `access_service` declares it;
    * declaration, not identity. */
   accessService?: Readonly<{ origin: string }>;
+  /** The device channel of the Environment's Assigned User, exactly as the
+   * handover's `computers` declares it (HumanAndMachine-ai/Auth
+   * docs/device-channel-entry.md): the gateway helper's check of a session
+   * proof on loopback and the one subject whose sessions are accepted;
+   * declaration, not identity. Only on a workspace VM. */
+  computers?: MachineComputers;
 }>;
+export type MachineComputers = Readonly<{
+  sessionCheckUrl: string;
+  assignedSubject: string;
+}>;
+const computersCheckUrlPattern =
+  /^http:\/\/127\.0\.0\.1:[1-9][0-9]{3,4}(?:\/[A-Za-z0-9._~-]+)+$/;
+const computersSubjectPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+/** `computers` by the wire schema's rules and nothing looser. */
+export function parseMachineComputers(input: unknown): MachineComputers {
+  const { sessionCheckUrl, assignedSubject } = stateFields(input, [
+    "sessionCheckUrl",
+    "assignedSubject",
+  ]);
+  if (
+    typeof sessionCheckUrl !== "string" ||
+    sessionCheckUrl.length > 128 ||
+    !computersCheckUrlPattern.test(sessionCheckUrl) ||
+    typeof assignedSubject !== "string" ||
+    !computersSubjectPattern.test(assignedSubject)
+  )
+    throw new Error("Invalid Machine computers");
+  return Object.freeze({ sessionCheckUrl, assignedSubject });
+}
 
 // Exactly the shapes the vendored lazurio.machine.v1 schema imposes on the
 // handover, field by field and branch by branch, so that a stored binding accepts
@@ -681,11 +711,13 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   const withRelationships = ownDataValue(input, "relationships") !== undefined;
   const withEntry = ownDataValue(input, "entry") !== undefined;
   const withAccessService = ownDataValue(input, "accessService") !== undefined;
+  const withComputers = ownDataValue(input, "computers") !== undefined;
   const value = stateFields(input, [
     ...keys,
     ...(withRelationships ? ["relationships" as const] : []),
     ...(withEntry ? ["entry" as const] : []),
     ...(withAccessService ? ["accessService" as const] : []),
+    ...(withComputers ? ["computers" as const] : []),
   ]);
   const tailnet =
     value.network === null
@@ -729,6 +761,12 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   const accessService = withAccessService
     ? parseAccessService(value.accessService)
     : undefined;
+  const computers = withComputers
+    ? parseMachineComputers(value.computers)
+    : undefined;
+  // The device channel exists only on an Organization's work VM.
+  if (computers !== undefined && personalVm)
+    throw new Error("Only a workspace Machine binding has a device channel");
   const related = withRelationships
     ? relationships(value.relationships)
     : undefined;
@@ -742,6 +780,7 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
     ...(related === undefined ? {} : { relationships: related }),
     ...(entry === undefined ? {} : { entry }),
     ...(accessService === undefined ? {} : { accessService }),
+    ...(computers === undefined ? {} : { computers }),
   });
 }
 

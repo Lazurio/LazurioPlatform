@@ -17,6 +17,7 @@ import {
   resultAnswer,
 } from "./lines";
 import {
+  type AppDetails,
   type AuditEntry,
   appOf,
   auditLabel,
@@ -25,11 +26,11 @@ import {
   socketPathFits,
 } from "./state";
 
-// `lazurio computer attach --device <id>` (decision F75, contract v0
-// section 3): the forced command of a computer's key. Its stdin and stdout
-// are the SSH session the computer opened, and on the computer's end runs
-// the MCP server of Lazurio Agent Desktop: the computer is the server, this
-// Environment never connects to it (root decisions 0240 and 0241).
+// The broker of one computer's session (decision F75): the session is the
+// WebSocket the computer opened (`./attach-ws`, contract v3), and on the
+// computer's end runs the MCP server of Lazurio Agent Desktop: the computer
+// is the server, this Environment never connects to it (root decisions 0240
+// and 0241).
 //
 // The broker sends the computer `initialize`, then opens the owner-only
 // socket `~/.local/state/lazurio/computers/<id>.sock` for the agents of this
@@ -44,8 +45,8 @@ import {
 // - One session per computer: while another session's socket answers, a
 //   new one is refused.
 // - The session is alive while the computer answers `ping`; it ends when the
-//   computer stops answering, when its pairing ends (removed, or paired
-//   again under the same id with another key) or when the session closes.
+//   computer stops answering, when `stillAllowed` says no (its record was
+//   removed) or when the session closes.
 // - The history writes connections, the lease, each tool call's name,
 //   outcome and duration; never arguments or results. A shell command is an
 //   argument too: it may carry a password or a token (review of #943).
@@ -65,8 +66,11 @@ export type BrokerOptions = Readonly<{
   audit: (entry: Omit<AuditEntry, "ts" | "device">) => Promise<void>;
   /** Keeps the tool list of this session for agents while it is away. */
   saveTools: (tools: readonly unknown[]) => Promise<void>;
-  /** Whether the computer's key still allows it. */
+  /** Whether the computer may still be served, asked every `checkMs`. */
   stillAllowed: () => Promise<boolean>;
+  /** Called once the computer answered `initialize`, with what its
+   * application says it is (`appOf`). */
+  connected?: (app: AppDetails) => Promise<void>;
   /** The application's own update (`lazurio_app_update`): marks the
    * computer as updating, clears the mark, and asks whether it is. */
   updating?: Readonly<{
@@ -75,7 +79,7 @@ export type BrokerOptions = Readonly<{
     active: () => Promise<boolean>;
   }>;
   now?: () => number;
-  /** How often the broker asks whether the computer is still paired. */
+  /** How often the broker asks `stillAllowed`. */
   checkMs?: number;
   idleLeaseMs?: number;
   initTimeoutMs?: number;
@@ -480,6 +484,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     ?.serverInfo;
   // Back after an update, or simply connected: no longer updating.
   await updating?.clear().catch(() => undefined);
+  await options.connected?.(appOf(initResult)).catch(() => undefined);
   await audit({
     event: "connected",
     agent: auditLabel(server_info?.name),

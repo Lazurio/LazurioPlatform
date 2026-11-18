@@ -3,14 +3,17 @@ import {
   type MachineAccount,
   type MachineAssignment,
   type MachineBinding,
+  type MachineComputers,
   type MachineEntry,
   type MachineOwner,
   type MachinePeer,
   type MachineRelationships,
+  parseMachineComputers,
   parseMachineEntry,
   unknownAssignment,
 } from "../folder/machine-binding";
 import {
+  type MachineComputers as HandoverComputers,
   type MachineEntry as HandoverEntry,
   type MachinePeer as HandoverPeer,
   type MachineRelationships as HandoverRelationships,
@@ -96,6 +99,19 @@ function relationships(input: HandoverRelationships): MachineRelationships {
     zone: input.zone,
     peers: Object.freeze(input.peers.map(peer)),
   });
+}
+
+// The device channel, one member to one; the binding's parser checks it by
+// the wire rules again, so a projection that would not read back refuses.
+function computers(input: HandoverComputers): MachineComputers {
+  try {
+    return parseMachineComputers({
+      sessionCheckUrl: input.session_check_url,
+      assignedSubject: input.assigned_subject,
+    });
+  } catch {
+    throw new MachineContextError("machine-context-invalid");
+  }
 }
 
 // One member to one (docs/machine-handover.md#the-hosted-entry-decision-f16).
@@ -197,6 +213,9 @@ export function machineBinding(
     ...(context.access_service === undefined
       ? {}
       : { accessService: accessService(context.access_service.origin) }),
+    ...(isPersonal(context) || context.computers === undefined
+      ? {}
+      : { computers: computers(context.computers) }),
   };
   if (isPersonal(context))
     return Object.freeze({

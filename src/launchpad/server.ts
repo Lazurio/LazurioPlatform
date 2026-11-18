@@ -32,12 +32,13 @@ import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createComputerAttach } from "../computers/attach-ws";
 import {
+  attachServers,
   type ComputersHost,
-  channelUrlOf,
+  cleanupSshComputers,
   computersAllowed,
   installedEntry,
-  migrateSshComputers,
 } from "../computers/computers";
+import { createComputerSessionCheck } from "../computers/session-check";
 import { processConnectionsHost } from "../connections/host";
 import {
   type ConnectionsHost,
@@ -122,8 +123,7 @@ import {
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
-import { environmentIdOf, type ShellSetup } from "../shell/contract";
-import { kindLabel } from "../shell/kind-name";
+import type { ShellSetup } from "../shell/contract";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
 import {
@@ -858,7 +858,14 @@ export async function startLaunchpad(
   // fragment token — the browser's session cookie is the credential. A
   // condition this start can name refuses it with `LaunchpadStartRefused`,
   // before anything listens, so the caller can serve Recovery mode instead.
-  const { entry } = await readStartState(folder, { locked: true });
+  const { entry, preferences: startPreferences } = await readStartState(
+    folder,
+    { locked: true },
+  );
+  // The device channel of the Assigned User (HumanAndMachine-ai/Auth
+  // docs/device-channel-entry.md) as the Machine's binding recorded it at
+  // start, like the hosted entry: without it the attach route answers 404.
+  const computersChannel = startPreferences.machine?.computers ?? null;
   // A public Environment (root decision 0204, decision F55): no first run,
   // no Integrace and no Nástroje, and Trezor only with its own vault, by the
   // entry recorded at start.
@@ -1434,88 +1441,70 @@ export async function startLaunchpad(
     journal: (line) => console.log(JSON.stringify(line)),
   });
   // People's computers for agents (decision F75, Lazurio Agent Desktop):
-  // the pairing page, its API and the list in Settings → Connections, over
-  // F49's account and this account's Executor; journaled as the operation,
-  // the outcome and the computer's id.
+  // the list in Settings → Connections and the removal, over F49's account
+  // and this account's Executor; journaled as the operation, the outcome
+  // and the computer's id.
   const computersHost = async (): Promise<ComputersHost> => {
     const current = await withFolderReadLock(state, () =>
       readFolderState(state),
     );
     return {
       ...sshHost,
-      // The computer's session goes to this Launchpad's own name, through
-      // the gateway's one exception for it (contract v1 section 2).
-      channelUrl: async () =>
-        entry === null ? null : channelUrlOf(entry.externalOrigin),
       executorCommand: () => installedEntry(sshHost.home),
       executor: integrationExecutor(),
       allowed: async () => computersAllowed(current.preferences.preset.name),
       locale: async () =>
         current.preferences.profile.locale === "cs" ? "cs" : "en",
-      // As the shell names it: its kind, and an Organization's slug.
-      environmentName: async () => {
-        const preset = current.preferences.preset.name;
-        if (!Object.hasOwn(presetKinds, preset)) return null;
-        const machine = current.preferences.machine;
-        const kind = environmentKind(preset as PresetName, machine);
-        const label = kindLabel(
-          kind,
-          current.preferences.profile.locale === "cs" ? "cs" : "en",
-        );
-        return machine?.owner.kind === "organization"
-          ? `${label} · ${machine.owner.organization}`
-          : label;
-      },
       version: embeddedIdentity().version,
     };
   };
-  // The computers of the old SSH path move into the registry once, as the
-  // installed Launchpad starts after an update (contract v1, Přechod z v0);
-  // journaled by id only. Only the installed one: any other Launchpad (a
-  // source checkout, a test) never writes the account's authorized_keys.
+  // A computer's line of the old SSH path (contract v0) would let it around
+  // the gateway: the installed Launchpad removes every such line once as it
+  // starts, and every other line stays byte for byte; journaled by id only.
+  // Only the installed one: any other Launchpad (a source checkout, a test)
+  // never writes the account's authorized_keys.
   void (
     installed === undefined
-      ? Promise.resolve({ moved: [], failed: [] })
-      : computersHost().then((host) => migrateSshComputers(host))
+      ? Promise.resolve({ removed: [], failed: [] })
+      : cleanupSshComputers(sshHost)
   ).then(
-    (moved) => {
-      if (moved.moved.length > 0 || moved.failed.length > 0)
+    (cleaned) => {
+      if (cleaned.removed.length > 0 || cleaned.failed.length > 0)
         console.log(
           JSON.stringify({
             scope: "computers",
-            operation: "migrate-ssh",
-            moved: moved.moved.join(","),
-            failed: moved.failed.join(","),
+            operation: "cleanup-ssh",
+            removed: cleaned.removed.join(","),
+            failed: cleaned.failed.join(","),
           }),
         );
     },
     () => undefined,
   );
-  // The computer's own session (contract v1 section 2): a WebSocket the
-  // computer proves itself on by its signature, never a browser session.
+  // The computer's own session (contract v3): a WebSocket the Environment's
+  // gateway admitted and whose proof the Launchpad checks, never a browser
+  // session. Until the hosted entry names the helper's check endpoint there
+  // is no `verifyGatewayProof`, and the route answers 404.
+  // A computer's session (contract v3): admitted only by the gateway helper's
+  // session proof, which this Launchpad checks itself at the helper's check
+  // endpoint named by the Machine's binding, never by a forwarded header.
   const computerAttach = createComputerAttach({
     home: sshHost.home,
     uid: sshHost.uid,
-    environmentId: () =>
-      (entry === null ? null : environmentIdOf(entry.externalOrigin)) ??
-      "local",
+    ...(computersChannel === null
+      ? {}
+      : {
+          verifyGatewayProof: createComputerSessionCheck({
+            checkUrl: computersChannel.sessionCheckUrl,
+            assignedSubject: computersChannel.assignedSubject,
+          }).verifyGatewayProof,
+        }),
     version: embeddedIdentity().version,
+    servers: attachServers(computersHost),
     journal: (line) => console.log(JSON.stringify(line)),
   });
   const computers = createComputersRoutes({
     host: computersHost,
-    page: async () => {
-      const current = await withFolderReadLock(state, () =>
-        readFolderState(state),
-      );
-      const preset = current.preferences.preset.name;
-      return {
-        locale: current.preferences.profile.locale === "cs" ? "cs" : "en",
-        kind: Object.hasOwn(presetKinds, preset)
-          ? environmentKind(preset as PresetName, current.preferences.machine)
-          : null,
-      };
-    },
     headers,
     journal: (line) => console.log(JSON.stringify(line)),
   });
@@ -1928,10 +1917,10 @@ export async function startLaunchpad(
       // of the Environment's vault (decision F11's amendments of 2026-10-14
       // and 2026-10-16). Locally nobody is named.
       let person: AdmittedPerson = nobody;
-      // A computer's session (decision F75's addendum of 2026-11-13): the
-      // one route the gateway passes without a session, so answered before
-      // every admission; on a hosted Environment only on its own Host, and
-      // the computer proves itself by its signature over the WebSocket.
+      // A computer's session (contract v3): the one route the gateway passes
+      // without a browser session, so answered before every admission; on a
+      // hosted Environment only on its own Host, and only with the gateway's
+      // proof, which the Launchpad checks itself.
       if (computerAttach.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
         if (
@@ -2003,16 +1992,9 @@ export async function startLaunchpad(
             request,
             url.pathname.slice(guideVideoPath.length),
           );
-        // A computer's pairing page (decision F75): served here, behind the
-        // same admission as the page, never through the shell.
-        if (computers.handlesPage(url.pathname)) {
-          if (closing) return response({ error: "closing" }, 503);
-          try {
-            return await computers.page(request, url);
-          } catch {
-            return response({ error: "operation-failed" }, 500);
-          }
-        }
+        // Contract v1's pairing page is gone: 404, never a page of the
+        // shell.
+        if (computers.handlesRetired(url.pathname)) return computers.retired();
         if (
           request.method === "GET" &&
           !url.pathname.startsWith("/api/") &&
@@ -2734,10 +2716,10 @@ export async function startLaunchpad(
       }
       if (computers.handles(url.pathname)) {
         if (closing) return response({ error: "closing" }, 503);
-        // Pairing asks Executor to add the computer's server.
+        // A removal asks Executor to take the computer's server out.
         server.timeout(request, 90);
         try {
-          return await computers.handle(request, url, person);
+          return await computers.handle(request, url);
         } catch {
           return response({ error: "operation-failed" }, 500);
         }
