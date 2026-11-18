@@ -17,6 +17,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { brainPaths, brainPin } from "../src/brain/pin";
 import { contentLockDirectory } from "../src/content/host";
 import { recordSync, type SyncEntry } from "../src/content/sync-record";
 import {
@@ -47,7 +48,7 @@ import type { ToolRunner } from "../src/tools/status";
 import { codexAppServerUnit } from "../src/update/codex-app-server";
 import { performInstall, renderLaunchpadUnit } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
-import { launchpadUnit } from "../src/update/service-control";
+import { launchpadUnit, unitMarker } from "../src/update/service-control";
 import {
   writeOrganization,
   writePersonalspaceModule,
@@ -413,6 +414,7 @@ test("a healthy Environment: ok, exit 0, every group, the same answer in both fo
     "tool neon skipped not-enabled",
     // Executor has its own check (F44).
     "executor skipped not-offered",
+    "brain skipped not-offered",
     "catalog ok",
     "organization alpha ok",
     "module alpha/web ok",
@@ -1477,6 +1479,88 @@ test("Executor: warn until it is set up, ok once it runs, never broken", async (
     await executor.close();
   }
 }, 30_000);
+
+// The person's brain (plan LZD-0033 R11a): its own check in the tools group,
+// read through `lazurio brain status` and the keys Lazurio handed over,
+// never the brain's owner credential; `warn` with its state, never `fail`.
+test("the brain: ok running the pin with working keys, warn otherwise, skipped before Machines hand it over", async () => {
+  const world = await createWorld();
+  const root = await mkdtemp(join(tmpdir(), "doctor-brain-"));
+  const paths = brainPaths(join(root, "home"));
+  await mkdir(paths.units, { recursive: true });
+  await mkdir(join(paths.brain, "serve"), { recursive: true });
+  await writeFile(join(paths.brain, "config.json"), "{}");
+  await writeFile(
+    join(paths.units, "gbrain.service"),
+    `${unitMarker}\n[Service]\n`,
+  );
+  const tokens = { l: "l".repeat(32), e: "e".repeat(32), p: "p".repeat(32) };
+  for (const [path, token] of [
+    [paths.launchpadKey, tokens.l],
+    [paths.executorKey, tokens.e],
+    [paths.probeKey, tokens.p],
+  ] as const)
+    await writeFile(
+      path,
+      JSON.stringify({ url: "http://127.0.0.1:3131", token }),
+    );
+  const handover = join(root, "brain-handover");
+  await writeFile(handover, "");
+  const live = {
+    version: brainPin.version,
+    working: new Set(Object.values(tokens)),
+  };
+  const brainHost = {
+    async context() {
+      return { kind: "supported" } as const;
+    },
+    paths,
+    globalUnits: join(root, "etc-systemd-user"),
+    handover,
+    async health() {
+      return live.version;
+    },
+    http: async (
+      _method: "GET" | "POST",
+      _url: string,
+      _body?: unknown,
+      headers?: Readonly<Record<string, string>>,
+    ) => ({
+      status: live.working.has(
+        (headers?.authorization ?? "").replace("Bearer ", ""),
+      )
+        ? 200
+        : 401,
+      body: "{}",
+    }),
+  };
+  const read = async () => {
+    const output = await runDoctorCommand(
+      ["--base", world.base, "--folder", world.folder, "--json"],
+      { ...context(world), brainHost },
+    );
+    return find(JSON.parse(output.stdout ?? ""), "brain");
+  };
+  expect(await read()).toEqual({
+    id: "brain",
+    outcome: "ok",
+    context: { toolVersion: brainPin.version },
+  });
+  live.working.delete(tokens.e);
+  expect(await read()).toMatchObject({ outcome: "warn", reason: "brain-key" });
+  live.version = "0.60.315.0";
+  expect(await read()).toEqual({
+    id: "brain",
+    outcome: "warn",
+    reason: "brain-outdated",
+    context: { toolVersion: "0.60.315.0" },
+  });
+  await rm(handover);
+  expect(await read()).toMatchObject({
+    outcome: "skipped",
+    reason: "brain-waits-machines",
+  });
+});
 
 test("Executor where it is not offered or the handover cannot be read: skipped with the reason", async () => {
   const world = await createWorld();
