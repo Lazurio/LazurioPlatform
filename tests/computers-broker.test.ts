@@ -1,7 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { createConnection, createServer, type Socket } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { runAgentEntry } from "../src/computers/agent-entry";
@@ -21,6 +20,7 @@ import {
   socketPath,
   writeTools,
 } from "../src/computers/state";
+import { socketHomeParent } from "./fixtures/socket-home";
 
 // `lazurio computer attach` and `lazurio computer mcp` (decision F75): the
 // broker takes the SSH session's stdio from a fake computer, opens the
@@ -268,7 +268,7 @@ async function withBroker(
     }>,
   ) => Promise<void>,
 ) {
-  const home = await mkdtemp(join(tmpdir(), "lzc-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
   const computer = fakeComputer();
   const audit: AuditEntry[] = [];
   const done = runBroker({
@@ -508,7 +508,7 @@ for (const updating of [false, true])
   test.skipIf(!posix)(
     `a call the closing session took with it is answered as a call to an away computer (updating: ${updating})`,
     async () => {
-      const home = await mkdtemp(join(tmpdir(), "lzc-"));
+      const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
       const path = join(home, "broker.sock");
       const broker = await closingBroker(path, "tools/call");
       try {
@@ -554,7 +554,7 @@ for (const updating of [false, true])
 test.skipIf(!posix)(
   "a tool list the closing session took with it is answered from the cache",
   async () => {
-    const home = await mkdtemp(join(tmpdir(), "lzc-"));
+    const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
     const path = join(home, "broker.sock");
     const broker = await closingBroker(path, "tools/list");
     try {
@@ -578,7 +578,7 @@ test.skipIf(!posix)(
 test.skipIf(!posix)(
   "the agents' server answers plainly while the computer is away",
   async () => {
-    const home = await mkdtemp(join(tmpdir(), "lzc-"));
+    const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
     try {
       const server = entry(socketPath(home, "alex-macbook"), [
         { name: "desktop_snapshot" },
@@ -689,7 +689,7 @@ test("the application says its version in _meta, never through its engine's serv
 });
 
 test.skipIf(!posix)("the history file is owner-only JSON lines", async () => {
-  const home = await mkdtemp(join(tmpdir(), "lzc-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
   try {
     const { appendAudit, auditPath, lastActivity } = await import(
       "../src/computers/state"
@@ -751,7 +751,7 @@ for (const mode of ["answer", "drop"] as const)
   test.skipIf(!posix)(
     `an update the application starts (${mode}) is expected: the computer is away and agents hear it updates`,
     async () => {
-      const home = await mkdtemp(join(tmpdir(), "lzc-"));
+      const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
       const state = await import("../src/computers/state");
       const uid = process.getuid?.();
       const computer = fakeComputer(mode);
@@ -842,7 +842,7 @@ for (const mode of ["answer", "drop"] as const)
 test.skipIf(!posix)(
   "an update the application refuses leaves no mark",
   async () => {
-    const home = await mkdtemp(join(tmpdir(), "lzc-"));
+    const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
     const state = await import("../src/computers/state");
     const uid = process.getuid?.();
     const computer = fakeComputer("refuse");
@@ -985,7 +985,7 @@ test("a shell command's exit code comes from structuredContent or the applicatio
  * and returns how the session ended before any agent connected. With
  * `early`, the computer talks about tools before it answers `initialize`. */
 async function sessionWith(lock: LockAnnouncement, early = false) {
-  const home = await mkdtemp(join(tmpdir(), "lzc-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
   const computer = fakeComputer("answer", lock, early);
   const saved: unknown[][] = [];
   const transport = lineTransport(computer);
