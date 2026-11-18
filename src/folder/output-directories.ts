@@ -44,11 +44,7 @@ export async function ensureOutputDirectories(
 
 // The one rule for an existing directory on an output's way: a real
 // directory (never a symlink) of this account on the Folder's filesystem.
-const directoryRefused = (
-  stat: Stats,
-  uid: number,
-  dev: number,
-) =>
+const directoryRefused = (stat: Stats, uid: number, dev: number) =>
   stat.isSymbolicLink() ||
   checkoutDirectoryRefusal(stat, uid) !== null ||
   stat.dev !== dev;
