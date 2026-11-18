@@ -304,9 +304,10 @@ test("an Application that offers MCP gets the filled-in page of Integrace in its
       application("planner"),
     ],
   });
-  expect(tile(tiles, "deals").agents).toBe(
-    "/integrations/custom/new?name=Obchodn%C3%AD+p%C5%99%C3%ADpady&url=https%3A%2F%2Fdeals.example.lazurio.app%2Fmcp",
-  );
+  expect(tile(tiles, "deals").agents).toEqual({
+    origin: "https://deals.example.lazurio.app",
+    path: "/integrations/custom/new?name=Obchodn%C3%AD+p%C5%99%C3%ADpady&url=https%3A%2F%2Fdeals.example.lazurio.app%2Fmcp",
+  });
   expect(tile(tiles, "planner").agents).toBeNull();
   expect(
     tilesWith(undefined).every(

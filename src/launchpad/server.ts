@@ -187,6 +187,7 @@ import { serviceEnvironment } from "../update/service-control";
 import type { VaultHost } from "../vault/flow";
 import { enableVaultForAgents, processVaultHost } from "../vault/host";
 import { accessCheckAnswer, accessCheckFailed } from "./access-check";
+import { cachedMcpProbe } from "./application-mcp-probe";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import {
@@ -871,6 +872,10 @@ export async function startLaunchpad(
   // even its shell.
   const shell = trust === null ? null : await serveShell();
   const token = trust === null ? randomBytes(32).toString("hex") : "";
+  // Whether an Application really offers MCP before Apps offers to connect
+  // it ("Připojit k agentům", plan LZD-0037); at most once per origin in ten
+  // minutes.
+  const mcpProbe = cachedMcpProbe();
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)
     : null;
@@ -2916,6 +2921,21 @@ export async function startLaunchpad(
           return response(
             await readOrganizationApplications(organizationDirectory),
           );
+        }
+        if (url.pathname === "/api/apps/mcp-probe") {
+          const fields =
+            typeof input === "object" && input !== null && !Array.isArray(input)
+              ? Object.keys(input)
+              : null;
+          const origin = (input as { origin?: unknown } | null)?.origin;
+          if (
+            fields === null ||
+            fields.length !== 1 ||
+            fields[0] !== "origin" ||
+            typeof origin !== "string"
+          )
+            return response({ error: "invalid-request" }, 400);
+          return response(await mcpProbe(origin));
         }
         if (url.pathname.startsWith("/api/apps/")) {
           if (!applications)

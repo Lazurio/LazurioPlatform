@@ -276,11 +276,12 @@ export type AppsTile =
         TileTarget,
         { kind: "hosted" } | { kind: "start" }
       > | null;
-      /** Where the Module's Application offers its MCP server (the account's
-       * `mcp`, plan LZD-0037): the page of Integrace that connects it to this
+      /** Where the account says the Module's Application offers its MCP
+       * server (`mcp`, plan LZD-0037): its origin, which Apps probes before it
+       * offers anything, and the page of Integrace that connects it to this
        * Environment's agents, filled in, which the person confirms by signing
-       * in ("Připojit k agentům"). Null without one. */
-      agents: string | null;
+       * in ("Připojit k agentům"). Null without the hint. */
+      agents: Readonly<{ origin: string; path: string }> | null;
     }>
   /** A production repository: read-only, no app, no page of its own
    * (decision F32's final addendum); its menu leads to its GitHub page. A
@@ -419,6 +420,17 @@ export function connectAgentsPath(
   return `${customServerPath(null)}?${query}`;
 }
 
+/** The tile's offer to connect an Application's MCP server, to be probed
+ * before it is shown; null without the account's hint. */
+export function agentsOf(
+  application: AccountApplication | null,
+): Readonly<{ origin: string; path: string }> | null {
+  const path = connectAgentsPath(application);
+  return application === null || path === null
+    ? null
+    : { origin: application.url, path };
+}
+
 /** What a click on a module's tile does. */
 export function moduleAction(
   target: TileTarget,
@@ -483,7 +495,7 @@ export function appsTiles(
         (target.kind === "hosted" || target.kind === "start")
           ? target
           : null,
-      agents: connectAgentsPath(application),
+      agents: agentsOf(application),
     };
   };
   const modules =
