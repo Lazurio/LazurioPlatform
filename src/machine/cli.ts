@@ -57,7 +57,9 @@ import {
   type LaunchpadSeams,
   recordedEntry,
   recordedEntryDigest,
+  recordRestartOwed,
   restartLaunchpadForEntry,
+  restartOwedFor,
 } from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
@@ -140,9 +142,10 @@ Folder, which reads its entry only when it starts, and waits for it to answer;
 modules, T3 Code and Codex keep running. The answer then adds "launchpad":
 restarted, restart-failed or not-supervised (no installer unit of this base
 starts this Folder; the Launchpad takes the entry at its next start). A
-restart still owed (the supervised Launchpad reports another entry than the
-recorded one, after a failed restart) is made by the next refresh, unchanged
-or not, and answered the same way. A person
+failed restart is kept as owed in the install base
+(update/launchpad-restart-owed.json) and made by the next refresh, unchanged
+or not, as is one the supervised Launchpad shows by reporting another entry
+than the recorded one; it is answered the same way. A person
 the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
 write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
 change, its entry and the Launchpad's restart stand, the exit code stays the
@@ -652,14 +655,23 @@ export async function refreshMachineFolderAndLaunchpad(
     return refreshed;
   if (
     (await recordedEntry(folder)) === before &&
+    !(await restartOwedFor(launchpad.owed, folder)) &&
     !(await restartOwed(folder, launchpad))
   )
     return refreshed;
+  const restart = await restartLaunchpadForEntry(folder, launchpad);
+  // A failed restart is kept as owed in the install base until a later
+  // refresh restarts it, whatever the Launchpad reports of its entry.
+  await recordRestartOwed(
+    launchpad.owed,
+    folder,
+    restart === "restart-failed",
+  ).catch(() => undefined);
   return {
     code: refreshed.code,
     result: {
       ...refreshed.result,
-      launchpad: await restartLaunchpadForEntry(folder, launchpad),
+      launchpad: restart,
     },
   };
 }

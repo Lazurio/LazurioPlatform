@@ -1,5 +1,6 @@
 import { neededRefresh } from "../folder/refresh-needed";
 import { shownAsItself } from "../folder/visible-text";
+import { restartOwedFor } from "../machine/launchpad-entry";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -113,6 +114,10 @@ function outcomeOf(result: ProcessResult | null): FolderRefreshOutcome {
         ? buddy.reason
         : "buddy-folder-failed",
     );
+  // A restart of the Launchpad that failed after the refresh recorded its
+  // entry: the refresh kept it as owed, and the next update retries it.
+  if (result.exitCode === 0 && answer.launchpad === "restart-failed")
+    return failedRefresh("launchpad-restart-failed");
   if (
     result.exitCode === 0 &&
     (answer.kind === "refreshed" || answer.kind === "updated")
@@ -155,7 +160,17 @@ export async function refreshFolderWhenBehind(
   let refused: FolderRefreshOutcome | null = null;
   for (let attempt = 1; attempt <= retry.attempts; attempt += 1) {
     if (attempt > 1) await Bun.sleep(retry.delayMs);
-    const needed = await neededRefresh(input.folder, input.product, operator);
+    // A current Folder still runs the operator's refresh while a restart of
+    // its Launchpad is owed (layout launchpadRestartOwed).
+    const needed =
+      (await neededRefresh(input.folder, input.product, operator)) ??
+      (operator === input.folder &&
+      (await restartOwedFor(
+        layout(input.base).launchpadRestartOwed,
+        input.folder,
+      ))
+        ? { command: ["machine", "folder-refresh"] as const }
+        : null);
     if (needed === null)
       return refused === null
         ? null

@@ -1,4 +1,6 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { readStartState } from "../launchpad/start-check";
 import {
   type ServiceControl,
@@ -23,6 +25,9 @@ export type LaunchpadEntryRestart =
 export type LaunchpadSeams = Readonly<{
   /** The installer's unit of this base, null where none supervises it. */
   service: () => Promise<ServiceControl | null>;
+  /** Where a restart still owed is kept (layout launchpadRestartOwed);
+   * absent, none is kept. */
+  owed?: string | undefined;
   /** The version the restarted Launchpad must report: the active one. */
   version: string;
   deadlineMs?: number | undefined;
@@ -62,6 +67,44 @@ export async function recordedEntry(folder: string): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+/** Whether a restart of `folder`'s Launchpad is still owed: a refresh
+ * recorded an entry and the restart on it failed. Unreadable is not owed. */
+export async function restartOwedFor(
+  path: string | undefined,
+  folder: string,
+): Promise<boolean> {
+  if (path === undefined) return false;
+  try {
+    const owed = JSON.parse(await readFile(path, "utf8")) as {
+      folder?: unknown;
+    };
+    return owed.folder === folder;
+  } catch {
+    return false;
+  }
+}
+
+/** Keep, or clear, the restart owed for `folder`: written atomically,
+ * owner-only, in the install base's own update directory. */
+export async function recordRestartOwed(
+  path: string | undefined,
+  folder: string,
+  owed: boolean,
+): Promise<void> {
+  if (path === undefined) return;
+  if (!owed) {
+    if (await restartOwedFor(path, folder)) await rm(path, { force: true });
+    return;
+  }
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify({ folder })}\n`, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  await rename(temporary, path);
 }
 
 /** The digest of the entry the Folder records (`entryDigest`), "none"

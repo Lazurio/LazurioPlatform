@@ -38,7 +38,7 @@ import {
   refreshMachineFolder,
   refreshMachineFolderAndLaunchpad,
 } from "../src/machine/cli";
-import { entryDigest } from "../src/machine/launchpad-entry";
+import { entryDigest, restartOwedFor } from "../src/machine/launchpad-entry";
 import { refreshFolderWhenBehind } from "../src/update/folder-refresh";
 import {
   binding,
@@ -796,6 +796,138 @@ posix(
         state: "failed",
         reason: "buddy-folder-claude-md",
       });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a failed restart is kept as owed in the install base and made by the retry, also for a Launchpad that reports no entry or does not answer",
+  async () => {
+    for (const reports of ["no-entry", "no-answer"] as const) {
+      const { parent, folder } = await home();
+      try {
+        const owed = join(
+          parent,
+          "base",
+          "update",
+          "launchpad-restart-owed.json",
+        );
+        const plain = binding({ ...personal, entry: entries.personal });
+        expect(
+          (await initializeMachineFolder(folder, plain, noChoices)).code,
+        ).toBe(0);
+        let restarts = 0;
+        let fail = true;
+        const seams = {
+          service: async () =>
+            ({
+              folder,
+              restartLaunchpad: async () => {
+                restarts += 1;
+                if (fail) throw new Error("unit failed");
+              },
+              launchpadVersion: async () => "0.0.0",
+              // An older release reports no entry; a Launchpad that does
+              // not answer reports null.
+              ...(reports === "no-answer"
+                ? { launchpadEntry: async () => null }
+                : {}),
+            }) as never,
+          version: "0.0.0",
+          deadlineMs: 10,
+          owed,
+        };
+        const first = await refreshMachineFolderAndLaunchpad(
+          folder,
+          convertedAt(parent),
+          undefined,
+          seams,
+        );
+        expect((first.result as { launchpad?: string }).launchpad).toBe(
+          "restart-failed",
+        );
+        expect(await restartOwedFor(owed, folder)).toBe(true);
+        expect((await lstat(owed)).mode & 0o777).toBe(0o600);
+        fail = false;
+        const retry = await refreshMachineFolderAndLaunchpad(
+          folder,
+          convertedAt(parent),
+          undefined,
+          seams,
+        );
+        expect(retry.result.kind).toBe("unchanged");
+        expect((retry.result as { launchpad?: string }).launchpad).toBe(
+          "restarted",
+        );
+        expect(restarts).toBe(2);
+        expect(await restartOwedFor(owed, folder)).toBe(false);
+        const again = await refreshMachineFolderAndLaunchpad(
+          folder,
+          convertedAt(parent),
+          undefined,
+          seams,
+        );
+        expect("launchpad" in again.result).toBe(false);
+        expect(restarts).toBe(2);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+posix(
+  "lazurio update reports a failed restart and runs the refresh again while the restart is owed",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      expect(
+        (await initializeMachineFolder(folder, convertedAt(parent), noChoices))
+          .code,
+      ).toBe(0);
+      const base = join(parent, "base");
+      const commands: string[][] = [];
+      const answer = (body: object) => async (command: readonly string[]) => {
+        commands.push([...command]);
+        return { exitCode: 0, stdout: JSON.stringify(body) };
+      };
+      const input = {
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+      };
+      // Current and nothing owed: no refresh.
+      expect(
+        await refreshFolderWhenBehind({
+          ...input,
+          run: answer({ kind: "unchanged" }),
+        }),
+      ).toBeNull();
+      expect(commands).toEqual([]);
+      // A restart owed: the operator's refresh runs, and its failed restart
+      // is the update's failure.
+      await mkdir(join(base, "update"), { recursive: true, mode: 0o700 });
+      await writeFile(
+        join(base, "update", "launchpad-restart-owed.json"),
+        JSON.stringify({ folder }),
+      );
+      const outcome = await refreshFolderWhenBehind({
+        ...input,
+        run: answer({
+          kind: "unchanged",
+          revision: 2,
+          launchpad: "restart-failed",
+        }),
+      });
+      expect(outcome).toEqual({
+        state: "failed",
+        reason: "launchpad-restart-failed",
+      });
+      expect(commands.at(-1)?.slice(-2)).toEqual(["machine", "folder-refresh"]);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
