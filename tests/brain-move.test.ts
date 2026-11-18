@@ -96,6 +96,7 @@ async function stand(options: Options = {}) {
       JSON.stringify({ url: "http://127.0.0.1:3131", token }),
     );
   if (options.consent) await consentToTakeover(paths, now);
+  await writeFile(join(root, "brain-handover"), "");
   const systemd = {
     server: true,
     timer: true,
@@ -207,6 +208,7 @@ async function stand(options: Options = {}) {
     },
     paths,
     globalUnits: join(root, "etc-systemd-user"),
+    handover: join(root, "brain-handover"),
     async health() {
       return systemd.running;
     },

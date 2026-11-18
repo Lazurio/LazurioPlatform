@@ -61,10 +61,13 @@ export function brainStatusText(status: BrainStatus): string {
       "The memory is set up and does not answer; lazurio brain setup starts it.",
     running: `The memory ${status.running} runs on 127.0.0.1:3131.`,
   }[status.state];
+  const waits = status.handover
+    ? ""
+    : "\nMachines have not marked the handover on this host yet (/etc/lazurio/brain-handover); until then Lazurio only reports.";
   const keys = Object.entries(status.keys)
     .map(([kind, state]) => `${kind} ${state}`)
     .join(", ");
-  return `${head}\nKeys: ${keys}.`;
+  return `${head}\nKeys: ${keys}.${waits}`;
 }
 
 const labelOf = (result: SetupResult) =>

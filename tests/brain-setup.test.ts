@@ -79,12 +79,19 @@ beforeAll(() => {
 afterAll(() => server.stop(true));
 
 async function host(
-  options: Readonly<{ installFails?: boolean; existingUnit?: string }> = {},
+  options: Readonly<{
+    installFails?: boolean;
+    existingUnit?: string;
+    noHandover?: boolean;
+  }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-setup-"));
   const paths = brainPaths(join(root, "home"));
   const globalUnits = join(root, "etc-systemd-user");
   await mkdir(globalUnits, { recursive: true });
+  // Machines' mark of C1: they hand the brain over on this host.
+  const handover = join(root, "brain-handover");
+  if (!options.noHandover) await writeFile(handover, "");
   if (options.existingUnit !== undefined) {
     await mkdir(paths.units, { recursive: true });
     await writeFile(join(paths.units, brainUnit), options.existingUnit);
@@ -127,6 +134,7 @@ async function host(
     },
     paths,
     globalUnits,
+    handover,
     async health() {
       if (!brain.up) return null;
       return brain.version;
@@ -205,6 +213,22 @@ describe("brain setup", () => {
       executor: "kept",
       probe: "kept",
     });
+  });
+
+  test("until Machines mark the handover on this host, nothing is installed, taken over or minted", async () => {
+    const { setupHost, calls, paths } = await host({ noHandover: true });
+    const result = await brainSetup(setupHost);
+    expect(result).toMatchObject({
+      server: "waits-machines",
+      status: { state: "not-installed", handover: false },
+    });
+    expect(calls).toEqual([]);
+    expect(
+      await stat(paths.units).then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(false);
   });
 
   test("a failed install stops before anything is written or started", async () => {

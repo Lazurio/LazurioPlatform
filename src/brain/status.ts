@@ -65,6 +65,8 @@ export type BrainStatus =
       /** Whether the brain's data is there (`~/.gbrain/config.json`). */
       brain: boolean;
       keys: BrainKeys;
+      /** Whether Machines mark that they hand the brain over here. */
+      handover: boolean;
     }>;
 
 export type BrainHost = Readonly<{
@@ -72,6 +74,11 @@ export type BrainHost = Readonly<{
   paths: BrainPaths;
   /** Where Machines' global user units are (`/etc/systemd/user`). */
   globalUnits: string;
+  /** Machines' mark that they hand the brain over on this host (plan
+   * LZD-0033 R11a, step C1: `/etc/lazurio/brain-handover`). Until it is
+   * there, Machines may still mint the Launchpad's key here, so Lazurio
+   * only reports. */
+  handover: string;
   /** GET /health of the loopback server: its version, or null. */
   health(): Promise<string | null>;
 }>;
@@ -150,7 +157,8 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
   const running = await host.health();
   const brain = await exists(join(paths.brain, "config.json"));
   const keys = await brainKeys(paths);
-  const base = { owner, pin: brainPin.version, running, brain, keys };
+  const handover = await exists(host.handover);
+  const base = { owner, pin: brainPin.version, running, brain, keys, handover };
   const state = (() => {
     switch (owner) {
       case "absent":

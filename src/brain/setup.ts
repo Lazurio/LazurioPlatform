@@ -74,6 +74,7 @@ export type SetupResult = Readonly<{
     | "waits-move"
     | "waits-takeover"
     | "takeover-refused"
+    | "waits-machines"
     | "machines"
     | "foreign"
     | "failed";
@@ -150,6 +151,11 @@ async function move(
 
 export async function brainSetup(host: SetupHost): Promise<SetupResult> {
   const status = await brainStatus(host);
+  // One manager of the Launchpad's key in any order of deployment: until
+  // Machines mark that they hand the brain over on this host (C1), they may
+  // still mint it here, so Lazurio installs, takes over and mints nothing.
+  if (status.state !== "unsupported" && !status.handover)
+    return Object.freeze({ server: "waits-machines", status });
   if (status.state !== "unsupported") {
     const state = await readBrainState(host.paths);
     // A move that stopped stays stopped until a person decides; one a run

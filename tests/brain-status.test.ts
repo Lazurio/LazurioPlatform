@@ -42,6 +42,7 @@ async function world(
     },
     paths,
     globalUnits,
+    handover: join(root, "brain-handover"),
     async health() {
       return options.health ?? null;
     },

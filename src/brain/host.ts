@@ -74,6 +74,7 @@ export function processBrainHost(
     },
     paths: brainPaths(home),
     globalUnits: "/etc/systemd/user",
+    handover: "/etc/lazurio/brain-handover",
     health: () => healthVersion(brainHttp, brainUrl),
     run: input.run,
     service: input.service,
