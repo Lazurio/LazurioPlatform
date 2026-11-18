@@ -36,6 +36,11 @@ import {
   type RoutesWrite,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
+import {
+  issueLiveLinkPairing,
+  settleLiveLinkPairing,
+  syncLiveT3Links,
+} from "../t3-links/live";
 import { runTool } from "../tools/status";
 import { createAssignedFolderLayout, isAuthSourced } from "./assignment";
 import { machineBinding, ownerOrganizationKey } from "./binding";
@@ -142,6 +147,31 @@ preset the handover derives), template-upgrade-required (a newer product rendere
 nothing is downgraded), or a machine-context-* code. Exit 1 is an
 operation failure; an interrupted refresh is completed with
 profile-resume --folder <Folder> --target-revision <n>.
+machine t3-links
+Look once at the links between this Environment's Chat T3 Code and the T3 Code
+of the Environments its edges reach (root decision 0157, amended 2026-11-17),
+as the Launchpad does every five minutes. On a personal Remote Environment it
+turns T3 Code's linked environments on, pairs each assigned Work Environment
+over its managed SSH route and links it, renews a link with less than seven
+days left and forgets one whose edge went. On a work Remote Environment it
+turns linked environments on while an inbound edge from a personal Machine
+exists and revokes the sessions of linked T3 Code when one goes. Lazurio
+never creates or removes an edge; it is the Organization's record. Prints one
+JSON object without any pairing code or token; exit 1 when another look holds
+the lock (busy) or t3 is missing.
+machine t3-link-pair --source <node>
+The target's half of one pairing, run by a source's look over its managed SSH
+route: only while this work Environment's handover names <node> as an inbound
+edge from a personal Machine and no other source's code is out, it records
+the source, the time and the sessions of linked T3 Code that exist already,
+turns linked environments on through the running T3 Code and prints
+{"kind":"t3-link-pair","id":…,"credential":…} for the source to spend at
+once. The code reaches nothing but that standard output. Exit 1 with
+{"kind":"t3-link-pair","reason":…} when it refuses.
+machine t3-link-settle --source <node>
+Right after a source's link attempt: the session that appeared for its code
+becomes that source's, by id, and its earlier sessions are revoked. Prints
+{"kind":"t3-link-settle","result":"settled"|"pending"|"refused"}.
 Every outcome of folder-init, folder-refresh and inspect is exactly one JSON
 object on stdout; text for people goes to stderr. A Folder whose lock another
 Lazurio operation still holds after the adoption check waited answers
@@ -164,6 +194,7 @@ const machineOptions = {
   locale: { type: "string" },
   detail: { type: "string" },
   coordination: { type: "string" },
+  source: { type: "string" },
 } as const;
 
 function parseMachineTokens(args: string[]) {
@@ -187,13 +218,20 @@ export function parseMachineArguments(args: string[]) {
   if (
     command !== "inspect" &&
     command !== "folder-init" &&
-    command !== "folder-refresh"
+    command !== "folder-refresh" &&
+    command !== "t3-links" &&
+    command !== "t3-link-pair" &&
+    command !== "t3-link-settle"
   )
     throw new MachineUsageError("Unknown lazurio machine command");
   const parsed = parseMachineTokens(options);
   const { values, tokens } = parsed;
   if (
-    (command === "inspect" && tokens.length !== 0) ||
+    ((command === "inspect" || command === "t3-links") &&
+      tokens.length !== 0) ||
+    (command === "t3-link-pair" || command === "t3-link-settle"
+      ? values.source === undefined || tokens.length !== 1
+      : values.source !== undefined) ||
     (command === "folder-refresh" &&
       tokens.some(
         (token) => token.kind === "option" && token.name !== "preset",
@@ -227,6 +265,7 @@ export function parseMachineArguments(args: string[]) {
     locale: value("locale") as "cs" | "en" | undefined,
     detail: value("detail") as "concise" | "technical" | undefined,
     coordination: value("coordination") as "direct" | "coordinator" | undefined,
+    ...(values.source === undefined ? {} : { source: values.source }),
   };
 }
 
@@ -240,6 +279,7 @@ export async function runMachineCommand(
   const {
     command,
     preset: requestedPreset,
+    source: pairSource,
     ...values
   } = parseMachineArguments(args);
   try {
@@ -252,6 +292,57 @@ export async function runMachineCommand(
       if (!isAuthSourced(observed.context))
         machineBinding(observed.context, observed.digest);
       return { code: 0, result: machineInspection(observed) };
+    }
+    if (command === "t3-links") {
+      // The same look as the Launchpad's tick, as the declared operator of
+      // the installed product, under the same lock (src/t3-links/).
+      const operator = await readLinuxOperator();
+      await requireInstalledProduct(await runningProduct(), operator.homedir);
+      const report = await syncLiveT3Links(operator.homedir, operator.uid);
+      const failed =
+        "result" in report &&
+        (report.result === "busy" || report.result === "t3-missing");
+      return {
+        code: failed ? 1 : 0,
+        result: { kind: "t3-links" as const, ...report },
+      };
+    }
+    if (command === "t3-link-pair" || command === "t3-link-settle") {
+      const operator = await readLinuxOperator();
+      await requireInstalledProduct(await runningProduct(), operator.homedir);
+      if (command === "t3-link-settle") {
+        const settled = await settleLiveLinkPairing(
+          operator.homedir,
+          operator.uid,
+          pairSource as string,
+        );
+        const result = typeof settled === "string" ? settled : settled.result;
+        return {
+          code: result === "settled" || result === "pending" ? 0 : 1,
+          result: { kind: "t3-link-settle" as const, result },
+        };
+      }
+      const answer = await issueLiveLinkPairing(
+        operator.homedir,
+        operator.uid,
+        pairSource as string,
+      );
+      return "kind" in answer && answer.kind === "issued"
+        ? {
+            code: 0,
+            result: {
+              kind: "t3-link-pair" as const,
+              id: answer.id,
+              credential: answer.credential,
+            },
+          }
+        : {
+            code: 1,
+            result: {
+              kind: "t3-link-pair" as const,
+              reason: "reason" in answer ? answer.reason : answer.result,
+            },
+          };
     }
     // An auth-sourced handover resolves through its receipt, and only once
     // the receipt names a person (machine-assignment-pending before).

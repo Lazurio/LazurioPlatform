@@ -133,6 +133,8 @@ import {
   runEnvironmentRoutes,
   syncEnvironmentRoutes,
 } from "../ssh-access/routes";
+import { runT3Links, t3LinksEveryMs } from "../t3-links/links";
+import { syncLiveT3Links } from "../t3-links/live";
 import { shellThemeOf } from "../theme/palettes";
 import {
   fileThemeStore,
@@ -750,6 +752,11 @@ export async function startLaunchpad(
      * the live handover's declaration; thrown when the handover cannot be
      * read. Absent: it never keeps them. */
     routesAtStart?: (() => Promise<RoutesDeclaration>) | undefined;
+    /** Whether this Launchpad keeps the links between T3 Code servers along
+     * the Environment's edges (root decision 0157, amended 2026-11-17;
+     * `src/t3-links/`): exactly where it sets Executor up. Absent: it never
+     * does. */
+    t3LinksAtStart?: (() => Promise<boolean>) | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -3793,6 +3800,26 @@ export async function startLaunchpad(
       },
     );
   }
+  // The links between T3 Code servers (root decision 0157, amended
+  // 2026-11-17): once the Launchpad listens and then every five minutes, one
+  // look at a time, never awaited and never a reason for the start to fail.
+  // Each look reads the live handover again, so an edge the Organization
+  // records or removes takes effect within five minutes (`src/t3-links/`).
+  const t3LinksAtStart = installed?.t3LinksAtStart;
+  let stopT3Links: (() => void) | undefined;
+  if (t3LinksAtStart !== undefined)
+    stopT3Links = runT3Links(
+      async () => {
+        if (closing || !(await t3LinksAtStart())) return;
+        await syncLiveT3Links(homedir(), process.getuid?.());
+      },
+      {
+        everyMs: t3LinksEveryMs,
+        setInterval: (tick, ms) => setInterval(tick, ms),
+        clearInterval: (handle) =>
+          clearInterval(handle as ReturnType<typeof setInterval>),
+      },
+    );
   let closePending: ReturnType<
     ReturnType<typeof createApplicationLifecycle>["close"]
   > | null = null;
@@ -3822,6 +3849,7 @@ export async function startLaunchpad(
       closing = true;
       clearInterval(audienceTimer);
       stopRoutes?.();
+      stopT3Links?.();
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();

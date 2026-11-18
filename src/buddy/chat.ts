@@ -388,9 +388,11 @@ async function insideGitWorkTree(directory: string): Promise<boolean> {
  * as T3 Code keeps it, and one with comments, which T3 Code reads but a
  * rewrite would drop, stays the person's. So does a link or another kind of
  * file on the way. */
-type Settings = Readonly<{ raw: string | null; document: Json }>;
+export type Settings = Readonly<{ raw: string | null; document: Json }>;
 
-async function readSettings(
+/** Also how the links between T3 Code servers read the Chat's beta switch
+ * (`src/t3-links/settings.ts`); they never write the file. */
+export async function readSettings(
   directories: readonly string[],
   path: string,
 ): Promise<Settings | "unsafe"> {
