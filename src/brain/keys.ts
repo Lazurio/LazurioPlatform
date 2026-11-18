@@ -35,12 +35,41 @@ export type BrainState = Readonly<{
     durability?: string;
     rebuild?: Readonly<{ state: string; at: string; backup?: string }>;
   }>;
+  /** The owner's consent to take the interim installer's brain over, and
+   * how the takeover went. */
+  takeover?: Readonly<{
+    consent?: string;
+    state?: "done" | "restored" | `failed-${string}`;
+    at?: string;
+  }>;
+  /** The last move of the brain to a pin (`./move.ts`). */
+  move?: MoveRecord;
   release?: Readonly<{
     commit: string;
     version: string;
     command: string;
     source: "lazurio" | "interim";
   }>;
+}>;
+
+export type MoveRecord = Readonly<{
+  /** The pinned commit this move goes to. */
+  to: string;
+  from: string;
+  at: string;
+  /** moving: the units name the pin, not yet accepted; done; held: back on
+   * the previous release after a refused move to `to`, not tried again
+   * before another pin; stopped:…: the server stays stopped for a person. */
+  result: "moving" | "done" | "held" | `stopped:${string}` | `waits:${string}`;
+  pages?: number;
+  /** The copy, a directory name in the home. */
+  backup?: string;
+  failedAttempt?: string;
+  reason?: string;
+  /** Whether ~/.gbrain is the brain before the move (or its restored copy). */
+  brainIntact?: boolean;
+  /** The release the brain ran before the move. */
+  previous?: Readonly<{ command: string; version: string; commit?: string }>;
 }>;
 
 /** One closed label per key: what setup prints, never a value. */

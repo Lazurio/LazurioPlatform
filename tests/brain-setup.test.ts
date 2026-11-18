@@ -139,8 +139,8 @@ async function host(
     vault: {
       folder: join(paths.home, "Lazurio"),
       gh: undefined,
-      idle: async () => true,
     },
+    idle: async () => true,
     env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
     base,
     tries: 3,

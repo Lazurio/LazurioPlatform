@@ -37,14 +37,14 @@ export function processBrainHost(
   const vault = {
     folder: join(home, "Lazurio"),
     gh: undefined as string | undefined,
-    // Buddy is idle where there is no Buddy, or where his gateway says no
-    // work and no agent runs; a gateway that does not answer is not idle.
-    idle: async () =>
-      (await lstat(hermesHome).then(
-        () => false,
-        () => true,
-      )) || (await askActiveWork(hermesHome)) === "idle",
   };
+  // Buddy is idle where there is no Buddy, or where his gateway says no work
+  // and no agent runs; a gateway that does not answer is not idle.
+  const idle = async () =>
+    (await lstat(hermesHome).then(
+      () => false,
+      () => true,
+    )) || (await askActiveWork(hermesHome)) === "idle";
   return Object.freeze({
     async context(): Promise<BrainContext> {
       vault.gh = await resolveOnPath("gh", input.env.PATH, input.platform);
@@ -81,5 +81,6 @@ export function processBrainHost(
     bun: join(home, ".local", "bin", "bun"),
     env: input.env,
     vault,
+    idle,
   });
 }

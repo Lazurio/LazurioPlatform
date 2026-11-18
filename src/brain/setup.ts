@@ -12,8 +12,10 @@ import {
   readBrainState,
   writeBrainState,
 } from "./keys";
+import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
 import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
+import { type TakeoverResult, takeOverInterim } from "./takeover";
 import { writeBrainUnits } from "./units";
 import { convergeVault, type VaultResult } from "./vault";
 
@@ -23,9 +25,11 @@ import { convergeVault, type VaultResult } from "./vault";
 //                  embeddings), its owner credential, Lazurio's units; start
 //   not-running    start Lazurio's unit
 //   running        nothing to start
-//   outdated       left for the move to the pin (a later step of R11a)
-//   adoptable      the interim installer's brain: only reported until its
-//                  owner switches the takeover on (a later step of R11a)
+//   outdated       the move to the pin with its copy and way back
+//                  (`./move.ts`), only while Buddy is idle
+//   adoptable      the interim installer's brain: reported until its owner
+//                  switches the takeover on (`lazurio brain take-over`), then
+//                  taken over in place (`./takeover.ts`) and moved to the pin
 //   machines       Machines' brain on a free Environment: theirs, reported
 //   foreign        a unit nobody of these wrote: left alone
 // and then, wherever Lazurio's server answers, the three keys and the
@@ -45,8 +49,11 @@ export type SetupHost = BrainHost &
     vault?: Readonly<{
       folder: string;
       gh: string | undefined;
-      idle: () => Promise<boolean>;
     }>;
+    /** Whether Buddy is idle, so the server may stop for a moment (a
+     * vault's rebuild, a move). Without it, it never stops. */
+    idle?: () => Promise<boolean>;
+    now?: () => Date;
     /** The server's base URL (tests point it at a stand-in). */
     base?: string;
     /** How long to wait for the server to answer, in tries of `waitMs`. */
@@ -61,8 +68,12 @@ export type SetupResult = Readonly<{
     | "installed"
     | "started"
     | "running"
+    | "moved"
+    | "held"
+    | "stopped"
     | "waits-move"
     | "waits-takeover"
+    | "takeover-refused"
     | "machines"
     | "foreign"
     | "failed";
@@ -77,6 +88,8 @@ export type SetupResult = Readonly<{
     | "start"
     | "answer";
   keys?: Readonly<Record<BrainKeyKind, KeyOutcome>>;
+  takeover?: TakeoverResult;
+  move?: MoveResult;
   /** The vault's connection, wherever Lazurio's server answers. */
   vault?: VaultResult;
   status: BrainStatus;
@@ -98,8 +111,52 @@ const failed = (
   status: BrainStatus,
 ): SetupResult => Object.freeze({ server: "failed", step, status });
 
+const idleOf = (host: SetupHost) => host.idle ?? (async () => false);
+
+const moveHost = (host: SetupHost) => ({
+  paths: host.paths,
+  run: host.run,
+  service: host.service,
+  http: host.http,
+  base: host.base ?? brainUrl,
+  bun: host.bun,
+  env: host.env,
+  idle: idleOf(host),
+  ...(host.now === undefined ? {} : { now: host.now }),
+  ...(host.tries === undefined ? {} : { tries: host.tries }),
+  ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
+});
+
+/** The move to the pin and what follows it. */
+async function move(
+  host: SetupHost,
+  running: string,
+  takeover?: TakeoverResult,
+): Promise<SetupResult> {
+  const moved = await moveToPin(moveHost(host), running);
+  const extra = { move: moved, ...(takeover ? { takeover } : {}) };
+  if (moved.startsWith("stopped:"))
+    return Object.freeze({
+      server: "stopped",
+      ...extra,
+      status: await brainStatus(host),
+    });
+  return finish(
+    host,
+    moved === "moved" ? "moved" : moved === "held" ? "held" : "waits-move",
+    extra,
+  );
+}
+
 export async function brainSetup(host: SetupHost): Promise<SetupResult> {
   const status = await brainStatus(host);
+  if (status.state !== "unsupported") {
+    const state = await readBrainState(host.paths);
+    // A move that stopped stays stopped until a person decides; one a run
+    // left half way is finished before anything else starts.
+    if (state.move?.result === "moving") return move(host, "");
+    if (moveKeepsDown(state)) return move(host, status.running ?? "");
+  }
   const command = { run: host.service, env: host.env };
   const { paths } = host;
   switch (status.state) {
@@ -109,10 +166,31 @@ export async function brainSetup(host: SetupHost): Promise<SetupResult> {
       return Object.freeze({ server: "machines", status });
     case "foreign":
       return Object.freeze({ server: "foreign", status });
-    case "adoptable":
-      return Object.freeze({ server: "waits-takeover", status });
+    case "adoptable": {
+      const takeover = await takeOverInterim({
+        paths,
+        service: host.service,
+        http: host.http,
+        base: host.base ?? brainUrl,
+        env: host.env,
+        ...(host.now === undefined ? {} : { now: host.now }),
+      });
+      if (takeover !== "taken-over")
+        return Object.freeze({
+          server:
+            takeover === "waits-consent"
+              ? "waits-takeover"
+              : "takeover-refused",
+          takeover,
+          status,
+        });
+      const after = await brainStatus(host);
+      if (after.state === "outdated" && after.running !== null)
+        return move(host, after.running, takeover);
+      return finish(host, "running", { takeover });
+    }
     case "outdated":
-      return Object.freeze({ server: "waits-move", status });
+      return move(host, status.running as string);
     case "running":
       break;
     case "not-running":
@@ -197,7 +275,8 @@ export async function brainSetup(host: SetupHost): Promise<SetupResult> {
  * the vault's connection made the brain anew (it has no key then). */
 async function finish(
   host: SetupHost,
-  server: "installed" | "started" | "running",
+  server: "installed" | "started" | "running" | "moved" | "held" | "waits-move",
+  extra: Readonly<{ takeover?: TakeoverResult; move?: MoveResult }> = {},
 ): Promise<SetupResult> {
   const { paths } = host;
   const base = host.base ?? brainUrl;
@@ -215,7 +294,7 @@ async function finish(
       http: host.http,
       base,
       env: host.env,
-      idle: host.vault.idle,
+      idle: idleOf(host),
       ...(host.tries === undefined ? {} : { tries: host.tries }),
       ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
     });
@@ -224,6 +303,7 @@ async function finish(
   }
   return Object.freeze({
     server,
+    ...extra,
     keys: keys.outcomes,
     ...(vault === undefined ? {} : { vault }),
     status: await brainStatus(host),

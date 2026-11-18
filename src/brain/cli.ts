@@ -7,6 +7,7 @@ import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
+import { consentToTakeover } from "./takeover";
 
 /** `lazurio brain`: the person's memory of a Personal Environment (plan
  * LZD-0033 R11a), a tool Lazurio looks after like Executor. */
@@ -23,9 +24,15 @@ brain setup [--json]
   keeps the keys of the Launchpad, Executor and doctor working; puts an
   empty brain onto the private vault the Personalspace declares (with a
   copy first, only while Buddy is idle) and keeps it in sync. A brain the
-  interim installer or Machines run is only reported. Prints closed labels
-  only, never a key. Exit status: 0 running, 2 not here or waiting for its
-  owner, 1 not finished.`;
+  interim installer runs is reported until its owner takes it over; then it
+  is taken over in place and, like a brain on an earlier release, moved to
+  the pin with a copy first and a way back, only while Buddy is idle. A
+  brain Machines run is only reported. Prints closed labels only, never a key.
+  Exit status: 0 running the pin, 2 not here, waiting or held on the
+  previous release, 1 not finished or stopped for a person.
+brain take-over [--json]
+  The owner's consent to take over the brain an earlier installer runs on
+  this Personal Environment, recorded once; then what setup does.`;
 
 export type BrainCliContext = CliContext &
   Readonly<{ host?: SetupHost | undefined }>;
@@ -66,6 +73,8 @@ const labelOf = (result: SetupResult) =>
     ...Object.entries(result.keys ?? {}).map(
       ([kind, outcome]) => `key ${kind} ${outcome}`,
     ),
+    ...(result.takeover === undefined ? [] : [`takeover ${result.takeover}`]),
+    ...(result.move === undefined ? [] : [`move ${result.move}`]),
     ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
   ].join("\n");
 
@@ -75,7 +84,7 @@ export async function runBrainCommand(
 ): Promise<CommandOutput> {
   const usage = Object.freeze({
     code: exitUsage,
-    stderr: `Usage: brain status|setup [--json]\n${brainHelp}`,
+    stderr: `Usage: brain status|setup|take-over [--json]\n${brainHelp}`,
   });
   let command: string;
   let json = false;
@@ -92,7 +101,7 @@ export async function runBrainCommand(
   } catch {
     return usage;
   }
-  if (command !== "status" && command !== "setup") return usage;
+  if (!["status", "setup", "take-over"].includes(command)) return usage;
   const host =
     context.host ??
     processBrainHost({
@@ -110,10 +119,18 @@ export async function runBrainCommand(
         stdout: json ? JSON.stringify(status) : brainStatusText(status),
       };
     }
+    if (command === "take-over") {
+      const status = await brainStatus(host);
+      if (status.state === "unsupported")
+        return { code: exitUsage, stdout: brainStatusText(status) };
+      await consentToTakeover(host.paths, new Date());
+    }
     const result = await brainSetup(host);
-    const code = ["installed", "started", "running"].includes(result.server)
+    const code = ["installed", "started", "running", "moved"].includes(
+      result.server,
+    )
       ? exitOk
-      : ["failed"].includes(result.server)
+      : ["failed", "stopped", "takeover-refused"].includes(result.server)
         ? exitFailure
         : exitUsage;
     // Closed labels and the status only: the result carries no key.
@@ -124,6 +141,8 @@ export async function runBrainCommand(
             server: result.server,
             step: result.step,
             keys: result.keys,
+            takeover: result.takeover,
+            move: result.move,
             vault: result.vault,
             status: result.status,
           })
