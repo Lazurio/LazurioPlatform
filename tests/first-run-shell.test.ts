@@ -708,7 +708,7 @@ test("Nástroje: one plain sentence per tool, connected or not, the version in i
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   );
   expect(toolDescription(tool({ name: "neon" }), cs)).toBe(
-    "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
+    "Připojení na databáze Neon, které už používáte. Aplikace Organizace mají databázi ve Službách jejího serveru.",
   );
   // A tool without a sentence of its own keeps the catalog's purpose.
   expect(toolDescription(tool({ name: "other" }), cs)).toBe("Catalog purpose.");

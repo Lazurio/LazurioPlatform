@@ -4119,6 +4119,28 @@ poskytnout tuhle informaci, tak by to bylo fajn, aby přesně nedocházelo k tě
 Template revision `base-instructions-132`. Verified by `tests/folder-manual.test.ts` and the pinned
 digest. Not proven: that agents in every harness follow the text.
 
+**Addendum 2026-11-18 (proposal, awaiting Matěj): no text offers Neon as a module's database.**
+Matěj's direction of 2026-11-18 is that Neon should not be a standard tool for customers, who
+would rather get a self-hosted Dolt database from their Organization's Server services. The
+Module Standard, the skill `new-module` and the manual already follow the second addendum of
+2026-11-05 above: a module's database is `app/v4`, Dolt in the Organization's Server services,
+and no database outside the Organization is recommended. Three texts still said otherwise:
+
+- the Tools card in Settings called `neon` "mainly for developing apps";
+- the Integration Neon in the catalog said "mainly for building apps";
+- the tool's usage for agents did not say that Neon is not a module's database.
+
+What changes: the card and the Integration name Neon as a database "you already use" and say
+that an Organization's Applications keep their database in its Server services; the tool's
+usage adds that Neon is not the database of a module or an Application and is never proposed
+for one. The tool and the Integration stay in the catalog.
+
+Open for Matěj: whether `neon` stays an optional tool and Neon an Integration at all, (a) as
+now, for people who already use Neon; (b) only for the Organization that builds Lazurio; or (c)
+removed from the catalog. Template revision `base-instructions-140`. Verified by
+`tests/first-run-shell.test.ts` and the pinned digest. Not proven: that agents in every harness
+follow the text.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

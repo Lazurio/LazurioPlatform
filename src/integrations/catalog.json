@@ -1228,8 +1228,8 @@
         "en": "Neon"
       },
       "description": {
-        "cs": "Databáze Postgres v cloudu, hlavně pro vývoj aplikací.",
-        "en": "Serverless Postgres, mainly for building apps."
+        "cs": "Databáze Postgres v cloudu Neonu, pokud ji už používáte. Aplikace Organizace mají databázi ve Službách jejího serveru.",
+        "en": "Serverless Postgres at Neon, if you already use it. An Organization's Applications keep their database in its Server services."
       },
       "category": "dev",
       "direct": {
