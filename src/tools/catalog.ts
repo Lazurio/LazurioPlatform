@@ -510,8 +510,8 @@ export const toolCatalog: readonly ToolEntry[] = Object.freeze([
         en: "Neon CLI for managing Postgres projects, branches and databases in Neon.",
       },
       usage: {
-        cs: "Přihlášení ověř příkazem `neon me -o json`. Čti s `-o json`; vytvoření, změna nebo smazání projektu, větve či databáze vyžaduje pokyn uživatele.",
-        en: "Check the sign-in with `neon me -o json`. Read with `-o json`; creating, changing or deleting a project, branch or database needs the user's instruction.",
+        cs: "Přihlášení ověř příkazem `neon me -o json`. Čti s `-o json`; vytvoření, změna nebo smazání projektu, větve či databáze vyžaduje pokyn uživatele. Neon není databáze modulu ani Aplikace: ta je `app/v4`, Dolt ve Službách serveru Organizace; Neon ani jinou databázi mimo Organizaci pro modul nenavrhuj.",
+        en: "Check the sign-in with `neon me -o json`. Read with `-o json`; creating, changing or deleting a project, branch or database needs the user's instruction. Neon is not the database of a module or an Application: that is `app/v4`, Dolt in the Organization's Server services; never propose Neon or another database outside the Organization for a module.",
       },
     },
   }),

@@ -1707,7 +1707,7 @@ const en = {
   toolsDescriptionGogcli:
     "The connection to Google: Gmail, Calendar and Drive, when you do not want Composio.",
   toolsDescriptionNeon:
-    "The connection to Neon databases, mainly for developing apps.",
+    "The connection to Neon databases you already use. An Organization's Applications keep their database in its Server services.",
   toolsDescriptionBitwarden: "Passwords and other items for agents.",
   toolsDescriptionExecutor:
     "Agents use the apps connected directly from {this} through it.",
@@ -4090,7 +4090,7 @@ const cs: Record<MessageKey, string> = {
   toolsDescriptionGogcli:
     "Připojení na Google: Gmail, Kalendář a Disk, když nechcete Composio.",
   toolsDescriptionNeon:
-    "Připojení na databáze Neon, hlavně pro vývoj aplikací.",
+    "Připojení na databáze Neon, které už používáte. Aplikace Organizace mají databázi ve Službách jejího serveru.",
   toolsDescriptionBitwarden: "Hesla a další položky pro agenty.",
   toolsDescriptionExecutor:
     "Přes něj agenti používají aplikace připojené přímo z {tohoto}.",
