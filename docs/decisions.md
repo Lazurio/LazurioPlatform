@@ -15794,6 +15794,102 @@ Launchpad closes (also when it closes while the start reads the state), the jour
 line, and the row following a setup it did not start
 (`tests/launchpad-executor.test.ts`).
 
+**Addendum 2026-11-18 (plan LZD-0033 R11a): the person's memory, GBrain, is a
+Lazurio tool of every Personal Environment, on Executor's model.** Matěj
+decided on 2026-11-18 that GBrain belongs to Lazurio: it is installed for
+everyone with a Personal Environment, it stays where it is today in the
+Personalspace, it is updated like Lazurio's other tools, and `lazurio doctor`
+watches it. Until then it existed only where an interim installer or Machines
+had put it, nothing updated the interim installs, and agents other than Buddy
+did not reach it. What follows is Executor's pattern, applied to the memory.
+
+1. **Where.** Only in a Personal Remote Environment, never a visitor's
+   (`personalMemoryHere` in `src/folder/presets.ts`, the one gate of the
+   Folder's text and of `lazurio brain`). Work, Team and public Environments
+   are unchanged.
+2. **Pin and install.** Each Platform release pins one release tag of the fork
+   `Lazurio/gbrain` (`src/brain/pin.ts`). Bun installs it for the current user,
+   without root, into one directory per pinned commit
+   (`~/.local/share/lazurio-gbrain/<commit>`), so the release the brain runs
+   stays runnable while the next one is installed beside it. Lazurio's user
+   units `gbrain.service` and `lazurio-gbrain-refresh.{service,timer}` keep
+   the names the interim installer and Machines used, carry Lazurio's marker
+   and name the command of the release the brain runs. A start, a crash
+   restart or a reboot therefore never brings a new pin onto the brain.
+3. **The data stays.** The database stays in `~/.gbrain` and the vault stays a
+   checkout in the Personalspace (root decision 0046). The vault is connected
+   as Machines connect it today, with the same reading and decision: an
+   empty brain is made again on the vault, with a copy that comes back whole
+   if a step fails; pages that are not on the vault, a checkout with changes,
+   a public vault or another client are only reported.
+4. **Keys.** Lazurio mints three keys over the brain's admin API and hands
+   them over beside the admin token, 0600: the Launchpad's read key (the name,
+   file and record the Launchpad already reads), a read and write key for
+   Executor, and a read key for probes. A key that works is kept. After each
+   mint, every other active key of that name is revoked. Only the separate
+   process `lazurio brain setup` reads the owner credential; the Launchpad's
+   process never does, and `setup` prints closed labels only. Every key has
+   exactly one manager. Lazurio installs, takes over and mints nothing on a
+   host until Machines mark there that they hand the brain over
+   (`/etc/lazurio/brain-handover`), because until then Machines may still
+   mint the Launchpad's key there.
+5. **Takeover.** Lazurio takes over an interim installer's brain in place,
+   and only after its owner has switched the takeover on
+   (`lazurio brain take-over`). It keeps a copy of the installer's units for
+   the way back and writes its own units over them, naming the same command.
+   It then only reloads systemd: the server must keep running the same
+   version, or the copied units come back. Machines' installs are taken over
+   the same way once Machines yield to Lazurio's unit.
+6. **Moves to a pin.** This is Machines' move with its copy and way back,
+   applied to Lazurio's units, and it runs only while Buddy is idle.
+   - The new pin is installed beside the running release, and the page count
+     is read.
+   - The timer and the server stop, and systemd must confirm they stopped.
+   - A copy of `~/.gbrain` is taken, and the record `moving` is written to
+     disk before the units name the pin.
+   - The pin must answer with its version, the same page count and working
+     keys. Otherwise the copy and the previous release come back (`held`: not
+     tried again for this pin).
+   - Where even that fails, the server stays stopped and disabled until a
+     person decides.
+   - A run that dies mid-move is finished by the next run.
+7. **Agents.** Once Executor's own setup at start has ended, the Launchpad
+   runs `lazurio brain setup` as a child process. Where the server answers,
+   Executor gets the custom remote server **Brain** with the Executor key,
+   added and saved through the one path of Integrations → Vlastní (F42). All
+   agents of the Environment share that one key. Every write signs its
+   `provenance` with the agent and the thread, as Matěj chose ("one key, a
+   signature on each write").
+8. **Doctor.** The check `brain` sits in the tools group. It is `ok` when the
+   brain runs the pin with every handed-over key working. It is `warn` with
+   the state otherwise, and `skipped` where the brain is not offered, where
+   Machines run it, or before their handover. It is never `fail`.
+9. **The Folder.** In a Personal Environment, one line of `AGENTS.md` names
+   the Brain in place of "gbrain only on the user's explicit instruction".
+   `manual/working-here.md` holds the rules: read the Brain first; what lasts
+   goes there, but an Organization's work only as a link (0180, 0246); no
+   secrets; never quote its content in shared places.
+10. **Not in this addendum.** Search by meaning stays off: embeddings wait for
+    a separate decision. Settings → Tools gets no row for the memory yet.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Machines keep managing GBrain | Machines manage it only on free Environments; the interim installs on paid ones had no manager and no updates; rejected |
+| One key per agent | Separates writers by credential at the cost of a key per thread and its lifecycle; Matěj chose one key with a signature on each write |
+| The Launchpad mints keys in its own process | Puts the brain's owner credential into the HTTP process; rejected: a child process reads it and prints labels only |
+| Take over every interim install automatically | Moves a person's memory without their consent; rejected: their switch, `lazurio brain take-over` |
+| Start the new release and let it migrate | gbrain's migrations go forward only; without a copy and a check there is no way back; rejected |
+
+Verified by tests:
+- the status and the owners of a unit (`tests/brain-status.test.ts`);
+- the keys against a stand-in of the admin API (`tests/brain-keys.test.ts`);
+- setup, including the handover mark (`tests/brain-setup.test.ts`);
+- the vault's decision, rebuild and way back (`tests/brain-vault.test.ts`);
+- the takeover with and without consent, the move, a refused pin, a server that does not stop, a stopped and an interrupted move, and `take-over` printing no key or path (`tests/brain-move.test.ts`);
+- the Launchpad's child process and the server Brain (`tests/brain-at-start.test.ts`);
+- the doctor check (`tests/doctor.test.ts`);
+- the Folder's text (`tests/folder-brain.test.ts`).
+
 ## F45 — Organization settings reach the Environment: asked through its relay, recorded in the Folder, reported back
 
 **Decided by Matěj 2026-10-09 (root decision 0194; root decision 0162, addendum of
