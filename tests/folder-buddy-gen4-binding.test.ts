@@ -146,6 +146,10 @@ posix(
         expect(await exists(join(folder, path))).toBe(false);
       const agents = await readFile(join(buddy, "AGENTS.md"), "utf8");
       expect(agents).toContain("Jsi Buddy, Buddy");
+      // The Folder's own AGENTS.md says where Buddy lives.
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        "V tomto Prostředí je Buddy vlákno projektu Buddy ve společném T3 Code se složkou `~/Buddy`.",
+      );
       for (const path of buddyFolderPaths)
         expect(await exists(join(buddy, path))).toBe(true);
       // Nastavení → Buddy sets the persona; the next refresh names it.
@@ -181,6 +185,9 @@ posix(
       for (const path of buddyLayerPaths)
         expect(await exists(join(folder, path))).toBe(true);
       expect(await exists(join(parent, "Buddy"))).toBe(false);
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).not.toContain(
+        "`~/Buddy`",
+      );
       const layer = await Promise.all(
         buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
       );
