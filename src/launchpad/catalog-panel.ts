@@ -724,8 +724,8 @@ export function createCatalogPanel(
       .catch(() => maintainers.settle(organization, module, ask, false))
       .finally(settled);
   }
-  // Whether an Application really offers an MCP server, by the Launchpad's
-  // probe, asked once per origin while the page is open.
+  // Whether an Application's host admits MCP sign-in for it, by the
+  // Launchpad's probe, asked once per origin while the page is open.
   const mcpAnswers = new Map<string, Promise<boolean>>();
   const offersMcp = (origin: string): Promise<boolean> => {
     let answer = mcpAnswers.get(origin);
@@ -841,9 +841,9 @@ export function createCatalogPanel(
     // "Připojit k agentům" (plan LZD-0037): where the account says the
     // Application offers an MCP server, the page of Integrace that connects
     // it to this Environment's agents, filled in; the person confirms and
-    // signs in there. The account's `mcp` is only a hint: the item waits in
-    // its place, hidden, until this Environment's probe of the Application
-    // answers that it really offers one. A plain link in this window: the
+    // signs in there. Beside the account's `mcp`, the item waits in its
+    // place, hidden, until this Environment's probe finds the Application's
+    // host admitting MCP sign-in for that origin. A plain link in this window: the
     // page's own moves keep only the path, and the form reads the query.
     if (item.kind === "module" && item.agents !== null) {
       const agents = element("a", "tile-menu-item");

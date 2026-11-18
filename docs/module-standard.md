@@ -905,9 +905,10 @@ of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 **Status.** The registry, both transports and the test helpers are in
 `@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
 v0.4.0, which the stack profiles pin from release 2026.12. The Application host's gateway admits `/mcp` today (Machines
-v0.12.244 and later states the scope, below). Apps offers an Application's MCP server where the account says it has one:
-its tile's menu "Připojit k agentům" opens Integrations → Custom filled in,
-and the person confirms and signs in there. `lazurio module create` gives a
+v0.12.244 and later states the scope, below). Apps offers an Application's MCP server where the account says it has one
+and Apps' probe finds its host admitting MCP sign-in: its tile's menu
+"Připojit k agentům" opens Integrations → Custom filled in, and the person
+confirms and signs in there. `lazurio module create` gives a
 `bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
 `get_app_context` and a test), and every Module with data (`--data`) the
 single-record part of the data port (`src/data/store.ts`: get, list and save

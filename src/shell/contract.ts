@@ -869,9 +869,14 @@ export type AccountApplication = Readonly<{
   url: string;
   /** The person's application role there (decision 0234). */
   role: "admin" | "user";
-  /** The Application serves an MCP server at `<url>/mcp` (plan LZD-0037), so
-   * Apps may offer to connect it to the Environment's agents. A hint of the
-   * source only: Apps checks it by its own probe before it offers anything. */
+  /** The source's statement that the Application serves an MCP server at
+   * `<url>/mcp` (plan LZD-0037), taken from the Application's one source of
+   * truth (the Dashboard's producer, HumanAndMachine-ai/Dashboard#557). Apps
+   * offers to connect it only where its own probe also finds the
+   * Application's host admitting MCP sign-in for that origin; the probe
+   * cannot see behind the gateway, so a wrong statement shows after sign-in
+   * as a connection without tools (until the gateway answers `/mcp` only for
+   * an Application that declares it, HumanAndMachine-ai/Machines#1382). */
   mcp?: boolean;
 }>;
 

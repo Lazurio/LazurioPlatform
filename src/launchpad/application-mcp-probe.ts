@@ -1,8 +1,12 @@
 /**
- * Whether an Application really offers an MCP server (plan LZD-0037,
+ * Whether an Application's host admits MCP sign-in for it (plan LZD-0037,
  * Module Standard "Tools for agents"), checked before Apps offers to connect
- * it: the account's `mcp` is only a hint of its source
- * (`AccountApplication.mcp`). The probe asks what any MCP client asks first:
+ * it, beside the source's statement that the Application serves MCP
+ * (`AccountApplication.mcp`). The probe cannot see behind the gateway: a host
+ * answers the same for an App without `/mcp` until the gateway answers `/mcp`
+ * only for an Application that declares it (HumanAndMachine-ai/Machines#1382),
+ * so it guards against a stale or wrong origin, not a wrong statement. It
+ * asks what any MCP client asks first:
  * `POST <origin>/mcp` without a token answers 401 with a Bearer challenge that
  * names the protected-resource metadata, and those metadata name exactly that
  * `/mcp` as their resource and at least one authorization server. It sends no
