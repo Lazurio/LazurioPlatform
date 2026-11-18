@@ -266,6 +266,16 @@ export function visitorPreset(
   return machine?.entry?.audience === "public" ? tryPreset : null;
 }
 
+/** Whether the person's memory, the Brain, is part of this Environment
+ * (plan LZD-0033 R11a): a Personal Remote Environment, never a visitor's;
+ * the Folder's text and `lazurio brain` share this gate. */
+export function personalMemoryHere(
+  preset: PresetName,
+  machine: Parameters<typeof visitorPreset>[0],
+): boolean {
+  return preset === "hosted-personal" && visitorPreset(machine) === null;
+}
+
 /** Whether nobody may change `setting` in this Environment: only where the
  * Try overlay fixes it. */
 export function isFixed(

@@ -1,9 +1,9 @@
 import { lstat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { askActiveWork } from "../buddy/gateway-refresh";
-import type { PresetName } from "../folder/presets";
+import { type PresetName, personalMemoryHere } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
-import { environmentKind, presetKinds } from "../launchpad/shell-document";
+import { presetKinds } from "../launchpad/shell-document";
 import { resolveOnPath, type ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { brainHttp, healthVersion } from "./admin";
@@ -61,10 +61,10 @@ export function processBrainHost(
       try {
         const { preferences } = await readFolderState(join(folder, ".lazurio"));
         const preset = preferences.preset.name;
+        // The one gate of the person's memory, shared with the Folder's text.
         if (
           !Object.hasOwn(presetKinds, preset) ||
-          environmentKind(preset as PresetName, preferences.machine) !==
-            "personal"
+          !personalMemoryHere(preset as PresetName, preferences.machine)
         )
           return unsupported("not-personal");
       } catch {
