@@ -1329,7 +1329,12 @@ export function createMemoryPanel(
         }
         return box;
       });
-      const add = element("button", "memory-set-add", copy.memoryGroupAdd);
+      // Dark, as the wireframe's `btn--ink`.
+      const add = element(
+        "button",
+        "primary memory-set-add",
+        copy.memoryGroupAdd,
+      );
       add.type = "button";
       add.dataset.set = "add";
       add.addEventListener("click", () => {
@@ -1347,7 +1352,7 @@ export function createMemoryPanel(
     const display = section("display", copy.memoryDisplay, () => {
       const animate = element(
         "button",
-        "memory-set-add",
+        "primary memory-set-add",
         step === null ? copy.memoryAnimate : copy.memoryAnimateStop,
       );
       animate.type = "button";
