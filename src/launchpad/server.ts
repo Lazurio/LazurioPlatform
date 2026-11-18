@@ -5,6 +5,12 @@ import { join } from "node:path";
 import type { Server } from "bun";
 import { readAgentEntry } from "../agent-entry/settings";
 import {
+  type BrainSetupLabels,
+  brainAnswers,
+  convergeBrainServer,
+} from "../brain/at-start";
+import { brainPaths } from "../brain/pin";
+import {
   browserViewDocumentPath,
   browserViewPath,
 } from "../browser/contract/platform";
@@ -744,6 +750,11 @@ export async function startLaunchpad(
      * it, a supervised base for the hosted operator (`executorAtStart`).
      * Absent: it never does. */
     executorAtStart?: (() => Promise<boolean>) | undefined;
+    /** The person's brain after Executor's setup at start (plan LZD-0033
+     * R11a): runs `lazurio brain setup` as a child process where this
+     * Launchpad sets Executor up, and returns its closed labels; null where
+     * it does not run or did not finish. Absent: it never does. */
+    brainAtStart?: (() => Promise<BrainSetupLabels | null>) | undefined;
     /** Whether this Launchpad sets the Environment's own vault up after it
      * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
@@ -3758,17 +3769,39 @@ export async function startLaunchpad(
   // that stops waits for the row's action. Closing is asked after each wait:
   // here before the state is read, and by the routes before the setup.
   const executorAtStart = installed?.executorAtStart;
+  const brainAtStart = installed?.brainAtStart;
   if (executorAtStart !== undefined)
     void (async () => {
-      if ((await executorAtStart()) && !closing && (await executor.atStart()))
+      if (!(await executorAtStart()) || closing) return;
+      if (await executor.atStart()) {
         // Once it has ended, the tools are read again for the page.
-        void executor
-          .settled()
-          .catch(() => undefined)
-          .then(() => {
-            toolsReading.forget();
-            if (!closing) toolsReading.warm();
-          });
+        await executor.settled().catch(() => undefined);
+        toolsReading.forget();
+        if (!closing) toolsReading.warm();
+      }
+      // The person's brain (plan LZD-0033 R11a), once Executor's setup has
+      // ended: `lazurio brain setup` runs as a child process, so the brain's
+      // owner credential is never read here; where its server answers,
+      // Executor gets the custom server Brain. Closed labels only.
+      if (brainAtStart === undefined || closing) return;
+      const labels = await brainAtStart();
+      const server =
+        brainAnswers(labels) && !closing
+          ? await convergeBrainServer(
+              brainPaths(homedir()),
+              integrations.customServers,
+            ).catch(() => "failed" as const)
+          : undefined;
+      if (server === "added" || server === "updated") integrations.forget();
+      if (labels !== null)
+        console.log(
+          JSON.stringify({
+            scope: "brain",
+            event: "setup",
+            ...labels,
+            ...(server === undefined ? {} : { executor: server }),
+          }),
+        );
     })().catch(() => undefined);
   // The Environment's own vault (decision F53), by the same pattern: where
   // the vault needs it, the one setup of Settings → Tools runs in the

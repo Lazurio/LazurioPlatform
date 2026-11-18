@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { appsHelp, runAppsCommand } from "./agent-entry/cli";
+import { runBrainSetup } from "./brain/at-start";
 import { brainHelp, runBrainCommand } from "./brain/cli";
 import {
   browserCommandWithoutNotice,
@@ -125,6 +126,7 @@ import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runThemeCommand, themeHelp } from "./theme/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import { openedView } from "./tools/sign-in-page";
+import { runTool } from "./tools/status";
 import {
   type CommandOutput,
   executorAtStart,
@@ -175,6 +177,15 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
       }),
     }),
     executorAtStart: executorAtStart(context, base),
+    // The person's brain (plan LZD-0033 R11a): after Executor's setup at
+    // start, `lazurio brain setup` in a child process of this very
+    // executable; it decides itself whether this is a Personal Environment.
+    brainAtStart: () =>
+      runBrainSetup({
+        executable: context.executable,
+        run: runTool,
+        env: process.env,
+      }),
     vaultAtStart: vaultAtStart(context, base),
     // The Environment's routes from its home access service (root decision
     // 0224), where the handover declares it.
