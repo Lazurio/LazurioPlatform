@@ -1138,7 +1138,9 @@ export function telegramScreen(
 
 /** What a change of the persona answered, as the page says it. */
 export type PersonaSaveResult =
-  | Readonly<{ kind: "saved"; pending: boolean }>
+  /** `unapplied`: the names are saved, but what derives from them was not
+   * put in place (the apply failed; the Launchpad tries again). */
+  | Readonly<{ kind: "saved"; pending: boolean; unapplied?: true }>
   | Readonly<{ kind: "invalid"; field: "buddy-name" | "user" }>
   | Readonly<{ kind: "changed" }>
   | Readonly<{ kind: "failed" }>;
@@ -1147,6 +1149,7 @@ export type PersonaSaveResult =
 export function saveLine(result: PersonaSaveResult, copy: Copy): string | null {
   switch (result.kind) {
     case "saved":
+      if (result.unapplied === true) return copy.buddyNotApplied;
       return result.pending ? copy.buddyPending : copy.buddySaved;
     case "invalid":
       return result.field === "buddy-name"

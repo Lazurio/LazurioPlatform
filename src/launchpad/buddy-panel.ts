@@ -373,8 +373,10 @@ export function createBuddyPanel(
   /** The line under the names: the last save, or that a change waits. */
   function statusLine(copy: Copy): string {
     const pending = options.facts().reading?.persona?.pending === true;
-    if (lastSave?.kind === "saved")
+    if (lastSave?.kind === "saved") {
+      if (lastSave.unapplied === true) return copy.buddyNotApplied;
       return pending ? copy.buddyPending : copy.buddySaved;
+    }
     if (lastSave !== null) return saveLine(lastSave, copy) ?? "";
     return pending ? copy.buddyPending : "";
   }

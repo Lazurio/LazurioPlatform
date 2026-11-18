@@ -17,7 +17,11 @@ import {
   buddyRoutePaths,
   createBuddyRoutes,
 } from "../src/launchpad/buddy-routes";
-import { buddyOwnSignIn, parseBuddyReading } from "../src/launchpad/buddy-view";
+import {
+  buddyOwnSignIn,
+  parseBuddyReading,
+  saveLine,
+} from "../src/launchpad/buddy-view";
 import { pairsBuddysOwnT3 } from "../src/launchpad/chat";
 import { initializeMachineFolder } from "../src/machine/cli";
 import type { ToolRunner } from "../src/tools/status";
@@ -263,3 +267,16 @@ posix(
     }
   },
 );
+
+test("a save whose names did not reach Buddy says so, never that it waits for him", () => {
+  const copy = {
+    buddyNotApplied: "not applied",
+    buddyPending: "pending",
+    buddySaved: "saved",
+  } as unknown as Parameters<typeof saveLine>[1];
+  expect(
+    saveLine({ kind: "saved", pending: true, unapplied: true }, copy),
+  ).toBe("not applied");
+  expect(saveLine({ kind: "saved", pending: true }, copy)).toBe("pending");
+  expect(saveLine({ kind: "saved", pending: false }, copy)).toBe("saved");
+});
