@@ -1142,7 +1142,7 @@ test.skipIf(chrome === null || !posix || uid === 0)(
       await browser.close();
     }
   },
-  60_000,
+  90_000,
 );
 
 test.skipIf(!posix || uid === 0)(
@@ -1165,5 +1165,5 @@ test.skipIf(!posix || uid === 0)(
       }
     }
   },
-  90_000,
+  30_000,
 );
