@@ -22,6 +22,7 @@ import {
   type KeyList,
   newCustomForm,
   parseCustomSettings,
+  prefilledCustomForm,
   type RowList,
   removeRow,
   withArg,
@@ -132,6 +133,10 @@ type CustomPage = Readonly<{
 
 export function createIntegrationsPanel(
   options: Readonly<{
+    /** The query of the page's first address, once (the address is reduced
+     * to its path at load): a new custom server's name and URL, as Apps
+     * links an Application's MCP server ("Připojit k agentům"). */
+    takeQuery?: () => string | null;
     get: (path: string) => Promise<{ value: unknown; ok: boolean }>;
     post: (
       path: string,
@@ -1822,14 +1827,23 @@ export function createIntegrationsPanel(
   /** Opens the page of a route: a new server's form, or reads a server's
    * settings into it. The same page shown again keeps its form. */
   function openCustom(server: string | null) {
-    if (custom !== null && custom.server === server) {
+    // A new server's page reached from Apps carries the Application's MCP
+    // server in its first address; it starts a filled-in form.
+    const query = server === null ? (options.takeQuery?.() ?? null) : null;
+    const prefill = query !== null && new URLSearchParams(query).has("url");
+    if (custom !== null && custom.server === server && !prefill) {
       drawCustom();
       return;
     }
     note = null;
     const page: CustomPage = {
       server,
-      form: server === null ? newCustomForm() : null,
+      form:
+        server === null
+          ? prefill
+            ? prefilledCustomForm(query ?? "")
+            : newCustomForm()
+          : null,
       failed: false,
       saving: false,
       status: "",

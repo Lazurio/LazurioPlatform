@@ -45,7 +45,12 @@ import {
 } from "./favorites";
 import { moduleOrigin } from "./hosted-entry";
 import type { MessageKey } from "./messages";
-import { integrationsPath, type PageRoute, servicePath } from "./routes";
+import {
+  customServerPath,
+  integrationsPath,
+  type PageRoute,
+  servicePath,
+} from "./routes";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -271,6 +276,11 @@ export type AppsTile =
         TileTarget,
         { kind: "hosted" } | { kind: "start" }
       > | null;
+      /** Where the Module's Application offers its MCP server (the account's
+       * `mcp`, plan LZD-0037): the page of Integrace that connects it to this
+       * Environment's agents, filled in, which the person confirms by signing
+       * in ("Připojit k agentům"). Null without one. */
+      agents: string | null;
     }>
   /** A production repository: read-only, no app, no page of its own
    * (decision F32's final addendum); its menu leads to its GitHub page. A
@@ -391,6 +401,24 @@ export function moduleApplication(
   );
 }
 
+/** At most this many characters of a custom server's name (Integrace). */
+const customNameMax = 64;
+
+/** The page of Integrace that connects an Application's MCP server to this
+ * Environment's agents, filled in with its name and `<url>/mcp`; null where
+ * the account does not say the Application offers one. Nothing is connected
+ * until the person confirms and signs in there. */
+export function connectAgentsPath(
+  application: AccountApplication | null,
+): string | null {
+  if (application === null || application.mcp !== true) return null;
+  const query = new URLSearchParams({
+    name: Array.from(application.name).slice(0, customNameMax).join(""),
+    url: `${application.url}/mcp`,
+  });
+  return `${customServerPath(null)}?${query}`;
+}
+
 /** What a click on a module's tile does. */
 export function moduleAction(
   target: TileTarget,
@@ -455,6 +483,7 @@ export function appsTiles(
         (target.kind === "hosted" || target.kind === "start")
           ? target
           : null,
+      agents: connectAgentsPath(application),
     };
   };
   const modules =

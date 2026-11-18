@@ -9,6 +9,7 @@ import {
   editCustomForm,
   newCustomForm,
   parseCustomSettings,
+  prefilledCustomForm,
   removeRow,
   withArg,
   withField,
@@ -455,4 +456,37 @@ test("what the page says after a save, and answers it does not take", () => {
     },
   ])
     expect(parseCustomSettings(answer)).toBeNull();
+});
+
+test("Apps fills in a new server from the address: a name and an https URL, nothing else", () => {
+  const form = prefilledCustomForm(
+    "?name=Revize+a+kontroly&url=https%3A%2F%2Frevize.example.lazurio.app%2Fmcp&bearer=x&type=stdio",
+  );
+  expect([
+    form.id,
+    form.type,
+    form.name,
+    form.http.url,
+    form.http.bearer,
+  ]).toEqual([
+    null,
+    "http",
+    "Revize a kontroly",
+    "https://revize.example.lazurio.app/mcp",
+    "",
+  ]);
+  for (const url of [
+    "http://revize.example.lazurio.app/mcp",
+    "javascript:alert(1)",
+    "not a url",
+    "",
+  ])
+    expect(
+      prefilledCustomForm(`?name=X&url=${encodeURIComponent(url)}`),
+    ).toEqual(newCustomForm());
+  expect(
+    prefilledCustomForm(
+      `?url=https%3A%2F%2Fa.example%2Fmcp&name=${"Ž".repeat(80)}`,
+    ).name,
+  ).toBe("Ž".repeat(64));
 });

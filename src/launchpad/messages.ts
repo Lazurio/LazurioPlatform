@@ -519,6 +519,9 @@ const en = {
   appsOpenApplicationNamed: "Open the Application {name} in a new tab",
   appsDevelopment: "Development version",
   appsDevelopmentHint: "The state of main in {this}",
+  appsConnectAgents: "Connect to agents",
+  appsConnectAgentsHint:
+    "The Application's MCP server, for every agent of {this}",
   appsNoApp: "No app",
   appsAbout: "About the module",
   appsLog: "App log",
@@ -3007,6 +3010,8 @@ const cs: Record<MessageKey, string> = {
   appsOpenApplicationNamed: "Otevřít Aplikaci {name} v nové záložce",
   appsDevelopment: "Vývojová verze",
   appsDevelopmentHint: "Stav z main v {tomto}",
+  appsConnectAgents: "Připojit k agentům",
+  appsConnectAgentsHint: "MCP server Aplikace pro všechny agenty {tohoto}",
   appsNoApp: "Bez aplikace",
   appsAbout: "O modulu",
   appsLog: "Log aplikace",
