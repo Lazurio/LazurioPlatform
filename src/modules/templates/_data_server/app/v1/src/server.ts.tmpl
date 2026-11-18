@@ -1,0 +1,55 @@
+/** Starts the App's one server process: the data, the tools for agents and
+ * the built interface (Lazurio Module Standard, "One process"; start_script
+ * from `main`). The development run (`bun run dev`) serves the interface with
+ * hot reload and no data. */
+import { join, resolve } from "node:path";
+import {
+  allowedHosts,
+  type Listener,
+  listener,
+  ModuleKitError,
+  onShutdown,
+} from "@lazurio/module-kit";
+import { agentTools } from "./agent-tools.ts";
+import { createHandler, staticFiles } from "./app-server.ts";
+import { repositoryDbStore } from "./data/repository-db-store.ts";
+import type { Store } from "./data/store.ts";
+
+const LISTENER = "{{listener_id}}";
+
+let app: Listener;
+try {
+  app = listener(LISTENER);
+} catch (error) {
+  if (!(error instanceof ModuleKitError)) throw error;
+  console.error(`Start through Lazurio lifecycle: ${error.message}`);
+  process.exit(2);
+}
+
+/** The Module root (`{{app_directory}}/src` → three levels up); its `db/` is the data checkout. */
+const moduleRoot = resolve(import.meta.dir, "..", "..", "..");
+let store: Store | null = null;
+try {
+  store = repositoryDbStore({ mountRoot: join(moduleRoot, "db") });
+} catch (error) {
+  console.error(`The data are not open yet: ${error instanceof Error ? error.message : error}`);
+}
+
+// Lazurio hands the built interface as LAZURIO_RUNTIME_BUILD_OUTPUT.
+const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? resolve(import.meta.dir, "..", "dist");
+const server = Bun.serve({
+  hostname: app.host,
+  port: app.port,
+  idleTimeout: 0,
+  fetch: createHandler({
+    listener: LISTENER,
+    hosts: new Set(allowedHosts(LISTENER)),
+    dataOpen: () => store !== null,
+    tools: agentTools(),
+    serveClient: staticFiles(output, {{static_spa}}),
+  }),
+});
+console.log(`{{display_name}} serves ${server.url.href}`);
+
+// SIGTERM from Lazurio: close every connection and exit 0 (standard 4.4).
+onShutdown(() => server.stop(true));

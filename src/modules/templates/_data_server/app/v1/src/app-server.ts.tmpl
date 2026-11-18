@@ -1,0 +1,103 @@
+/** The App's own server for a Module with data (Lazurio Module Standard,
+ * "Applications of an Organization"): the data, the tools for agents and the
+ * built interface run in one process, so all access to the data runs in the
+ * server (profile `app-data`). Free of the listener, so it has unit tests. */
+import { type AppAccess, appAccess } from "@lazurio/module-kit";
+import { dataWriter } from "@lazurio/module-kit/tools";
+import { MCP_PATH } from "./agent-tools.ts";
+
+export const HEALTH_PATH = "/healthz";
+export const SESSION_PATH = "/api/session";
+
+type Env = Readonly<Record<string, string | undefined>>;
+
+export interface ServerParts {
+  /** The listener id the App's addresses come from. */
+  listener: string;
+  /** Hostnames the App answers (`allowedHosts()` of module-kit). */
+  hosts: ReadonlySet<string>;
+  /** Whether the data are open: the health answers 503 until they are. */
+  dataOpen: () => boolean;
+  /** The tools for agents (`agentTools()`), offered at /mcp and to the page. */
+  tools: {
+    handleMcp(request: Request): Promise<Response>;
+    handlePage(request: Request): Promise<Response | null>;
+  };
+  /** The built interface; null in a test. */
+  serveClient: ((pathname: string) => Promise<Response>) | null;
+  env?: Env;
+}
+
+/** Hostnames the App answers; anything else is refused. */
+export function hostAllowed(request: Request, hosts: ReadonlySet<string>): boolean {
+  const header = request.headers.get("host");
+  if (header === null) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(`http://${header}`).hostname;
+  } catch {
+    return false;
+  }
+  return hosts.has(hostname.replace(/^\[(.*)\]$/, "$1"));
+}
+
+/** Who came and whether they may change data now: `appAccess` for every
+ * request (decision 0231) and the one writer rule `dataWriter`. */
+export function session(access: AppAccess, env: Env) {
+  return {
+    role: access.appRole,
+    username: access.person?.username ?? null,
+    entry: access.entry,
+    mayWrite: dataWriter(access, env),
+  };
+}
+
+export function createHandler(parts: ServerParts) {
+  const env = parts.env ?? process.env;
+  return async (request: Request): Promise<Response> => {
+    if (!hostAllowed(request, parts.hosts)) return new Response("Forbidden host", { status: 403 });
+    const { pathname } = new URL(request.url);
+    if (pathname === HEALTH_PATH) {
+      const open = parts.dataOpen();
+      return Response.json(open ? { status: "ok" } : { status: "starting" }, {
+        status: open ? 200 : 503,
+        headers: { "cache-control": "no-store" },
+      });
+    }
+    if (pathname === MCP_PATH) return parts.tools.handleMcp(request);
+    const page = await parts.tools.handlePage(request);
+    if (page !== null) return page;
+    if (pathname === SESSION_PATH) {
+      const access = appAccess(request, parts.listener, env);
+      if (access.appRole === null)
+        return Response.json({ ok: false, reason: "forbidden" }, { status: 403 });
+      return Response.json(session(access, env), { headers: { "cache-control": "no-store" } });
+    }
+    if (pathname.startsWith("/api/"))
+      return Response.json({ ok: false, reason: "not_found" }, { status: 404 });
+    if (parts.serveClient && (request.method === "GET" || request.method === "HEAD"))
+      return parts.serveClient(pathname);
+    return new Response("Not found", { status: 404 });
+  };
+}
+
+/** Serves the built interface from `root`; an unknown path gets `index.html`
+ * when `spa` is true (client routing), otherwise its `index.html` or 404. */
+export function staticFiles(root: string, spa: boolean) {
+  return async (pathname: string): Promise<Response> => {
+    const clean = decodeURIComponent(pathname).replace(/\\/g, "/");
+    if (clean.split("/").includes("..")) return new Response("Not found", { status: 404 });
+    const candidates = clean.endsWith("/")
+      ? [`${clean}index.html`]
+      : [clean, `${clean}/index.html`, `${clean}.html`];
+    for (const candidate of candidates) {
+      const file = Bun.file(`${root}${candidate}`);
+      if (await file.exists()) return new Response(file);
+    }
+    if (spa) {
+      const index = Bun.file(`${root}/index.html`);
+      if (await index.exists()) return new Response(index);
+    }
+    return new Response("Not found", { status: 404 });
+  };
+}
