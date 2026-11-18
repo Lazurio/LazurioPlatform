@@ -1,3 +1,5 @@
+import type { BuddyFolderPath } from "./buddy-gen4";
+
 // The generated files the Folder owns, in one fixed order. Everything that
 // journals, stages, renames or verifies generated output iterates this list;
 // nothing else in the Folder is written by the product. `AGENTS.md` is the
@@ -143,7 +145,7 @@ export const buddyLayerPaths: readonly BuddyLayerPath[] = Object.freeze([
 
 // A file the product writes in the Folder: a digest-owned output or a file of
 // Buddy's Lazurio layer.
-export type FolderFilePath = OutputPath | BuddyLayerPath;
+export type FolderFilePath = OutputPath | BuddyLayerPath | BuddyFolderPath;
 
 export const outputPaths = Object.freeze([
   "AGENTS.md",
