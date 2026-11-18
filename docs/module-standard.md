@@ -1024,13 +1024,11 @@ the rule of draft and publication: irreversible changes only after an explicit
 
 Every publication is a tool of its own, never a mode of a draft tool. It carries
 `destructiveHint: true` and says what it ends in its description. The App records
-who published and by which path: `/mcp`, the page or the interface. In
-repository-db that is the commit's actor and its `Repository-Db-Source` trailer
-`<app>-v<N>/<path>`, the path one of `mcp`, `page` or `interface` (for example
-`quotes-v3/mcp`); in a database it is `DOLT_COMMIT --author` and the same value in
-the commit message. A publication tool goes through the same writer gate as a
-draft: it is not offered in a read-only copy, and the data port refuses it there
-too (`MS-18`).
+who published and by which channel, as every change does
+([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4), "Author and
+channel"). A publication tool goes through the same writer gate as a draft: it
+is not offered in a read-only copy, and the data port refuses it there too
+(`MS-18`).
 
 **Open, Matěj's decision:** how the App knows that the person said "Publikuj".
 - **Variant A:** the agent's rule (Lazurio's rules of Publication) and the tool's
@@ -1246,11 +1244,22 @@ The port holds, in both generations:
   write (a capability it offers once its tools or interface need it) changes
   them in one commit (repository-db) or one transaction with one `DOLT_COMMIT`
   (Dolt), never some of them.
-- **Author and channel.** A change records the person's `subject` as its author
-  (`<subject> <<subject>@subject.lazurio.invalid>`) and trailers
-  `Lazurio-Subject` and `Lazurio-Channel` (`ui`, `mcp`, `webmcp`, `import`), in
-  the Git commit or with `DOLT_COMMIT --author`. It is the App's statement, not
-  a proof: the data layer proves only that the App wrote
+- **Author and channel.** Every change, a draft and a publication alike,
+  records two fields: the person's `subject` and the `channel` it came by, one
+  of `ui` (the App's interface), `mcp` (`/mcp`), `webmcp` (the page's agent
+  tools) and `import`. The port gives them back in the same shape from both
+  generations. They are written as follows:
+  - **repository-db (`app/v3`):** through its publish API, `actor: <subject>`
+    and `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
+    writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`. The
+    Git author of the commit stays the Environment's or the host's identity, as
+    repository-db sets it; the App does not set it.
+  - **Dolt (`app/v4`):** `DOLT_COMMIT --author "<subject>
+    <<subject>@subject.lazurio.invalid>"`, and in the commit message the lines
+    `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`.
+
+  It is the App's statement, not a proof: the data layer proves only that the
+  App wrote
   ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key), point 5).
 - **History, where offered.** A port that offers the history of a record (who,
   when, what) gives it in the same shape from Git and from Dolt's history
