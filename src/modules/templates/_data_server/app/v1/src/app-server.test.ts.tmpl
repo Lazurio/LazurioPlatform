@@ -58,3 +58,19 @@ test("the tools for agents answer at /mcp, a foreign Host is refused", async () 
   const foreign = await handler(true)(new Request("https://foreign.invalid/healthz"));
   expect(foreign.status).toBe(403);
 });
+
+test("the page and its files need an application role", async () => {
+  const serve = createHandler({
+    listener: "{{listener_id}}",
+    hosts: new Set([new URL(TEST_ORIGIN).hostname]),
+    dataOpen: () => true,
+    tools: agentTools(env),
+    serveClient: async () => new Response("page"),
+    env,
+  });
+  expect((await serve(gatewayRequest("/", { caller: { role: "none" } }))).status).toBe(403);
+  expect((await serve(gatewayRequest("/assets/app.js", { caller: { role: "none" } }))).status).toBe(
+    403,
+  );
+  expect((await serve(gatewayRequest("/", { caller: { role: "user" } }))).status).toBe(200);
+});

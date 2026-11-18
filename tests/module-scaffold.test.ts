@@ -1093,6 +1093,7 @@ describe("planModuleScaffold with data (--data)", () => {
     // the built version runs `start`, the health is the server's deep one and
     // the static fallback goes, since the server serves the build.
     expect(pkg.scripts.start).toBe("bun --no-env-file run src/server.ts");
+    expect(pkg.scripts.dev).toBe("bun --no-env-file run src/server.ts");
     expect(pkg.lazurio.runtime.start_script).toBe("start");
     expect(pkg.lazurio.runtime.static_fallback).toBeUndefined();
     expect(pkg.lazurio.runtime.listeners[0].health.path).toBe("/healthz");
@@ -1103,6 +1104,7 @@ describe("planModuleScaffold with data (--data)", () => {
     delete pkg.scripts["validate:data"];
     delete pkg.scripts["validate:db"];
     delete pkg.scripts.start;
+    pkg.scripts.dev = before.scripts.dev;
     delete pkg.lazurio.runtime.start_script;
     pkg.lazurio.runtime.static_fallback =
       before.lazurio.runtime.static_fallback;
@@ -1176,6 +1178,8 @@ describe("planModuleScaffold with data (--data)", () => {
       "AGENTS.md",
       "README.md",
       "app/v3/package.json",
+      // The own server's start contract: a deep health (503 without db/) and /mcp.
+      "app/v3/tests/start.test.ts",
     ]);
     expect(result.data).toEqual({
       repository: "portal-data",

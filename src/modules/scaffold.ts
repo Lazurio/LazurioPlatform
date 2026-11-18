@@ -683,7 +683,13 @@ function withData(
   }
   pkg.scripts = {
     ...scripts,
-    ...(ownServer ? { start: "bun --no-env-file run src/server.ts" } : {}),
+    // The development run is the same server, bundling the interface itself.
+    ...(ownServer
+      ? {
+          dev: "bun --no-env-file run src/server.ts",
+          start: "bun --no-env-file run src/server.ts",
+        }
+      : {}),
     check: `${scripts.check} && bun run validate:data`,
     "validate:data": "bun run src/validate-data.ts seed",
     "validate:db": "bun run src/validate-data.ts ../../db/data",

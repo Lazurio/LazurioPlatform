@@ -75,8 +75,12 @@ export function createHandler(parts: ServerParts) {
     }
     if (pathname.startsWith("/api/"))
       return Response.json({ ok: false, reason: "not_found" }, { status: 404 });
-    if (parts.serveClient && (request.method === "GET" || request.method === "HEAD"))
+    if (parts.serveClient && (request.method === "GET" || request.method === "HEAD")) {
+      // The page and its files too need an application role (decision 0231).
+      if (appAccess(request, parts.listener, env).appRole === null)
+        return new Response("Forbidden", { status: 403 });
       return parts.serveClient(pathname);
+    }
     return new Response("Not found", { status: 404 });
   };
 }

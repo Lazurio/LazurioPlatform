@@ -53,6 +53,9 @@ import dataServerAppV1SrcAppServerTs from "./templates/_data_server/app/v1/src/a
 import dataServerAppV1SrcServerTs from "./templates/_data_server/app/v1/src/server.ts.tmpl" with {
   type: "text",
 };
+import dataServerAppV1TestsStartTestTs from "./templates/_data_server/app/v1/tests/start.test.ts.tmpl" with {
+  type: "text",
+};
 import personalAgentsMd from "./templates/_personal/AGENTS.md.tmpl" with {
   type: "text",
 };
@@ -231,6 +234,7 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
       "app/v1/src/app-server.test.ts.tmpl": dataServerAppV1SrcAppServerTestTs,
       "app/v1/src/app-server.ts.tmpl": dataServerAppV1SrcAppServerTs,
       "app/v1/src/server.ts.tmpl": dataServerAppV1SrcServerTs,
+      "app/v1/tests/start.test.ts.tmpl": dataServerAppV1TestsStartTestTs,
     }),
     _personal: layer({
       "AGENTS.md.tmpl": personalAgentsMd,

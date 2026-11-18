@@ -1,7 +1,10 @@
 /** Starts the App's one server process: the data, the tools for agents and
- * the built interface (Lazurio Module Standard, "One process"; start_script
- * from `main`). The development run (`bun run dev`) serves the interface with
- * hot reload and no data. */
+ * the interface (Lazurio Module Standard, "One process"). The built version
+ * (`start`, NODE_ENV=production) serves the build it is handed; the
+ * development run (`dev`) lets Bun bundle the interface with hot reload in the
+ * same process, so the data, /mcp, the page tools and the deep health are the
+ * same in both. In the development run Bun serves the bundled client code
+ * itself; every path that carries data still checks the role. */
 import { join, resolve } from "node:path";
 import {
   allowedHosts,
@@ -37,18 +40,29 @@ try {
 
 // Lazurio hands the built interface as LAZURIO_RUNTIME_BUILD_OUTPUT.
 const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? resolve(import.meta.dir, "..", "dist");
-const server = Bun.serve({
-  hostname: app.host,
-  port: app.port,
-  idleTimeout: 0,
-  fetch: createHandler({
-    listener: LISTENER,
-    hosts: new Set(allowedHosts(LISTENER)),
-    dataOpen: () => store !== null,
-    tools: agentTools(),
-    serveClient: staticFiles(output, {{static_spa}}),
-  }),
+const production = process.env.NODE_ENV === "production";
+const handle = createHandler({
+  listener: LISTENER,
+  hosts: new Set(allowedHosts(LISTENER)),
+  dataOpen: () => store !== null,
+  tools: agentTools(),
+  serveClient: production ? staticFiles(output, {{static_spa}}) : null,
 });
+const server = production
+  ? Bun.serve({ hostname: app.host, port: app.port, idleTimeout: 0, fetch: handle })
+  : Bun.serve({
+      hostname: app.host,
+      port: app.port,
+      idleTimeout: 0,
+      development: { hmr: true, console: false },
+      routes: {
+        "/api/*": handle,
+        "/mcp": handle,
+        "/healthz": handle,
+        "/*": (await import("../index.html")).default,
+      },
+      fetch: handle,
+    });
 console.log(`{{display_name}} serves ${server.url.href}`);
 
 // SIGTERM from Lazurio: close every connection and exit 0 (standard 4.4).
