@@ -80,8 +80,11 @@ test("only the installer's unit that starts this Folder is restarted, and it mus
     service: () => Promise.reject(new Error("no user manager")),
     version: "1.0.0",
   };
+  // A lookup that fails says nothing about supervision: the restart is not
+  // known to have happened, so it is a failed one, which a refresh keeps
+  // owed (plan LZD-0033 R2). A confirmed absence (null) stays unsupervised.
   expect(await restartLaunchpadForEntry(folder, unreadable)).toBe(
-    "not-supervised",
+    "restart-failed",
   );
 
   const other = supervised("/home/someone/Lazurio");

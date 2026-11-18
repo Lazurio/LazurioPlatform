@@ -3,6 +3,7 @@ import { buddyPartNode, drawnKey, faceNode } from "./buddy-dialog";
 import {
   type BuddyStepFacts,
   buddyNameOf,
+  buddyOwnSignIn,
   buddySignInRow,
   buddyStateView,
   draftChanged,
@@ -97,6 +98,7 @@ export function createBuddyPanel(
   const notHere = find<HTMLElement>("#buddy-not-here");
   const stateCard = find<HTMLElement>("#buddy-state");
   const channelsCard = find<HTMLElement>("#buddy-channels");
+  const channelsGroup = channelsCard.closest("section") ?? channelsCard;
   const form = find<HTMLFormElement>("#buddy-persona");
   const confirm = find<HTMLDialogElement>("#buddy-confirm");
   const confirmTitle = find<HTMLElement>("#buddy-confirm-title");
@@ -195,7 +197,9 @@ export function createBuddyPanel(
     const state = buddyStateView(facts.reading, copy, facts.refused);
     const row = buddySignInRow(facts, copy);
     const name = buddyNameOf(facts.reading);
-    const key = drawnKey([state, row, name, options.avatar()]);
+    // Buddy GEN4 has no ChatGPT sign-in of his own: no row for it.
+    const own = buddyOwnSignIn(facts.reading);
+    const key = drawnKey([state, row, name, options.avatar(), own]);
     if (key === stateDrawn) return;
     stateDrawn = key;
     closeMenu?.();
@@ -211,6 +215,10 @@ export function createBuddyPanel(
     word.append(dot, state.word);
     main.append(face, named, word);
     who.append(main);
+    if (!own) {
+      stateCard.replaceChildren(who);
+      return;
+    }
 
     const signIn = element("div", "row buddy-sign-in-row");
     const signMain = element("div", "row-main");
@@ -365,8 +373,10 @@ export function createBuddyPanel(
   /** The line under the names: the last save, or that a change waits. */
   function statusLine(copy: Copy): string {
     const pending = options.facts().reading?.persona?.pending === true;
-    if (lastSave?.kind === "saved")
+    if (lastSave?.kind === "saved") {
+      if (lastSave.unapplied === true) return copy.buddyNotApplied;
       return pending ? copy.buddyPending : copy.buddySaved;
+    }
     if (lastSave !== null) return saveLine(lastSave, copy) ?? "";
     return pending ? copy.buddyPending : "";
   }
@@ -557,7 +567,10 @@ export function createBuddyPanel(
     if (!here) return;
     drawState(copy);
     drawPersona(copy);
-    drawChannels(copy);
+    // Buddy GEN4 has no Telegram of his own (no Hermes): no channels.
+    const channels = buddyOwnSignIn(options.facts().reading);
+    channelsGroup.hidden = !channels;
+    if (channels) drawChannels(copy);
   }
 
   document.addEventListener("click", (event) => {

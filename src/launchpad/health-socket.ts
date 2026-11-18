@@ -8,7 +8,10 @@ import { layout } from "../update/layout";
 // else; in Recovery mode it answers 503 with the check, which every updater,
 // old or new, reads as "not healthy".
 export type HealthAnswer =
-  | Readonly<{ version: string }>
+  // `entry`: the digest of the hosted entry this Launchpad started with
+  // (machine/launchpad-entry.ts `entryDigest`), so that a refresh can tell
+  // a restart it still owes (plan LZD-0033 R2). Absent from older releases.
+  | Readonly<{ version: string; entry?: string }>
   | Readonly<{ mode: "recovery"; check: string; reason: string }>;
 
 async function answers(socket: string): Promise<boolean> {

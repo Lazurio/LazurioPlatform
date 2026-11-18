@@ -1,9 +1,11 @@
 import { type ServiceRun, systemctl } from "../buddy/gateway-refresh";
+import type { HermesGateway } from "../buddy/hermes-gateway";
 import type { BuddyFacts } from "../buddy/status";
-import { buddyStatus } from "../buddy/status";
+import { buddyStatus, readBuddyFacts } from "../buddy/status";
 import { buddyT3Unit } from "../buddy/t3-runtime";
-import type { MachineEntry } from "../folder/machine-binding";
+import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import { buddyMeetHref } from "../shell/view";
+import { t3codeUnit } from "./new-tab/memory";
 
 // When Buddy is open to the person (decision F60's addendum of 2026-11-09,
 // Matěj's decision "Odkaz do Začínáme"): while Buddy does not run, or the
@@ -30,16 +32,40 @@ export function buddyOpenOf(
   confirmed: boolean,
   t3Active: boolean,
 ): boolean {
+  const signIn = buddyStatus(facts).signIn.state;
   return (
-    buddyStatus(facts).signIn.state === "connected" && confirmed && t3Active
+    (signIn === "connected" || signIn === "not-needed") && confirmed && t3Active
   );
 }
 
 /** Whether the unit of Buddy's T3 Code is active (`systemctl --user
- * is-active`); false when it is not, systemd cannot say, or does not answer
+ * is-active`): his own (`lazurio-t3-buddy.service`) for Buddy GEN3, the
+ * shared Chat T3 Code (`t3code.service`) for Buddy GEN4, whose thread his
+ * window opens. False when it is not, systemd cannot say, or does not answer
  * in time. */
-export const buddyT3Active = (service: ServiceRun): Promise<boolean> =>
-  systemctl(service, 10_000, "is-active", "--quiet", buddyT3Unit);
+export const buddyT3Active = (
+  service: ServiceRun,
+  entry?: MachineEntry | null,
+): Promise<boolean> =>
+  systemctl(
+    service,
+    10_000,
+    "is-active",
+    "--quiet",
+    buddyGeneration(entry ?? undefined) === 4 ? t3codeUnit : buddyT3Unit,
+  );
+
+/** Buddy's facts for the entry's generation: Buddy GEN3's through his own
+ * Hermes gateway; Buddy GEN4's without one, from the shared T3 Code's unit. */
+export async function buddyFactsOf(
+  entry: MachineEntry | null,
+  gateway: HermesGateway,
+  service: ServiceRun,
+): Promise<BuddyFacts> {
+  return buddyGeneration(entry ?? undefined) === 4
+    ? { runtime: "shared-t3", active: await buddyT3Active(service, entry) }
+    : readBuddyFacts(gateway);
+}
 
 /** Buddy's gate on every shell origin, his own included, which the gateway
  * forwards to this Launchpad under `/.lazurio/` after its admission. Machines

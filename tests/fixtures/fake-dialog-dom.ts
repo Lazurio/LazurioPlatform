@@ -16,11 +16,43 @@ export class FakeNode {
   readonly attributes = new Map<string, string>();
   readonly listeners = new Map<string, Listener[]>();
   readonly dataset: Record<string, string> = {};
+  /** Inline custom properties, as his figure and the beats set them. */
+  readonly style = {
+    values: new Map<string, string>(),
+    setProperty(name: string, value: string) {
+      this.values.set(name, value);
+    },
+    removeProperty(name: string) {
+      this.values.delete(name);
+    },
+  };
   textContent = "";
   className = "";
   value = "";
   disabled = false;
   open = false;
+  /** Classes over `className`, as the beats toggle them. */
+  readonly classList = {
+    names: () => this.className.split(" ").filter((name) => name !== ""),
+    add: (...names: string[]) => {
+      this.className = [...new Set([...this.classList.names(), ...names])].join(
+        " ",
+      );
+    },
+    remove: (...names: string[]) => {
+      this.className = this.classList
+        .names()
+        .filter((name) => !names.includes(name))
+        .join(" ");
+    },
+    toggle: (name: string, force?: boolean) => {
+      const on = force ?? !this.classList.contains(name);
+      if (on) this.classList.add(name);
+      else this.classList.remove(name);
+      return on;
+    },
+    contains: (name: string) => this.classList.names().includes(name),
+  };
   constructor(readonly tagName: string) {}
   setAttribute(name: string, value: string) {
     this.attributes.set(name, value);
@@ -49,8 +81,14 @@ export class FakeNode {
     this.dispatch("click");
   }
   focus() {}
-  /** Lines found by class are not looked for here. */
-  querySelector() {
+  /** A descendant by one class (`.buddy-line`); any other selector finds
+   * nothing here. */
+  querySelector(selector = "") {
+    if (!/^\.[a-z0-9-]+$/.test(selector)) return null;
+    const name = selector.slice(1);
+    for (const child of this.walk())
+      if (child !== this && child.className.split(" ").includes(name))
+        return child;
     return null;
   }
   showModal() {

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { buddyFolderBehind } from "./buddy-folder";
 import { readStateJson } from "./read-state";
 import { isOlderTemplateRevision } from "./render";
 import { parseFolderPreferences, parseInstructionManifest } from "./state";
@@ -51,11 +52,28 @@ export async function neededRefresh(
     const manifest = parseInstructionManifest(
       await readStateJson(state, "instructions.json"),
     );
-    if (!isOlderTemplateRevision(manifest.templateRevision, productRevision))
-      return null;
     const preferences = parseFolderPreferences(
       await readStateJson(state, "preferences.json"),
     );
+    if (!isOlderTemplateRevision(manifest.templateRevision, productRevision)) {
+      // A current Folder of the hosted operator whose Buddy GEN4 folder lacks
+      // what this product renders (a write that failed after a change, plan
+      // LZD-0033 R2): its own refresh writes it again.
+      if (
+        preferences.machine !== null &&
+        operatorFolder === folder &&
+        (await buddyFolderBehind(folder, preferences))
+      )
+        return Object.freeze({
+          refresh: Object.freeze({
+            folder,
+            recorded: manifest.templateRevision,
+            product: productRevision,
+          }),
+          command: Object.freeze(["machine", "folder-refresh"]),
+        });
+      return null;
+    }
     const { profile } = preferences;
     return Object.freeze({
       refresh: Object.freeze({

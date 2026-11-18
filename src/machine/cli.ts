@@ -1,11 +1,17 @@
+import { mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
+import { BuddyFolderRefused } from "../folder/buddy-folder";
 import { FolderAdoptionError } from "../folder/handover-layout";
 import {
   adoptedHandoverFolder,
   adoptionReadWaitMs,
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
-import { FolderOperationBusyError } from "../folder/lock";
+import {
+  FolderOperationBusyError,
+  withFolderOperationLock,
+} from "../folder/lock";
 import {
   assignedEnvironments,
   type MachineBinding,
@@ -53,9 +59,13 @@ import {
 } from "./context";
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
+  clearRestartOwed,
   type LaunchpadSeams,
   recordedEntry,
+  recordedEntryDigest,
+  recordRestartOwed,
   restartLaunchpadForEntry,
+  restartOwedFor,
 } from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
@@ -137,8 +147,23 @@ that records a different entry restarts the supervised Launchpad of this
 Folder, which reads its entry only when it starts, and waits for it to answer;
 modules, T3 Code and Codex keep running. The answer then adds "launchpad":
 restarted, restart-failed or not-supervised (no installer unit of this base
-starts this Folder; the Launchpad takes the entry at its next start). Blocked with
+starts this Folder; the Launchpad takes the entry at its next start). A
+failed restart is kept as owed in the install base
+(update/launchpad-restart-owed.json) and made by the next refresh, unchanged
+or not, as is one the supervised Launchpad shows by reporting another entry
+than the recorded one; it is answered the same way. The refresh, its restart
+and the debt run under one restart lock per install base (an overlapping
+refresh is blocked as folder-busy); the debt is recorded before the refresh
+and cleared when none was owed or a restart succeeded; one that cannot be
+recorded is blocked with exit 2, nothing written: launchpad-restart-unrecordable. A person
+the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
+write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
+change, its entry and the Launchpad's restart stand, the exit code stays the
+refresh's, and the next refresh writes ~/Buddy again. Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
+buddy-folder-mismatch, buddy-folder-claude-md or buddy-folder-unsafe with its
+detail (~/Buddy cannot take Buddy's instructions: not Buddy of this home, a
+CLAUDE.md there, a link or a directory or file of another account),
 folder-binding-changed, folder-state-unrecognized, drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: take it with folder-refresh
@@ -420,6 +445,18 @@ export function machineFailureAnswer(error: unknown) {
     };
   if (error instanceof FolderOperationBusyError)
     return { code: 2, result: folderBusyAnswer };
+  // Buddy GEN4's folder cannot take his instructions: found before anything
+  // changed (plan LZD-0033 R2).
+  if (error instanceof BuddyFolderRefused)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked" as const,
+        reason: error.reason,
+        detail: error.message,
+        next: "Nothing was changed. Fix ~/Buddy as the detail says (a CLAUDE.md the person keeps elsewhere, a directory or file of this account, the handover's folder of this home) and run the same command again.",
+      },
+    };
   return {
     code: 1,
     result: {
@@ -590,6 +627,22 @@ export async function refreshMachineFolder(
 // Launchpad of this Folder and says so in `launchpad`. An unchanged entry
 // (unchanged, blocked, or a refresh of rendered text only) restarts nothing
 // and adds nothing to the answer.
+// A restart owed from an earlier refresh: the supervised Launchpad of this
+// Folder reports an entry other than the one recorded (its restart failed,
+// or an earlier refresh stopped before it). Only a Launchpad that reports its
+// entry can owe one; an older release, no unit or no answer owes none.
+async function restartOwed(
+  folder: string,
+  seams: LaunchpadSeams,
+): Promise<boolean> {
+  const service = await seams.service().catch(() => null);
+  if (service === null || service.folder !== folder) return false;
+  const running = await service.launchpadEntry?.().catch(() => null);
+  if (typeof running !== "string") return false;
+  const recorded = await recordedEntryDigest(folder);
+  return recorded !== null && running !== recorded;
+}
+
 export async function refreshMachineFolderAndLaunchpad(
   folder: string,
   machine: MachineBinding,
@@ -597,21 +650,87 @@ export async function refreshMachineFolderAndLaunchpad(
   launchpad: LaunchpadSeams | undefined,
   organizationKey: string | undefined = undefined,
 ) {
+  const run = () =>
+    refreshAndRestart(folder, machine, preset, launchpad, organizationKey);
+  if (launchpad?.owed === undefined) return run();
+  // One refresh with its restart and its debt at a time per install base:
+  // the whole lifecycle runs under the restart lock (a kernel lock, released
+  // with its process), and an overlapping refresh is refused as busy, which
+  // `lazurio update` retries (folder-busy).
+  const lockDirectory = join(dirname(launchpad.owed), "launchpad-restart");
+  try {
+    await mkdir(lockDirectory, { recursive: true, mode: 0o700 });
+  } catch {
+    return unrecordableDebt;
+  }
+  return withFolderOperationLock(lockDirectory, run);
+}
+
+const unrecordableDebt = Object.freeze({
+  code: 2,
+  result: Object.freeze({
+    kind: "blocked" as const,
+    reason: "launchpad-restart-unrecordable",
+    next: "Nothing was changed: this install base cannot keep a restart of its Launchpad owed (its update directory). Fix that directory and run the same command again.",
+  }),
+});
+
+async function refreshAndRestart(
+  folder: string,
+  machine: MachineBinding,
+  preset: PresetName | undefined,
+  launchpad: LaunchpadSeams | undefined,
+  organizationKey: string | undefined,
+) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
+  // The restart is owed ahead of the refresh, so that no failure between the
+  // recorded entry and the restart (an interruption included) can lose it.
+  // Under the restart lock nothing else touches the debt: it is cleared only
+  // after a refresh that owes none or a restart that succeeded or found the
+  // Launchpad unsupervised, and a failed restart keeps it as it is.
+  const owedBefore =
+    launchpad === undefined
+      ? false
+      : await restartOwedFor(launchpad.owed, folder);
+  if (launchpad !== undefined && !owedBefore)
+    try {
+      await recordRestartOwed(launchpad.owed, folder);
+    } catch {
+      return unrecordableDebt;
+    }
   const refreshed = await refreshMachineFolder(
     folder,
     machine,
     preset,
     organizationKey,
   );
-  if (launchpad === undefined || refreshed.result.kind !== "refreshed")
+  if (launchpad === undefined) return refreshed;
+  const cleared = () =>
+    clearRestartOwed(launchpad.owed, folder).catch(() => undefined);
+  if (
+    refreshed.result.kind !== "refreshed" &&
+    refreshed.result.kind !== "unchanged"
+  ) {
+    // Blocked or failed: what was owed before stays, nothing new is.
+    if (!owedBefore) await cleared();
     return refreshed;
-  if ((await recordedEntry(folder)) === before) return refreshed;
+  }
+  if (
+    (await recordedEntry(folder)) === before &&
+    !owedBefore &&
+    !(await restartOwed(folder, launchpad))
+  ) {
+    await cleared();
+    return refreshed;
+  }
+  const restart = await restartLaunchpadForEntry(folder, launchpad);
+  // Clearing may fail, which only owes one more restart.
+  if (restart !== "restart-failed") await cleared();
   return {
     code: refreshed.code,
     result: {
       ...refreshed.result,
-      launchpad: await restartLaunchpadForEntry(folder, launchpad),
+      launchpad: restart,
     },
   };
 }

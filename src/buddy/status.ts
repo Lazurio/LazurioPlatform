@@ -19,7 +19,9 @@ import type { HermesGateway } from "./hermes-gateway";
 // preview, the source, the last refresh) are never passed on.
 
 export type BuddyState = "works" | "waits" | "unknown";
-export type BuddySignInState = "connected" | "none" | "unknown";
+/** `not-needed`: Buddy GEN4 (plan LZD-0033) is a thread of the shared T3
+ * Code, whose providers are the Environment's; he has no sign-in of his own. */
+export type BuddySignInState = "connected" | "none" | "unknown" | "not-needed";
 
 /** What one reading found. */
 export type BuddyFacts =
@@ -30,7 +32,10 @@ export type BuddyFacts =
   | Readonly<{ runtime: "not-running" }>
   /** The gateway could not be asked: an unsafe path, no answer in time, an
    * answer of no known shape, a ticket refused. */
-  | Readonly<{ runtime: "unknown" }>;
+  | Readonly<{ runtime: "unknown" }>
+  /** Buddy GEN4: no gateway of his own; `active` whether the shared T3
+   * Code's unit runs. */
+  | Readonly<{ runtime: "shared-t3"; active: boolean }>;
 
 export type BuddyStatus = Readonly<{
   state: BuddyState;
@@ -39,6 +44,14 @@ export type BuddyStatus = Readonly<{
 }>;
 
 export function buddyStatus(facts: BuddyFacts): BuddyStatus {
+  if (facts.runtime === "shared-t3")
+    return facts.active
+      ? { state: "works", signIn: { state: "not-needed" } }
+      : {
+          state: "unknown",
+          reason: "not-running",
+          signIn: { state: "not-needed" },
+        };
   if (facts.runtime === "ready" && facts.loggedIn !== undefined)
     return facts.loggedIn
       ? { state: "works", signIn: { state: "connected" } }

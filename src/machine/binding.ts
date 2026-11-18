@@ -148,9 +148,14 @@ function entry(input: HandoverEntry): MachineEntry {
         ? {}
         : { signOutPath: input.sign_out.path }),
       ...(input.audience === undefined ? {} : { audience: input.audience }),
-      ...(input.buddy === undefined
+      ...(input.buddy?.external_origin === undefined
         ? {}
         : { buddyOrigin: input.buddy.external_origin }),
+      // Buddy GEN4 (plan LZD-0033): the folder the Folder writes and its
+      // profile.
+      ...(input.buddy !== undefined && "generation" in input.buddy
+        ? { buddyFolder: input.buddy.folder, buddyProfile: input.buddy.profile }
+        : {}),
     });
   } catch {
     throw new MachineContextError("machine-context-invalid");

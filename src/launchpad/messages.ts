@@ -1553,6 +1553,8 @@ const en = {
     "Something changed here meanwhile. Check it and save again.",
   buddySaveFailed: "Could not save. Try again.",
   buddyPending: "It takes effect once Buddy finishes what he is doing.",
+  buddyNotApplied:
+    "The names are saved, but they have not reached Buddy yet. Lazurio will try again.",
   buddySaved: "Saved.",
   buddyStateGroup: "Status",
   buddyWorks: "Working",
@@ -3940,6 +3942,8 @@ const cs: Record<MessageKey, string> = {
     "Mezitím se tu něco změnilo. Zkontrolujte to a uložte znovu.",
   buddySaveFailed: "Uložit se nepovedlo. Zkuste to znovu.",
   buddyPending: "Projeví se, až Buddy dokončí, co právě dělá.",
+  buddyNotApplied:
+    "Jména jsou uložená, ale k Buddymu se zatím nedostala. Lazurio to zkusí znovu.",
   buddySaved: "Uloženo.",
   buddyStateGroup: "Stav",
   buddyWorks: "Pracuje",

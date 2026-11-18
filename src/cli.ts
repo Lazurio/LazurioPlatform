@@ -136,6 +136,7 @@ import {
   versionCommand,
 } from "./update/cli";
 import { selectActivator } from "./update/launchpad-activation";
+import { layout } from "./update/layout";
 import { detectServiceControl } from "./update/service-control";
 import { runVaultCommand, vaultHelp } from "./vault/cli";
 
@@ -474,6 +475,14 @@ async function runOtherCommand(args: string[]): Promise<number> {
             env: context.env,
           }),
         version: context.identity.version,
+        // Where a restart still owed is kept; without an install base none.
+        owed: (() => {
+          try {
+            return layout(installBase(context, undefined)).launchpadRestartOwed;
+          } catch {
+            return undefined;
+          }
+        })(),
       });
       // Exactly one JSON object on stdout in every outcome (issue #655); a
       // failure's text for people follows on stderr.

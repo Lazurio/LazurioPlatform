@@ -4343,13 +4343,20 @@ test("an address past the bound is never remembered, so nothing is written that 
     tab(2, { url: "https://example.com/short" }),
   ]);
   await serve(browser, { remembered });
-  await until(() => String(written).includes("https://example.com/short"));
+  // Each write waits out the hub's 2 s quiet period first; give it room.
+  await until(
+    () => String(written).includes("https://example.com/short"),
+    5_000,
+  );
   expect(String(written)).not.toContain(long);
   // Tab 2 moves to a long address: its old one is not its page any more.
   browser.emit("Target.targetInfoChanged", {
     targetInfo: { ...tab(2, { url: long }), type: "page", attached: false },
   });
-  await until(() => !String(written).includes("https://example.com/short"));
+  await until(
+    () => !String(written).includes("https://example.com/short"),
+    5_000,
+  );
   for (const n of [1, 2]) {
     browser.targets.delete(id(n));
     browser.emit("Target.targetDestroyed", { targetId: id(n) });

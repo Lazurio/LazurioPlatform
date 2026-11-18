@@ -1,7 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { attachPath, createComputerAttach } from "../src/computers/attach-ws";
 import {
@@ -10,6 +9,7 @@ import {
 } from "../src/computers/session-check";
 import cases from "./fixtures/device-launchpad-cases.json";
 import { type ManualClock, manualClock } from "./fixtures/manual-clock";
+import { socketHomeParent } from "./fixtures/socket-home";
 
 // The Launchpad's side of contract v3 against every `device.launchpad` case
 // of Lazurio Auth's oracle (tests/fixtures/device-launchpad-cases.json, pinned
@@ -69,7 +69,7 @@ async function deadUrl(): Promise<string> {
 }
 
 async function launchpad(checkUrl: string, assignedUser: string) {
-  const home = await mkdtemp(join(tmpdir(), "lzs-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzs-"));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
   const sessionCheck = createComputerSessionCheck({
     checkUrl,
@@ -260,7 +260,7 @@ async function timedLaunchpad(
   clock: ManualClock,
   fetcher?: (input: string, init: RequestInit) => Promise<Response>,
 ) {
-  const home = await mkdtemp(join(tmpdir(), "lzs-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzs-"));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
   const sessionCheck = createComputerSessionCheck({
     checkUrl,

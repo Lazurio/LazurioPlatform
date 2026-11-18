@@ -437,13 +437,29 @@
         },
         "buddy": {
           "description": "Buddy on this personal VM (root decision 0210): his own T3 Code instance in its Buddy mode, present only on a personal VM whose roster routes it; an Organization work VM never carries it. The gateway admits only the owner to it; without a session it serves only its own static sign-in pages, so that the bubble's frame can offer the sign-in. Its origin has the same base host as launchpad.external_origin, which a reader must check. A reader vendoring an earlier schema refuses a document carrying it.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["external_origin", "listen_port"],
-          "properties": {
-            "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io, or https://buddy.<personal-dns-slug>.personal.lazurio.io in the personal zone (plan PCH M1).", "type": "string", "maxLength": 66, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.(?:personal\\.)?lazurio\\.io$" },
-            "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
-          }
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["external_origin", "listen_port"],
+              "properties": {
+                "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io, or https://buddy.<personal-dns-slug>.personal.lazurio.io in the personal zone (plan PCH M1).", "type": "string", "maxLength": 66, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.(?:personal\\.)?lazurio\\.io$" },
+                "listen_port": { "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.", "type": "integer", "minimum": 1024, "maximum": 65535 }
+              }
+            },
+            {
+              "description": "Buddy GEN4 (plan LZD-0033, Machines#1330): his person is converted, Buddy is a thread of the shared T3 Code in `folder`, which the Platform writes for `profile` (buddy or employee). The origin of his window is present where the lane keeps it; the gateway sends it to the shared T3 Code, so there is no port of his own (R3). A reader below PLATFORM_ENTRY_BUDDY_GENERATION_MINIMUM gets no Buddy member.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["generation", "folder", "profile"],
+              "properties": {
+                "generation": { "const": 4 },
+                "folder": { "description": "Absolute path of Buddy's folder: <home of the operator>/Buddy.", "type": "string", "maxLength": 128, "pattern": "^/home/[a-z_][a-z0-9_-]*/Buddy$" },
+                "profile": { "enum": ["buddy", "employee"] },
+                "external_origin": { "description": "Origin of Buddy on the gateway: https://buddy.<personal-dns-slug>.lazurio.io, or https://buddy.<personal-dns-slug>.personal.lazurio.io in the personal zone (plan PCH M1).", "type": "string", "maxLength": 66, "pattern": "^https://buddy\\.[a-z0-9]+(?:-[a-z0-9]+)*\\.(?:personal\\.)?lazurio\\.io$" }
+              }
+            }
+          ]
         }
       }
     },
@@ -571,23 +587,44 @@
         },
         "buddy": {
           "description": "Buddy on this personal VM (root decision 0210): his own T3 Code instance in its Buddy mode, present only on a personal VM whose roster routes it; an Organization work VM never carries it. The gateway admits only the owner to it; without a session it serves only its own static sign-in pages, so that the bubble's frame can offer the sign-in. Its origin has the same base host as launchpad.external_origin, which a reader must check. A reader vendoring an earlier schema refuses a document carrying it.",
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["external_origin", "listen_port"],
-          "properties": {
-            "external_origin": {
-              "description": "Template of Buddy's origin on the gateway: https://buddy.{dns_slug}.lazurio.io.",
-              "type": "string",
-              "maxLength": 57,
-              "pattern": "^https://buddy\\.\\{dns_slug\\}\\.lazurio\\.io$"
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["external_origin", "listen_port"],
+              "properties": {
+                "external_origin": {
+                  "description": "Template of Buddy's origin on the gateway: https://buddy.{dns_slug}.lazurio.io.",
+                  "type": "string",
+                  "maxLength": 57,
+                  "pattern": "^https://buddy\\.\\{dns_slug\\}\\.lazurio\\.io$"
+                },
+                "listen_port": {
+                  "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.",
+                  "type": "integer",
+                  "minimum": 1024,
+                  "maximum": 65535
+                }
+              }
             },
-            "listen_port": {
-              "description": "Loopback port on 127.0.0.1 Buddy's T3 instance listens on, the one the gateway proxies to.",
-              "type": "integer",
-              "minimum": 1024,
-              "maximum": 65535
+            {
+              "description": "Buddy GEN4 (plan LZD-0033, Machines#1330), as in the entry.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["generation", "folder", "profile"],
+              "properties": {
+                "generation": { "const": 4 },
+                "folder": { "description": "Absolute path of Buddy's folder: <home of the operator>/Buddy.", "type": "string", "maxLength": 128, "pattern": "^/home/[a-z_][a-z0-9_-]*/Buddy$" },
+                "profile": { "enum": ["buddy", "employee"] },
+                "external_origin": {
+                  "description": "Template of Buddy's origin on the gateway: https://buddy.{dns_slug}.lazurio.io.",
+                  "type": "string",
+                  "maxLength": 57,
+                  "pattern": "^https://buddy\\.\\{dns_slug\\}\\.lazurio\\.io$"
+                }
+              }
             }
-          }
+          ]
         }
       }
     },

@@ -1,3 +1,4 @@
+import { namesConfirmed } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
 import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
@@ -52,7 +53,9 @@ export type TelegramReading = Readonly<{
 export type BuddyReading = Readonly<{
   state: "works" | "waits" | "unknown";
   reason?: "not-running";
-  signIn: "connected" | "none" | "unknown";
+  /** `not-needed`: Buddy GEN4, a thread of the shared T3 Code, who has no
+   * sign-in and no Telegram of his own. */
+  signIn: "connected" | "none" | "unknown" | "not-needed";
   persona: BuddyPersonaShown | null;
   /** Absent where the Launchpad does not say. */
   telegram?: TelegramReading;
@@ -157,7 +160,10 @@ export function parseBuddyReading(value: unknown): BuddyReading | null {
   const signIn = value.signIn.state;
   if (
     (state !== "works" && state !== "waits" && state !== "unknown") ||
-    (signIn !== "connected" && signIn !== "none" && signIn !== "unknown") ||
+    (signIn !== "connected" &&
+      signIn !== "none" &&
+      signIn !== "unknown" &&
+      signIn !== "not-needed") ||
     !(reason === undefined || reason === "not-running")
   )
     return null;
@@ -195,9 +201,13 @@ export function buddyFact(
       reading.signIn === "connected" && refused !== undefined
         ? "none"
         : reading.signIn,
+    // Buddy GEN4's names count once ~/Buddy holds them (names-confirmed.ts).
     confirmed:
-      reading.persona?.confirmed ??
-      (reading === unknownBuddyReading ? null : false),
+      reading.persona === null
+        ? reading === unknownBuddyReading
+          ? null
+          : false
+        : namesConfirmed(reading.persona, reading.signIn === "not-needed"),
   };
 }
 
@@ -415,7 +425,13 @@ const connectedOf = (
   refused: BuddyRefusedAccount | undefined,
 ) =>
   signIn.kind === "signed-in" ||
+  reading?.signIn === "not-needed" ||
   (reading?.signIn === "connected" && refused === undefined);
+
+/** Whether Buddy has a sign-in and a Telegram of his own to show (Buddy
+ * GEN3); Buddy GEN4 has neither. Unknown while not read. */
+export const buddyOwnSignIn = (reading: BuddyReading | null): boolean =>
+  reading?.signIn !== "not-needed";
 
 // ---- Začínáme: the step -----------------------------------------------------
 
@@ -1127,7 +1143,9 @@ export function telegramScreen(
 
 /** What a change of the persona answered, as the page says it. */
 export type PersonaSaveResult =
-  | Readonly<{ kind: "saved"; pending: boolean }>
+  /** `unapplied`: the names are saved, but what derives from them was not
+   * put in place (the apply failed; the Launchpad tries again). */
+  | Readonly<{ kind: "saved"; pending: boolean; unapplied?: true }>
   | Readonly<{ kind: "invalid"; field: "buddy-name" | "user" }>
   | Readonly<{ kind: "changed" }>
   | Readonly<{ kind: "failed" }>;
@@ -1136,6 +1154,7 @@ export type PersonaSaveResult =
 export function saveLine(result: PersonaSaveResult, copy: Copy): string | null {
   switch (result.kind) {
     case "saved":
+      if (result.unapplied === true) return copy.buddyNotApplied;
       return result.pending ? copy.buddyPending : copy.buddySaved;
     case "invalid":
       return result.field === "buddy-name"

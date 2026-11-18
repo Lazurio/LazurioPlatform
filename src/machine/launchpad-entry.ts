@@ -1,3 +1,6 @@
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { readStartState } from "../launchpad/start-check";
 import {
   type ServiceControl,
@@ -22,6 +25,9 @@ export type LaunchpadEntryRestart =
 export type LaunchpadSeams = Readonly<{
   /** The installer's unit of this base, null where none supervises it. */
   service: () => Promise<ServiceControl | null>;
+  /** Where a restart still owed is kept (layout launchpadRestartOwed);
+   * absent, none is kept. */
+  owed?: string | undefined;
   /** The version the restarted Launchpad must report: the active one. */
   version: string;
   deadlineMs?: number | undefined;
@@ -41,12 +47,80 @@ const canonical = (value: unknown): unknown =>
         )
       : value;
 
+/** The digest of an entry in its canonical form, as the running Launchpad
+ * reports the one it started with (its health answer's `entry`): "none"
+ * without one. */
+export function entryDigest(entry: unknown): string {
+  return entry === null || entry === undefined
+    ? "none"
+    : createHash("sha256")
+        .update(JSON.stringify(canonical(entry)))
+        .digest("hex");
+}
+
 /** The entry the Folder records, as the Launchpad would read it at start, in
  * one canonical form; null where there is none or the state is unreadable. */
 export async function recordedEntry(folder: string): Promise<string | null> {
   try {
     const { entry } = await readStartState(folder, { locked: false });
     return entry === null ? null : JSON.stringify(canonical(entry));
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a restart of `folder`'s Launchpad is still owed: a refresh
+ * recorded an entry and the restart on it has not succeeded yet. Unreadable
+ * is not owed. */
+export async function restartOwedFor(
+  path: string | undefined,
+  folder: string,
+): Promise<boolean> {
+  if (path === undefined) return false;
+  try {
+    const owed = JSON.parse(await readFile(path, "utf8")) as {
+      folder?: unknown;
+    };
+    return owed.folder === folder;
+  } catch {
+    return false;
+  }
+}
+
+/** Record a restart of `folder`'s Launchpad as owed: written atomically,
+ * owner-only, in the install base's own update directory. Read and changed
+ * only under the restart lock (`refreshMachineFolderAndLaunchpad`). */
+export async function recordRestartOwed(
+  path: string | undefined,
+  folder: string,
+): Promise<void> {
+  if (path === undefined) return;
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const temporary = `${path}.${randomUUID()}.tmp`;
+  await writeFile(temporary, `${JSON.stringify({ folder })}\n`, {
+    mode: 0o600,
+    flag: "wx",
+  });
+  await rename(temporary, path);
+}
+
+/** Clear `folder`'s debt, under the restart lock. */
+export async function clearRestartOwed(
+  path: string | undefined,
+  folder: string,
+): Promise<void> {
+  if (path !== undefined && (await restartOwedFor(path, folder)))
+    await rm(path, { force: true });
+}
+
+/** The digest of the entry the Folder records (`entryDigest`), "none"
+ * without one; null where the state is unreadable. */
+export async function recordedEntryDigest(
+  folder: string,
+): Promise<string | null> {
+  try {
+    const { entry } = await readStartState(folder, { locked: false });
+    return entryDigest(entry);
   } catch {
     return null;
   }
@@ -60,7 +134,13 @@ export async function restartLaunchpadForEntry(
   folder: string,
   seams: LaunchpadSeams,
 ): Promise<LaunchpadEntryRestart> {
-  const service = await seams.service().catch(() => null);
+  // A lookup that fails says nothing about supervision: the restart is not
+  // known to have happened, so it stays owed (`restart-failed`).
+  const service = await seams.service().then(
+    (found) => found,
+    () => "unknown" as const,
+  );
+  if (service === "unknown") return "restart-failed";
   if (service === null || service.folder !== folder) return "not-supervised";
   // The Folder already holds the new entry: no failure past this point may
   // turn the refresh into an operation failure, a rejected health probe

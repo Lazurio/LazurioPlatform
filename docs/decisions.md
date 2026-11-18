@@ -4137,7 +4137,7 @@ for one. The tool and the Integration stay in the catalog.
 
 Open for Matěj: whether `neon` stays an optional tool and Neon an Integration at all, (a) as
 now, for people who already use Neon; (b) only for the Organization that builds Lazurio; or (c)
-removed from the catalog. Template revision `base-instructions-140`. Verified by
+removed from the catalog. Template revision `base-instructions-141`. Verified by
 `tests/first-run-shell.test.ts` and the pinned digest. Not proven: that agents in every harness
 follow the text.
 

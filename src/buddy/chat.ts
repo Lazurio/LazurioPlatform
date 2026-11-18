@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
+import { buddyGeneration } from "../folder/machine-binding";
 import { buddyRulesPath } from "../folder/outputs";
 import { readFolderState } from "../folder/read-state";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -202,7 +203,10 @@ export type BuddyChatReason =
   | "hermes-acp-unavailable"
   | "t3-running"
   | "t3-settings-unreadable"
-  | "t3-settings-busy";
+  | "t3-settings-busy"
+  /** Buddy GEN4 (plan LZD-0033): his window is the shared T3 Code, so he has
+   * no T3 Code of his own to set up. */
+  | "shared-t3";
 
 export type BuddyChat = Readonly<{
   kind: "buddy-chat";
@@ -278,6 +282,8 @@ export async function buddyChat(
     );
     if (preferences.machine?.kind !== "personal-vm")
       return answer("skipped", "not-personal");
+    if (buddyGeneration(preferences.machine.entry) === 4)
+      return answer("skipped", "shared-t3");
   } catch {
     return answer("unavailable", "folder-unreadable");
   }

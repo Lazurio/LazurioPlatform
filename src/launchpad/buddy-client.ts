@@ -391,7 +391,10 @@ export function createBuddyClient(
         const persona = parsePersona(value.persona);
         if (persona === null) return { kind: "failed" };
         install(persona);
-        return { kind: "saved", pending: persona.pending };
+        const applied = isRecord(value.applied) ? value.applied.state : null;
+        return applied === "failed"
+          ? { kind: "saved", pending: persona.pending, unapplied: true }
+          : { kind: "saved", pending: persona.pending };
       }
       if (typeof value.error === "string") {
         if (value.error === "invalid-buddy-name")

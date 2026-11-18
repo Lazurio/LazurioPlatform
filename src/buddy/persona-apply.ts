@@ -1,5 +1,6 @@
 import { mkdir, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join } from "node:path";
+import { buddyGeneration } from "../folder/machine-binding";
 import { readFolderState } from "../folder/read-state";
 import { acquireFileLock, FileLockError } from "../platform/flock";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -40,6 +41,7 @@ import {
   readPersona,
   writeDerivedFile,
 } from "./persona";
+import { applyBuddyFolderPersona, buddyFolderInPlace } from "./persona-folder";
 import { buddyT3Quiet, buddyT3Unit } from "./t3-runtime";
 
 // `lazurio buddy persona [--apply] [--confirm]` (decision F64): Buddy's
@@ -246,6 +248,7 @@ async function prepare(
   context: Context,
   locale: PersonaLocale,
   confirm: boolean,
+  hermes = true,
 ): Promise<Prepared> {
   const { environment, home, hermesHome } = context;
   const not = (answer: BuddyPersona): Prepared =>
@@ -269,13 +272,44 @@ async function prepare(
     if (read.state !== "valid") return not(unusable(read));
   }
   const persona = view(read.persona, read.revision);
-  if (!(await isDirectory(hermesHome)))
+  if (hermes && !(await isDirectory(hermesHome)))
     return not(refused("unavailable", "hermes-home-missing", persona));
   return Object.freeze({
     ready: true,
     persona,
     files: derivedFiles(home, read.persona, locale),
   });
+}
+
+/** Buddy GEN4's persona (plan LZD-0033, R3): confirmed as for Buddy GEN3,
+ * and what derives from it is only his folder `~/Buddy` (persona-folder.ts):
+ * no Hermes, no gateway to restart, no T3 Code of his own. */
+async function folderPersona(
+  context: Context,
+  locale: PersonaLocale,
+  options: Readonly<{ folder: string; apply?: boolean; confirm?: boolean }>,
+): Promise<BuddyPersona> {
+  const ready = await prepare(context, locale, options.confirm === true, false);
+  if (!ready.ready) return ready.answer;
+  const answer = (state: "in-place" | "outdated" | "applied") =>
+    Object.freeze({
+      kind: "buddy-persona" as const,
+      state,
+      persona: ready.persona,
+      locale,
+    });
+  try {
+    if (options.apply !== true)
+      return answer(
+        (await buddyFolderInPlace(options.folder)) ? "in-place" : "outdated",
+      );
+    // A refused folder keeps the names: what derives from them waits.
+    if ((await applyBuddyFolderPersona(options.folder)) !== undefined)
+      return refused("failed", "files-unwritable", ready.persona);
+    return answer("applied");
+  } catch {
+    return refused("failed", "files-unwritable", ready.persona);
+  }
 }
 
 /** Buddy's persona and what derives from it, on the user's own Osobní
@@ -301,6 +335,7 @@ export async function buddyPersona(
   const home = tools.home;
   if (!home || !isAbsolute(home)) return refused("unavailable", "home-unknown");
   let locale: PersonaLocale;
+  let generation: 3 | 4 | undefined;
   try {
     const { preferences } = await readFolderState(
       join(options.folder, ".lazurio"),
@@ -308,6 +343,7 @@ export async function buddyPersona(
     if (preferences.machine?.kind !== "personal-vm")
       return refused("skipped", "not-personal");
     locale = preferences.profile.locale;
+    generation = buddyGeneration(preferences.machine.entry);
   } catch {
     return refused("unavailable", "folder-unreadable");
   }
@@ -321,6 +357,7 @@ export async function buddyPersona(
     hermesHome: join(home, ".hermes"),
     folder: options.folder,
   };
+  if (generation === 4) return folderPersona(context, locale, options);
   if (options.apply !== true) {
     const ready = await prepare(context, locale, options.confirm === true);
     return ready.ready
