@@ -41,7 +41,6 @@ const gen4 = (profile: "buddy" | "employee" = "buddy", origin = false) => ({
     ...(origin
       ? {
           external_origin: "https://buddy.example.lazurio.io",
-          listen_port: 3774,
         }
       : {}),
   },

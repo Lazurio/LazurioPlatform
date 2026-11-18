@@ -153,7 +153,8 @@ export type MachineEntry = Readonly<{
   sign_out?: Readonly<{ path: string }>;
   audience?: "public";
   // Buddy GEN4 (plan LZD-0033, Machines#1398): `generation: 4`, his folder
-  // and profile, the origin and port only while Buddy's own T3 is routed.
+  // and profile, and his window's origin where kept, served by the shared
+  // T3 Code; no port of his own.
   buddy?:
     | Readonly<{ external_origin: string; listen_port: number }>
     | Readonly<{
@@ -161,7 +162,6 @@ export type MachineEntry = Readonly<{
         folder: string;
         profile: "buddy" | "employee";
         external_origin?: string;
-        listen_port?: number;
       }>;
 }>;
 // This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
