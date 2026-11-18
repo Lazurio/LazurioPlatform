@@ -126,15 +126,31 @@ publication tool. What keeps that in production depends on the module kit:
   D1 until it moves to 0.5.0, and that exception is the Owner's, recorded in a
   plan.
 
-The static check reads neither: without a parser it cannot tell a tool's
+Either way the kit can only keep what a tool declares: a tool that sends,
+deletes or publishes but is declared a draft (`effect: "write"` with
+`publishesData: false`) is offered in production as a draft, under 0.4.x and
+0.5.0 alike. So D1 rests first on each tool's declared effect matching what it
+does.
+
+The static check reads none of this: without a parser it cannot tell a tool's
 declaration from other text, and its module-kit floor stays 0.3.0, so it does
-not prove D1. The evidence is the Module's contract tests, which list the
-tools as the Application host's production runtime does
-(`hostedEnvironment()` with the writer, `mcpCall(registry, "tools/list", …)`
-for each role) and assert that no listed tool has `destructiveHint: true`; and
-its review, which holds that no tool names `publicationConsent` (`MS-15`,
-`MS-16`). Before `ready-for-live` is used to show an Application to people,
-whoever rolls it out checks that evidence.
+not prove D1. The evidence is the Module's:
+
+- **Contract tests per tool that changes anything:** called as the Application
+  host's production runtime calls it (`hostedEnvironment()` with the writer,
+  through `/mcp` and the page), a draft tool leaves the shared data as it was
+  (no commit or push in repository-db, nothing on the shared branch in a
+  database), sends or pays nothing outside the App, and removes a record only
+  as a draft the person can still take back; and the tool list there
+  (`mcpCall(registry, "tools/list", …)` per role) has no tool with
+  `destructiveHint: true`.
+- **Review of each tool:** its declared effect matches what its domain
+  operation does, publications other than data included (a sending, a
+  signature, a deletion, a movement of money), and on 0.4.x no tool names
+  `publicationConsent` (`MS-15`, `MS-16`).
+
+Whoever rolls an Application out checks that evidence before `ready-for-live`
+is used to show it to people.
 
 ## Limits of the static check
 
