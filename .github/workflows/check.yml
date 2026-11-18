@@ -156,7 +156,10 @@ jobs:
       # proof build and smoke) runs once, in the first shard.
       - if: matrix.shard == 1
         run: bun run check:static
-      - run: bun test --shard=${{ matrix.shard }}/2 --timings=tests/timings.json
+      # A test without its own timeout gets 15 s instead of 5 s: a macOS
+      # runner is about 1.5 times slower than the Linux ones, and tests that
+      # take 4-5 s there ran out of their default (#1065).
+      - run: bun test --shard=${{ matrix.shard }}/2 --timings=tests/timings.json --timeout=15000
 
   macos:
     name: check (macos-15)

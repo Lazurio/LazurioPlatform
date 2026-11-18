@@ -729,7 +729,9 @@ test.skipIf(!posix)(
       undefined,
       undefined,
       {
-        platform: process.platform,
+        // The hosted Launchpad, the only one that holds computers, runs on
+        // Linux; on a macOS runner the platform itself would refuse them.
+        platform: "linux",
         home,
         uid: process.getuid?.(),
         user: "alex",
@@ -892,7 +894,9 @@ test.skipIf(!posix)(
       undefined,
       undefined,
       {
-        platform: process.platform,
+        // The hosted Launchpad, the only one that holds computers, runs on
+        // Linux; on a macOS runner the platform itself would refuse them.
+        platform: "linux",
         home,
         uid: process.getuid?.(),
         user: "alex",

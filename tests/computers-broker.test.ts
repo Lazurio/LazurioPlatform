@@ -813,10 +813,14 @@ for (const mode of ["answer", "drop"] as const)
         ).toBeUndefined();
         expect(await done).toBe(0);
         expect(audit.map((line) => line.event)).toContain("updating");
-        expect(audit.at(-1)).toMatchObject({
-          event: "disconnected",
-          reason: "updating",
-        });
+        // The agent's lease may be released after the disconnect is written,
+        // so the disconnect is in the history, not always its last line.
+        expect(audit).toContainEqual(
+          expect.objectContaining({
+            event: "disconnected",
+            reason: "updating",
+          }),
+        );
         server.send({
           jsonrpc: "2.0",
           id: 3,
