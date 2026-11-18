@@ -853,8 +853,12 @@ async function headlessChrome(executable: string) {
   );
   const portFile = join(profile, "DevToolsActivePort");
   const started = Date.now();
+  // A cold Chrome on a Linux runner that runs four test files at once took
+  // longer than 15 s to write its port on two main runs in a row (#1065's
+  // shards put this file beside module-built.test.ts); the second Chrome of
+  // the same file starts in time.
   while (!existsSync(portFile)) {
-    if (Date.now() - started > 15_000) throw new Error("Chrome did not start");
+    if (Date.now() - started > 45_000) throw new Error("Chrome did not start");
     await Bun.sleep(100);
   }
   const port = Number((await readFile(portFile, "utf8")).split("\n")[0]);
@@ -1161,5 +1165,5 @@ test.skipIf(!posix || uid === 0)(
       }
     }
   },
-  30_000,
+  90_000,
 );
