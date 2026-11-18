@@ -1025,10 +1025,12 @@ the rule of draft and publication: irreversible changes only after an explicit
 Every publication is a tool of its own, never a mode of a draft tool. It carries
 `destructiveHint: true` and says what it ends in its description. The App records
 who published and by which path: `/mcp`, the page or the interface. In
-repository-db that is the commit's actor and its trailers (`Repository-Db-Source`
-and the path); in a database it is `DOLT_COMMIT --author` and the commit message.
-A publication tool goes through the same writer gate as a draft: it is not
-offered in a read-only copy.
+repository-db that is the commit's actor and its `Repository-Db-Source` trailer
+`<app>-v<N>/<path>`, the path one of `mcp`, `page` or `interface` (for example
+`quotes-v3/mcp`); in a database it is `DOLT_COMMIT --author` and the same value in
+the commit message. A publication tool goes through the same writer gate as a
+draft: it is not offered in a read-only copy, and the data port refuses it there
+too (`MS-18`).
 
 **Open, Matěj's decision:** how the App knows that the person said "Publikuj".
 - **Variant A:** the agent's rule (Lazurio's rules of Publication) and the tool's
