@@ -26,8 +26,8 @@ Both take the same lock.
 | `linkedEnvironmentsEnabled` | on while it has an edge, through its running server | on while it has an edge, through its running server |
 | Pairing | asks the target over `ssh <Environment id>` for a code (`lazurio machine t3-link-pair --source <its node>`), links to `https://t3code.<Environment id>.lazurio.io` with `full-access` through its server (`peerLinks.link`) and asks the target to settle it (`lazurio machine t3-link-settle --source <its node>`) | issues one code at a time, only for a source its handover names: records the source, the time and the sessions of linked T3 Code that exist already, turns its switch on, then issues a code that lives two minutes (`t3 auth pairing create`); once the code is spent or gone, the new session is that source's, by id |
 | Renewal | the same steps once fewer than seven days are left of the 30-day token, or when T3 Code reports the link expired or failing | settling the new code revokes the source's earlier sessions, by id |
-| Failure | a refusal T3 Code answered (and its list confirms): the next attempt no sooner than 15 minutes later, the unspent code revoked on the target; an outcome that is not certain stays a pairing under way until T3 Code's list settles it | a code nobody spent is let go once it has certainly expired |
-| Edge removed | settles a pairing under way first, then forgets its own link (`peerLinks.unlink`), recognised by peer id and `linkedAt` | revokes a code still out, settles it, then revokes exactly the sessions that source owns |
+| Failure | a refusal T3 Code answered: the next attempt no sooner than 15 minutes later, the unspent code revoked on the target; an outcome that is not certain (a lost answer, a timeout) holds the Environment until its code has certainly expired and is never taken as Lazurio's | a code nobody spent is let go once it has certainly expired |
+| Edge removed | forgets only its own links (`peerLinks.unlink`), recognised by the peer id and `linkedAt` of T3 Code's answer to its own request | revokes a code still out, settles it, then revokes exactly the sessions that source owns |
 | Switch off | with the last link, only where Lazurio turned it on | with the last edge, only where Lazurio turned it on |
 
 The target ends the sessions itself because the source loses its SSH route
@@ -67,18 +67,23 @@ success; it is recorded before anything is opened:
   over Lazurio's has another moment and is the person's from then on; a link
   at the same address that Lazurio did not make is the person's
   (`person-link`) and is never renewed or forgotten;
-- a pairing under way (`pending`) is written before the code is asked for and
-  stays until T3 Code's list shows its link (linked at or after the pairing
-  began: Lazurio's), a refusal that the list confirms, or the code has
-  certainly expired (ten minutes). A lost answer, a timeout or a refusal with a
-  link behind it is settled this way, also when the edge went meanwhile, and a
-  link found then is forgotten;
-- the target issues one code at a time and records, before the code exists,
-  the source and the sessions of linked T3 Code that exist already; the
-  session that appears for the code and that nobody owns is that source's, by
-  id, across renewals and whatever label its Chat answers with. When an edge
-  goes, exactly the sessions that source owns are revoked; other sources'
-  sessions and the person's own stay;
+- only T3 Code's own answer to Lazurio's `peerLinks.link` request proves a
+  link Lazurio's. When that answer is lost or is a refusal, no link is ever
+  taken as Lazurio's afterwards: T3 Code's list cannot tell the link of the
+  attempt from one the person made after it. The pairing under way
+  (`pending`, written before the code is asked for) only holds the
+  Environment, so no second pairing runs over it, until its code has
+  certainly expired (ten minutes), also when the edge went meanwhile. A link
+  it may have made is then the person's; nothing stays open, because the
+  target owns the session of Lazurio's code by its own record and revokes it
+  when the edge goes;
+- the target issues a code only while no other code is out, Lazurio's or one
+  the person issued, and records, before the code exists, the source and the
+  sessions of linked T3 Code that exist already; the session that appears for
+  the code and that nobody owns is that source's, by id, across renewals and
+  whatever label its Chat answers with. When an edge goes, exactly the
+  sessions that source owns are revoked; other sources' sessions and the
+  person's own stay;
 - `enabledByLazurio` is written before Lazurio turns a switch on.
 
 The state is `~/.local/state/lazurio/t3-links.json` (0600). A look cut off at
@@ -134,10 +139,16 @@ its guard keeps linked environments off.
 - The source names itself to the target by its handover's
   `network.headscale_hostname`; the target accepts it only when its own
   handover names that node as an inbound personal peer.
-- A link session that appears on the target while a code is out and that
-  Lazurio did not make (another source linking by hand in those seconds) is
-  counted as that code's source's and revoked with it: the error is on the
-  side of revoking. Only an edge's source can reach the four paths at all.
+- A link session that appears on the target while Lazurio's code is out and
+  that Lazurio did not make (a code the person issues and spends within those
+  seconds) is counted as that code's source's and revoked with it: the error
+  is on the side of revoking. Only an edge's source can reach the four paths
+  at all.
+- After a lost answer, the link the attempt may have made is the person's, so
+  Lazurio neither renews nor removes it; it works until it expires or the
+  edge goes. To hand the Environment back to Lazurio, the person forgets that
+  link in Settings → Connections of the Personal Environment's Chat, and the
+  next look pairs again.
 - A person who turned the switch on by hand before Lazurio's first look with
   an edge sees it closed once and then turned on as Lazurio's.
 

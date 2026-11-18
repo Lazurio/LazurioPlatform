@@ -550,6 +550,12 @@ test("the target issues one code at a time, only for a source its handover names
   expect(
     await issueLinkPairing(seams, bindings.personalAssigned, "lazurio-bob"),
   ).toEqual({ kind: "refused", reason: "not-a-target" });
+  // A code the person issued is out: Lazurio waits for it too.
+  w.pairings.set(randomUUID(), "pc-the-persons-own");
+  expect(await issueLinkPairing(seams, w.targetBinding, "lazurio-bob")).toEqual(
+    { kind: "refused", reason: "busy" },
+  );
+  w.pairings.clear();
   expect(
     (await issueLinkPairing(seams, w.targetBinding, "lazurio-bob")).kind,
   ).toBe("issued");
@@ -573,8 +579,8 @@ test("the target issues one code at a time, only for a source its handover names
   );
 });
 
-test("a link made whose answer was lost is settled as Lazurio's, not taken for the person's", async () => {
-  const { w, bob, source } = await world();
+test("a link whose answer was lost is never taken as Lazurio's; the target still revokes its session", async () => {
+  const { w, bob, source, target: targetLook } = await world();
   w.answerLost = true;
   expect(await source()).toMatchObject({
     links: [{ environment: target, result: "uncertain" }],
@@ -582,36 +588,99 @@ test("a link made whose answer was lost is settled as Lazurio's, not taken for t
   expect((await stateOf(bob().home)).pending).toEqual({
     [target]: iso(start),
   });
+  // The target settled the code: the session it opened is Bob's, by id.
+  const fromCode = (await stateOf(w.targetHome)).inbound["lazurio-bob"]
+    ?.sessions;
+  expect(fromCode).toHaveLength(1);
   w.answerLost = false;
+  // Until the code has certainly expired, no second pairing runs over it.
   w.now += minute;
   expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "current" }],
+    links: [{ environment: target, result: "uncertain" }],
   });
-  expect((await stateOf(bob().home)).links[target]?.peerEnvironmentId).toBe(
-    targetPeerId,
+  expect(w.issued).toHaveLength(1);
+  // Then the link is not Lazurio's: nothing proves it.
+  w.now = start + pendingSettledAfterMs;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "person-link" }],
+  });
+  expect((await stateOf(bob().home)).links).toEqual({});
+  // The edge goes: the source forgets nothing it cannot prove its own, and
+  // the target revokes the session of Lazurio's code by its record.
+  expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
+  expect(bob().links).toHaveLength(1);
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ revoked: 1, switch: "off" });
+  expect(w.targetSessions.some((s) => s.sessionId === fromCode?.[0])).toBe(
+    false,
   );
-  expect((await stateOf(bob().home)).pending).toEqual({});
-  // Still Lazurio's to forget.
-  expect(await source(bindings.personal)).toMatchObject({
-    unlinked: [target],
-  });
-  expect(bob().links).toHaveLength(0);
 });
 
-test("even a refusal is checked against T3 Code's list: a link made anyway is Lazurio's", async () => {
-  const { w, bob, source } = await world();
+test("a lost answer, then the person's own link over it, then the edge goes: the person's link stays", async () => {
+  const { w, bob, source, target: targetLook } = await world();
+  w.answerLost = true;
+  await source();
+  w.answerLost = false;
+  const fromCode = (await stateOf(w.targetHome)).inbound["lazurio-bob"]
+    ?.sessions?.[0];
+  // Before the next look the person links the same peer themselves, with a
+  // code of their own: a new link row and a session nobody gave Lazurio.
+  w.now += minute;
+  const persons = {
+    sessionId: randomUUID(),
+    subject: "mcp-client",
+    client: { label: `${linkClientPrefix}Buddy` },
+  };
+  w.targetSessions.push(persons);
+  bob().links = [
+    {
+      environmentId: targetPeerId,
+      label: "Example / lazurio-bob",
+      urls: [origin],
+      access: "read-only",
+      linkedAt: iso(w.now),
+      expiresAt: iso(w.now + 30 * day),
+      lastReachedAt: iso(w.now),
+      lastError: null,
+      status: "reachable",
+    },
+  ];
+  w.now += minute;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "uncertain" }],
+  });
+  // The edge goes on both ends.
+  expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
+  w.now = start + pendingSettledAfterMs;
+  expect(await source(bindings.personal)).toMatchObject({
+    unlinked: [],
+    switch: "off",
+  });
+  expect(bob().links.map((link) => link.access)).toEqual(["read-only"]);
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ revoked: 1 });
+  const left = linkSessions(w.targetSessions).map((s) => s.sessionId);
+  expect(left).not.toContain(fromCode);
+  expect(left).toEqual([persons.sessionId]);
+});
+
+test("a refusal T3 Code answered is a refusal, even with a link behind it: nothing is taken", async () => {
+  const { w, bob, source, target: targetLook } = await world();
   w.refusedAfterLink = true;
   expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "linked" }],
+    links: [{ environment: target, result: "failed", cause: "link-refused" }],
   });
-  expect((await stateOf(bob().home)).links[target]?.peerEnvironmentId).toBe(
-    targetPeerId,
-  );
-  expect((await stateOf(bob().home)).attempts).toEqual({});
+  expect((await stateOf(bob().home)).links).toEqual({});
   w.refusedAfterLink = false;
-  expect(await source(bindings.personal)).toMatchObject({
-    unlinked: [target],
+  w.now += retryAfterMs;
+  expect(await source()).toMatchObject({
+    links: [{ environment: target, result: "person-link" }],
   });
+  expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
+  // The session its code opened goes with the edge on the target.
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ revoked: 1 });
+  expect(linkSessions(w.targetSessions)).toHaveLength(0);
 });
 
 test("an uncertain pairing that made no link ends once its code has certainly expired", async () => {
@@ -632,30 +701,27 @@ test("an uncertain pairing that made no link ends once its code has certainly ex
   });
 });
 
-test("a pairing cut off before its edge went is settled, and its link forgotten", async () => {
+test("a pairing cut off before its edge went: nothing taken, nothing left open", async () => {
   const { w, bob, source, target: targetLook } = await world();
   // The link was made, then the look stopped before it recorded it.
   w.answerLost = true;
   await source();
   w.answerLost = false;
   expect(bob().links).toHaveLength(1);
-  // The edge goes before the next look.
+  // The edge goes before the next look: the pairing under way holds the
+  // switch until its code has certainly expired, then ends.
   w.now += minute;
+  expect(await source(bindings.personal)).toMatchObject({ unlinked: [] });
+  expect((await stateOf(bob().home)).pending).toEqual({ [target]: iso(start) });
+  w.now = start + pendingSettledAfterMs;
   expect(await source(bindings.personal)).toMatchObject({
-    unlinked: [target],
+    unlinked: [],
     switch: "off",
   });
-  expect(bob().links).toHaveLength(0);
   expect((await stateOf(bob().home)).pending).toEqual({});
-  // And when the edge comes back, Lazurio links again: no orphan is left
-  // that looks like the person's.
-  w.now += minute;
-  expect(await source()).toMatchObject({
-    links: [{ environment: target, result: "linked" }],
-  });
-  // The target's side of the same edge: its sessions go with the edge.
+  // On the target the session of that code goes with the edge.
   w.targetBinding = workWith();
-  expect(await targetLook()).toMatchObject({ switch: "off" });
+  expect(await targetLook()).toMatchObject({ revoked: 1, switch: "off" });
   expect(linkSessions(w.targetSessions)).toHaveLength(0);
 });
 

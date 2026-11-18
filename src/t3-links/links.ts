@@ -24,10 +24,10 @@ import {
 // and ends the link itself, and T3 Code stays as it is: threads use its
 // standard tools. The whole behaviour is described in `docs/t3-links.md`.
 //
-// What Lazurio owns, it knows only by identifiers T3 Code itself gave and
-// that it has checked, never by a label, an address or a failure that may
-// have hidden a success. An outcome that is not certain is kept as an intent
-// and settled against what T3 Code shows, never dropped.
+// What Lazurio owns, it knows only by identifiers T3 Code itself gave in
+// answer to Lazurio's own requests, never by a label, an address or a time.
+// An outcome that is not certain is never taken as ownership; it is kept as
+// an intent until it can no longer change anything.
 //
 // - **The source**, a personal Machine, links its running Chat to each
 //   assigned Work Environment through the Chat's own RPC (`rpc.ts`): the beta
@@ -36,11 +36,12 @@ import {
 //   (`lazurio machine t3-link-pair` there). A link is Lazurio's by its peer id
 //   and the moment T3 Code linked it (`linkedAt`); T3 Code keeps one link per
 //   peer, so a link the person made over it is the person's from then on.
-//   A pairing under way is recorded before the code is asked for and stays
-//   until T3 Code's list of links shows its link, a refusal is certain, or the
-//   code has certainly expired; this holds when the edge went meanwhile, and
-//   a link found then is forgotten.
-// - **The target**, a work Machine, issues one code at a time. Before it does,
+//   Only T3 Code's answer to Lazurio's own request proves a link Lazurio's:
+//   after a lost answer or a refusal nothing is ever taken as Lazurio's, and
+//   the pairing under way only holds the Environment until its code has
+//   certainly expired, also when the edge went meanwhile.
+// - **The target**, a work Machine, issues one code at a time, and none
+//   while another code is out. Before it does,
 //   it records which source it is for and which sessions of linked T3 Code
 //   exist already; the new session that appears after it belongs to that
 //   source, by its id. Renewal revokes the source's earlier sessions once its
@@ -738,23 +739,19 @@ async function reconcileSource(
   if (listed !== undefined) {
     const at = (name: string) =>
       listed.find((link) => link.urls.includes(t3LinkOrigin(name) as string));
-    // A pairing under way is settled first, wherever its edge is now: its
-    // link is Lazurio's when T3 Code linked it after the pairing began; it
-    // is over when no such link appeared before the code certainly expired.
-    for (const [name, since] of Object.entries(state.get().pending)) {
-      const found = at(name);
-      if (found !== undefined && found.linkedAt >= Date.parse(since))
-        await state.set({
-          ...state.get(),
-          links: { ...state.get().links, [name]: recordOf(found) },
-          pending: without(state.get().pending, name),
-        });
-      else if (now - Date.parse(since) >= pendingSettledAfterMs)
+    // A pairing whose answer never came is never taken as Lazurio's: T3
+    // Code's list cannot tell its link from one the person made after it,
+    // and nothing else proves it. It holds the Environment until its code
+    // has certainly expired, so no second pairing runs over it, and then
+    // ends, wherever its edge is now. A link it may have made is the
+    // person's from then on; the target revokes the session of its code by
+    // its own record when the edge goes, so nothing stays open.
+    for (const [name, since] of Object.entries(state.get().pending))
+      if (now - Date.parse(since) >= pendingSettledAfterMs)
         await state.set({
           ...state.get(),
           pending: without(state.get().pending, name),
         });
-    }
     // Lazurio's own links whose edge went, by their recorded identity.
     for (const [name, recorded] of Object.entries(state.get().links)) {
       if (desired.has(name)) continue;
@@ -847,19 +844,8 @@ async function reconcileSource(
         ...state.get(),
         pending: { ...state.get().pending, [name]: iso(now) },
       });
-      let outcome = await pairAndLink(seams, rpc, name, origin, seams.node);
-      if (outcome.kind === "refused" && outcome.cause === "link-refused") {
-        // Even a refusal T3 Code answered is checked against its list: a
-        // link of this attempt there is Lazurio's; without the list the
-        // outcome stays uncertain.
-        const again = await rpc.request("peerLinks.list", {});
-        const relisted = again.ok ? parseLinkList(again.value) : undefined;
-        const made = relisted?.find(
-          (link) => link.urls.includes(origin) && link.linkedAt >= now,
-        );
-        if (relisted === undefined) outcome = { kind: "uncertain" };
-        else if (made !== undefined) outcome = { kind: "linked", link: made };
-      }
+      const outcome = await pairAndLink(seams, rpc, name, origin, seams.node);
+      // Only T3 Code's own answer to this request proves a link Lazurio's.
       if (outcome.kind === "uncertain") {
         results.push({ environment: name, result: "uncertain" });
         continue;
@@ -1229,7 +1215,12 @@ export async function issueLinkPairing(
       ]);
     if (!(await settlePairings(seams, state)))
       return { kind: "refused", reason: "busy" };
+    // No code while another is out, Lazurio's or one the person issued, so
+    // the one session that appears for this code is its own.
+    const active = await localPairings(seams);
     if (
+      active === undefined ||
+      active.length > 0 ||
       Object.values(state.get().inbound).some((entry) => entry.pairing !== null)
     )
       return { kind: "refused", reason: "busy" };
