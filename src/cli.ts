@@ -1,5 +1,6 @@
 import { parseArgs } from "node:util";
 import { appsHelp, runAppsCommand } from "./agent-entry/cli";
+import { brainHelp, runBrainCommand } from "./brain/cli";
 import {
   browserCommandWithoutNotice,
   browserHelp,
@@ -415,6 +416,9 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // People's computers for agents (decision F75): the list and removal.
   if (args[0] === "computer")
     return emit(await runComputerCommand(args.slice(1), processContext()));
+  // The person's memory of a Personal Environment (plan LZD-0033 R11a).
+  if (args[0] === "brain")
+    return emit(await runBrainCommand(args.slice(1), processContext()));
   // Executor of a Remote Environment (decision F44): setup's steps go to
   // stderr, the state to stdout.
   if (args[0] === "executor")
@@ -802,6 +806,7 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);
+    console.log(brainHelp);
     console.log(computerHelp);
     console.log(githubHelp);
     console.log(machineHelp);
