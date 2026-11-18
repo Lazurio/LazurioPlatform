@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { BuddyFolderRefused } from "../folder/buddy-folder";
 import { FolderAdoptionError } from "../folder/handover-layout";
@@ -6,7 +8,10 @@ import {
   adoptionReadWaitMs,
   initializeHandoverFolder,
 } from "../folder/initialize-folder";
-import { FolderOperationBusyError } from "../folder/lock";
+import {
+  FolderOperationBusyError,
+  withFolderOperationLock,
+} from "../folder/lock";
 import {
   assignedEnvironments,
   type MachineBinding,
@@ -54,13 +59,13 @@ import {
 } from "./context";
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
+  clearRestartOwed,
   type LaunchpadSeams,
-  owedRestartToken,
   recordedEntry,
   recordedEntryDigest,
   recordRestartOwed,
   restartLaunchpadForEntry,
-  settleRestartOwed,
+  restartOwedFor,
 } from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
@@ -146,8 +151,10 @@ starts this Folder; the Launchpad takes the entry at its next start). A
 failed restart is kept as owed in the install base
 (update/launchpad-restart-owed.json) and made by the next refresh, unchanged
 or not, as is one the supervised Launchpad shows by reporting another entry
-than the recorded one; it is answered the same way. The debt is recorded
-before the refresh and cleared when none was owed; one that cannot be
+than the recorded one; it is answered the same way. The refresh, its restart
+and the debt run under one restart lock per install base (an overlapping
+refresh is blocked as folder-busy); the debt is recorded before the refresh
+and cleared when none was owed or a restart succeeded; one that cannot be
 recorded is blocked with exit 2, nothing written: launchpad-restart-unrecordable. A person
 the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
 write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
@@ -643,31 +650,53 @@ export async function refreshMachineFolderAndLaunchpad(
   launchpad: LaunchpadSeams | undefined,
   organizationKey: string | undefined = undefined,
 ) {
+  const run = () =>
+    refreshAndRestart(folder, machine, preset, launchpad, organizationKey);
+  if (launchpad?.owed === undefined) return run();
+  // One refresh with its restart and its debt at a time per install base:
+  // the whole lifecycle runs under the restart lock (a kernel lock, released
+  // with its process), and an overlapping refresh is refused as busy, which
+  // `lazurio update` retries (folder-busy).
+  const lockDirectory = join(dirname(launchpad.owed), "launchpad-restart");
+  try {
+    await mkdir(lockDirectory, { recursive: true, mode: 0o700 });
+  } catch {
+    return unrecordableDebt;
+  }
+  return withFolderOperationLock(lockDirectory, run);
+}
+
+const unrecordableDebt = Object.freeze({
+  code: 2,
+  result: Object.freeze({
+    kind: "blocked" as const,
+    reason: "launchpad-restart-unrecordable",
+    next: "Nothing was changed: this install base cannot keep a restart of its Launchpad owed (its update directory). Fix that directory and run the same command again.",
+  }),
+});
+
+async function refreshAndRestart(
+  folder: string,
+  machine: MachineBinding,
+  preset: PresetName | undefined,
+  launchpad: LaunchpadSeams | undefined,
+  organizationKey: string | undefined,
+) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
   // The restart is owed ahead of the refresh, so that no failure between the
-  // recorded entry and the restart (an interruption included) can lose it; a
-  // refresh that owes none clears it again. A debt that cannot be recorded
-  // stops the refresh before anything changes. `token` is the debt this
-  // refresh recorded or found: it clears only that one, so a debt another
-  // overlapping refresh recorded meanwhile stays.
-  const found =
+  // recorded entry and the restart (an interruption included) can lose it.
+  // Under the restart lock nothing else touches the debt: it is cleared only
+  // after a refresh that owes none or a restart that succeeded or found the
+  // Launchpad unsupervised, and a failed restart keeps it as it is.
+  const owedBefore =
     launchpad === undefined
-      ? null
-      : await owedRestartToken(launchpad.owed, folder);
-  const owedBefore = found !== null;
-  let token = found;
+      ? false
+      : await restartOwedFor(launchpad.owed, folder);
   if (launchpad !== undefined && !owedBefore)
     try {
-      token = await recordRestartOwed(launchpad.owed, folder);
+      await recordRestartOwed(launchpad.owed, folder);
     } catch {
-      return {
-        code: 2,
-        result: {
-          kind: "blocked" as const,
-          reason: "launchpad-restart-unrecordable",
-          next: "Nothing was changed: this install base cannot keep a restart of its Launchpad owed (its update directory). Fix that directory and run the same command again.",
-        },
-      };
+      return unrecordableDebt;
     }
   const refreshed = await refreshMachineFolder(
     folder,
@@ -676,14 +705,14 @@ export async function refreshMachineFolderAndLaunchpad(
     organizationKey,
   );
   if (launchpad === undefined) return refreshed;
-  const settled = () =>
-    settleRestartOwed(launchpad.owed, folder, token).catch(() => undefined);
+  const cleared = () =>
+    clearRestartOwed(launchpad.owed, folder).catch(() => undefined);
   if (
     refreshed.result.kind !== "refreshed" &&
     refreshed.result.kind !== "unchanged"
   ) {
     // Blocked or failed: what was owed before stays, nothing new is.
-    if (!owedBefore) await settled();
+    if (!owedBefore) await cleared();
     return refreshed;
   }
   if (
@@ -691,15 +720,12 @@ export async function refreshMachineFolderAndLaunchpad(
     !owedBefore &&
     !(await restartOwed(folder, launchpad))
   ) {
-    await settled();
+    await cleared();
     return refreshed;
   }
   const restart = await restartLaunchpadForEntry(folder, launchpad);
-  // A failed restart records its own debt anew; a successful or unsupervised
-  // one clears the debt it knew of, never one recorded since.
-  if (restart === "restart-failed")
-    await recordRestartOwed(launchpad.owed, folder).catch(() => undefined);
-  else await settled();
+  // Clearing may fail, which only owes one more restart.
+  if (restart !== "restart-failed") await cleared();
   return {
     code: refreshed.code,
     result: {

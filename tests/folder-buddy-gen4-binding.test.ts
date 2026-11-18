@@ -1059,7 +1059,7 @@ posix(
 );
 
 posix(
-  "an overlapping refresh that restarts successfully never clears the debt of another one whose restart then fails",
+  "an overlapping refresh is refused as busy while another holds the restart lifecycle, and the debt of a failed restart is made by the next refresh",
   async () => {
     const { parent, folder } = await home();
     try {
@@ -1073,7 +1073,7 @@ posix(
       expect(
         (await initializeMachineFolder(folder, plain, noChoices)).code,
       ).toBe(0);
-      // Refresh A's restart waits, then fails; B's succeeds meanwhile.
+      // Refresh A's restart waits, then fails.
       let releaseA: () => void = () => {};
       const aWaits = new Promise<void>((resolve) => {
         releaseA = resolve;
@@ -1104,20 +1104,28 @@ posix(
         }),
       );
       await aRestarting;
+      // B overlaps A's restart: refused as busy, the debt untouched.
       const b = await refreshMachineFolderAndLaunchpad(
         folder,
         convertedAt(parent),
         undefined,
         unit(async () => {}),
+      ).then(
+        () => null,
+        (error: unknown) => machineFailureAnswer(error),
       );
-      expect((b.result as { launchpad?: string }).launchpad).toBe("restarted");
-      expect(await restartOwedFor(owed, folder)).toBe(false);
+      expect(b?.code).toBe(2);
+      expect(b?.result).toMatchObject({
+        kind: "blocked",
+        reason: "folder-busy",
+      });
+      expect(await restartOwedFor(owed, folder)).toBe(true);
       releaseA();
       expect(((await a).result as { launchpad?: string }).launchpad).toBe(
         "restart-failed",
       );
-      // A's failure is owed, and the next refresh makes it.
       expect(await restartOwedFor(owed, folder)).toBe(true);
+      // The next refresh makes the owed restart and clears the debt.
       const retry = await refreshMachineFolderAndLaunchpad(
         folder,
         convertedAt(parent),
