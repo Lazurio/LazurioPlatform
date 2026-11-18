@@ -53,6 +53,7 @@ import {
 } from "./context";
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
+  type LaunchpadEntryRestart,
   type LaunchpadSeams,
   recordedEntry,
   restartLaunchpadForEntry,
@@ -590,6 +591,22 @@ export async function refreshMachineFolder(
 // Launchpad of this Folder and says so in `launchpad`. An unchanged entry
 // (unchanged, blocked, or a refresh of rendered text only) restarts nothing
 // and adds nothing to the answer.
+/** A refresh that failed after the Folder recorded a new entry: the
+ * original failure, with what the Launchpad's restart on that entry did
+ * (`restarted`, `restart-failed` or `not-supervised`), as a successful
+ * refresh reports it in `launchpad`. */
+export class RefreshFailedAfterEntry extends Error {
+  readonly launchpad: LaunchpadEntryRestart;
+  constructor(cause: unknown, launchpad: LaunchpadEntryRestart) {
+    super(
+      `${cause instanceof Error ? cause.message : String(cause)} (the Folder recorded the new entry; launchpad: ${launchpad})`,
+      { cause },
+    );
+    this.name = "RefreshFailedAfterEntry";
+    this.launchpad = launchpad;
+  }
+}
+
 export async function refreshMachineFolderAndLaunchpad(
   folder: string,
   machine: MachineBinding,
@@ -613,11 +630,14 @@ export async function refreshMachineFolderAndLaunchpad(
     // unchanged and would leave the running Launchpad on the old one. The
     // failure is reported as it was.
     if (
-      launchpad !== undefined &&
-      (await recordedEntry(folder).catch(() => before)) !== before
+      launchpad === undefined ||
+      (await recordedEntry(folder).catch(() => before)) === before
     )
-      await restartLaunchpadForEntry(folder, launchpad).catch(() => undefined);
-    throw error;
+      throw error;
+    const restart = await restartLaunchpadForEntry(folder, launchpad).catch(
+      () => "restart-failed" as const,
+    );
+    throw new RefreshFailedAfterEntry(error, restart);
   }
   if (launchpad === undefined || refreshed.result.kind !== "refreshed")
     return refreshed;

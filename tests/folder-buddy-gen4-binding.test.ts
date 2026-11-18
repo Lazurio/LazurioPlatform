@@ -30,6 +30,7 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
   initializeMachineFolder,
+  RefreshFailedAfterEntry,
   refreshMachineFolder,
   refreshMachineFolderAndLaunchpad,
 } from "../src/machine/cli";
@@ -528,7 +529,7 @@ writable(
           undefined,
           launchpad,
         ),
-      ).rejects.toThrow();
+      ).rejects.toThrow("launchpad: not-supervised");
       expect(asked).toBe(1);
       expect(await recordedBuddy(folder)).toBe(buddy);
       await chmod(join(buddy, ".agents"), 0o700);
@@ -537,6 +538,52 @@ writable(
       ).toBe(0);
       for (const path of buddyFolderPaths)
         expect(await exists(join(buddy, path))).toBe(true);
+    } finally {
+      await chmod(join(parent, "Buddy", ".agents"), 0o700).catch(() => {});
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+writable(
+  "a failed restart after a late failure is reported with the failure",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      const buddy = join(parent, "Buddy");
+      await mkdir(join(buddy, ".agents"), { recursive: true, mode: 0o700 });
+      await chmod(join(buddy, ".agents"), 0o500);
+      // A unit of this Folder whose restart fails.
+      const launchpad = {
+        service: async () =>
+          ({
+            folder,
+            restartLaunchpad: async () => {
+              throw new Error("unit failed");
+            },
+            launchpadVersion: async () => null,
+          }) as never,
+        version: "0.0.0",
+        deadlineMs: 10,
+      };
+      const failure = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        launchpad,
+      ).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(RefreshFailedAfterEntry);
+      expect((failure as RefreshFailedAfterEntry).launchpad).toBe(
+        "restart-failed",
+      );
+      expect(String(failure)).toContain("launchpad: restart-failed");
     } finally {
       await chmod(join(parent, "Buddy", ".agents"), 0o700).catch(() => {});
       await rm(parent, { recursive: true, force: true });
