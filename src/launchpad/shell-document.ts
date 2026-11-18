@@ -20,6 +20,7 @@ import {
   parseShell,
   type Shell,
   type ShellEnvironmentKind,
+  type ShellIdentity,
   type ShellOrganization,
   type ShellSetup,
   type ShellTheme,
@@ -109,6 +110,36 @@ export function operatorLogin(machine: MachineBinding | null): string | null {
   if (assignment !== undefined && "account" in assignment)
     return assignment.account.username;
   return assignedPerson(assignment)?.githubLogin ?? null;
+}
+
+/** The verified identity of the one person the Environment belongs to, for
+ * the frame of decision 0248's addendum of 2026-11-15: a personal
+ * Environment's owner and the person a work one is assigned to, by the
+ * Lazurio Auth subject and the immutable GitHub id the binding records,
+ * never by a login or a username. A Team Environment, Henry, the services
+ * Environment of a server and a workstation name nobody; an assignment
+ * that records neither gives none, and the page is framed. */
+export function ownerIdentity(
+  machine: MachineBinding | null,
+  kind: ShellEnvironmentKind,
+): ShellIdentity | null {
+  if (machine === null) return null;
+  const owner = machine.owner;
+  if (kind === "personal") {
+    if (owner.kind === "principal") return { githubId: owner.githubId };
+    if (owner.kind === "account") {
+      return owner.github === null
+        ? { subject: owner.subject }
+        : { subject: owner.subject, githubId: owner.github.id };
+    }
+    return null;
+  }
+  if (kind !== "work" || owner.kind !== "organization") return null;
+  const assignment = owner.assignment;
+  if (assignment === undefined || assignment.kind !== "operator") return null;
+  if (!("account" in assignment)) return { githubId: assignment.githubId };
+  const { subject, github } = assignment.account;
+  return github === null ? { subject } : { subject, githubId: github.id };
 }
 
 /** The GitHub photo of that person, only by a GitHub login the binding
@@ -376,6 +407,7 @@ export function shellDocument(
       ? held
       : [ownerEntry, ...held.filter((entry) => entry !== ownerEntry)];
   const login = operatorLogin(machine);
+  const identity = ownerIdentity(machine, kind);
   const id = environmentId(machine);
   const document = {
     schema: shellSchema,
@@ -405,6 +437,13 @@ export function shellDocument(
             ? []
             : organizations.map((organization) => organization.slug),
         assignee: assigneeLogin(machine, kind),
+        // Whose it is, for the frame of 0248's addendum of 2026-11-15: a
+        // personal Environment's owner, and the services Environment's mark.
+        ...(kind === "personal" && login !== null ? { owner: login } : {}),
+        ...(identity === null ? {} : { ownerIdentity: identity }),
+        ...(kind === "work" && isServerServices(machine)
+          ? { services: true as const }
+          : {}),
         apps:
           entry === undefined
             ? { apps: "/", chat: null, automate: null }

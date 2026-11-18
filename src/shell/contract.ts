@@ -83,7 +83,67 @@ export type ShellEnvironment = Readonly<{
   who?: string;
   /** True when the account knows it is off. */
   offline?: boolean;
+  /** The login a personal Environment's owner is shown by (decision 0248's
+   * addendum of 2026-11-15, additive in v1): their GitHub login or Lazurio
+   * username. Display only, as `assignee` is: logins are no identity (a
+   * GitHub rename or relink changes one, and a GitHub login may equal
+   * another person's frozen username), so whose it is compares only
+   * `ownerIdentity`. Only on a personal one. */
+  owner?: string;
+  /** The verified identity of the one person the Environment belongs to
+   * (decision 0248's addendum of 2026-11-15, additive in v1): a personal
+   * Environment's owner or the person a work one is assigned to, by their
+   * Lazurio Auth subject and their immutable GitHub id where the Environment
+   * records them. The frame compares only this with the viewer's
+   * `ShellAccount.identity` (`env-frame.ts`). Absent where it records
+   * neither; then the page is framed. */
+  ownerIdentity?: ShellIdentity;
+  /** The services Environment of a server (root decision 0209), which
+   * people see as a work Environment and the frame of 0248's addendum marks
+   * as shared (additive in v1). Only on a work one; absent otherwise. */
+  services?: true;
 }>;
+
+/** A person's identity that survives a rename (decision 0248's addendum of
+ * 2026-11-15): the Lazurio Auth subject (`<issuer>/<sub>`, root decision
+ * 0192) and the immutable GitHub id, each where it is known and verified;
+ * at least one. Never a login or a username. */
+export type ShellIdentity = Readonly<{
+  subject?: string;
+  githubId?: number;
+}>;
+
+// The Lazurio Auth subject as the assignment receipt holds it
+// (`isAccountSubject` in machine-binding.ts).
+const identitySubject = /^https:\/\/[^\s/]+(?:\/[^\s/]+)*\/[^\s/]+$/;
+
+/** A `ShellIdentity` in its exact shape with at least one member; anything
+ * else is no identity (`undefined`), which the frame reads as unknown. */
+export function parseShellIdentity(value: unknown): ShellIdentity | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value))
+    return undefined;
+  const record = value as Record<string, unknown>;
+  const { subject, githubId } = record;
+  if (
+    Object.keys(record).some((key) => key !== "subject" && key !== "githubId")
+  )
+    return undefined;
+  const hasSubject =
+    typeof subject === "string" &&
+    subject.length <= 512 &&
+    identitySubject.test(subject);
+  const hasGithub =
+    typeof githubId === "number" &&
+    Number.isSafeInteger(githubId) &&
+    githubId >= 1;
+  if (subject !== undefined && !hasSubject) return undefined;
+  if (githubId !== undefined && !hasGithub) return undefined;
+  if (!hasSubject && !hasGithub) return undefined;
+  return Object.freeze({
+    ...(hasSubject ? { subject: subject as string } : {}),
+    ...(hasGithub ? { githubId: githubId as number } : {}),
+  });
+}
 
 export type ShellOrganization = Readonly<{
   /** The Organization slug, as the catalog names it. */
@@ -416,6 +476,7 @@ function environment(value: unknown): ShellEnvironment | null {
   const { id, label, kind, organizations, assignee, name, who, offline } =
     value;
   const assigneeName = value.assigneeName;
+  const ownerIdentity = parseShellIdentity(value.ownerIdentity);
   const own = apps(value.apps);
   if (
     !isEnvironmentId(id) ||
@@ -450,6 +511,19 @@ function environment(value: unknown): ShellEnvironment | null {
     // rather than refusing the Environment, so a producer's slip never
     // costs the person their list.
     ...(assignee !== null && text(assigneeName, 128) ? { assigneeName } : {}),
+    // Whose it is and whether it serves a server (0248's addendum of
+    // 2026-11-15): only in their exact shape and beside their kind; any
+    // other value is left out rather than refusing the Environment, and
+    // without them the frame is drawn, never left out (`env-frame.ts`).
+    ...(kind === "personal" && isLogin(value.owner)
+      ? { owner: value.owner }
+      : {}),
+    ...(ownerIdentity !== undefined && (kind === "personal" || kind === "work")
+      ? { ownerIdentity }
+      : {}),
+    ...(kind === "work" && value.services === true
+      ? { services: true as const }
+      : {}),
   });
 }
 
@@ -912,6 +986,12 @@ export type ShellAccount = Readonly<{
    * in the Dashboard's order. Absent: none known. Apps joins each with the
    * tile of its Module (`parseAccountApplications`). */
   applications?: readonly AccountApplication[];
+  /** The verified identity of the person signed in (decision 0248's
+   * addendum of 2026-11-15, additive in v1): their Lazurio Auth subject and
+   * their immutable GitHub id where the account has one. The frame compares
+   * it with an Environment's `ownerIdentity`; absent, every page of an
+   * Environment is framed. */
+  identity?: ShellIdentity;
 }>;
 
 const accountPersonalSpace = "personal";
@@ -1158,6 +1238,7 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     shared.organizations,
   );
   if (sharedApplications === false) return null;
+  const identity = parseShellIdentity(input.identity);
 
   // The Applications the person may open (decision 0249): each of an
   // Organization the document lists, at an https origin.
@@ -1180,6 +1261,9 @@ export function parseShellAccount(input: unknown): ShellAccount | null {
     ...(buddy === undefined ? {} : { buddy }),
     ...(sharedApplications === undefined ? {} : { sharedApplications }),
     ...(applications === undefined ? {} : { applications }),
+    // Left out when malformed rather than refusing the document: without it
+    // the frame is drawn, never left out.
+    ...(identity === undefined ? {} : { identity }),
   });
 }
 
