@@ -145,7 +145,9 @@ starts this Folder; the Launchpad takes the entry at its next start). A
 failed restart is kept as owed in the install base
 (update/launchpad-restart-owed.json) and made by the next refresh, unchanged
 or not, as is one the supervised Launchpad shows by reporting another entry
-than the recorded one; it is answered the same way. A person
+than the recorded one; it is answered the same way. The debt is recorded
+before the refresh and cleared when none was owed; one that cannot be
+recorded is blocked with exit 2, nothing written: launchpad-restart-unrecordable. A person
 the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
 write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
 change, its entry and the Launchpad's restart stand, the exit code stays the
@@ -641,32 +643,56 @@ export async function refreshMachineFolderAndLaunchpad(
   organizationKey: string | undefined = undefined,
 ) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
+  // The restart is owed ahead of the refresh, so that no failure between the
+  // recorded entry and the restart (an interruption included) can lose it; a
+  // refresh that owes none clears it again. A debt that cannot be recorded
+  // stops the refresh before anything changes.
+  const owedBefore =
+    launchpad === undefined
+      ? false
+      : await restartOwedFor(launchpad.owed, folder);
+  if (launchpad !== undefined && !owedBefore)
+    try {
+      await recordRestartOwed(launchpad.owed, folder, true);
+    } catch {
+      return {
+        code: 2,
+        result: {
+          kind: "blocked" as const,
+          reason: "launchpad-restart-unrecordable",
+          next: "Nothing was changed: this install base cannot keep a restart of its Launchpad owed (its update directory). Fix that directory and run the same command again.",
+        },
+      };
+    }
   const refreshed = await refreshMachineFolder(
     folder,
     machine,
     preset,
     organizationKey,
   );
+  if (launchpad === undefined) return refreshed;
+  const settled = async (owed: boolean) =>
+    recordRestartOwed(launchpad.owed, folder, owed).catch(() => undefined);
   if (
-    launchpad === undefined ||
-    (refreshed.result.kind !== "refreshed" &&
-      refreshed.result.kind !== "unchanged")
-  )
+    refreshed.result.kind !== "refreshed" &&
+    refreshed.result.kind !== "unchanged"
+  ) {
+    // Blocked or failed: what was owed before stays, nothing new is.
+    if (!owedBefore) await settled(false);
     return refreshed;
+  }
   if (
     (await recordedEntry(folder)) === before &&
-    !(await restartOwedFor(launchpad.owed, folder)) &&
+    !owedBefore &&
     !(await restartOwed(folder, launchpad))
-  )
+  ) {
+    await settled(false);
     return refreshed;
+  }
   const restart = await restartLaunchpadForEntry(folder, launchpad);
-  // A failed restart is kept as owed in the install base until a later
-  // refresh restarts it, whatever the Launchpad reports of its entry.
-  await recordRestartOwed(
-    launchpad.owed,
-    folder,
-    restart === "restart-failed",
-  ).catch(() => undefined);
+  // Kept until a restart succeeds or finds the Launchpad unsupervised;
+  // clearing it may fail, which only owes one more restart.
+  if (restart !== "restart-failed") await settled(false);
   return {
     code: refreshed.code,
     result: {

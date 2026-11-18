@@ -933,3 +933,127 @@ posix(
     }
   },
 );
+
+posix(
+  "a service lookup that fails keeps the restart owed, and the refresh retries it once the lookup works",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const owed = join(
+        parent,
+        "base",
+        "update",
+        "launchpad-restart-owed.json",
+      );
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      let lookup: "fails" | "works" = "fails";
+      let restarts = 0;
+      const seams = {
+        service: async () => {
+          if (lookup === "fails") throw new Error("no user manager");
+          return {
+            folder,
+            restartLaunchpad: async () => {
+              restarts += 1;
+            },
+            launchpadVersion: async () => "0.0.0",
+          } as never;
+        },
+        version: "0.0.0",
+        deadlineMs: 10,
+        owed,
+      };
+      const first = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        seams,
+      );
+      expect((first.result as { launchpad?: string }).launchpad).toBe(
+        "restart-failed",
+      );
+      expect(await restartOwedFor(owed, folder)).toBe(true);
+      // Still failing: the debt stays.
+      await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        seams,
+      );
+      expect(await restartOwedFor(owed, folder)).toBe(true);
+      lookup = "works";
+      const retry = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        seams,
+      );
+      expect((retry.result as { launchpad?: string }).launchpad).toBe(
+        "restarted",
+      );
+      expect(restarts).toBe(1);
+      expect(await restartOwedFor(owed, folder)).toBe(false);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a debt that cannot be recorded stops the refresh before anything changes, and the debt is already recorded when the restart runs",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      // The update "directory" is a file: nothing can be recorded there.
+      await writeFile(join(parent, "update-file"), "x");
+      const blocked = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        {
+          service: async () => null,
+          version: "0.0.0",
+          owed: join(parent, "update-file", "launchpad-restart-owed.json"),
+        },
+      );
+      expect(blocked.code).toBe(2);
+      expect(blocked.result).toMatchObject({
+        kind: "blocked",
+        reason: "launchpad-restart-unrecordable",
+      });
+      expect(await recordedBuddy(folder)).toBeUndefined();
+      // Recorded ahead: while the restart runs, the debt is already there.
+      const owed = join(
+        parent,
+        "base",
+        "update",
+        "launchpad-restart-owed.json",
+      );
+      let seen: boolean | undefined;
+      await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        {
+          service: async () => {
+            seen = await restartOwedFor(owed, folder);
+            return null;
+          },
+          version: "0.0.0",
+          owed,
+        },
+      );
+      expect(seen).toBe(true);
+      expect(await restartOwedFor(owed, folder)).toBe(false);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

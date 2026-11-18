@@ -128,7 +128,13 @@ export async function restartLaunchpadForEntry(
   folder: string,
   seams: LaunchpadSeams,
 ): Promise<LaunchpadEntryRestart> {
-  const service = await seams.service().catch(() => null);
+  // A lookup that fails says nothing about supervision: the restart is not
+  // known to have happened, so it stays owed (`restart-failed`).
+  const service = await seams.service().then(
+    (found) => found,
+    () => "unknown" as const,
+  );
+  if (service === "unknown") return "restart-failed";
   if (service === null || service.folder !== folder) return "not-supervised";
   // The Folder already holds the new entry: no failure past this point may
   // turn the refresh into an operation failure, a rejected health probe
