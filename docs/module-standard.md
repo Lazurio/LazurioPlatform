@@ -1024,7 +1024,7 @@ the rule of draft and publication: irreversible changes only after an explicit
 
 Every publication is a tool of its own, never a mode of a draft tool. It carries
 `destructiveHint: true` and says what it ends in its description. The App records
-who published and by which channel, as every change does
+who published and by which channel in the publication's commit
 ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4), "Author and
 channel"). A publication tool goes through the same writer gate as a draft: it
 is not offered in a read-only copy, and the data port refuses it there too
@@ -1244,19 +1244,33 @@ The port holds, in both generations:
   write (a capability it offers once its tools or interface need it) changes
   them in one commit (repository-db) or one transaction with one `DOLT_COMMIT`
   (Dolt), never some of them.
-- **Author and channel.** Every change, a draft and a publication alike,
-  records two fields: the person's `subject` and the `channel` it came by, one
-  of `ui` (the App's interface), `mcp` (`/mcp`), `webmcp` (the page's agent
-  tools) and `import`. The port gives them back in the same shape from both
-  generations. They are written as follows:
-  - **repository-db (`app/v3`):** through its publish API, `actor: <subject>`
-    and `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
-    writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`. The
-    Git author of the commit stays the Environment's or the host's identity, as
-    repository-db sets it; the App does not set it.
-  - **Dolt (`app/v4`):** `DOLT_COMMIT --author "<subject>
-    <<subject>@subject.lazurio.invalid>"`, and in the commit message the lines
-    `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`.
+- **Author and channel.** A change carries two fields: the person's `subject`
+  and the `channel` it came by, one of `ui` (the App's interface), `mcp`
+  (`/mcp`), `webmcp` (the page's agent tools) and `import`. The port gives them
+  back in the same shape from both generations.
+  - **A publication** records them in its commit, and it records the person who
+    published, not every draft's author before:
+    - **repository-db (`app/v3`):** through its publish API, `actor: <subject>`
+      and `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
+      writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`.
+      The Git author of the commit stays the Environment's or the host's
+      identity, as repository-db sets it.
+    - **Dolt (`app/v4`):** `DOLT_COMMIT --author "<subject>
+      <<subject>@subject.lazurio.invalid>"`, and in the commit message the lines
+      `Lazurio-Subject: <subject>` and `Lazurio-Channel: <channel>`.
+  - **A draft** is not published (a working-tree write in repository-db, a
+    change before its `DOLT_COMMIT` in Dolt), so no commit carries it, and
+    attributing it publishes nothing. Where an
+    App shows who changed a draft, the port keeps that in the record itself, as
+    a field `changed_by: { subject, channel }` that it writes on every draft
+    write, the same in both generations. An App that does not show it needs no
+    such field.
+  - **Without a subject.** A caller the App knows by no person (`entry: local`,
+    the development version's own tools) records no subject: repository-db's
+    `actor` is left out, so the Environment's Git identity stands as the actor,
+    a Dolt commit takes the database's own author without a `Lazurio-Subject`
+    line, and `changed_by` has `subject: null`. The channel is recorded in every
+    case. The App never invents a person.
 
   It is the App's statement, not a proof: the data layer proves only that the
   App wrote
