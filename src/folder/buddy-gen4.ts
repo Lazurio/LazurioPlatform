@@ -407,6 +407,10 @@ const threadsSkill: FolderSkill = {
       "- Otherwise `ssh <id>` along the managed path and the `t3` command line there (`t3 thread list`, `t3 thread read`, `t3 thread send --message-file`, `t3 request`). Over SSH you can also approve a permission request, which the link cannot.",
     ),
     t(
+      '- Na čekající otázku vlákna v jiném Prostředí odpověz přímo, ne přes předávací vlákno: přes propojení `t3_pending_request` s jeho `environmentId`, jinak po SSH `t3 request list --thread <id> --json` a pak `t3 request respond <requestId> --thread <id> --answer "<label>"` (u více otázek `--answers` s JSON podle id otázek). I tady odpovídáš jen tím, co řekl uživatel nebo co kryje jeho zapsaný mandát.',
+      '- Answer a pending question of a thread in another Environment directly, never through a handover thread: over the link `t3_pending_request` with its `environmentId`, otherwise over SSH `t3 request list --thread <id> --json` and then `t3 request respond <requestId> --thread <id> --answer "<label>"` (for several questions `--answers` with JSON by question id). Here too you answer only with what the user said or what the user\'s recorded mandate covers.',
+    ),
+    t(
       "- Do jiného Prostředí vstupuješ krokem do něj, nikdy přeposláním přihlášení. Platí tam jeho `AGENTS.md` a pravidla jeho Organizace.",
       "- You enter another Environment by a step into it, never by forwarding credentials. Its `AGENTS.md` and its Organization's rules apply there.",
     ),

@@ -196,3 +196,15 @@ test("only an absolute folder named Buddy is accepted", async () => {
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("the threads skill answers a pending question elsewhere directly, by link or with t3 request over SSH", () => {
+  for (const locale of locales) {
+    const skill = renderBuddyFolder(source(locale), "buddy", persona)[
+      ".agents/skills/buddy-vlakna/SKILL.md"
+    ];
+    expect(skill).toContain("t3 request list --thread <id> --json");
+    expect(skill).toContain(
+      't3 request respond <requestId> --thread <id> --answer "<label>"',
+    );
+  }
+});
