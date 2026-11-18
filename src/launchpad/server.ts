@@ -1650,7 +1650,8 @@ export async function startLaunchpad(
     // hidden from the person, in the Folder's language. Only where the entry
     // names him; its journal never names a name, the text or the key.
     // Buddy GEN4's first meeting is no Hermes turn (plan LZD-0033, R3).
-    ...(buddyGeneration(entry) !== 3 || toolsEnvironment.home === undefined
+    ...(buddyGeneration(entry ?? undefined) !== 3 ||
+    toolsEnvironment.home === undefined
       ? {}
       : {
           firstMeeting: {
@@ -1670,7 +1671,7 @@ export async function startLaunchpad(
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
-    shared: () => buddyGeneration(entry) === 4,
+    shared: () => buddyGeneration(entry ?? undefined) === 4,
     signIn: createBuddySignIn({
       gateway: buddyGateway,
       journal: (line) =>

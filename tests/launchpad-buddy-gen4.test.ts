@@ -1,5 +1,12 @@
 import { expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buddyChat } from "../src/buddy/chat";
@@ -62,7 +69,7 @@ test("the generation is 4 with Buddy's folder, 3 with only his origin, none with
   expect(buddyGeneration(converted(false).entry)).toBe(4);
   expect(buddyGeneration(gen3.entry)).toBe(3);
   expect(buddyGeneration(none.entry)).toBeUndefined();
-  expect(buddyGeneration(null)).toBeUndefined();
+  expect(buddyGeneration(undefined)).toBeUndefined();
 });
 
 test("Buddy GEN4 needs no sign-in: he works while the shared T3 Code runs, and is open once his names are confirmed", () => {
@@ -209,7 +216,16 @@ posix(
       await mkdir(folder, { mode: 0o700 });
       await mkdir(join(folder, "organizations"), { mode: 0o700 });
       await mkdir(join(folder, "personalspace"), { mode: 0o700 });
-      const machine = converted();
+      // The handover names the operator's home; here the Folder's temporary
+      // home stands for it, as Buddy's folder must be exactly `<home>/Buddy`.
+      const recorded = converted();
+      const machine = {
+        ...recorded,
+        entry: {
+          ...(recorded.entry as NonNullable<typeof recorded.entry>),
+          buddyFolder: join(parent, "Buddy"),
+        },
+      };
       expect(
         (
           await initializeMachineFolder(folder, machine, {
@@ -259,6 +275,36 @@ posix(
       expect((await buddyPersona(environment, { folder })).state).toBe(
         "in-place",
       );
+      // A CLAUDE.md in ~/Buddy refuses the write: the names stay saved, his
+      // instructions keep the last ones, and the apply says it failed.
+      await writeFile(join(parent, "Buddy", "CLAUDE.md"), "# mine\n");
+      const current = await buddyPersona(environment, { folder });
+      expect(
+        (
+          await writePersona(
+            parent,
+            {
+              buddyName: "Rexík",
+              address: "ty",
+              user: {
+                nominative: "Alena",
+                accusative: "Alenu",
+                dative: "Aleně",
+              },
+            },
+            current.persona?.revision ?? null,
+          )
+        ).kind,
+      ).toBe("written");
+      const refused = await buddyPersona(environment, { folder, apply: true });
+      expect([refused.state, refused.reason]).toEqual([
+        "failed",
+        "files-unwritable",
+      ]);
+      expect(refused.persona?.buddyName).toBe("Rexík");
+      expect(
+        await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8"),
+      ).toContain("Jsi Bertík, Buddy");
       expect(
         await buddyChat(environment.tools, { folder, apply: true }),
       ).toEqual({ kind: "buddy-chat", state: "skipped", reason: "shared-t3" });

@@ -52,7 +52,7 @@ export const buddyT3Active = (
     10_000,
     "is-active",
     "--quiet",
-    buddyGeneration(entry) === 4 ? t3codeUnit : buddyT3Unit,
+    buddyGeneration(entry ?? undefined) === 4 ? t3codeUnit : buddyT3Unit,
   );
 
 /** Buddy's facts for the entry's generation: Buddy GEN3's through his own
@@ -62,7 +62,7 @@ export async function buddyFactsOf(
   gateway: HermesGateway,
   service: ServiceRun,
 ): Promise<BuddyFacts> {
-  return buddyGeneration(entry) === 4
+  return buddyGeneration(entry ?? undefined) === 4
     ? { runtime: "shared-t3", active: await buddyT3Active(service, entry) }
     : readBuddyFacts(gateway);
 }
