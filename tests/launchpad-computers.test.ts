@@ -7,7 +7,6 @@ import {
   rm,
   writeFile,
 } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { computerHelp } from "../src/computers/cli";
 import type { ComputersHost } from "../src/computers/computers";
@@ -25,6 +24,7 @@ import {
 } from "../src/launchpad/computers-panel";
 import { createComputersRoutes } from "../src/launchpad/computers-routes";
 import { messages } from "../src/launchpad/messages";
+import { socketHomeParent } from "./fixtures/socket-home";
 
 // People's computers for agents in the Launchpad (decision F75) on contract
 // v3: the list of Settings → Connections reads the records the computers'
@@ -73,7 +73,7 @@ async function withRoutes(
     calls: readonly { method: string; path: string }[],
   ) => Promise<void>,
 ) {
-  const parent = await mkdtemp(join(tmpdir(), "lazurio-computers-"));
+  const parent = await mkdtemp(join(socketHomeParent(), "lazurio-computers-"));
   const home = join(parent, "home");
   await mkdir(join(home, ".local", "bin"), { recursive: true, mode: 0o700 });
   const entry = join(home, ".local", "bin", "lazurio");

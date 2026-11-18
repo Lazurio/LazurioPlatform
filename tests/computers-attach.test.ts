@@ -9,7 +9,6 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { createConnection } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type AttachHost,
@@ -26,6 +25,7 @@ import {
   toolsPath,
 } from "../src/computers/state";
 import { manualClock } from "./fixtures/manual-clock";
+import { socketHomeParent } from "./fixtures/socket-home";
 
 // A computer's session over HTTPS on contract v3 (Agent Desktop's channel,
 // HumanAndMachine-ai/Auth docs/device-channel-entry.md, "The Launchpad"),
@@ -112,7 +112,7 @@ async function setup(
     socketAnswers?: AttachHost["socketAnswers"];
   }> = {},
 ) {
-  const home = await mkdtemp(join(tmpdir(), "lzc-"));
+  const home = await mkdtemp(join(socketHomeParent(), "lzc-"));
   cleanup.push(() => rm(home, { recursive: true, force: true }));
   const gateway = fakeGateway(options.now);
   const executor = fakeServers();
@@ -683,7 +683,9 @@ test.skipIf(!posix)(
       "./fixtures/machine-bindings"
     );
     const { freePort } = await import("./fixtures/ports");
-    const parent = await realpath(await mkdtemp(join(tmpdir(), "lzc-hosted-")));
+    const parent = await realpath(
+      await mkdtemp(join(socketHomeParent(), "lzc-hosted-")),
+    );
     cleanup.push(() => rm(parent, { recursive: true, force: true }));
     const folder = join(parent, "Lazurio");
     await mkdir(folder, { mode: 0o700 });
@@ -727,7 +729,9 @@ test.skipIf(!posix)(
       undefined,
       undefined,
       {
-        platform: process.platform,
+        // The hosted Launchpad, the only one that holds computers, runs on
+        // Linux; on a macOS runner the platform itself would refuse them.
+        platform: "linux",
         home,
         uid: process.getuid?.(),
         user: "alex",
@@ -845,7 +849,9 @@ test.skipIf(!posix)(
           : new Response(null, { status: 404 }),
     });
     cleanup.push(() => helper.stop(true));
-    const parent = await realpath(await mkdtemp(join(tmpdir(), "lzc-hosted-")));
+    const parent = await realpath(
+      await mkdtemp(join(socketHomeParent(), "lzc-hosted-")),
+    );
     cleanup.push(() => rm(parent, { recursive: true, force: true }));
     const folder = join(parent, "Lazurio");
     await mkdir(folder, { mode: 0o700 });
@@ -888,7 +894,9 @@ test.skipIf(!posix)(
       undefined,
       undefined,
       {
-        platform: process.platform,
+        // The hosted Launchpad, the only one that holds computers, runs on
+        // Linux; on a macOS runner the platform itself would refuse them.
+        platform: "linux",
         home,
         uid: process.getuid?.(),
         user: "alex",
