@@ -42,6 +42,16 @@ export type BrainState = Readonly<{
     state?: "done" | "restored" | `failed-${string}`;
     at?: string;
   }>;
+  /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
+  meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;
+  /** The last attempt to switch it on, while it is not on. */
+  meaningAttempt?: Readonly<{
+    provider: string;
+    result: "started" | "restored" | "stopped";
+    at: string;
+    backup?: string;
+    reason?: string;
+  }>;
   /** The last move of the brain to a pin (`./move.ts`). */
   move?: MoveRecord;
   release?: Readonly<{

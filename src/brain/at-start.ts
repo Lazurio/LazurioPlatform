@@ -25,6 +25,7 @@ export type BrainSetupLabels = Readonly<{
   move?: string;
   takeover?: string;
   vault?: string;
+  meaning?: string;
 }>;
 
 const setupTimeoutMs = 45 * 60_000;
@@ -55,6 +56,7 @@ export async function runBrainSetup(
       ...label("move"),
       ...label("takeover"),
       ...label("vault"),
+      ...label("meaning"),
     });
   } catch {
     return null;

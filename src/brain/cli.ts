@@ -67,7 +67,11 @@ export function brainStatusText(status: BrainStatus): string {
   const keys = Object.entries(status.keys)
     .map(([kind, state]) => `${kind} ${state}`)
     .join(", ");
-  return `${head}\nKeys: ${keys}.${waits}`;
+  const meaning =
+    status.meaning === "on"
+      ? "Search by meaning is on."
+      : "Search by meaning is off: the memory finds pages by their words only.";
+  return `${head}\nKeys: ${keys}.\n${meaning}${waits}`;
 }
 
 const labelOf = (result: SetupResult) =>
@@ -79,6 +83,7 @@ const labelOf = (result: SetupResult) =>
     ...(result.takeover === undefined ? [] : [`takeover ${result.takeover}`]),
     ...(result.move === undefined ? [] : [`move ${result.move}`]),
     ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
+    ...(result.meaning === undefined ? [] : [`meaning ${result.meaning}`]),
   ].join("\n");
 
 export async function runBrainCommand(
@@ -147,6 +152,7 @@ export async function runBrainCommand(
             takeover: result.takeover,
             move: result.move,
             vault: result.vault,
+            meaning: result.meaning,
             status: result.status,
           })
         : labelOf(result),

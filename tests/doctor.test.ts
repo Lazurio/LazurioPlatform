@@ -1506,7 +1506,20 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
     );
   const handover = join(root, "brain-handover");
   await writeFile(handover, "");
+  // Search by meaning switched on, its model answering.
+  await mkdir(join(paths.state, ".."), { recursive: true });
+  await writeFile(
+    paths.state,
+    JSON.stringify({
+      meaning: {
+        provider: "llama-server:nomic-embed-text-v1.5",
+        dimensions: 768,
+        at: "2026-11-19T00:00:00Z",
+      },
+    }),
+  );
   const live = {
+    model: true,
     version: brainPin.version,
     working: new Set(Object.values(tokens)),
   };
@@ -1519,6 +1532,9 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
     handover,
     async health() {
       return live.version;
+    },
+    async meaning() {
+      return live.model;
     },
     http: async (
       _method: "GET" | "POST",
@@ -1546,6 +1562,13 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
     outcome: "ok",
     context: { toolVersion: brainPin.version },
   });
+  // Without the model the memory answers by words only: warn.
+  live.model = false;
+  expect(await read()).toMatchObject({
+    outcome: "warn",
+    reason: "brain-keyword-only",
+  });
+  live.model = true;
   live.working.delete(tokens.e);
   expect(await read()).toMatchObject({ outcome: "warn", reason: "brain-key" });
   live.version = "0.60.315.0";

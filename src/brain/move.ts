@@ -82,7 +82,7 @@ async function inactive(host: MoveHost, unit: string): Promise<boolean> {
 }
 
 /** The timer and the server stopped, as systemd confirms it. */
-async function stoppedForSure(host: MoveHost): Promise<boolean> {
+export async function stoppedForSure(host: MoveHost): Promise<boolean> {
   for (const unit of [brainRefreshTimer, brainUnit])
     await service(host, "stop", unit);
   for (const unit of [brainRefreshTimer, brainUnit])
@@ -109,7 +109,7 @@ export async function keepDown(host: MoveHost): Promise<boolean> {
   return true;
 }
 
-async function answers(host: MoveHost): Promise<string | null> {
+export async function answers(host: MoveHost): Promise<string | null> {
   for (let i = 0; i < (host.tries ?? 450); i++) {
     const version = await healthVersion(host.http, host.base);
     if (version !== null) return version;
@@ -130,7 +130,7 @@ async function handedOver(path: string): Promise<string | undefined> {
 }
 
 /** The page count the probe key reads over MCP; null when it does not. */
-async function pages(host: MoveHost): Promise<number | null> {
+export async function pages(host: MoveHost): Promise<number | null> {
   const token = await handedOver(host.paths.probeKey);
   if (token === undefined) return null;
   const identity = await mcpTool(
@@ -259,7 +259,11 @@ class Move {
       // Without the previous release the pin would migrate the copy again.
       return this.stayStopped("previous-missing");
     try {
-      await writeBrainUnits(host.paths.units, previous.command);
+      await writeBrainUnits(
+        host.paths.units,
+        previous.command,
+        (await readBrainState(host.paths)).meaning !== undefined,
+      );
     } catch {
       return this.stayStopped("units");
     }
@@ -308,6 +312,7 @@ class Move {
       await writeBrainUnits(
         host.paths.units,
         releaseCommand(host.paths, brainPin.commit),
+        this.state.meaning !== undefined,
       );
     } catch {
       return this.fallBack("units", true);

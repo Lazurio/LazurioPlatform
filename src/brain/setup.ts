@@ -12,6 +12,11 @@ import {
   readBrainState,
   writeBrainState,
 } from "./keys";
+import {
+  convergeMeaning,
+  type MeaningFetch,
+  type MeaningResult,
+} from "./meaning";
 import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
 import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
@@ -53,6 +58,9 @@ export type SetupHost = BrainHost &
     /** Whether Buddy is idle, so the server may stop for a moment (a
      * vault's rebuild, a move). Without it, it never stops. */
     idle?: () => Promise<boolean>;
+    /** Where the model of search by meaning is downloaded from. Without it
+     * the brain stays on keyword search. */
+    fetch?: MeaningFetch;
     now?: () => Date;
     /** The server's base URL (tests point it at a stand-in). */
     base?: string;
@@ -93,6 +101,8 @@ export type SetupResult = Readonly<{
   move?: MoveResult;
   /** The vault's connection, wherever Lazurio's server answers. */
   vault?: VaultResult;
+  /** Search by meaning, where the brain runs the pin. */
+  meaning?: MeaningResult;
   status: BrainStatus;
 }>;
 
@@ -307,11 +317,18 @@ async function finish(
     if (vault === "rebuilt" || vault.startsWith("stop:rebuild-"))
       keys = await convergeBrainKeys({ paths, http: host.http, base });
   }
+  // Search by meaning only on the pin: a brain held on an earlier release
+  // moves first.
+  const meaning =
+    host.fetch !== undefined && server !== "held" && server !== "waits-move"
+      ? await convergeMeaning({ ...moveHost(host), fetch: host.fetch })
+      : undefined;
   return Object.freeze({
     server,
     ...extra,
     keys: keys.outcomes,
     ...(vault === undefined ? {} : { vault }),
+    ...(meaning === undefined ? {} : { meaning }),
     status: await brainStatus(host),
   });
 }

@@ -15869,8 +15869,34 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
    `manual/working-here.md` holds the rules: read the Brain first; what lasts
    goes there, but an Organization's work only as a link (0180, 0246); no
    secrets; never quote its content in shared places.
-10. **Not in this addendum.** Search by meaning stays off: embeddings wait for
-    a separate decision. Settings → Tools gets no row for the memory yet.
+10. **Search by meaning, locally.** Matěj made a local model the way if
+    today's Environments can compute it. On a Personal Environment with
+    4 vCPU and 8 GB, the model took 168 to 244 MB, used no processor at rest,
+    and did not slow an agent's turn. The plan's coordinator concluded on
+    2026-11-18 that the condition holds; Matěj's word stands over that.
+    - **What runs.** Lazurio pins `llama.cpp`'s server and the model
+      `nomic-embed-text-v1.5`, each file by its SHA-256, in
+      `src/brain/meaning-pin.ts`. They run as Lazurio's user unit
+      `lazurio-gbrain-meaning.service` on loopback, at a lower priority
+      (`Nice=10`, `CPUWeight=20`, idle I/O).
+    - **Switching a brain on.** This happens once, like a move: only while
+      Buddy is idle, the model answering first, the server stopped as
+      systemd confirms, and a copy of the brain taken. Then come `gbrain
+      embeddings enable` and, where the column has another width,
+      `gbrain migrate embeddings --no-embed` to 768, which keeps every page
+      and fact. After that, the server computes the vectors itself in the
+      background.
+    - **When it fails.** The copy comes back without the model, and the step
+      is not tried again for this pin.
+    - **Without the model.** gbrain falls back to words.
+      `lazurio brain status` says so, and doctor warns with
+      `brain-keyword-only`.
+    - **Not built.** No choice of provider in Settings, and no embedding
+      service run by Lazurio; that one stays a written fallback only.
+      Settings → Tools gets no row for the memory yet.
+    - **Before the wave.** It was measured on a server processor, not an i7.
+      Before the wave to people, the same is verified on one
+      customer-class Environment.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -15888,7 +15914,8 @@ Verified by tests:
 - the takeover with and without consent, the move, a refused pin, a server that does not stop, a stopped and an interrupted move, and `take-over` printing no key or path (`tests/brain-move.test.ts`);
 - the Launchpad's child process and the server Brain (`tests/brain-at-start.test.ts`);
 - the doctor check (`tests/doctor.test.ts`);
-- the Folder's text (`tests/folder-brain.test.ts`).
+- the Folder's text (`tests/folder-brain.test.ts`);
+- search by meaning: the verified download, the model's unit, switching a brain on with its copy, the way back and not trying again, and waiting while Buddy works (`tests/brain-meaning.test.ts`).
 
 ## F45 — Organization settings reach the Environment: asked through its relay, recorded in the Folder, reported back
 

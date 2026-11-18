@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { unitMarker } from "../update/service-control";
+import { readBrainState } from "./keys";
 import {
   type BrainPaths,
   type brainKeyNames,
@@ -67,6 +68,9 @@ export type BrainStatus =
       keys: BrainKeys;
       /** Whether Machines mark that they hand the brain over here. */
       handover: boolean;
+      /** Search by meaning: `on` where it is switched on and the model
+       * answers, otherwise `keyword-only` (gbrain falls back to words). */
+      meaning: "on" | "keyword-only";
     }>;
 
 export type BrainHost = Readonly<{
@@ -81,6 +85,8 @@ export type BrainHost = Readonly<{
   handover: string;
   /** GET /health of the loopback server: its version, or null. */
   health(): Promise<string | null>;
+  /** Whether the model of search by meaning answers on loopback. */
+  meaning?: () => Promise<boolean>;
 }>;
 
 async function readText(path: string): Promise<string | undefined> {
@@ -158,7 +164,20 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
   const brain = await exists(join(paths.brain, "config.json"));
   const keys = await brainKeys(paths);
   const handover = await exists(host.handover);
-  const base = { owner, pin: brainPin.version, running, brain, keys, handover };
+  const switchedOn = (await readBrainState(paths)).meaning !== undefined;
+  const meaning =
+    switchedOn && (await host.meaning?.().catch(() => false)) === true
+      ? ("on" as const)
+      : ("keyword-only" as const);
+  const base = {
+    owner,
+    pin: brainPin.version,
+    running,
+    brain,
+    keys,
+    handover,
+    meaning,
+  };
   const state = (() => {
     switch (owner) {
       case "absent":

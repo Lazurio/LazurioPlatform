@@ -353,6 +353,7 @@ const ownReasons = [
   "brain-foreign",
   "brain-machines",
   "brain-waits-machines",
+  "brain-keyword-only",
   // Modules: optional runtime secrets a module's app would start without
   // (decision F48); a note on an `ok` module, never a refusal.
   "runtime-secret-not-provided",
@@ -1399,6 +1400,10 @@ async function brainCheck(
     )
       return check("brain", "warn", "brain-key", context);
   }
+  // Search by meaning (decided 2026-11-18): without the model the memory
+  // still answers, by words only, and the person should know.
+  if (status.meaning !== "on")
+    return check("brain", "warn", "brain-keyword-only", context);
   return check("brain", "ok", undefined, context);
 }
 

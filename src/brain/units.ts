@@ -2,6 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { unitMarker } from "../update/service-control";
+import { meaningUnit, meaningUrl } from "./meaning-pin";
 import {
   brainPort,
   brainRefreshService,
@@ -19,17 +20,27 @@ import {
 
 export function renderBrainUnits(
   command: string,
+  meaning = false,
 ): Readonly<Record<string, string>> {
+  // Search by meaning (`./meaning.ts`): gbrain asks the local model server
+  // on loopback, started before it and not required by it, so the memory
+  // runs on with keyword search when the model does not.
+  const model = meaning
+    ? [`Environment=LLAMA_SERVER_BASE_URL=${meaningUrl}/v1`]
+    : [];
+  const after = meaning ? [`Wants=${meaningUnit}`, `After=${meaningUnit}`] : [];
   const server = [
     unitMarker,
     "[Unit]",
     `Description=Lazurio Brain: the person's memory (gbrain MCP server, loopback 127.0.0.1:${brainPort})`,
     "StartLimitIntervalSec=300",
     "StartLimitBurst=10",
+    ...after,
     "",
     "[Service]",
     "Type=simple",
     "Environment=GBRAIN_HOME=%h",
+    ...model,
     "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin",
     "WorkingDirectory=%h",
     "ExecStartPre=/usr/bin/test -r %h/.gbrain/serve/admin-token",
@@ -51,6 +62,7 @@ export function renderBrainUnits(
     "[Service]",
     "Type=oneshot",
     "Environment=GBRAIN_HOME=%h",
+    ...model,
     "Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin",
     "WorkingDirectory=%h",
     `ExecStart=${command} sources refresh default --json`,
@@ -83,10 +95,13 @@ export function renderBrainUnits(
 export async function writeBrainUnits(
   directory: string,
   command: string,
+  meaning = false,
 ): Promise<readonly string[]> {
   await mkdir(directory, { recursive: true });
   const changed: string[] = [];
-  for (const [name, text] of Object.entries(renderBrainUnits(command))) {
+  for (const [name, text] of Object.entries(
+    renderBrainUnits(command, meaning),
+  )) {
     const current = await readFile(join(directory, name), "utf8").catch(
       () => undefined,
     );

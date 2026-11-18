@@ -7,6 +7,7 @@ import { presetKinds } from "../launchpad/shell-document";
 import { resolveOnPath, type ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { brainHttp, healthVersion } from "./admin";
+import { meaningUrl } from "./meaning-pin";
 import { brainPaths, brainUrl } from "./pin";
 import type { SetupHost } from "./setup";
 import type { BrainContext } from "./status";
@@ -76,6 +77,10 @@ export function processBrainHost(
     globalUnits: "/etc/systemd/user",
     handover: "/etc/lazurio/brain-handover",
     health: () => healthVersion(brainHttp, brainUrl),
+    meaning: async () => {
+      const answer = await brainHttp("GET", `${meaningUrl}/health`);
+      return answer !== null && answer.status === 200;
+    },
     run: input.run,
     service: input.service,
     http: brainHttp,
@@ -83,5 +88,6 @@ export function processBrainHost(
     env: input.env,
     vault,
     idle,
+    fetch: (url: string, init?: RequestInit) => fetch(url, init),
   });
 }
