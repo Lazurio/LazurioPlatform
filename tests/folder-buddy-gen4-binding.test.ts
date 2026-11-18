@@ -913,7 +913,7 @@ posix(
       await mkdir(join(base, "update"), { recursive: true, mode: 0o700 });
       await writeFile(
         join(base, "update", "launchpad-restart-owed.json"),
-        JSON.stringify({ folder }),
+        JSON.stringify({ folder, token: "owed" }),
       );
       const outcome = await refreshFolderWhenBehind({
         ...input,
@@ -1051,6 +1051,82 @@ posix(
         },
       );
       expect(seen).toBe(true);
+      expect(await restartOwedFor(owed, folder)).toBe(false);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "an overlapping refresh that restarts successfully never clears the debt of another one whose restart then fails",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const owed = join(
+        parent,
+        "base",
+        "update",
+        "launchpad-restart-owed.json",
+      );
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      // Refresh A's restart waits, then fails; B's succeeds meanwhile.
+      let releaseA: () => void = () => {};
+      const aWaits = new Promise<void>((resolve) => {
+        releaseA = resolve;
+      });
+      let aStarted: () => void = () => {};
+      const aRestarting = new Promise<void>((resolve) => {
+        aStarted = resolve;
+      });
+      const unit = (restart: () => Promise<void>) => ({
+        service: async () =>
+          ({
+            folder,
+            restartLaunchpad: restart,
+            launchpadVersion: async () => "0.0.0",
+          }) as never,
+        version: "0.0.0",
+        deadlineMs: 10,
+        owed,
+      });
+      const a = refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        unit(async () => {
+          aStarted();
+          await aWaits;
+          throw new Error("unit failed");
+        }),
+      );
+      await aRestarting;
+      const b = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        unit(async () => {}),
+      );
+      expect((b.result as { launchpad?: string }).launchpad).toBe("restarted");
+      expect(await restartOwedFor(owed, folder)).toBe(false);
+      releaseA();
+      expect(((await a).result as { launchpad?: string }).launchpad).toBe(
+        "restart-failed",
+      );
+      // A's failure is owed, and the next refresh makes it.
+      expect(await restartOwedFor(owed, folder)).toBe(true);
+      const retry = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        unit(async () => {}),
+      );
+      expect((retry.result as { launchpad?: string }).launchpad).toBe(
+        "restarted",
+      );
       expect(await restartOwedFor(owed, folder)).toBe(false);
     } finally {
       await rm(parent, { recursive: true, force: true });

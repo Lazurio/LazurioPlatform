@@ -55,11 +55,12 @@ import {
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
   type LaunchpadSeams,
+  owedRestartToken,
   recordedEntry,
   recordedEntryDigest,
   recordRestartOwed,
   restartLaunchpadForEntry,
-  restartOwedFor,
+  settleRestartOwed,
 } from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
 
@@ -646,14 +647,18 @@ export async function refreshMachineFolderAndLaunchpad(
   // The restart is owed ahead of the refresh, so that no failure between the
   // recorded entry and the restart (an interruption included) can lose it; a
   // refresh that owes none clears it again. A debt that cannot be recorded
-  // stops the refresh before anything changes.
-  const owedBefore =
+  // stops the refresh before anything changes. `token` is the debt this
+  // refresh recorded or found: it clears only that one, so a debt another
+  // overlapping refresh recorded meanwhile stays.
+  const found =
     launchpad === undefined
-      ? false
-      : await restartOwedFor(launchpad.owed, folder);
+      ? null
+      : await owedRestartToken(launchpad.owed, folder);
+  const owedBefore = found !== null;
+  let token = found;
   if (launchpad !== undefined && !owedBefore)
     try {
-      await recordRestartOwed(launchpad.owed, folder, true);
+      token = await recordRestartOwed(launchpad.owed, folder);
     } catch {
       return {
         code: 2,
@@ -671,14 +676,14 @@ export async function refreshMachineFolderAndLaunchpad(
     organizationKey,
   );
   if (launchpad === undefined) return refreshed;
-  const settled = async (owed: boolean) =>
-    recordRestartOwed(launchpad.owed, folder, owed).catch(() => undefined);
+  const settled = () =>
+    settleRestartOwed(launchpad.owed, folder, token).catch(() => undefined);
   if (
     refreshed.result.kind !== "refreshed" &&
     refreshed.result.kind !== "unchanged"
   ) {
     // Blocked or failed: what was owed before stays, nothing new is.
-    if (!owedBefore) await settled(false);
+    if (!owedBefore) await settled();
     return refreshed;
   }
   if (
@@ -686,13 +691,15 @@ export async function refreshMachineFolderAndLaunchpad(
     !owedBefore &&
     !(await restartOwed(folder, launchpad))
   ) {
-    await settled(false);
+    await settled();
     return refreshed;
   }
   const restart = await restartLaunchpadForEntry(folder, launchpad);
-  // Kept until a restart succeeds or finds the Launchpad unsupervised;
-  // clearing it may fail, which only owes one more restart.
-  if (restart !== "restart-failed") await settled(false);
+  // A failed restart records its own debt anew; a successful or unsupervised
+  // one clears the debt it knew of, never one recorded since.
+  if (restart === "restart-failed")
+    await recordRestartOwed(launchpad.owed, folder).catch(() => undefined);
+  else await settled();
   return {
     code: refreshed.code,
     result: {

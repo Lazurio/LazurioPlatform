@@ -69,42 +69,67 @@ export async function recordedEntry(folder: string): Promise<string | null> {
   }
 }
 
+/** The restart of `folder`'s Launchpad still owed, by the token of the
+ * attempt that recorded it, or null: none owed, another Folder's or
+ * unreadable. */
+export async function owedRestartToken(
+  path: string | undefined,
+  folder: string,
+): Promise<string | null> {
+  if (path === undefined) return null;
+  try {
+    const owed = JSON.parse(await readFile(path, "utf8")) as {
+      folder?: unknown;
+      token?: unknown;
+    };
+    return owed.folder === folder && typeof owed.token === "string"
+      ? owed.token
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whether a restart of `folder`'s Launchpad is still owed: a refresh
  * recorded an entry and the restart on it failed. Unreadable is not owed. */
 export async function restartOwedFor(
   path: string | undefined,
   folder: string,
 ): Promise<boolean> {
-  if (path === undefined) return false;
-  try {
-    const owed = JSON.parse(await readFile(path, "utf8")) as {
-      folder?: unknown;
-    };
-    return owed.folder === folder;
-  } catch {
-    return false;
-  }
+  return (await owedRestartToken(path, folder)) !== null;
 }
 
-/** Keep, or clear, the restart owed for `folder`: written atomically,
- * owner-only, in the install base's own update directory. */
+/** Record a restart of `folder`'s Launchpad as owed, under a token of its
+ * own: written atomically, owner-only, in the install base's own update
+ * directory. Every attempt that fails records anew, so one that overlaps
+ * another's success still leaves its debt. */
 export async function recordRestartOwed(
   path: string | undefined,
   folder: string,
-  owed: boolean,
-): Promise<void> {
-  if (path === undefined) return;
-  if (!owed) {
-    if (await restartOwedFor(path, folder)) await rm(path, { force: true });
-    return;
-  }
+): Promise<string | null> {
+  if (path === undefined) return null;
+  const token = randomUUID();
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const temporary = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporary, `${JSON.stringify({ folder })}\n`, {
+  await writeFile(temporary, `${JSON.stringify({ folder, token })}\n`, {
     mode: 0o600,
     flag: "wx",
   });
   await rename(temporary, path);
+  return token;
+}
+
+/** Clear the debt only while it is still the one `token` recorded or saw:
+ * a debt another attempt recorded since stays. Not a sandbox against the
+ * same account racing between the read and the removal. */
+export async function settleRestartOwed(
+  path: string | undefined,
+  folder: string,
+  token: string | null,
+): Promise<void> {
+  if (path === undefined || token === null) return;
+  if ((await owedRestartToken(path, folder)) === token)
+    await rm(path, { force: true });
 }
 
 /** The digest of the entry the Folder records (`entryDigest`), "none"
