@@ -155,11 +155,18 @@ async function setup(
 }
 
 /** A computer on contract v3: the gateway's proof in its upgrade, then MCP
- * as the app answers it. `os` is the system its `initialize` names. */
+ * as its application answers it. `os` is the system its `initialize` names.
+ * `announce` is what the application says about itself there (ADR 0006
+ * point 4 of Lazurio App): Lazurio App announces the device lock, an older
+ * pilot application (before 0.1.0-pilot.8) does not. */
 function computer(
   port: number,
   proof: string,
-  options: Readonly<{ os?: string; query?: string }> = {},
+  options: Readonly<{
+    os?: string;
+    query?: string;
+    announce?: "app" | "old-utility";
+  }> = {},
 ) {
   const ws = new WebSocket(
     `ws://127.0.0.1:${port}${attachPath}${options.query ?? ""}`,
@@ -185,13 +192,21 @@ function computer(
         protocolVersion: "2025-06-18",
         capabilities: { tools: {} },
         serverInfo: { name: "lazurio-device", version: "0.2.0" },
-        _meta: {
-          "io.lazurio/app": {
-            version: "0.2.0",
-            deviceLock: 1,
-            ...(options.os === undefined ? {} : { os: options.os }),
-          },
-        },
+        _meta:
+          options.announce === "old-utility"
+            ? {
+                "io.lazurio/agent-desktop": {
+                  appVersion: "0.1.0-pilot.7",
+                  os: "macos",
+                },
+              }
+            : {
+                "io.lazurio/app": {
+                  version: "0.2.0",
+                  deviceLock: 1,
+                  ...(options.os === undefined ? {} : { os: options.os }),
+                },
+              },
       });
     else if (message.method === "tools/list")
       reply({ tools: [{ name: "desktop_snapshot", inputSchema: {} }] });
@@ -973,5 +988,61 @@ test.skipIf(!posix)(
     const after = fake.seen.slice(before);
     expect(after.at(-1)).toEqual({ type: "denied", v: 3, reason: "expired" });
     expect(after.some((message) => message.jsonrpc !== undefined)).toBe(false);
+  },
+);
+
+test.skipIf(!posix)(
+  "with Lazurio App attached to Environment A, an older pilot application started afterwards and admitted to Environment B is refused by B before any tool (LZD-0018 task 854)",
+  async () => {
+    const a = await setup();
+    const b = await setup();
+    // Lazurio App on this computer is attached to A and serves its agents.
+    const app = computer(a.server.port as number, "ok-alex-macbook", {
+      os: "macos",
+    });
+    await waitFor(() => app.seen.some((message) => message.type === "ready"));
+    await waitFor(() =>
+      stat(socketPath(a.home, "alex-macbook")).then(
+        () => true,
+        () => false,
+      ),
+    );
+    expect((await callTool(a.home)).result).toEqual({
+      content: [{ type: "text", text: "snap" }],
+    });
+    // Afterwards an older pilot application on the same computer attaches to
+    // B. B's gateway admits the device, so B lets it in.
+    const old = computer(b.server.port as number, "ok-alex-macbook", {
+      announce: "old-utility",
+    });
+    expect(await old.closed).toBe(1000);
+    expect(old.seen.some((message) => message.type === "ready")).toBe(true);
+    // B ends the session right after `initialize`: no tool was asked for or
+    // called, no agent socket exists, and the reason is in B's audit.
+    expect(old.closeReason()).toBe("no-device-lock");
+    expect(
+      old.seen.some(
+        (message) =>
+          message.method === "tools/list" || message.method === "tools/call",
+      ),
+    ).toBe(false);
+    await waitFor(() =>
+      readFile(auditPath(b.home), "utf8").then(
+        (text) => text.includes('"reason":"no-device-lock"'),
+        () => false,
+      ),
+    );
+    expect(
+      await stat(socketPath(b.home, "alex-macbook")).then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(false);
+    // A is unaffected: the app still serves its agent.
+    expect((await callTool(a.home)).result).toEqual({
+      content: [{ type: "text", text: "snap" }],
+    });
+    app.ws.close();
+    await app.closed;
   },
 );

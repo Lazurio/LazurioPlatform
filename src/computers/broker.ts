@@ -142,13 +142,93 @@ export function shellExitCode(result: unknown): number | undefined {
   }
 }
 
-/** Exit statuses: 0 the session ended, 2 refused (already attached, or the
+/** Exit statuses: 0 the session ended, 2 refused (already attached, no device
+ * lock announced, or the
  * socket cannot be placed), 3 the computer never answered `initialize`. */
 export const brokerExit = Object.freeze({
   ended: 0,
   refused: 2,
   silent: 3,
 });
+
+/** The version of the device lock a computer must announce in its answer to
+ * `initialize` (ADR 0006 point 4 of Lazurio App, LZD-0018): one exclusive
+ * lock of the person's session that Lazurio App and the pilot application
+ * both take before any tool call, so two agents never work on one computer at
+ * once. */
+export const deviceLockVersion = 1;
+
+/** The first version of the pilot application Lazurio Agent Desktop that
+ * takes the device lock. An older one that claims the lock is not believed. */
+export const firstUtilityWithDeviceLock = "0.1.0-pilot.8";
+
+/** Orders two exact semver versions (`MAJOR.MINOR.PATCH[-PRERELEASE]`, no
+ * build metadata) as semver does; `undefined` when either is not one. */
+export function compareVersions(a: string, b: string): number | undefined {
+  const parse = (text: string) => {
+    const match =
+      /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?$/.exec(
+        text,
+      );
+    if (match === null) return undefined;
+    return {
+      core: [match[1], match[2], match[3]].map(Number),
+      pre: match[4] === undefined ? [] : match[4].split("."),
+    };
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (x === undefined || y === undefined) return undefined;
+  for (let i = 0; i < 3; i++) {
+    const d = (x.core[i] as number) - (y.core[i] as number);
+    if (d !== 0) return Math.sign(d);
+  }
+  // A release ranks above every pre-release of the same version.
+  if (x.pre.length === 0 || y.pre.length === 0)
+    return Math.sign(y.pre.length - x.pre.length);
+  for (let i = 0; i < Math.min(x.pre.length, y.pre.length); i++) {
+    const p = x.pre[i] as string;
+    const q = y.pre[i] as string;
+    if (p === q) continue;
+    const pn = /^\d+$/.test(p);
+    const qn = /^\d+$/.test(q);
+    if (pn && qn) return Math.sign(Number(p) - Number(q));
+    if (pn !== qn) return pn ? -1 : 1;
+    return p < q ? -1 : 1;
+  }
+  return Math.sign(x.pre.length - y.pre.length);
+}
+
+/** Whether the computer's answer to `initialize` announces the device lock.
+ * The application announces itself under its own key of `_meta`: Lazurio App
+ * under `io.lazurio/app`, the pilot application Lazurio Agent Desktop under
+ * `io.lazurio/agent-desktop`. At least one of them must be present, and every
+ * one present must carry `deviceLock` exactly `deviceLockVersion`; the pilot
+ * application must also carry an `appVersion` no older than
+ * `firstUtilityWithDeviceLock`. Missing or broken metadata is no
+ * announcement. */
+export function announcesDeviceLock(result: unknown): boolean {
+  if (typeof result !== "object" || result === null) return false;
+  const meta = (result as { _meta?: unknown })._meta;
+  if (typeof meta !== "object" || meta === null) return false;
+  const record = meta as Record<string, unknown>;
+  const locks = (about: unknown): about is Record<string, unknown> =>
+    typeof about === "object" &&
+    about !== null &&
+    (about as { deviceLock?: unknown }).deviceLock === deviceLockVersion;
+  const app = record["io.lazurio/app"];
+  const utility = record["io.lazurio/agent-desktop"];
+  if (app === undefined && utility === undefined) return false;
+  if (app !== undefined && !locks(app)) return false;
+  if (utility !== undefined) {
+    if (!locks(utility)) return false;
+    const version = utility.appVersion;
+    if (typeof version !== "string") return false;
+    const order = compareVersions(version, firstUtilityWithDeviceLock);
+    if (order === undefined || order < 0) return false;
+  }
+  return true;
+}
 
 /** Whether something listens on the Unix socket at `path`. */
 export function socketAnswers(
@@ -218,6 +298,11 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   await rm(path, { force: true });
 
   let initResult: unknown = null;
+  // Until the computer's announcement of the device lock is accepted, the
+  // broker reads only its answer to `initialize` (and answers its pings):
+  // a notification about tools or an answer to a tool list from a session
+  // that may still be refused neither asks for tools nor saves them.
+  let accepted = false;
   let toolsRequest = 0;
   let nextId = 0;
   const pending = new Map<string, Pending>();
@@ -265,7 +350,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         initialized(initResult !== null);
         return;
       }
-      if (id.startsWith("p")) return;
+      if (!accepted || id.startsWith("p")) return;
       if (id.startsWith("t")) {
         const tools = (message.result as { tools?: unknown } | undefined)
           ?.tools;
@@ -310,6 +395,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       return;
     }
     if (isNotification(message)) {
+      if (!accepted) return;
       if (message.method === "notifications/tools/list_changed") {
         for (const client of clients) write(client, line);
         askTools();
@@ -344,6 +430,18 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     options.transport.close("no-initialize");
     return brokerExit.silent;
   }
+  // A computer whose application does not take the device lock could let a
+  // second agent work at the same time (an old pilot application next to
+  // Lazurio App), so it is served nothing.
+  if (!announcesDeviceLock(initResult)) {
+    options.stderr(
+      "The computer's application does not take the device lock; update it.\n",
+    );
+    await audit({ event: "refused", reason: "no-device-lock" });
+    options.transport.close("no-device-lock");
+    return brokerExit.refused;
+  }
+  accepted = true;
   send({ jsonrpc: "2.0", method: "notifications/initialized" });
   askTools();
 

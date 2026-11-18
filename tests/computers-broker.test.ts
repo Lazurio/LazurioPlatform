@@ -6,8 +6,11 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { runAgentEntry } from "../src/computers/agent-entry";
 import {
+  announcesDeviceLock,
   type BrokerOptions,
   type BrokerTransport,
+  brokerExit,
+  compareVersions,
   runBroker,
   shellExitCode,
 } from "../src/computers/broker";
@@ -30,7 +33,28 @@ type Message = Record<string, unknown>;
 
 /** A computer on the far end of the SSH session: answers like Agent
  * Desktop's MCP server. A call of `hold` waits until `release`. */
-function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
+/** How the computer's answer to `initialize` announces the device lock
+ * (ADR 0006 point 4 of Lazurio App): as the pilot application, as Lazurio
+ * App, not at all, with a value that is not the lock's version, as a pilot
+ * application older than the first one with the lock that claims it anyway,
+ * or as one whose version cannot be read or is missing. */
+type LockAnnouncement =
+  | "utility"
+  | "app"
+  | "none"
+  | "broken"
+  | "old-claims-lock"
+  | "bad-version"
+  | "no-version";
+
+function fakeComputer(
+  update: "answer" | "drop" | "refuse" = "answer",
+  lock: LockAnnouncement = "utility",
+  // Before its answer to `initialize`, the computer says its tools changed
+  // and sends an unasked answer to a tool list, as a hostile or broken
+  // application could.
+  early = false,
+) {
   const remote = new PassThrough();
   const received: Message[] = [];
   const held: (() => void)[] = [];
@@ -40,19 +64,47 @@ function fakeComputer(update: "answer" | "drop" | "refuse" = "answer") {
     const message = JSON.parse(line) as Message;
     received.push(message);
     if (message.id === undefined) return;
+    if (message.method === "initialize" && early) {
+      remote.write(
+        `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })}\n`,
+      );
+      answer("t1", {
+        tools: [{ name: "early_tool", inputSchema: { type: "object" } }],
+      });
+    }
     if (message.method === "initialize")
       answer(message.id, {
         protocolVersion: "2025-06-18",
         capabilities: { tools: {} },
         serverInfo: { name: "agent-desktop", version: "1.0.0" },
-        _meta: {
-          "io.lazurio/agent-desktop": {
-            appVersion: "0.1.3",
-            os: "macos",
-            osVersion: "26.1",
-            updateChannel: "beta",
-          },
-        },
+        // Lazurio App announces itself only under its own key.
+        _meta:
+          lock === "app"
+            ? { "io.lazurio/app": { version: "0.2.0", deviceLock: 1 } }
+            : {
+                "io.lazurio/agent-desktop": {
+                  ...(lock === "no-version"
+                    ? {}
+                    : {
+                        appVersion:
+                          lock === "old-claims-lock"
+                            ? "0.1.0-pilot.7"
+                            : lock === "bad-version"
+                              ? "pilot-8"
+                              : "0.1.3",
+                      }),
+                  os: "macos",
+                  osVersion: "26.1",
+                  updateChannel: "beta",
+                  ...(lock === "broken" ? { deviceLock: "yes" } : {}),
+                  ...(lock === "utility" ||
+                  lock === "old-claims-lock" ||
+                  lock === "bad-version" ||
+                  lock === "no-version"
+                    ? { deviceLock: 1 }
+                    : {}),
+                },
+              },
       });
     else if (message.method === "tools/list")
       answer(message.id, {
@@ -927,4 +979,192 @@ test("a shell command's exit code comes from structuredContent or the applicatio
   ).toBeUndefined();
   expect(shellExitCode(undefined)).toBeUndefined();
   expect(shellExitCode("0")).toBeUndefined();
+});
+
+/** Runs the broker against a computer that announces the lock as `lock`,
+ * and returns how the session ended before any agent connected. With
+ * `early`, the computer talks about tools before it answers `initialize`. */
+async function sessionWith(lock: LockAnnouncement, early = false) {
+  const home = await mkdtemp(join(tmpdir(), "lzc-"));
+  const computer = fakeComputer("answer", lock, early);
+  const saved: unknown[][] = [];
+  const transport = lineTransport(computer);
+  const audit: AuditEntry[] = [];
+  const done = runBroker({
+    home,
+    uid: process.getuid?.(),
+    device: "alex-macbook",
+    name: "Alex MacBook",
+    version: "test",
+    transport,
+    stderr: () => undefined,
+    audit: async (entry) => {
+      audit.push({
+        ts: new Date().toISOString(),
+        device: "alex-macbook",
+        ...entry,
+      });
+    },
+    saveTools: async (tools) => {
+      saved.push([...tools]);
+    },
+    stillAllowed: async () => true,
+  });
+  return { home, computer, transport, audit, done, saved };
+}
+
+for (const lock of [
+  "none",
+  "broken",
+  "old-claims-lock",
+  "bad-version",
+  "no-version",
+] as const)
+  test.skipIf(!posix)(
+    `a computer that does not announce the device lock is refused before any agent reaches it (${lock})`,
+    async () => {
+      const session = await sessionWith(lock);
+      try {
+        expect(await session.done).toBe(brokerExit.refused);
+        expect(await session.transport.closed).toBe("no-device-lock");
+        expect(session.audit.at(-1)).toMatchObject({
+          event: "refused",
+          reason: "no-device-lock",
+        });
+        // No tool was asked for and no agent socket was placed.
+        expect(
+          session.computer.received.some(
+            (message) => message.method === "tools/list",
+          ),
+        ).toBe(false);
+        expect(
+          await stat(socketPath(session.home, "alex-macbook")).then(
+            () => true,
+            () => false,
+          ),
+        ).toBe(false);
+      } finally {
+        session.computer.remote.end();
+        await rm(session.home, { recursive: true, force: true });
+      }
+    },
+  );
+
+for (const lock of ["utility", "app"] as const)
+  test.skipIf(!posix)(
+    `a computer that announces the device lock is served (${lock})`,
+    async () => {
+      const session = await sessionWith(lock);
+      try {
+        await waitFor(() =>
+          stat(socketPath(session.home, "alex-macbook")).then(
+            () => true,
+            () => false,
+          ),
+        );
+        expect(
+          session.audit.some((entry) => entry.reason === "no-device-lock"),
+        ).toBe(false);
+      } finally {
+        session.computer.remote.end();
+        await session.done;
+        await rm(session.home, { recursive: true, force: true });
+      }
+    },
+  );
+
+test.skipIf(!posix)(
+  "a computer that talks about tools before its refused answer to initialize is asked for nothing and saves nothing (LZD-0018 task 854)",
+  async () => {
+    const session = await sessionWith("none", true);
+    try {
+      expect(await session.done).toBe(brokerExit.refused);
+      expect(await session.transport.closed).toBe("no-device-lock");
+      // The broker sent `initialize` and nothing else: no `tools/list`
+      // after the early notification, no `tools/call`.
+      expect(
+        session.computer.received.map((message) => message.method),
+      ).toEqual(["initialize"]);
+      // The unasked tool list of the refused session is not kept.
+      expect(session.saved).toEqual([]);
+    } finally {
+      session.computer.remote.end();
+      await rm(session.home, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a computer that announces the lock and talks about tools before initialize gets its tools asked for once it is accepted",
+  async () => {
+    const session = await sessionWith("app", true);
+    try {
+      await waitFor(() => session.saved.length > 0);
+      // Only the tools the broker asked for after the check are kept.
+      expect(session.saved).toEqual([
+        [{ name: "desktop_snapshot", inputSchema: { type: "object" } }],
+      ]);
+      const methods = session.computer.received.map(
+        (message) => message.method,
+      );
+      expect(methods.slice(0, 3)).toEqual([
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+      ]);
+    } finally {
+      session.computer.remote.end();
+      await session.done;
+      await rm(session.home, { recursive: true, force: true });
+    }
+  },
+);
+
+test("versions are ordered as semver orders them, pre-releases numerically", () => {
+  expect(compareVersions("0.1.0-pilot.7", "0.1.0-pilot.8")).toBe(-1);
+  expect(compareVersions("0.1.0-pilot.10", "0.1.0-pilot.8")).toBe(1);
+  expect(compareVersions("0.1.0-pilot.8", "0.1.0-pilot.8")).toBe(0);
+  expect(compareVersions("0.1.0", "0.1.0-pilot.8")).toBe(1);
+  expect(compareVersions("0.1.3", "0.1.0-pilot.8")).toBe(1);
+  expect(compareVersions("0.0.9", "0.1.0-pilot.8")).toBe(-1);
+  expect(compareVersions("0.1.0-pilot", "0.1.0-pilot.8")).toBe(-1);
+  expect(compareVersions("0.1.0-beta.1", "0.1.0-pilot.8")).toBe(-1);
+  for (const broken of ["pilot-8", "0.1", "v0.1.0", "01.1.0", "0.1.0-", ""])
+    expect(compareVersions(broken, "0.1.0-pilot.8")).toBeUndefined();
+});
+
+test("the announcement holds for every application key present (LZD-0018 task 854)", () => {
+  const utility = (about: Record<string, unknown>) => ({
+    _meta: { "io.lazurio/agent-desktop": about },
+  });
+  expect(
+    announcesDeviceLock(
+      utility({ appVersion: "0.1.0-pilot.8", deviceLock: 1 }),
+    ),
+  ).toBe(true);
+  expect(
+    announcesDeviceLock(
+      utility({ appVersion: "0.1.0-pilot.7", deviceLock: 1 }),
+    ),
+  ).toBe(false);
+  expect(announcesDeviceLock(utility({ appVersion: 8, deviceLock: 1 }))).toBe(
+    false,
+  );
+  expect(
+    announcesDeviceLock({
+      _meta: { "io.lazurio/app": { version: "0.2.0", deviceLock: 1 } },
+    }),
+  ).toBe(true);
+  // A valid key does not cover a present key that fails.
+  expect(
+    announcesDeviceLock({
+      _meta: {
+        "io.lazurio/app": { version: "0.2.0", deviceLock: 1 },
+        "io.lazurio/agent-desktop": { appVersion: "0.1.0-pilot.7" },
+      },
+    }),
+  ).toBe(false);
+  expect(announcesDeviceLock({ _meta: {} })).toBe(false);
+  expect(announcesDeviceLock({ _meta: null })).toBe(false);
+  expect(announcesDeviceLock(null)).toBe(false);
 });
