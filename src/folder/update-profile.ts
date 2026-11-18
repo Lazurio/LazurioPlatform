@@ -4,7 +4,7 @@ import {
   finalizePreparationLocked,
   resumePreparationLocked,
 } from "./apply-preparation";
-import { writeBuddyLocked } from "./buddy-folder";
+import { checkBuddyLocked, writeBuddyLocked } from "./buddy-folder";
 import { withFolderOperationLock } from "./lock";
 import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
@@ -13,6 +13,7 @@ import {
   prepareFolderChangeLocked,
 } from "./prepare-profile-change";
 import type { PresetName } from "./presets";
+import { readFolderState } from "./read-state";
 
 export type UpdateStep = "prepared" | "applied" | "finalized";
 
@@ -171,6 +172,15 @@ async function changeFolder(
   return withFolderOperationLock(
     join(folder, ".lazurio"),
     async (assertHeld) => {
+      // Buddy GEN4's folder can take the instructions of the Folder this
+      // change leads to, or nothing changes (`checkBuddyLocked`).
+      await checkBuddyLocked(
+        folder,
+        request.kind === "handover"
+          ? request.machine
+          : (await readFolderState(join(folder, ".lazurio"))).preferences
+              .machine,
+      );
       const prepared = await prepareFolderChangeLocked(
         folder,
         request,

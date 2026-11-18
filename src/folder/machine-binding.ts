@@ -1,3 +1,4 @@
+import { isAbsolute, posix } from "node:path";
 import {
   isEntryPort,
   isHttpsOrigin,
@@ -261,11 +262,17 @@ export function buddyGeneration(
   return undefined;
 }
 
-/** Buddy GEN4's folder by the wire schema's rule: `/home/<user>/Buddy`. */
+/** Buddy GEN4's folder as the binding records it: an absolute, normalized
+ * path ending in `/Buddy`. The handover's schema holds it to
+ * `/home/<user>/Buddy`; the writer accepts only `<the Folder's home>/Buddy`
+ * (`buddyFolderTarget`). */
 export const isBuddyFolder = (value: unknown): value is string =>
   typeof value === "string" &&
-  value.length <= 128 &&
-  /^\/home\/[a-z_][a-z0-9_-]*\/Buddy$/.test(value);
+  value.length <= 4096 &&
+  isAbsolute(value) &&
+  posix.normalize(value) === value &&
+  posix.basename(value) === "Buddy" &&
+  !value.endsWith("/");
 
 const isBuddyProfile = (value: unknown): value is BuddyProfile =>
   value === "buddy" || value === "employee";

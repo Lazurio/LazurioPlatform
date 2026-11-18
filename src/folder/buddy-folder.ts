@@ -6,10 +6,12 @@ import { readPersona } from "../buddy/persona";
 import {
   type BuddyFolderPath,
   type BuddyProfile,
+  buddyFolderPaths,
   renderBuddyFolder,
 } from "./buddy-gen4";
 import { writeBuddyLayerLocked } from "./buddy-layer";
 import { inspectOutput } from "./inventory";
+import type { MachineBinding } from "./machine-binding";
 import { ensureOutputDirectories } from "./output-directories";
 import { outputFile } from "./outputs";
 import { checkoutDirectoryRefusal } from "./owned-directory";
@@ -49,6 +51,39 @@ export async function writeBuddyLocked(
     entry.buddyProfile,
     assertHeld,
   );
+}
+
+/** Whether a change of the Folder to `machine` can write Buddy's
+ * instructions, checked before the change commits so that a refusal leaves
+ * the Folder, its binding and its entry as they were (a retry after the
+ * fix then sees the change anew). For a converted person: the folder is
+ * exactly `Buddy` of the Folder's canonical home, an existing one is a real
+ * directory of this account without `CLAUDE.md` and none of its files is
+ * unsafe. Nothing is created or written here. */
+export async function checkBuddyLocked(
+  folder: string,
+  machine: MachineBinding | null | undefined,
+): Promise<void> {
+  const entry = machine?.entry;
+  if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined)
+    return;
+  const target = await buddyFolderTarget(dirname(folder), entry.buddyFolder);
+  const uid = process.getuid?.();
+  const stat = await lstat(target).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  if (stat === null) return;
+  if (
+    uid === undefined ||
+    stat.isSymbolicLink() ||
+    checkoutDirectoryRefusal(stat, uid) !== null
+  )
+    throw new Error("Unsafe Buddy folder");
+  await refuseClaudeInstructions(target);
+  for (const path of buddyFolderPaths)
+    if ((await inspectOutput(target, path)).kind === "unsafe")
+      throw new Error(`Unsafe Buddy folder file: ${path}`);
 }
 
 /** The folder to write: the declared one, only when it is exactly `Buddy`

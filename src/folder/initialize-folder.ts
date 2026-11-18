@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { writeBuddyLocked } from "./buddy-folder";
+import { checkBuddyLocked, writeBuddyLocked } from "./buddy-folder";
 import {
   FolderAdoptionError,
   handoverDirectories,
@@ -197,6 +197,8 @@ async function initialize(
       await verifyHandoverLayout(folder, layout);
       await requireAdoptableLayout(folder, personalspace, true);
     }
+    // Buddy GEN4's folder can take his instructions, or nothing starts.
+    await checkBuddyLocked(folder, preferences.machine);
     const transaction = join(state, "transaction");
     await mkdir(transaction, { mode: 0o700 });
     const journal = JSON.stringify({

@@ -29,6 +29,7 @@ import { renderOutputs } from "../src/folder/preview";
 import {
   initializeMachineFolder,
   refreshMachineFolder,
+  refreshMachineFolderAndLaunchpad,
 } from "../src/machine/cli";
 import {
   binding,
@@ -115,6 +116,7 @@ test("a work Environment's handover with Buddy GEN4 is refused, and so is an ent
     ["/home/operator/Lazurio", "buddy"],
     ["Buddy", "buddy"],
     ["/home/operator/Buddy/", "buddy"],
+    ["/home/operator/../other/Buddy", "buddy"],
     [FOLDER, "coordinator"],
     [FOLDER, undefined],
   ])
@@ -210,8 +212,70 @@ posix(
   },
 );
 
+// The converted binding of a Folder in `parent`: the handover names the
+// operator's home, which on a hosted Environment is the Folder's own; here
+// the Folder's temporary home stands for it.
+const convertedAt = (
+  parent: string,
+  profile: "buddy" | "employee" = "buddy",
+): ReturnType<typeof binding> => {
+  const machine = converted(profile);
+  return {
+    ...machine,
+    entry: {
+      ...(machine.entry as NonNullable<typeof machine.entry>),
+      buddyFolder: join(parent, "Buddy"),
+    },
+  };
+};
+const recordedBuddy = async (folder: string) =>
+  JSON.parse(
+    await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+  ).machine?.entry?.buddyFolder;
+const buddyLine = "`~/Buddy`";
+
 posix(
-  "a handover naming another home than the Folder's is refused: nothing is written in ~/Buddy and Buddy GEN3's layer stays",
+  "a converted person's Folder: initialization writes ~/Buddy and no Buddy GEN3 layer, and a refresh after Nastavení → Buddy names the persona",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const machine = convertedAt(parent);
+      expect(
+        (await initializeMachineFolder(folder, machine, noChoices)).code,
+      ).toBe(0);
+      const buddy = join(parent, "Buddy");
+      expect((await lstat(buddy)).mode & 0o777).toBe(0o700);
+      for (const path of buddyFolderPaths)
+        expect(await exists(join(buddy, path))).toBe(true);
+      for (const path of buddyLayerPaths)
+        expect(await exists(join(folder, path))).toBe(false);
+      expect(await readFile(join(buddy, "AGENTS.md"), "utf8")).toContain(
+        "Jsi Buddy, Buddy",
+      );
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        buddyLine,
+      );
+      await writePersona(
+        parent,
+        {
+          buddyName: "Bertík",
+          address: "ty",
+          user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
+        },
+        null,
+      );
+      expect((await refreshMachineFolder(folder, machine)).code).toBe(0);
+      const named = await readFile(join(buddy, "AGENTS.md"), "utf8");
+      expect(named).toContain("Jsi Bertík");
+      expect(named).toContain("Aleně tykáš");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a conversion by refresh writes ~/Buddy for the profile and keeps Buddy GEN3's layer byte for byte",
   async () => {
     const { parent, folder } = await home();
     try {
@@ -219,19 +283,112 @@ posix(
       expect(
         (await initializeMachineFolder(folder, plain, noChoices)).code,
       ).toBe(0);
+      expect(await exists(join(parent, "Buddy"))).toBe(false);
       const layer = await Promise.all(
         buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
       );
-      // The fixture's operator home is /home/operator, not this Folder's.
-      await expect(
-        refreshMachineFolder(folder, converted("employee")),
-      ).rejects.toThrow("Buddy folder mismatch");
-      expect(await exists(join(parent, "Buddy"))).toBe(false);
+      expect(
+        (await refreshMachineFolder(folder, convertedAt(parent, "employee")))
+          .code,
+      ).toBe(0);
       expect(
         await Promise.all(
           buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
         ),
       ).toEqual(layer);
+      const agents = await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
+      expect(agents).toContain("0220");
+      expect(agents).not.toMatch(/## (Převzetí|Taking over)/);
+      expect(await recordedBuddy(folder)).toBe(join(parent, "Buddy"));
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a refused conversion changes nothing, and the retry after the fix converts: another home, then a CLAUDE.md, through the refresh with the Launchpad's restart",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      const agentsBefore = await readFile(join(folder, "AGENTS.md"), "utf8");
+      const unchanged = async () => {
+        expect(await recordedBuddy(folder)).toBeUndefined();
+        expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toBe(
+          agentsBefore,
+        );
+        expect(await exists(join(parent, "Buddy", "AGENTS.md"))).toBe(false);
+      };
+      const launchpad = { service: async () => null, version: "0.0.0" };
+      // The fixture's handover names /home/operator, not this Folder's home.
+      await expect(
+        refreshMachineFolderAndLaunchpad(
+          folder,
+          converted(),
+          undefined,
+          launchpad,
+        ),
+      ).rejects.toThrow("Buddy folder mismatch");
+      await unchanged();
+      // The right home, but the person keeps a CLAUDE.md there.
+      await mkdir(join(parent, "Buddy"), { mode: 0o700 });
+      await writeFile(join(parent, "Buddy", "CLAUDE.md"), "moje\n");
+      await expect(
+        refreshMachineFolderAndLaunchpad(
+          folder,
+          convertedAt(parent),
+          undefined,
+          launchpad,
+        ),
+      ).rejects.toThrow("Buddy folder has CLAUDE.md");
+      await unchanged();
+      expect(await readFile(join(parent, "Buddy", "CLAUDE.md"), "utf8")).toBe(
+        "moje\n",
+      );
+      // Moved away: the retry sees the change anew and asks for the restart.
+      await rm(join(parent, "Buddy", "CLAUDE.md"));
+      const retried = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        launchpad,
+      );
+      expect(retried.code).toBe(0);
+      expect((retried.result as { launchpad?: unknown }).launchpad).toBe(
+        "not-supervised",
+      );
+      expect(await recordedBuddy(folder)).toBe(join(parent, "Buddy"));
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
+        buddyLine,
+      );
+      expect(await exists(join(parent, "Buddy", "AGENTS.md"))).toBe(true);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "an initialization that cannot write ~/Buddy starts nothing",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      await mkdir(join(parent, "Buddy", ".claude"), {
+        recursive: true,
+        mode: 0o700,
+      });
+      await writeFile(join(parent, "Buddy", ".claude", "CLAUDE.md"), "x\n");
+      await expect(
+        initializeMachineFolder(folder, convertedAt(parent), noChoices),
+      ).rejects.toThrow("Buddy folder has .claude/CLAUDE.md");
+      expect(await exists(join(folder, ".lazurio", "preferences.json"))).toBe(
+        false,
+      );
+      expect(await exists(join(folder, "AGENTS.md"))).toBe(false);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
