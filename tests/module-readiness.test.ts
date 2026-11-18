@@ -457,13 +457,8 @@ posixTest(
     const files = readyServer();
     files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
     const result = await assess(files);
-    // appAccess and the writer rule were found; only whether the skipped
-    // file declares a publication tool is unknown, which is live evidence.
-    expect(ids(result)).toEqual(["source-incomplete"]);
-    expect(result.findings[0]?.level).toBe("live");
-    expect(result.findings[0]?.message).toContain("no publication tools");
-    expect(result.findings[0]?.message).not.toContain("appAccess");
-    expect(result.verdict).toBe("ready-for-trial");
+    expect(result.findings).toEqual([]);
+    expect(result.verdict).toBe("ready-for-live");
   },
 );
 
@@ -478,103 +473,6 @@ posixTest(
     expect(result.findings[0]?.level).toBe("live");
     expect(result.findings[0]?.message).toContain("contract tests");
     expect(result.findings[0]?.message).not.toContain("appAccess");
-    expect(result.verdict).toBe("ready-for-trial");
-  },
-);
-
-posixTest(
-  "a publication tool with its annotation is ready only for a trial until D1 is decided",
-  async () => {
-    const files = readyServer();
-    files["app/v3/tools.ts"] =
-      'registry.tool({ name: "publish_draft", effect: "publish", destructiveHint: true });\n' +
-      'registry.tool({ name: "save_draft", effect: "write", publishesData: false });\n';
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["publication-pending-d1"]);
-    expect(result.findings[0]?.level).toBe("live");
-    expect(result.findings[0]?.message).toContain("1 publication tool");
-    expect(result.verdict).toBe("ready-for-trial");
-  },
-);
-
-posixTest(
-  "a publication tool without destructiveHint is not ready",
-  async () => {
-    const files = readyServer();
-    files["app/v3/tools.ts"] =
-      'registry.tool({ name: "publish_draft", effect: "publish", destructiveHint: true });\n' +
-      "registry.tool({ name: 'send_quote', effect: 'publish' });\n";
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["publication-hint", "publication-pending-d1"]);
-    expect(
-      result.findings.find((item) => item.id === "publication-hint")?.message,
-    ).toContain('1 publication tool (effect: "publish") without');
-    expect(result.verdict).toBe("not-ready");
-  },
-);
-
-posixTest("draft tools alone raise no publication finding", async () => {
-  const files = readyServer();
-  files["app/v3/tools.ts"] =
-    'registry.tool({ name: "save_draft", effect: "write", publishesData: false });\n' +
-    'registry.tool({ name: "find_items", effect: "read" });\n';
-  const result = await assess(files);
-  expect(result.findings).toEqual([]);
-  expect(result.verdict).toBe("ready-for-live");
-});
-
-posixTest(
-  "a publication named only in a comment, a string or a test is no tool",
-  async () => {
-    const files = readyServer();
-    files["app/v3/tools.ts"] =
-      '// example: registry.tool({ effect: "publish" })\n' +
-      '/* effect: "publish" */\n' +
-      'const help = "effect: \\"publish\\" needs destructiveHint";\n' +
-      'registry.tool({ name: "save_draft", effect: "write", publishesData: false });\n';
-    files["app/v3/tests/tools.test.ts"] =
-      'expect(tool).toEqual({ name: "send_quote", effect: "publish" });\n' +
-      'import { mcpCall } from "@lazurio/module-kit/tools/testing";\n';
-    const result = await assess(files);
-    expect(result.findings).toEqual([]);
-    expect(result.verdict).toBe("ready-for-live");
-  },
-);
-
-posixTest(
-  "another tool's annotation does not cover a publication without its own",
-  async () => {
-    const files = readyServer();
-    files["app/v3/tools.ts"] =
-      'registry.tool({ name: "send_quote", effect: "publish" });\n' +
-      'registry.tool({ name: "remove_draft", effect: "write", annotations: { destructiveHint: true } });\n';
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["publication-hint", "publication-pending-d1"]);
-    expect(result.verdict).toBe("not-ready");
-  },
-);
-
-posixTest(
-  "an annotation nested in the publication's own declaration counts",
-  async () => {
-    const files = readyServer();
-    files["app/v3/tools.ts"] =
-      'registry.tool({\n  name: "send_quote",\n  effect: "publish",\n  annotations: { destructiveHint: true },\n});\n';
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["publication-pending-d1"]);
-    expect(result.verdict).toBe("ready-for-trial");
-  },
-);
-
-posixTest(
-  "a publication tool in a skipped file keeps the verdict below live use",
-  async () => {
-    const files = readyServer();
-    files["app/v3/generated-tools.ts"] =
-      `registry.tool({ name: "send_quote", effect: "publish" });\n// ${"x".repeat(1024 * 1024 + 10)}\n`;
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["source-incomplete"]);
-    expect(result.findings[0]?.message).toContain("no publication tools");
     expect(result.verdict).toBe("ready-for-trial");
   },
 );

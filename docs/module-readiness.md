@@ -111,20 +111,23 @@ app's source, and the contract tests prove the cases of the chosen variant.
 
 A tool that publishes (an approval, a signature, a sending, a deletion, a
 movement of money, the publication of a draft or data to everyone) is a tool of
-its own, declared `effect: "publish"` in the module kit's registry and annotated
-`destructiveHint: true`; an agent calls it only after the person's explicit
-"Publikuj" (Module Standard, Effects and publication; decision D1 of LZD-0037).
-The static check reads the declarations in the app's source without its
-tests, comments and the text of strings. A publication tool whose own
-declaration (the object literal around `effect: "publish"`, nested annotations
-included) lacks `destructiveHint: true` is `publication-hint`, a blocker;
-another tool's annotation never covers it. Any publication tool is
-`publication-pending-d1`, live evidence, because until the Owner decides how the
-App knows the person's "Publikuj" an Application offers no publication tool and
-only a development version may. When a file of that source was not read, a
-publication tool it may hold is unknown: `source-incomplete` as live evidence,
-never `ready-for-live`. Draft tools (`effect: "write"` with
-`publishesData: false`) raise nothing.
+its own, and an agent calls it only after the person's explicit "Publikuj"
+(Module Standard, Effects and publication; decision D1 of LZD-0037). The module
+kit holds what an Application may offer, so the static check does not read
+publication tools:
+
+- **`@lazurio/module-kit` 0.5.0** declares a publication as `effect:
+  "publish"` and always annotates it `destructiveHint: true`. Until the Owner
+  decides how the App knows the person's "Publikuj", it does not offer one
+  where `deployment()` is `production`, on `/mcp` or on the page; a
+  development version does.
+- **0.4.x** does not offer a write that publishes data in a production
+  application without `publicationConsent`.
+
+Either release keeps D1 in production, so the check asks for no newer module
+kit than its floor, and a Module on the stack profile `2026.12` is not held
+back. That a tool's declared effect matches what it does is shown by the
+Module's contract tests and its review (`MS-15`, `MS-16`), not by markers.
 
 ## Limits of the static check
 
