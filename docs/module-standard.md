@@ -1253,15 +1253,22 @@ The port holds, in both generations:
   - **in repository-db, a draft of several records is not atomic.** A draft is
     working-tree files without a transaction. The port writes them in one pass
     through the engine's draft-write lock (`writeRecordDraft`), which keeps
-    other writers and publication out, and replaces each file atomically
-    (`writeYamlFileAtomic`). A reader does not take that lock, so it may see some
-    of the records changed while the write runs. If the process stops part of
-    the way, the draft holds some of them. The port therefore answers which
-    records it wrote, the draft's review shows the change as it is, and the
-    person discards it or completes it. A partial draft is published only when
-    a person confirms exactly that draft. A multi-record change that must never
-    be seen in part needs Dolt; over repository-db it would need an engine
-    transaction, which does not exist.
+    other writers and publication out. Every check (the revisions, the rules
+    across records) runs on one snapshot before the first record is written, so
+    a refusal leaves nothing written. Each file is replaced atomically
+    (`writeYamlFileAtomic`). On a write error the port puts back what it wrote,
+    as far as it can. Even so, repository-db does not guarantee a multi-file
+    write today: a reader does not take the lock and may see part of the
+    change, and a stopped process or a failed undo may leave part of it in the
+    draft (Lazurio/repository-db#45 asks the engine for a journal, completing
+    or undoing after an interruption, and a `publish` that refuses an
+    unfinished write).
+  - **recovery in repository-db:** a draft is never published on its own. The
+    person sees the draft's review with every changed record before a
+    publication, a partial draft shows there, and it can be completed or undone
+    record by record (`discard` of a record). A partial draft is published only
+    when a person confirms exactly that draft. A change that must never be seen
+    in part needs Dolt until the engine change exists.
 
 - **Author and channel.** A change carries two fields: the person's `subject`
   and the `channel` it came by, one of `ui` (the App's interface), `mcp`
