@@ -5,9 +5,10 @@ import {
   probeApplicationMcp,
 } from "../src/launchpad/application-mcp-probe";
 
-// Apps offers "Připojit k agentům" only where this probe says the Application
-// really offers an MCP server (plan LZD-0037, AccountApplication.mcp). Example
-// names only.
+// Apps offers "Připojit k agentům" only where the account states the
+// Application serves MCP and this probe finds the Application's host admitting
+// MCP sign-in for that origin (plan LZD-0037, AccountApplication.mcp). The
+// probe sees the gateway, never the App behind it. Example names only.
 
 const origin = "https://deals.example.lazurio.app";
 const metadata = `${origin}/.well-known/oauth-protected-resource`;
@@ -42,12 +43,12 @@ const good = {
   authorization_servers: ["https://auth.example/realms/workspace"],
 };
 
-test("a verified MCP server: 401 with a Bearer challenge and its own metadata", async () => {
+test("a host that admits MCP sign-in: 401 with a Bearer challenge and its own metadata", async () => {
   const { fetcher, asked } = fakeFetch({
     [`${origin}/mcp`]: gateway,
     [metadata]: metadataOf(good),
   });
-  expect(await probeApplicationMcp(origin, fetcher)).toEqual({ mcp: true });
+  expect(await probeApplicationMcp(origin, fetcher)).toEqual({ admits: true });
   expect(asked).toEqual([`POST ${origin}/mcp`, `GET ${metadata}`]);
 });
 
@@ -66,7 +67,7 @@ test("the probe sends no credential and follows no redirect", async () => {
   expect(new Headers(seen?.headers).has("cookie")).toBe(false);
 });
 
-test("an Application that is not an MCP server is refused", async () => {
+test("a host that does not admit MCP sign-in for the origin is refused", async () => {
   const cases: Record<string, Record<string, Route>> = {
     "a page instead of 401": {
       [`${origin}/mcp`]: () => new Response("<html>", { status: 200 }),
@@ -114,12 +115,12 @@ test("an Application that is not an MCP server is refused", async () => {
     expect([
       name,
       await probeApplicationMcp(origin, fakeFetch(routes).fetcher),
-    ]).toEqual([name, { mcp: false, reason: "not-mcp" }]);
+    ]).toEqual([name, { admits: false, reason: "no-mcp-sign-in" }]);
 });
 
 test("an Application that does not answer is unreachable", async () => {
   expect(await probeApplicationMcp(origin, fakeFetch({}).fetcher)).toEqual({
-    mcp: false,
+    admits: false,
     reason: "unreachable",
   });
   const slow = fakeFetch({
@@ -131,7 +132,7 @@ test("an Application that does not answer is unreachable", async () => {
       ),
   });
   expect(await probeApplicationMcp(origin, slow.fetcher, 20)).toEqual({
-    mcp: false,
+    admits: false,
     reason: "unreachable",
   });
 });
@@ -149,7 +150,7 @@ test("only an Application's own https origin on the Organizations' zone is ever 
     42,
   ])
     expect(await probeApplicationMcp(value, fetcher)).toEqual({
-      mcp: false,
+      admits: false,
       reason: "not-an-application",
     });
   expect(asked).toEqual([]);
@@ -159,8 +160,8 @@ test("only an Application's own https origin on the Organizations' zone is ever 
 test("answers are kept per origin for a while; an unreachable one is asked again", async () => {
   let clock = 0;
   const answers = [
-    { mcp: false as const, reason: "unreachable" as const },
-    { mcp: true as const },
+    { admits: false as const, reason: "unreachable" as const },
+    { admits: true as const },
   ];
   let calls = 0;
   const probe = cachedMcpProbe(
@@ -168,11 +169,27 @@ test("answers are kept per origin for a while; an unreachable one is asked again
     1000,
     () => clock,
   );
-  expect(await probe(origin)).toEqual({ mcp: false, reason: "unreachable" });
-  expect(await probe(origin)).toEqual({ mcp: true });
-  expect(await probe(origin)).toEqual({ mcp: true });
+  expect(await probe(origin)).toEqual({ admits: false, reason: "unreachable" });
+  expect(await probe(origin)).toEqual({ admits: true });
+  expect(await probe(origin)).toEqual({ admits: true });
   expect(calls).toBe(2);
   clock = 2000;
   await probe(origin);
   expect(calls).toBe(3);
+});
+
+test("a known limit: the gateway in front of an App without MCP answers the same, and the probe admits it", async () => {
+  // Before sign-in only the gateway answers /mcp; whether the App behind it
+  // serves MCP is the account's statement (AccountApplication.mcp). Until the
+  // gateway answers /mcp only for a declaring Application
+  // (HumanAndMachine-ai/Machines#1382), a wrong statement shows after sign-in
+  // as a connection without tools. This test fixes the limit, so a change of
+  // the gateway shows here.
+  const appWithoutMcp = fakeFetch({
+    [`${origin}/mcp`]: gateway,
+    [metadata]: metadataOf(good),
+  });
+  expect(await probeApplicationMcp(origin, appWithoutMcp.fetcher)).toEqual({
+    admits: true,
+  });
 });

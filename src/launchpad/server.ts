@@ -872,9 +872,10 @@ export async function startLaunchpad(
   // even its shell.
   const shell = trust === null ? null : await serveShell();
   const token = trust === null ? randomBytes(32).toString("hex") : "";
-  // Whether an Application really offers MCP before Apps offers to connect
-  // it ("Připojit k agentům", plan LZD-0037); at most once per origin in ten
-  // minutes.
+  // Whether an Application's host admits MCP sign-in for it, beside the
+  // account's statement, before Apps offers to connect it ("Připojit k
+  // agentům", plan LZD-0037); at most once per origin in ten minutes. It
+  // cannot see the App behind the gateway (Machines#1382).
   const mcpProbe = cachedMcpProbe();
   const applications = applicationAdapters
     ? createApplicationLifecycle(applicationAdapters)

@@ -15,11 +15,13 @@
  */
 import { isAccountApplicationOrigin } from "../shell/contract";
 
+/** `admits`: the Application's host admits MCP sign-in for that origin.
+ * It says nothing of the App behind the gateway (Machines#1382). */
 export type McpProbeAnswer =
-  | Readonly<{ mcp: true }>
+  | Readonly<{ admits: true }>
   | Readonly<{
-      mcp: false;
-      reason: "not-an-application" | "unreachable" | "not-mcp";
+      admits: false;
+      reason: "not-an-application" | "unreachable" | "no-mcp-sign-in";
     }>;
 
 const applicationsZone = ".lazurio.app";
@@ -44,7 +46,7 @@ export async function probeApplicationMcp(
   timeoutMs = 5000,
 ): Promise<McpProbeAnswer> {
   if (!isApplicationOrigin(origin))
-    return { mcp: false, reason: "not-an-application" };
+    return { admits: false, reason: "not-an-application" };
   const endpoint = `${origin}/mcp`;
   let challenge: string | null;
   try {
@@ -68,21 +70,23 @@ export async function probeApplicationMcp(
       }),
     });
     await response.body?.cancel();
-    if (response.status !== 401) return { mcp: false, reason: "not-mcp" };
+    if (response.status !== 401)
+      return { admits: false, reason: "no-mcp-sign-in" };
     challenge = response.headers.get("www-authenticate");
   } catch {
-    return { mcp: false, reason: "unreachable" };
+    return { admits: false, reason: "unreachable" };
   }
   const metadata = resourceMetadata(challenge);
-  if (metadata === null) return { mcp: false, reason: "not-mcp" };
+  if (metadata === null) return { admits: false, reason: "no-mcp-sign-in" };
   let metadataUrl: URL;
   try {
     metadataUrl = new URL(metadata);
   } catch {
-    return { mcp: false, reason: "not-mcp" };
+    return { admits: false, reason: "no-mcp-sign-in" };
   }
   // The metadata are the Application's own, never another host's.
-  if (metadataUrl.origin !== origin) return { mcp: false, reason: "not-mcp" };
+  if (metadataUrl.origin !== origin)
+    return { admits: false, reason: "no-mcp-sign-in" };
   try {
     const response = await fetcher(metadataUrl.href, {
       redirect: "manual",
@@ -91,7 +95,7 @@ export async function probeApplicationMcp(
     });
     if (response.status !== 200) {
       await response.body?.cancel();
-      return { mcp: false, reason: "not-mcp" };
+      return { admits: false, reason: "no-mcp-sign-in" };
     }
     const value = (await response.json()) as {
       resource?: unknown;
@@ -102,10 +106,10 @@ export async function probeApplicationMcp(
       Array.isArray(servers) &&
       servers.length > 0 &&
       servers.every((server) => typeof server === "string")
-      ? { mcp: true }
-      : { mcp: false, reason: "not-mcp" };
+      ? { admits: true }
+      : { admits: false, reason: "no-mcp-sign-in" };
   } catch {
-    return { mcp: false, reason: "unreachable" };
+    return { admits: false, reason: "unreachable" };
   }
 }
 
@@ -119,12 +123,12 @@ export function cachedMcpProbe(
   const answers = new Map<string, { at: number; answer: McpProbeAnswer }>();
   return async (origin: unknown): Promise<McpProbeAnswer> => {
     if (!isApplicationOrigin(origin))
-      return { mcp: false, reason: "not-an-application" };
+      return { admits: false, reason: "not-an-application" };
     const kept = answers.get(origin);
     if (kept !== undefined && now() - kept.at < ttlMs) return kept.answer;
     const answer = await probe(origin);
     // An unreachable Application is asked again next time.
-    if (answer.mcp || answer.reason !== "unreachable")
+    if (answer.admits || answer.reason !== "unreachable")
       answers.set(origin, { at: now(), answer });
     return answer;
   };

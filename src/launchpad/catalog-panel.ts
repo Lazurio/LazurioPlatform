@@ -737,7 +737,7 @@ export function createCatalogPanel(
             ok &&
             typeof value === "object" &&
             value !== null &&
-            (value as { mcp?: unknown }).mcp === true,
+            (value as { admits?: unknown }).admits === true,
         )
         .catch(() => false);
       // An Application that could not be asked is asked again later.
