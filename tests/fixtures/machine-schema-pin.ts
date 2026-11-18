@@ -2,7 +2,6 @@
 // is, as src/machine/schema-provenance.json names it: Buddy GEN4's member of
 // `entry.buddy` (plan LZD-0033, R2), `generation: 4` with Buddy's folder and
 // profile, the origin and port only while Buddy's own T3 is routed. Taken
-// byte for byte from the pull request's head; it is pinned again to the merge
-// commit once that pull request is merged.
+// byte for byte from its merge commit.
 export const vendoredSchemaPullRequest =
   "https://github.com/HumanAndMachine-ai/Machines/pull/1398";
