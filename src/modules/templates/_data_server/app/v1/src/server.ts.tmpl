@@ -1,9 +1,11 @@
 /** Starts the App's one server process: the data, the tools for agents and
  * the interface (Lazurio Module Standard, "One process"). The built version
- * (`start`, NODE_ENV=production) serves the build it is handed; the
- * development run (`dev`) lets Bun bundle the interface with hot reload in the
- * same process, so the data, /mcp, the page tools and the deep health are the
- * same in both, and the page needs an application role in both. */
+ * (`start`, NODE_ENV=production) serves the build it is handed. The
+ * development run (`dev`) builds the interface with Vite in watch mode inside
+ * this process and serves that build the same way: no second port and no
+ * hot-reload socket, so every request, the page and its files included, goes
+ * through the same Host, Origin and role checks. Reload the page after a
+ * change. */
 import { join, resolve } from "node:path";
 import {
   allowedHosts,
@@ -12,12 +14,10 @@ import {
   ModuleKitError,
   onShutdown,
 } from "@lazurio/module-kit";
-import type { Server } from "bun";
 import { agentTools } from "./agent-tools.ts";
 import { allowedOrigins, createHandler, staticFiles } from "./app-server.ts";
 import { repositoryDbStore } from "./data/repository-db-store.ts";
 import type { Store } from "./data/store.ts";
-import { type Relay, startDevelopmentClient } from "./dev-client.ts";
 
 const LISTENER = "{{listener_id}}";
 
@@ -43,41 +43,35 @@ try {
 const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? resolve(import.meta.dir, "..", "dist");
 const production = process.env.NODE_ENV === "production";
 const hosts = new Set(allowedHosts(LISTENER));
-// A development run lets Bun bundle the interface with hot reload on a port
-// of its own inside this process (dev-client.ts); this server checks Host and
-// the role first and forwards the page, its files and the hot-reload socket.
-const client = production
-  ? null
-  : startDevelopmentClient((await import("../index.html")).default, app.host);
+// The development run rebuilds the interface on every change, in this process.
+let watcher: { close(): Promise<void> } | null = null;
+if (!production) {
+  const { build } = await import("vite");
+  const result = await build({
+    root: resolve(import.meta.dir, ".."),
+    logLevel: "warn",
+    build: { outDir: output, emptyOutDir: true, watch: {} },
+  });
+  watcher = "close" in result ? result : null;
+}
 const files = staticFiles(output, {{static_spa}});
-const handle = createHandler({
-  listener: LISTENER,
-  hosts,
-  origins: allowedOrigins(hosts, app.port, app.externalOrigin),
-  dataOpen: () => store !== null,
-  tools: agentTools(),
-  serveClient: client
-    ? (request, server) => client.forward(request, server as Server<Relay>)
-    : (request) => files(new URL(request.url).pathname),
+const server = Bun.serve({
+  hostname: app.host,
+  port: app.port,
+  idleTimeout: 0,
+  fetch: createHandler({
+    listener: LISTENER,
+    hosts,
+    origins: allowedOrigins(hosts, app.port, app.externalOrigin),
+    dataOpen: () => store !== null,
+    tools: agentTools(),
+    serveClient: (request) => files(new URL(request.url).pathname),
+  }),
 });
-const server = client
-  ? Bun.serve<Relay>({
-      hostname: app.host,
-      port: app.port,
-      idleTimeout: 0,
-      fetch: (request, self) => handle(request, self),
-      websocket: client.websocket,
-    })
-  : Bun.serve({
-      hostname: app.host,
-      port: app.port,
-      idleTimeout: 0,
-      fetch: async (request) => (await handle(request)) ?? new Response(null, { status: 500 }),
-    });
 console.log(`{{display_name}} serves ${server.url.href}`);
 
 // SIGTERM from Lazurio: close every connection and exit 0 (standard 4.4).
 onShutdown(async () => {
   await server.stop(true);
-  await client?.stop();
+  await watcher?.close();
 });

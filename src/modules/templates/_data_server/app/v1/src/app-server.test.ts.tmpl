@@ -5,7 +5,7 @@ import { createHandler, type ServerParts } from "./app-server.ts";
 
 const env = hostedEnvironment({ listener: "{{listener_id}}", writer: true });
 
-/** The server's answer to one request; an upgrade (undefined) fails the test. */
+/** The server's answer to one request. */
 function server(overrides: Partial<ServerParts> = {}) {
   const handle = createHandler({
     listener: "{{listener_id}}",
@@ -17,11 +17,7 @@ function server(overrides: Partial<ServerParts> = {}) {
     env,
     ...overrides,
   });
-  return async (request: Request): Promise<Response> => {
-    const response = await handle(request);
-    if (response === undefined) throw new Error("The request was upgraded.");
-    return response;
-  };
+  return handle;
 }
 
 test("the health is deep: 503 until the data are open, then 200", async () => {
@@ -72,8 +68,9 @@ test("the page and its files need an application role", async () => {
 test("a page elsewhere is refused, the App's own origin is not", async () => {
   const serve = server({ serveClient: async () => new Response("page") });
   const as = (origin: string) =>
-    gatewayRequest("/_bun/hmr", { caller: { role: "user" }, headers: { origin } });
+    gatewayRequest("/", { caller: { role: "user" }, headers: { origin } });
   expect((await serve(as("https://attacker.invalid"))).status).toBe(403);
+  expect((await serve(as("http://127.0.0.1:12345"))).status).toBe(403);
   expect((await serve(as("null"))).status).toBe(403);
   expect((await serve(as(TEST_ORIGIN))).status).toBe(200);
   const session = gatewayRequest("/api/session", {

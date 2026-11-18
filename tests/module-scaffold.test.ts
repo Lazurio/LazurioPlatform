@@ -1142,7 +1142,6 @@ describe("planModuleScaffold with data (--data)", () => {
     const ownServer = [
       "app/v3/src/app-server.test.ts",
       "app/v3/src/app-server.ts",
-      "app/v3/src/dev-client.ts",
       "app/v3/src/server.ts",
     ];
     expect(result.files.map((entry) => entry.path)).toEqual(

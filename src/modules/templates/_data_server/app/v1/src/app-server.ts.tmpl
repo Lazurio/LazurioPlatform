@@ -26,10 +26,8 @@ export interface ServerParts {
     handleMcp(request: Request): Promise<Response>;
     handlePage(request: Request): Promise<Response | null>;
   };
-  /** The interface: the built one, or in a development run Bun's bundler
-   * behind this server (may answer undefined after upgrading the hot-reload
-   * socket); null in a test. */
-  serveClient: ((request: Request, server?: unknown) => Promise<Response | undefined>) | null;
+  /** The built interface; null in a test. */
+  serveClient: ((request: Request) => Promise<Response>) | null;
   env?: Env;
 }
 
@@ -61,7 +59,7 @@ export function allowedOrigins(
   return origins;
 }
 
-/** A browser sends `Origin` on WebSocket handshakes and scripted requests:
+/** A browser sends `Origin` on scripted requests and WebSocket handshakes:
  * when present it must be exactly one of the App's own origins (an opaque
  * `null` included is refused). A request without `Origin` is no browser's
  * cross-origin request. */
@@ -83,10 +81,10 @@ export function session(access: AppAccess, env: Env) {
 
 export function createHandler(parts: ServerParts) {
   const env = parts.env ?? process.env;
-  return async (request: Request, server?: unknown): Promise<Response | undefined> => {
+  return async (request: Request): Promise<Response> => {
     if (!hostAllowed(request, parts.hosts)) return new Response("Forbidden host", { status: 403 });
-    // A page elsewhere never reaches the App, its data, its tools or the
-    // development run's hot-reload socket.
+    // A page elsewhere, on the Internet or on another local port, never
+    // reaches the App, its data, its tools or its interface.
     if (!originAllowed(request, parts.origins))
       return new Response("Forbidden origin", { status: 403 });
     const { pathname } = new URL(request.url);
@@ -112,7 +110,7 @@ export function createHandler(parts: ServerParts) {
       // The page and its files too need an application role (decision 0231).
       if (appAccess(request, parts.listener, env).appRole === null)
         return new Response("Forbidden", { status: 403 });
-      return parts.serveClient(request, server);
+      return parts.serveClient(request);
     }
     return new Response("Not found", { status: 404 });
   };
