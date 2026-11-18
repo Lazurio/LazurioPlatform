@@ -1,8 +1,10 @@
+import { lstat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { askActiveWork } from "../buddy/gateway-refresh";
 import type { PresetName } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { environmentKind, presetKinds } from "../launchpad/shell-document";
-import type { ToolRunner } from "../tools/status";
+import { resolveOnPath, type ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { brainHttp, healthVersion } from "./admin";
 import { brainPaths, brainUrl } from "./pin";
@@ -31,8 +33,21 @@ export function processBrainHost(
   const unsupported = (
     reason: Extract<BrainContext, { kind: "unsupported" }>["reason"],
   ): BrainContext => Object.freeze({ kind: "unsupported", reason });
+  const hermesHome = join(home, ".hermes");
+  const vault = {
+    folder: join(home, "Lazurio"),
+    gh: undefined as string | undefined,
+    // Buddy is idle where there is no Buddy, or where his gateway says no
+    // work and no agent runs; a gateway that does not answer is not idle.
+    idle: async () =>
+      (await lstat(hermesHome).then(
+        () => false,
+        () => true,
+      )) || (await askActiveWork(hermesHome)) === "idle",
+  };
   return Object.freeze({
     async context(): Promise<BrainContext> {
+      vault.gh = await resolveOnPath("gh", input.env.PATH, input.platform);
       if (input.platform !== "linux" || home === "/nonexistent")
         return unsupported("workstation");
       let folder: string | undefined;
@@ -65,5 +80,6 @@ export function processBrainHost(
     http: brainHttp,
     bun: join(home, ".local", "bin", "bun"),
     env: input.env,
+    vault,
   });
 }

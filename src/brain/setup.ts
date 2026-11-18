@@ -15,6 +15,7 @@ import {
 import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
 import { writeBrainUnits } from "./units";
+import { convergeVault, type VaultResult } from "./vault";
 
 // `lazurio brain setup`: brings the person's brain to Lazurio's care. What
 // this step does, by what is there (`brainStatus`):
@@ -27,7 +28,9 @@ import { writeBrainUnits } from "./units";
 //                  owner switches the takeover on (a later step of R11a)
 //   machines       Machines' brain on a free Environment: theirs, reported
 //   foreign        a unit nobody of these wrote: left alone
-// and then, wherever Lazurio's server answers, the three keys. It prints
+// and then, wherever Lazurio's server answers, the three keys and the
+// vault's connection (`./vault.ts`; a brain made anew on the vault gets its
+// keys again). It prints
 // closed labels only; no token, handover or path of the person's.
 
 export type SetupHost = BrainHost &
@@ -37,6 +40,13 @@ export type SetupHost = BrainHost &
     http: BrainHttp;
     bun: string;
     env: Readonly<Record<string, string | undefined>>;
+    /** What the vault's connection needs: the Folder, the person's gh and
+     * whether Buddy is idle. Without it the vault is left as it is. */
+    vault?: Readonly<{
+      folder: string;
+      gh: string | undefined;
+      idle: () => Promise<boolean>;
+    }>;
     /** The server's base URL (tests point it at a stand-in). */
     base?: string;
     /** How long to wait for the server to answer, in tries of `waitMs`. */
@@ -67,6 +77,8 @@ export type SetupResult = Readonly<{
     | "start"
     | "answer";
   keys?: Readonly<Record<BrainKeyKind, KeyOutcome>>;
+  /** The vault's connection, wherever Lazurio's server answers. */
+  vault?: VaultResult;
   status: BrainStatus;
 }>;
 
@@ -175,27 +187,45 @@ export async function brainSetup(host: SetupHost): Promise<SetupResult> {
           source: "lazurio",
         },
       });
-      // The vault and its refresh timer are connected in a later step.
-      const keys = await convergeBrainKeys({
-        paths,
-        http: host.http,
-        base: host.base ?? brainUrl,
-      });
-      return Object.freeze({
-        server: "installed",
-        keys: keys.outcomes,
-        status: await brainStatus(host),
-      });
+      return finish(host, "installed");
     }
   }
-  const keys = await convergeBrainKeys({
-    paths,
-    http: host.http,
-    base: host.base ?? brainUrl,
-  });
+  return finish(host, status.state === "not-running" ? "started" : "running");
+}
+
+/** Lazurio's server answers: the keys, the vault, and the keys again where
+ * the vault's connection made the brain anew (it has no key then). */
+async function finish(
+  host: SetupHost,
+  server: "installed" | "started" | "running",
+): Promise<SetupResult> {
+  const { paths } = host;
+  const base = host.base ?? brainUrl;
+  let keys = await convergeBrainKeys({ paths, http: host.http, base });
+  let vault: VaultResult | undefined;
+  if (host.vault !== undefined) {
+    const state = await readBrainState(paths);
+    vault = await convergeVault({
+      paths,
+      folder: host.vault.folder,
+      command: state.release?.command ?? releaseCommand(paths, brainPin.commit),
+      gh: host.vault.gh,
+      run: host.run,
+      service: host.service,
+      http: host.http,
+      base,
+      env: host.env,
+      idle: host.vault.idle,
+      ...(host.tries === undefined ? {} : { tries: host.tries }),
+      ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
+    });
+    if (vault === "rebuilt" || vault.startsWith("stop:rebuild-"))
+      keys = await convergeBrainKeys({ paths, http: host.http, base });
+  }
   return Object.freeze({
-    server: status.state === "not-running" ? "started" : "running",
+    server,
     keys: keys.outcomes,
+    ...(vault === undefined ? {} : { vault }),
     status: await brainStatus(host),
   });
 }

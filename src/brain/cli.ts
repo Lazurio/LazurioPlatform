@@ -20,7 +20,9 @@ brain setup [--json]
   What the Launchpad starts after it starts on a Personal Environment:
   installs the pinned GBrain for this user without root, creates the brain
   where there is none, writes Lazurio's units and starts the server, and
-  keeps the keys of the Launchpad, Executor and doctor working. A brain the
+  keeps the keys of the Launchpad, Executor and doctor working; puts an
+  empty brain onto the private vault the Personalspace declares (with a
+  copy first, only while Buddy is idle) and keeps it in sync. A brain the
   interim installer or Machines run is only reported. Prints closed labels
   only, never a key. Exit status: 0 running, 2 not here or waiting for its
   owner, 1 not finished.`;
@@ -64,6 +66,7 @@ const labelOf = (result: SetupResult) =>
     ...Object.entries(result.keys ?? {}).map(
       ([kind, outcome]) => `key ${kind} ${outcome}`,
     ),
+    ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
   ].join("\n");
 
 export async function runBrainCommand(
@@ -121,6 +124,7 @@ export async function runBrainCommand(
             server: result.server,
             step: result.step,
             keys: result.keys,
+            vault: result.vault,
             status: result.status,
           })
         : labelOf(result),

@@ -135,6 +135,12 @@ async function host(
     service,
     http: brainHttp,
     bun: "/fake/bun",
+    // No Personalspace declares a vault yet: the brain stays local.
+    vault: {
+      folder: join(paths.home, "Lazurio"),
+      gh: undefined,
+      idle: async () => true,
+    },
     env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
     base,
     tries: 3,
@@ -153,6 +159,7 @@ describe("brain setup", () => {
       executor: "minted",
       probe: "minted",
     });
+    expect(result.vault).toBe("local");
     expect(result.status).toMatchObject({ state: "running", owner: "lazurio" });
     // Bun installs the pinned commit into its own directory, no root.
     expect(calls.find((c) => c[1] === "add")).toEqual([

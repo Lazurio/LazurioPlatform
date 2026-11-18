@@ -27,6 +27,14 @@ export const brainKeyScopes: Readonly<Record<BrainKeyKind, readonly string[]>> =
 
 export type BrainState = Readonly<{
   keys?: Partial<Record<BrainKeyKind, Readonly<{ id: string }>>>;
+  /** The vault's connection: which repository the brain was put on and
+   * when `sync.on_commit` and git durability were switched on for it. */
+  vault?: Readonly<{
+    repo?: string;
+    onCommit?: string;
+    durability?: string;
+    rebuild?: Readonly<{ state: string; at: string; backup?: string }>;
+  }>;
   release?: Readonly<{
     commit: string;
     version: string;
@@ -96,8 +104,24 @@ async function machinesLaunchpadId(home: string): Promise<string | undefined> {
   }
 }
 
-/** Converges every key; returns the closed labels and the new state. The
- * admin token is read here and nowhere else of the Platform. */
+/** An owner session of the brain's admin API, or null. The admin token is
+ * read here and nowhere else of the Platform; only `lazurio brain setup`
+ * (this module and the vault's connection) uses the session. */
+export async function ownerSession(
+  paths: BrainPaths,
+  http: BrainHttp,
+  base: string,
+): Promise<Awaited<ReturnType<typeof adminSession>>> {
+  let adminToken: string;
+  try {
+    adminToken = (await readFile(paths.adminToken, "utf8")).trim();
+  } catch {
+    return null;
+  }
+  return adminSession(http, base, adminToken);
+}
+
+/** Converges every key; returns the closed labels and the new state. */
 export async function convergeBrainKeys(
   input: Readonly<{ paths: BrainPaths; http: BrainHttp; base?: string }>,
 ): Promise<
@@ -119,15 +143,7 @@ export async function convergeBrainKeys(
   const outcomes = {} as Record<BrainKeyKind, KeyOutcome>;
   let session: Awaited<ReturnType<typeof adminSession>> | undefined;
   const owner = async () => {
-    if (session !== undefined) return session;
-    let adminToken: string;
-    try {
-      adminToken = (await readFile(paths.adminToken, "utf8")).trim();
-    } catch {
-      session = null;
-      return session;
-    }
-    session = await adminSession(http, base, adminToken);
+    if (session === undefined) session = await ownerSession(paths, http, base);
     return session;
   };
   for (const kind of Object.keys(brainKeyNames) as BrainKeyKind[]) {

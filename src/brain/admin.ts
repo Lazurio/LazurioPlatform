@@ -109,6 +109,59 @@ export async function keyWorks(
   return answer !== null && answer.status === 200;
 }
 
+/** One MCP tool's answer as JSON, called with `token` (gbrain's MCP over
+ * HTTP is stateless: no session to open first); null when it does not
+ * answer or answers no JSON object. Used for metadata only (page counts,
+ * sources), never for a page. */
+export async function mcpTool(
+  http: BrainHttp,
+  base: string,
+  token: string,
+  name: string,
+): Promise<Readonly<Record<string, unknown>> | null> {
+  const answer = await http(
+    "POST",
+    `${base}/mcp`,
+    {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: { name, arguments: {} },
+    },
+    { authorization: `Bearer ${token}` },
+  );
+  if (answer === null || answer.status !== 200) return null;
+  const json = (text: string): unknown => {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return undefined;
+    }
+  };
+  const raw = answer.body.trimStart();
+  // A JSON answer, or Server-Sent Events whose last data line is the answer.
+  const message = raw.startsWith("{")
+    ? json(raw)
+    : json(
+        raw
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .at(-1) ?? "",
+      );
+  const content = (message as { result?: { content?: unknown } } | undefined)
+    ?.result?.content;
+  const text =
+    Array.isArray(content) &&
+    typeof (content[0] as { text?: unknown } | undefined)?.text === "string"
+      ? ((content[0] as { text: string }).text as string)
+      : "";
+  const value = json(text);
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Readonly<Record<string, unknown>>)
+    : null;
+}
+
 export type AdminKey = Readonly<{
   id: string;
   name: string;
@@ -128,6 +181,9 @@ export async function adminSession(
     scopes: readonly string[],
   ): Promise<Readonly<{ id: string; token: string }> | null>;
   revoke(id: string): Promise<boolean>;
+  /** Every client of the brain, keys and OAuth clients alike: its name,
+   * kind and whether it is active; null when it cannot be listed. */
+  clients(): Promise<readonly AdminClient[] | null>;
 }> | null> {
   const login = await http("POST", `${base}/admin/login`, {
     token: adminToken,
@@ -197,5 +253,42 @@ export async function adminSession(
       );
       return answer !== null && answer.status === 200;
     },
+    async clients() {
+      const answer = await http(
+        "GET",
+        `${base}/admin/api/agents`,
+        undefined,
+        cookie,
+      );
+      if (answer === null || answer.status !== 200) return null;
+      try {
+        const list = JSON.parse(answer.body) as unknown;
+        if (!Array.isArray(list)) return null;
+        const clients: AdminClient[] = [];
+        for (const item of list) {
+          const value = item as Record<string, unknown> | null;
+          const name = value?.name ?? value?.id;
+          // One client it cannot name makes the whole list unreadable.
+          if (typeof value !== "object" || value === null) return null;
+          if (typeof name !== "string" || name === "") return null;
+          clients.push(
+            Object.freeze({
+              name,
+              kind: value.auth_type === "oauth" ? "oauth" : "api_key",
+              active: String(value.status ?? "active") !== "revoked",
+            }),
+          );
+        }
+        return Object.freeze(clients);
+      } catch {
+        return null;
+      }
+    },
   });
 }
+
+export type AdminClient = Readonly<{
+  name: string;
+  kind: "api_key" | "oauth";
+  active: boolean;
+}>;
