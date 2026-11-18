@@ -6,13 +6,26 @@ import {
   readFile,
   realpath,
   rm,
+  symlink,
+  writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writePersona } from "../src/buddy/persona";
-import { buddyFolderPaths } from "../src/folder/buddy-gen4";
-import { parseMachineEntry } from "../src/folder/machine-binding";
+import {
+  buddyFolderTarget,
+  writeBuddyFolderLocked,
+  writeBuddyGen4Locked,
+} from "../src/folder/buddy-folder";
+import { buddyFolderPaths, renderBuddyFolder } from "../src/folder/buddy-gen4";
+import { inspectOutput } from "../src/folder/inventory";
+import {
+  buddyGeneration,
+  parseMachineEntry,
+} from "../src/folder/machine-binding";
 import { buddyLayerPaths } from "../src/folder/outputs";
+import { presetProfile } from "../src/folder/presets";
+import { renderOutputs } from "../src/folder/preview";
 import {
   initializeMachineFolder,
   refreshMachineFolder,
@@ -63,6 +76,14 @@ test("the binding records Buddy GEN4's folder and profile, and his origin only w
   const gen3 = binding({ ...personal, entry: withBuddy(entries.personal) });
   expect(gen3.entry?.buddyOrigin).toBe("https://buddy.example.lazurio.io");
   expect(gen3.entry?.buddyFolder).toBeUndefined();
+  // One rule for every reader.
+  expect(buddyGeneration(converted().entry)).toBe(4);
+  expect(buddyGeneration(converted("buddy", true).entry)).toBe(4);
+  expect(buddyGeneration(gen3.entry)).toBe(3);
+  expect(
+    buddyGeneration(binding({ ...personal, entry: entries.personal }).entry),
+  ).toBeUndefined();
+  expect(buddyGeneration(undefined)).toBeUndefined();
 });
 
 test("a work Environment's handover with Buddy GEN4 is refused, and so is an entry with another folder or profile", () => {
@@ -127,31 +148,109 @@ const exists = (path: string) =>
     () => true,
     () => false,
   );
+const allowAll = async () => {};
+const source = (locale: "cs" | "en" = "cs") => ({
+  preset: "local",
+  machine: null,
+  profile: presetProfile("local", "linux", { locale }),
+});
 
 const posix = test.skipIf(process.platform === "win32");
 
+test("the Folder's AGENTS.md says where Buddy GEN4 lives only for a converted person", () => {
+  const agents = (machine: ReturnType<typeof binding>) =>
+    renderOutputs({
+      preset: "hosted-personal",
+      machine,
+      profile: presetProfile("hosted-personal", "linux", { locale: "cs" }),
+    })["AGENTS.md"];
+  expect(agents(converted())).toContain(
+    "V tomto Prostředí je Buddy vlákno projektu Buddy ve společném T3 Code se složkou `~/Buddy`.",
+  );
+  expect(
+    agents(binding({ ...personal, entry: entries.personal })),
+  ).not.toContain("`~/Buddy`");
+});
+
 posix(
-  "a converted person's Folder writes ~/Buddy beside it, with the persona once it is set, and no Buddy GEN3 layer",
+  "the folder is exactly Buddy of a canonical home of this account: another home, a nested path or a symlinked ancestor is refused",
+  async () => {
+    const { parent } = await home();
+    try {
+      expect(await buddyFolderTarget(parent, join(parent, "Buddy"))).toBe(
+        join(parent, "Buddy"),
+      );
+      for (const declared of [
+        "/home/other/Buddy",
+        join(parent, "nested", "Buddy"),
+        join(parent, "Buddy", "Buddy"),
+        "Buddy",
+      ])
+        await expect(buddyFolderTarget(parent, declared)).rejects.toThrow(
+          "Buddy folder mismatch",
+        );
+      // The same home reached through a symlinked ancestor.
+      const link = join(parent, "link");
+      await mkdir(join(parent, "real"), { mode: 0o700 });
+      await symlink(join(parent, "real"), link);
+      await expect(
+        buddyFolderTarget(link, join(link, "Buddy")),
+      ).rejects.toThrow("Unsafe Buddy folder home");
+      await expect(
+        writeBuddyFolderLocked(
+          join(link, "Buddy"),
+          renderBuddyFolder(source(), "buddy"),
+          allowAll,
+        ),
+      ).rejects.toThrow("Unsafe Buddy folder parent");
+      expect(await exists(join(parent, "real", "Buddy"))).toBe(false);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a handover naming another home than the Folder's is refused: nothing is written in ~/Buddy and Buddy GEN3's layer stays",
   async () => {
     const { parent, folder } = await home();
     try {
-      const machine = converted();
+      const plain = binding({ ...personal, entry: entries.personal });
       expect(
-        (await initializeMachineFolder(folder, machine, noChoices)).code,
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
       ).toBe(0);
-      const buddy = join(parent, "Buddy");
-      expect((await lstat(buddy)).mode & 0o777).toBe(0o700);
-      for (const path of buddyLayerPaths)
-        expect(await exists(join(folder, path))).toBe(false);
-      const agents = await readFile(join(buddy, "AGENTS.md"), "utf8");
-      expect(agents).toContain("Jsi Buddy, Buddy");
-      // The Folder's own AGENTS.md says where Buddy lives.
-      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(
-        "V tomto Prostředí je Buddy vlákno projektu Buddy ve společném T3 Code se složkou `~/Buddy`.",
+      const layer = await Promise.all(
+        buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
       );
-      for (const path of buddyFolderPaths)
-        expect(await exists(join(buddy, path))).toBe(true);
-      // Nastavení → Buddy sets the persona; the next refresh names it.
+      // The fixture's operator home is /home/operator, not this Folder's.
+      await expect(
+        refreshMachineFolder(folder, converted("employee")),
+      ).rejects.toThrow("Buddy folder mismatch");
+      expect(await exists(join(parent, "Buddy"))).toBe(false);
+      expect(
+        await Promise.all(
+          buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
+        ),
+      ).toEqual(layer);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "Buddy GEN4's folder of a home is written with the persona once it is set",
+  async () => {
+    const { parent } = await home();
+    try {
+      const buddy = join(parent, "Buddy");
+      expect(
+        await writeBuddyGen4Locked(parent, buddy, source(), "buddy", allowAll),
+      ).toEqual([...buddyFolderPaths]);
+      expect((await lstat(buddy)).mode & 0o777).toBe(0o700);
+      expect(await readFile(join(buddy, "AGENTS.md"), "utf8")).toContain(
+        "Jsi Buddy, Buddy",
+      );
       const persona = await writePersona(
         parent,
         {
@@ -162,10 +261,11 @@ posix(
         null,
       );
       expect(persona.kind).toBe("written");
-      expect((await refreshMachineFolder(folder, machine)).code).toBe(0);
+      await writeBuddyGen4Locked(parent, buddy, source(), "employee", allowAll);
       const named = await readFile(join(buddy, "AGENTS.md"), "utf8");
-      expect(named).toContain("Jsi Bertík, Buddy");
+      expect(named).toContain("Jsi Bertík");
       expect(named).toContain("Aleně tykáš");
+      expect(named).toContain("0220");
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -173,35 +273,43 @@ posix(
 );
 
 posix(
-  "without the conversion the Folder keeps Buddy GEN3's layer and writes no ~/Buddy; on conversion that layer is kept, not removed",
+  "a CLAUDE.md in Buddy's folder is reported and kept, and nothing is written beside it",
   async () => {
-    const { parent, folder } = await home();
+    for (const claude of ["CLAUDE.md", ".claude/CLAUDE.md"]) {
+      const { parent } = await home();
+      try {
+        const buddy = join(parent, "Buddy");
+        await mkdir(join(buddy, ".claude"), { recursive: true, mode: 0o700 });
+        await writeFile(join(buddy, claude), "moje pokyny\n");
+        await expect(
+          writeBuddyGen4Locked(parent, buddy, source(), "buddy", allowAll),
+        ).rejects.toThrow(`Buddy folder has ${claude}`);
+        expect(await readFile(join(buddy, claude), "utf8")).toBe(
+          "moje pokyny\n",
+        );
+        expect(await exists(join(buddy, "AGENTS.md"))).toBe(false);
+      } finally {
+        await rm(parent, { recursive: true, force: true });
+      }
+    }
+  },
+);
+
+posix(
+  "a file of another account is never kept or replaced: the inventory reports it unsafe",
+  async () => {
+    const { parent } = await home();
     try {
-      const plain = binding({ ...personal, entry: entries.personal });
-      expect(
-        (await initializeMachineFolder(folder, plain, noChoices)).code,
-      ).toBe(0);
-      for (const path of buddyLayerPaths)
-        expect(await exists(join(folder, path))).toBe(true);
-      expect(await exists(join(parent, "Buddy"))).toBe(false);
-      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).not.toContain(
-        "`~/Buddy`",
+      const buddy = join(parent, "Buddy");
+      await mkdir(buddy, { mode: 0o700 });
+      await writeFile(join(buddy, "AGENTS.md"), "x\n");
+      const uid = process.getuid?.() as number;
+      expect((await inspectOutput(buddy, "AGENTS.md", uid)).kind).toBe(
+        "regular",
       );
-      const layer = await Promise.all(
-        buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
+      expect((await inspectOutput(buddy, "AGENTS.md", uid + 1)).kind).toBe(
+        "unsafe",
       );
-      // The handover converts the person: the refresh writes ~/Buddy for
-      // the employee's profile and leaves `.agents/buddy/` byte for byte.
-      const machine = converted("employee");
-      expect((await refreshMachineFolder(folder, machine)).code).toBe(0);
-      expect(
-        await Promise.all(
-          buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
-        ),
-      ).toEqual(layer);
-      const agents = await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
-      expect(agents).toContain("0220");
-      expect(agents).not.toMatch(/## (Převzetí|Taking over)/);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

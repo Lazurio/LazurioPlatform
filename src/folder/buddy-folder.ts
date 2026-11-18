@@ -1,9 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
+import { lstat, mkdir, open, realpath, rename, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
 import { readPersona } from "../buddy/persona";
-import { type BuddyFolderPath, renderBuddyFolder } from "./buddy-gen4";
+import {
+  type BuddyFolderPath,
+  type BuddyProfile,
+  renderBuddyFolder,
+} from "./buddy-gen4";
 import { writeBuddyLayerLocked } from "./buddy-layer";
 import { inspectOutput } from "./inventory";
 import { ensureOutputDirectories } from "./output-directories";
@@ -18,10 +22,14 @@ import { instructionSource } from "./render";
 // Nastavení → Buddy, and Buddy GEN3's layer in `.agents/buddy/` is no longer
 // written, nor removed (its removal is the conversion's, R9). Everyone else
 // keeps Buddy GEN3's layer exactly as before. An absent or unreadable persona
-// renders the generic, formal text. The folder written is always the
-// Folder's own sibling `<home>/Buddy`, never a path read from elsewhere, so
-// nothing outside the Folder's home is written; on a hosted Environment that
-// is the very folder the handover names (`/home/<operator>/Buddy`).
+// renders the generic, formal text.
+//
+// The home is the Folder's parent: a hosted Folder is `<home>/Lazurio` of
+// its operator, whose home the binding checked against the account's own
+// (`bindMachineOperator`, `readLinuxOperator`). The folder the handover
+// names must be exactly `<home>/Buddy` of that home, which must be its own
+// canonical path (no symlinked ancestor); anything else is refused and
+// nothing is written (`buddyFolderTarget`).
 export async function writeBuddyLocked(
   folder: string,
   assertHeld: () => Promise<void>,
@@ -33,12 +41,54 @@ export async function writeBuddyLocked(
     return;
   }
   const home = dirname(folder);
+  const target = await buddyFolderTarget(home, entry.buddyFolder);
+  await writeBuddyGen4Locked(
+    home,
+    target,
+    instructionSource(preferences),
+    entry.buddyProfile,
+    assertHeld,
+  );
+}
+
+/** The folder to write: the declared one, only when it is exactly `Buddy`
+ * of `home` and `home` is its own canonical path, a real directory of this
+ * account. A nested path, another home or a symlinked ancestor is refused. */
+export async function buddyFolderTarget(
+  home: string,
+  declared: string,
+): Promise<string> {
+  const uid = process.getuid?.();
+  if (uid === undefined) throw new Error("Directory owner unavailable");
+  if (!isAbsolute(home) || declared !== join(home, "Buddy"))
+    throw new Error("Buddy folder mismatch");
+  const canonical = await realpath(home);
+  const stat = await lstat(home);
+  if (
+    canonical !== home ||
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    stat.uid !== uid
+  )
+    throw new Error("Unsafe Buddy folder home");
+  return declared;
+}
+
+/** Buddy GEN4's folder of `home` written for `profile`, with the persona of
+ * Nastavení → Buddy read from that home. */
+export async function writeBuddyGen4Locked(
+  home: string,
+  target: string,
+  source: unknown,
+  profile: BuddyProfile,
+  assertHeld: () => Promise<void>,
+): Promise<readonly BuddyFolderPath[]> {
   const persona = await readPersona(home);
-  await writeBuddyFolderLocked(
-    join(home, "Buddy"),
+  return writeBuddyFolderLocked(
+    target,
     renderBuddyFolder(
-      instructionSource(preferences),
-      entry.buddyProfile,
+      source,
+      profile,
       persona.state === "valid" ? persona.persona : undefined,
     ),
     assertHeld,
@@ -64,6 +114,7 @@ export async function writeBuddyFolderLocked(
   assertHeld: () => Promise<void>,
 ): Promise<readonly BuddyFolderPath[]> {
   await ensureBuddyFolder(buddyFolder);
+  await refuseClaudeInstructions(buddyFolder);
   const written: BuddyFolderPath[] = [];
   for (const [path, content] of Object.entries(files) as [
     BuddyFolderPath,
@@ -108,7 +159,12 @@ async function ensureBuddyFolder(buddyFolder: string) {
   if (uid === undefined) throw new Error("Directory owner unavailable");
   const home = dirname(buddyFolder);
   const parent = await lstat(home);
-  if (!parent.isDirectory() || parent.isSymbolicLink() || parent.uid !== uid)
+  if (
+    !parent.isDirectory() ||
+    parent.isSymbolicLink() ||
+    parent.uid !== uid ||
+    (await realpath(home)) !== home
+  )
     throw new Error("Unsafe Buddy folder parent");
   let stat = await lstat(buddyFolder).catch((error: NodeJS.ErrnoException) => {
     if (error.code === "ENOENT") return null;
@@ -121,6 +177,27 @@ async function ensureBuddyFolder(buddyFolder: string) {
   }
   if (stat.isSymbolicLink() || checkoutDirectoryRefusal(stat, uid) !== null)
     throw new Error("Unsafe Buddy folder");
+}
+
+// Claude Code loads a CLAUDE.md of the project instead of its AGENTS.md
+// (V1), so with one of them in Buddy's folder his thread would miss the
+// coordinator's instructions. The person's file is never removed or changed;
+// the refresh is refused and names it, before anything is written.
+export const claudeInstructionPaths = ["CLAUDE.md", ".claude/CLAUDE.md"];
+async function refuseClaudeInstructions(buddyFolder: string) {
+  for (const path of claudeInstructionPaths) {
+    const present = await lstat(join(buddyFolder, path)).then(
+      () => true,
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT" || error.code === "ENOTDIR") return false;
+        throw error;
+      },
+    );
+    if (present)
+      throw new Error(
+        `Buddy folder has ${path}: Claude Code would load it instead of AGENTS.md; move it away, nothing was written`,
+      );
+  }
 }
 
 async function syncDirectory(directory: string) {

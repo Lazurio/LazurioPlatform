@@ -248,6 +248,19 @@ export type MachineEntry = HostedEntry &
     buddyProfile?: BuddyProfile;
   }>;
 
+/** Which Buddy an entry names (plan LZD-0033): 4 where it records Buddy
+ * GEN4's folder (`buddyFolder`, the handover's `entry.buddy.generation: 4`),
+ * 3 where it records only Buddy's origin (`buddyOrigin`), and undefined where
+ * it names no Buddy. The one rule every reader branches on: the gate, the
+ * pairing, onboarding and `lazurio buddy chat`. */
+export function buddyGeneration(
+  entry: MachineEntry | undefined,
+): 3 | 4 | undefined {
+  if (entry?.buddyFolder !== undefined) return 4;
+  if (entry?.buddyOrigin !== undefined) return 3;
+  return undefined;
+}
+
 /** Buddy GEN4's folder by the wire schema's rule: `/home/<user>/Buddy`. */
 export const isBuddyFolder = (value: unknown): value is string =>
   typeof value === "string" &&

@@ -12,6 +12,9 @@ import type { ObservedFile } from "./reconcile";
 export async function inspectOutput(
   folder: string,
   output: FolderFilePath,
+  // The account the file must belong to: this process's, or another uid in
+  // a test that stands for a file of another account.
+  uid: number | undefined = process.getuid?.(),
 ): Promise<ObservedFile> {
   if (process.platform === "win32")
     throw new Error("Unqualified inventory platform");
@@ -32,6 +35,8 @@ export async function inspectOutput(
     const path = join(directory, name);
     const before = await lstat(path);
     if (!before.isFile() || before.nlink !== 1) return { kind: "unsafe" };
+    // A file of another account is never kept, read as ours or replaced.
+    if (uid !== undefined && before.uid !== uid) return { kind: "unsafe" };
     const handle = await open(
       path,
       constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
