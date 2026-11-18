@@ -112,22 +112,29 @@ app's source, and the contract tests prove the cases of the chosen variant.
 A tool that publishes (an approval, a signature, a sending, a deletion, a
 movement of money, the publication of a draft or data to everyone) is a tool of
 its own, and an agent calls it only after the person's explicit "Publikuj"
-(Module Standard, Effects and publication; decision D1 of LZD-0037). The module
-kit holds what an Application may offer, so the static check does not read
-publication tools:
+(Module Standard, Effects and publication; decision D1 of LZD-0037). Until the
+Owner decides how the App knows that "Publikuj", an Application offers no
+publication tool. What keeps that in production depends on the module kit:
 
-- **`@lazurio/module-kit` 0.5.0** declares a publication as `effect:
-  "publish"` and always annotates it `destructiveHint: true`. Until the Owner
-  decides how the App knows the person's "Publikuj", it does not offer one
-  where `deployment()` is `production`, on `/mcp` or on the page; a
-  development version does.
-- **0.4.x** does not offer a write that publishes data in a production
-  application without `publicationConsent`.
+- **`@lazurio/module-kit` 0.5.0 or newer** holds it itself: `effect:
+  "publish"` is always annotated `destructiveHint: true` and is not offered
+  where `deployment()` is `production`, on `/mcp` or on the page.
+- **0.4.x does not hold it on its own.** It refuses a write that publishes data
+  in production, unless the tool names `publicationConsent`; a tool that names
+  one is offered and callable there. A Module on 0.4.x meets D1 only when none
+  of its tools names `publicationConsent`. A Module that names one stays outside
+  D1 until it moves to 0.5.0, and that exception is the Owner's, recorded in a
+  plan.
 
-Either release keeps D1 in production, so the check asks for no newer module
-kit than its floor, and a Module on the stack profile `2026.12` is not held
-back. That a tool's declared effect matches what it does is shown by the
-Module's contract tests and its review (`MS-15`, `MS-16`), not by markers.
+The static check reads neither: without a parser it cannot tell a tool's
+declaration from other text, and its module-kit floor stays 0.3.0, so it does
+not prove D1. The evidence is the Module's contract tests, which list the
+tools as the Application host's production runtime does
+(`hostedEnvironment()` with the writer, `mcpCall(registry, "tools/list", …)`
+for each role) and assert that no listed tool has `destructiveHint: true`; and
+its review, which holds that no tool names `publicationConsent` (`MS-15`,
+`MS-16`). Before `ready-for-live` is used to show an Application to people,
+whoever rolls it out checks that evidence.
 
 ## Limits of the static check
 
