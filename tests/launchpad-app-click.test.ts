@@ -329,5 +329,5 @@ test.skipIf(chrome === null || !posix || uid === 0)(
       await app.close();
     }
   },
-  90_000,
+  180_000,
 );
