@@ -98,6 +98,9 @@ export async function refreshFolder(
   return {
     kind: "refreshed" as const,
     revision: result.revision,
+    ...("buddyFolder" in result && result.buddyFolder !== undefined
+      ? { buddyFolder: result.buddyFolder }
+      : {}),
     ...(result.bindingCorrected === undefined
       ? {}
       : { bindingCorrected: result.bindingCorrected }),
@@ -189,8 +192,12 @@ async function changeFolder(
       // Buddy's Lazurio layer is written after every change of the Folder
       // and also when nothing else changed, never after a refusal
       // (`buddy-layer.ts`).
-      if (prepared.kind === "unchanged")
-        await writeBuddyLocked(folder, assertHeld);
+      if (prepared.kind === "unchanged") {
+        const buddy = await writeBuddyLocked(folder, assertHeld);
+        return buddy === undefined
+          ? prepared
+          : { ...prepared, buddyFolder: buddy };
+      }
       if (prepared.kind !== "prepared") return prepared;
       await checkpoint("prepared");
       const applied = await applyPreparationLocked(folder, assertHeld);
@@ -199,11 +206,15 @@ async function changeFolder(
       await checkpoint("applied");
       await finalizePreparationLocked(folder, applied.revision, assertHeld);
       await checkpoint("finalized");
-      await writeBuddyLocked(folder, assertHeld);
+      // Buddy GEN4's folder, after the change: a write that fails here is
+      // reported, never thrown, so the change and its entry stand and the
+      // Launchpad follows them; the next refresh writes the folder again.
+      const buddy = await writeBuddyLocked(folder, assertHeld);
       await assertHeld();
       return {
         kind: "updated" as const,
         revision: applied.revision,
+        ...(buddy === undefined ? {} : { buddyFolder: buddy }),
         ...(prepared.bindingCorrected === undefined
           ? {}
           : { bindingCorrected: prepared.bindingCorrected }),

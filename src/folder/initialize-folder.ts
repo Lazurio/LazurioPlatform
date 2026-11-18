@@ -338,11 +338,12 @@ async function initialize(
     if (layout) await verifyHandoverLayout(folder, layout);
     // Buddy's Lazurio layer follows the initialized state, outside its
     // journal: it carries no ownership proof (`buddy-layer.ts`).
-    await writeBuddyLocked(folder, assertHeld);
+    const buddy = await writeBuddyLocked(folder, assertHeld);
     return {
       kind: "initialized" as const,
       revision: 1,
       preset: preferences.preset,
+      ...(buddy === undefined ? {} : { buddyFolder: buddy }),
     };
   });
 }

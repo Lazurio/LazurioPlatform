@@ -1,4 +1,5 @@
 import { parseArgs } from "node:util";
+import { BuddyFolderRefused } from "../folder/buddy-folder";
 import { FolderAdoptionError } from "../folder/handover-layout";
 import {
   adoptedHandoverFolder,
@@ -53,7 +54,6 @@ import {
 } from "./context";
 import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
-  type LaunchpadEntryRestart,
   type LaunchpadSeams,
   recordedEntry,
   restartLaunchpadForEntry,
@@ -138,8 +138,15 @@ that records a different entry restarts the supervised Launchpad of this
 Folder, which reads its entry only when it starts, and waits for it to answer;
 modules, T3 Code and Codex keep running. The answer then adds "launchpad":
 restarted, restart-failed or not-supervised (no installer unit of this base
-starts this Folder; the Launchpad takes the entry at its next start). Blocked with
+starts this Folder; the Launchpad takes the entry at its next start). A person
+the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
+write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
+change, its entry and the Launchpad's restart stand, the exit code stays the
+refresh's, and the next refresh writes ~/Buddy again. Blocked with
 exit 2, nothing written: folder-not-initialized (run folder-init first),
+buddy-folder-mismatch, buddy-folder-claude-md or buddy-folder-unsafe with its
+detail (~/Buddy cannot take Buddy's instructions: not Buddy of this home, a
+CLAUDE.md there, a link or a directory or file of another account),
 folder-binding-changed, folder-state-unrecognized, drift or unsafe-path with
 the edited path (owned files are never overwritten), preset-derivation-changed
 (the assignment now derives another preset: take it with folder-refresh
@@ -421,6 +428,18 @@ export function machineFailureAnswer(error: unknown) {
     };
   if (error instanceof FolderOperationBusyError)
     return { code: 2, result: folderBusyAnswer };
+  // Buddy GEN4's folder cannot take his instructions: found before anything
+  // changed (plan LZD-0033 R2).
+  if (error instanceof BuddyFolderRefused)
+    return {
+      code: 2,
+      result: {
+        kind: "blocked" as const,
+        reason: error.reason,
+        detail: error.message,
+        next: "Nothing was changed. Fix ~/Buddy as the detail says (a CLAUDE.md the person keeps elsewhere, a directory or file of this account, the handover's folder of this home) and run the same command again.",
+      },
+    };
   return {
     code: 1,
     result: {
@@ -591,22 +610,6 @@ export async function refreshMachineFolder(
 // Launchpad of this Folder and says so in `launchpad`. An unchanged entry
 // (unchanged, blocked, or a refresh of rendered text only) restarts nothing
 // and adds nothing to the answer.
-/** A refresh that failed after the Folder recorded a new entry: the
- * original failure, with what the Launchpad's restart on that entry did
- * (`restarted`, `restart-failed` or `not-supervised`), as a successful
- * refresh reports it in `launchpad`. */
-export class RefreshFailedAfterEntry extends Error {
-  readonly launchpad: LaunchpadEntryRestart;
-  constructor(cause: unknown, launchpad: LaunchpadEntryRestart) {
-    super(
-      `${cause instanceof Error ? cause.message : String(cause)} (the Folder recorded the new entry; launchpad: ${launchpad})`,
-      { cause },
-    );
-    this.name = "RefreshFailedAfterEntry";
-    this.launchpad = launchpad;
-  }
-}
-
 export async function refreshMachineFolderAndLaunchpad(
   folder: string,
   machine: MachineBinding,
@@ -615,30 +618,12 @@ export async function refreshMachineFolderAndLaunchpad(
   organizationKey: string | undefined = undefined,
 ) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
-  let refreshed: Awaited<ReturnType<typeof refreshMachineFolder>>;
-  try {
-    refreshed = await refreshMachineFolder(
-      folder,
-      machine,
-      preset,
-      organizationKey,
-    );
-  } catch (error) {
-    // A failure after the Folder recorded a new entry (a write of Buddy's
-    // folder that the check before the change could not foresee, plan
-    // LZD-0033) still restarts the Launchpad on it: a retry sees the entry
-    // unchanged and would leave the running Launchpad on the old one. The
-    // failure is reported as it was.
-    if (
-      launchpad === undefined ||
-      (await recordedEntry(folder).catch(() => before)) === before
-    )
-      throw error;
-    const restart = await restartLaunchpadForEntry(folder, launchpad).catch(
-      () => "restart-failed" as const,
-    );
-    throw new RefreshFailedAfterEntry(error, restart);
-  }
+  const refreshed = await refreshMachineFolder(
+    folder,
+    machine,
+    preset,
+    organizationKey,
+  );
   if (launchpad === undefined || refreshed.result.kind !== "refreshed")
     return refreshed;
   if ((await recordedEntry(folder)) === before) return refreshed;

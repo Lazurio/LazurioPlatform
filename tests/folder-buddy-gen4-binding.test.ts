@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writePersona } from "../src/buddy/persona";
 import {
+  BuddyFolderRefused,
   buddyFolderTarget,
   writeBuddyFolderLocked,
   writeBuddyGen4Locked,
@@ -30,7 +31,7 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
   initializeMachineFolder,
-  RefreshFailedAfterEntry,
+  machineFailureAnswer,
   refreshMachineFolder,
   refreshMachineFolderAndLaunchpad,
 } from "../src/machine/cli";
@@ -497,13 +498,14 @@ posix(
 
 // A failure the check cannot foresee (here a directory of the person's that
 // does not let the account write) comes after the change is recorded: the
-// Launchpad is restarted on the new entry anyway, and the next refresh
-// writes the folder.
+// refresh reports it in `buddyFolder` and keeps its code, the Launchpad
+// follows the new entry as after any refresh, and the next refresh writes
+// the folder.
 const writable = test.skipIf(
   process.platform === "win32" || process.getuid?.() === 0,
 );
 writable(
-  "a write that fails after the change still restarts the Launchpad, and the next refresh completes Buddy's folder",
+  "a write that fails after the change is reported, the Launchpad follows the new entry, and the next refresh completes Buddy's folder",
   async () => {
     const { parent, folder } = await home();
     try {
@@ -522,20 +524,27 @@ writable(
         },
         version: "0.0.0",
       };
-      await expect(
-        refreshMachineFolderAndLaunchpad(
-          folder,
-          convertedAt(parent),
-          undefined,
-          launchpad,
-        ),
-      ).rejects.toThrow("launchpad: not-supervised");
+      const first = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        launchpad,
+      );
+      expect(first.code).toBe(0);
+      const result = first.result as {
+        kind: string;
+        buddyFolder?: { state: string; error: string };
+        launchpad?: string;
+      };
+      expect(result.kind).toBe("refreshed");
+      expect(result.buddyFolder?.state).toBe("failed");
+      expect(result.launchpad).toBe("not-supervised");
       expect(asked).toBe(1);
       expect(await recordedBuddy(folder)).toBe(buddy);
       await chmod(join(buddy, ".agents"), 0o700);
-      expect(
-        (await refreshMachineFolder(folder, convertedAt(parent))).code,
-      ).toBe(0);
+      const retry = await refreshMachineFolder(folder, convertedAt(parent));
+      expect(retry.code).toBe(0);
+      expect("buddyFolder" in retry.result).toBe(false);
       for (const path of buddyFolderPaths)
         expect(await exists(join(buddy, path))).toBe(true);
     } finally {
@@ -546,7 +555,7 @@ writable(
 );
 
 writable(
-  "a failed restart after a late failure is reported with the failure",
+  "a failed restart after a reported write is in the answer as after any refresh",
   async () => {
     const { parent, folder } = await home();
     try {
@@ -570,23 +579,39 @@ writable(
         version: "0.0.0",
         deadlineMs: 10,
       };
-      const failure = await refreshMachineFolderAndLaunchpad(
+      const answer = await refreshMachineFolderAndLaunchpad(
         folder,
         convertedAt(parent),
         undefined,
         launchpad,
-      ).then(
-        () => null,
-        (error: unknown) => error,
       );
-      expect(failure).toBeInstanceOf(RefreshFailedAfterEntry);
-      expect((failure as RefreshFailedAfterEntry).launchpad).toBe(
-        "restart-failed",
-      );
-      expect(String(failure)).toContain("launchpad: restart-failed");
+      const result = answer.result as {
+        buddyFolder?: { state: string };
+        launchpad?: string;
+      };
+      expect(result.buddyFolder?.state).toBe("failed");
+      expect(result.launchpad).toBe("restart-failed");
     } finally {
       await chmod(join(parent, "Buddy", ".agents"), 0o700).catch(() => {});
       await rm(parent, { recursive: true, force: true });
     }
   },
 );
+
+test("a refusal before the change is the command's blocked answer with its reason, never internal", () => {
+  for (const reason of [
+    "buddy-folder-mismatch",
+    "buddy-folder-claude-md",
+    "buddy-folder-unsafe",
+  ] as const) {
+    const answer = machineFailureAnswer(
+      new BuddyFolderRefused(reason, "detail"),
+    );
+    expect(answer.code).toBe(2);
+    expect(answer.result).toMatchObject({
+      kind: "blocked",
+      reason,
+      detail: "detail",
+    });
+  }
+});

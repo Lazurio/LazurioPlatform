@@ -21,6 +21,31 @@ import { checkoutDirectoryRefusal } from "./owned-directory";
 import { readFolderState } from "./read-state";
 import { instructionSource } from "./render";
 
+/** Buddy GEN4's folder cannot take his instructions, found before anything
+ * changed: `buddy-folder-mismatch` (not exactly `Buddy` of the Folder's
+ * canonical home), `buddy-folder-claude-md` (a CLAUDE.md there, kept) or
+ * `buddy-folder-unsafe` (a symlink, a directory or file of another account,
+ * another filesystem). The command answers it as blocked, nothing changed. */
+export class BuddyFolderRefused extends Error {
+  readonly reason:
+    | "buddy-folder-mismatch"
+    | "buddy-folder-claude-md"
+    | "buddy-folder-unsafe";
+  constructor(reason: BuddyFolderRefused["reason"], message: string) {
+    super(message);
+    this.name = "BuddyFolderRefused";
+    this.reason = reason;
+  }
+}
+
+/** A write of Buddy GEN4's folder that failed after the Folder's change was
+ * recorded: the change stands, the Launchpad follows it as after any
+ * refresh, and the next refresh writes the folder again. */
+export type BuddyFolderWriteFailure = Readonly<{
+  state: "failed";
+  error: string;
+}>;
+
 // Buddy's instructions after every change of the Folder (plan LZD-0033, R2):
 // a person the handover names converted (`entry.buddy.generation: 4`, the
 // binding's `buddyFolder`) gets Buddy GEN4's folder with the persona of
@@ -38,25 +63,35 @@ import { instructionSource } from "./render";
 export async function writeBuddyLocked(
   folder: string,
   assertHeld: () => Promise<void>,
-): Promise<void> {
+): Promise<BuddyFolderWriteFailure | undefined> {
   const { preferences } = await readFolderState(join(folder, ".lazurio"));
   const entry = preferences.machine?.entry;
   if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined) {
     await writeBuddyLayerLocked(folder, assertHeld);
-    return;
+    return undefined;
   }
   // The same check as before the change, so that a caller outside it (a
   // change of the persona) is refused before anything is written too.
   await checkBuddyLocked(folder, preferences.machine);
   const home = dirname(folder);
   const target = await buddyFolderTarget(home, entry.buddyFolder);
-  await writeBuddyGen4Locked(
-    home,
-    target,
-    instructionSource(preferences),
-    entry.buddyProfile,
-    assertHeld,
-  );
+  try {
+    await writeBuddyGen4Locked(
+      home,
+      target,
+      instructionSource(preferences),
+      entry.buddyProfile,
+      assertHeld,
+    );
+    return undefined;
+  } catch (error) {
+    // A lost lock is never a write to report: the operation stops.
+    await assertHeld();
+    return Object.freeze({
+      state: "failed" as const,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 /** Whether a change of the Folder to `machine` can write Buddy's
@@ -85,13 +120,21 @@ export async function checkBuddyLocked(
     stat.isSymbolicLink() ||
     checkoutDirectoryRefusal(stat, uid) !== null
   )
-    throw new Error("Unsafe Buddy folder");
+    throw new BuddyFolderRefused("buddy-folder-unsafe", "Unsafe Buddy folder");
   await refuseClaudeInstructions(target);
   for (const path of buddyFolderPaths) {
     // The writer's own rule for the directories on the way, then the file.
-    await checkOutputDirectories(target, path);
+    await checkOutputDirectories(target, path).catch((error: unknown) => {
+      throw new BuddyFolderRefused(
+        "buddy-folder-unsafe",
+        error instanceof Error ? error.message : String(error),
+      );
+    });
     if ((await inspectOutput(target, path)).kind === "unsafe")
-      throw new Error(`Unsafe Buddy folder file: ${path}`);
+      throw new BuddyFolderRefused(
+        "buddy-folder-unsafe",
+        `Unsafe Buddy folder file: ${path}`,
+      );
   }
 }
 
@@ -105,7 +148,10 @@ export async function buddyFolderTarget(
   const uid = process.getuid?.();
   if (uid === undefined) throw new Error("Directory owner unavailable");
   if (!isAbsolute(home) || declared !== join(home, "Buddy"))
-    throw new Error("Buddy folder mismatch");
+    throw new BuddyFolderRefused(
+      "buddy-folder-mismatch",
+      "Buddy folder mismatch",
+    );
   const canonical = await realpath(home);
   const stat = await lstat(home);
   if (
@@ -114,7 +160,10 @@ export async function buddyFolderTarget(
     stat.isSymbolicLink() ||
     stat.uid !== uid
   )
-    throw new Error("Unsafe Buddy folder home");
+    throw new BuddyFolderRefused(
+      "buddy-folder-unsafe",
+      "Unsafe Buddy folder home",
+    );
   return declared;
 }
 
@@ -238,7 +287,8 @@ async function refuseClaudeInstructions(buddyFolder: string) {
       },
     );
     if (present)
-      throw new Error(
+      throw new BuddyFolderRefused(
+        "buddy-folder-claude-md",
         `Buddy folder has ${path}: Claude Code would load it instead of AGENTS.md; move it away, nothing was written`,
       );
   }
