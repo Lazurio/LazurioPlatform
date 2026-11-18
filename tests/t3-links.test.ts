@@ -142,6 +142,7 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
       },
     ] as Session[],
     pairings: new Map<string, string>(),
+    pairingLabels: new Map<string, string>(),
     issued: [] as string[],
     commands: [] as {
       side: string;
@@ -157,6 +158,8 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
     answerLost: false,
     /** The link is made, but T3 Code answers a refusal. */
     refusedAfterLink: false,
+    /** While the code is out, the person links another T3 Code by hand. */
+    personalDuringPairing: null as Session | null,
     revokeFails: false,
     serverDown: { source: false, target: false },
     duringSettings: async (_side: string): Promise<void> => undefined,
@@ -184,11 +187,23 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
       return answer("Revoked.\n");
     }
     if (verb === "auth pairing list")
-      return answer(json([...w.pairings.keys()].map((id) => ({ id }))));
+      return answer(
+        json(
+          [...w.pairings.keys()].map((id) => ({
+            id,
+            ...(w.pairingLabels.has(id)
+              ? { label: w.pairingLabels.get(id) }
+              : {}),
+          })),
+        ),
+      );
     if (verb === "auth pairing create") {
       const id = randomUUID();
       const credential = `pc-${randomUUID()}`;
       w.pairings.set(id, credential);
+      const label = command[command.indexOf("--label") + 1];
+      if (command.includes("--label") && label !== undefined)
+        w.pairingLabels.set(id, label);
       w.issued.push(credential);
       return answer(json({ id, credential, scopes: [] }));
     }
@@ -247,6 +262,8 @@ async function world(sourceSettings?: unknown, targetSettings?: unknown) {
           )
             return { ok: false, error: "PeerLinkError:pairing_rejected" };
           w.pairings.delete(id);
+          if (w.personalDuringPairing !== null)
+            w.targetSessions.push(w.personalDuringPairing);
           w.targetSessions.push({
             sessionId: randomUUID(),
             subject: "mcp-client",
@@ -683,6 +700,39 @@ test("a refusal T3 Code answered is a refusal, even with a link behind it: nothi
   expect(linkSessions(w.targetSessions)).toHaveLength(0);
 });
 
+test("accepted limit: a personal session that appears while Lazurio's code is out is counted to it and revoked; one outside stays", async () => {
+  const { w, source, target: targetLook } = await world();
+  // The target has its state before the person's own link exists.
+  await targetLook();
+  const outside = {
+    sessionId: randomUUID(),
+    subject: "mcp-client",
+    client: { label: `${linkClientPrefix}laptop` },
+  };
+  w.targetSessions.push(outside);
+  const inside = {
+    sessionId: randomUUID(),
+    subject: "mcp-client",
+    client: { label: `${linkClientPrefix}phone` },
+  };
+  w.personalDuringPairing = inside;
+  await source();
+  w.personalDuringPairing = null;
+  // T3 Code cannot say which session came from the code: both new ones are
+  // counted to Bob's pairing, whatever their label; the earlier one is not.
+  const owned = (await stateOf(w.targetHome)).inbound["lazurio-bob"]?.sessions;
+  expect(owned).toHaveLength(2);
+  expect(owned).toContain(inside.sessionId);
+  expect(owned).not.toContain(outside.sessionId);
+  // The edge goes: both are revoked, nothing of the pairing stays open, and
+  // the personal session from outside the window stays.
+  w.targetBinding = workWith();
+  expect(await targetLook()).toMatchObject({ revoked: 2 });
+  expect(linkSessions(w.targetSessions).map((s) => s.sessionId)).toEqual([
+    outside.sessionId,
+  ]);
+});
+
 test("an uncertain pairing that made no link ends once its code has certainly expired", async () => {
   const { w, bob, source } = await world();
   await writeT3LinksState(bob().home, {
@@ -971,6 +1021,60 @@ test("a damaged state closes: the switch off and every linked session revoked, t
   });
   expect((await settingsOf(bob().home)).linkedEnvironmentsEnabled).toBe(false);
   expect(bob().links).toHaveLength(1);
+});
+
+test("a lost or damaged target state with a code still out: the code is revoked before anything reopens, and no session survives", async () => {
+  for (const loss of ["missing", "damaged"] as const) {
+    const {
+      w,
+      bob,
+      sourceSeams,
+      targetSeams,
+      target: targetLook,
+    } = await world();
+    await targetLook();
+    // Lazurio issued a code for Bob; the person has one of their own out.
+    expect(
+      (await issueLinkPairing(targetSeams(), w.targetBinding, "lazurio-bob"))
+        .kind,
+    ).toBe("issued");
+    const persons = randomUUID();
+    w.pairings.set(persons, "pc-the-persons-own");
+    const code = w.issued.at(-1) as string;
+    // Then the state is lost.
+    if (loss === "missing") await rm(t3LinksStatePath(w.targetHome));
+    else await writeFile(t3LinksStatePath(w.targetHome), "not json");
+    expect(await targetLook()).toEqual({
+      role: "target",
+      result: "closed",
+      state: loss,
+    });
+    // Lazurio's code is gone before anything reopens; the person's stays.
+    expect([...w.pairings.values()]).toEqual(["pc-the-persons-own"]);
+    // The next look reopens the switch for the edge, and the old code can
+    // no longer open a session that nobody would own.
+    w.pairings.delete(persons);
+    expect(await targetLook()).toMatchObject({ switch: "on" });
+    const sessionsBefore = linkSessions(w.targetSessions).length;
+    await writeFile(
+      join(bob().home, ".t3", "userdata", "settings.json"),
+      '{"linkedEnvironmentsEnabled":true}',
+    );
+    const rpc = await sourceSeams().rpc();
+    if (typeof rpc === "string") throw new Error(rpc);
+    expect(
+      await rpc.request("peerLinks.link", {
+        url: origin,
+        pairingCode: code,
+        access: "full-access",
+      }),
+    ).toEqual({ ok: false, error: "PeerLinkError:pairing_rejected" });
+    expect(linkSessions(w.targetSessions)).toHaveLength(sessionsBefore);
+    // The edge goes: nothing survives.
+    w.targetBinding = workWith();
+    await targetLook();
+    expect(linkSessions(w.targetSessions)).toHaveLength(0);
+  }
 });
 
 test("a missing state closes where something may be open, with or without an edge", async () => {

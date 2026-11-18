@@ -79,23 +79,31 @@ success; it is recorded before anything is opened:
   when the edge goes;
 - the target issues a code only while no other code is out, Lazurio's or one
   the person issued, and records, before the code exists, the source and the
-  sessions of linked T3 Code that exist already; the session that appears for
-  the code and that nobody owns is that source's, by id, across renewals and
-  whatever label its Chat answers with. When an edge goes, exactly the
-  sessions that source owns are revoked; other sources' sessions and the
-  person's own stay;
+  sessions of linked T3 Code that exist already. T3 Code does not record which
+  code a session came from (`auth_sessions` has no pairing column and the
+  session list shows none), so the target counts every new session of a
+  linked T3 Code that nobody owns and that appears while the code is out
+  (until it is spent, at most five minutes) as that source's, by id, across
+  renewals and whatever label its Chat answers with. When an edge goes,
+  exactly the sessions that source owns are revoked. Other sources' sessions
+  stay, and so do the person's own, except one that appeared while
+  Lazurio's code was out (see the limits below);
 - `enabledByLazurio` is written before Lazurio turns a switch on.
 
 The state is `~/.local/state/lazurio/t3-links.json` (0600). A look cut off at
 any point leaves a state the next look finishes or undoes. A state that is
-there but cannot be read, or that is missing while something may be open (the
-switch on, or on the target a session of a linked T3 Code), fails closed: the
-switch goes off through the server and, on the target, every session of a
-linked T3 Code is revoked; only then is a new state written (`closed`), and
+there but cannot be read, or that is missing while something may be open or
+may still open (the switch on, or on the target a session of a linked T3 Code
+or a code of Lazurio's still out), fails closed. On the target every code of
+Lazurio's still out (Lazurio labels each `lazurio-link`) is revoked first, so
+none can open a session nobody owns once the switch is on again; then the
+switch goes off through the server and every session of a linked T3 Code is
+revoked. Only then is a new state written (`closed`), and
 the next looks build again from the handovers. A source keeps its links when
 it closes, since the target is where access is granted. This holds with
 or without an edge: a missing state is idle only once the switch is shown to
-be off and, on the target, no linked session exists; an empty state is then
+be off and, on the target, no linked session and no code of Lazurio's
+exists; an empty state is then
 written so later looks need not ask T3 Code again. A pairing request over a
 missing state closes what may be open the same way before it records the
 source and issues a code, and issues none when it cannot. Closing needs the
@@ -139,11 +147,17 @@ its guard keeps linked environments off.
 - The source names itself to the target by its handover's
   `network.headscale_hostname`; the target accepts it only when its own
   handover names that node as an inbound personal peer.
-- A link session that appears on the target while Lazurio's code is out and
-  that Lazurio did not make (a code the person issues and spends within those
-  seconds) is counted as that code's source's and revoked with it: the error
-  is on the side of revoking. Only an edge's source can reach the four paths
-  at all.
+- An accepted limit, in the safe direction: every new session of a linked
+  T3 Code that appears on the target while Lazurio's code for a source is out
+  (until the code is spent, at most five minutes) is counted as that pairing's
+  source's, whatever its label, and is revoked with that source's edge or at
+  its next renewal. A person who links another T3 Code to this Work
+  Environment in exactly that window may lose that session; nothing stays
+  open. Lazurio waits while any other code is out, and only an edge's source
+  can reach the four paths at all, so the window is short and narrow. Telling
+  the sessions apart for certain would need T3 Code to record which code a
+  session came from. The label is not used to narrow it: it can change, and a
+  wrong filter would leave the session of Lazurio's code owned by nobody.
 - After a lost answer, the link the attempt may have made is the person's, so
   Lazurio neither renews nor removes it; it works until it expires or the
   edge goes. To hand the Environment back to Lazurio, the person forgets that

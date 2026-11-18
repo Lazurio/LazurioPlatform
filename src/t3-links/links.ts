@@ -397,11 +397,17 @@ export function parseSessions(stdout: string): LinkSession[] | undefined {
   return sessions;
 }
 
-/** `t3 auth pairing list --json`: the ids of the codes still active. */
-export function parsePairingIds(stdout: string): string[] | undefined {
+/** The label Lazurio gives every code it issues, so a code of its own can
+ * be found and revoked without a state that records it. */
+export const lazurioCodeLabel = "lazurio-link";
+
+/** `t3 auth pairing list --json`: the codes still active, with their label. */
+export function parsePairingList(
+  stdout: string,
+): { id: string; label: string | null }[] | undefined {
   const value = jsonFrom(stdout, "[");
   if (!Array.isArray(value)) return undefined;
-  const found: string[] = [];
+  const found: { id: string; label: string | null }[] = [];
   for (const item of value) {
     if (
       !isRecord(item) ||
@@ -409,10 +415,17 @@ export function parsePairingIds(stdout: string): string[] | undefined {
       !idToken.test(item.id)
     )
       return undefined;
-    found.push(item.id);
+    found.push({
+      id: item.id,
+      label: typeof item.label === "string" ? item.label : null,
+    });
   }
   return found;
 }
+
+/** The ids of the codes still active. */
+export const parsePairingIds = (stdout: string) =>
+  parsePairingList(stdout)?.map((code) => code.id);
 
 /** A pairing as T3 Code prints it (`t3 auth pairing create --json`) and as
  * `lazurio machine t3-link-pair` passes it on: its id and the code, which
@@ -546,7 +559,7 @@ const localPairings = async (seams: T3LinkSeams) => {
     base(seams),
     "--json",
   ]);
-  return listed === undefined ? undefined : parsePairingIds(listed.stdout);
+  return listed === undefined ? undefined : parsePairingList(listed.stdout);
 };
 
 /** Revokes these sessions here; false when T3 Code refused one. A session
@@ -908,9 +921,12 @@ async function reconcileSource(
 /** Settles the codes the target issued: once a code is spent or gone, the
  * sessions of linked T3 Code that appeared after it and that nobody owns are
  * its source's, by id, and that source's earlier sessions are revoked; a
- * code with no such session is over once it has certainly expired. Only one
- * code is out at a time, so what appeared after it is its own. False when T3
- * Code could not be asked or refused a revocation; the code then stays. */
+ * code with no such session is over once it has certainly expired. T3 Code
+ * does not record which code a session came from, so a session someone else
+ * linked while the code was out is counted too: an accepted limit in the
+ * safe direction, since it can only be revoked too early, never left open
+ * (docs/t3-links.md, Known limits). False when T3 Code could not be asked
+ * or refused a revocation; the code then stays. */
 async function settlePairings(
   seams: T3LinkSeams,
   state: ReturnType<typeof stateUpdater>,
@@ -922,7 +938,7 @@ async function settlePairings(
   if (open.length === 0) return true;
   const [sessions, active] = [
     await localSessions(seams),
-    await localPairings(seams),
+    (await localPairings(seams))?.map((code) => code.id),
   ];
   if (sessions === undefined || active === undefined) return false;
   const now = seams.now();
@@ -1049,22 +1065,51 @@ async function reconcileTarget(
 
 // ---- Closing ------------------------------------------------------------------
 
-/** Whether something of Lazurio's may be open without a state that says so:
- * the switch on, or on the target a session of a linked T3 Code. */
+/** Whether something of Lazurio's may be open, or may still open, without a
+ * state that says so: the switch on, or on the target a session of a linked
+ * T3 Code or a code of Lazurio's still out, which could open one later. */
 async function mayBeOpen(seams: T3LinkSeams, role: "source" | "target") {
   if ((await linkedEnvironmentsOn(seams.home)) !== false) return true;
   if (role === "source") return false;
-  const sessions = await localSessions(seams);
-  return sessions === undefined || sessions.some(isLinkSession);
+  const [sessions, codes] = [
+    await localSessions(seams),
+    await localPairings(seams),
+  ];
+  return (
+    sessions === undefined ||
+    codes === undefined ||
+    sessions.some(isLinkSession) ||
+    codes.some((code) => code.label === lazurioCodeLabel)
+  );
 }
 
-/** Fails closed: the switch off and, on the target, every session of a
- * linked T3 Code revoked. True only when both are done. */
+/** Fails closed before a state of ownership is replaced: everything the old
+ * state may have opened, or may still open, is closed. On the target first
+ * every code of Lazurio's still out is revoked, so none can open a session
+ * nobody owns once the switch is on again; then the switch goes off and
+ * every session of a linked T3 Code is revoked. On the source the switch
+ * goes off. True only when all of it is done. */
 async function close(
   seams: T3LinkSeams,
   rpc: T3Rpc,
   role: "source" | "target",
 ) {
+  if (role === "target") {
+    const codes = await localPairings(seams);
+    if (codes === undefined) return false;
+    for (const code of codes.filter((c) => c.label === lazurioCodeLabel))
+      if (
+        (await local(seams, [
+          "auth",
+          "pairing",
+          "revoke",
+          "--base-dir",
+          base(seams),
+          code.id,
+        ])) === undefined
+      )
+        return false;
+  }
   if (
     (await linkedEnvironmentsOn(seams.home)) !== false &&
     !(await setSwitch(rpc, false))
@@ -1215,8 +1260,8 @@ export async function issueLinkPairing(
       ]);
     if (!(await settlePairings(seams, state)))
       return { kind: "refused", reason: "busy" };
-    // No code while another is out, Lazurio's or one the person issued, so
-    // the one session that appears for this code is its own.
+    // No code while another is out, Lazurio's or one the person issued, to
+    // keep the window in which another session could be counted narrow.
     const active = await localPairings(seams);
     if (
       active === undefined ||
@@ -1263,7 +1308,7 @@ export async function issueLinkPairing(
     "--ttl",
     pairingTtl,
     "--label",
-    "lazurio-link",
+    lazurioCodeLabel,
     "--json",
   ]);
   const pairing =
