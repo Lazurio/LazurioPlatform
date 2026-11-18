@@ -766,15 +766,19 @@ runs as another Application of the same host. A host that cannot yet do either i
 a host condition of the readiness check, not a defect of the Module.
 
 **Server services an App uses.** A service of the Organization's Server
-Services (a database in `app/v4`, the print service that renders a page to PDF,
-and later others) reaches an App only as runtime secrets of that service:
+Services (a database in `app/v4`; a print service that renders a page to PDF,
+proposed in Machines#1345 and not yet deployed; later others) reaches an App only as runtime secrets of that service:
 `LAZURIO_RUNTIME_SECRET_LAZURIO_SERVICE_<ID>_<FIELD>`, for example
 `LAZURIO_SERVICE_PRINT_URL` and `LAZURIO_SERVICE_PRINT_TOKEN` for the service
 `print`. The App declares the names in `lazurio.runtime.optional_secrets` (or
 `secrets` where it cannot start without them); the module adds no field of its
 own for services. Which Application may use which service is the Organization's
-boundary of trust, granted in its Deployment Repo (Machines#1350), never by the
-module. An App decides by whether the service's variables are present, never by
+decision, granted per Application in its Deployment Repo (Machines#1350), never
+by the module. The grant does not isolate Applications from each other yet:
+the Applications of one application host run as the same system user and can
+read each other's process environment, so one of them can use another's
+service credentials, and the real boundary is the whole application host until
+each Application runs as its own user (Machines#1351). An App decides by whether the service's variables are present, never by
 the name of the place it runs in: a development version without them may use a
 local substitute (for printing, the Environment's browser), and an Application
 without a granted service answers a typed refusal (for printing,
