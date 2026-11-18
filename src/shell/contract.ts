@@ -1014,6 +1014,16 @@ export function isAccountApplicationOrigin(value: unknown): value is string {
   }
 }
 
+/** Whether an origin is an Application of an Organization: an account
+ * application origin on the Organizations' zone
+ * (`https://<module>.<organization>.lazurio.app`, decision 0239). */
+export function isOrganizationApplicationOrigin(
+  origin: unknown,
+): origin is string {
+  if (!isAccountApplicationOrigin(origin)) return false;
+  return new URL(origin).hostname.endsWith(".lazurio.app");
+}
+
 /** The `sharedApplications` member of `lazurio.account.v1` (decision 0231):
  * absent or null is none (`undefined`); otherwise a list of at most
  * `accountSharedApplicationsMax` entries, each in its exact shape

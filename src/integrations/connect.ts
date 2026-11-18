@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { isOrganizationApplicationOrigin } from "../shell/contract";
 import { integrationsCatalog } from "./catalog";
 import type { CatalogApp, IntegrationsCatalog } from "./catalog-schema";
 import {
@@ -289,6 +290,15 @@ const slugify = (text: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+/** The origin of an address, or null for none. */
+const originOf = (url: string): string | null => {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+};
+
 const hostOf = (url: string): string => {
   try {
     return new URL(url).host.toLowerCase();
@@ -466,12 +476,22 @@ export function createConnectSessions(host: () => ConnectHost) {
       throw new ConnectBlocked("connect-failed");
     const resource =
       typeof probe.resource === "string" ? probe.resource : endpoint;
-    const scopes =
+    const scopes: readonly unknown[] =
       Array.isArray(declared.scopes) && declared.scopes.length > 0
         ? declared.scopes
         : Array.isArray(probe.scopesSupported)
           ? probe.scopesSupported
           : [];
+    // An Application of an Organization: the agents' connection asks for
+    // `offline_access` as Codex and ChatGPT do, so that it does not lapse
+    // with the sign-in's session (Auth's decision addendum of 2026-11-18,
+    // HumanAndMachine-ai/Auth#144). An issuer that does not admit it yet
+    // refuses that registration; the same registration without it follows.
+    const lasting =
+      isOrganizationApplicationOrigin(originOf(endpoint)) &&
+      !scopes.includes("offline_access")
+        ? [...scopes, "offline_access"]
+        : null;
     const registration =
       typeof probe.registrationEndpoint === "string"
         ? probe.registrationEndpoint
@@ -481,6 +501,15 @@ export function createConnectSessions(host: () => ConnectHost) {
     const register = async (
       registrationEndpoint: string,
       redirectUri: string,
+    ): Promise<string | null> =>
+      (lasting === null
+        ? null
+        : await registerWith(registrationEndpoint, redirectUri, lasting)) ??
+      (await registerWith(registrationEndpoint, redirectUri, scopes));
+    const registerWith = async (
+      registrationEndpoint: string,
+      redirectUri: string,
+      scopes: readonly unknown[],
     ): Promise<string | null> => {
       const issuer = typeof probe.issuer === "string" ? probe.issuer : null;
       const answer = await executorCall(

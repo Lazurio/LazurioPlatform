@@ -91,6 +91,9 @@ export type FakeExecutor = Readonly<{
     registration: boolean;
     metadataDocument: boolean;
     loopbackOnly: boolean;
+    /** Scopes a registration may not ask for (as Lazurio's issuer refused
+     * `offline_access` before Auth#144). */
+    refusedScopes: string[];
   };
   /** The person signs in (or not) at the authorization URL of `state`;
    * `identity` is the account the ID token names (by default
@@ -186,6 +189,7 @@ export async function startFakeExecutor(
     registration: true,
     metadataDocument: false,
     loopbackOnly: false,
+    refusedScopes: [],
   };
   let nextState = 1;
   const server = Bun.serve({
@@ -655,6 +659,20 @@ export async function startFakeExecutor(
               _tag: "OAuthRegisterDynamicError",
               message:
                 "Automatic OAuth setup failed: this server only approves loopback redirect URLs",
+            },
+            400,
+          );
+        if (
+          Array.isArray(input.scopes) &&
+          input.scopes.some((scope: unknown) =>
+            authorizationServer.refusedScopes.includes(String(scope)),
+          )
+        )
+          return json(
+            {
+              _tag: "OAuthRegisterDynamicError",
+              message:
+                "Automatic OAuth setup failed: the server refused the registration",
             },
             400,
           );

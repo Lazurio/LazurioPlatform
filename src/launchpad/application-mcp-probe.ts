@@ -13,7 +13,7 @@
  * credential, follows no redirect and reaches only an Application's own
  * origin (`https://<module>.<organization>.lazurio.app`).
  */
-import { isAccountApplicationOrigin } from "../shell/contract";
+import { isOrganizationApplicationOrigin } from "../shell/contract";
 
 /** `admits`: the Application's host admits MCP sign-in for that origin.
  * It says nothing of the App behind the gateway (Machines#1382). */
@@ -24,14 +24,9 @@ export type McpProbeAnswer =
       reason: "not-an-application" | "unreachable" | "no-mcp-sign-in";
     }>;
 
-const applicationsZone = ".lazurio.app";
-
 /** Whether an origin is an Application's own: an account Application origin
  * on the Organizations' zone. */
-export function isApplicationOrigin(origin: unknown): origin is string {
-  if (!isAccountApplicationOrigin(origin)) return false;
-  return new URL(origin).hostname.endsWith(applicationsZone);
-}
+export const isApplicationOrigin = isOrganizationApplicationOrigin;
 
 /** The `resource_metadata` a Bearer challenge names, or null. */
 function resourceMetadata(challenge: string | null): string | null {

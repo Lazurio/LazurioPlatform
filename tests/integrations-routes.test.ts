@@ -840,6 +840,63 @@ test("a sign-in the person refuses at the server returns to the Launchpad and en
   expect(world.executor.connections).toEqual([]);
 });
 
+// An Application of an Organization (Auth's decision addendum of
+// 2026-11-18, HumanAndMachine-ai/Auth#144): the agents' connection asks for
+// `offline_access`, so that it outlives the sign-in's session; an issuer that
+// does not admit it yet gets the same registration without it.
+test("Vlastní: an Application of an Organization asks for a lasting connection, and without it where the issuer refuses", async () => {
+  const application = "https://records.example-org.lazurio.app/mcp";
+  const scopesOf = (world: IntegrationsWorld) =>
+    bodiesOf(world, "POST", "/api/oauth/clients/register-dynamic").map(
+      (body) => [body.redirectUri, body.scopes],
+    );
+  const lasting = await remote();
+  lasting.world.executor.probes.set(application, { requiresOAuth: true });
+  const added = (await (
+    await lasting.app.post("/api/integrations/custom/add", {
+      type: "http",
+      name: "Records",
+      url: application,
+      headers: [],
+    })
+  ).json()) as { kind: string; url?: string };
+  expect(added).toMatchObject({ kind: "authorize" });
+  expect(scopesOf(lasting.world)).toEqual([
+    [returnAddress, ["read", "offline_access"]],
+  ]);
+
+  const before = await remote();
+  before.world.executor.authorizationServer.refusedScopes = ["offline_access"];
+  before.world.executor.probes.set(application, { requiresOAuth: true });
+  const plain = (await (
+    await before.app.post("/api/integrations/custom/add", {
+      type: "http",
+      name: "Records",
+      url: application,
+      headers: [],
+    })
+  ).json()) as { kind: string; url?: string };
+  expect(plain).toMatchObject({ kind: "authorize" });
+  // Refused with it, registered without it, at the same address.
+  expect(scopesOf(before.world)).toEqual([
+    [returnAddress, ["read", "offline_access"]],
+    [returnAddress, ["read"]],
+  ]);
+
+  // Any other server keeps exactly its own scopes.
+  const other = await remote();
+  other.world.executor.probes.set("https://mcp.invoices.example.test/mcp", {
+    requiresOAuth: true,
+  });
+  await other.app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Invoices",
+    url: "https://mcp.invoices.example.test/mcp",
+    headers: [],
+  });
+  expect(scopesOf(other.world)).toEqual([[returnAddress, ["read"]]]);
+});
+
 test("a server that registers only loopback addresses keeps the sign-in in the Environment browser", async () => {
   const { world, app, opened } = await remote();
   world.executor.authorizationServer.loopbackOnly = true;
