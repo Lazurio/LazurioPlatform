@@ -1241,25 +1241,28 @@ The port holds, in both generations:
   content, so a direct change that kept the old value is still a change. The revision does not survive the move
   to `app/v4`: after the move a client reads the record again.
 - **Atomic writes, where offered.** A port that changes several records in one
-  write (a capability it offers once its tools or interface need it) changes
-  all of them or none:
-  - **repository-db, a draft:** one pass through the engine's draft-write lock,
-    which every writer takes (`writeRecordDraft`: the App, the CLI, an agent).
-    Every check (the revisions, the rules across records) runs on one snapshot
-    of the data before the first record is written, and each file is replaced
-    atomically (`writeYamlFileAtomic`). If a write fails after the first file,
-    the port puts the files it already wrote back to their earlier content
-    before it releases the lock. The engine does not do this itself; it is the
-    port's duty. No commit.
-  - **repository-db, a publication:** one commit, because the whole draft is
-    always published at once.
-  - **Dolt, a draft:** one transaction on the draft's own branch, which is not
-    shared, with one `DOLT_COMMIT` on that branch.
-  - **Dolt, a publication:** one merge into the shared branch. A data layer
-    without drafts writes in one transaction with one `DOLT_COMMIT` to the
-    shared branch, and that is a publication.
+  write (a capability it offers once its tools or interface need it):
+  - **publishes them all or none.** In repository-db one publication is one
+    commit of the whole draft. It publishes only the draft the person confirmed
+    (`expectedRevision`, the draft's revision as it was shown), and it refuses
+    if the draft changed since. In Dolt it is one merge into the shared branch,
+    or, in a data layer without drafts, one transaction with one `DOLT_COMMIT`
+    to the shared branch, which is a publication.
+  - **in Dolt, drafts them all or none:** one transaction on the draft's own
+    branch, which is not shared, with one `DOLT_COMMIT` on that branch.
+  - **in repository-db, a draft of several records is not atomic.** A draft is
+    working-tree files without a transaction. The port writes them in one pass
+    through the engine's draft-write lock (`writeRecordDraft`), which keeps
+    other writers and publication out, and replaces each file atomically
+    (`writeYamlFileAtomic`). A reader does not take that lock, so it may see some
+    of the records changed while the write runs. If the process stops part of
+    the way, the draft holds some of them. The port therefore answers which
+    records it wrote, the draft's review shows the change as it is, and the
+    person discards it or completes it. A partial draft is published only when
+    a person confirms exactly that draft. A multi-record change that must never
+    be seen in part needs Dolt; over repository-db it would need an engine
+    transaction, which does not exist.
 
-  One commit to a shared branch is thus required only of a publication.
 - **Author and channel.** A change carries two fields: the person's `subject`
   and the `channel` it came by, one of `ui` (the App's interface), `mcp`
   (`/mcp`), `webmcp` (the page's agent tools) and `import`. A draft and a
