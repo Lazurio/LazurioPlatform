@@ -50,6 +50,9 @@ import dataServerAppV1SrcAppServerTestTs from "./templates/_data_server/app/v1/s
 import dataServerAppV1SrcAppServerTs from "./templates/_data_server/app/v1/src/app-server.ts.tmpl" with {
   type: "text",
 };
+import dataServerAppV1SrcDevClientTs from "./templates/_data_server/app/v1/src/dev-client.ts.tmpl" with {
+  type: "text",
+};
 import dataServerAppV1SrcServerTs from "./templates/_data_server/app/v1/src/server.ts.tmpl" with {
   type: "text",
 };
@@ -233,6 +236,7 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
     _data_server: layer({
       "app/v1/src/app-server.test.ts.tmpl": dataServerAppV1SrcAppServerTestTs,
       "app/v1/src/app-server.ts.tmpl": dataServerAppV1SrcAppServerTs,
+      "app/v1/src/dev-client.ts.tmpl": dataServerAppV1SrcDevClientTs,
       "app/v1/src/server.ts.tmpl": dataServerAppV1SrcServerTs,
       "app/v1/tests/start.test.ts.tmpl": dataServerAppV1TestsStartTestTs,
     }),

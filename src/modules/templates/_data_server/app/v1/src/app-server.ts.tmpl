@@ -23,8 +23,10 @@ export interface ServerParts {
     handleMcp(request: Request): Promise<Response>;
     handlePage(request: Request): Promise<Response | null>;
   };
-  /** The built interface; null in a test. */
-  serveClient: ((pathname: string) => Promise<Response>) | null;
+  /** The interface: the built one, or in a development run Bun's bundler
+   * behind this server (may answer undefined after upgrading the hot-reload
+   * socket); null in a test. */
+  serveClient: ((request: Request, server?: unknown) => Promise<Response | undefined>) | null;
   env?: Env;
 }
 
@@ -54,7 +56,7 @@ export function session(access: AppAccess, env: Env) {
 
 export function createHandler(parts: ServerParts) {
   const env = parts.env ?? process.env;
-  return async (request: Request): Promise<Response> => {
+  return async (request: Request, server?: unknown): Promise<Response | undefined> => {
     if (!hostAllowed(request, parts.hosts)) return new Response("Forbidden host", { status: 403 });
     const { pathname } = new URL(request.url);
     if (pathname === HEALTH_PATH) {
@@ -79,7 +81,7 @@ export function createHandler(parts: ServerParts) {
       // The page and its files too need an application role (decision 0231).
       if (appAccess(request, parts.listener, env).appRole === null)
         return new Response("Forbidden", { status: 403 });
-      return parts.serveClient(pathname);
+      return parts.serveClient(request, server);
     }
     return new Response("Not found", { status: 404 });
   };

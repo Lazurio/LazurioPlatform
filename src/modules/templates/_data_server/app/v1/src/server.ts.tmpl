@@ -3,8 +3,7 @@
  * (`start`, NODE_ENV=production) serves the build it is handed; the
  * development run (`dev`) lets Bun bundle the interface with hot reload in the
  * same process, so the data, /mcp, the page tools and the deep health are the
- * same in both. In the development run Bun serves the bundled client code
- * itself; every path that carries data still checks the role. */
+ * same in both, and the page needs an application role in both. */
 import { join, resolve } from "node:path";
 import {
   allowedHosts,
@@ -13,10 +12,12 @@ import {
   ModuleKitError,
   onShutdown,
 } from "@lazurio/module-kit";
+import type { Server } from "bun";
 import { agentTools } from "./agent-tools.ts";
 import { createHandler, staticFiles } from "./app-server.ts";
 import { repositoryDbStore } from "./data/repository-db-store.ts";
 import type { Store } from "./data/store.ts";
+import { type Relay, startDevelopmentClient } from "./dev-client.ts";
 
 const LISTENER = "{{listener_id}}";
 
@@ -41,29 +42,41 @@ try {
 // Lazurio hands the built interface as LAZURIO_RUNTIME_BUILD_OUTPUT.
 const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? resolve(import.meta.dir, "..", "dist");
 const production = process.env.NODE_ENV === "production";
+const hosts = new Set(allowedHosts(LISTENER));
+// A development run lets Bun bundle the interface with hot reload on a port
+// of its own inside this process (dev-client.ts); this server checks Host and
+// the role first and forwards the page, its files and the hot-reload socket.
+const client = production
+  ? null
+  : startDevelopmentClient((await import("../index.html")).default, app.host);
+const files = staticFiles(output, {{static_spa}});
 const handle = createHandler({
   listener: LISTENER,
-  hosts: new Set(allowedHosts(LISTENER)),
+  hosts,
   dataOpen: () => store !== null,
   tools: agentTools(),
-  serveClient: production ? staticFiles(output, {{static_spa}}) : null,
+  serveClient: client
+    ? (request, server) => client.forward(request, server as Server<Relay>)
+    : (request) => files(new URL(request.url).pathname),
 });
-const server = production
-  ? Bun.serve({ hostname: app.host, port: app.port, idleTimeout: 0, fetch: handle })
+const server = client
+  ? Bun.serve<Relay>({
+      hostname: app.host,
+      port: app.port,
+      idleTimeout: 0,
+      fetch: (request, self) => handle(request, self),
+      websocket: client.websocket,
+    })
   : Bun.serve({
       hostname: app.host,
       port: app.port,
       idleTimeout: 0,
-      development: { hmr: true, console: false },
-      routes: {
-        "/api/*": handle,
-        "/mcp": handle,
-        "/healthz": handle,
-        "/*": (await import("../index.html")).default,
-      },
-      fetch: handle,
+      fetch: async (request) => (await handle(request)) ?? new Response(null, { status: 500 }),
     });
 console.log(`{{display_name}} serves ${server.url.href}`);
 
 // SIGTERM from Lazurio: close every connection and exit 0 (standard 4.4).
-onShutdown(() => server.stop(true));
+onShutdown(async () => {
+  await server.stop(true);
+  await client?.stop();
+});
