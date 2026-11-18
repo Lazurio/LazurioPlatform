@@ -1,6 +1,8 @@
 import { isAbsolute, join } from "node:path";
 import { parseArgs } from "node:util";
+import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import { readFolderState } from "../folder/read-state";
+import { buddyFactsOf } from "../launchpad/buddy-gate";
 import { type BuddyLocale, buddyAnswer } from "../launchpad/buddy-routes";
 import { toolsEnvironmentOf } from "../tools/overview";
 import type { ToolRunner } from "../tools/status";
@@ -15,6 +17,7 @@ import {
   exitUpdateAvailable,
   exitUsage,
 } from "../update/errors";
+import { serviceEnvironment } from "../update/service-control";
 import { type BuddyChat, buddyChat } from "./chat";
 import type { ActiveWork } from "./gateway-refresh";
 import { createHermesGateway, type HermesGateway } from "./hermes-gateway";
@@ -25,7 +28,7 @@ import {
   buddySignInPollMs,
   createBuddySignIn,
 } from "./sign-in";
-import { buddyStatus, readBuddyFacts } from "./status";
+import { buddyStatus } from "./status";
 
 /** `lazurio buddy chat` (decision F61): what Machines run after they install
  * Buddy's T3 Code, as they run `lazurio chat defaults --apply` for Chat.
@@ -150,7 +153,7 @@ const usageText =
 const usage = Object.freeze({ code: exitUsage, stderr: usageText });
 
 const exitOf = (answer: BuddyChat): number =>
-  answer.state === "managed"
+  answer.state === "managed" || answer.reason === "shared-t3"
     ? exitOk
     : answer.state === "unavailable"
       ? exitFailure
@@ -176,16 +179,27 @@ const absent = Object.freeze({
   stdout: JSON.stringify({ kind: "blocked", reason: "buddy-absent" }),
 });
 
-/** Buddy here: the binding records his origin; with the Folder's locale. */
+/** Buddy here: the binding records his origin or, for Buddy GEN4, his
+ * folder; with the Folder's locale and his entry. */
 async function buddyHere(
   folder: string | undefined,
-): Promise<Readonly<{ locale: BuddyLocale }> | undefined> {
+): Promise<Readonly<{ locale: BuddyLocale; entry: MachineEntry }> | undefined> {
   if (folder === undefined) return undefined;
   const { preferences } = await readFolderState(join(folder, ".lazurio"));
-  return preferences.machine?.entry?.buddyOrigin === undefined
+  const entry = preferences.machine?.entry;
+  return entry === undefined || buddyGeneration(entry) === undefined
     ? undefined
-    : { locale: preferences.profile.locale };
+    : { locale: preferences.profile.locale, entry };
 }
+
+/** Buddy GEN4 has no sign-in of his own: his window is the shared T3 Code,
+ * whose providers are the Environment's. */
+const signInNotNeeded = Object.freeze({
+  code: exitUpdateAvailable,
+  stdout: JSON.stringify({ kind: "blocked", reason: "not-needed" }),
+  stderr:
+    "Buddy here is a thread of this Environment's T3 Code and needs no sign-in of his own.",
+});
 
 export async function runBuddyCommand(
   args: readonly string[],
@@ -286,8 +300,18 @@ export async function runBuddyCommand(
       home: toolsEnvironmentOf(context.env, context.platform).home,
     });
   if (command === "status") {
+    const tools = toolsEnvironmentOf(
+      context.env,
+      context.platform,
+      context.toolRun,
+    );
     const answer = buddyAnswer(
-      buddyStatus(await readBuddyFacts(gateway)),
+      buddyStatus(
+        await buddyFactsOf(here.entry, gateway, {
+          run: tools.run,
+          env: serviceEnvironment(context.env),
+        }),
+      ),
       here.locale,
     );
     return {
@@ -300,6 +324,7 @@ export async function runBuddyCommand(
       stdout: JSON.stringify(answer),
     };
   }
+  if (buddyGeneration(here.entry) === 4) return signInNotNeeded;
   const signIn = createBuddySignIn({ gateway });
   if (command === "sign-out") {
     const answer = await signIn.signOut();

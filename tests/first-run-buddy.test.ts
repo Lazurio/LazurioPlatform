@@ -54,7 +54,7 @@ const missing: ContentFact = { state: "missing", item: personalspace };
 const list: ContentList = { allowed: true, items: [personalspace] };
 
 const fact = (
-  signIn: "connected" | "none" | "unknown",
+  signIn: "connected" | "none" | "unknown" | "not-needed",
   confirmed: boolean,
 ): BuddyFact => ({ signIn, confirmed });
 
@@ -118,6 +118,11 @@ test("Buddy's basic is done only when he is signed in and his names are confirme
     nextBasic(tour({ buddy: { signIn: "unknown", confirmed: null } })),
   ).toBe("ai");
   expect(state("loading")).toBe("unknown");
+  // Buddy GEN4 (plan LZD-0033) has no sign-in of his own: his names alone.
+  expect(state(fact("not-needed", true))).toBe("done");
+  expect(state(fact("not-needed", false))).toBe("missing");
+  expect(buddyNextOf(fact("not-needed", false))).toBe("introduce");
+  expect(buddyNextOf(fact("not-needed", true))).toBeUndefined();
 });
 
 test("the order: Buddy first, then the AI, GitHub and the content; not known yet waits; a Buddy that cannot be read holds nothing", () => {

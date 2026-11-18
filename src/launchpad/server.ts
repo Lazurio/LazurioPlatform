@@ -27,7 +27,7 @@ import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
-import { buddyStatus, readBuddyFacts } from "../buddy/status";
+import { buddyStatus } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createComputerAttach } from "../computers/attach-ws";
@@ -66,7 +66,7 @@ import {
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
-import type { MachineEntry } from "../folder/machine-binding";
+import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import {
   maxOwnInstructionsBytes,
   ownInstructionsProblem,
@@ -194,6 +194,7 @@ import { cachedMcpProbe } from "./application-mcp-probe";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import {
+  buddyFactsOf,
   buddyGateAnswer,
   buddyGatePath,
   buddyOpenOf,
@@ -204,12 +205,12 @@ import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import { withGuestAccess } from "./catalog-view";
 import {
-  asksForBuddy,
   chatPairingPath,
   createChatPromptCheck,
   isOwnScriptFetch,
   mintBuddyPairing,
   mintChatPairing,
+  pairsBuddysOwnT3,
   publicEntry,
 } from "./chat";
 import { createComputersRoutes } from "./computers-routes";
@@ -1648,7 +1649,8 @@ export async function startLaunchpad(
     // his conversation in Lazurio after the person's first confirmation,
     // hidden from the person, in the Folder's language. Only where the entry
     // names him; its journal never names a name, the text or the key.
-    ...(entry?.buddyOrigin === undefined || toolsEnvironment.home === undefined
+    // Buddy GEN4's first meeting is no Hermes turn (plan LZD-0033, R3).
+    ...(buddyGeneration(entry) !== 3 || toolsEnvironment.home === undefined
       ? {}
       : {
           firstMeeting: {
@@ -1668,12 +1670,13 @@ export async function startLaunchpad(
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
+    shared: () => buddyGeneration(entry) === 4,
     signIn: createBuddySignIn({
       gateway: buddyGateway,
       journal: (line) =>
         console.log(JSON.stringify({ scope: "buddy-sign-in", ...line })),
     }),
-    facts: () => readBuddyFacts(buddyGateway),
+    facts: () => buddyFactsOf(entry, buddyGateway, buddyService),
     persona: buddyPersona,
     telegram: buddyTelegram,
     locale: folderLocale,
@@ -1746,9 +1749,9 @@ export async function startLaunchpad(
       entry?.buddyOrigin === undefined
         ? undefined
         : Promise.all([
-            readBuddyFacts(buddyGateway),
+            buddyFactsOf(entry, buddyGateway, buddyService),
             buddyPersona.read(),
-            buddyT3Active(buddyService),
+            buddyT3Active(buddyService, entry),
           ]).then(([facts, persona, t3]) => ({
             fact: {
               signIn: buddyStatus(facts).signIn.state,
@@ -2288,9 +2291,9 @@ export async function startLaunchpad(
           return buddyGateAnswer(entry, false);
         server.timeout(request, 30);
         const open = await Promise.all([
-          readBuddyFacts(buddyGateway),
+          buddyFactsOf(entry, buddyGateway, buddyService),
           buddyPersona.read(),
-          buddyT3Active(buddyService),
+          buddyT3Active(buddyService, entry),
         ])
           .then(([facts, persona, t3]) =>
             buddyOpenOf(facts, persona?.confirmed === true, t3),
@@ -2319,7 +2322,7 @@ export async function startLaunchpad(
         // `t3 lazurio capabilities`, then the pairing call: 15 s each.
         server.timeout(request, 45);
         try {
-          const pairing = asksForBuddy(entry, request.headers)
+          const pairing = pairsBuddysOwnT3(entry, request.headers)
             ? await mintBuddyPairing(toolsEnvironment, person)
             : await mintChatPairing(entry, toolsEnvironment, person);
           return response(pairing, pairing.kind === "blocked" ? 409 : 200);

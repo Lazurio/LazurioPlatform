@@ -52,7 +52,9 @@ export type TelegramReading = Readonly<{
 export type BuddyReading = Readonly<{
   state: "works" | "waits" | "unknown";
   reason?: "not-running";
-  signIn: "connected" | "none" | "unknown";
+  /** `not-needed`: Buddy GEN4, a thread of the shared T3 Code, who has no
+   * sign-in and no Telegram of his own. */
+  signIn: "connected" | "none" | "unknown" | "not-needed";
   persona: BuddyPersonaShown | null;
   /** Absent where the Launchpad does not say. */
   telegram?: TelegramReading;
@@ -157,7 +159,10 @@ export function parseBuddyReading(value: unknown): BuddyReading | null {
   const signIn = value.signIn.state;
   if (
     (state !== "works" && state !== "waits" && state !== "unknown") ||
-    (signIn !== "connected" && signIn !== "none" && signIn !== "unknown") ||
+    (signIn !== "connected" &&
+      signIn !== "none" &&
+      signIn !== "unknown" &&
+      signIn !== "not-needed") ||
     !(reason === undefined || reason === "not-running")
   )
     return null;
@@ -415,7 +420,13 @@ const connectedOf = (
   refused: BuddyRefusedAccount | undefined,
 ) =>
   signIn.kind === "signed-in" ||
+  reading?.signIn === "not-needed" ||
   (reading?.signIn === "connected" && refused === undefined);
+
+/** Whether Buddy has a sign-in and a Telegram of his own to show (Buddy
+ * GEN3); Buddy GEN4 has neither. Unknown while not read. */
+export const buddyOwnSignIn = (reading: BuddyReading | null): boolean =>
+  reading?.signIn !== "not-needed";
 
 // ---- Začínáme: the step -----------------------------------------------------
 
