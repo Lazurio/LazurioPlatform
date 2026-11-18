@@ -62,8 +62,11 @@ async function headlessChrome(executable: string): Promise<Page> {
   );
   const portFile = join(profile, "DevToolsActivePort");
   const started = Date.now();
+  // A cold Chrome on a Linux runner that runs four test files at once can
+  // take longer than 15 s to write its port (#1065's shards); 45 s, as in
+  // public-vault.test.ts and launchpad-app-click.test.ts.
   while (!existsSync(portFile)) {
-    if (Date.now() - started > 15_000) throw new Error("Chrome did not start");
+    if (Date.now() - started > 45_000) throw new Error("Chrome did not start");
     await Bun.sleep(100);
   }
   const port = Number((await readFile(portFile, "utf8")).split("\n")[0]);
@@ -136,7 +139,7 @@ beforeAll(async () => {
   if (chrome === null) return;
   page = await headlessChrome(chrome);
   await page.evaluate(await pickerBundle());
-});
+}, 90_000);
 
 afterAll(async () => {
   await page?.close();
