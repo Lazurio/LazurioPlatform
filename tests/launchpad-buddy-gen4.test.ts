@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buddyChat } from "../src/buddy/chat";
+import { namesConfirmed } from "../src/buddy/names-confirmed";
 import { writePersona } from "../src/buddy/persona";
 import { buddyPersona } from "../src/buddy/persona-apply";
 import { buddyFolderOwed } from "../src/buddy/persona-folder";
@@ -27,11 +28,13 @@ import {
   createBuddyRoutes,
 } from "../src/launchpad/buddy-routes";
 import {
+  buddyFact,
   buddyOwnSignIn,
   parseBuddyReading,
   saveLine,
 } from "../src/launchpad/buddy-view";
 import { pairsBuddysOwnT3 } from "../src/launchpad/chat";
+import { startDecision } from "../src/launchpad/first-run";
 import { initializeMachineFolder } from "../src/machine/cli";
 import type { ToolRunner } from "../src/tools/status";
 import { binding, entries, withBuddy } from "./fixtures/machine-bindings";
@@ -380,10 +383,11 @@ posix(
         createPersonaSave({
           home: parent,
           folder,
-          apply: () => {
-            applies += 1;
-            return buddyPersona(environment, { folder, apply: true });
-          },
+          // Counted once done, so a later start never overlaps an apply.
+          apply: () =>
+            buddyPersona(environment, { folder, apply: true }).finally(() => {
+              applies += 1;
+            }),
           owed: () => buddyFolderOwed(folder),
           answerWithinMs: 5_000,
         });
@@ -416,15 +420,27 @@ posix(
         "failed",
       );
       expect((await first.read())?.pending).toBe(true);
+      // The confirmed names are not in place: meeting and gate stay open.
+      expect(namesConfirmed(await first.read(), true)).toBe(false);
       first.close();
-      // After a restart the Launchpad finds it owed and applies again; once
-      // the folder takes it, nothing is pending.
+      // After a restart with the folder still refused, the Launchpad finds
+      // the names owed, tries again, and keeps meeting and gate open.
+      const stillRefused = launchpad();
+      const tried = applies;
+      expect((await stillRefused.read())?.pending).toBe(true);
+      await until(async () => applies > tried);
+      expect((await stillRefused.read())?.pending).toBe(true);
+      expect(namesConfirmed(await stillRefused.read(), true)).toBe(false);
+      stillRefused.close();
+      // Once the folder takes them, the next start settles: in place, and
+      // the confirmation counts.
       await rm(join(parent, "Buddy", "CLAUDE.md"));
       const restarted = launchpad();
       const before = applies;
       expect((await restarted.read())?.pending).toBe(true);
       await until(async () => applies > before);
       await until(async () => (await restarted.read())?.pending === false);
+      expect(namesConfirmed(await restarted.read(), true)).toBe(true);
       expect(
         await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8"),
       ).toContain("Jsi Rexík, Buddy");
@@ -434,3 +450,47 @@ posix(
     }
   },
 );
+
+test("Buddy GEN4's meeting and gate stay incomplete while his confirmed names are owed to ~/Buddy", () => {
+  const persona = (confirmed: boolean, pending: boolean) => ({
+    buddyName: "Bertík",
+    address: "ty" as const,
+    user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
+    confirmed,
+    revision: "a".repeat(64),
+    pending,
+  });
+  // The rule: Buddy GEN4 counts the names once they are in place.
+  expect(namesConfirmed(persona(true, true), true)).toBe(false);
+  expect(namesConfirmed(persona(true, false), true)).toBe(true);
+  expect(namesConfirmed(persona(false, false), true)).toBe(false);
+  expect(namesConfirmed(null, true)).toBe(false);
+  // Buddy GEN3 counts the confirmation itself, as before.
+  expect(namesConfirmed(persona(true, true), false)).toBe(true);
+  // The gate: closed while owed.
+  expect(
+    buddyOpenOf(shared(true), namesConfirmed(persona(true, true), true), true),
+  ).toBe(false);
+  // The page's fact and Začínáme: the meeting is still asked for.
+  const reading = (pending: boolean) =>
+    parseBuddyReading({
+      kind: "buddy",
+      state: "works",
+      signIn: { state: "not-needed" },
+      locale: "cs",
+      persona: persona(true, pending),
+    });
+  const tour = (pending: boolean) => ({
+    preset: "hosted-personal",
+    ai: "missing" as const,
+    github: "missing" as const,
+    content: { state: "missing" } as never,
+    buddy: buddyFact(reading(pending)),
+  });
+  expect(buddyFact(reading(true))).toEqual({
+    signIn: "not-needed",
+    confirmed: false,
+  });
+  expect(startDecision("meet-buddy", tour(true))).toBe("meet-buddy");
+  expect(startDecision("meet-buddy", tour(false))).toBe("drop");
+});

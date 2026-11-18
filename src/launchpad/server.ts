@@ -23,6 +23,7 @@ import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createFirstMeeting } from "../buddy/first-meeting";
 import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { namesConfirmed } from "../buddy/names-confirmed";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { buddyFolderOwed } from "../buddy/persona-folder";
@@ -1761,9 +1762,13 @@ export async function startLaunchpad(
           ]).then(([facts, persona, t3]) => ({
             fact: {
               signIn: buddyStatus(facts).signIn.state,
-              confirmed: persona?.confirmed === true,
+              confirmed: namesConfirmed(persona, buddyFolderPersona),
             },
-            open: buddyOpenOf(facts, persona?.confirmed === true, t3),
+            open: buddyOpenOf(
+              facts,
+              namesConfirmed(persona, buddyFolderPersona),
+              t3,
+            ),
           })),
     ]);
     return {
@@ -2302,7 +2307,7 @@ export async function startLaunchpad(
           buddyT3Active(buddyService, entry),
         ])
           .then(([facts, persona, t3]) =>
-            buddyOpenOf(facts, persona?.confirmed === true, t3),
+            buddyOpenOf(facts, namesConfirmed(persona, buddyFolderPersona), t3),
           )
           .catch(() => false);
         return buddyGateAnswer(entry, open);

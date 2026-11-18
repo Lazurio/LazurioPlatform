@@ -1,3 +1,4 @@
+import { namesConfirmed } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
 import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
@@ -200,9 +201,13 @@ export function buddyFact(
       reading.signIn === "connected" && refused !== undefined
         ? "none"
         : reading.signIn,
+    // Buddy GEN4's names count once ~/Buddy holds them (names-confirmed.ts).
     confirmed:
-      reading.persona?.confirmed ??
-      (reading === unknownBuddyReading ? null : false),
+      reading.persona === null
+        ? reading === unknownBuddyReading
+          ? null
+          : false
+        : namesConfirmed(reading.persona, reading.signIn === "not-needed"),
   };
 }
 
