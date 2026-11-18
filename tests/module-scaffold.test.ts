@@ -1089,10 +1089,27 @@ describe("planModuleScaffold with data (--data)", () => {
     expect(pkg.scripts["validate:db"]).toBe(
       "bun run src/validate-data.ts ../../db/data",
     );
+    // A static stack with data gets its own server (layer `_data_server`):
+    // the built version runs `start`, the health is the server's deep one and
+    // the static fallback goes, since the server serves the build.
+    expect(pkg.scripts.start).toBe("bun --no-env-file run src/server.ts");
+    expect(pkg.scripts.dev).toBe("bun --no-env-file run src/server.ts");
+    expect(pkg.lazurio.runtime.start_script).toBe("start");
+    expect(pkg.lazurio.runtime.static_fallback).toBeUndefined();
+    expect(pkg.lazurio.runtime.listeners[0].health.path).toBe("/healthz");
+    expect(file(result, "app/v3/src/server.ts")).toContain("repositoryDbStore");
+    expect(file(result, "app/v3/src/app-server.ts")).toContain("appAccess(");
     delete pkg.dependencies["@lazurio/repository-db"];
     delete pkg.dependencies.zod;
     delete pkg.scripts["validate:data"];
     delete pkg.scripts["validate:db"];
+    delete pkg.scripts.start;
+    pkg.scripts.dev = before.scripts.dev;
+    delete pkg.lazurio.runtime.start_script;
+    pkg.lazurio.runtime.static_fallback =
+      before.lazurio.runtime.static_fallback;
+    pkg.lazurio.runtime.listeners[0].health.path =
+      before.lazurio.runtime.listeners[0].health.path;
     pkg.scripts.check = before.scripts.check;
     expect(pkg).toEqual(before);
     expect(file(result, ".gitignore")).toBe(
@@ -1121,8 +1138,14 @@ describe("planModuleScaffold with data (--data)", () => {
       "app/v3/tests/data.test.ts",
       "app/v3/tests/store-contract.test.ts",
     ];
+    // The own server of a static stack with data (layer `_data_server`).
+    const ownServer = [
+      "app/v3/src/app-server.test.ts",
+      "app/v3/src/app-server.ts",
+      "app/v3/src/server.ts",
+    ];
     expect(result.files.map((entry) => entry.path)).toEqual(
-      [...moved.map((entry) => entry.path), ...added].sort(),
+      [...moved.map((entry) => entry.path), ...added, ...ownServer].sort(),
     );
     for (const path of added)
       expect(file(result, path)).toBe(
@@ -1139,7 +1162,10 @@ describe("planModuleScaffold with data (--data)", () => {
           .replaceAll("{{listener_id}}", "app") ?? "",
       );
     const changed = result.files
-      .filter((entry) => !added.includes(entry.path))
+      .filter(
+        (entry) =>
+          !added.includes(entry.path) && !ownServer.includes(entry.path),
+      )
       .filter(
         (entry) =>
           moved.find((other) => other.path === entry.path)?.content !==
@@ -1152,6 +1178,8 @@ describe("planModuleScaffold with data (--data)", () => {
       "AGENTS.md",
       "README.md",
       "app/v3/package.json",
+      // The own server's start contract: a deep health (503 without db/) and /mcp.
+      "app/v3/tests/start.test.ts",
     ]);
     expect(result.data).toEqual({
       repository: "portal-data",

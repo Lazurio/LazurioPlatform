@@ -1,0 +1,77 @@
+/** Starts the App's one server process: the data, the tools for agents and
+ * the interface (Lazurio Module Standard, "One process"). The built version
+ * (`start`, NODE_ENV=production) serves the build it is handed. The
+ * development run (`dev`) builds the interface with Vite in watch mode inside
+ * this process and serves that build the same way: no second port and no
+ * hot-reload socket, so every request, the page and its files included, goes
+ * through the same Host, Origin and role checks. Reload the page after a
+ * change. */
+import { join, resolve } from "node:path";
+import {
+  allowedHosts,
+  type Listener,
+  listener,
+  ModuleKitError,
+  onShutdown,
+} from "@lazurio/module-kit";
+import { agentTools } from "./agent-tools.ts";
+import { allowedOrigins, createHandler, staticFiles } from "./app-server.ts";
+import { repositoryDbStore } from "./data/repository-db-store.ts";
+import type { Store } from "./data/store.ts";
+
+const LISTENER = "{{listener_id}}";
+
+let app: Listener;
+try {
+  app = listener(LISTENER);
+} catch (error) {
+  if (!(error instanceof ModuleKitError)) throw error;
+  console.error(`Start through Lazurio lifecycle: ${error.message}`);
+  process.exit(2);
+}
+
+/** The Module root (`{{app_directory}}/src` → three levels up); its `db/` is the data checkout. */
+const moduleRoot = resolve(import.meta.dir, "..", "..", "..");
+let store: Store | null = null;
+try {
+  store = repositoryDbStore({ mountRoot: join(moduleRoot, "db") });
+} catch (error) {
+  console.error(`The data are not open yet: ${error instanceof Error ? error.message : error}`);
+}
+
+// Lazurio hands the built interface as LAZURIO_RUNTIME_BUILD_OUTPUT.
+const output = process.env.LAZURIO_RUNTIME_BUILD_OUTPUT ?? resolve(import.meta.dir, "..", "dist");
+const production = process.env.NODE_ENV === "production";
+const hosts = new Set(allowedHosts(LISTENER));
+// The development run rebuilds the interface on every change, in this process.
+let watcher: { close(): Promise<void> } | null = null;
+if (!production) {
+  const { build } = await import("vite");
+  const result = await build({
+    root: resolve(import.meta.dir, ".."),
+    logLevel: "warn",
+    build: { outDir: output, emptyOutDir: true, watch: {} },
+  });
+  watcher = "close" in result ? result : null;
+}
+const files = staticFiles(output, {{static_spa}});
+const server = Bun.serve({
+  hostname: app.host,
+  port: app.port,
+  idleTimeout: 0,
+  fetch: createHandler({
+    listener: LISTENER,
+    hosts,
+    origins: allowedOrigins(hosts, app.port, app.externalOrigin),
+    dataOpen: () => store !== null,
+    tools: agentTools(),
+    serveClient: (request) => files(new URL(request.url).pathname),
+  }),
+});
+console.log(`{{display_name}} serves ${server.url.href}`);
+
+// SIGTERM from Lazurio: close every connection and exit 0 (standard 4.4).
+onShutdown(async () => {
+  await server.stop(true);
+  await watcher?.close();
+});

@@ -1,0 +1,81 @@
+import { expect, test } from "bun:test";
+import { gatewayRequest, hostedEnvironment, TEST_ORIGIN } from "@lazurio/module-kit/tools/testing";
+import { agentTools } from "./agent-tools.ts";
+import { createHandler, type ServerParts } from "./app-server.ts";
+
+const env = hostedEnvironment({ listener: "{{listener_id}}", writer: true });
+
+/** The server's answer to one request. */
+function server(overrides: Partial<ServerParts> = {}) {
+  const handle = createHandler({
+    listener: "{{listener_id}}",
+    hosts: new Set([new URL(TEST_ORIGIN).hostname, "127.0.0.1"]),
+    origins: new Set([TEST_ORIGIN, "http://127.0.0.1:43100"]),
+    dataOpen: () => true,
+    tools: agentTools(env),
+    serveClient: null,
+    env,
+    ...overrides,
+  });
+  return handle;
+}
+
+test("the health is deep: 503 until the data are open, then 200", async () => {
+  expect((await server({ dataOpen: () => false })(gatewayRequest("/healthz"))).status).toBe(503);
+  expect((await server()(gatewayRequest("/healthz"))).status).toBe(200);
+});
+
+test("who came: no application role gets nothing", async () => {
+  const response = await server()(gatewayRequest("/api/session", { caller: { role: "none" } }));
+  expect(response.status).toBe(403);
+});
+
+test("who came: an Application User is named, and the writer rule says whether they may write", async () => {
+  const response = await server()(gatewayRequest("/api/session", { caller: { role: "user" } }));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ role: "user", entry: "app", mayWrite: true });
+});
+
+test("on an Application host with the writer off, nobody may write", async () => {
+  const off = hostedEnvironment({ listener: "{{listener_id}}", writer: false });
+  const response = await server({ tools: agentTools(off), env: off })(
+    gatewayRequest("/api/session", { caller: { role: "admin" } }),
+  );
+  expect((await response.json()).mayWrite).toBe(false);
+});
+
+test("the tools for agents answer at /mcp, a foreign Host is refused", async () => {
+  const mcp = await server()(
+    gatewayRequest("/mcp", {
+      caller: { role: "user" },
+      body: { jsonrpc: "2.0", id: 1, method: "tools/list", params: {} },
+    }),
+  );
+  expect(mcp.status).toBe(200);
+  const foreign = await server()(new Request("https://foreign.invalid/healthz"));
+  expect(foreign.status).toBe(403);
+});
+
+test("the page and its files need an application role", async () => {
+  const serve = server({ serveClient: async () => new Response("page") });
+  expect((await serve(gatewayRequest("/", { caller: { role: "none" } }))).status).toBe(403);
+  expect((await serve(gatewayRequest("/assets/app.js", { caller: { role: "none" } }))).status).toBe(
+    403,
+  );
+  expect((await serve(gatewayRequest("/", { caller: { role: "user" } }))).status).toBe(200);
+});
+
+test("a page elsewhere is refused, the App's own origin is not", async () => {
+  const serve = server({ serveClient: async () => new Response("page") });
+  const as = (origin: string) =>
+    gatewayRequest("/", { caller: { role: "user" }, headers: { origin } });
+  expect((await serve(as("https://attacker.invalid"))).status).toBe(403);
+  expect((await serve(as("http://127.0.0.1:12345"))).status).toBe(403);
+  expect((await serve(as("null"))).status).toBe(403);
+  expect((await serve(as(TEST_ORIGIN))).status).toBe(200);
+  const session = gatewayRequest("/api/session", {
+    caller: { role: "user" },
+    headers: { origin: "https://attacker.invalid" },
+  });
+  expect((await serve(session)).status).toBe(403);
+});

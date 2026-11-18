@@ -169,6 +169,18 @@ export const personalLayer = "_personal";
  * (`validate:data`) and its test, and the empty `seed/`. */
 export const dataLayer = "_data";
 
+/** The layer a module with data gets over a stack whose app is otherwise a
+ * static build: its own server, so the data, the tools for agents and the
+ * built interface run in one process (profile `app-data`; Module Standard,
+ * Applications of an Organization). Only `vite-react` for now: an Astro
+ * stack's development run is `astro dev`, which cannot hold the data in the
+ * same process; until that is solved its readiness says
+ * `data-without-server`. */
+export const dataServerLayer = "_data_server";
+
+/** Static stacks that get their own server with data. */
+const staticBuildStacks: readonly string[] = ["vite-react"];
+
 /** Every template layer directory under `src/modules/templates/`. */
 export const moduleScaffoldLayers: readonly string[] = Object.freeze([
   ...new Set([
@@ -176,6 +188,7 @@ export const moduleScaffoldLayers: readonly string[] = Object.freeze([
       (stack): readonly string[] => stack.layers,
     ),
     dataLayer,
+    dataServerLayer,
     personalLayer,
   ]),
 ]);
@@ -479,6 +492,9 @@ export function planModuleScaffold(
     port: lease ? String(lease.port) : "",
     bun_version: pinned.bun,
     module_kit_version: pinned.moduleKit,
+    // The own server of a static stack with data answers client routes with
+    // index.html only for a single-page app.
+    static_spa: stack === "vite-react" ? "true" : "false",
     uv_version: pinned.uv,
     stack_profile: profile ?? "",
     stack_profile_release: stackProfilesRelease,
@@ -498,6 +514,7 @@ export function planModuleScaffold(
   const layers = [
     ...spec.layers,
     ...(data ? [dataLayer] : []),
+    ...(data && staticBuildStacks.includes(stack) ? [dataServerLayer] : []),
     ...(personal ? [personalLayer] : []),
   ];
   for (const layer of layers) {
@@ -533,7 +550,14 @@ export function planModuleScaffold(
     content: `${JSON.stringify(moduleManifest(owner.name, slug, lease, appPackage), null, 2)}\n`,
   });
   const engine = `github:Lazurio/repository-db#v${pinned.repositoryDb ?? defaultScaffoldVersions.repositoryDb}`;
-  if (data) withData(files, slug, engine, appDirectory);
+  if (data)
+    withData(
+      files,
+      slug,
+      engine,
+      appDirectory,
+      staticBuildStacks.includes(stack),
+    );
   const sorted = [...files.values()].sort((left, right) =>
     left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
@@ -619,6 +643,7 @@ function withData(
   slug: string,
   engine: string,
   appDirectory: string,
+  ownServer: boolean,
 ) {
   const appPackage = `${appDirectory}/package.json`;
   const app = files.get(appPackage);
@@ -630,6 +655,13 @@ function withData(
   const pkg = JSON.parse(app.content) as {
     scripts?: Record<string, string>;
     dependencies?: Record<string, string>;
+    lazurio?: {
+      runtime?: {
+        start_script?: string;
+        static_fallback?: string;
+        listeners?: { health?: { kind: string; path?: string } }[];
+      };
+    };
   };
   const scripts = pkg.scripts ?? {};
   if (scripts.check === undefined)
@@ -639,8 +671,25 @@ function withData(
     );
   // The records this repository carries are checked in CI; db/ is a
   // repository of its own that CI does not check out.
+  // A static stack with data gets its own server (layer `_data_server`): the
+  // built version runs `start`, which serves the build it is handed, and the
+  // health is the server's deep one.
+  const runtime = pkg.lazurio?.runtime;
+  if (ownServer && runtime) {
+    runtime.start_script = "start";
+    delete runtime.static_fallback;
+    for (const listener of runtime.listeners ?? [])
+      if (listener.health?.kind === "http") listener.health.path = "/healthz";
+  }
   pkg.scripts = {
     ...scripts,
+    // The development run is the same server, bundling the interface itself.
+    ...(ownServer
+      ? {
+          dev: "bun --no-env-file run src/server.ts",
+          start: "bun --no-env-file run src/server.ts",
+        }
+      : {}),
     check: `${scripts.check} && bun run validate:data`,
     "validate:data": "bun run src/validate-data.ts seed",
     "validate:db": "bun run src/validate-data.ts ../../db/data",
