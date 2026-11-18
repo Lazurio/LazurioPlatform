@@ -638,6 +638,15 @@ const buddySection: readonly Text[] = [
   },
 ];
 
+// Buddy GEN4 on a converted person's Osobní Prostředí (plan LZD-0033, R2;
+// the binding's `buddyFolder`, Machines#1398): where Buddy lives and that
+// Lazurio keeps his folder. Agents still never communicate with Buddy; he
+// reads and watches the threads himself with T3 Code's tools.
+const buddyGen4Line: Text = {
+  cs: "- V tomto Prostředí je Buddy vlákno projektu Buddy ve společném T3 Code se složkou `~/Buddy`. Její `AGENTS.md` a skilly zapisuje Lazurio: needituj je a ve `~/Buddy` nepracuj, pokud tě o to uživatel výslovně nepožádá. Vlákna tohoto Prostředí a propojených Pracovních Prostředí Buddy čte a hlídá sám nástroji T3 Code.",
+  en: "- In this Environment Buddy is a thread of the Buddy project in the shared T3 Code, with the folder `~/Buddy`. Lazurio writes its `AGENTS.md` and skills: never edit them and do not work in `~/Buddy` unless the user explicitly asks you to. Buddy reads and watches the threads of this Environment and of the linked Work Environments himself, with T3 Code's tools.",
+};
+
 // Who works in a public Environment (root decision 0204 point 3): whoever is
 // connected now, any Lazurio account its gateway admits.
 const publicOperator: Text = {
@@ -1594,6 +1603,7 @@ export function renderInstructions(input: unknown): string {
     ...botTeamSection(preset, machine, pick),
     ...visitorsSection(machine, profile.locale),
     ...buddySection.map(pick),
+    ...(machine?.entry?.buddyFolder === undefined ? [] : [pick(buddyGen4Line)]),
     pick({ cs: "## Jak se tu pracuje", en: "## How work is done here" }),
     pick({
       cs: "- Komunikuj česky, pokud uživatel nepožádá jinak.",

@@ -79,6 +79,9 @@ export interface ServiceControl {
   restartLaunchpad(): Promise<void>;
   /** Version the running Launchpad reports, or null while it reports none. */
   launchpadVersion(): Promise<string | null>;
+  /** The digest of the entry the running Launchpad started with; null while
+   * it answers none, undefined where it does not report one (older). */
+  launchpadEntry?(): Promise<string | null | undefined>;
 }
 
 /** The variables a user-session service manager client needs, and no others. */
@@ -261,6 +264,25 @@ export async function launchpadHealth(base: string): Promise<string | null> {
   }
 }
 
+/** The entry digest the running Launchpad reports beside its version;
+ * undefined where it reports none (an older release), null where it does not
+ * answer. */
+export async function launchpadHealthEntry(
+  base: string,
+): Promise<string | null | undefined> {
+  try {
+    const response = await fetch("http://launchpad/health", {
+      unix: layout(base).healthSocket,
+      signal: AbortSignal.timeout(2_000),
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as { entry?: unknown };
+    return typeof body.entry === "string" ? body.entry : undefined;
+  } catch {
+    return null;
+  }
+}
+
 /** The Folder is written into the unit's ignored `[X-Lazurio]` section by
  * `lazurio install`, so the unit stays the one place it lives.
  */
@@ -343,6 +365,7 @@ export async function detectServiceControl(input: {
         throw new Error("Service restart failed");
     },
     launchpadVersion: () => launchpadHealth(input.base),
+    launchpadEntry: () => launchpadHealthEntry(input.base),
   });
 }
 

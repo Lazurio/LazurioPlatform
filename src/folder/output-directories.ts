@@ -1,4 +1,4 @@
-import { constants } from "node:fs";
+import { constants, type Stats } from "node:fs";
 import { lstat, mkdir, open } from "node:fs/promises";
 import { join } from "node:path";
 import { type FolderFilePath, outputDirectories } from "./outputs";
@@ -36,13 +36,40 @@ export async function ensureOutputDirectories(
       await syncDirectory(parent);
       stat = await lstat(directory);
     }
-    if (
-      stat.isSymbolicLink() ||
-      checkoutDirectoryRefusal(stat, uid) !== null ||
-      stat.dev !== root.dev
-    )
+    if (directoryRefused(stat, uid, root.dev))
       throw new Error(`Unsafe output directory: ${relative}`);
     parent = directory;
+  }
+}
+
+// The one rule for an existing directory on an output's way: a real
+// directory (never a symlink) of this account on the Folder's filesystem.
+const directoryRefused = (stat: Stats, uid: number, dev: number) =>
+  stat.isSymbolicLink() ||
+  checkoutDirectoryRefusal(stat, uid) !== null ||
+  stat.dev !== dev;
+
+/** What `ensureOutputDirectories` would refuse, checked without creating
+ * anything: every existing directory on the output's way by the same rule
+ * (an absent one is fine; it would be created). `uid`: this process's, or
+ * another uid in a test that stands for a directory of another account. */
+export async function checkOutputDirectories(
+  folder: string,
+  path: FolderFilePath,
+  uid: number | undefined = process.getuid?.(),
+) {
+  if (uid === undefined) throw new Error("Directory owner unavailable");
+  const root = await lstat(folder);
+  for (const relative of outputDirectories(path)) {
+    const stat = await lstat(join(folder, relative)).catch(
+      (error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return null;
+        throw error;
+      },
+    );
+    if (stat === null) return;
+    if (directoryRefused(stat, uid, root.dev))
+      throw new Error(`Unsafe output directory: ${relative}`);
   }
 }
 

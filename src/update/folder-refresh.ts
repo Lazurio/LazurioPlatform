@@ -1,5 +1,6 @@
 import { neededRefresh } from "../folder/refresh-needed";
 import { shownAsItself } from "../folder/visible-text";
+import { restartOwedFor } from "../machine/launchpad-entry";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -97,6 +98,26 @@ function outcomeOf(result: ProcessResult | null): FolderRefreshOutcome {
   } catch {
     return failedRefresh(result.exitCode === 0 ? "output" : "internal");
   }
+  // Buddy GEN4's folder that a refresh could not write after its change
+  // (plan LZD-0033 R2): the change stands, but the outcome is a failure an
+  // agent acts on, with its reason; the next `lazurio machine folder-refresh`
+  // writes the folder again.
+  const buddy = answer.buddyFolder as { state?: unknown; reason?: unknown };
+  if (
+    result.exitCode === 0 &&
+    typeof buddy === "object" &&
+    buddy !== null &&
+    buddy.state === "failed"
+  )
+    return failedRefresh(
+      typeof buddy.reason === "string" && code.test(buddy.reason)
+        ? buddy.reason
+        : "buddy-folder-failed",
+    );
+  // A restart of the Launchpad that failed after the refresh recorded its
+  // entry: the refresh kept it as owed, and the next update retries it.
+  if (result.exitCode === 0 && answer.launchpad === "restart-failed")
+    return failedRefresh("launchpad-restart-failed");
   if (
     result.exitCode === 0 &&
     (answer.kind === "refreshed" || answer.kind === "updated")
@@ -139,7 +160,17 @@ export async function refreshFolderWhenBehind(
   let refused: FolderRefreshOutcome | null = null;
   for (let attempt = 1; attempt <= retry.attempts; attempt += 1) {
     if (attempt > 1) await Bun.sleep(retry.delayMs);
-    const needed = await neededRefresh(input.folder, input.product, operator);
+    // A current Folder still runs the operator's refresh while a restart of
+    // its Launchpad is owed (layout launchpadRestartOwed).
+    const needed =
+      (await neededRefresh(input.folder, input.product, operator)) ??
+      (operator === input.folder &&
+      (await restartOwedFor(
+        layout(input.base).launchpadRestartOwed,
+        input.folder,
+      ))
+        ? { command: ["machine", "folder-refresh"] as const }
+        : null);
     if (needed === null)
       return refused === null
         ? null

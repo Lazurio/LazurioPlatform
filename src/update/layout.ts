@@ -37,6 +37,10 @@ export const layout = (base: string) =>
     scratch: join(base, "update", "scratch"),
     /** Where the supervised Launchpad answers its health question. */
     healthSocket: join(base, "update", "launchpad.sock"),
+    /** A restart of the supervised Launchpad a refresh still owes: the
+     * Folder whose recorded entry it has not taken yet (machine
+     * launchpad-entry.ts). */
+    launchpadRestartOwed: join(base, "update", "launchpad-restart-owed.json"),
     sigstore: join(base, "sigstore"),
   });
 
