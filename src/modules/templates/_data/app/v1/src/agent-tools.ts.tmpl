@@ -1,0 +1,22 @@
+/** The service's tools for agents (Lazurio Module Standard, "Tools for agents
+ * (MCP and WebMCP)"): defined once here and offered through `/mcp`. A tool
+ * calls the service's own operations, never its data directly, and never
+ * offers more than the same application role may do. `get_app_context` comes
+ * with the registry; add the service's actions with `defineTool`. */
+import { createToolRegistry } from "@lazurio/module-kit/tools";
+import pkg from "../package.json" with { type: "json" };
+
+export const MCP_PATH = "/mcp";
+
+export function agentTools(env: Readonly<Record<string, string | undefined>> = process.env) {
+  return createToolRegistry({
+    app: {
+      module: "{{slug}}",
+      version: pkg.version,
+      dataGeneration: "{{app_generation}}",
+    },
+    tools: [],
+    listener: "{{listener_id}}",
+    env,
+  });
+}

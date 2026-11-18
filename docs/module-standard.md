@@ -903,13 +903,19 @@ transports over the same handler (Matěj 2026-11-05 and 2026-11-17, amendments
 of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 
 **Status.** The registry, both transports and the test helpers are in
-`@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` (Lazurio/module-kit#6,
-not yet released; the stack profiles move the pin with the profile release that
-adopts it). The Application host's gateway admits `/mcp` today (Machines
+`@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
+v0.4.0, which the stack profiles pin from release 2026.12. The Application host's gateway admits `/mcp` today (Machines
 v0.12.244 and later states the scope, below). Lazurio does not yet offer an
 Organization's App MCP server in Integrations by itself; until it does, the
-person adds it under Integrations → Custom. `lazurio module create` writes no
-tools yet.
+person adds it under Integrations → Custom. `lazurio module create` gives a
+`bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
+`get_app_context` and a test), and every Module with data (`--data`) the
+single-record part of the data port (`src/data/store.ts`: get, list and save
+with a revision unique per write, over repository-db, with
+`tests/store-contract.test.ts`) and the same registry; a record's history and
+a change of several records in one write the Module adds with their contract
+cases when it needs them; a `vite-react` or
+`astro` App with data routes them once it has a server of its own.
 
 ### Which Apps and which tools
 
@@ -1197,16 +1203,20 @@ The port holds, in both generations:
   (Dolt), a direct writer included. The port compares that value and the
   content, so a direct change that kept the old value is still a change. The revision does not survive the move
   to `app/v4`: after the move a client reads the record again.
-- **Atomic writes.** Several records change in one commit (repository-db) or
-  one transaction with one `DOLT_COMMIT` (Dolt).
+- **Atomic writes, where offered.** A port that changes several records in one
+  write (a capability it offers once its tools or interface need it) changes
+  them in one commit (repository-db) or one transaction with one `DOLT_COMMIT`
+  (Dolt), never some of them.
 - **Author and channel.** A change records the person's `subject` as its author
   (`<subject> <<subject>@subject.lazurio.invalid>`) and trailers
   `Lazurio-Subject` and `Lazurio-Channel` (`ui`, `mcp`, `webmcp`, `import`), in
   the Git commit or with `DOLT_COMMIT --author`. It is the App's statement, not
   a proof: the data layer proves only that the App wrote
   ([0196](decision-register.md#0196--module-data-the-environments-ceiling-narrowing-in-the-app-and-a-verified-identity-that-is-not-a-key), point 5).
-- **History** of a record (who, when, what) in the same shape from Git and from
-  Dolt's history tables.
+- **History, where offered.** A port that offers the history of a record (who,
+  when, what) gives it in the same shape from Git and from Dolt's history
+  tables. Over repository-db this needs an engine API, which does not exist
+  yet; the App never reads Git itself.
 - **Lists by an opaque cursor**, which each implementation encodes its own way.
 - **The read-only mode in the port.** When `dataWriter` (above) says the App
   may not write, the port answers `data_read_only` itself, before any error of
@@ -1227,8 +1237,9 @@ The port holds, in both generations:
 `store-contract` runs against both implementations in CI, `app/v4` against a
 `dolt sql-server` of the pinned version, and covers: the stale revision, a
 stale write after A → B → A, a direct change that kept the old revision, two
-concurrent writes of the same record with the same content, two concurrent
-writes breaking a rule across records, the read-only mode, history and paging.
+concurrent writes of the same record with the same content, the read-only mode
+and paging, and, for a port that offers them, history and a change of several
+records, including two concurrent writes breaking a rule across records.
 Repository-db's single writer or a Git conflict keeps the concurrent cases in
 `app/v3`; in `app/v4` only the unique revision does.
 

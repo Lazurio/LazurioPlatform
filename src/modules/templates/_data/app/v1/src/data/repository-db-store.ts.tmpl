@@ -1,0 +1,192 @@
+// The data port over repository-db (app/v3): one document <id>.yaml per record
+// in db/data/<collection>/. Every write stores a new random `revision` and the
+// audit bundle (`updatedAt`, `updatedBy*`) in the record; the revision the port
+// hands out combines that value with a fingerprint of the content, so a stale
+// save after A -> B -> A, or after a direct change that kept the old value, is
+// refused. The domain schema validates the record without these fields.
+import { createHash, randomUUID } from "node:crypto";
+import { join, relative } from "node:path";
+import {
+  documentFileName,
+  parseYaml,
+  RepositoryDb,
+  RepositoryDbError,
+  readDataFile,
+  recordRevisionFromBytes,
+} from "@lazurio/repository-db";
+import { type CollectionSpec, collections } from "../domain/collections";
+import {
+  domainPart,
+  type Page,
+  type Revision,
+  type Saved,
+  type Store,
+  type StoredRecord,
+  type StoreRefusal,
+  type WriteContext,
+} from "./store";
+
+function canonical(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonical);
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+        .map(([key, entry]) => [key, canonical(entry)]),
+    );
+  return value;
+}
+
+/** The revision of a stored record: its write token and its content. */
+export function revisionOf(record: unknown): Revision {
+  const token =
+    record !== null &&
+    typeof record === "object" &&
+    typeof (record as { revision?: unknown }).revision === "string"
+      ? (record as { revision: string }).revision
+      : "none";
+  const fingerprint = createHash("sha256")
+    .update(JSON.stringify(canonical(domainPart(record))))
+    .digest("hex")
+    .slice(0, 16);
+  return `rev:${token}:${fingerprint}`;
+}
+
+/** A total order of ids, used for sorting and for the cursor alike: the order
+ * of repository-db's `listIds()`, then code points for ids it ranks equal
+ * (`"é"` and `"e\u0301"` are two ids). */
+const order = (left: string, right: string) =>
+  left.localeCompare(right, "en") || (left < right ? -1 : left > right ? 1 : 0);
+const encodeCursor = (id: string) => Buffer.from(id, "utf8").toString("base64url");
+const decodeCursor = (cursor: string) => Buffer.from(cursor, "base64url").toString("utf8");
+
+export function repositoryDbStore(options: {
+  /** The data checkout, the Module's db/. */
+  mountRoot: string;
+  specs?: Readonly<Record<string, CollectionSpec>>;
+  /** For tests only: runs between the check of the base revision and the
+   * write, where a second writer could change the record. */
+  beforeWrite?: (collection: string, id: string) => void;
+}): Store {
+  const specs = options.specs ?? collections;
+  const db = RepositoryDb.open(options.mountRoot);
+  const open = (name: string) => {
+    const spec = specs[name];
+    return spec === undefined
+      ? undefined
+      : db.collection<Record<string, unknown>>(name, { schemaVersion: spec.schemaVersion });
+  };
+  const unknownCollection: StoreRefusal = {
+    ok: false,
+    reason: "invalid_input",
+    message: "No such collection.",
+  };
+
+  /** One read of a document: its record and the file revision of the same
+   * bytes, so the write is bound to exactly the version that was checked. */
+  const snapshot = (
+    directory: string,
+    id: string,
+    spec: CollectionSpec,
+  ):
+    | { ok: true; fileRevision: string | null; record: unknown }
+    | { ok: false; message: string } => {
+    const path = relative(options.mountRoot, join(directory, documentFileName(id)));
+    const text = readDataFile(options.mountRoot, path);
+    if (text === null) return { ok: true, fileRevision: null, record: undefined };
+    let envelope: unknown;
+    try {
+      envelope = parseYaml(text);
+    } catch {
+      return { ok: false, message: `${path} is not YAML.` };
+    }
+    // The same envelope checks as repository-db's get: a document that is not
+    // this collection's record is refused, never overwritten.
+    if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope))
+      return { ok: false, message: `${path} is not a mapping.` };
+    const { schemaVersion, id: storedId, record } = envelope as Record<string, unknown>;
+    if (schemaVersion !== spec.schemaVersion)
+      return { ok: false, message: `${path} has schemaVersion ${JSON.stringify(schemaVersion)}.` };
+    if (storedId !== id)
+      return { ok: false, message: `${path} names the id ${JSON.stringify(storedId)}.` };
+    if (record === undefined) return { ok: false, message: `${path} has no record.` };
+    return { ok: true, fileRevision: recordRevisionFromBytes(Buffer.from(text, "utf8")), record };
+  };
+
+  return {
+    list(name, page = {}): Page | StoreRefusal {
+      const collection = open(name);
+      if (collection === undefined) return unknownCollection;
+      const limit = Math.min(Math.max(page.limit ?? 50, 1), 200);
+      const after = page.cursor ? decodeCursor(page.cursor) : null;
+      const ids = collection
+        .listIds()
+        .sort(order)
+        .filter((id) => after === null || order(id, after) > 0);
+      const spec = specs[name] as CollectionSpec;
+      const items: StoredRecord[] = [];
+      for (const id of ids.slice(0, limit)) {
+        const current = snapshot(collection.directoryPath, id, spec);
+        if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
+        if (current.record !== undefined)
+          items.push({ id, record: current.record, revision: revisionOf(current.record) });
+      }
+      const last = items.at(-1);
+      return {
+        items,
+        next_cursor: ids.length > limit && last !== undefined ? encodeCursor(last.id) : null,
+      };
+    },
+
+    get(name, id): StoredRecord | StoreRefusal {
+      const collection = open(name);
+      if (collection === undefined) return unknownCollection;
+      const spec = specs[name] as CollectionSpec;
+      const current = snapshot(collection.directoryPath, id, spec);
+      if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
+      if (current.record === undefined) return { ok: false, reason: "not_found" };
+      return { id, record: current.record, revision: revisionOf(current.record) };
+    },
+
+    save(name, id, record, baseRevision, context: WriteContext): Saved | StoreRefusal {
+      if (!context.canWrite) return { ok: false, reason: "data_read_only" };
+      const spec = specs[name];
+      const collection = open(name);
+      if (spec === undefined || collection === undefined) return unknownCollection;
+      const parsed = spec.record.safeParse(domainPart(record));
+      if (!parsed.success)
+        return { ok: false, reason: "invalid_input", message: parsed.error.message };
+      if (parsed.data === null || typeof parsed.data !== "object" || Array.isArray(parsed.data))
+        return { ok: false, reason: "invalid_input", message: "A record is an object." };
+      const current = snapshot(collection.directoryPath, id, spec);
+      if (!current.ok) return { ok: false, reason: "invalid_document", message: current.message };
+      const currentRevision = current.record === undefined ? null : revisionOf(current.record);
+      if (currentRevision !== baseRevision)
+        return { ok: false, reason: "record_changed", current_revision: currentRevision };
+      const next: Record<string, unknown> = {
+        ...(parsed.data as Record<string, unknown>),
+        revision: randomUUID(),
+        updatedAt: new Date().toISOString(),
+        updatedBySubject: context.subject ?? "local",
+        updatedByChannel: context.channel,
+      };
+      options.beforeWrite?.(name, id);
+      try {
+        // repository-db refuses the write when the file is no longer the
+        // version this save checked (the same bytes as `current`).
+        collection.put(id, next, {}, { baseRevision: current.fileRevision });
+      } catch (error) {
+        if (error instanceof RepositoryDbError && error.code === "record_changed") {
+          const now = snapshot(collection.directoryPath, id, spec);
+          return {
+            ok: false,
+            reason: "record_changed",
+            current_revision: now.ok && now.record !== undefined ? revisionOf(now.record) : null,
+          };
+        }
+        throw error;
+      }
+      return { ok: true, revision: revisionOf(next) };
+    },
+  };
+}

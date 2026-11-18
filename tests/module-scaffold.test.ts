@@ -130,7 +130,9 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // in `check` and names its profile in its README, and Bun is 1.4.4, so only
 // `none` keeps the root's hash; before it they were ddb885f1… (vite-react),
 // ed2e5210… (astro), 43278ddd… (astro-starlight), ac73b3f7… (bun-service)
-// and 4d7a1b23… (python-uv).
+// and 4d7a1b23… (python-uv). Since the tools for agents (Module Standard,
+// MS-16) a bun-service answers /mcp with its tool registry
+// (`src/agent-tools.ts` and its test); before it bun-service was 7b725564….
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
     "sha256:30ea162d4cd37d27859233381e609b32c6ef2ce990804dc20443ba4b24f454fd",
@@ -139,7 +141,7 @@ const rootTreeHashes: Readonly<Record<string, string>> = {
   "astro-starlight":
     "sha256:3af8198097e5c47d06efb00e273a84dcac51f2828d56e9280bdf576111f63477",
   "bun-service":
-    "sha256:7b725564df0a90015e653202f3c01e39b47bb2a1159e159a6cc983b82672356f",
+    "sha256:3b836cc9fe1910c9efea0ac3b3496863f0d1eebeffdb908344f32f41082d4c83",
   "python-uv":
     "sha256:805de1ea8f81075234ca74c67825e326fe63f79edbac510b0a7c7029ced9d956",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
@@ -1100,31 +1102,41 @@ describe("planModuleScaffold with data (--data)", () => {
     expect(file(result, "AGENTS.md")).toContain("`portal-data`");
     expect(file(result, "AGENTS.md")).toContain("bun run validate:db");
     // Beside the generation, the layer _data adds the schemas of the
-    // collections, the validation of the data and its test, and seed/; of the
-    // other files only those four differ: the README names the profile
-    // app-data.
+    // collections, the validation of the data and its test, seed/, the data
+    // port with its repository-db implementation and contract test, and the
+    // registry of tools for agents with its test; of the other files only
+    // those four differ: the README names the profile app-data.
     const moved = without.files.map((entry) => ({
       path: atGeneration(entry.path),
       content: atGeneration(entry.content),
     }));
     const added = [
       "app/v3/seed/.gitkeep",
+      "app/v3/src/agent-tools.test.ts",
+      "app/v3/src/agent-tools.ts",
+      "app/v3/src/data/repository-db-store.ts",
+      "app/v3/src/data/store.ts",
       "app/v3/src/domain/collections.ts",
       "app/v3/src/validate-data.ts",
       "app/v3/tests/data.test.ts",
+      "app/v3/tests/store-contract.test.ts",
     ];
     expect(result.files.map((entry) => entry.path)).toEqual(
       [...moved.map((entry) => entry.path), ...added].sort(),
     );
     for (const path of added)
       expect(file(result, path)).toBe(
-        moduleTemplates.layers._data?.find(
-          (entry) =>
-            `app/v3/${entry.path
-              .slice("app/v1/".length)
-              .replace("dot-", ".")
-              .replace(/\.tmpl$/, "")}` === path,
-        )?.content ?? "",
+        moduleTemplates.layers._data
+          ?.find(
+            (entry) =>
+              `app/v3/${entry.path
+                .slice("app/v1/".length)
+                .replace("dot-", ".")
+                .replace(/\.tmpl$/, "")}` === path,
+          )
+          ?.content.replaceAll("{{slug}}", "portal")
+          .replaceAll("{{app_generation}}", "v3")
+          .replaceAll("{{listener_id}}", "app") ?? "",
       );
     const changed = result.files
       .filter((entry) => !added.includes(entry.path))

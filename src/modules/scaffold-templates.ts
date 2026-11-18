@@ -20,6 +20,18 @@ import commonDotGitignore from "./templates/_common/dot-gitignore.tmpl" with {
 import dataAppV1SeedDotGitkeep from "./templates/_data/app/v1/seed/dot-gitkeep.tmpl" with {
   type: "text",
 };
+import dataAppV1SrcAgentToolsTestTs from "./templates/_data/app/v1/src/agent-tools.test.ts.tmpl" with {
+  type: "text",
+};
+import dataAppV1SrcAgentToolsTs from "./templates/_data/app/v1/src/agent-tools.ts.tmpl" with {
+  type: "text",
+};
+import dataAppV1SrcDataRepositoryDbStoreTs from "./templates/_data/app/v1/src/data/repository-db-store.ts.tmpl" with {
+  type: "text",
+};
+import dataAppV1SrcDataStoreTs from "./templates/_data/app/v1/src/data/store.ts.tmpl" with {
+  type: "text",
+};
 import dataAppV1SrcDomainCollectionsTs from "./templates/_data/app/v1/src/domain/collections.ts.tmpl" with {
   type: "text",
 };
@@ -27,6 +39,9 @@ import dataAppV1SrcValidateDataTs from "./templates/_data/app/v1/src/validate-da
   type: "text",
 };
 import dataAppV1TestsDataTestTs from "./templates/_data/app/v1/tests/data.test.ts.tmpl" with {
+  type: "text",
+};
+import dataAppV1TestsStoreContractTestTs from "./templates/_data/app/v1/tests/store-contract.test.ts.tmpl" with {
   type: "text",
 };
 import personalAgentsMd from "./templates/_personal/AGENTS.md.tmpl" with {
@@ -81,6 +96,12 @@ import astroStarlightReadmeMd from "./templates/astro-starlight/README.md.tmpl" 
   type: "text",
 };
 import bunServiceAppV1PackageJson from "./templates/bun-service/app/v1/package.json.tmpl" with {
+  type: "text",
+};
+import bunServiceAppV1SrcAgentToolsTestTs from "./templates/bun-service/app/v1/src/agent-tools.test.ts.tmpl" with {
+  type: "text",
+};
+import bunServiceAppV1SrcAgentToolsTs from "./templates/bun-service/app/v1/src/agent-tools.ts.tmpl" with {
   type: "text",
 };
 import bunServiceAppV1SrcAppTestTs from "./templates/bun-service/app/v1/src/app.test.ts.tmpl" with {
@@ -186,9 +207,16 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
     }),
     _data: layer({
       "app/v1/seed/dot-gitkeep.tmpl": dataAppV1SeedDotGitkeep,
+      "app/v1/src/agent-tools.test.ts.tmpl": dataAppV1SrcAgentToolsTestTs,
+      "app/v1/src/agent-tools.ts.tmpl": dataAppV1SrcAgentToolsTs,
+      "app/v1/src/data/repository-db-store.ts.tmpl":
+        dataAppV1SrcDataRepositoryDbStoreTs,
+      "app/v1/src/data/store.ts.tmpl": dataAppV1SrcDataStoreTs,
       "app/v1/src/domain/collections.ts.tmpl": dataAppV1SrcDomainCollectionsTs,
       "app/v1/src/validate-data.ts.tmpl": dataAppV1SrcValidateDataTs,
       "app/v1/tests/data.test.ts.tmpl": dataAppV1TestsDataTestTs,
+      "app/v1/tests/store-contract.test.ts.tmpl":
+        dataAppV1TestsStoreContractTestTs,
     }),
     _personal: layer({
       "AGENTS.md.tmpl": personalAgentsMd,
@@ -229,6 +257,8 @@ export const moduleTemplates: ScaffoldTemplates = Object.freeze({
     "bun-service": layer({
       "README.md.tmpl": bunServiceReadmeMd,
       "app/v1/package.json.tmpl": bunServiceAppV1PackageJson,
+      "app/v1/src/agent-tools.test.ts.tmpl": bunServiceAppV1SrcAgentToolsTestTs,
+      "app/v1/src/agent-tools.ts.tmpl": bunServiceAppV1SrcAgentToolsTs,
       "app/v1/src/app.test.ts.tmpl": bunServiceAppV1SrcAppTestTs,
       "app/v1/src/app.ts.tmpl": bunServiceAppV1SrcAppTs,
       "app/v1/src/server.ts.tmpl": bunServiceAppV1SrcServerTs,

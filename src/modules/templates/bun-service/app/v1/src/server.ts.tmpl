@@ -6,6 +6,7 @@ import {
   onShutdown,
   withHealth,
 } from "@lazurio/module-kit";
+import { agentTools, MCP_PATH } from "./agent-tools.ts";
 import { HEALTH_PATH, handle, hostAllowed } from "./app.ts";
 
 const LISTENER = "{{listener_id}}";
@@ -23,11 +24,14 @@ try {
 
 const hosts = new Set(allowedHosts(LISTENER));
 const routes = withHealth(handle, HEALTH_PATH);
+// The tools for agents answer /mcp behind the gateway (standard, Tools for agents).
+const tools = agentTools();
 const server = Bun.serve({
   hostname: app.host,
   port: app.port,
   fetch(request) {
     if (!hostAllowed(request, hosts)) return new Response("Forbidden host", { status: 403 });
+    if (new URL(request.url).pathname === MCP_PATH) return tools.handleMcp(request);
     return routes(request);
   },
 });
