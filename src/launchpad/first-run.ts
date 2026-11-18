@@ -289,7 +289,8 @@ export type AiFact = AiState | "loading";
 export type BuddyFact =
   | "loading"
   | Readonly<{
-      signIn: "connected" | "none" | "unknown";
+      /** `not-needed` for Buddy GEN4, who has no sign-in of his own. */
+      signIn: "connected" | "none" | "unknown" | "not-needed";
       /** Null where his reading failed: not known either way. */
       confirmed: boolean | null;
     }>;
@@ -381,7 +382,8 @@ export function aiHeldByBuddy(
  * is read, or while his sign-in cannot be read with the names confirmed. */
 function buddyState(fact: BuddyFact): "done" | "missing" | "unknown" {
   if (fact === "loading") return "unknown";
-  if (fact.signIn === "connected" && fact.confirmed === true) return "done";
+  const signedIn = fact.signIn === "connected" || fact.signIn === "not-needed";
+  if (signedIn && fact.confirmed === true) return "done";
   if (fact.signIn === "none" || fact.confirmed === false) return "missing";
   return "unknown";
 }
@@ -394,7 +396,9 @@ export function buddyNextOf(
   fact: BuddyFact,
 ): "sign-in" | "introduce" | undefined {
   if (fact === "loading" || fact.confirmed !== false) return undefined;
-  return fact.signIn === "connected" ? "introduce" : "sign-in";
+  return fact.signIn === "connected" || fact.signIn === "not-needed"
+    ? "introduce"
+    : "sign-in";
 }
 
 /** One basic: done (provided ahead counts), missing, or not known. */

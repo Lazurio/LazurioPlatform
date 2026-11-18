@@ -3,6 +3,7 @@ import {
   type BuddyPart,
   type BuddyStepFacts,
   beatView,
+  buddyOwnSignIn,
   type Countdown,
   countdownText,
   draftOf,
@@ -749,8 +750,12 @@ export function createBuddyDialog(
     drawNav();
     const result = await options.save(draft, true);
     saving = false;
-    if (result.kind === "saved") {
-      move("telegram");
+    // Names saved but not brought to Buddy (`unapplied`): the meeting stays,
+    // with the line that says so, rather than greeting as if he had them.
+    if (result.kind === "saved" && result.unapplied !== true) {
+      // Buddy GEN4 has no Telegram of his own: the meeting ends here.
+      if (buddyOwnSignIn(options.facts().reading)) move("telegram");
+      else finish();
       return;
     }
     line = saveLine(result, options.copy());
@@ -843,7 +848,8 @@ export function createBuddyDialog(
     // The launcher rises over this dialog while it shows where he is.
     options.spotlight(dialog.open && way?.spotlight === true);
     // The steps of the guide, as Propojit Bitwarden shows them.
-    dots.hidden = only;
+    // Buddy GEN4's meeting is his names alone: no steps to count.
+    dots.hidden = only || !buddyOwnSignIn(options.facts().reading);
     const index = meetScreens.indexOf(screen);
     dots.setAttribute(
       "aria-label",

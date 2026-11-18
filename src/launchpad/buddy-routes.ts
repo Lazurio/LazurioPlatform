@@ -104,9 +104,9 @@ export const buddyAnswer = (
 ): BuddyAnswer => Object.freeze({ kind: "buddy", ...status, locale });
 
 /** What `GET /api/buddy` answers: his state, his persona (F65) and his
- * Telegram (F66). */
+ * Telegram (F66), which Buddy GEN4 has none of. */
 export type BuddyReading = BuddyAnswer &
-  Readonly<{ persona: BuddyPersonaShown | null; telegram: TelegramStatus }>;
+  Readonly<{ persona: BuddyPersonaShown | null; telegram?: TelegramStatus }>;
 
 /** The one field a POST may add to its own. */
 const optionalFields: Readonly<Record<string, string>> = {
@@ -201,6 +201,10 @@ export function createBuddyRoutes(
   input: Readonly<{
     /** Whether the recorded entry names Buddy's origin. */
     present: () => boolean;
+    /** Buddy GEN4 (plan LZD-0033): a thread of the shared T3 Code, with no
+     * Hermes of his own, so no sign-in and no Telegram of his; absent is
+     * Buddy GEN3. */
+    shared?: (() => boolean) | undefined;
     signIn: BuddySignIn;
     facts: () => Promise<BuddyFacts>;
     /** His persona: read and changed (F65, `persona-save.ts`). */
@@ -239,16 +243,17 @@ export function createBuddyRoutes(
       if (url.pathname === buddyRoutePaths.read) {
         if (request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
+        const shared = input.shared?.() === true;
         const [facts, locale, persona, telegram] = await Promise.all([
           input.facts(),
           input.locale(),
           input.persona.read(),
-          input.telegram.read(),
+          shared ? undefined : input.telegram.read(),
         ]);
         const reading: BuddyReading = Object.freeze({
           ...buddyAnswer(buddyStatus(facts), locale),
           persona,
-          telegram,
+          ...(telegram === undefined ? {} : { telegram }),
         });
         return response(reading);
       }
@@ -277,6 +282,9 @@ export function createBuddyRoutes(
           return response({ error: "body-too-large" }, 413);
         return response({ error: "invalid-request" }, 400);
       }
+      // Buddy GEN4 has neither his own sign-in nor a Telegram to change.
+      if (input.shared?.() === true && url.pathname !== buddyRoutePaths.persona)
+        return response({ kind: "blocked", reason: "not-needed" }, 409);
       if (url.pathname === buddyRoutePaths.telegramConnect) {
         // The token goes to the core as it came, for its one connect.
         const { token, intent } = value;

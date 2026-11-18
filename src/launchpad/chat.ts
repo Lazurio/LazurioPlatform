@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { buddyT3Home, buddyT3Runtime } from "../buddy/t3-runtime";
-import type { MachineEntry } from "../folder/machine-binding";
+import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import { t3Offers } from "../tools/ai-services";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
@@ -302,6 +302,14 @@ export function asksForBuddy(entry: MachineEntry, headers: Headers): boolean {
     headers.get("x-forwarded-host") === buddy.host
   );
 }
+
+/** Whether a pairing goes to Buddy GEN3's own T3 Code (`mintBuddyPairing`):
+ * asked on his origin of an entry whose Buddy is GEN3. Buddy GEN4's window is
+ * the shared T3 Code on his origin (plan LZD-0033, R3), paired as the Chat. */
+export const pairsBuddysOwnT3 = (
+  entry: MachineEntry,
+  headers: Headers,
+): boolean => asksForBuddy(entry, headers) && buddyGeneration(entry) === 3;
 
 /** A fresh pairing of one browser with Buddy's own T3 Code (F61's addendum of
  * 2026-10-22), for `person` (the label), as the Chat's standard pairing:

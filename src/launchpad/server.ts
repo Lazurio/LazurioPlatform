@@ -23,11 +23,13 @@ import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createFirstMeeting } from "../buddy/first-meeting";
 import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
+import { namesConfirmed } from "../buddy/names-confirmed";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
+import { buddyFolderOwed } from "../buddy/persona-folder";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
-import { buddyStatus, readBuddyFacts } from "../buddy/status";
+import { buddyStatus } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
 import { createComputerAttach } from "../computers/attach-ws";
@@ -66,7 +68,7 @@ import {
   sharedSignInsWarning,
 } from "../folder/inspect-tools-change";
 import { withFolderReadLock } from "../folder/lock";
-import type { MachineEntry } from "../folder/machine-binding";
+import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import {
   maxOwnInstructionsBytes,
   ownInstructionsProblem,
@@ -194,6 +196,7 @@ import { cachedMcpProbe } from "./application-mcp-probe";
 import type { LaunchpadBoot } from "./boot";
 import { launchpadBoot, vaultInAppsOf, withBoot } from "./boot-document";
 import {
+  buddyFactsOf,
   buddyGateAnswer,
   buddyGatePath,
   buddyOpenOf,
@@ -204,12 +207,12 @@ import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import { withGuestAccess } from "./catalog-view";
 import {
-  asksForBuddy,
   chatPairingPath,
   createChatPromptCheck,
   isOwnScriptFetch,
   mintBuddyPairing,
   mintChatPairing,
+  pairsBuddysOwnT3,
   publicEntry,
 } from "./chat";
 import { createComputersRoutes } from "./computers-routes";
@@ -1629,6 +1632,7 @@ export async function startLaunchpad(
   const folderLocale = async () =>
     (await withFolderReadLock(state, () => readFolderState(state))).preferences
       .profile.locale;
+  const buddyFolderPersona = buddyGeneration(entry ?? undefined) === 4;
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
@@ -1638,17 +1642,22 @@ export async function startLaunchpad(
         { folder, apply: true },
       );
       // His bot's words to an account it does not know follow the persona
-      // (F66), without holding the apply up.
-      void buddyTelegram.persona().catch(() => undefined);
+      // (F66), without holding the apply up; Buddy GEN4 has no bot.
+      if (!buddyFolderPersona)
+        void buddyTelegram.persona().catch(() => undefined);
       return answer;
     },
+    // Buddy GEN4: owed while ~/Buddy is not what the persona renders.
+    ...(buddyFolderPersona ? { owed: () => buddyFolderOwed(folder) } : {}),
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
     // His first meeting (decision F60's addendum of 2026-10-26): one turn in
     // his conversation in Lazurio after the person's first confirmation,
     // hidden from the person, in the Folder's language. Only where the entry
     // names him; its journal never names a name, the text or the key.
-    ...(entry?.buddyOrigin === undefined || toolsEnvironment.home === undefined
+    // Buddy GEN4's first meeting is no Hermes turn (plan LZD-0033, R3).
+    ...(buddyGeneration(entry ?? undefined) !== 3 ||
+    toolsEnvironment.home === undefined
       ? {}
       : {
           firstMeeting: {
@@ -1668,12 +1677,13 @@ export async function startLaunchpad(
   });
   const buddy = createBuddyRoutes({
     present: () => entry?.buddyOrigin !== undefined,
+    shared: () => buddyGeneration(entry ?? undefined) === 4,
     signIn: createBuddySignIn({
       gateway: buddyGateway,
       journal: (line) =>
         console.log(JSON.stringify({ scope: "buddy-sign-in", ...line })),
     }),
-    facts: () => readBuddyFacts(buddyGateway),
+    facts: () => buddyFactsOf(entry, buddyGateway, buddyService),
     persona: buddyPersona,
     telegram: buddyTelegram,
     locale: folderLocale,
@@ -1746,15 +1756,19 @@ export async function startLaunchpad(
       entry?.buddyOrigin === undefined
         ? undefined
         : Promise.all([
-            readBuddyFacts(buddyGateway),
+            buddyFactsOf(entry, buddyGateway, buddyService),
             buddyPersona.read(),
-            buddyT3Active(buddyService),
+            buddyT3Active(buddyService, entry),
           ]).then(([facts, persona, t3]) => ({
             fact: {
               signIn: buddyStatus(facts).signIn.state,
-              confirmed: persona?.confirmed === true,
+              confirmed: namesConfirmed(persona, buddyFolderPersona),
             },
-            open: buddyOpenOf(facts, persona?.confirmed === true, t3),
+            open: buddyOpenOf(
+              facts,
+              namesConfirmed(persona, buddyFolderPersona),
+              t3,
+            ),
           })),
     ]);
     return {
@@ -2288,12 +2302,12 @@ export async function startLaunchpad(
           return buddyGateAnswer(entry, false);
         server.timeout(request, 30);
         const open = await Promise.all([
-          readBuddyFacts(buddyGateway),
+          buddyFactsOf(entry, buddyGateway, buddyService),
           buddyPersona.read(),
-          buddyT3Active(buddyService),
+          buddyT3Active(buddyService, entry),
         ])
           .then(([facts, persona, t3]) =>
-            buddyOpenOf(facts, persona?.confirmed === true, t3),
+            buddyOpenOf(facts, namesConfirmed(persona, buddyFolderPersona), t3),
           )
           .catch(() => false);
         return buddyGateAnswer(entry, open);
@@ -2319,7 +2333,7 @@ export async function startLaunchpad(
         // `t3 lazurio capabilities`, then the pairing call: 15 s each.
         server.timeout(request, 45);
         try {
-          const pairing = asksForBuddy(entry, request.headers)
+          const pairing = pairsBuddysOwnT3(entry, request.headers)
             ? await mintBuddyPairing(toolsEnvironment, person)
             : await mintChatPairing(entry, toolsEnvironment, person);
           return response(pairing, pairing.kind === "blocked" ? 409 : 200);
