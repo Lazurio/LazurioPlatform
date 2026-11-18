@@ -14,7 +14,7 @@ import {
 } from "@lazurio/module-kit";
 import type { Server } from "bun";
 import { agentTools } from "./agent-tools.ts";
-import { createHandler, staticFiles } from "./app-server.ts";
+import { allowedOrigins, createHandler, staticFiles } from "./app-server.ts";
 import { repositoryDbStore } from "./data/repository-db-store.ts";
 import type { Store } from "./data/store.ts";
 import { type Relay, startDevelopmentClient } from "./dev-client.ts";
@@ -53,6 +53,7 @@ const files = staticFiles(output, {{static_spa}});
 const handle = createHandler({
   listener: LISTENER,
   hosts,
+  origins: allowedOrigins(hosts, app.port, app.externalOrigin),
   dataOpen: () => store !== null,
   tools: agentTools(),
   serveClient: client

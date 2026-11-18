@@ -16,6 +16,9 @@ export interface ServerParts {
   listener: string;
   /** Hostnames the App answers (`allowedHosts()` of module-kit). */
   hosts: ReadonlySet<string>;
+  /** The exact origins a browser's page may send requests from: the App's
+   * external origin and its loopback origins (`allowedOrigins()`). */
+  origins: ReadonlySet<string>;
   /** Whether the data are open: the health answers 503 until they are. */
   dataOpen: () => boolean;
   /** The tools for agents (`agentTools()`), offered at /mcp and to the page. */
@@ -43,6 +46,30 @@ export function hostAllowed(request: Request, hosts: ReadonlySet<string>): boole
   return hosts.has(hostname.replace(/^\[(.*)\]$/, "$1"));
 }
 
+/** The exact origins of the App's own pages: `http://<loopback>:<port>` for
+ * every loopback hostname the App answers, and its external origin. */
+export function allowedOrigins(
+  hosts: ReadonlySet<string>,
+  port: number,
+  externalOrigin: string | null | undefined,
+): Set<string> {
+  const origins = new Set<string>();
+  for (const host of hosts)
+    if (host !== (externalOrigin ? new URL(externalOrigin).hostname : ""))
+      origins.add(`http://${host.includes(":") ? `[${host}]` : host}:${port}`);
+  if (externalOrigin) origins.add(new URL(externalOrigin).origin);
+  return origins;
+}
+
+/** A browser sends `Origin` on WebSocket handshakes and scripted requests:
+ * when present it must be exactly one of the App's own origins (an opaque
+ * `null` included is refused). A request without `Origin` is no browser's
+ * cross-origin request. */
+export function originAllowed(request: Request, origins: ReadonlySet<string>): boolean {
+  const origin = request.headers.get("origin");
+  return origin === null || origins.has(origin);
+}
+
 /** Who came and whether they may change data now: `appAccess` for every
  * request (decision 0231) and the one writer rule `dataWriter`. */
 export function session(access: AppAccess, env: Env) {
@@ -58,6 +85,10 @@ export function createHandler(parts: ServerParts) {
   const env = parts.env ?? process.env;
   return async (request: Request, server?: unknown): Promise<Response | undefined> => {
     if (!hostAllowed(request, parts.hosts)) return new Response("Forbidden host", { status: 403 });
+    // A page elsewhere never reaches the App, its data, its tools or the
+    // development run's hot-reload socket.
+    if (!originAllowed(request, parts.origins))
+      return new Response("Forbidden origin", { status: 403 });
     const { pathname } = new URL(request.url);
     if (pathname === HEALTH_PATH) {
       const open = parts.dataOpen();

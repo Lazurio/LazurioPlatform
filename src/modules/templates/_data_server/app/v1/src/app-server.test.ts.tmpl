@@ -10,6 +10,7 @@ function server(overrides: Partial<ServerParts> = {}) {
   const handle = createHandler({
     listener: "{{listener_id}}",
     hosts: new Set([new URL(TEST_ORIGIN).hostname, "127.0.0.1"]),
+    origins: new Set([TEST_ORIGIN, "http://127.0.0.1:43100"]),
     dataOpen: () => true,
     tools: agentTools(env),
     serveClient: null,
@@ -66,4 +67,18 @@ test("the page and its files need an application role", async () => {
     403,
   );
   expect((await serve(gatewayRequest("/", { caller: { role: "user" } }))).status).toBe(200);
+});
+
+test("a page elsewhere is refused, the App's own origin is not", async () => {
+  const serve = server({ serveClient: async () => new Response("page") });
+  const as = (origin: string) =>
+    gatewayRequest("/_bun/hmr", { caller: { role: "user" }, headers: { origin } });
+  expect((await serve(as("https://attacker.invalid"))).status).toBe(403);
+  expect((await serve(as("null"))).status).toBe(403);
+  expect((await serve(as(TEST_ORIGIN))).status).toBe(200);
+  const session = gatewayRequest("/api/session", {
+    caller: { role: "user" },
+    headers: { origin: "https://attacker.invalid" },
+  });
+  expect((await serve(session)).status).toBe(403);
 });
