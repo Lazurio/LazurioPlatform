@@ -42,6 +42,9 @@ export async function writeBuddyLocked(
     await writeBuddyLayerLocked(folder, assertHeld);
     return;
   }
+  // The same check as before the change, so that a caller outside it (a
+  // change of the persona) is refused before anything is written too.
+  await checkBuddyLocked(folder, preferences.machine);
   const home = dirname(folder);
   const target = await buddyFolderTarget(home, entry.buddyFolder);
   await writeBuddyGen4Locked(
