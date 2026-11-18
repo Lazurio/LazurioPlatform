@@ -774,12 +774,16 @@ proposed in Machines#1345 and not yet deployed; later others) reaches an App onl
 `secrets` where it cannot start without them); the module adds no field of its
 own for services. Which Application may use which service is the Organization's
 decision, granted per Application in its Deployment Repo (Machines#1350), never
-by the module. From the Machines release that carries Machines#1351
-(Machines#1388), each Application of an application host runs as its own
-system user, so no Application reads another's process environment, secrets or
-data, and a grant reaches only the Application it names. On an application
-host that still runs an older Machines release, the Applications share one
-system user and the whole host remains the trust boundary. An App decides by whether the service's variables are present, never by
+by the module. The Machines release that carries Machines#1351
+(Machines#1388) moves the Applications of an application host, one at a time,
+each to its own system user. Once every Application of the host has moved and
+the host's readback of its runtime accounts passes, no Application reads
+another's process environment, secrets or private checkout, and a grant
+reaches only the Application it names; a declared sibling's read-only data
+replica stays readable, as [Siblings](#siblings) allows. Until then, and
+on a host with an older Machines release, Applications still on the shared
+account can read each other's environment and service credentials, and the
+whole application host remains the trust boundary. An App decides by whether the service's variables are present, never by
 the name of the place it runs in: a development version without them may use a
 local substitute (for printing, the Environment's browser), and an Application
 without a granted service answers a typed refusal (for printing,
