@@ -303,7 +303,9 @@ async function folderPersona(
       return answer(
         (await buddyFolderInPlace(options.folder)) ? "in-place" : "outdated",
       );
-    await applyBuddyFolderPersona(options.folder);
+    // A refused folder keeps the names: what derives from them waits.
+    if ((await applyBuddyFolderPersona(options.folder)) !== undefined)
+      return refused("failed", "files-unwritable", ready.persona);
     return answer("applied");
   } catch {
     return refused("failed", "files-unwritable", ready.persona);
