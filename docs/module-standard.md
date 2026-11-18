@@ -1241,9 +1241,20 @@ The port holds, in both generations:
   content, so a direct change that kept the old value is still a change. The revision does not survive the move
   to `app/v4`: after the move a client reads the record again.
 - **Atomic writes, where offered.** A port that changes several records in one
-  write (a capability it offers once its tools or interface need it) changes
-  them in one commit (repository-db) or one transaction with one `DOLT_COMMIT`
-  (Dolt), never some of them.
+  write (a capability it offers once its tools or interface need it):
+  - **publishes them together or not at all.** In repository-db its publish API
+    takes the whole draft into one pushed commit; in Dolt it is one transaction
+    with one `DOLT_COMMIT`, or one merge into the shared branch. Never some of
+    them.
+  - **as a draft in Dolt**, changes them in one transaction with one commit on
+    the draft's own branch.
+  - **as a draft in repository-db**, has no transaction to use, because a draft
+    is working-tree writes and no commit. The port writes each record whole
+    (a temporary file, then a rename), checks the draft's revision before and
+    after, and if a write fails part of the way, answers which records it wrote.
+    The partial draft stays a draft that the person sees in the draft's review
+    and can discard. It is never published in part, because only the
+    publication above takes it.
 - **Author and channel.** A change carries two fields: the person's `subject`
   and the `channel` it came by, one of `ui` (the App's interface), `mcp`
   (`/mcp`), `webmcp` (the page's agent tools) and `import`. A draft and a
