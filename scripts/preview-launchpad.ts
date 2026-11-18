@@ -149,7 +149,10 @@
 // Apps shows "Sdílené aplikace" and, beside each application here, the
 // Assigned User's "Zpřístupnit kolegům". Nothing serves the colleagues'
 // origins or the Dashboard's page they lead to. Synthetic names only; stop
-// it with Ctrl-C.
+// it with Ctrl-C. With `applications` (which implies the relay) the account
+// also names the example Organization's Application of `deals` (decision 0249,
+// P1): its tile opens https://deals.example.lazurio.app and the tile's menu
+// offers the development version on this Environment.
 import {
   chmod,
   mkdir,
@@ -347,10 +350,18 @@ const agentEntryRelay =
       );
 // The work Environment assigned to `example`, whose account the proxy
 // relays with the applications shared with them (decision 0231).
-const sharedApps =
+// With `applications` the account also names the Applications (decision 0249):
+// `deals` of the example Organization at its own lazurio.app address, so its
+// tile opens the Application and the menu offers the development version.
+const withApplications =
   mode === "hosted" &&
   assignment === null &&
-  process.argv.slice(3).includes("shared-apps");
+  process.argv.slice(3).includes("applications");
+const sharedApps =
+  (mode === "hosted" &&
+    assignment === null &&
+    process.argv.slice(3).includes("shared-apps")) ||
+  withApplications;
 const locale = process.argv[3] === "en" ? "en" : "cs";
 const listenPort = Number(process.argv[4] ?? 24611);
 const role =
@@ -1514,6 +1525,20 @@ const previewAccount = {
       host: { login: "example" },
     },
   ],
+  ...(withApplications
+    ? {
+        applications: [
+          {
+            organization: "example",
+            module: "deals",
+            name: "Deals",
+            url: "https://deals.example.lazurio.app",
+            role: "admin",
+            mcp: true,
+          },
+        ],
+      }
+    : {}),
 };
 let proxy: string | null = null;
 if (mode !== "local") {

@@ -4,6 +4,7 @@ import {
   pageAccountJson,
 } from "../shell/account";
 import {
+  type AccountApplication,
   type AccountSharedApplication,
   parseShellAccount,
 } from "../shell/contract";
@@ -49,6 +50,11 @@ export type Account = Readonly<{
    * null when it is not a valid `lazurio.account.v1` as a whole, so Apps
    * never says that nothing is shared when it does not know. */
   sharedApplications: readonly AccountSharedApplication[] | null;
+  /** The Applications the person may open (decision 0249), joined with the
+   * tiles of their Modules: empty when the document names none or is not a
+   * valid `lazurio.account.v1` as a whole, so every tile keeps opening the
+   * Module's app here, as before. */
+  applications: readonly AccountApplication[];
 }>;
 
 type Data = Readonly<Record<string, unknown>>;
@@ -96,6 +102,7 @@ export function parseAccount(input: unknown): Account | null {
     login: whole?.operator.login ?? null,
     sharedApplications:
       whole === null ? null : (whole.sharedApplications ?? Object.freeze([])),
+    applications: whole?.applications ?? Object.freeze([]),
   });
 }
 

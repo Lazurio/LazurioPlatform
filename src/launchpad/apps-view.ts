@@ -8,6 +8,7 @@ import type {
 } from "../organizations/catalog";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import {
+  type AccountApplication,
   type AccountSharedApplication,
   dashboardSlug,
   environmentIdOf,
@@ -104,7 +105,11 @@ export type TileTarget =
   /** No app, or one that cannot start: the module's overview. */
   | Readonly<{ kind: "overview"; href: string }>
   /** Two candidates share the Organization's slug: nothing to link to. */
-  | Readonly<{ kind: "none" }>;
+  | Readonly<{ kind: "none" }>
+  /** The Module's Application (decision 0249): its own origin at the
+   * Organization's address, in a new tab; this Environment's app from `main`
+   * is then its development version, in the tile's menu. */
+  | Readonly<{ kind: "application"; href: string }>;
 
 /** The target of one module's tile. `entry` is the recorded hosted entry
  * (null on a workstation). */
@@ -232,7 +237,10 @@ export function pluralKey(
 export type TileAction =
   | Readonly<{
       kind: "open";
-      target: Extract<TileTarget, { kind: "hosted" } | { kind: "start" }>;
+      target: Extract<
+        TileTarget,
+        { kind: "hosted" } | { kind: "start" } | { kind: "application" }
+      >;
     }>
   | Readonly<{ kind: "say"; text: string }>
   /** The page of the service `service`; `href` its link (`servicePath`),
@@ -255,6 +263,14 @@ export type AppsTile =
       /** The module's overview, from its menu ("Informace o modulu"). */
       info: string | null;
       favorite: boolean;
+      /** Where the tile opens the Module's Application (decision 0249), this
+       * Environment's app from `main`: its development version, offered in
+       * the menu ("Vývojová verze"). Null where the tile opens that app
+       * itself. */
+      development: Extract<
+        TileTarget,
+        { kind: "hosted" } | { kind: "start" }
+      > | null;
     }>
   /** A production repository: read-only, no app, no page of its own
    * (decision F32's final addendum); its menu leads to its GitHub page. A
@@ -350,6 +366,31 @@ const countKeys = {
   },
 } as const;
 
+/** The Applications the person may open (the account's `applications`,
+ * decision 0249) and the Dashboard slug of the group they are matched in
+ * (`groupDashboardSlug`): null where the group has none, so no tile changes. */
+export type TileApplications = Readonly<{
+  slug: string | null;
+  list: readonly AccountApplication[];
+}>;
+
+/** The Application of one Module of a group, matched by the Organization's
+ * Dashboard slug (ignoring case) and the Module's slug; null when the
+ * account names none. */
+export function moduleApplication(
+  applications: TileApplications | undefined,
+  module: string,
+): AccountApplication | null {
+  const slug = applications?.slug ?? null;
+  if (slug === null || applications === undefined) return null;
+  return (
+    applications.list.find(
+      (entry) =>
+        entry.organization.toLowerCase() === slug && entry.module === module,
+    ) ?? null
+  );
+}
+
 /** What a click on a module's tile does. */
 export function moduleAction(
   target: TileTarget,
@@ -378,6 +419,7 @@ export function appsTiles(
   copy: Copy,
   entry: PublicEntry | null,
   favorites: readonly string[],
+  applications?: TileApplications,
 ): Readonly<{
   modules: readonly AppsTile[];
   repositories: readonly AppsTile[];
@@ -385,6 +427,13 @@ export function appsTiles(
   const moduleTile = (item: CatalogModuleEntry): AppsTile => {
     const target = tileTarget(catalog, group.organization, item.module, entry);
     const key = moduleFavorite(item.module.module);
+    // One tile per Module (decision 0249): where the person may open its
+    // Application, the tile opens it, whether or not this Environment's app
+    // can start (a missing secret or a refused preparation is no reason to
+    // withhold an Application hosted elsewhere). This Environment's app from
+    // `main` is then its development version, in the menu, only where it can
+    // be opened here.
+    const application = moduleApplication(applications, item.module.module);
     return {
       kind: "module",
       key,
@@ -392,9 +441,20 @@ export function appsTiles(
       name: moduleName(item.module),
       description: moduleDescription(item.module, copy),
       stone: moduleStone(item.module),
-      action: moduleAction(target, item.module, copy),
+      action:
+        application === null
+          ? moduleAction(target, item.module, copy)
+          : {
+              kind: "open",
+              target: { kind: "application", href: `${application.url}/` },
+            },
       info: item.href,
       favorite: favorites.includes(key),
+      development:
+        application !== null &&
+        (target.kind === "hosted" || target.kind === "start")
+          ? target
+          : null,
     };
   };
   const modules =
@@ -540,8 +600,9 @@ export function appsSections(
   entry: PublicEntry | null,
   favorites: readonly string[] = [],
   owner = false,
+  applications?: TileApplications,
 ): readonly AppsSection[] {
-  const tiles = appsTiles(catalog, group, copy, entry, favorites);
+  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
   const count = (length: number, kind: keyof typeof countKeys) =>
     length === 0 && kind === "modules"
       ? copy.appsModulesNone
@@ -750,6 +811,9 @@ export function appsHomeParts(
      * or absent while the account is not read, cannot be read or shares
      * nothing here, so the home then says nothing about them. */
     shared?: AppsSharedSection | null;
+    /** The Applications the person may open (decision 0249), joined with
+     * the Module tiles; absent while the account is not read. */
+    applications?: TileApplications;
   }>,
 ): readonly AppsHomePart[] {
   const offer = newModuleOffer(group, {
@@ -769,6 +833,7 @@ export function appsHomeParts(
     input.entry,
     input.favorites,
     offer !== null,
+    input.applications,
   );
   // A member without a module keeps the plain sentence over it: how to get
   // access stays the first thing said.
@@ -838,8 +903,9 @@ export function favoriteTiles(
   copy: Copy,
   entry: PublicEntry | null,
   favorites: readonly string[],
+  applications?: TileApplications,
 ): readonly AppsTile[] {
-  const tiles = appsTiles(catalog, group, copy, entry, favorites);
+  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
   return favoritesFirst(
     [...tiles.modules, ...tiles.repositories],
     favorites,
