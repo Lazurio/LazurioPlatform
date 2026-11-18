@@ -750,7 +750,9 @@ export function createBuddyDialog(
     drawNav();
     const result = await options.save(draft, true);
     saving = false;
-    if (result.kind === "saved") {
+    // Names saved but not brought to Buddy (`unapplied`): the meeting stays,
+    // with the line that says so, rather than greeting as if he had them.
+    if (result.kind === "saved" && result.unapplied !== true) {
       // Buddy GEN4 has no Telegram of his own: the meeting ends here.
       if (buddyOwnSignIn(options.facts().reading)) move("telegram");
       else finish();

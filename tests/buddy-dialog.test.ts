@@ -304,3 +304,82 @@ test("from Nastavení → Buddy the dialog is named as its row, Přihlášení k
   );
   expect(english.title()).toBe("ChatGPT sign-in");
 });
+
+test("Buddy GEN4's meeting whose names did not reach him stays open and says so, instead of greeting", async () => {
+  const byId = new Map<string, FakeNode>();
+  const node = (selector: string) => {
+    let found = byId.get(selector);
+    if (found === undefined) {
+      found = new FakeNode(selector === "#buddy-meet" ? "dialog" : "div");
+      byId.set(selector, found);
+    }
+    return found;
+  };
+  globalThis.document = {
+    // The page here carries no strip of his waving figure.
+    querySelector: (selector: string) =>
+      selector.startsWith("#buddy-wave-pictures") ? null : node(selector),
+    createElement: (tag: string) => new FakeNode(tag),
+    createElementNS: (_space: string, tag: string) => new FakeNode(tag),
+  } as unknown as Document;
+  const finished: string[] = [];
+  const saves: boolean[] = [];
+  const persona = {
+    buddyName: "Bertík",
+    address: "vy" as const,
+    user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
+    confirmed: false,
+    revision: "a".repeat(64),
+    pending: false,
+  };
+  const dialog = createBuddyDialog({
+    // English asks no ty or vy, so the unconfirmed names are ready as they are.
+    copy: () => en,
+    locale: () => "en",
+    facts: () => ({
+      reading: {
+        state: "works",
+        signIn: "not-needed",
+        persona,
+      } as BuddyReading,
+      signIn: { kind: "idle" } as BuddySignInState,
+      now: Date.now(),
+    }),
+    avatar: () => null,
+    signIn: () => undefined,
+    // ~/Buddy refused the write: the names are saved, not brought to him.
+    save: async (_draft, confirm) => {
+      saves.push(confirm);
+      return { kind: "saved", pending: true, unapplied: true };
+    },
+    apps: () => ({ apps: [], automate: "Automate" }),
+    spotlight: () => undefined,
+    finished: () => finished.push("finished"),
+    closed: () => undefined,
+    telegram: () => undefined,
+  });
+  dialog.open("introduce");
+  const meet = node("#buddy-meet");
+  const navButton = (label: string) =>
+    [...node("#buddy-meet-nav").walk()].find(
+      (child) => child.tagName === "button" && child.textContent === label,
+    );
+  for (
+    let beat = 0;
+    beat < 20 && navButton(en.buddyContinue) === undefined;
+    beat += 1
+  )
+    navButton(en.buddyBeatNext)?.click();
+  const confirm = navButton(en.buddyContinue);
+  expect(confirm).toBeDefined();
+  expect(confirm?.disabled).toBe(false);
+  confirm?.click();
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(saves).toEqual([true]);
+  expect(meet.open).toBe(true);
+  expect(finished).toEqual([]);
+  const texts = [...node("#buddy-meet-body").walk()].map(
+    (child) => child.textContent,
+  );
+  expect(texts).toContain(en.buddyNotApplied);
+});

@@ -182,6 +182,12 @@ export function createPersonaSave(
     /** The Folder whose Lazurio layer Buddy's prompts are built from. */
     folder: string;
     apply: () => Promise<BuddyPersona>;
+    /** Whether what derives from the persona is still owed: by default F64's
+     * marker of Buddy GEN3's stored prompts (`promptRefreshOwed`); Buddy GEN4
+     * (plan LZD-0033) passes whether `~/Buddy` is not what the Folder and the
+     * persona render now (`buddyFolderInPlace`), so a write that failed is
+     * pending and retried, also after a restart. */
+    owed?: (() => Promise<boolean>) | undefined;
     journal?: ((entry: PersonaJournalEntry) => void) | undefined;
     /** Buddy's first meeting (decision F60's addendum of 2026-10-26): owed
      * by the person's first confirmation, delivered once an apply has put
@@ -208,7 +214,7 @@ export function createPersonaSave(
   const journal = (entry: PersonaJournalEntry) => input.journal?.(entry);
   const home = input.home ?? "";
   const homeKnown = home !== "" && isAbsolute(home);
-  const owedNow = () => promptRefreshOwed(home, input.folder);
+  const owedNow = input.owed ?? (() => promptRefreshOwed(home, input.folder));
 
   // One apply at a time in this process (F64's own lock orders it against
   // the command): a save joins the one that runs, which reads the persona

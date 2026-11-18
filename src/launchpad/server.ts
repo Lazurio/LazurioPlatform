@@ -25,6 +25,7 @@ import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
+import { buddyFolderOwed } from "../buddy/persona-folder";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
 import { buddyStatus } from "../buddy/status";
@@ -1630,6 +1631,7 @@ export async function startLaunchpad(
   const folderLocale = async () =>
     (await withFolderReadLock(state, () => readFolderState(state))).preferences
       .profile.locale;
+  const buddyFolderPersona = buddyGeneration(entry ?? undefined) === 4;
   const buddyPersona = createPersonaSave({
     home: toolsEnvironment.home,
     folder,
@@ -1639,10 +1641,13 @@ export async function startLaunchpad(
         { folder, apply: true },
       );
       // His bot's words to an account it does not know follow the persona
-      // (F66), without holding the apply up.
-      void buddyTelegram.persona().catch(() => undefined);
+      // (F66), without holding the apply up; Buddy GEN4 has no bot.
+      if (!buddyFolderPersona)
+        void buddyTelegram.persona().catch(() => undefined);
       return answer;
     },
+    // Buddy GEN4: owed while ~/Buddy is not what the persona renders.
+    ...(buddyFolderPersona ? { owed: () => buddyFolderOwed(folder) } : {}),
     journal: (line) =>
       console.log(JSON.stringify({ scope: "buddy-persona", ...line })),
     // His first meeting (decision F60's addendum of 2026-10-26): one turn in

@@ -12,6 +12,8 @@ import { join } from "node:path";
 import { buddyChat } from "../src/buddy/chat";
 import { writePersona } from "../src/buddy/persona";
 import { buddyPersona } from "../src/buddy/persona-apply";
+import { buddyFolderOwed } from "../src/buddy/persona-folder";
+import { createPersonaSave } from "../src/buddy/persona-save";
 import type { BuddySignIn } from "../src/buddy/sign-in";
 import { type BuddyFacts, buddyStatus } from "../src/buddy/status";
 import { buddyGeneration } from "../src/folder/machine-binding";
@@ -326,3 +328,109 @@ test("a save whose names did not reach Buddy says so, never that it waits for hi
   expect(saveLine({ kind: "saved", pending: true }, copy)).toBe("pending");
   expect(saveLine({ kind: "saved", pending: false }, copy)).toBe("saved");
 });
+
+/** Waits until `ready`, at most 200 short ticks: the condition, not a time. */
+async function until(ready: () => boolean | Promise<boolean>) {
+  for (let round = 0; round < 200 && !(await ready()); round += 1)
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  expect(await ready()).toBe(true);
+}
+
+posix(
+  "the Launchpad's names of Buddy GEN4 are pending exactly while ~/Buddy lags them: a fresh apply settles, a refused one stays pending and is taken up again after a restart",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(tmpdir(), "buddy-gen4-")));
+    try {
+      const folder = join(parent, "Lazurio");
+      await mkdir(folder, { mode: 0o700 });
+      await mkdir(join(folder, "organizations"), { mode: 0o700 });
+      await mkdir(join(folder, "personalspace"), { mode: 0o700 });
+      const recorded = converted();
+      const machine = {
+        ...recorded,
+        entry: {
+          ...(recorded.entry as NonNullable<typeof recorded.entry>),
+          buddyFolder: join(parent, "Buddy"),
+        },
+      };
+      expect(
+        (
+          await initializeMachineFolder(folder, machine, {
+            preset: undefined,
+            locale: "cs",
+            detail: undefined,
+            coordination: undefined,
+          })
+        ).code,
+      ).toBe(0);
+      const environment = {
+        tools: {
+          home: parent,
+          path: "",
+          platform: process.platform,
+          run: async () => {
+            throw new Error("no tool runs for Buddy GEN4's persona");
+          },
+        },
+        env: {},
+      } as unknown as Parameters<typeof buddyPersona>[0];
+      let applies = 0;
+      // The Launchpad's wiring (server.ts) for a converted person.
+      const launchpad = () =>
+        createPersonaSave({
+          home: parent,
+          folder,
+          apply: () => {
+            applies += 1;
+            return buddyPersona(environment, { folder, apply: true });
+          },
+          owed: () => buddyFolderOwed(folder),
+          answerWithinMs: 5_000,
+        });
+      const names = (buddyName: string) => ({
+        buddyName,
+        address: "ty",
+        user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
+        confirm: true,
+      });
+      // A fresh converted home: no GEN3 prompt record, and nothing pending.
+      const first = launchpad();
+      expect((await first.read())?.pending ?? false).toBe(false);
+      const saved = await first.save(names("Bertík"), null);
+      expect(saved.kind).toBe("persona");
+      expect(saved.kind === "persona" && saved.applied.state).toBe("applied");
+      expect((await first.read())?.pending).toBe(false);
+      const settled = applies;
+      await first.read();
+      await first.read();
+      expect(applies).toBe(settled);
+      expect(
+        await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8"),
+      ).toContain("Jsi Bertík, Buddy");
+      // A CLAUDE.md in ~/Buddy refuses the next write: the names are saved,
+      // pending, and his instructions keep the last ones.
+      await writeFile(join(parent, "Buddy", "CLAUDE.md"), "# mine\n");
+      const revision = (await first.read())?.revision ?? null;
+      const refused = await first.save(names("Rexík"), revision);
+      expect(refused.kind === "persona" && refused.applied.state).toBe(
+        "failed",
+      );
+      expect((await first.read())?.pending).toBe(true);
+      first.close();
+      // After a restart the Launchpad finds it owed and applies again; once
+      // the folder takes it, nothing is pending.
+      await rm(join(parent, "Buddy", "CLAUDE.md"));
+      const restarted = launchpad();
+      const before = applies;
+      expect((await restarted.read())?.pending).toBe(true);
+      await until(async () => applies > before);
+      await until(async () => (await restarted.read())?.pending === false);
+      expect(
+        await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8"),
+      ).toContain("Jsi Rexík, Buddy");
+      restarted.close();
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

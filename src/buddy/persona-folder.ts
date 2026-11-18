@@ -54,3 +54,11 @@ export const applyBuddyFolderPersona = (
   withFolderOperationLock(join(folder, ".lazurio"), (assertHeld) =>
     writeBuddyLocked(folder, assertHeld),
   );
+
+/** Whether Buddy GEN4's names are still owed to `~/Buddy`: it is not what
+ * the Folder and the persona render now, or it cannot be read. */
+export const buddyFolderOwed = (folder: string): Promise<boolean> =>
+  buddyFolderInPlace(folder).then(
+    (inPlace) => !inPlace,
+    () => true,
+  );
