@@ -12,7 +12,10 @@ import {
 import { writeBuddyLayerLocked } from "./buddy-layer";
 import { inspectOutput } from "./inventory";
 import type { MachineBinding } from "./machine-binding";
-import { ensureOutputDirectories } from "./output-directories";
+import {
+  checkOutputDirectories,
+  ensureOutputDirectories,
+} from "./output-directories";
 import { outputFile } from "./outputs";
 import { checkoutDirectoryRefusal } from "./owned-directory";
 import { readFolderState } from "./read-state";
@@ -84,9 +87,12 @@ export async function checkBuddyLocked(
   )
     throw new Error("Unsafe Buddy folder");
   await refuseClaudeInstructions(target);
-  for (const path of buddyFolderPaths)
+  for (const path of buddyFolderPaths) {
+    // The writer's own rule for the directories on the way, then the file.
+    await checkOutputDirectories(target, path);
     if ((await inspectOutput(target, path)).kind === "unsafe")
       throw new Error(`Unsafe Buddy folder file: ${path}`);
+  }
 }
 
 /** The folder to write: the declared one, only when it is exactly `Buddy`

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  chmod,
   lstat,
   mkdir,
   mkdtemp,
@@ -23,6 +24,7 @@ import {
   buddyGeneration,
   parseMachineEntry,
 } from "../src/folder/machine-binding";
+import { checkOutputDirectories } from "../src/folder/output-directories";
 import { buddyLayerPaths } from "../src/folder/outputs";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
@@ -468,6 +470,75 @@ posix(
         "unsafe",
       );
     } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "the check before the change applies the writer's rule to the directories on the way: one of another account is refused",
+  async () => {
+    const { parent } = await home();
+    try {
+      const buddy = join(parent, "Buddy");
+      await mkdir(join(buddy, ".agents"), { recursive: true, mode: 0o700 });
+      const uid = process.getuid?.() as number;
+      const skill = ".agents/skills/buddy-vlakna/SKILL.md" as const;
+      await checkOutputDirectories(buddy, skill, uid);
+      await expect(
+        checkOutputDirectories(buddy, skill, uid + 1),
+      ).rejects.toThrow("Unsafe output directory: .agents");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// A failure the check cannot foresee (here a directory of the person's that
+// does not let the account write) comes after the change is recorded: the
+// Launchpad is restarted on the new entry anyway, and the next refresh
+// writes the folder.
+const writable = test.skipIf(
+  process.platform === "win32" || process.getuid?.() === 0,
+);
+writable(
+  "a write that fails after the change still restarts the Launchpad, and the next refresh completes Buddy's folder",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      const buddy = join(parent, "Buddy");
+      await mkdir(join(buddy, ".agents"), { recursive: true, mode: 0o700 });
+      await chmod(join(buddy, ".agents"), 0o500);
+      let asked = 0;
+      const launchpad = {
+        service: async () => {
+          asked += 1;
+          return null;
+        },
+        version: "0.0.0",
+      };
+      await expect(
+        refreshMachineFolderAndLaunchpad(
+          folder,
+          convertedAt(parent),
+          undefined,
+          launchpad,
+        ),
+      ).rejects.toThrow();
+      expect(asked).toBe(1);
+      expect(await recordedBuddy(folder)).toBe(buddy);
+      await chmod(join(buddy, ".agents"), 0o700);
+      expect(
+        (await refreshMachineFolder(folder, convertedAt(parent))).code,
+      ).toBe(0);
+      for (const path of buddyFolderPaths)
+        expect(await exists(join(buddy, path))).toBe(true);
+    } finally {
+      await chmod(join(parent, "Buddy", ".agents"), 0o700).catch(() => {});
       await rm(parent, { recursive: true, force: true });
     }
   },

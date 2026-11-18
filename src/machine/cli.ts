@@ -598,12 +598,27 @@ export async function refreshMachineFolderAndLaunchpad(
   organizationKey: string | undefined = undefined,
 ) {
   const before = launchpad === undefined ? null : await recordedEntry(folder);
-  const refreshed = await refreshMachineFolder(
-    folder,
-    machine,
-    preset,
-    organizationKey,
-  );
+  let refreshed: Awaited<ReturnType<typeof refreshMachineFolder>>;
+  try {
+    refreshed = await refreshMachineFolder(
+      folder,
+      machine,
+      preset,
+      organizationKey,
+    );
+  } catch (error) {
+    // A failure after the Folder recorded a new entry (a write of Buddy's
+    // folder that the check before the change could not foresee, plan
+    // LZD-0033) still restarts the Launchpad on it: a retry sees the entry
+    // unchanged and would leave the running Launchpad on the old one. The
+    // failure is reported as it was.
+    if (
+      launchpad !== undefined &&
+      (await recordedEntry(folder).catch(() => before)) !== before
+    )
+      await restartLaunchpadForEntry(folder, launchpad).catch(() => undefined);
+    throw error;
+  }
   if (launchpad === undefined || refreshed.result.kind !== "refreshed")
     return refreshed;
   if ((await recordedEntry(folder)) === before) return refreshed;
