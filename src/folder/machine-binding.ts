@@ -9,6 +9,7 @@ import {
   isEntryAudience,
 } from "../launchpad/public-environment";
 import { environmentIdOf, isShellBuddyOrigin } from "../shell/contract";
+import type { BuddyProfile } from "./buddy-gen4";
 import { ownDataValue, stateFields } from "./state-fields";
 
 // The handover part of a hosted Folder: a projection of the root-issued
@@ -239,7 +240,22 @@ export type MachineEntry = HostedEntry &
     signOutPath?: string;
     audience?: EntryAudience;
     buddyOrigin?: string;
+    // Buddy GEN4 (plan LZD-0033, Machines#1398): the person is converted,
+    // Buddy is a thread of the shared T3 Code in this folder (`<home>/Buddy`)
+    // in this profile, and the Folder writes his instructions there. Both or
+    // neither, from the handover's `entry.buddy.generation: 4`.
+    buddyFolder?: string;
+    buddyProfile?: BuddyProfile;
   }>;
+
+/** Buddy GEN4's folder by the wire schema's rule: `/home/<user>/Buddy`. */
+export const isBuddyFolder = (value: unknown): value is string =>
+  typeof value === "string" &&
+  value.length <= 128 &&
+  /^\/home\/[a-z_][a-z0-9_-]*\/Buddy$/.test(value);
+
+const isBuddyProfile = (value: unknown): value is BuddyProfile =>
+  value === "buddy" || value === "employee";
 
 /** The socket of the Environment's relay, by the wire schema's rule: one
  * directory under `/run` and a `.sock` file, at most 100 characters. */
@@ -634,6 +650,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
   const withSignOut = ownDataValue(input, "signOutPath") !== undefined;
   const withAudience = ownDataValue(input, "audience") !== undefined;
   const withBuddy = ownDataValue(input, "buddyOrigin") !== undefined;
+  const withBuddyFolder = ownDataValue(input, "buddyFolder") !== undefined;
   const {
     t3codeOrigin,
     moduleOriginTemplate,
@@ -645,6 +662,8 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     signOutPath: signOut,
     audience,
     buddyOrigin,
+    buddyFolder,
+    buddyProfile,
     ...launchpad
   }: Record<string, unknown> = stateFields(input, [
     "externalOrigin",
@@ -659,6 +678,7 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     ...(withSignOut ? ["signOutPath"] : []),
     ...(withAudience ? ["audience"] : []),
     ...(withBuddy ? ["buddyOrigin"] : []),
+    ...(withBuddyFolder ? ["buddyFolder", "buddyProfile"] : []),
   ]);
   const hosted = parseHostedEntry(launchpad);
   if (!isHttpsOrigin(t3codeOrigin))
@@ -702,6 +722,13 @@ export function parseMachineEntry(input: unknown): MachineEntry {
     )
       throw new Error("Invalid hosted entry Buddy origin");
     entry = { ...entry, buddyOrigin };
+  }
+  if (withBuddyFolder) {
+    if (!isBuddyFolder(buddyFolder))
+      throw new Error("Invalid hosted entry Buddy folder");
+    if (!isBuddyProfile(buddyProfile))
+      throw new Error("Invalid hosted entry Buddy profile");
+    entry = { ...entry, buddyFolder, buddyProfile };
   }
   return Object.freeze(entry);
 }
@@ -758,6 +785,8 @@ export function parseMachineBinding(input: unknown): MachineBinding | null {
   // Buddy's frame is served by the person's Osobní Prostředí alone.
   if (entry?.buddyOrigin !== undefined && !personalVm)
     throw new Error("Only a personal Machine binding routes Buddy's frame");
+  if (entry?.buddyFolder !== undefined && !personalVm)
+    throw new Error("Only a personal Machine binding has Buddy's folder");
   const accessService = withAccessService
     ? parseAccessService(value.accessService)
     : undefined;

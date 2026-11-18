@@ -239,7 +239,17 @@ function filledEntry(entry: MachineEntry, dnsSlug: string): MachineEntry {
     },
     ...(entry.mausbot === undefined ? {} : { mausbot: origin(entry.mausbot) }),
     ...(entry.browser === undefined ? {} : { browser: origin(entry.browser) }),
-    ...(entry.buddy === undefined ? {} : { buddy: origin(entry.buddy) }),
+    // Buddy GEN4's member without an origin has nothing name-bound.
+    ...(entry.buddy === undefined
+      ? {}
+      : entry.buddy.external_origin === undefined
+        ? { buddy: entry.buddy }
+        : {
+            buddy: {
+              ...entry.buddy,
+              external_origin: filled(entry.buddy.external_origin, dnsSlug),
+            },
+          }),
   };
 }
 

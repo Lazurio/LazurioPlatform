@@ -1,7 +1,7 @@
 import { constants } from "node:fs";
 import { lstat, mkdir, open, readdir, rename } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
-import { writeBuddyLayerLocked } from "./buddy-layer";
+import { writeBuddyLocked } from "./buddy-folder";
 import {
   FolderAdoptionError,
   handoverDirectories,
@@ -336,7 +336,7 @@ async function initialize(
     if (layout) await verifyHandoverLayout(folder, layout);
     // Buddy's Lazurio layer follows the initialized state, outside its
     // journal: it carries no ownership proof (`buddy-layer.ts`).
-    await writeBuddyLayerLocked(folder, assertHeld);
+    await writeBuddyLocked(folder, assertHeld);
     return {
       kind: "initialized" as const,
       revision: 1,

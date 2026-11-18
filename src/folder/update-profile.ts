@@ -4,7 +4,7 @@ import {
   finalizePreparationLocked,
   resumePreparationLocked,
 } from "./apply-preparation";
-import { writeBuddyLayerLocked } from "./buddy-layer";
+import { writeBuddyLocked } from "./buddy-folder";
 import { withFolderOperationLock } from "./lock";
 import type { MachineBinding } from "./machine-binding";
 import { inspectOwnedDirectory } from "./owned-directory";
@@ -180,7 +180,7 @@ async function changeFolder(
       // and also when nothing else changed, never after a refusal
       // (`buddy-layer.ts`).
       if (prepared.kind === "unchanged")
-        await writeBuddyLayerLocked(folder, assertHeld);
+        await writeBuddyLocked(folder, assertHeld);
       if (prepared.kind !== "prepared") return prepared;
       await checkpoint("prepared");
       const applied = await applyPreparationLocked(folder, assertHeld);
@@ -189,7 +189,7 @@ async function changeFolder(
       await checkpoint("applied");
       await finalizePreparationLocked(folder, applied.revision, assertHeld);
       await checkpoint("finalized");
-      await writeBuddyLayerLocked(folder, assertHeld);
+      await writeBuddyLocked(folder, assertHeld);
       await assertHeld();
       return {
         kind: "updated" as const,

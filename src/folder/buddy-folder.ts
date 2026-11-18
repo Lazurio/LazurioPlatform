@@ -2,11 +2,48 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join } from "node:path";
-import type { BuddyFolderPath } from "./buddy-gen4";
+import { readPersona } from "../buddy/persona";
+import { type BuddyFolderPath, renderBuddyFolder } from "./buddy-gen4";
+import { writeBuddyLayerLocked } from "./buddy-layer";
 import { inspectOutput } from "./inventory";
 import { ensureOutputDirectories } from "./output-directories";
 import { outputFile } from "./outputs";
 import { checkoutDirectoryRefusal } from "./owned-directory";
+import { readFolderState } from "./read-state";
+import { instructionSource } from "./render";
+
+// Buddy's instructions after every change of the Folder (plan LZD-0033, R2):
+// a person the handover names converted (`entry.buddy.generation: 4`, the
+// binding's `buddyFolder`) gets Buddy GEN4's folder with the persona of
+// Nastavení → Buddy, and Buddy GEN3's layer in `.agents/buddy/` is no longer
+// written, nor removed (its removal is the conversion's, R9). Everyone else
+// keeps Buddy GEN3's layer exactly as before. An absent or unreadable persona
+// renders the generic, formal text. The folder written is always the
+// Folder's own sibling `<home>/Buddy`, never a path read from elsewhere, so
+// nothing outside the Folder's home is written; on a hosted Environment that
+// is the very folder the handover names (`/home/<operator>/Buddy`).
+export async function writeBuddyLocked(
+  folder: string,
+  assertHeld: () => Promise<void>,
+): Promise<void> {
+  const { preferences } = await readFolderState(join(folder, ".lazurio"));
+  const entry = preferences.machine?.entry;
+  if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined) {
+    await writeBuddyLayerLocked(folder, assertHeld);
+    return;
+  }
+  const home = dirname(folder);
+  const persona = await readPersona(home);
+  await writeBuddyFolderLocked(
+    join(home, "Buddy"),
+    renderBuddyFolder(
+      instructionSource(preferences),
+      entry.buddyProfile,
+      persona.state === "valid" ? persona.persona : undefined,
+    ),
+    assertHeld,
+  );
+}
 
 // Buddy GEN4's folder (plan LZD-0033, R2): `~/Buddy`, beside the Lazurio
 // Folder and never inside it, where T3 Code keeps Buddy's project

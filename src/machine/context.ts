@@ -152,7 +152,17 @@ export type MachineEntry = Readonly<{
   environment_relay?: Readonly<{ socket: string }>;
   sign_out?: Readonly<{ path: string }>;
   audience?: "public";
-  buddy?: Readonly<{ external_origin: string; listen_port: number }>;
+  // Buddy GEN4 (plan LZD-0033, Machines#1398): `generation: 4`, his folder
+  // and profile, the origin and port only while Buddy's own T3 is routed.
+  buddy?:
+    | Readonly<{ external_origin: string; listen_port: number }>
+    | Readonly<{
+        generation: 4;
+        folder: string;
+        profile: "buddy" | "employee";
+        external_origin?: string;
+        listen_port?: number;
+      }>;
 }>;
 // This Environment's own vault (root decision 0198 point 1, DEV-6631 contract
 // C2): the network's Lazurio Vaultwarden, the technical account the network
@@ -307,7 +317,7 @@ function freeze(value: unknown): void {
 }
 
 /** Whether this Platform reads every shape of a schema-valid handover. The
- * vendored schema (Machines#1370) also accepts shapes whose reader is not
+ * vendored schema (Machines#1398) also accepts shapes whose reader is not
  * implemented here yet, which Machines writes only for a Platform at or above
  * their minimum: a personal owner keyed on the Lazurio account (plan PCH M4,
  * the pair issuer + subject) and Buddy's origin in the personal zone (PCH M1).
