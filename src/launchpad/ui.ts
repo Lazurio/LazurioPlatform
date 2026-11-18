@@ -155,6 +155,9 @@ import { type VoiceView, voicePanel } from "./voice-panel";
 const fragment = readFragment(location.hash);
 const token = fragment.token;
 let pendingStart: StartRequest | null = fragment.start;
+// The first address's query, before the address is reduced to its path: a
+// custom server Apps fills in for Integrace (plan LZD-0037), read once.
+let firstQuery: string | null = location.search === "" ? null : location.search;
 history.replaceState(null, "", location.pathname);
 // Local: the fragment token is the credential. Hosted (no token): the
 // gateway's session cookie is, sent by the browser itself; a denial (a 401,
@@ -1403,6 +1406,11 @@ const files = createFilesPanel({
 // only where a direct sign-in can return to Executor alone on a Remote
 // Environment (its addendum of 2026-10-13).
 const integrations = createIntegrationsPanel({
+  takeQuery: () => {
+    const query = firstQuery;
+    firstQuery = null;
+    return query;
+  },
   get: (path) => get(path),
   post: (path, body) => post(path, body),
   copy: () => copy,

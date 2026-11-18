@@ -4,6 +4,7 @@ import {
   type AppsTile,
   appsScope,
   appsSections,
+  connectAgentsPath,
   favoriteTiles,
   moduleApplication,
   type TileApplications,
@@ -291,4 +292,40 @@ test("the match ignores the Organization's case and needs the exact Module", () 
     list[0] ?? null,
   );
   expect(moduleApplication({ slug: "example", list }, "deal")).toBeNull();
+});
+
+// --- "Připojit k agentům" (plan LZD-0037) ----------------------------------
+
+test("an Application that offers MCP gets the filled-in page of Integrace in its tile's menu; one without, none", () => {
+  const tiles = tilesWith({
+    slug: "example",
+    list: [
+      { ...application("deals"), name: "Obchodní případy", mcp: true },
+      application("planner"),
+    ],
+  });
+  expect(tile(tiles, "deals").agents).toEqual({
+    origin: "https://deals.example.lazurio.app",
+    path: "/integrations/custom/new?name=Obchodn%C3%AD+p%C5%99%C3%ADpady&url=https%3A%2F%2Fdeals.example.lazurio.app%2Fmcp",
+  });
+  expect(tile(tiles, "planner").agents).toBeNull();
+  expect(
+    tilesWith(undefined).every(
+      (item) => item.kind !== "module" || item.agents === null,
+    ),
+  ).toBe(true);
+});
+
+test("the path carries at most 64 characters of the name, counted as characters", () => {
+  const long = "Ž".repeat(70);
+  const path = connectAgentsPath({
+    ...application("deals"),
+    name: long,
+    mcp: true,
+  });
+  const query = new URLSearchParams((path ?? "").split("?")[1]);
+  expect(query.get("name")).toBe("Ž".repeat(64));
+  expect(query.get("url")).toBe("https://deals.example.lazurio.app/mcp");
+  expect(connectAgentsPath({ ...application("deals"), mcp: false })).toBeNull();
+  expect(connectAgentsPath(null)).toBeNull();
 });

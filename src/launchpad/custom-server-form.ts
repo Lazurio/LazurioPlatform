@@ -72,6 +72,27 @@ export function newCustomForm(): CustomForm {
   };
 }
 
+/** A new server filled in from the page's address: `name` and an `https:`
+ * `url`, as Apps links an Application's MCP server ("Připojit k agentům",
+ * plan LZD-0037). Anything else in the address is ignored, and nothing is
+ * connected until the person confirms the form and signs in. */
+export function prefilledCustomForm(search: string): CustomForm {
+  const form = newCustomForm();
+  const query = new URLSearchParams(search);
+  const url = query.get("url")?.trim() ?? "";
+  let https = false;
+  try {
+    https = url !== "" && new URL(url).protocol === "https:";
+  } catch {
+    https = false;
+  }
+  if (!https) return form;
+  const name = Array.from((query.get("name") ?? "").trim())
+    .slice(0, 64)
+    .join("");
+  return { ...form, name, http: { ...form.http, url } };
+}
+
 /** An existing server, as the server answers its settings: the keys by
  * name, their values empty and kept. */
 export function editCustomForm(settings: CustomServerSettings): CustomForm {

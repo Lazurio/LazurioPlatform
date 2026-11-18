@@ -905,9 +905,10 @@ of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 **Status.** The registry, both transports and the test helpers are in
 `@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
 v0.4.0, which the stack profiles pin from release 2026.12. The Application host's gateway admits `/mcp` today (Machines
-v0.12.244 and later states the scope, below). Lazurio does not yet offer an
-Organization's App MCP server in Integrations by itself; until it does, the
-person adds it under Integrations → Custom. `lazurio module create` gives a
+v0.12.244 and later states the scope, below). Apps offers an Application's MCP server where the account says it has one
+and Apps' probe finds its host admitting MCP sign-in: its tile's menu
+"Připojit k agentům" opens Integrations → Custom filled in, and the person
+confirms and signs in there. `lazurio module create` gives a
 `bun-service` its tool registry at `/mcp` (`src/agent-tools.ts`, with
 `get_app_context` and a test), and every Module with data (`--data`) the
 single-record part of the data port (`src/data/store.ts`: get, list and save
@@ -1092,9 +1093,10 @@ connection then serves every agent and bot of that Environment, by that
 person's application role (decisions 0172 and 0196: the Environment is the
 boundary). The sign-in is the person's consent: an agent never connects it for
 them. A person without a role in the App gets a connection that answers
-`403`. The target is that Lazurio offers the MCP servers of the Organization's
-Applications in Integrations and the person confirms by signing in
-(LZD-0037); until then the person adds it as a custom server.
+`403`. Apps offers it: where the account names the Application with
+`mcp` (decision 0249's `applications`), the tile's menu has "Připojit k
+agentům", which opens Integrations → Custom filled in with the Application's
+name and `/mcp` address; the person confirms and signs in there (LZD-0037).
 
 ### Tested like the interface
 

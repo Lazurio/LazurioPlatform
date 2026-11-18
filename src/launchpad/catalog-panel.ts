@@ -724,6 +724,30 @@ export function createCatalogPanel(
       .catch(() => maintainers.settle(organization, module, ask, false))
       .finally(settled);
   }
+  // Whether an Application's host admits MCP sign-in for it, by the
+  // Launchpad's probe, asked once per origin while the page is open.
+  const mcpAnswers = new Map<string, Promise<boolean>>();
+  const offersMcp = (origin: string): Promise<boolean> => {
+    let answer = mcpAnswers.get(origin);
+    if (answer === undefined) {
+      answer = options
+        .post("/api/apps/mcp-probe", { origin })
+        .then(
+          ({ value, ok }) =>
+            ok &&
+            typeof value === "object" &&
+            value !== null &&
+            (value as { admits?: unknown }).admits === true,
+        )
+        .catch(() => false);
+      // An Application that could not be asked is asked again later.
+      void answer.then((offers) => {
+        if (!offers) mcpAnswers.delete(origin);
+      });
+      mcpAnswers.set(origin, answer);
+    }
+    return answer;
+  };
   const maintainerOf = (group: CatalogGroupEntry, item: AppsTile) => {
     if (catalog === null || item.kind !== "module") return false;
     const organization = catalogOrganizationKey(catalog, group.organization);
@@ -813,6 +837,26 @@ export function createCatalogPanel(
       development.append(svg("external"), copy.appsDevelopment);
       development.addEventListener("click", close);
       list.append(development);
+    }
+    // "Připojit k agentům" (plan LZD-0037): where the account says the
+    // Application offers an MCP server, the page of Integrace that connects
+    // it to this Environment's agents, filled in; the person confirms and
+    // signs in there. Beside the account's `mcp`, the item waits in its
+    // place, hidden, until this Environment's probe finds the Application's
+    // host admitting MCP sign-in for that origin. A plain link in this window: the
+    // page's own moves keep only the path, and the form reads the query.
+    if (item.kind === "module" && item.agents !== null) {
+      const agents = element("a", "tile-menu-item");
+      agents.href = item.agents.path;
+      agents.title = copy.appsConnectAgentsHint;
+      agents.setAttribute("role", "menuitem");
+      agents.append(svg("bot"), copy.appsConnectAgents);
+      agents.addEventListener("click", close);
+      agents.hidden = true;
+      list.append(agents);
+      void offersMcp(item.agents.origin).then((offers) => {
+        agents.hidden = !offers;
+      });
     }
     // A guest Module's repository on GitHub, beside its overview.
     if (item.kind === "guest" && item.guest.url !== null) {
