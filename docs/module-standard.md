@@ -765,6 +765,23 @@ The application host provides sibling data as a read-only replica; an API siblin
 runs as another Application of the same host. A host that cannot yet do either is
 a host condition of the readiness check, not a defect of the Module.
 
+**Server services an App uses.** A service of the Organization's Server
+Services (a database in `app/v4`, the print service that renders a page to PDF,
+and later others) reaches an App only as runtime secrets of that service:
+`LAZURIO_RUNTIME_SECRET_LAZURIO_SERVICE_<ID>_<FIELD>`, for example
+`LAZURIO_SERVICE_PRINT_URL` and `LAZURIO_SERVICE_PRINT_TOKEN` for the service
+`print`. The App declares the names in `lazurio.runtime.optional_secrets` (or
+`secrets` where it cannot start without them); the module adds no field of its
+own for services. Which Application may use which service is the Organization's
+boundary of trust, granted in its Deployment Repo (Machines#1350), never by the
+module. An App decides by whether the service's variables are present, never by
+the name of the place it runs in: a development version without them may use a
+local substitute (for printing, the Environment's browser), and an Application
+without a granted service answers a typed refusal (for printing,
+`pdf_unavailable`), never an empty or substitute result. Printing is a read: it
+changes no data and works in the read-only mode too, and the page it prints is
+self-contained (images and fonts inline, no URL fetched while printing).
+
 **Agents and Buddy.** An Application may offer its tools to agents through `/mcp`
 and WebMCP, behind the gateway and by the application roles above, as
 [Tools for agents](#tools-for-agents-mcp-and-webmcp) describes; the rollout then
