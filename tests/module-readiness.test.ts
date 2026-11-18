@@ -476,3 +476,44 @@ posixTest(
     expect(result.verdict).toBe("ready-for-trial");
   },
 );
+
+posixTest(
+  "a publication tool with its annotation is ready only for a trial until D1 is decided",
+  async () => {
+    const files = readyServer();
+    files["app/v3/tools.ts"] =
+      'registry.tool({ name: "publish_draft", effect: "publish", destructiveHint: true });\n' +
+      'registry.tool({ name: "save_draft", effect: "write", publishesData: false });\n';
+    const result = await assess(files);
+    expect(ids(result)).toEqual(["publication-pending-d1"]);
+    expect(result.findings[0]?.level).toBe("live");
+    expect(result.findings[0]?.message).toContain("1 publication tool");
+    expect(result.verdict).toBe("ready-for-trial");
+  },
+);
+
+posixTest(
+  "a publication tool without destructiveHint is not ready",
+  async () => {
+    const files = readyServer();
+    files["app/v3/tools.ts"] =
+      'registry.tool({ name: "publish_draft", effect: "publish", destructiveHint: true });\n' +
+      "registry.tool({ name: 'send_quote', effect: 'publish' });\n";
+    const result = await assess(files);
+    expect(ids(result)).toEqual(["publication-hint", "publication-pending-d1"]);
+    expect(
+      result.findings.find((item) => item.id === "publication-hint")?.message,
+    ).toContain("2 publication tools");
+    expect(result.verdict).toBe("not-ready");
+  },
+);
+
+posixTest("draft tools alone raise no publication finding", async () => {
+  const files = readyServer();
+  files["app/v3/tools.ts"] =
+    'registry.tool({ name: "save_draft", effect: "write", publishesData: false });\n' +
+    'registry.tool({ name: "find_items", effect: "read" });\n';
+  const result = await assess(files);
+  expect(result.findings).toEqual([]);
+  expect(result.verdict).toBe("ready-for-live");
+});

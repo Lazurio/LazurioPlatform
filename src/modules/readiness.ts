@@ -78,6 +78,14 @@ export type ReadinessInput = Readonly<{
 
 const MODULE_KIT_FLOOR = [0, 3, 0] as const;
 
+/** A tool that publishes (module kit: `effect: "publish"`), and its annotation. */
+const PUBLICATION_MARKER = /\beffect\s*:\s*["'`]publish["'`]/g;
+const DESTRUCTIVE_MARKER = /\bdestructiveHint\s*:\s*true\b/g;
+
+function countMatches(text: string, pattern: RegExp): number {
+  return text.match(pattern)?.length ?? 0;
+}
+
 function dependencies(pkg: Readonly<Record<string, unknown>> | null) {
   const all: Record<string, string> = {};
   for (const key of ["dependencies", "devDependencies"]) {
@@ -303,6 +311,25 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "live",
       "No contract tests over @lazurio/module-kit testing helpers (role list, refusal without a role or without the writer, deep health).",
     );
+  // Publications by tools (decision D1 of LZD-0037): a publication is a tool
+  // of its own, declared `effect: "publish"` in the module kit's registry and
+  // annotated `destructiveHint: true`. Counted by markers, as everything else
+  // here: every publication needs its annotation, and until the Owner decides
+  // how the App knows the person's "Publikuj", an Application offers none.
+  const publications = countMatches(app.source, PUBLICATION_MARKER);
+  if (publications > 0) {
+    if (countMatches(app.source, DESTRUCTIVE_MARKER) < publications)
+      add(
+        "publication-hint",
+        "blocker",
+        `The app declares ${publications} publication ${publications === 1 ? "tool" : "tools"} (effect: "publish") but fewer destructiveHint: true annotations: every publication is a tool of its own annotated destructiveHint: true.`,
+      );
+    add(
+      "publication-pending-d1",
+      "live",
+      `The app declares ${publications} publication ${publications === 1 ? "tool" : "tools"} (effect: "publish"). Until the Owner decides how the App knows the person's "Publikuj" (LZD-0037, D1), an Application offers no publication tool: offer it only in a development version.`,
+    );
+  }
   // Unknown evidence keeps the level of the requirement it stands for: an
   // unknown blocker-level marker blocks, an unknown live-only one does not.
   if (unknownMarkers.length > 0 && input.tracked !== null) {

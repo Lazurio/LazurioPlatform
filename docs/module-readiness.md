@@ -107,6 +107,20 @@ to the writing Environment (#1034). Either way the App must read the variable,
 so the static check looks for it (or module-kit's `dataWriter`) in a V3 or V4
 app's source, and the contract tests prove the cases of the chosen variant.
 
+## Publication tools
+
+A tool that publishes (an approval, a signature, a sending, a deletion, a
+movement of money, the publication of a draft or data to everyone) is a tool of
+its own, declared `effect: "publish"` in the module kit's registry and annotated
+`destructiveHint: true`; an agent calls it only after the person's explicit
+"Publikuj" (Module Standard, Effects and publication; decision D1 of LZD-0037).
+The static check counts the markers: fewer `destructiveHint: true` than
+`effect: "publish"` is `publication-hint`, a blocker; any publication tool is
+`publication-pending-d1`, live evidence, because until the Owner decides how the
+App knows the person's "Publikuj" an Application offers no publication tool and
+only a development version may. Draft tools (`effect: "write"` with
+`publishesData: false`) raise neither.
+
 ## Limits of the static check
 
 It reads markers, not behaviour: a source that names `appAccess` or the writer
