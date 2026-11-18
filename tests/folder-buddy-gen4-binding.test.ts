@@ -29,12 +29,17 @@ import { checkOutputDirectories } from "../src/folder/output-directories";
 import { buddyLayerPaths } from "../src/folder/outputs";
 import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
+import { neededRefresh } from "../src/folder/refresh-needed";
+import { instructionTemplateRevision } from "../src/folder/render";
+import { refreshFolder } from "../src/folder/update-profile";
 import {
   initializeMachineFolder,
   machineFailureAnswer,
   refreshMachineFolder,
   refreshMachineFolderAndLaunchpad,
 } from "../src/machine/cli";
+import { entryDigest } from "../src/machine/launchpad-entry";
+import { refreshFolderWhenBehind } from "../src/update/folder-refresh";
 import {
   binding,
   entries,
@@ -615,3 +620,184 @@ test("a refusal before the change is the command's blocked answer with its reaso
     });
   }
 });
+
+// A Launchpad of this Folder that reports the entry it started with.
+function supervised(
+  folder: string,
+  running: () => string,
+  restart: () => Promise<void>,
+) {
+  let restarts = 0;
+  return {
+    get restarts() {
+      return restarts;
+    },
+    seams: {
+      service: async () =>
+        ({
+          folder,
+          restartLaunchpad: async () => {
+            restarts += 1;
+            await restart();
+          },
+          launchpadVersion: async () => "0.0.0",
+          launchpadEntry: async () => running(),
+        }) as never,
+      version: "0.0.0",
+      deadlineMs: 10,
+    },
+  };
+}
+
+posix(
+  "a failed restart is owed: the retry restarts the Launchpad that still reports the old entry, and a current one is left alone",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      const old = entryDigest(plain.entry);
+      let running = old;
+      // The conversion's restart fails: the Launchpad stays on the old entry.
+      const failing = supervised(
+        folder,
+        () => running,
+        async () => {
+          throw new Error("unit failed");
+        },
+      );
+      const first = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        failing.seams,
+      );
+      expect((first.result as { launchpad?: string }).launchpad).toBe(
+        "restart-failed",
+      );
+      // The retry finds the Folder unchanged and still restarts it.
+      const working = supervised(
+        folder,
+        () => running,
+        async () => {
+          running = entryDigest(convertedAt(parent).entry);
+        },
+      );
+      const retry = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        working.seams,
+      );
+      expect(retry.result.kind).toBe("unchanged");
+      expect((retry.result as { launchpad?: string }).launchpad).toBe(
+        "restarted",
+      );
+      expect(working.restarts).toBe(1);
+      expect(running).not.toBe(old);
+      // Current now: nothing owed, nothing restarted.
+      const again = await refreshMachineFolderAndLaunchpad(
+        folder,
+        convertedAt(parent),
+        undefined,
+        working.seams,
+      );
+      expect("launchpad" in again.result).toBe(false);
+      expect(working.restarts).toBe(1);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a CLAUDE.md that appears after the change committed is reported, not answered as nothing changed, and the next refresh completes",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const plain = binding({ ...personal, entry: entries.personal });
+      expect(
+        (await initializeMachineFolder(folder, plain, noChoices)).code,
+      ).toBe(0);
+      const buddy = join(parent, "Buddy");
+      const result = await refreshFolder(
+        folder,
+        convertedAt(parent),
+        async (step) => {
+          if (step === "finalized") {
+            await mkdir(buddy, { recursive: true, mode: 0o700 });
+            await writeFile(join(buddy, "CLAUDE.md"), "moje\n");
+          }
+        },
+      );
+      expect(result).toMatchObject({
+        kind: "refreshed",
+        buddyFolder: { state: "failed", reason: "buddy-folder-claude-md" },
+      });
+      expect(await recordedBuddy(folder)).toBe(buddy);
+      expect(await readFile(join(buddy, "CLAUDE.md"), "utf8")).toBe("moje\n");
+      await rm(join(buddy, "CLAUDE.md"));
+      expect(
+        (await refreshMachineFolder(folder, convertedAt(parent))).code,
+      ).toBe(0);
+      expect(await exists(join(buddy, "AGENTS.md"))).toBe(true);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "lazurio update asks for a refresh while ~/Buddy lacks what the product renders, and reports a refresh that could not write it as a failure",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      expect(
+        (await initializeMachineFolder(folder, convertedAt(parent), noChoices))
+          .code,
+      ).toBe(0);
+      // Current: nothing needed.
+      expect(
+        await neededRefresh(folder, instructionTemplateRevision, folder),
+      ).toBeNull();
+      // A file of Buddy's folder missing: the operator's refresh is needed,
+      // but not for doctor, which names no operator.
+      await rm(join(parent, "Buddy", "AGENTS.md"));
+      expect(
+        (await neededRefresh(folder, instructionTemplateRevision, folder))
+          ?.command,
+      ).toEqual(["machine", "folder-refresh"]);
+      expect(
+        await neededRefresh(folder, instructionTemplateRevision, undefined),
+      ).toBeNull();
+      // The refresh's answer with a failed write is the update's failure.
+      const outcome = await refreshFolderWhenBehind({
+        base: parent,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+        run: async () => ({
+          exitCode: 0,
+          stdout: JSON.stringify({
+            kind: "refreshed",
+            revision: 2,
+            buddyFolder: {
+              state: "failed",
+              reason: "buddy-folder-claude-md",
+              error: "x",
+            },
+          }),
+        }),
+      });
+      expect(outcome).toEqual({
+        state: "failed",
+        reason: "buddy-folder-claude-md",
+      });
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);

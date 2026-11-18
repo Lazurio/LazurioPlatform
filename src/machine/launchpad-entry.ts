@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readStartState } from "../launchpad/start-check";
 import {
   type ServiceControl,
@@ -41,12 +42,36 @@ const canonical = (value: unknown): unknown =>
         )
       : value;
 
+/** The digest of an entry in its canonical form, as the running Launchpad
+ * reports the one it started with (its health answer's `entry`): "none"
+ * without one. */
+export function entryDigest(entry: unknown): string {
+  return entry === null || entry === undefined
+    ? "none"
+    : createHash("sha256")
+        .update(JSON.stringify(canonical(entry)))
+        .digest("hex");
+}
+
 /** The entry the Folder records, as the Launchpad would read it at start, in
  * one canonical form; null where there is none or the state is unreadable. */
 export async function recordedEntry(folder: string): Promise<string | null> {
   try {
     const { entry } = await readStartState(folder, { locked: false });
     return entry === null ? null : JSON.stringify(canonical(entry));
+  } catch {
+    return null;
+  }
+}
+
+/** The digest of the entry the Folder records (`entryDigest`), "none"
+ * without one; null where the state is unreadable. */
+export async function recordedEntryDigest(
+  folder: string,
+): Promise<string | null> {
+  try {
+    const { entry } = await readStartState(folder, { locked: false });
+    return entryDigest(entry);
   } catch {
     return null;
   }

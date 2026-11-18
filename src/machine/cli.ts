@@ -56,6 +56,7 @@ import { requireInstalledProduct, runningProduct } from "./installed-product";
 import {
   type LaunchpadSeams,
   recordedEntry,
+  recordedEntryDigest,
   restartLaunchpadForEntry,
 } from "./launchpad-entry";
 import { readLinuxOperator } from "./operator";
@@ -138,7 +139,10 @@ that records a different entry restarts the supervised Launchpad of this
 Folder, which reads its entry only when it starts, and waits for it to answer;
 modules, T3 Code and Codex keep running. The answer then adds "launchpad":
 restarted, restart-failed or not-supervised (no installer unit of this base
-starts this Folder; the Launchpad takes the entry at its next start). A person
+starts this Folder; the Launchpad takes the entry at its next start). A
+restart still owed (the supervised Launchpad reports another entry than the
+recorded one, after a failed restart) is made by the next refresh, unchanged
+or not, and answered the same way. A person
 the handover converts to Buddy GEN4 gets ~/Buddy written after the change; a
 write that fails there adds "buddyFolder": {"state":"failed","error":...}, the
 change, its entry and the Launchpad's restart stand, the exit code stays the
@@ -610,6 +614,22 @@ export async function refreshMachineFolder(
 // Launchpad of this Folder and says so in `launchpad`. An unchanged entry
 // (unchanged, blocked, or a refresh of rendered text only) restarts nothing
 // and adds nothing to the answer.
+// A restart owed from an earlier refresh: the supervised Launchpad of this
+// Folder reports an entry other than the one recorded (its restart failed,
+// or an earlier refresh stopped before it). Only a Launchpad that reports its
+// entry can owe one; an older release, no unit or no answer owes none.
+async function restartOwed(
+  folder: string,
+  seams: LaunchpadSeams,
+): Promise<boolean> {
+  const service = await seams.service().catch(() => null);
+  if (service === null || service.folder !== folder) return false;
+  const running = await service.launchpadEntry?.().catch(() => null);
+  if (typeof running !== "string") return false;
+  const recorded = await recordedEntryDigest(folder);
+  return recorded !== null && running !== recorded;
+}
+
 export async function refreshMachineFolderAndLaunchpad(
   folder: string,
   machine: MachineBinding,
@@ -624,9 +644,17 @@ export async function refreshMachineFolderAndLaunchpad(
     preset,
     organizationKey,
   );
-  if (launchpad === undefined || refreshed.result.kind !== "refreshed")
+  if (
+    launchpad === undefined ||
+    (refreshed.result.kind !== "refreshed" &&
+      refreshed.result.kind !== "unchanged")
+  )
     return refreshed;
-  if ((await recordedEntry(folder)) === before) return refreshed;
+  if (
+    (await recordedEntry(folder)) === before &&
+    !(await restartOwed(folder, launchpad))
+  )
+    return refreshed;
   return {
     code: refreshed.code,
     result: {

@@ -96,6 +96,7 @@ import {
 } from "../integrations/composio-organization";
 import { processExecutorEndpoint } from "../integrations/executor-client";
 import { readMachineContext } from "../machine/context";
+import { entryDigest } from "../machine/launchpad-entry";
 import { hostedOperatorFolder } from "../machine/operator";
 import { type MemoryHost, processMemoryHost } from "../memory/gbrain-reader";
 import { createApplicationLifecycle } from "../modules/lifecycle";
@@ -3671,7 +3672,10 @@ export async function startLaunchpad(
   // updater's health poll reads it. There is nothing to commit or undo here:
   // the switch of `bin/lazurio` was the commit (docs/update.md "Activation").
   const health = installed
-    ? await serveHealthSocket(installed.base, { version: installed.version })
+    ? await serveHealthSocket(installed.base, {
+        version: installed.version,
+        entry: entryDigest(entry),
+      })
     : null;
   pill?.start();
   settings?.start();

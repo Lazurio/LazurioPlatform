@@ -20,6 +20,7 @@ import { outputFile } from "./outputs";
 import { checkoutDirectoryRefusal } from "./owned-directory";
 import { readFolderState } from "./read-state";
 import { instructionSource } from "./render";
+import type { FolderPreferences } from "./state";
 
 /** Buddy GEN4's folder cannot take his instructions, found before anything
  * changed: `buddy-folder-mismatch` (not exactly `Buddy` of the Folder's
@@ -43,6 +44,8 @@ export class BuddyFolderRefused extends Error {
  * refresh, and the next refresh writes the folder again. */
 export type BuddyFolderWriteFailure = Readonly<{
   state: "failed";
+  /** Where the folder was refused: BuddyFolderRefused's reason. */
+  reason?: BuddyFolderRefused["reason"];
   error: string;
 }>;
 
@@ -70,12 +73,13 @@ export async function writeBuddyLocked(
     await writeBuddyLayerLocked(folder, assertHeld);
     return undefined;
   }
-  // The same check as before the change, so that a caller outside it (a
-  // change of the persona) is refused before anything is written too.
-  await checkBuddyLocked(folder, preferences.machine);
-  const home = dirname(folder);
-  const target = await buddyFolderTarget(home, entry.buddyFolder);
+  // After the change everything about Buddy's folder is reported, never
+  // thrown: the same check as before it (a CLAUDE.md that appeared since, a
+  // caller outside a change such as the persona's), then the write.
   try {
+    await checkBuddyLocked(folder, preferences.machine);
+    const home = dirname(folder);
+    const target = await buddyFolderTarget(home, entry.buddyFolder);
     await writeBuddyGen4Locked(
       home,
       target,
@@ -89,8 +93,46 @@ export async function writeBuddyLocked(
     await assertHeld();
     return Object.freeze({
       state: "failed" as const,
+      ...(error instanceof BuddyFolderRefused ? { reason: error.reason } : {}),
       error: error instanceof Error ? error.message : String(error),
     });
+  }
+}
+
+/** Whether a converted person's `~/Buddy` lacks what this product renders
+ * for the Folder's preferences and persona: a file absent, other or unsafe.
+ * Reading only, no lock; anything unreadable counts as behind, so that the
+ * refresh that follows writes it or reports why it cannot. False where the
+ * person is not converted. */
+export async function buddyFolderBehind(
+  folder: string,
+  preferences: FolderPreferences,
+): Promise<boolean> {
+  const entry = preferences.machine?.entry;
+  if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined)
+    return false;
+  try {
+    const home = dirname(folder);
+    const persona = await readPersona(home);
+    const files = renderBuddyFolder(
+      instructionSource(preferences),
+      entry.buddyProfile,
+      persona.state === "valid" ? persona.persona : undefined,
+    );
+    for (const [path, content] of Object.entries(files) as [
+      BuddyFolderPath,
+      string,
+    ][]) {
+      const observed = await inspectOutput(entry.buddyFolder, path);
+      if (
+        observed.kind !== "regular" ||
+        observed.digest !== createHash("sha256").update(content).digest("hex")
+      )
+        return true;
+    }
+    return false;
+  } catch {
+    return true;
   }
 }
 
