@@ -64,6 +64,10 @@ export type ReadinessInput = Readonly<{
     /** Committed source files that were not read (over a limit, or Git
      * failed); a marker missing from `source` is then unknown, not absent. */
     sourceSkipped: readonly string[];
+    /** The same source without tests, where the App's tools are declared. */
+    toolSource: string;
+    /** The skipped files among them. */
+    toolSourceSkipped: readonly string[];
     server: boolean;
     staticBuild: boolean;
     healthPaths: readonly string[];
@@ -80,10 +84,100 @@ const MODULE_KIT_FLOOR = [0, 3, 0] as const;
 
 /** A tool that publishes (module kit: `effect: "publish"`), and its annotation. */
 const PUBLICATION_MARKER = /\beffect\s*:\s*["'`]publish["'`]/g;
-const DESTRUCTIVE_MARKER = /\bdestructiveHint\s*:\s*true\b/g;
+const DESTRUCTIVE_MARKER = /\bdestructiveHint\s*:\s*true\b/;
 
-function countMatches(text: string, pattern: RegExp): number {
-  return text.match(pattern)?.length ?? 0;
+/** A test file: its tools are fixtures and assertions, not the App's. */
+const TEST_FILE = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+
+/**
+ * The source with comments blanked (`code`) and, in `masked`, also the
+ * contents of string and template literals, both the same length as the
+ * source, so a position in one is the same position in the others.
+ */
+function lexed(source: string): { code: string; masked: string } {
+  const code = source.split("");
+  const masked = source.split("");
+  let index = 0;
+  const blank = (from: number, to: number, alsoCode: boolean) => {
+    for (let at = from; at < to; at++) {
+      if (source[at] === "\n") continue;
+      masked[at] = " ";
+      if (alsoCode) code[at] = " ";
+    }
+  };
+  while (index < source.length) {
+    const char = source[index];
+    const next = source[index + 1];
+    if (char === "/" && next === "/") {
+      const end = source.indexOf("\n", index);
+      const stop = end < 0 ? source.length : end;
+      blank(index, stop, true);
+      index = stop;
+    } else if (char === "/" && next === "*") {
+      const end = source.indexOf("*/", index + 2);
+      const stop = end < 0 ? source.length : end + 2;
+      blank(index, stop, true);
+      index = stop;
+    } else if (char === '"' || char === "'" || char === "`") {
+      let at = index + 1;
+      while (at < source.length && source[at] !== char) {
+        if (source[at] === "\\") at++;
+        if (char !== "`" && source[at] === "\n") break;
+        at++;
+      }
+      blank(index + 1, at, false);
+      index = at + 1;
+    } else index++;
+  }
+  return { code: code.join(""), masked: masked.join("") };
+}
+
+/** The object literal around `position` in `masked`: its open and close brace. */
+function enclosingObject(
+  masked: string,
+  position: number,
+): [number, number] | null {
+  let depth = 0;
+  let open = -1;
+  for (let at = position; at >= 0; at--) {
+    if (masked[at] === "}") depth++;
+    else if (masked[at] === "{") {
+      if (depth === 0) {
+        open = at;
+        break;
+      }
+      depth--;
+    }
+  }
+  if (open < 0) return null;
+  depth = 0;
+  for (let at = open; at < masked.length; at++) {
+    if (masked[at] === "{") depth++;
+    else if (masked[at] === "}") {
+      depth--;
+      if (depth === 0) return [open, at];
+    }
+  }
+  return null;
+}
+
+/**
+ * The publication tools the App declares: every `effect: "publish"` outside
+ * comments and strings, with whether its own declaration (the object literal
+ * around it, nested annotations included) says `destructiveHint: true`.
+ */
+export function publicationTools(source: string): { annotated: boolean }[] {
+  const { code, masked } = lexed(source);
+  const tools: { annotated: boolean }[] = [];
+  for (const match of code.matchAll(PUBLICATION_MARKER)) {
+    const at = match.index ?? 0;
+    // The key itself must be code, not the inside of a string.
+    if (masked[at] !== "e") continue;
+    const object = enclosingObject(masked, at);
+    const declaration = object ? code.slice(object[0], object[1] + 1) : "";
+    tools.push({ annotated: DESTRUCTIVE_MARKER.test(declaration) });
+  }
+  return tools;
 }
 
 function dependencies(pkg: Readonly<Record<string, unknown>> | null) {
@@ -316,20 +410,28 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   // annotated `destructiveHint: true`. Counted by markers, as everything else
   // here: every publication needs its annotation, and until the Owner decides
   // how the App knows the person's "Publikuj", an Application offers none.
-  const publications = countMatches(app.source, PUBLICATION_MARKER);
-  if (publications > 0) {
-    if (countMatches(app.source, DESTRUCTIVE_MARKER) < publications)
-      add(
-        "publication-hint",
-        "blocker",
-        `The app declares ${publications} publication ${publications === 1 ? "tool" : "tools"} (effect: "publish") but fewer destructiveHint: true annotations: every publication is a tool of its own annotated destructiveHint: true.`,
-      );
+  // Only the App's own declarations count: no tests, no comments, no text
+  // in strings; an annotation counts only in the declaration it belongs to.
+  // A skipped file of the app's source may hold a publication tool or its
+  // annotation, so what it could change stays unknown.
+  const tools = publicationTools(app.toolSource);
+  const toolsKnown =
+    input.tracked !== null && app.toolSourceSkipped.length === 0;
+  const unannotated = tools.filter((tool) => !tool.annotated).length;
+  if (unannotated > 0)
+    add(
+      "publication-hint",
+      "blocker",
+      `The app declares ${unannotated} publication ${unannotated === 1 ? "tool" : "tools"} (effect: "publish") without destructiveHint: true in ${unannotated === 1 ? "its" : "their"} declaration: every publication is a tool of its own annotated destructiveHint: true.`,
+    );
+  if (tools.length > 0)
     add(
       "publication-pending-d1",
       "live",
-      `The app declares ${publications} publication ${publications === 1 ? "tool" : "tools"} (effect: "publish"). Until the Owner decides how the App knows the person's "Publikuj" (LZD-0037, D1), an Application offers no publication tool: offer it only in a development version.`,
+      `The app declares ${tools.length} publication ${tools.length === 1 ? "tool" : "tools"} (effect: "publish"). Until the Owner decides how the App knows the person's "Publikuj" (LZD-0037, D1), an Application offers no publication tool: offer it only in a development version.`,
     );
-  }
+  else if (!toolsKnown && input.tracked !== null)
+    unknownMarkers.push({ name: "no publication tools", level: "live" });
   // Unknown evidence keeps the level of the requirement it stands for: an
   // unknown blocker-level marker blocks, an unknown live-only one does not.
   if (unknownMarkers.length > 0 && input.tracked !== null) {
@@ -429,7 +531,29 @@ function committedTree(moduleDirectory: string): TreeEntry[] | null {
 function committedSource(
   moduleDirectory: string,
   entries: readonly TreeEntry[],
-): { text: string; skipped: string[] } {
+): {
+  text: string;
+  skipped: string[];
+  toolText: string;
+  toolSkipped: string[];
+} {
+  const read = readCommitted(moduleDirectory, entries);
+  const isTool = (file: string) => !TEST_FILE.test(file);
+  return {
+    text: read.parts.map((part) => part.text).join("\n"),
+    skipped: read.skipped,
+    toolText: read.parts
+      .filter((part) => isTool(part.path))
+      .map((part) => part.text)
+      .join("\n"),
+    toolSkipped: read.skipped.filter(isTool),
+  };
+}
+
+function readCommitted(
+  moduleDirectory: string,
+  entries: readonly TreeEntry[],
+): { parts: { path: string; text: string }[]; skipped: string[] } {
   const picked: string[] = [];
   const skipped: string[] = [];
   let total = 0;
@@ -445,16 +569,16 @@ function committedSource(
     picked.push(entry.path);
     total += entry.size;
   }
-  if (picked.length === 0) return { text: "", skipped };
+  if (picked.length === 0) return { parts: [], skipped };
   const result = git(
     moduleDirectory,
     ["cat-file", "--batch"],
     picked.map((path) => `HEAD:./${path}\n`).join(""),
   );
   if (result.status !== 0 || !Buffer.isBuffer(result.stdout))
-    return { text: "", skipped: [...skipped, ...picked] };
+    return { parts: [], skipped: [...skipped, ...picked] };
   const out = result.stdout;
-  const parts: string[] = [];
+  const parts: { path: string; text: string }[] = [];
   let offset = 0;
   for (const path of picked) {
     const newline = out.indexOf(10, offset);
@@ -469,10 +593,13 @@ function committedSource(
       continue;
     }
     const size = Number(header[2]);
-    parts.push(out.subarray(offset, offset + size).toString("utf8"));
+    parts.push({
+      path,
+      text: out.subarray(offset, offset + size).toString("utf8"),
+    });
     offset += size + 1;
   }
-  return { text: parts.join("\n"), skipped };
+  return { parts, skipped };
 }
 
 export async function readReadinessInput(
@@ -516,6 +643,8 @@ export async function readReadinessInput(
         pkg: null,
         source: "",
         sourceSkipped: [],
+        toolSource: "",
+        toolSourceSkipped: [],
         server: false,
         staticBuild: false,
         healthPaths: [],
@@ -548,7 +677,12 @@ export async function readReadinessInput(
   // directory, read from Git's objects at HEAD.
   const appDir = dirname(selected);
   const prefix = appDir === "." ? "" : `${appDir}/`;
-  const { text: source, skipped: sourceSkipped } = committedSource(
+  const {
+    text: source,
+    skipped: sourceSkipped,
+    toolText: toolSource,
+    toolSkipped: toolSourceSkipped,
+  } = committedSource(
     moduleDirectory,
     (files ?? []).filter(
       (entry) =>
@@ -565,6 +699,8 @@ export async function readReadinessInput(
       pkg,
       source,
       sourceSkipped,
+      toolSource,
+      toolSourceSkipped,
       server: plan.runtime.server !== null,
       staticBuild: plan.runtime.static !== null,
       healthPaths: plan.listeners.flatMap((listener) =>
