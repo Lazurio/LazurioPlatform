@@ -50,6 +50,10 @@ type LockAnnouncement =
 function fakeComputer(
   update: "answer" | "drop" | "refuse" = "answer",
   lock: LockAnnouncement = "utility",
+  // Before its answer to `initialize`, the computer says its tools changed
+  // and sends an unasked answer to a tool list, as a hostile or broken
+  // application could.
+  early = false,
 ) {
   const remote = new PassThrough();
   const received: Message[] = [];
@@ -60,6 +64,14 @@ function fakeComputer(
     const message = JSON.parse(line) as Message;
     received.push(message);
     if (message.id === undefined) return;
+    if (message.method === "initialize" && early) {
+      remote.write(
+        `${JSON.stringify({ jsonrpc: "2.0", method: "notifications/tools/list_changed" })}\n`,
+      );
+      answer("t1", {
+        tools: [{ name: "early_tool", inputSchema: { type: "object" } }],
+      });
+    }
     if (message.method === "initialize")
       answer(message.id, {
         protocolVersion: "2025-06-18",
@@ -970,10 +982,12 @@ test("a shell command's exit code comes from structuredContent or the applicatio
 });
 
 /** Runs the broker against a computer that announces the lock as `lock`,
- * and returns how the session ended before any agent connected. */
-async function sessionWith(lock: LockAnnouncement) {
+ * and returns how the session ended before any agent connected. With
+ * `early`, the computer talks about tools before it answers `initialize`. */
+async function sessionWith(lock: LockAnnouncement, early = false) {
   const home = await mkdtemp(join(tmpdir(), "lzc-"));
-  const computer = fakeComputer("answer", lock);
+  const computer = fakeComputer("answer", lock, early);
+  const saved: unknown[][] = [];
   const transport = lineTransport(computer);
   const audit: AuditEntry[] = [];
   const done = runBroker({
@@ -991,10 +1005,12 @@ async function sessionWith(lock: LockAnnouncement) {
         ...entry,
       });
     },
-    saveTools: async () => undefined,
+    saveTools: async (tools) => {
+      saved.push([...tools]);
+    },
     stillAllowed: async () => true,
   });
-  return { home, computer, transport, audit, done };
+  return { home, computer, transport, audit, done, saved };
 }
 
 for (const lock of [
@@ -1056,6 +1072,53 @@ for (const lock of ["utility", "app"] as const)
       }
     },
   );
+
+test.skipIf(!posix)(
+  "a computer that talks about tools before its refused answer to initialize is asked for nothing and saves nothing (LZD-0018 task 854)",
+  async () => {
+    const session = await sessionWith("none", true);
+    try {
+      expect(await session.done).toBe(brokerExit.refused);
+      expect(await session.transport.closed).toBe("no-device-lock");
+      // The broker sent `initialize` and nothing else: no `tools/list`
+      // after the early notification, no `tools/call`.
+      expect(
+        session.computer.received.map((message) => message.method),
+      ).toEqual(["initialize"]);
+      // The unasked tool list of the refused session is not kept.
+      expect(session.saved).toEqual([]);
+    } finally {
+      session.computer.remote.end();
+      await rm(session.home, { recursive: true, force: true });
+    }
+  },
+);
+
+test.skipIf(!posix)(
+  "a computer that announces the lock and talks about tools before initialize gets its tools asked for once it is accepted",
+  async () => {
+    const session = await sessionWith("app", true);
+    try {
+      await waitFor(() => session.saved.length > 0);
+      // Only the tools the broker asked for after the check are kept.
+      expect(session.saved).toEqual([
+        [{ name: "desktop_snapshot", inputSchema: { type: "object" } }],
+      ]);
+      const methods = session.computer.received.map(
+        (message) => message.method,
+      );
+      expect(methods.slice(0, 3)).toEqual([
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+      ]);
+    } finally {
+      session.computer.remote.end();
+      await session.done;
+      await rm(session.home, { recursive: true, force: true });
+    }
+  },
+);
 
 test("versions are ordered as semver orders them, pre-releases numerically", () => {
   expect(compareVersions("0.1.0-pilot.7", "0.1.0-pilot.8")).toBe(-1);

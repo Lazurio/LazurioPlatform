@@ -298,6 +298,11 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
   await rm(path, { force: true });
 
   let initResult: unknown = null;
+  // Until the computer's announcement of the device lock is accepted, the
+  // broker reads only its answer to `initialize` (and answers its pings):
+  // a notification about tools or an answer to a tool list from a session
+  // that may still be refused neither asks for tools nor saves them.
+  let accepted = false;
   let toolsRequest = 0;
   let nextId = 0;
   const pending = new Map<string, Pending>();
@@ -345,7 +350,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
         initialized(initResult !== null);
         return;
       }
-      if (id.startsWith("p")) return;
+      if (!accepted || id.startsWith("p")) return;
       if (id.startsWith("t")) {
         const tools = (message.result as { tools?: unknown } | undefined)
           ?.tools;
@@ -390,6 +395,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
       return;
     }
     if (isNotification(message)) {
+      if (!accepted) return;
       if (message.method === "notifications/tools/list_changed") {
         for (const client of clients) write(client, line);
         askTools();
@@ -435,6 +441,7 @@ export async function runBroker(options: BrokerOptions): Promise<number> {
     options.transport.close("no-device-lock");
     return brokerExit.refused;
   }
+  accepted = true;
   send({ jsonrpc: "2.0", method: "notifications/initialized" });
   askTools();
 
