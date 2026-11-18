@@ -1272,15 +1272,16 @@ The port holds, in both generations:
 
 - **Author and channel.** A change carries two fields: the person's `subject`
   and the `channel` it came by, one of `ui` (the App's interface), `mcp`
-  (`/mcp`), `webmcp` (the page's agent tools) and `import`. A draft and a
+  (`/mcp`), `webmcp` (the page's agent tools), `import` and `cli` (an agent's
+  command line of the App, which calls the service directly). A draft and a
   publication record them separately, and a commit to a shared branch is
   always a publication, under the rule of publication above:
   - **repository-db (`app/v3`):**
     - *A draft* is a working-tree write followed at once by
       `recordOrigin(paths, { kind, actor: <subject>, source: "<app>-v3/<channel>" })`,
       repository-db's record of a draft's origin, which only informs and never
-      gates. `kind` is `"app"` for `ui` and `import` and `"agent"` for `mcp` and
-      `webmcp`. No commit, nothing is published.
+      gates. `kind` is `"app"` for `ui` and `import` and `"agent"` for `mcp`,
+      `webmcp` and `cli`. No commit, nothing is published.
     - *A publication* is its publish API with `actor: <subject>` and
       `source: "<app>-v3/<channel>"` (for example `quotes-v3/mcp`), which it
       writes as the trailers `Repository-Db-Actor` and `Repository-Db-Source`:
@@ -1297,12 +1298,16 @@ The port holds, in both generations:
       channel of the person who published. A data layer without drafts writes to
       the shared branch directly, and every such write is a publication.
   - **Without a subject.** A caller the App knows by no person (`entry: local`,
-    an Environment without a person) records no subject and invents none; the
-    channel is recorded in every case. repository-db gets no `actor`, so
+    an Environment without a person, the command line) records no subject and
+    invents none; the channel is recorded whenever the App knows it. repository-db gets no `actor`, so
     `recordOrigin` has none and `publish` writes the Environment's Git identity,
     as the engine does itself. Dolt takes the Environment's or the host's
     identity as `--author` and leaves out `Lazurio-Subject`. Such a caller may
     make drafts.
+  - **Without a stated origin.** A change whose origin nobody stated records
+    none and guesses none: in repository-db `recordOrigin` with kind `"unknown"`
+    and `source: "<app>-v3"`, without a channel or a person; in Dolt no
+    `Lazurio-Channel` and no `Lazurio-Subject`.
 
   It is the App's statement, not a proof: the data layer proves only that the
   App wrote
