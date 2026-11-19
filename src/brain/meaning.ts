@@ -44,8 +44,9 @@ import { writeBrainUnits } from "./units";
 // before any change), the server stopped as systemd confirms, a copy of
 // ~/.gbrain, then `gbrain embeddings enable` and, only where the brain's
 // vector column has another width than the model's (a brain created without
-// embeddings has 1024, the model's width too), `gbrain migrate embeddings
-// --no-embed` to it, which keeps every page and fact, and then always
+// embeddings has 1024, the model's width too) or already holds another
+// model's vectors (gbrain refuses to enable over them), `gbrain migrate
+// embeddings --no-embed` to it, which keeps every page and fact, and then always
 // `gbrain embed --stale --catch-up`: the first
 // vectors are computed while the server is still stopped. On PGLite there is
 // no other way: a running server holds the brain's lock and refuses both a

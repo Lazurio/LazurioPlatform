@@ -15891,9 +15891,10 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       systemd confirms, and a copy of the brain taken. Then come `gbrain
       embeddings enable` and `gbrain embed --stale --catch-up` while the
       server is still stopped. Where the column has another width than the
-      model's, `gbrain migrate embeddings --no-embed` comes between them and
-      keeps every page and fact. A brain created without embeddings already
-      has the model's width, 1024.
+      model's, or already holds another model's vectors, `gbrain migrate
+      embeddings --no-embed` comes between them and keeps every page and
+      fact. A brain created without embeddings already has the model's
+      width, 1024.
       - **Why with the server stopped:** on PGLite there is no other way. A
         running server holds the brain's lock and refuses both a CLI embed and
         an embed-backfill job, and it computes nothing of the backlog by
