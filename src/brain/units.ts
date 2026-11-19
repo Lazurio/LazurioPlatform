@@ -2,7 +2,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { unitMarker } from "../update/service-control";
-import { meaningUnit, meaningUrl } from "./meaning-pin";
+import { meaningConcurrency, meaningUnit, meaningUrl } from "./meaning-pin";
 import {
   brainPort,
   brainRefreshService,
@@ -25,8 +25,15 @@ export function renderBrainUnits(
   // Search by meaning (`./meaning.ts`): gbrain asks the local model server
   // on loopback, started before it and not required by it, so the memory
   // runs on with keyword search when the model does not.
+  // gbrain sends 20 embedding requests at once by default, each up to 32
+  // chunks with a 60 s limit: on a 4-vCPU Environment the local model queues
+  // them until they time out and are retried (measured on Bob, 2026-11-19).
+  // Two at a time keep the model busy without a request waiting a minute.
   const model = meaning
-    ? [`Environment=LLAMA_SERVER_BASE_URL=${meaningUrl}/v1`]
+    ? [
+        `Environment=LLAMA_SERVER_BASE_URL=${meaningUrl}/v1`,
+        `Environment=GBRAIN_EMBED_CONCURRENCY=${meaningConcurrency}`,
+      ]
     : [];
   const after = meaning ? [`Wants=${meaningUnit}`, `After=${meaningUnit}`] : [];
   const server = [

@@ -32,6 +32,9 @@ export const meaningPin: MeaningPin = Object.freeze({
 });
 
 export const meaningPort = 3132;
+/** Embedding requests gbrain sends the local model at once (its default of
+ * 20 times out on 4 vCPU). */
+export const meaningConcurrency = 2;
 export const meaningUrl = `http://127.0.0.1:${meaningPort}`;
 export const meaningUnit = "lazurio-gbrain-meaning.service";
 

@@ -208,6 +208,10 @@ describe("switching search by meaning on", () => {
     expect(await unit(paths, brainUnit)).toContain(
       "Environment=LLAMA_SERVER_BASE_URL=http://127.0.0.1:3132/v1",
     );
+    // Two embedding requests at a time, not gbrain's 20 (they time out).
+    expect(await unit(paths, brainUnit)).toContain(
+      "Environment=GBRAIN_EMBED_CONCURRENCY=2",
+    );
     // A brain created without embeddings has another width: enabled at it,
     // then moved to the model's, pages and facts kept, vectors computed later.
     const gbrain = calls.filter(

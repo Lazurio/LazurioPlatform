@@ -14,6 +14,7 @@ import { writeDurableFile } from "../update/durable-file";
 import { systemctl, unitMarker } from "../update/service-control";
 import { readBrainState, writeBrainState } from "./keys";
 import {
+  meaningConcurrency,
   meaningPaths,
   meaningPin,
   meaningPort,
@@ -280,6 +281,7 @@ async function switchOn(
     GBRAIN_HOME: host.paths.home,
     PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
     LLAMA_SERVER_BASE_URL: `${meaningUrl}/v1`,
+    GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
   };
   const gbrain = async (args: readonly string[]) => {
     const result = await host
