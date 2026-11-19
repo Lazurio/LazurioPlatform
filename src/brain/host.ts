@@ -2,12 +2,14 @@ import { lstat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { type ActiveWork, askActiveWork } from "../buddy/gateway-refresh";
 import { buddyT3Unit } from "../buddy/t3-runtime";
+import { buddyGeneration } from "../folder/machine-binding";
 import { type PresetName, personalMemoryHere } from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import { presetKinds } from "../launchpad/shell-document";
 import { resolveOnPath, type ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { brainHttp, healthVersion } from "./admin";
+import { buddyGen4Turn } from "./buddy-turn";
 import { meaningUrl } from "./meaning-pin";
 import { brainPaths, brainUrl } from "./pin";
 import type { SetupHost } from "./setup";
@@ -35,20 +37,29 @@ async function presence(
 }
 
 /** Whether Buddy is idle, so the brain's server may stop for a moment.
- * Fail closed: only a confirmed answer counts.
- * - Buddy of Hermes (`~/.hermes`): his gateway says no work and no agent runs.
- * - Buddy GEN4 in T3 Code (its unit `lazurio-t3-buddy.service`): T3 Code has
- *   no signal of a turn in progress Lazurio can read, so only a T3 Code that
- *   systemd confirms is not running counts as idle.
- * - No Buddy at all (neither there, as a confirmed absence): idle.
- * A read that fails, or a gateway or systemd that does not answer, is busy. */
+ * Fail closed: only a confirmed answer counts. Which Buddy, by the
+ * Environment's binding (`buddyGeneration`):
+ * - Buddy GEN4, a thread of the shared T3 Code: no turn of his thread runs,
+ *   as T3 Code's agent CLI says (`./buddy-turn.ts`); neither Hermes nor
+ *   `lazurio-t3-buddy.service` counts, as the conversion leaves them.
+ * - Otherwise as before: Buddy of Hermes (`~/.hermes`) when his gateway says
+ *   no work and no agent runs; his own T3 Code (`lazurio-t3-buddy.service`)
+ *   only when systemd confirms it is not running; no Buddy at all (neither
+ *   there, as a confirmed absence) idle.
+ * A binding that cannot be read, a read that fails, or a gateway, systemd or
+ * T3 Code that does not answer, is busy. */
 export async function buddyIdle(
   input: Readonly<{
     home: string;
     service: ProcessRunner;
     activeWork: (hermesHome: string) => Promise<ActiveWork>;
+    /** The binding's Buddy; `unreadable` where it could not be read. */
+    generation: 3 | 4 | undefined | "unreadable";
+    gen4Turn: () => Promise<ActiveWork>;
   }>,
 ): Promise<boolean> {
+  if (input.generation === "unreadable") return false;
+  if (input.generation === 4) return (await input.gen4Turn()) === "idle";
   const hermesHome = join(input.home, ".hermes");
   const hermes = await presence(hermesHome);
   const t3 = await presence(
@@ -90,11 +101,27 @@ export function processBrainHost(
     folder: join(home, "Lazurio"),
     gh: undefined as string | undefined,
   };
-  const idle = () =>
+  // Which Buddy the binding names, read with the context; until then, and
+  // where it cannot be read, Buddy counts as busy.
+  let generation: 3 | 4 | undefined | "unreadable" = "unreadable";
+  const env: Record<string, string> = {};
+  for (const [name, value] of Object.entries(input.env))
+    if (value !== undefined) env[name] = value;
+  const idle = async () =>
     buddyIdle({
       home,
       service: input.service,
       activeWork: askActiveWork,
+      generation,
+      gen4Turn: async () =>
+        buddyGen4Turn({
+          run: input.run,
+          t3:
+            (await resolveOnPath("t3", input.env.PATH, input.platform)) ??
+            join(home, ".local", "bin", "t3"),
+          home,
+          env,
+        }),
     });
   return Object.freeze({
     async context(): Promise<BrainContext> {
@@ -118,6 +145,7 @@ export function processBrainHost(
           !personalMemoryHere(preset as PresetName, preferences.machine)
         )
           return unsupported("not-personal");
+        generation = buddyGeneration(preferences.machine?.entry);
       } catch {
         return unsupported("not-personal");
       }
