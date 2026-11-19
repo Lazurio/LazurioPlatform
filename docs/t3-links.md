@@ -154,8 +154,11 @@ its guard keeps linked environments off.
   source's, whatever its label, and is revoked with that source's edge or at
   its next renewal. A person who links another T3 Code to this Work
   Environment in exactly that window may lose that session; nothing stays
-  open. Lazurio waits while any other code is out, and only an edge's source
-  can reach the five paths at all, so the window is short and narrow. Telling
+  open. Lazurio waits while any other code is out, and without the gateway's
+  sign-in only an edge's source can reach the link's four `POST` paths, which
+  pair and use a link, so the window is short and narrow. (The description
+  `GET /.well-known/t3/environment` is also reachable by native T3 clients
+  under 0157's separate pairing exception; it issues no session.) Telling
   the sessions apart for certain would need T3 Code to record which code a
   session came from. The label is not used to narrow it: it can change, and a
   wrong filter would leave the session of Lazurio's code owned by nobody.
