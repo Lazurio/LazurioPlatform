@@ -486,5 +486,7 @@ export async function buddyGen3Home(
     join(home, ".t3-buddy", "userdata", "attachments", "buddy-1111.png"),
     "png-bytes",
   );
-  await symlink("/etc/hostname", join(home, "link.txt"));
+  // A symlink to a file outside the home that exists on every system (the
+  // running runtime); /etc/hostname, for one, is absent on macOS.
+  await symlink(process.execPath, join(home, "link.txt"));
 }
