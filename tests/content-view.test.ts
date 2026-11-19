@@ -306,10 +306,10 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
       "Příprava Organizace Example (GitHub example) v tomto Prostředí se zastavila u kroku „Instaluji“:",
       "bun install in deals failed",
       "",
-      "Toto je tvůj úkol: udělej ho teď celý, bez dalšího ptaní. Technické podrobnosti neznám a spoléhám na to, že to dotáhneš.",
+      "Toto je tvůj úkol: udělej ho teď celý. Technické podrobnosti neznám a spoléhám na to, že to dotáhneš; na kroky, které zvládneš sám, se mě neptej.",
       "1. Zjisti příčinu. Začni stavem: `lazurio organization list --json`, `lazurio doctor`, a když Organizace v `organizations/` už je, `lazurio organization check` a `git status` v jejím kořeni.",
-      "2. Oprav ji v tomto Prostředí sám: checkouty, složky, `git pull --ff-only`, příkazy `lazurio`. Na nic z toho se mě neptej.",
-      "3. Je-li příčina v repozitáři (třeba v kořeni Organizace), nejdřív ověř, jestli ji na GitHubu už někdo neopravil; pak checkout jen přetáhni (`git pull --ff-only`). Jinak opravu připrav sám jako pull request podle pravidel Folderu a Organizace (otisk projekce přepočítá `lazurio organization check --write`). Sloučení je Publikace: o tu mě požádej nástrojem na otázky, až bude pull request připravený, a do té doby dokonči všechno, co na něm nezávisí.",
+      "2. Oprav ji v tomto Prostředí sám: checkouty, složky, `git pull --ff-only`, příkazy `lazurio`.",
+      "3. Je-li příčina v repozitáři (třeba v kořeni Organizace), nejdřív ověř, jestli ji na GitHubu už někdo neopravil; pak checkout jen přetáhni (`git pull --ff-only`). Jinak opravu připrav sám jako pull request podle pravidel Folderu a Organizace (otisk projekce přepočítá `lazurio organization check --write`). Sloučení je Publikace: o tu mě požádej nástrojem na otázky, až bude pull request připravený, a do té doby dokonči všechno, co na něm nezávisí. Zeptej se mě i tehdy, když ti chybí údaj nebo volba, která patří mně.",
       "4. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `lazurio organization install example`. Když Organizace už tu je a rozliší se čistě, stačí ověřit, že ji `lazurio organization list` ukazuje.",
       "5. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.",
       "6. Na konci mi jednoduše a bez technických podrobností řekni, co bylo špatně, co jsi udělal, co teď funguje a jestli ode mě něco potřebuješ.",
@@ -323,7 +323,11 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
   expect(english).toContain("`lazurio doctor`");
   // The agent acts (#1094): it asks only for the Publication, never first.
   expect(english).not.toContain("ask me first");
-  expect(english).toContain("without asking me further");
+  expect(english).toContain("do not ask me about steps you can take yourself");
+  // What only the person can give is still asked for.
+  expect(english).toContain(
+    "Ask me too when you lack information or a choice that is mine.",
+  );
   expect(english).toContain("ask me for it with the question tool");
   // The Personalspace names the person's login for the link.
   const ps = { kind: "personalspace" };
@@ -483,6 +487,34 @@ test("an Organization here whose root resolves conflict: Apps says so with Chat,
     "Organizace Example (GitHub example) je v tomto Prostředí stažená, ale Lazurio ji nespouští: její kořen v `organizations/` se rozliší jako `conflict` (dokumenty Organizace si odporují), takže se její moduly nespustí.",
   );
   expect(text).toContain("`lazurio organization check --write`");
+  // The stop that sent people to Začínáme before (#1094) is overtaken: the
+  // Organization is here now, so Chat gets its root's conflict, as Apps
+  // shows it, never the old "destination occupied" (Pablo's review).
+  const occupied = job({
+    id: "j-old",
+    state: "failed",
+    steps: [],
+    failure: {
+      item: { kind: "organization", login: "example" },
+      key: "root",
+      code: "destination-occupied",
+      detail: "organizations/example_GEN3 exists and was left untouched",
+    },
+  });
+  expect(prepareContext(conflicted, occupied, cs)).toEqual(context);
+  // Nor does an old stop of another item take its place.
+  const other = job({
+    id: "j-other",
+    state: "failed",
+    steps: [],
+    failure: {
+      item: { kind: "organization", login: "someone-else" },
+      key: "root",
+      code: "clone-failed",
+      detail: "",
+    },
+  });
+  expect(prepareContext(conflicted, other, cs)).toEqual(context);
   // A healthy Organization has nothing to resolve.
   const healthy = list({
     allowed: true,

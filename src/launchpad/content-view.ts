@@ -522,22 +522,30 @@ export function prepareContext(
    * or the person's for the Personalspace; null when none is known. */
   login: string | null;
 }> | null {
-  if (job?.state !== "failed") {
-    // No stop, but an Organization here that does not run (#1094): the
-    // same Chat, about its root.
-    const conflicted = conflictedOrganization(list);
-    if (conflicted === null) return null;
-    return {
-      target: {
-        kind: "organization",
-        name: conflicted.name ?? conflicted.login,
-        login: conflicted.login,
-        conflict: true,
-      },
-      failure: null,
-      login: conflicted.login,
-    };
+  // The same current state as the line in Apps (`contentFact`, Pablo's
+  // review of #1098): a stop the list has since overtaken (its item is here
+  // now) is no stop to resolve; an Organization here that does not run
+  // (#1094) is, with the prompt about its root.
+  if (list !== null) {
+    const fact = contentFact(list, job);
+    if (fact.state === "ready") {
+      const conflicted = fact.conflicted;
+      return conflicted === undefined
+        ? null
+        : {
+            target: {
+              kind: "organization",
+              name: conflicted.name ?? conflicted.login,
+              login: conflicted.login,
+              conflict: true,
+            },
+            failure: null,
+            login: conflicted.login,
+          };
+    }
+    if (fact.state !== "failed") return null;
   }
+  if (job?.state !== "failed") return null;
   const failure = job.failure;
   const ref = failure?.item ?? null;
   const item =

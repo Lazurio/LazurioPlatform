@@ -29,7 +29,7 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // compositions too.
 const pinned = {
   revision: "base-instructions-143",
-  digest: "0067e9b3a8250ebb35a9f1693e56333686228f90931faeaf66d7fccb2774ba66",
+  digest: "32754b814ac59e614a790ce1d1a0b2a2217e23c7d417b3f300ed3b5045bf6c7d",
 } as const;
 
 function renderedDigest(): string {
