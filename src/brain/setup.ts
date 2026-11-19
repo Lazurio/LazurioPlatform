@@ -19,7 +19,13 @@ import {
   type MeaningResult,
 } from "./meaning";
 import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
-import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
+import {
+  brainPin,
+  brainRefreshTimer,
+  brainUnit,
+  brainUrl,
+  releaseCommand,
+} from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
 import {
   consentToTakeover,
@@ -111,6 +117,9 @@ export type SetupResult = Readonly<{
   vault?: VaultResult;
   /** Search by meaning, where the brain runs the pin. */
   meaning?: MeaningResult;
+  /** The refresh timer, where it is enabled and was not running: started
+   * (confirmed by systemd) or failed (the next run tries again). */
+  timer?: "started" | "failed";
   status: BrainStatus;
 }>;
 
@@ -430,12 +439,37 @@ async function finish(
     host.fetch !== undefined && server !== "held" && server !== "waits-move"
       ? await convergeMeaning({ ...moveHost(host), fetch: host.fetch })
       : undefined;
+  const timer = await ensureTimer(host);
   return Object.freeze({
     server,
     ...extra,
     keys: keys.outcomes,
     ...(vault === undefined ? {} : { vault }),
     ...(meaning === undefined ? {} : { meaning }),
+    ...(timer === "running" ? {} : { timer }),
     status: await brainStatus(host),
   });
+}
+
+/** An enabled refresh timer runs: a move, its way back, search by meaning
+ * switched on or a rebuild stop it for a moment, and a start that failed
+ * there is tried again here on every run, until systemd confirms it. A
+ * timer that is not enabled is left as it is (the vault's step enables it). */
+async function ensureTimer(
+  host: SetupHost,
+): Promise<"running" | "started" | "failed"> {
+  const ask = async (verb: string) => {
+    const answer = await host
+      .service(["systemctl", "--user", verb, brainRefreshTimer], 60_000)
+      .catch(() => null);
+    return answer === null || answer === "timeout" ? "" : answer.stdout.trim();
+  };
+  if ((await ask("is-enabled")) !== "enabled") return "running";
+  if ((await ask("is-active")) === "active") return "running";
+  await systemctl(
+    { run: host.service, env: host.env },
+    "start",
+    brainRefreshTimer,
+  );
+  return (await ask("is-active")) === "active" ? "started" : "failed";
 }

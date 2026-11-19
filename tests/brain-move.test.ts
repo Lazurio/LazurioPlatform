@@ -435,6 +435,51 @@ describe("a takeover interrupted or not put back", () => {
   });
 });
 
+describe("the refresh timer after a move", () => {
+  test("a timer that does not start again is reported failed, exit 1, and started by the next run", async () => {
+    const { host, systemd } = await stand({ consent: true });
+    const service = host.service;
+    let timerStarts = false;
+    const stuck: SetupHost = {
+      ...host,
+      service: async (command, timeout) =>
+        !timerStarts &&
+        command.includes(brainRefreshTimer) &&
+        (command[2] === "start" ||
+          (command[2] === "enable" && command.includes("--now")))
+          ? { exitCode: 1, stdout: "", stderr: "" }
+          : service(command, timeout),
+    };
+    const context = {
+      identity: {} as never,
+      platform: "linux",
+      env: {},
+      executable: "lazurio",
+    };
+    const first = await runBrainCommand(["setup", "--json"], {
+      ...context,
+      host: stuck,
+    });
+    expect(JSON.parse(first.stdout as string)).toMatchObject({
+      server: "moved",
+      timer: "failed",
+    });
+    expect(first.code).toBe(1);
+    expect(systemd.timer).toBe(false);
+    timerStarts = true;
+    const again = await runBrainCommand(["setup", "--json"], {
+      ...context,
+      host: stuck,
+    });
+    expect(JSON.parse(again.stdout as string)).toMatchObject({
+      server: "running",
+      timer: "started",
+    });
+    expect(again.code).toBe(0);
+    expect(systemd.timer).toBe(true);
+  });
+});
+
 describe("one run at a time", () => {
   test("two runs at once: one does the work, the other changes nothing and says busy; the lock is released after", async () => {
     const { host, systemd } = await stand({ consent: true });

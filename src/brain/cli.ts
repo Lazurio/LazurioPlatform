@@ -87,6 +87,7 @@ const labelOf = (result: SetupResult) =>
     ...(result.move === undefined ? [] : [`move ${result.move}`]),
     ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
     ...(result.meaning === undefined ? [] : [`meaning ${result.meaning}`]),
+    ...(result.timer === undefined ? [] : [`timer ${result.timer}`]),
   ].join("\n");
 
 export async function runBrainCommand(
@@ -140,9 +141,12 @@ export async function runBrainCommand(
       command === "take-over" ? { consent: new Date() } : {},
     );
     // A key not minted, or an earlier one not revoked, is not finished.
-    const keysIncomplete = Object.values(result.keys ?? {}).some(
-      (outcome) => outcome === "failed" || outcome === "incomplete",
-    );
+    // So is a refresh timer that is enabled and does not run.
+    const keysIncomplete =
+      result.timer === "failed" ||
+      Object.values(result.keys ?? {}).some(
+        (outcome) => outcome === "failed" || outcome === "incomplete",
+      );
     const code =
       ["failed", "stopped", "takeover-refused"].includes(result.server) ||
       keysIncomplete
@@ -162,6 +166,7 @@ export async function runBrainCommand(
             move: result.move,
             vault: result.vault,
             meaning: result.meaning,
+            timer: result.timer,
             status: result.status,
           })
         : labelOf(result),

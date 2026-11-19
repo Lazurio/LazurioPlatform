@@ -219,7 +219,9 @@ describe("brain setup", () => {
     );
     expect(unit).not.toContain(brain.admin);
     expect(
-      calls.filter((c) => c[0] === "systemctl").map((c) => c.slice(2)),
+      calls
+        .filter((c) => c[0] === "systemctl" && !c[2]?.startsWith("is-"))
+        .map((c) => c.slice(2)),
     ).toEqual([["daemon-reload"], ["enable", brainUnit], ["start", brainUnit]]);
     expect((await readBrainState(paths)).release).toEqual({
       commit: brainPin.commit,
@@ -306,7 +308,9 @@ describe("brain setup", () => {
       const again = await brainSetup(setupHost);
       expect(again.server).toBe("installed");
       expect(
-        calls.filter((c) => c[0] === "systemctl").map((c) => c.slice(2)),
+        calls
+          .filter((c) => c[0] === "systemctl" && !c[2]?.startsWith("is-"))
+          .map((c) => c.slice(2)),
       ).toEqual([
         ["daemon-reload"],
         ["enable", brainUnit],
