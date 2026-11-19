@@ -190,6 +190,10 @@ export async function convergeBrainServer(
   }
   const ids = await sessions.customIdsNamed(server.name);
   if (ids === null) return "failed";
+  // Lazurio's recorded server whose settings could not be read now is
+  // still Lazurio's: kept on record and tried again, never taken for
+  // someone's. Only a listing without it confirms it is gone.
+  if (slug !== undefined && ids.includes(slug)) return "failed";
   const nonce = typeof record?.pending === "string" ? record.pending : null;
   if (nonce !== null) {
     // An earlier add of Lazurio's may have created it: only the server that
@@ -198,6 +202,9 @@ export async function convergeBrainServer(
     const mine: string[] = [];
     for (const id of ids) {
       const settings = await sessions.customSettings(id);
+      // A server whose settings cannot be read now may be the marked one:
+      // the pending record stays, and the next run looks again.
+      if (settings.kind !== "custom-server") return "failed";
       if (
         settings.kind === "custom-server" &&
         settings.type === "http" &&

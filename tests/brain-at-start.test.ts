@@ -79,6 +79,8 @@ async function stand() {
     dieAtSave: false,
     dieAfterSave: false,
     partialSave: false,
+    /** Executor does not answer a server's settings for a moment. */
+    settings: false,
   };
   const sessions: BrainServerSessions = {
     async addCustom(server) {
@@ -98,7 +100,7 @@ async function stand() {
     },
     async customSettings(id) {
       const server = servers.get(id);
-      if (server === undefined || server.type !== "http")
+      if (fail.settings || server === undefined || server.type !== "http")
         return { kind: "blocked" };
       return {
         kind: "custom-server",
@@ -225,6 +227,51 @@ describe("Executor's server Brain", () => {
         expect(await convergeBrainServer(paths, sessions)).toBe("updated");
         expect(bearerOf(servers.get("brain"))).toBe("f".repeat(32));
       });
+
+  test("a partial save, then settings Executor does not answer for a moment: the record stays, and the next run saves its own server", async () => {
+    const { paths, handOver, servers, sessions, fail } = await stand();
+    await handOver("e".repeat(32));
+    fail.partialSave = true;
+    expect(await convergeBrainServer(paths, sessions)).toBe("failed");
+    fail.partialSave = false;
+    fail.settings = true;
+    // Listed by its name, its settings unread: neither someone's nor gone.
+    expect(await convergeBrainServer(paths, sessions)).toBe("failed");
+    expect(
+      JSON.parse(
+        await readFile(join(dirname(paths.state), "executor.json"), "utf8"),
+      ),
+    ).toEqual({ slug: "brain" });
+    fail.settings = false;
+    expect(await convergeBrainServer(paths, sessions)).toBe("updated");
+    expect(bearerOf(servers.get("brain"))).toBe("e".repeat(32));
+    expect(await convergeBrainServer(paths, sessions)).toBe("kept");
+  });
+
+  test("an add that did not connect, then settings Executor does not answer for a moment: the pending record stays, and the next run completes its server", async () => {
+    const { paths, handOver, servers, sessions, fail } = await stand();
+    await handOver("e".repeat(32));
+    fail.connect = true;
+    expect(await convergeBrainServer(paths, sessions)).toBe("failed");
+    fail.connect = false;
+    fail.settings = true;
+    expect(await convergeBrainServer(paths, sessions)).toBe("failed");
+    fail.settings = false;
+    expect(await convergeBrainServer(paths, sessions)).toBe("added");
+    expect(servers.get("brain")).toMatchObject({
+      bearer: { value: "e".repeat(32) },
+      headers: [],
+    });
+  });
+
+  test("a recorded server that is gone is added again", async () => {
+    const { paths, handOver, servers, sessions } = await stand();
+    await handOver("e".repeat(32));
+    expect(await convergeBrainServer(paths, sessions)).toBe("added");
+    servers.clear();
+    expect(await convergeBrainServer(paths, sessions)).toBe("added");
+    expect(bearerOf(servers.get("brain"))).toBe("e".repeat(32));
+  });
 
   const theirs: CustomServerInput = {
     type: "http",
