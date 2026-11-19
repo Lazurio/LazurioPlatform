@@ -153,7 +153,7 @@
     },
     "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
     "organizationAdmins": {
-      "description": "The appointed Organization Admins (decision 0245), read only by organizationAdmins in src/organizations/organization-admins.ts. Absent or empty, no one is appointed. A pointer for agents until Lazurio Auth holds the role, never a grant. Ids and logins (ignoring letter case) are unique (checked by the reader).",
+      "description": "The appointed Organization Admins (decision 0245), read only by organizationAdmins in src/organizations/organization-admins.ts. Absent or empty, no one is appointed. A pointer for agents until Lazurio Auth holds the role, never a grant. Ids and logins (ignoring letter case) are unique, and an id is at most 9007199254740991 (both checked by the reader).",
       "type": "array",
       "maxItems": 100,
       "items": {
@@ -161,7 +161,7 @@
         "additionalProperties": false,
         "required": ["github_id", "github_login"],
         "properties": {
-          "github_id": { "description": "The account's numeric GitHub id.", "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "github_id": { "description": "The account's GitHub id as a decimal string without leading zeros, like every other id of this manifest; a JSON number is refused. At most 9007199254740991 (checked by the reader).", "type": "string", "pattern": "^[1-9][0-9]{0,15}$" },
           "github_login": { "description": "The account's GitHub login as the Organization wrote it; the id is the identity.", "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" }
         }
       }

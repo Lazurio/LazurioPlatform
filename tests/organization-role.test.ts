@@ -50,8 +50,8 @@ function rootDeclaration(admins?: unknown): DeclarationAnswer {
   if (admins !== undefined) document.organization_admins = admins;
   return { kind: "file", value: document };
 }
-const ada = { github_id: 1, github_login: "ada" };
-const cy = { github_id: 3, github_login: "cy" };
+const ada = { github_id: "1", github_login: "ada" };
+const cy = { github_id: "3", github_login: "cy" };
 
 type Answers = Readonly<{
   viewer?: "signed-in" | "signed-out" | "unavailable";
@@ -216,7 +216,9 @@ test("an Organization Owner who is not appointed is the Organization Owner, neve
         organization: "Acme",
         github: fakeGitHub({
           membership: { kind: "member", state: "active", role: "admin" },
-          declaration: rootDeclaration([{ github_id: 9, github_login: "ada" }]),
+          declaration: rootDeclaration([
+            { github_id: "9", github_login: "ada" },
+          ]),
         }),
         root: resolved,
       })
@@ -296,8 +298,8 @@ test("a root whose organization_admins cannot be read confirms no role for an ac
     ],
     [rootDeclaration([ada, ada]), "github_id 1 is named more than once"],
     [
-      rootDeclaration([{ github_id: "1", github_login: "ada" }]),
-      "github_id must be a positive whole number",
+      rootDeclaration([{ github_id: 1, github_login: "ada" }]),
+      "github_id must be a decimal string",
     ],
     [rootDeclaration({ ada: 1 }), "organization_admins must be a list"],
   ];

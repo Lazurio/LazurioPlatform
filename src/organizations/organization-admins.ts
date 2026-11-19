@@ -9,20 +9,22 @@
 // pointer for agents, not a grant: it gives no entry, key or access, and it
 // goes once the role in Lazurio Auth answers.
 //
-// The list is `[{ "github_id": <n>, "github_login": "<login>" }]`. The
-// numeric GitHub id is the identity; the login is what people read and may
-// go stale after a rename. An absent field, or an empty list, appoints no
-// one. `parseCanonicalOrganization` accepts the field without judging it, so
+// The list is `[{ "github_id": "<n>", "github_login": "<login>" }]`. The
+// GitHub id is the identity, written as a decimal string like every other id
+// of the manifest (`organization_id`, `repository_id`, a Team's `id`); a JSON
+// number is refused. The login is what people read and may go stale after a
+// rename. An absent field, or an empty list, appoints no one. `parseCanonicalOrganization` accepts the field without judging it, so
 // a malformed list never makes the Organization unusable; this module is its
 // only reader, and a malformed list confirms no one as an Organization Admin.
 // The schema's `$defs.organizationAdmins` states the same shape; the
-// uniqueness of ids and logins is checked only here
-// (tests/organization-schema.test.ts).
+// uniqueness of ids and logins and the bound of an id at 2^53 − 1 are checked
+// only here (tests/organization-schema.test.ts).
 
 import { githubLoginPattern } from "../content/model";
 
 export type OrganizationAdmin = Readonly<{
-  /** The account's numeric GitHub id (`id` of `GET /users/<login>`). */
+  /** The account's numeric GitHub id (`id` of `GET /users/<login>`), read
+   * from its decimal string. */
   githubId: number;
   /** Its login as the Organization wrote it. */
   githubLogin: string;
@@ -38,6 +40,11 @@ export type OrganizationAdmins =
 
 /** At most this many Admins; an Organization usually has one. */
 export const organizationAdminsMax = 100;
+
+/** A GitHub id as the manifest writes ids: decimal digits without a leading
+ * zero; the reader also bounds it at `Number.MAX_SAFE_INTEGER`, so it reads
+ * back as the exact number GitHub's API gives. */
+const decimalId = /^[1-9][0-9]{0,15}$/;
 
 const invalid = (detail: string): OrganizationAdmins =>
   Object.freeze({ status: "invalid", admins: null, detail });
@@ -74,17 +81,24 @@ export function organizationAdmins(
       string,
       unknown
     >;
-    if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1)
-      return invalid(`${at}.github_id must be a positive whole number`);
+    if (
+      typeof id !== "string" ||
+      !decimalId.test(id) ||
+      !Number.isSafeInteger(Number(id))
+    )
+      return invalid(
+        `${at}.github_id must be a decimal string of a positive whole number up to ${Number.MAX_SAFE_INTEGER}`,
+      );
     if (typeof login !== "string" || !githubLoginPattern.test(login))
       return invalid(`${at}.github_login must be a GitHub login`);
-    if (ids.has(id))
+    const githubId = Number(id);
+    if (ids.has(githubId))
       return invalid(`${at}.github_id ${id} is named more than once`);
     if (logins.has(login.toLowerCase()))
       return invalid(`${at}.github_login ${login} is named more than once`);
-    ids.add(id);
+    ids.add(githubId);
     logins.add(login.toLowerCase());
-    admins.push(Object.freeze({ githubId: id, githubLogin: login }));
+    admins.push(Object.freeze({ githubId, githubLogin: login }));
   }
   return Object.freeze({ status: "declared", admins: Object.freeze(admins) });
 }

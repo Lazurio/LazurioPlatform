@@ -174,13 +174,16 @@ Machines applies it from the Organization's Deployment Repo, the optional
 read who the appointed Admins are:
 
 ```json
-"organization_admins": [{ "github_id": 101, "github_login": "example-admin" }]
+"organization_admins": [{ "github_id": "101", "github_login": "example-admin" }]
 ```
 
-- Each entry has exactly a positive whole `github_id` (a JSON number, at most
-  2^53 − 1) and a `github_login` of GitHub's form. The id is the identity; the
-  login is for people and may go stale after a rename. Ids are unique, and so
-  are logins ignoring letter case; the list has at most 100 entries.
+- Each entry has exactly a `github_id` and a `github_login`. The id is the
+  account's GitHub id written as a decimal string without leading zeros, like
+  every other id of the manifest (`organization_id`, `repository_id`, a Team's
+  `id`), and at most 9007199254740991; a JSON number is refused. The login has
+  GitHub's form. The id is the identity; the login is for people and may go
+  stale after a rename. Ids are unique, and so are logins ignoring letter
+  case; the list has at most 100 entries.
 - An absent field or an empty list appoints no one.
 - It changes by a reviewed pull request to the root, which an Organization
   Owner merges. It is a pointer for agents, never a grant: it gives no entry,
@@ -201,10 +204,14 @@ read who the appointed Admins are:
   the list.
 - The Organization's own `AGENTS.md` may name its Admins in prose; the
   Organization keeps the two in step, and the list is what agents check.
-- Readers first: older releases reject a manifest with the field as an
-  unknown field, and so does the GEN3 Root's Core until it follows this
-  repository. An Organization adds it only after the release with this
-  reader runs on all of its Environments.
+- **Required of every Organization: readers first.** Older releases refuse a
+  manifest with the field as an unknown top-level field, and the Organization
+  becomes a `conflict` on every Environment that still runs one; so does the
+  GEN3 Root's Core until it follows this repository. An Organization adds
+  `organization_admins` to its root only after the release with this reader
+  runs on all of its Environments, and its `AGENTS.md` may name the Admins in
+  prose before then. Until the field is there, `lazurio organization role`
+  confirms no one as its Organization Admin.
 
 ## The schema
 
@@ -245,8 +252,8 @@ reason.
   - two Workspace tabs never share a name (in NFC, ignoring letter case), and a
     module is in one tab at most;
   - a tool is declared once in `settings.tools`;
-  - an Organization Admin's GitHub id is named once in `organization_admins`,
-    and so is a login, ignoring letter case;
+  - an Organization Admin's GitHub id is at most 9007199254740991 and named
+    once in `organization_admins`, and so is a login, ignoring letter case;
   - a tab name has at most 40 UTF-16 code units: a name of 21 to 40 characters
     outside the Basic Multilingual Plane, such as emoji, passes only the schema;
   - the declared projection digest is the digest of the projection of this

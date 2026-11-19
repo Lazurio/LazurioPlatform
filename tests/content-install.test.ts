@@ -596,7 +596,7 @@ posixTest(
   async () => {
     world = await createWorld();
     await alphaRemotes(world, {
-      admins: [{ github_id: 12345, github_login: "example" }],
+      admins: [{ github_id: "12345", github_login: "example" }],
     });
     for (const roles of [undefined, { alpha: "organization-admin" } as const]) {
       const folder = await presetFolder(world, "local");
@@ -642,8 +642,8 @@ posixTest(
     world = await createWorld();
     await alphaRemotes(world, {
       admins: [
-        { github_id: 12345, github_login: "example" },
-        { github_id: 12345, github_login: "example-two" },
+        { github_id: "12345", github_login: "example" },
+        { github_id: "12345", github_login: "example-two" },
       ],
     });
     const membership = {

@@ -272,6 +272,10 @@ const readerOnly = new Map<string, string>([
     "A tool is declared once: items compared by one field.",
   ],
   [
+    "organization_admins: an id beyond a safe integer",
+    "An Organization Admin's id is at most 9007199254740991, which a decimal string's pattern cannot bound below 16 digits: a value compared.",
+  ],
+  [
     "organization_admins: one id twice",
     "An Organization Admin's GitHub id is named once: items compared by one field.",
   ],

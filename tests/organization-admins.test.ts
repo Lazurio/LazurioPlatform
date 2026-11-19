@@ -38,7 +38,7 @@ test("a declared list gives each Admin's GitHub id and login, in order", () => {
   expect(
     organizationAdmins(
       parseCanonicalOrganization(
-        withAdmins([{ github_id: 101, github_login: "example-admin" }]),
+        withAdmins([{ github_id: "101", github_login: "example-admin" }]),
       ),
     ).admins,
   ).toEqual([{ githubId: 101, githubLogin: "example-admin" }]);
