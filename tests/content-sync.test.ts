@@ -31,6 +31,8 @@ import type { PresetName } from "../src/folder/presets";
 import { messages } from "../src/launchpad/messages";
 import { moduleStatusView } from "../src/launchpad/module-view";
 import type { ModuleAnswer } from "../src/modules/module-operations";
+import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
+import { resolveOrganizationRoot } from "../src/organizations/root-resolution";
 import { runTool } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
 import { type Slot, writeModule } from "./fixtures/catalog-folder";
@@ -1491,6 +1493,48 @@ posixTest(
     // With the root repaired, its children follow again in the same run.
     expect(byPath(run.entries)["workspace/web"]).toBe("fast-forwarded");
     expect(await head(fixture.at("workspace/web"))).toBe(web);
+  },
+  60_000,
+);
+
+posixTest(
+  "a root that resolves projection_drift, which Lazurio does not run either, is synchronized alone too (Pablo's review of #1096)",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world);
+    const canonical = JSON.parse(
+      await readFile(fixture.at("lazurio.organization.json"), "utf8"),
+    );
+    const modules = JSON.parse(
+      await readFile(fixture.at("modules.manifest.json"), "utf8"),
+    );
+    // A legacy projection that drifted with parity proven: the optional
+    // organization_kind is missing from it.
+    const { organization_kind: _kind, ...drifted } = expectedLegacyProjection(
+      canonical,
+      modules,
+    ).projection as Record<string, unknown>;
+    await advance(world, "Alpha/alpha_GEN3", (directory) =>
+      writeFile(
+        join(directory, "company.gen3.json"),
+        `${JSON.stringify(drifted, null, 2)}\n`,
+      ),
+    );
+    expect(byPath((await ran(fixture)).entries)["."]).toBe("fast-forwarded");
+    const resolved = await resolveOrganizationRoot(fixture.at("."));
+    expect(resolved.kind === "root-resolved" && resolved.state).toBe(
+      "projection_drift",
+    );
+    expect(resolved.kind === "root-resolved" && resolved.executable).toBe(
+      false,
+    );
+    const webBefore = await head(fixture.at("workspace/web"));
+    await advance(world, "Alpha/web", (directory) =>
+      writeFile(join(directory, "a.txt"), "2\n"),
+    );
+    const held = await ran(fixture);
+    expect(held.entries.map((entry) => entry.path)).toEqual(["."]);
+    expect(await head(fixture.at("workspace/web"))).toBe(webBefore);
   },
   60_000,
 );
