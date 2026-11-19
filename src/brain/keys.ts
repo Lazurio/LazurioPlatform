@@ -9,9 +9,10 @@ import { type BrainPaths, brainKeyNames, brainUrl } from "./pin";
 //   launchpad  read          the Launchpad's memory page (R11b's key, kept)
 //   executor   read, write   Executor's MCP server Brain for every agent
 //   probe      read          doctor's and setup's own checks
-// One path mints each: a key that still works is kept, otherwise a new one
-// is minted, handed over, and every other active key of that name revoked,
-// so neither a key Machines minted nor an orphan of an earlier run stays.
+// One path mints each: a key that still works is kept and nothing is
+// revoked; otherwise a new one is minted, handed over, and every other active
+// key of that name revoked, so neither a key Machines minted nor an orphan of
+// an earlier run stays. One run at a time (`brainSetup`'s lock).
 // Lazurio's record of the ids is its own state file; Machines' ledger
 // (`~/.local/state/lazurio/buddy/managed.json`) is only read, once, for the
 // id of the Launchpad's key Machines minted, and never written.
@@ -191,8 +192,10 @@ export async function convergeBrainKeys(
     const current = await handedOverToken(path);
     let keep: string | undefined;
     if (current !== undefined && (await keyWorks(http, base, current))) {
+      // The key handed over works: nothing is revoked. Its id is not known
+      // for sure (another manager may have minted it before it yielded), so
+      // revoking "every other" key could revoke the very one in use.
       outcomes[kind] = "kept";
-      keep = ids[kind]?.id;
     } else {
       const admin = await owner();
       const minted =
@@ -219,8 +222,9 @@ export async function convergeBrainKeys(
       keep = minted.id;
       outcomes[kind] = "minted";
     }
-    // Every other active key of this name goes: an earlier one, Machines'
-    // where Lazurio took it over, or an orphan of a run that died.
+    // Only after its own mint, whose id is certain: every other active key
+    // of this name goes, an earlier one, Machines' where Lazurio took it over,
+    // or an orphan of a run that died.
     if (keep !== undefined) {
       const admin = await owner();
       const keys = admin === null ? null : await admin.keys();

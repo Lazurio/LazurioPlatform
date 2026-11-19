@@ -1,5 +1,6 @@
-import { stat } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, stat } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { acquireFileLock, type FileLock } from "../platform/flock";
 import type { ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { systemctl } from "../update/service-control";
@@ -82,6 +83,7 @@ export type SetupResult = Readonly<{
     | "waits-move"
     | "waits-takeover"
     | "takeover-refused"
+    | "busy"
     | "waits-machines"
     | "machines"
     | "foreign"
@@ -159,7 +161,36 @@ async function move(
   );
 }
 
+/** One run at a time: the Launchpad's start, `lazurio brain setup` and
+ * `take-over` may meet, and two runs would mint, revoke, move or take over
+ * against each other. A kernel lock beside Lazurio's state, released when its
+ * holder ends or dies; a run that finds it held changes nothing (`busy`). */
 export async function brainSetup(host: SetupHost): Promise<SetupResult> {
+  if ((await host.context()).kind === "unsupported")
+    return Object.freeze({
+      server: "unsupported",
+      status: await brainStatus(host),
+    });
+  let lock: FileLock;
+  try {
+    await mkdir(dirname(host.paths.state), { recursive: true, mode: 0o700 });
+    lock = await acquireFileLock(
+      join(dirname(host.paths.state), "setup.lock"),
+      {
+        timeoutMs: 0,
+      },
+    );
+  } catch {
+    return Object.freeze({ server: "busy", status: await brainStatus(host) });
+  }
+  try {
+    return await setupOnce(host);
+  } finally {
+    await lock.release();
+  }
+}
+
+async function setupOnce(host: SetupHost): Promise<SetupResult> {
   const status = await brainStatus(host);
   // One manager of the Launchpad's key in any order of deployment: until
   // Machines mark that they hand the brain over on this host (C1), they may

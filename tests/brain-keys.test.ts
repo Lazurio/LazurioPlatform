@@ -147,7 +147,7 @@ describe("brain keys", () => {
     expect(brain.logins).toBe(logins + 1);
   });
 
-  test("Machines' Launchpad key is kept by the id their ledger records; an orphan of the same name goes", async () => {
+  test("Machines' Launchpad key is kept by the id their ledger records, and nothing is revoked while it works", async () => {
     brain.keys = [
       {
         id: "m-1",
@@ -185,8 +185,11 @@ describe("brain keys", () => {
     await writeFile(ledger, ledgerText);
     const result = await convergeBrainKeys({ paths, http: brainHttp, base });
     expect(result.outcomes.launchpad).toBe("kept");
+    // Revoking happens only after Lazurio's own mint, whose id is certain;
+    // the orphan goes with the next one.
     expect(active("lazurio-launchpad-memory").map((k) => k.id)).toEqual([
       "m-1",
+      "m-orphan",
     ]);
     expect(result.state.keys?.launchpad).toEqual({ id: "m-1" });
     // Machines' ledger is read, never written.

@@ -354,6 +354,16 @@ describe("the interim installer's brain", () => {
   });
 });
 
+describe("one run at a time", () => {
+  test("two runs at once: one does the work, the other changes nothing and says busy; the lock is released after", async () => {
+    const { host, systemd } = await stand({ consent: true });
+    const results = await Promise.all([brainSetup(host), brainSetup(host)]);
+    expect(results.map((r) => r.server).sort()).toEqual(["busy", "moved"]);
+    expect(systemd.running).toBe(brainPin.version);
+    expect((await brainSetup(host)).server).toBe("running");
+  });
+});
+
 describe("a move that stopped or was interrupted", () => {
   test("a stopped move keeps the server down and disabled, even on a later run", async () => {
     const { host, paths, calls, systemd } = await stand({ consent: true });
