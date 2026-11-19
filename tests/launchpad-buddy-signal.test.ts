@@ -86,7 +86,25 @@ test("the shell document carries Buddy GEN4's sign beside his origin, and a sign
     }).buddy,
   ).toBeUndefined();
   // A consumer reads a garbled sign as unavailable, never as quiet or none.
-  for (const signal of [{ state: "sleeping" }, "quiet", 1, null]) {
+  for (const signal of [
+    { state: "sleeping" },
+    "quiet",
+    1,
+    null,
+    // Each state in exactly its own shape: a bare or a decorated quiet is
+    // no quiet.
+    { state: "quiet" },
+    {
+      state: "quiet",
+      since: null,
+      request: { kind: "question" },
+      startedBy: null,
+    },
+    { state: "quiet", since: null, request: null, startedBy: "person" },
+    { ...waiting, request: { kind: "user_input" } },
+    { ...waiting, since: "yesterday" },
+    { state: "answered", since: waiting.since, request: null, startedBy: null },
+  ]) {
     const parsed = parseShell({
       ...JSON.parse(JSON.stringify(document)),
       buddy: { origin: buddyOrigin, signal },

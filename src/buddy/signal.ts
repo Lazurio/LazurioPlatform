@@ -28,10 +28,13 @@ export const buddySignalLineLimit = 64 * 1024;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** One line of `t3 lazurio buddy signal --json --follow`, which T3 Code
- * versions (Lazurio/t3code#232, version 1): exactly that version, a known
- * state and, but for `unavailable`, its thread and the members of version
- * 1. Anything else, an unversioned line included, is `unavailable`. */
+/** One line of `t3 lazurio buddy signal --json --follow`, in T3 Code's
+ * own contract (Lazurio/t3code#232, version 1), checked here apart from the
+ * shell's shape: exactly version 1 and its thread; `waiting` with the kind
+ * of T3 Code's runtime request (a person's answer, `user_input`, is a
+ * question; any other kind asks for an approval); `failed`, `answered` and
+ * `quiet` in their own shapes, which the shell's parser then checks again.
+ * Anything else, an unversioned line included, is `unavailable`. */
 export function parseBuddySignalLine(line: string): BuddySignal {
   if (line.length > buddySignalLineLimit) return unavailableSignal;
   let value: unknown;
@@ -42,18 +45,19 @@ export function parseBuddySignalLine(line: string): BuddySignal {
   }
   if (!isRecord(value) || value.version !== 1) return unavailableSignal;
   if (value.state === "unavailable") return unavailableSignal;
-  if (
-    typeof value.threadId !== "string" ||
-    !(value.since === null || typeof value.since === "string") ||
-    !(value.request === null || isRecord(value.request)) ||
-    !(value.startedBy === "person" || value.startedBy === "other")
-  )
+  if (typeof value.threadId !== "string" || value.threadId === "")
     return unavailableSignal;
+  let request: unknown = value.request;
+  if (value.state === "waiting") {
+    const kind = isRecord(value.request) ? value.request.kind : undefined;
+    if (typeof kind !== "string" || kind === "") return unavailableSignal;
+    request = { kind: kind === "user_input" ? "question" : "approval" };
+  }
   return (
     parseBuddySignal({
       state: value.state,
       since: value.since,
-      request: value.request,
+      request,
       startedBy: value.startedBy,
     }) ?? unavailableSignal
   );

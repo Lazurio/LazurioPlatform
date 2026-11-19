@@ -14,14 +14,24 @@ import {
 import { manualClock } from "./fixtures/manual-clock";
 
 const line = (value: unknown) => JSON.stringify(value);
+// T3 Code's own lines (Lazurio/t3code#232, version 1), as it prints them:
+// the request's kind is its runtime request's, and quiet names nothing.
 const waiting = {
   version: 1,
   state: "waiting",
   threadId: "thread-1",
   since: "2026-11-19T16:00:00.000Z",
-  request: { kind: "question" },
+  request: { kind: "user_input" },
   startedBy: "person",
 };
+const quietLine = line({
+  version: 1,
+  state: "quiet",
+  threadId: "thread-1",
+  since: null,
+  request: null,
+  startedBy: null,
+});
 
 test("a line of T3 Code's follower is the sign; anything else is unavailable, never quiet", () => {
   expect(parseBuddySignalLine(line(waiting))).toEqual({
@@ -47,10 +57,22 @@ test("a line of T3 Code's follower is the sign; anything else is unavailable, ne
     request: null,
     startedBy: "other",
   });
-  // A request is only ever part of `waiting`.
+  // A quiet Buddy is quiet; an approval of any other kind asks for one.
+  expect(parseBuddySignalLine(quietLine)).toEqual({
+    state: "quiet",
+    since: null,
+    request: null,
+    startedBy: null,
+  });
   expect(
-    parseBuddySignalLine(line({ ...waiting, state: "failed" })).request,
-  ).toBeNull();
+    parseBuddySignalLine(line({ ...waiting, request: { kind: "command" } }))
+      .request,
+  ).toEqual({ kind: "approval" });
+  expect(
+    parseBuddySignalLine(
+      line({ ...waiting, state: "failed", request: null, startedBy: null }),
+    ).state,
+  ).toBe("failed");
   for (const unreadable of [
     "",
     "not json",
@@ -69,6 +91,14 @@ test("a line of T3 Code's follower is the sign; anything else is unavailable, ne
     }),
     line({ ...waiting, threadId: undefined }),
     line({ ...waiting, startedBy: "nobody" }),
+    // Each state in exactly its own shape.
+    line({ ...waiting, request: null }),
+    line({ ...waiting, since: null }),
+    line({ ...waiting, state: "failed" }),
+    line({ ...waiting, state: "answered", request: null, startedBy: null }),
+    line({ ...JSON.parse(quietLine), request: { kind: "user_input" } }),
+    line({ ...JSON.parse(quietLine), startedBy: "person" }),
+    line({ ...JSON.parse(quietLine), since: "2026-11-19T16:00:00.000Z" }),
     `${line(waiting).slice(0, -1)},"pad":"${"x".repeat(70 * 1024)}"}`,
     line({
       version: 1,
@@ -136,13 +166,13 @@ test("the follower is unavailable until T3 Code says otherwise, and again whenev
   // T3 Code's own `unavailable` line and a line it cannot read both say so.
   runs[0]?.feed(line({ version: 1, state: "unavailable", reason: "x" }));
   expect(follower.current().state).toBe("unavailable");
-  runs[0]?.feed(line({ ...waiting, state: "quiet", request: null }));
+  runs[0]?.feed(quietLine);
   expect(follower.current().state).toBe("quiet");
   runs[0]?.feed("{ broken");
   expect(follower.current().state).toBe("unavailable");
 
   // The process ends: unavailable at once, a new one after the wait.
-  runs[0]?.feed(line({ ...waiting, state: "quiet", request: null }));
+  runs[0]?.feed(quietLine);
   runs[0]?.end();
   await settle();
   expect(follower.current().state).toBe("unavailable");
@@ -198,7 +228,7 @@ test("a closed follower starts nothing and reports nothing more", async () => {
 });
 
 test("from a quiet sign, a line it cannot read turns it unavailable at once", async () => {
-  const quiet = line({ ...waiting, state: "quiet", request: null });
+  const quiet = quietLine;
   for (const unreadable of [
     line({
       state: "quiet",
@@ -230,7 +260,7 @@ posix(
     try {
       const bin = join(root, "bin");
       await mkdir(bin);
-      const quiet = line({ ...waiting, state: "quiet", request: null });
+      const quiet = quietLine;
       // A stand-in for T3 Code's CLI: a quiet sign, a line longer than any
       // sign without its end for a while, then its end and a sign again.
       await writeFile(join(root, "first"), `${quiet}\n`);

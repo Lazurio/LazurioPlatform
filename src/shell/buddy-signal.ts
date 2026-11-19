@@ -19,42 +19,52 @@ export const unavailableSignal: BuddySignal = Object.freeze({
   startedBy: null,
 });
 
-const states = new Set<BuddySignalState>([
-  "waiting",
-  "failed",
-  "answered",
-  "quiet",
-  "unavailable",
-]);
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** A sign as the shell document and the stream carry it (no version: the
- * shell document's schema versions it); null for anything else. */
+/** A sign as the shell document and the stream carry it, in exactly the
+ * shape of its state (no version: the shell document's schema versions it):
+ * - `waiting`: since when, what he waits for (`question` or `approval`),
+ *   and who started the turn, or null;
+ * - `failed`: since when, no request, who started the turn, or null;
+ * - `answered`: since when, no request, `person` or `other`;
+ * - `quiet` and `unavailable`: nothing more, every member null.
+ * Null for anything else, a member missing included. */
 export function parseBuddySignal(value: unknown): BuddySignal | null {
   if (!isRecord(value)) return null;
-  const state = value.state;
-  if (typeof state !== "string" || !states.has(state as BuddySignalState))
+  const { state, since, request, startedBy } = value;
+  if (!("since" in value) || !("request" in value) || !("startedBy" in value))
     return null;
-  if (state === "unavailable") return unavailableSignal;
-  const since =
-    typeof value.since === "string" && !Number.isNaN(Date.parse(value.since))
-      ? value.since
-      : null;
-  const kind = isRecord(value.request) ? value.request.kind : undefined;
-  const request =
-    state === "waiting" && (kind === "question" || kind === "approval")
-      ? Object.freeze({ kind })
-      : null;
-  const startedBy =
-    value.startedBy === "person" || value.startedBy === "other"
-      ? value.startedBy
-      : null;
-  return Object.freeze({
-    state: state as BuddySignalState,
-    since,
-    request,
-    startedBy,
-  });
+  const instant = typeof since === "string" && !Number.isNaN(Date.parse(since));
+  const starter = startedBy === "person" || startedBy === "other";
+  switch (state) {
+    case "quiet":
+    case "unavailable":
+      return since === null && request === null && startedBy === null
+        ? state === "unavailable"
+          ? unavailableSignal
+          : Object.freeze({ state, since, request, startedBy })
+        : null;
+    case "waiting": {
+      const kind = isRecord(request) ? request.kind : undefined;
+      if (!instant || (kind !== "question" && kind !== "approval")) return null;
+      if (!(starter || startedBy === null)) return null;
+      return Object.freeze({
+        state,
+        since,
+        request: Object.freeze({ kind }),
+        startedBy,
+      });
+    }
+    case "failed":
+      return instant && request === null && (starter || startedBy === null)
+        ? Object.freeze({ state, since, request, startedBy })
+        : null;
+    case "answered":
+      return instant && request === null && starter
+        ? Object.freeze({ state, since, request, startedBy })
+        : null;
+    default:
+      return null;
+  }
 }

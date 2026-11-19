@@ -637,7 +637,7 @@ if (withBuddyGen4) {
   buddySignalFile = join(parent, "buddy-signal.jsonl");
   await writeFile(
     buddySignalFile,
-    `${JSON.stringify({ version: 1, state: "quiet", threadId: "preview", since: null, request: null, startedBy: "person" })}\n`,
+    `${JSON.stringify({ version: 1, state: "quiet", threadId: "preview", since: null, request: null, startedBy: null })}\n`,
   );
 }
 // Buddy's own Hermes gateway (decisions F63 to F66): the tests' stand-in,
