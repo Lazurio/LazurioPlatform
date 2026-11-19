@@ -25,6 +25,7 @@ import {
   releaseCommand,
 } from "../src/brain/pin";
 import { brainSetup, keysAfterVault, type SetupHost } from "../src/brain/setup";
+import { endStrayWriters, strayWriters } from "../src/brain/writers";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
@@ -503,22 +504,42 @@ describe("what a dead run left, before the brain starts", () => {
     expect(calls.some((c) => c[2] === "start" || c[1] === "add")).toBe(false);
   });
 
-  test("a gbrain command a dead run left still writing is ended before setup goes on", async () => {
-    const { setupHost, paths } = await host();
-    await brainSetup(setupHost);
-    // An embedding of Lazurio's release, in its own process group, as a
-    // killed setup leaves it.
-    const command = releaseCommand(paths, brainPin.commit);
-    const writer = spawn(
-      process.execPath,
-      ["-e", "setInterval(() => {}, 1000)", command, "embed", "--stale"],
-      { detached: true, stdio: "ignore" },
-    );
-    const ended = new Promise((resolve) => writer.once("exit", resolve));
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    const result = await brainSetup(setupHost);
-    expect(result.server).toBe("running");
-    await ended;
-    expect(writer.exitCode !== null || writer.signalCode !== null).toBe(true);
+  // The person's brain runs only on a Remote Environment on Linux (`lazurio
+  // brain` is `unsupported` elsewhere), and stray writers are found in
+  // /proc: the test runs where that is.
+  test.skipIf(process.platform !== "linux")(
+    "a gbrain command a dead run left still writing is ended before setup goes on",
+    async () => {
+      const { setupHost, paths } = await host();
+      await brainSetup(setupHost);
+      // An embedding of Lazurio's release, in its own process group, as a
+      // killed setup leaves it.
+      const command = releaseCommand(paths, brainPin.commit);
+      const writer = spawn(
+        process.execPath,
+        ["-e", "setInterval(() => {}, 1000)", command, "embed", "--stale"],
+        { detached: true, stdio: "ignore" },
+      );
+      const ended = new Promise((resolve) => writer.once("exit", resolve));
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        const result = await brainSetup(setupHost);
+        expect(result.server).toBe("running");
+        await ended;
+        expect(writer.exitCode !== null || writer.signalCode !== null).toBe(
+          true,
+        );
+      } finally {
+        if (writer.exitCode === null && writer.signalCode === null)
+          writer.kill("SIGKILL");
+      }
+    },
+  );
+
+  test("where there is no /proc to read, no writer is found and nothing waits", async () => {
+    const paths = brainPaths(await mkdtemp(join(tmpdir(), "brain-writers-")));
+    const proc = join(paths.home, "no-proc");
+    expect(await strayWriters(paths, proc)).toEqual([]);
+    expect(await endStrayWriters(paths, { proc, graceMs: 10 })).toBe(true);
   });
 });
