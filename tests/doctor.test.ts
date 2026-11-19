@@ -17,7 +17,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { brainPaths, brainPin } from "../src/brain/pin";
+import { brainPaths, brainPin, releaseCommand } from "../src/brain/pin";
+import { renderBrainUnits } from "../src/brain/units";
 import { contentLockDirectory } from "../src/content/host";
 import { recordSync, type SyncEntry } from "../src/content/sync-record";
 import {
@@ -48,7 +49,7 @@ import type { ToolRunner } from "../src/tools/status";
 import { codexAppServerUnit } from "../src/update/codex-app-server";
 import { performInstall, renderLaunchpadUnit } from "../src/update/install";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
-import { launchpadUnit, unitMarker } from "../src/update/service-control";
+import { launchpadUnit } from "../src/update/service-control";
 import {
   writeOrganization,
   writePersonalspaceModule,
@@ -1490,9 +1491,12 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
   await mkdir(paths.units, { recursive: true });
   await mkdir(join(paths.brain, "serve"), { recursive: true });
   await writeFile(join(paths.brain, "config.json"), "{}");
+  // Lazurio's own unit is exactly what it writes, with search by meaning.
   await writeFile(
     join(paths.units, "gbrain.service"),
-    `${unitMarker}\n[Service]\n`,
+    renderBrainUnits(releaseCommand(paths, brainPin.commit), true)[
+      "gbrain.service"
+    ] ?? "",
   );
   const tokens = { l: "l".repeat(32), e: "e".repeat(32), p: "p".repeat(32) };
   for (const [path, token] of [
