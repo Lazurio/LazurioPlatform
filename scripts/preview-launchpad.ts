@@ -296,14 +296,8 @@ const hubRouted = <T extends { entry?: object }>(binding: T): T =>
     ? binding
     : { ...binding, entry: { ...binding.entry, browserListenPort: hubPort } };
 // Buddy's frame routed by a personal preview's entry (decision F60).
-// With `buddy-gen4` instead, the entry also records Buddy GEN4's folder
-// (plan LZD-0033): no Hermes of his own, and his step shows only his names.
-const withBuddyGen4 =
-  process.argv[2] === "personal" &&
-  process.argv.slice(3).includes("buddy-gen4");
 const withBuddy =
-  withBuddyGen4 ||
-  (process.argv[2] === "personal" && process.argv.slice(3).includes("buddy"));
+  process.argv[2] === "personal" && process.argv.slice(3).includes("buddy");
 const noVault =
   process.argv
     .slice(3)
@@ -382,16 +376,7 @@ const buddyOrigin = withBuddy ? `https://buddy.${host}` : null;
 const buddyRouted = <T extends { entry?: object }>(binding: T): T =>
   buddyOrigin === null || binding.entry === undefined
     ? binding
-    : {
-        ...binding,
-        entry: {
-          ...binding.entry,
-          buddyOrigin,
-          ...(withBuddyGen4
-            ? { buddyFolder: join(parent, "Buddy"), buddyProfile: "buddy" }
-            : {}),
-        },
-      };
+    : { ...binding, entry: { ...binding.entry, buddyOrigin } };
 const parent = await realpath(
   await mkdtemp(join(tmpdir(), "launchpad-preview-")),
 );
@@ -609,42 +594,11 @@ async function writeExample() {
 // and the Tools page reads no real tool or sign-in.
 const home = join(parent, "home");
 await mkdir(join(home, "bin"), { recursive: true });
-// Buddy GEN4 with his bubble open (plan LZD-0033): the shared T3 Code's unit
-// is active, and his names are confirmed, so the Launchpad writes ~/Buddy
-// and shows his launcher. His sign is what the last line of
-// `buddySignal` (the JSON line names it) says, as `t3 lazurio buddy signal
-// --json --follow` would print it: append a line to change it.
-let buddySignalFile: string | null = null;
-if (withBuddyGen4) {
-  const systemd = join(parent, "systemd-bin");
-  await mkdir(systemd, { recursive: true });
-  await writeFile(
-    join(systemd, "systemctl"),
-    `#!/bin/sh\n[ "$2" = is-active ] && [ "$4" = t3code.service ] && exit 0\nexit 1\n`,
-    { mode: 0o755 },
-  );
-  process.env.PATH = `${systemd}:${process.env.PATH ?? ""}`;
-  await writePersona(
-    home,
-    {
-      buddyName: "Buddy",
-      address: "vy",
-      user: { nominative: "Jana", accusative: "Janu", dative: "Janě" },
-      confirm: true,
-    },
-    null,
-  );
-  buddySignalFile = join(parent, "buddy-signal.jsonl");
-  await writeFile(
-    buddySignalFile,
-    `${JSON.stringify({ version: 1, state: "quiet", threadId: "preview", since: null, request: null, startedBy: null })}\n`,
-  );
-}
 // Buddy's own Hermes gateway (decisions F63 to F66): the tests' stand-in,
 // signed in, behind the home's `~/.hermes`, and his persona as the installer
 // leaves it, for the person to confirm in "Seznamte se s Buddym".
 let buddyHermes: FakeHermesGateway | null = null;
-if (withBuddy && !withBuddyGen4) {
+if (withBuddy) {
   // A Hermes that takes Buddy's own words for a pairing reply
   // (Lazurio/hermes-agent#19).
   buddyHermes = await fakeHermesGateway({
@@ -1333,34 +1287,11 @@ async function servicesWorld(handover: unknown) {
   };
   return { served, newTabHost };
 }
-const signalFile = buddySignalFile;
-const signalBase = join(parent, "base");
-if (signalFile !== null)
-  await mkdir(join(signalBase, "update"), { recursive: true, mode: 0o700 });
 const app = await startLaunchpad(
   folder,
   undefined,
   undefined,
-  signalFile === null
-    ? undefined
-    : {
-        base: signalBase,
-        version: "0.0.0-preview",
-        // The follower reads the file's lines as they come.
-        buddySignalAtStart: async (onLine) => {
-          let read = 0;
-          const timer = setInterval(async () => {
-            const text = await Bun.file(signalFile).text();
-            const lines = text.split("\n").filter((line) => line !== "");
-            for (const line of lines.slice(read)) onLine(line);
-            read = lines.length;
-          }, 300);
-          return {
-            exited: new Promise(() => {}),
-            stop: () => clearInterval(timer),
-          };
-        },
-      },
+  undefined,
   mode === "local"
     ? {}
     : {
@@ -1658,7 +1589,6 @@ console.log(
     proxy,
     browser: mode === "local" ? null : browserOrigin,
     ...(buddyOrigin === null ? {} : { buddy: buddyOrigin }),
-    ...(buddySignalFile === null ? {} : { buddySignal: buddySignalFile }),
     ...(agentEntryState === null ? {} : { agentEntry: agentEntryState }),
     folder,
     ...(bitwarden === null ? {} : { bitwarden }),

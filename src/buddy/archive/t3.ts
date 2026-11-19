@@ -6,12 +6,10 @@ import {
   type Columns,
   columnsOf,
   type Draft,
-  type Locate,
   mimeOf,
   normalizeSpace,
   type PendingAttachment,
   type Stats,
-  splitMedia,
 } from "./hermes";
 
 // Buddy's T3 Code, `~/.t3-buddy/userdata/statev2.sqlite` (plan LZD-0033
@@ -99,7 +97,6 @@ export function readT3(
   attachments: Readonly<{ directory: string; listing: readonly string[] }>,
   chatCommentary: ReadonlySet<string>,
   stats: Stats,
-  media: Readonly<{ locate: Locate; home: string }>,
 ): Draft[] {
   const threads = columnsOf(db, "orchestration_v2_projection_threads");
   const rows = db
@@ -157,13 +154,9 @@ export function readT3(
       out.push(draft);
       bump(stats, "t3.user.message");
     } else if (row.role === "assistant") {
-      // A file Buddy sent is a `MEDIA:` line in his reply, as on Telegram.
-      const reply = splitMedia(text, media.locate, media.home);
-      const kind =
-        chatCommentary.has(normalizeSpace(reply.text)) ||
-        chatCommentary.has(normalizeSpace(text))
-          ? "commentary"
-          : "message";
+      const kind = chatCommentary.has(normalizeSpace(text))
+        ? "commentary"
+        : "message";
       out.push({
         id: `t3:${row.message_id}`,
         ts,
@@ -171,8 +164,8 @@ export function readT3(
         tag: "t3",
         author: "assistant",
         kind,
-        text: reply.text,
-        attachments: reply.attachments,
+        text: text.trim(),
+        attachments: [],
         source,
       });
       bump(stats, `t3.buddy.${kind}`);

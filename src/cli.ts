@@ -1,7 +1,5 @@
 import { parseArgs } from "node:util";
 import { appsHelp, runAppsCommand } from "./agent-entry/cli";
-import { runBrainSetup } from "./brain/at-start";
-import { brainHelp, runBrainCommand } from "./brain/cli";
 import {
   browserCommandWithoutNotice,
   browserHelp,
@@ -9,7 +7,6 @@ import {
 } from "./browser/cli";
 import { runViewService } from "./browser/people/serve";
 import { buddyHelp, runBuddyCommand } from "./buddy/cli";
-import { buddySignalProcess } from "./buddy/signal";
 import {
   computerHelp,
   runComputerCommand,
@@ -127,7 +124,6 @@ import { recoverHelp, recoverySource, runRecoverCommand } from "./recover/cli";
 import { runThemeCommand, themeHelp } from "./theme/cli";
 import { runToolsCommand, ToolsUsageError, toolsHelp } from "./tools/cli";
 import { openedView } from "./tools/sign-in-page";
-import { runTool } from "./tools/status";
 import {
   type CommandOutput,
   executorAtStart,
@@ -178,15 +174,6 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
       }),
     }),
     executorAtStart: executorAtStart(context, base),
-    // The person's brain (plan LZD-0033 R11a): after Executor's setup at
-    // start, `lazurio brain setup` in a child process of this very
-    // executable; it decides itself whether this is a Personal Environment.
-    brainAtStart: () =>
-      runBrainSetup({
-        executable: context.executable,
-        run: runTool,
-        env: process.env,
-      }),
     vaultAtStart: vaultAtStart(context, base),
     // The Environment's routes from its home access service (root decision
     // 0224), where the handover declares it.
@@ -194,13 +181,6 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     // The links between T3 Code servers along the Environment's edges (root
     // decision 0157, amended 2026-11-17): exactly where it sets Executor up.
     t3LinksAtStart: executorAtStart(context, base),
-    // The sign by Buddy GEN4's avatar (plan LZD-0033): the server follows it
-    // only where the entry names Buddy GEN4.
-    buddySignalAtStart: buddySignalProcess({
-      path: process.env.PATH,
-      home: process.env.HOME,
-      platform: process.platform,
-    }),
     // ChatGPT's apps in the operator's Codex (decision F42's addendum of
     // 2026-10-27): exactly where it sets Executor up.
     codexAppsAtStart: executorAtStart(context, base),
@@ -435,9 +415,6 @@ async function runOtherCommand(args: string[]): Promise<number> {
   // People's computers for agents (decision F75): the list and removal.
   if (args[0] === "computer")
     return emit(await runComputerCommand(args.slice(1), processContext()));
-  // The person's memory of a Personal Environment (plan LZD-0033 R11a).
-  if (args[0] === "brain")
-    return emit(await runBrainCommand(args.slice(1), processContext()));
   // Executor of a Remote Environment (decision F44): setup's steps go to
   // stderr, the state to stdout.
   if (args[0] === "executor")
@@ -825,7 +802,6 @@ This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 
     console.log(integrationsHelp);
     console.log(vaultHelp);
     console.log(executorHelp);
-    console.log(brainHelp);
     console.log(computerHelp);
     console.log(githubHelp);
     console.log(machineHelp);

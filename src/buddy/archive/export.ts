@@ -493,10 +493,7 @@ export async function exportArchive(
         const directory = join(home, t3Attachments);
         const listing = await readdir(directory).catch(() => [] as string[]);
         drafts.push(
-          ...readT3(db, { directory, listing }, chatCommentary, stats, {
-            locate: hermesAttachment,
-            home,
-          }),
+          ...readT3(db, { directory, listing }, chatCommentary, stats),
         );
         t3Counts = recountT3(db);
       } finally {

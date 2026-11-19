@@ -12,7 +12,6 @@ import { readFolderState } from "../folder/read-state";
 import { readMachineContext } from "../machine/context";
 import { type Catalog, readFolderCatalog } from "../organizations/catalog";
 import type { PersonalspaceHolderRead } from "../organizations/personalspace";
-import type { BuddySignal } from "../shell/buddy-signal";
 import {
   dashboardSlug,
   environmentIdOf,
@@ -358,9 +357,6 @@ export function shellDocument(
     ownerKey?: string | null;
     theme?: ShellTheme;
     buddyOpen?: boolean;
-    /** Buddy GEN4's sign as the Launchpad follows it (signal.ts); absent
-     * for Buddy GEN3. */
-    buddySignal?: BuddySignal;
   }>,
 ): Shell {
   const { machine } = input;
@@ -477,16 +473,10 @@ export function shellDocument(
     // his persona (F60's addendum of 2026-11-09): before that his frame
     // would show the gateway's error, and Začínáme is the way to him.
     // Everywhere else the account says.
-    // Buddy GEN4's sign rides with his origin where the Launchpad follows it.
     ...(kind === "personal" &&
     entry?.buddyOrigin !== undefined &&
     input.buddyOpen === true
-      ? {
-          buddy:
-            input.buddySignal === undefined
-              ? { origin: entry.buddyOrigin }
-              : { origin: entry.buddyOrigin, signal: input.buddySignal },
-        }
+      ? { buddy: { origin: entry.buddyOrigin } }
       : {}),
   };
   // The producer's own output passes the same parser as every consumer's.

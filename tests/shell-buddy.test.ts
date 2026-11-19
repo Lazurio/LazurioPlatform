@@ -19,7 +19,6 @@ import {
 } from "../src/shell/buddy-bubble";
 import {
   buddyClearanceProperty,
-  buddyMenuPlace,
   launcherClearance,
   launcherOnPage,
 } from "../src/shell/buddy-element";
@@ -48,7 +47,6 @@ import {
   parseShellAccount,
   type Shell,
   type ShellAccount,
-  type ShellBuddySignal,
   type ShellEnvironmentKind,
 } from "../src/shell/contract";
 import {
@@ -755,7 +753,6 @@ function fakeBubble(
     path: "/files",
     playing: null as string | null,
     meeting: null as BuddyMeeting | null,
-    signal: null as ShellBuddySignal | null,
   };
   const frame = windowOf(log.posted);
   const session = options.session ?? memory();
@@ -770,7 +767,6 @@ function fakeBubble(
       theme: "light",
     }),
     meeting: () => page.meeting,
-    signal: () => page.signal,
     frameWindow: () => (log.drawn.at(-1)?.frame ? frame : null),
     session,
     draw: (model) => {
@@ -825,7 +821,6 @@ test("with Buddy's origin: the launcher with his picture, no frame before the fi
       expanded: false,
       away: false,
       badge: null,
-      sign: null,
       spot: false,
     },
     frame: null,
@@ -1088,7 +1083,6 @@ test("while Buddy is out presenting the guide his launcher waits empty, and show
     expanded: false,
     away: true,
     badge: null,
-    sign: null,
     spot: false,
   });
   // Said once; the window, the frame and the focus are as they were.
@@ -1485,7 +1479,6 @@ test("before the meeting: the launcher shows 1 and his window his hello and one 
     expanded: false,
     away: false,
     badge: "1",
-    sign: null,
     spot: false,
   });
   expect(last()?.meeting).toEqual({
@@ -1653,101 +1646,4 @@ test("his 1, his hello and the lift in the bubble's own styles: the design syste
   expect(elements).toContain(
     ["detail: { href: `$", "{target.pathname}$", "{target.hash}` },"].join(""),
   );
-});
-
-test("Buddy GEN4's sign on the launcher: a badge and words per state, none while quiet, open or out, and never over the meeting's 1", () => {
-  const { bubble, page, last } = fakeBubble();
-  const sign = (state: ShellBuddySignal["state"]): ShellBuddySignal => ({
-    state,
-    since: "2026-11-19T16:00:00.000Z",
-    request: state === "waiting" ? { kind: "question" } : null,
-    startedBy: "person",
-  });
-  bubble.update();
-  // Buddy GEN3, or no sign followed: the launcher as before.
-  expect(last()?.launcher.sign).toBeNull();
-  expect(last()?.launcher.badge).toBeNull();
-  const shown: [ShellBuddySignal["state"], string | null, string][] = [
-    ["waiting", "?", "Buddy na vás čeká"],
-    ["failed", "!", "Buddy: něco se nepovedlo"],
-    ["answered", "", "Buddy odpověděl"],
-    ["unavailable", "", "Buddy teď není dostupný"],
-    ["quiet", null, "Buddy"],
-  ];
-  for (const [state, badge, label] of shown) {
-    page.signal = sign(state);
-    bubble.update();
-    expect({
-      state,
-      sign: last()?.launcher.sign,
-      badge: last()?.launcher.badge,
-      label: last()?.launcher.label,
-    }).toEqual({
-      state,
-      sign: state === "quiet" ? null : state,
-      badge,
-      label,
-    });
-  }
-  // A sign the page cannot read is drawn as unavailable, never as quiet:
-  // the shell's parser and the stream give `unavailable`, which shows.
-  page.signal = sign("unavailable");
-  bubble.update();
-  expect(last()?.launcher.sign).toBe("unavailable");
-  // While his window shows or he is out, the launcher says nothing more.
-  page.signal = sign("waiting");
-  bubble.toggle();
-  expect(last()?.launcher.sign).toBeNull();
-  bubble.toggle();
-  expect(last()?.launcher.sign).toBe("waiting");
-  bubble.guideOut(true);
-  expect(last()?.launcher.sign).toBeNull();
-  bubble.guideOut(false);
-  // Before the meeting his "1" stays, whatever a sign says.
-  page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
-  bubble.update();
-  expect(last()?.launcher).toMatchObject({ badge: "1", sign: null });
-});
-
-test("the launcher's menu stands beside the launcher where it is, moved or not, and within the viewport", () => {
-  const viewport = { width: 1280, height: 760 };
-  const menu = { width: 200, height: 44 };
-  const launcher = (left: number, top: number) => ({
-    left,
-    top,
-    width: 58,
-    height: 58,
-  });
-  // At home in the bottom right corner: above him, right edges together.
-  expect(buddyMenuPlace(launcher(1198, 678), menu, viewport)).toEqual({
-    left: 1056,
-    top: 626,
-  });
-  // Moved to the top left: below him, and never off the left edge.
-  expect(buddyMenuPlace(launcher(4, 4), menu, viewport)).toEqual({
-    left: 8,
-    top: 70,
-  });
-  // On a phone, against the right edge and a short viewport.
-  expect(
-    buddyMenuPlace(
-      launcher(330, 20),
-      { width: 260, height: 44 },
-      {
-        width: 390,
-        height: 100,
-      },
-    ),
-  ).toEqual({ left: 122, top: 48 });
-  // A menu wider than the viewport still starts at its margin.
-  expect(
-    buddyMenuPlace(
-      launcher(300, 300),
-      { width: 500, height: 44 },
-      {
-        width: 390,
-        height: 760,
-      },
-    ).left,
-  ).toBe(8);
 });

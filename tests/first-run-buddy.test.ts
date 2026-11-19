@@ -240,25 +240,6 @@ test("the tour and the line in Apps lead to Buddy first; each stop at most a doz
   });
 });
 
-test("the tour's stop at Buddy GEN4's step asks only for his names, no sign-in", () => {
-  const apps = { chat: true, automate: true };
-  const gen4 = tour({ buddy: fact("not-needed", false) });
-  expect(tourStop("buddy", gen4, apps, cs)).toEqual({
-    target: "start-buddy",
-    title: "Seznamte se s Buddym",
-    text: "Řekněte mu, jak vám má říkat.",
-    next: null,
-    later: true,
-  });
-  expect(tourStop("buddy", gen4, apps, en).text).toBe(
-    "Tell him what to call you.",
-  );
-  // Buddy GEN3 is still asked to be signed in.
-  expect(
-    tourStop("buddy", tour({ buddy: fact("none", false) }), apps, cs).text,
-  ).toBe("Přihlaste ho a řekněte, jak vám má říkat.");
-});
-
 test("the shell's prompt counts four with Buddy: his step in its document, additive in v1", () => {
   const read = {
     preset: "hosted-personal",

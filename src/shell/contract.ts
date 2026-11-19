@@ -24,7 +24,6 @@ import {
   environmentIdOf as environmentIdOfOrigin,
   isEnvironmentId as environmentIdRule,
 } from "../browser/contract/pure";
-import { parseBuddySignal, unavailableSignal } from "./buddy-signal";
 
 export const shellSchema = "lazurio.shell.v1";
 
@@ -261,41 +260,13 @@ export type ShellTheme = Readonly<{
   dark?: ShellThemeValues;
 }>;
 
-/** The sign by Buddy GEN4's avatar (plan LZD-0033): whether he waits for
- * the person, failed, has answered, is quiet, or cannot be read. */
-export type ShellBuddySignalState =
-  | "waiting"
-  | "failed"
-  | "answered"
-  | "quiet"
-  | "unavailable";
-
-/** The sign as the shell shows it: no thread id, nothing but what the
- * avatar draws and the browser's notice needs. */
-export type ShellBuddySignal = Readonly<{
-  state: ShellBuddySignalState;
-  /** Since when the state holds (ISO); null where T3 Code names none. */
-  since: string | null;
-  /** What Buddy waits for, while `waiting`. */
-  request: Readonly<{ kind: "question" | "approval" }> | null;
-  /** Who started the turns `answered` is about. */
-  startedBy: "person" | "other" | null;
-}>;
-
 /** Buddy's bubble (root decision 0210, plan DEV-6676 P3, decision F60):
  * where the person's Buddy answers, the origin of his frame,
  * `https://buddy.<personal-dns-slug>.lazurio.io`, served by the person's
- * Osobní Prostředí. An address and, for Buddy GEN4, the sign by his avatar:
- * never Buddy's name, character or what he said, which stay his
- * (Personalspace). Absent, the page shows the neutral guide of Lazurio as
- * before. */
-export type ShellBuddy = Readonly<{
-  origin: string;
-  /** The sign by his avatar (plan LZD-0033), only for Buddy GEN4 on the
-   * person's own Osobní Prostředí, whose Launchpad follows it; absent for
-   * Buddy GEN3 and wherever the account names him. */
-  signal?: ShellBuddySignal;
-}>;
+ * Osobní Prostředí. Only an address: never Buddy's name, character or state,
+ * which stay his (Personalspace). Absent, the page shows the neutral guide of
+ * Lazurio as before. */
+export type ShellBuddy = Readonly<{ origin: string }>;
 
 export type Shell = Readonly<{
   schema: typeof shellSchema;
@@ -459,16 +430,7 @@ export function parseShellBuddy(
 ): ShellBuddy | undefined | false {
   if (value === undefined || value === null) return undefined;
   if (!isRecord(value) || !isShellBuddyOrigin(value.origin)) return false;
-  // A sign it cannot read is unavailable, never quiet and never dropped.
-  const signal =
-    value.signal === undefined
-      ? undefined
-      : (parseBuddySignal(value.signal) ?? unavailableSignal);
-  return Object.freeze(
-    signal === undefined
-      ? { origin: value.origin }
-      : { origin: value.origin, signal },
-  );
+  return Object.freeze({ origin: value.origin });
 }
 
 /** Whether an entry's id is the one its Apps address gives it: an https

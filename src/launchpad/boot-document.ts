@@ -1,7 +1,6 @@
 import type { MachineBinding, MachineEntry } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import type { Catalog } from "../organizations/catalog";
-import type { BuddySignal } from "../shell/buddy-signal";
 import {
   currentEnvironment,
   type Shell,
@@ -74,9 +73,6 @@ export function launchpadBoot(
     /** Whether Buddy is open (F60's addendum of 2026-11-09), as the
      * shell document says it. */
     buddyOpen?: boolean | undefined;
-    /** Buddy GEN4's sign as the Launchpad follows it, as the shell
-     * document carries it. */
-    buddySignal?: BuddySignal | undefined;
   }>,
 ): LaunchpadBoot {
   let shell: Shell | null = null;
@@ -91,9 +87,6 @@ export function launchpadBoot(
         ownerKey: input.ownerKey ?? null,
         ...(input.theme === undefined ? {} : { theme: input.theme }),
         buddyOpen: input.buddyOpen === true,
-        ...(input.buddySignal === undefined
-          ? {}
-          : { buddySignal: input.buddySignal }),
       }),
       input.tailnet,
     );

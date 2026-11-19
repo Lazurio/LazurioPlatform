@@ -662,14 +662,7 @@ export function tourStop(
     case "settings-start":
       return stop("settings-start", copy.tourStartTitle, copy.tourStartText);
     case "buddy":
-      // Buddy GEN4 has no sign-in of his own: only his names to tell.
-      return stop(
-        "start-buddy",
-        copy.tourBuddyTitle,
-        typeof facts.buddy === "object" && facts.buddy.signIn === "not-needed"
-          ? copy.tourBuddyGen4Text
-          : copy.tourBuddyText,
-      );
+      return stop("start-buddy", copy.tourBuddyTitle, copy.tourBuddyText);
     case "ai":
       return stop("start-ai", copy.tourAiTitle, copy.tourAiText);
     case "github":

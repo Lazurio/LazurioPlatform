@@ -102,63 +102,6 @@ export type BuddyBubbleView = Readonly<{
   home(): Readonly<{ x: number; y: number }> | null;
 }>;
 
-/** The one choice of the launcher's menu: its words, whether it is on,
- * whether it can be chosen, and what choosing it does. */
-export type BuddyMenuItem = Readonly<{
-  label: string;
-  checked: boolean;
-  disabled: boolean;
-  select: () => void;
-}>;
-
-type Box = Readonly<{
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}>;
-
-/** Where the launcher's menu goes for the launcher where it stands now:
- * above it, its right edge on his, and below him where there is no room
- * above; always within the viewport, `margin` from its edges. */
-export function buddyMenuPlace(
-  launcher: Box,
-  menu: Readonly<{ width: number; height: number }>,
-  viewport: Readonly<{ width: number; height: number }>,
-  margin = 8,
-): Readonly<{ left: number; top: number }> {
-  const clamp = (value: number, low: number, high: number) =>
-    Math.max(low, Math.min(value, Math.max(low, high)));
-  const left = clamp(
-    launcher.left + launcher.width - menu.width,
-    margin,
-    viewport.width - menu.width - margin,
-  );
-  const above = launcher.top - menu.height - margin;
-  const top =
-    above >= margin
-      ? above
-      : clamp(
-          launcher.top + launcher.height + margin,
-          margin,
-          viewport.height - menu.height - margin,
-        );
-  return Object.freeze({ left, top });
-}
-
-/** One sway of his figure, restarted when it already runs. */
-function sway(figure: HTMLElement): void {
-  figure.removeAttribute("data-sway");
-  // Reading the layout restarts the animation the attribute names.
-  void figure.offsetWidth;
-  figure.dataset.sway = "";
-  figure.addEventListener(
-    "animationend",
-    () => figure.removeAttribute("data-sway"),
-    { once: true },
-  );
-}
-
 export function createBuddyBubbleView(
   host: HTMLElement,
   options: Readonly<{
@@ -178,9 +121,6 @@ export function createBuddyBubbleView(
     /** This app's memory (`localStorage`), where his place is kept; null
      * keeps it for this page only. */
     store: Store | null;
-    /** The launcher's menu (right click, long press, the menu key): its one
-     * choice now, or null for no menu. */
-    menu?: () => BuddyMenuItem | null;
   }>,
 ): BuddyBubbleView {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(options.logo)}`;
@@ -430,8 +370,7 @@ export function createBuddyBubbleView(
       launcher.dataset.fallback = "";
       picture.src = logoUrl;
     });
-    // Before the meeting his "1", after it Buddy GEN4's sign; the label
-    // says either in words.
+    // Before the meeting: his "1", which the label says in words.
     const badge = document.createElement("span");
     badge.className = "badge";
     badge.setAttribute("aria-hidden", "true");
@@ -441,59 +380,6 @@ export function createBuddyBubbleView(
     launcher.addEventListener("click", () => {
       if (performance.now() < swallowUntil) return;
       options.toggle();
-    });
-    // The launcher's menu: one choice, above him, gone on a choice, on
-    // Escape and on a press anywhere else.
-    const menu = document.createElement("div");
-    menu.className = "menu";
-    menu.setAttribute("role", "menu");
-    menu.hidden = true;
-    const choice = document.createElement("button");
-    choice.type = "button";
-    choice.setAttribute("role", "menuitemcheckbox");
-    menu.append(choice);
-    let chosen: (() => void) | null = null;
-    const closeMenu = () => {
-      if (menu.hidden) return;
-      menu.hidden = true;
-      chosen = null;
-      document.removeEventListener("pointerdown", outside, true);
-    };
-    const outside = (event: PointerEvent) => {
-      if (!event.composedPath().includes(menu)) closeMenu();
-    };
-    launcher.addEventListener("contextmenu", (event) => {
-      const item = options.menu?.() ?? null;
-      if (item === null) return;
-      event.preventDefault();
-      choice.textContent = item.label;
-      choice.setAttribute("aria-checked", String(item.checked));
-      choice.disabled = item.disabled;
-      chosen = item.select;
-      menu.hidden = false;
-      // Beside the launcher where it stands now, moved or not.
-      const at = buddyMenuPlace(
-        launcher.getBoundingClientRect(),
-        menu.getBoundingClientRect(),
-        { width: window.innerWidth, height: window.innerHeight },
-      );
-      menu.style.left = `${at.left}px`;
-      menu.style.top = `${at.top}px`;
-      document.addEventListener("pointerdown", outside, true);
-      choice.focus();
-    });
-    choice.addEventListener("click", () => {
-      const select = chosen;
-      closeMenu();
-      launcher.focus();
-      select?.();
-    });
-    menu.addEventListener("keydown", (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopPropagation();
-      closeMenu();
-      launcher.focus();
     });
     listenMoves(launcher, figure);
     bubble.addEventListener("keydown", (event) => {
@@ -548,7 +434,7 @@ export function createBuddyBubbleView(
     const corner = document.createElement("span");
     corner.className = "corner";
     corner.setAttribute("aria-hidden", "true");
-    bubble.append(corner, dialog, menu, launcher);
+    bubble.append(corner, dialog, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
     return {
@@ -621,7 +507,7 @@ export function createBuddyBubbleView(
         return;
       }
       parts ??= build();
-      const { dialog, launcher, figure, picture, badge, meet } = parts;
+      const { dialog, launcher, picture, badge, meet } = parts;
       if (avatar !== model.launcher.avatar) {
         avatar = model.launcher.avatar;
         delete launcher.dataset.fallback;
@@ -633,20 +519,10 @@ export function createBuddyBubbleView(
       if (model.launcher.away) launcher.dataset.away = "";
       else delete launcher.dataset.away;
       badge.hidden = model.launcher.badge === null;
-      // Before the meeting he hops now and then while his "1" waits.
-      if (model.launcher.badge !== null && model.launcher.sign === null)
-        launcher.dataset.calling = "";
+      // Something new waits for the person: he hops now and then.
+      if (model.launcher.badge !== null) launcher.dataset.calling = "";
       else delete launcher.dataset.calling;
       badge.textContent = model.launcher.badge ?? "";
-      // Buddy GEN4's sign: one sway when it turns to something for the
-      // person, then he stands still; no endless animation.
-      const sign = model.launcher.sign;
-      if (sign !== (launcher.dataset.sign ?? null)) {
-        if (sign === "waiting" || sign === "failed" || sign === "answered")
-          sway(figure);
-        if (sign === null) delete launcher.dataset.sign;
-        else launcher.dataset.sign = sign;
-      }
       lift(launcher, model.launcher.spot);
       dialog.setAttribute("aria-label", buddyWindowName);
       // Before the meeting: his hello in place of the frame, which stays

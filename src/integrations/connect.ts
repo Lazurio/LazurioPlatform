@@ -1694,25 +1694,6 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
     },
 
-    /** The ids of the custom servers of this name, never a catalog app's;
-     * null when Executor cannot be read. */
-    async customIdsNamed(name: string): Promise<readonly string[] | null> {
-      const executor = host().executor;
-      if (executor === null) return null;
-      const reading = await readExecutor(executor, catalog());
-      if (reading.state !== "ok") return null;
-      return Object.freeze(
-        reading.integrations
-          .filter(
-            (item) =>
-              item.kind !== "api" &&
-              item.name === name &&
-              catalogAppOf(catalog(), item) === undefined,
-          )
-          .map((item) => item.slug),
-      );
-    },
-
     /** Removes a custom MCP server (never a catalog app's integration). */
     async removeCustom(id: string): Promise<
       | Readonly<{ kind: "removed" }>

@@ -10,10 +10,9 @@ A person's Personal Environment may link the T3 Code of its Chat to the T3
 Code of each Work Environment assigned to that person, so its threads, Buddy
 among them, work there with T3 Code's standard tools. The Organization records
 the edge in its Deployment Repo and its Owner confirms it; the same record
-gives the SSH route and lets the Work Environment's gateway pass the five
-paths of the link (`GET /.well-known/t3/environment`, `POST /mcp`,
-`POST /oauth/mcp/register`, `/decision`, `/token`) only from the Personal
-Environment's tailnet address. Lazurio never
+gives the SSH route and lets the Work Environment's gateway pass the four
+paths of the link (`POST /mcp`, `POST /oauth/mcp/register`, `/decision`,
+`/token`) only from the Personal Environment's tailnet address. Lazurio never
 creates or removes an edge. Inside one, it pairs, renews and ends the link
 itself, and T3 Code is not changed.
 
@@ -154,11 +153,8 @@ its guard keeps linked environments off.
   source's, whatever its label, and is revoked with that source's edge or at
   its next renewal. A person who links another T3 Code to this Work
   Environment in exactly that window may lose that session; nothing stays
-  open. Lazurio waits while any other code is out, and without the gateway's
-  sign-in only an edge's source can reach the link's four `POST` paths, which
-  pair and use a link, so the window is short and narrow. (The description
-  `GET /.well-known/t3/environment` is also reachable by native T3 clients
-  under 0157's separate pairing exception; it issues no session.) Telling
+  open. Lazurio waits while any other code is out, and only an edge's source
+  can reach the four paths at all, so the window is short and narrow. Telling
   the sessions apart for certain would need T3 Code to record which code a
   session came from. The label is not used to narrow it: it can change, and a
   wrong filter would leave the session of Lazurio's code owned by nobody.

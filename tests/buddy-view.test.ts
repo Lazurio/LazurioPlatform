@@ -321,36 +321,6 @@ test("Začínáme's step: done only when he is signed in and the person confirme
   });
 });
 
-test("Začínáme's step for Buddy GEN4: only his names, no sign-in and no Telegram", () => {
-  const gen4 = (confirmed: boolean) =>
-    reading({
-      state: "works",
-      signIn: "not-needed",
-      persona: persona({ confirmed }),
-      telegram: { state: "none", requests: [], pending: false },
-    });
-  // Names not confirmed yet: his introduction is the one thing to do.
-  expect(buddyStep(facts(gen4(false)), cs)).toEqual({
-    done: false,
-    failed: false,
-    parts: [
-      {
-        id: "persona",
-        mark: "open",
-        title: "Jméno a oslovení",
-        status: "Zatím ne",
-      },
-    ],
-    action: "introduce",
-  });
-  // Confirmed: done, with no "Přihlášení k ChatGPT – Připojeno" row.
-  const done = buddyStep(facts(gen4(true)), cs);
-  expect(done).toMatchObject({ done: true, failed: false, action: "edit" });
-  expect(done.parts.map((part) => part.id)).toEqual(["persona"]);
-  // Buddy GEN3 keeps his sign-in row.
-  expect(buddyStep(facts(works(true)), cs).parts[0]?.id).toBe("sign-in");
-});
-
 test("the step while a code is on its way, and each way it can stop, in one plain line", () => {
   const waiting = buddyStep(facts(reading(), pending()), cs);
   expect(waiting.action).toBe("resume");

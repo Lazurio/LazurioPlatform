@@ -23,11 +23,7 @@ import {
   buddySkillPath,
   outputPaths,
 } from "../src/folder/outputs";
-import {
-  personalMemoryHere,
-  presetNames,
-  presetProfile,
-} from "../src/folder/presets";
+import { presetNames, presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import {
   buddyPublicationRules,
@@ -313,7 +309,7 @@ test(".hermes.md: a message to another person for the user reads like one person
   expect(cs).not.toContain("mě poprosil");
 });
 
-test(".hermes.md says how Buddy works with gbrain, in both locales, and no file the other agents read carries his habits; outside a Personal Remote Environment no file names gbrain's tools", () => {
+test(".hermes.md says how Buddy works with gbrain, in both locales, and no file the other agents read carries it: they use gbrain only on the user's explicit word", () => {
   // Root decision 0210, evening addendum of 2026-10-20, point 2: Buddy uses
   // gbrain implicitly; the other agents' rules never lead them to it.
   const habits = {
@@ -342,15 +338,8 @@ test(".hermes.md says how Buddy works with gbrain, in both locales, and no file 
         machine: journey.machine,
         profile: presetProfile(journey.preset, journey.os, { locale }),
       });
-      // Buddy's own habits never reach another agent's files. Only in a
-      // Personal Remote Environment do the manual's rules of the Brain name
-      // its tools (`get_page` among them) for every agent (plan LZD-0033
-      // R11a); elsewhere no file names them.
-      const tools = personalMemoryHere(journey.preset, journey.machine)
-        ? []
-        : ["get_page"];
       for (const path of outputPaths)
-        for (const text of [...lines, ...tools])
+        for (const text of [...lines, "get_page"])
           expect({ path, text, found: outputs[path].includes(text) }).toEqual({
             path,
             text,
@@ -1083,12 +1072,8 @@ test(".hermes.md fits the 20,000 characters Hermes loads of a context file witho
     expect(scriptLayer(locale)[buddyRulesPath].length).toBeLessThan(20_000);
 });
 
-test("every Environment's AGENTS.md says who Buddy is before the working rules: the user's representative, the mark, no channel to Buddy, Publication only from the user or a mandate, and gbrain only on the user's word, or in a Personal Remote Environment the person's memory, the Brain", () => {
+test("every Environment's AGENTS.md says who Buddy is before the working rules: the user's representative, the mark, no channel to Buddy, Publication only from the user or a mandate, gbrain only on the user's word", () => {
   for (const journey of journeys) {
-    // The person's memory is Lazurio's tool of a Personal Remote Environment
-    // (plan LZD-0033 R11a, decision F44's addendum of 2026-11-18): there the
-    // line names the Brain; everywhere else gbrain stays on the user's word.
-    const brain = personalMemoryHere(journey.preset, journey.machine);
     const cs = agentsOf(journey, "cs");
     const buddy = section(cs, "## Buddy");
     expect(cs.indexOf("\n## Buddy\n")).toBeLessThan(
@@ -1101,18 +1086,14 @@ test("every Environment's AGENTS.md says who Buddy is before the working rules: 
       "Výsledek patří do vlákna",
       "nástrojem na otázky",
       "Publikuješ jen se souhlasem uživatele: na „publikuj“",
-      brain
-        ? "Paměť uživatele je Brain (Executor)"
-        : "gbrain nepoužívej, pokud ti to uživatel výslovně neřekne.",
+      "gbrain nepoužívej, pokud ti to uživatel výslovně neřekne.",
     ])
       expect(buddy).toContain(phrase);
     const en = section(agentsOf(journey, "en"), "## Buddy");
     for (const phrase of [
       "personal representative",
       "do not look for a way to send Buddy a message or notify Buddy",
-      brain
-        ? "The user's memory is the Brain (Executor)"
-        : "Do not use gbrain unless the user explicitly tells you to.",
+      "Do not use gbrain unless the user explicitly tells you to.",
     ])
       expect(en).toContain(phrase);
   }

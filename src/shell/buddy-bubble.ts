@@ -18,8 +18,6 @@ import {
   currentEnvironment,
   environmentIdOf,
   type Shell,
-  type ShellBuddySignal,
-  type ShellBuddySignalState,
   type ShellEnvironmentKind,
 } from "./contract";
 import type { GuideEvent } from "./guide";
@@ -149,10 +147,6 @@ export type BuddyBubbleModel = Readonly<{
     expanded: boolean;
     away: boolean;
     badge: string | null;
-    /** The sign by Buddy GEN4's avatar while the launcher shows it (not
-     * while his window shows or he is out, never before the meeting);
-     * null for none, `quiet` included. */
-    sign: Exclude<ShellBuddySignalState, "quiet"> | null;
     spot: boolean;
   }>;
   /** The frame, from the first open on; null before. */
@@ -171,9 +165,6 @@ export type BuddyBubbleSeams = Readonly<{
   facts: () => Omit<BuddyContextFacts, "guide"> | null;
   /** Buddy's step before the meeting (`buddyMeeting`); null otherwise. */
   meeting: () => BuddyMeeting | null;
-  /** The sign by Buddy GEN4's avatar as the page follows it; null for
-   * Buddy GEN3 and wherever none is followed. */
-  signal?: () => ShellBuddySignal | null;
   /** The window of the frame the view made; null before. */
   frameWindow: () => BuddyFrameWindow | null;
   /** This tab's memory (`sessionStorage`), or null. */
@@ -196,24 +187,6 @@ export type BuddyBubbleSeams = Readonly<{
 /** Buddy's name on the launcher and the frame, and on the guide's card
  * where he presents it: a name, the same in every language. */
 export const buddyName = "Buddy";
-
-// What the launcher's badge shows for each sign: a question mark while he
-// waits for the person, an exclamation mark when something failed, a dot
-// for an answer, and an empty, struck badge while the sign cannot be read.
-const signBadge: Readonly<
-  Record<Exclude<ShellBuddySignalState, "quiet">, string>
-> = Object.freeze({ waiting: "?", failed: "!", answered: "", unavailable: "" });
-
-const signLabel = (
-  sign: Exclude<ShellBuddySignalState, "quiet">,
-  copy: ReturnType<typeof shellMessages>,
-): string =>
-  ({
-    waiting: copy.buddyWaiting,
-    failed: copy.buddyFailed,
-    answered: copy.buddyAnswered,
-    unavailable: copy.buddyUnavailable,
-  })[sign];
 
 export function createBuddyBubble(seams: BuddyBubbleSeams) {
   let origin: string | null = null;
@@ -253,28 +226,15 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   function model(): BuddyBubbleModel | null {
     if (origin === null) return null;
     const copy = meeting === null ? null : shellMessages(meeting.lang);
-    const shown = layout === "closed" && !away;
-    const signal = meeting === null ? (seams.signal?.() ?? null) : null;
-    const sign =
-      shown && signal !== null && signal.state !== "quiet"
-        ? signal.state
-        : null;
-    const badge =
-      copy !== null && shown ? "1" : sign === null ? null : signBadge[sign];
+    const badge = copy !== null && layout === "closed" && !away ? "1" : null;
     return Object.freeze({
       origin,
       launcher: Object.freeze({
         avatar: buddyAvatarSource(origin) ?? "",
-        label:
-          badge !== null && copy !== null
-            ? copy.buddyNew
-            : sign === null
-              ? buddyName
-              : signLabel(sign, shellMessages(pageLang())),
+        label: badge !== null && copy !== null ? copy.buddyNew : buddyName,
         expanded: layout !== "closed",
         away,
         badge,
-        sign,
         spot,
       }),
       frame,
@@ -324,15 +284,6 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     show(remembered(), "frame");
   }
   const draw = () => seams.draw(model());
-  // The page's language for the sign's words: the element's, else the
-  // person's profile.
-  const pageLang = (): "cs" | "en" => {
-    const facts = seams.facts();
-    const lang = facts?.lang;
-    return lang === "cs" || lang === "en"
-      ? lang
-      : (facts?.shell.locale ?? "en");
-  };
 
   /** The context now: the guide's step only on the path it showed on. */
   function context(): BuddyContext | null {
@@ -422,8 +373,6 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     },
     /** The Launchpad lifts the launcher over its own dialog while the
      * dialog shows where Buddy is (true), and lets it back (false). */
-    /** Whether his window shows (the panel or full screen). */
-    windowShown: (): boolean => layout !== "closed",
     spotlight(on: boolean): void {
       if (on === spot) return;
       spot = on;

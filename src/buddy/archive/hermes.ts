@@ -229,10 +229,7 @@ function unwrapUser(content: string, locate: Locate) {
   return { text: kept.join("\n").trim(), origin, attachments };
 }
 
-/** Buddy's text without his `MEDIA:` lines (Hermes's way of sending a file),
- * and those files as attachments. Hermes writes them in what T3 Code records
- * of his replies too. */
-export function splitMedia(content: string, locate: Locate, home: string) {
+function splitMedia(content: string, locate: Locate, home: string) {
   const attachments: PendingAttachment[] = [];
   const kept: string[] = [];
   for (const line of content.split("\n")) {

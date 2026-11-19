@@ -15,7 +15,6 @@ import {
 import {
   githubIdentity,
   type PresetName,
-  personalMemoryHere,
   presetVersion,
   visitorPreset,
   workspacePreset,
@@ -657,41 +656,6 @@ function ownInstructionsPassage(
   ];
 }
 
-// The person's memory in a Personal Environment (plan LZD-0033 R11a, Matěj
-// 2026-11-18): the Brain, the GBrain Lazurio installs and keeps up to date
-// like its other tools, reached by every agent through Executor's server
-// Brain. One key for all agents; every write signs the agent and the thread
-// in its provenance ("Jeden klíč, podpis u zápisu"). What belongs there is
-// Buddy's line (buddy-gen4.ts, 0180 and 0246). `AGENTS.md` names it in one
-// line and points here.
-const brainRules: readonly Text[] = [
-  t("## Paměť: Brain", "## Memory: the Brain"),
-  t(
-    "V tomto Osobním Prostředí má uživatel paměť Brain (GBrain). Instaluje ji, aktualizuje a hlídá Lazurio jako své ostatní nástroje; každý agent tohoto Prostředí na ni dosáhne přes Executor, server Brain.",
-    "In this Personal Environment the user has the memory called the Brain (GBrain). Lazurio installs, updates and watches it like its other tools; every agent of this Environment reaches it through Executor, the server Brain.",
-  ),
-  t(
-    "- **Nejdřív číst.** U otázky na člověka, Organizaci, projekt, schůzku nebo rozhodnutí se nejdřív podívej do Brainu (`recall`, `search`, `query`, `get_page`); teprve potom hledej na webu nebo v souborech.",
-    "- **Read first.** For a question about a person, an Organization, a project, a meeting or a decision, look in the Brain first (`recall`, `search`, `query`, `get_page`); only then search the web or files.",
-  ),
-  t(
-    "- **Co tam patří.** Co má vydržet, zapiš nástrojem `remember`: osobní poznámky a preference uživatele, dohody, rozhodnutí a co jsi slíbil. U práce Organizace jen krátký popis a odkaz na místo v Organizaci (plán, issue, pull request); její obsah, data a stav zůstávají v jejích repozitářích a aplikacích (0180, 0246).",
-    "- **What belongs there.** What has to last, write with `remember`: the user's personal notes and preferences, agreements, decisions and what you promised. For an Organization's work only a short description and a link to its place in the Organization (a plan, an issue, a pull request); its content, data and state stay in its repositories and applications (0180, 0246).",
-  ),
-  t(
-    "- **Podpis.** Všichni agenti tohoto Prostředí mají do Brainu jeden společný přístup; kdo co zapsal, říká podpis. Pole `provenance` každého zápisu proto nese, odkud to víš, datum a kdo zapisuje: druh agenta a vlákno (například `Claude Code · T3 thread <UUID>`).",
-    "- **Signature.** All agents of this Environment share one access to the Brain; the signature says who wrote what. So the `provenance` of every write carries where you learned it, the date and who writes: the kind of agent and the thread (for example `Claude Code · T3 thread <UUID>`).",
-  ),
-  t(
-    "- **Nikdy.** Do Brainu neukládej tajné údaje ani přechodný stav úkolu jako trvalou pravdu. Obsah paměti necituj do pull requestů, issues ani jiných sdílených míst.",
-    "- **Never.** Never store secrets in the Brain, nor a task's passing state as lasting truth. Never quote the memory's content in pull requests, issues or other shared places.",
-  ),
-  t(
-    "- **Stav.** Brain sám neaktualizuješ, nezastavuješ ani nerestartuješ. Jeho stav ukáže `lazurio brain status`; když nástroje Brainu nemáš nebo neodpovídají, řekni to uživateli.",
-    "- **State.** You never update, stop or restart the Brain yourself. `lazurio brain status` shows its state; when the Brain tools are missing or do not answer, tell the user.",
-  ),
-];
-
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -1090,7 +1054,6 @@ function workingHere(
       "Synthesis of what was learned goes to the Knowledgebase; a lasting decision to a decision record; a plan and its status to Mission Control and task ledgers; an open technical problem or uncertainty to a GitHub Issue in the exact owning repository; a change of working rules to the `AGENTS.md` of that scope. What is written into a repository always goes as a PR from your worktree, or to a repository you only read as an issue with the proposal (above); a GitHub Issue you file directly. Chat and the agent's private memory are only a cache: what stays there is lost. Write only relevant, non-secret knowledge the user may place in that store; Personalspace and cross-Organization isolation always take precedence. When in doubt, copy no content: file only an issue in its scope or a pointer to where it lives.",
     ),
     blank,
-    ...(personalMemoryHere(preset, machine) ? [...brainRules, blank] : []),
     ...ownInstructionsPassage(preset, machine),
     blank,
     t("## Organizace", "## Organizations"),
@@ -1439,8 +1402,8 @@ const glossary: readonly Text[] = [
     "| Personalspace | The private space of exactly one user and their optional Buddy; never shared, never in an Organization-owned Environment (decision 0091). |",
   ),
   t(
-    "| GBrain (Brain) | Paměť uživatele Osobního Prostředí, kterou instaluje, aktualizuje a hlídá Lazurio; agenti na ni dosáhnou přes Executor. Databáze je v `~/.gbrain`, vault v Personalspace (decision 0046). |",
-    "| GBrain (the Brain) | The memory of the user of a Personal Environment, which Lazurio installs, updates and watches; agents reach it through Executor. Its database is in `~/.gbrain`, its vault in the Personalspace (decision 0046). |",
+    "| GBrain | Paměť Rezidenta; GBrain Buddyho patří do Personalspace (decision 0046). |",
+    "| GBrain | The memory of a Resident; a Buddy's GBrain belongs to the Personalspace (decision 0046). |",
   ),
   t(
     "| Conglomerate | Pohled na všechny Environmenty jednoho uživatele napříč jeho Organizacemi; orientace, ne autorita (decision 0144). |",

@@ -5,26 +5,14 @@ import {
   buddyName,
   createBuddyBubble,
 } from "./buddy-bubble";
-import type { BuddyMenuItem } from "./buddy-element";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
-import {
-  buddyNoticePath,
-  buddyViewingEveryMs,
-  createBuddyNotifier,
-} from "./buddy-notice";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
-import {
-  buddySignalPath,
-  parseBuddySignal,
-  unavailableSignal,
-} from "./buddy-signal";
 import {
   currentEnvironment,
   isBuddysOwnPage,
   parseShell,
   type Shell,
   type ShellAccount,
-  type ShellBuddySignal,
   type ShellSignedOut,
   shellSchema,
 } from "./contract";
@@ -1335,26 +1323,6 @@ function pageTheme(element: Element): BuddyTheme {
  * page's merged document names Buddy's origin. The page's events the frame's
  * context follows (its messages, the path, the colour scheme) are listened
  * to only while the frame exists. */
-// The person's choice of the browser's notices of Buddy GEN4's sign, on
-// this origin (each origin has its own permission).
-const noticesKey = "lazurio.buddy.notices";
-const noticesOn = (): boolean => {
-  try {
-    return browserStore()?.getItem(noticesKey) === "on";
-  } catch {
-    return false;
-  }
-};
-const setNoticesOn = (on: boolean): void => {
-  try {
-    if (on) browserStore()?.setItem(noticesKey, "on");
-    else browserStore()?.removeItem(noticesKey);
-  } catch {}
-};
-/** The browser's permission for notices; null where it has none. */
-const notificationPermission = (): NotificationPermission | null =>
-  typeof Notification === "undefined" ? null : Notification.permission;
-
 export class LazurioBuddy extends HTMLElement implements GuideElement {
   // `hidden` too: the launcher's corner on the document follows it
   // (`launcherOnPage`, F60's addendum of 2026-10-25).
@@ -1363,15 +1331,6 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private view: BuddyBubbleView | null = null;
   private unfollow: (() => void) | null = null;
   private leavePage: (() => void) | null = null;
-  // Buddy GEN4's sign as the stream says it now, while the document names
-  // one (`buddy.signal`); the document's own until the stream speaks.
-  private signalSource: EventSource | null = null;
-  private liveSignal: ShellBuddySignal | null = null;
-  private notifier: ReturnType<typeof createBuddyNotifier> | null = null;
-  // While Buddy's window is in view here, the Launchpad hears so every
-  // `buddyViewingEveryMs`, and no tab on any origin tells a notice.
-  private viewingTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly viewingChanged = () => this.followViewing();
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1385,7 +1344,6 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   disconnectedCallback() {
     this.unfollow?.();
     this.unfollow = null;
-    this.stopSignal();
     if (bubbleHost === this) bubbleHost = null;
     this.follow();
     guide.detach(this);
@@ -1498,10 +1456,6 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       // Prostředí's (decision F60's addendum of 2026-10-26).
       meeting: () =>
         buddyMeeting(state.drawn(), this.origin(), this.getAttribute("lang")),
-      signal: () => {
-        const drawn = state.drawn()?.buddy?.signal;
-        return drawn === undefined ? null : (this.liveSignal ?? drawn);
-      },
       frameWindow: () => this.view?.frameWindow() ?? null,
       session: sessionStore(),
       draw: (model) => {
@@ -1512,10 +1466,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             escape: () => this.bubble?.escape() ?? false,
             follow: (href, event) => this.followMeeting(href, event),
             store: browserStore(),
-            menu: () => this.noticeMenu(),
           });
         this.view?.draw(model);
-        this.followViewing();
         if (model?.frame != null) this.listenPage();
         else {
           this.leavePage?.();
@@ -1536,161 +1488,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         play: (explainer) => guide.play(explainer, null),
       },
     });
-    // The stream of Buddy GEN4's sign while this bubble shows him and the
-    // document names one; none otherwise.
-    if (origin !== null && state.drawn()?.buddy?.signal !== undefined)
-      this.followSignal();
-    else this.stopSignal();
     this.bubble.update();
     guide.changed();
-  }
-
-  /** Follows `/.lazurio/buddy/signal` on this page's own origin, which the
-   * gateway forwards to the Launchpad behind the same admission as the
-   * document. A message it cannot read and every error of the stream (it
-   * reconnects by itself) are `unavailable`, never quiet. */
-  private followSignal(): void {
-    if (this.signalSource !== null || typeof EventSource === "undefined")
-      return;
-    const source = new EventSource(buddySignalPath);
-    const show = (signal: ShellBuddySignal) => {
-      this.liveSignal = signal;
-      this.bubble?.update();
-    };
-    this.notifier ??= createBuddyNotifier({
-      enabled: () => noticesOn() && notificationPermission() === "granted",
-      inView: () =>
-        document.visibilityState === "visible" &&
-        (this.bubble?.windowShown() ?? false),
-      claim: async (key) => {
-        const answer = await fetch(buddyNoticePath, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ key }),
-        });
-        if (!answer.ok) return false;
-        const value: unknown = await answer.json().catch(() => null);
-        return (
-          typeof value === "object" &&
-          value !== null &&
-          "notify" in value &&
-          value.notify === true
-        );
-      },
-      show: (signal) => this.notice(signal),
-    });
-    // The stream's own events, never the window's messages.
-    source.onmessage = (event) => {
-      let value: unknown;
-      try {
-        value = JSON.parse(String(event.data));
-      } catch {}
-      const signal = parseBuddySignal(value) ?? unavailableSignal;
-      show(signal);
-      void this.notifier?.observe(signal);
-    };
-    source.onerror = () => show(unavailableSignal);
-    this.signalSource = source;
-    document.addEventListener("visibilitychange", this.viewingChanged);
-  }
-
-  private stopSignal(): void {
-    this.signalSource?.close();
-    this.signalSource = null;
-    this.liveSignal = null;
-    this.notifier = null;
-    document.removeEventListener("visibilitychange", this.viewingChanged);
-    this.followViewing();
-  }
-
-  /** Says to the Launchpad that Buddy's window is in view here, at once and
-   * then on a beat, while it is and a sign is followed. */
-  private followViewing(): void {
-    const inView =
-      this.signalSource !== null &&
-      document.visibilityState === "visible" &&
-      (this.bubble?.windowShown() ?? false);
-    if (inView && this.viewingTimer === null) {
-      const say = () =>
-        void fetch(buddyNoticePath, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ viewing: true }),
-        }).catch(() => undefined);
-      say();
-      this.viewingTimer = setInterval(say, buddyViewingEveryMs);
-    } else if (!inView && this.viewingTimer !== null) {
-      clearInterval(this.viewingTimer);
-      this.viewingTimer = null;
-    }
-  }
-
-  /** The launcher's menu where Buddy GEN4's sign is followed and the
-   * browser has notices: the person's choice on this origin. */
-  private noticeMenu(): BuddyMenuItem | null {
-    if (this.signalSource === null) return null;
-    const permission = notificationPermission();
-    if (permission === null) return null;
-    const copy = shellMessages(this.pageLang());
-    if (permission === "denied")
-      return Object.freeze({
-        label: copy.buddyNoticesBlocked,
-        checked: false,
-        disabled: true,
-        select: () => {},
-      });
-    const on = noticesOn() && permission === "granted";
-    return Object.freeze({
-      label: copy.buddyNotices,
-      checked: on,
-      disabled: false,
-      select: () => {
-        if (on) {
-          setNoticesOn(false);
-          return;
-        }
-        // The browser asks the person, on this choice of theirs.
-        void Notification.requestPermission().then((answer) => {
-          if (answer === "granted") setNoticesOn(true);
-        });
-      },
-    });
-  }
-
-  /** The browser's notice of a change of the sign; its click brings this
-   * tab forward with Buddy's window open. */
-  private notice(signal: ShellBuddySignal): void {
-    const copy = shellMessages(this.pageLang());
-    const body =
-      signal.state === "waiting"
-        ? signal.request?.kind === "approval"
-          ? copy.buddyNoticeApproval
-          : copy.buddyNoticeQuestion
-        : signal.state === "failed"
-          ? copy.buddyNoticeFailed
-          : copy.buddyNoticeAnswered;
-    try {
-      const icon = buddyAvatarSource(this.origin());
-      const shown = new Notification(buddyName, {
-        body,
-        tag: "lazurio-buddy",
-        ...(icon === null ? {} : { icon }),
-      });
-      shown.addEventListener("click", () => {
-        window.focus();
-        this.openWindow();
-        shown.close();
-      });
-    } catch {}
-  }
-
-  private pageLang(): "cs" | "en" {
-    const lang = this.getAttribute("lang");
-    return lang === "cs" || lang === "en"
-      ? lang
-      : (state.drawn()?.locale ?? "en");
   }
 
   /** Buddy's origin while this is the page's bubble; none on Buddy's own

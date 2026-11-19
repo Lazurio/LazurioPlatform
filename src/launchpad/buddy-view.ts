@@ -611,9 +611,7 @@ export function buddyStep(facts: BuddyStepFacts, copy: Copy): BuddyStepView {
   return {
     done,
     failed: !done && sign.mark === "warn",
-    // Buddy GEN4 has no sign-in and no Telegram of his own: his step is
-    // getting to know his names, as in Nastavení → Buddy.
-    parts: buddyOwnSignIn(reading) ? [sign, names, ...channel] : [names],
+    parts: [sign, names, ...channel],
     action,
   };
 }

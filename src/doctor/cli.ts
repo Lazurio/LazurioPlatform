@@ -19,7 +19,6 @@ import {
 import {
   collectDoctor,
   type DoctorCheck,
-  type DoctorEnvironment,
   type DoctorGroup,
   type DoctorResult,
   type DoctorVerdict,
@@ -64,8 +63,6 @@ export type DoctorContext = RecoverContext &
     toolRun?: ToolRunner | undefined;
     /** Tests only: where Executor is read (decision F44). */
     executorHost?: ExecutorHost | undefined;
-    /** Tests only: where the person's brain is read (plan LZD-0033 R11a). */
-    brainHost?: DoctorEnvironment["brain"];
   }>;
 
 const synopsis =
@@ -213,7 +210,6 @@ export async function runDoctorCommand(
       signIn: values["sign-in"] === true,
       routes: values.routes === true,
       executor: context.executorHost,
-      brain: context.brainHost,
     });
     return Object.freeze({
       code: exitCodes[result.verdict],
