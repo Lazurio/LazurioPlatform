@@ -1467,7 +1467,18 @@ posixTest(
       );
     });
     expect(byPath((await ran(fixture)).entries)["."]).toBe("fast-forwarded");
-    // The root here now resolves conflict. Its repair lands on GitHub.
+    // The root here now resolves conflict. While it does, only the root is
+    // synchronized: a module's new commit is not taken from a declaration
+    // Lazurio does not run (Pablo's review of #1096).
+    const webBefore = await head(fixture.at("workspace/web"));
+    const web = await advance(world, "Alpha/web", (directory) =>
+      writeFile(join(directory, "a.txt"), "2\n"),
+    );
+    const held = await ran(fixture);
+    expect(held.entries.map((entry) => entry.path)).toEqual(["."]);
+    expect(byPath(held.entries)["."]).toBe("current");
+    expect(await head(fixture.at("workspace/web"))).toBe(webBefore);
+    // Its repair lands on GitHub.
     const repaired = await advance(world, "Alpha/alpha_GEN3", (directory) =>
       writeFile(join(directory, manifest), original),
     );
@@ -1477,6 +1488,9 @@ posixTest(
     expect(byPath(run.entries)["."]).toBe("fast-forwarded");
     expect(await head(fixture.at("."))).toBe(repaired);
     expect(await readFile(fixture.at(manifest), "utf8")).toBe(original);
+    // With the root repaired, its children follow again in the same run.
+    expect(byPath(run.entries)["workspace/web"]).toBe("fast-forwarded");
+    expect(await head(fixture.at("workspace/web"))).toBe(web);
   },
   60_000,
 );

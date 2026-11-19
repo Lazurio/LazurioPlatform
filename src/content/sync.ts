@@ -5,6 +5,7 @@ import type { PresetName } from "../folder/presets";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationDocuments } from "../organizations/read-documents";
+import { resolveOrganizationRoot } from "../organizations/root-resolution";
 import { accessEnd, removalIdentity } from "./access-ended";
 import type { ContentGit, RemoteAnswer, SyncRemote } from "./git";
 import { type ContentHost, readFolderKind } from "./host";
@@ -298,6 +299,14 @@ export async function syncContent(
         rootEntry.result !== "current" &&
         rootEntry.result !== "fast-forwarded"
       )
+        continue;
+      // A root that still resolves conflict after its synchronization is
+      // brought here only so that its repair arrives (#1094): its children
+      // are never taken from a declaration Lazurio does not run.
+      const resolved = await resolveOrganizationRoot(directory).catch(
+        () => null,
+      );
+      if (resolved?.kind === "root-resolved" && resolved.state === "conflict")
         continue;
       const declared = await childrenOf(directory);
       const children = declared.filter((child) => wanted(child.path));
