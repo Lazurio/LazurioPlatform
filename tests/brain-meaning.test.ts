@@ -18,7 +18,6 @@ import {
 import {
   brainPaths,
   brainPin,
-  brainRefreshService,
   brainUnit,
   releaseCommand,
 } from "../src/brain/pin";
@@ -213,9 +212,10 @@ describe("switching search by meaning on", () => {
       "Environment=GBRAIN_EMBED_CONCURRENCY=2",
     );
     // A brain created without embeddings has another width: enabled at it,
-    // then moved to the model's, pages and facts kept, vectors computed later.
+    // moved to the model's (pages and facts kept), and every vector computed
+    // while the server is still stopped (the only way on PGLite).
     const gbrain = calls.filter(
-      (c) => c[1] === "embeddings" || c[1] === "migrate",
+      (c) => c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed",
     );
     expect(
       gbrain.map((c) =>
@@ -225,7 +225,16 @@ describe("switching search by meaning on", () => {
       ["embeddings", "enable"],
       ["embeddings", "enable"],
       ["migrate", "embeddings", "--no-embed"],
+      ["embed", "--stale"],
     ]);
+    const embedded = calls.findIndex((c) => c[1] === "embed");
+    const restarted =
+      calls.length -
+      1 -
+      [...calls]
+        .reverse()
+        .findIndex((c) => c[2] === "start" && c[3] === brainUnit);
+    expect(embedded).toBeLessThan(restarted);
     // Nothing changed before systemd confirmed the server stopped.
     const confirmed = calls.findIndex(
       (c) => c[2] === "is-active" && c[3] === brainUnit,
@@ -239,13 +248,6 @@ describe("switching search by meaning on", () => {
         "utf8",
       ),
     ).toBe('{"brain":"before"}');
-    expect(calls).toContainEqual([
-      "systemctl",
-      "--user",
-      "start",
-      "--no-block",
-      brainRefreshService,
-    ]);
     const state = await readBrainState(paths);
     expect(state.meaning).toMatchObject({
       provider: meaningPin.provider,

@@ -28,7 +28,7 @@ import {
   pages,
   stoppedForSure,
 } from "./move";
-import { brainRefreshService, brainRefreshTimer, brainUnit } from "./pin";
+import { brainRefreshTimer, brainUnit } from "./pin";
 import { writeBrainUnits } from "./units";
 
 // Search by meaning in the person's memory (plan LZD-0033 R11a, decided on
@@ -44,11 +44,17 @@ import { writeBrainUnits } from "./units";
 // ~/.gbrain, then `gbrain embeddings enable` and, where the brain's vector
 // column has another width (a brain created without embeddings has 1024),
 // `gbrain migrate embeddings --no-embed` to the model's 768, which keeps
-// every page and fact. The server then starts with the model, must answer
-// with the same page count, and computes the embeddings itself in the
-// background (its embed-backfill), the model at a lower priority. If any
-// step fails, the copy comes back without the model and the step is not
-// tried again for this pin (`held`).
+// every page and fact, and `gbrain embed --stale --catch-up`: the first
+// vectors are computed while the server is still stopped. On PGLite there is
+// no other way: a running server holds the brain's lock and refuses both a
+// CLI embed and an embed-backfill job (`pglite_busy`, verified on fictional
+// data on 2026-11-19), and it computes nothing of the backlog by itself. The
+// memory is therefore down for the first embedding: about 7 minutes for a
+// brain like the largest measured one, an hour at ten times its size. The
+// server then starts with the model and must answer with the same page
+// count; later writes are embedded as they come. If any step fails, the copy
+// comes back without the model and the step is not tried again for this pin
+// (`held`).
 
 export type MeaningFetch = (
   url: string,
@@ -271,7 +277,8 @@ function columnWidth(refusal: Record<string, unknown> | null): string | null {
 
 /** gbrain's own steps, with the server stopped: enable the model and, where
  * the column has another width, move it to the model's, keeping pages and
- * facts (`--no-embed`: the server computes the vectors afterwards). */
+ * facts, then compute every vector while the server is stopped (the only
+ * way on PGLite). */
 async function switchOn(
   host: MeaningHost,
   command: string,
@@ -285,7 +292,11 @@ async function switchOn(
   };
   const gbrain = async (args: readonly string[]) => {
     const result = await host
-      .run([command, ...args], 900_000, env)
+      .run(
+        [command, ...args],
+        args[0] === "embed" ? 6 * 3_600_000 : 900_000,
+        env,
+      )
       .catch(() => "timeout" as const);
     return result === "timeout"
       ? { ok: false, out: null }
@@ -321,7 +332,9 @@ async function switchOn(
     "--no-embed",
     "--json",
   ]);
-  return migrated.ok ? null : "migrate";
+  if (!migrated.ok) return "migrate";
+  const embedded = await gbrain(["embed", "--stale", "--catch-up", "--json"]);
+  return embedded.ok ? null : "embed";
 }
 
 /** The model server, and the brain switched on once. */
@@ -462,7 +475,5 @@ export async function convergeMeaning(
     }),
   });
   await service(host, "start", brainRefreshTimer);
-  // The vault's refresh asks the server, which queues its embed-backfill.
-  await service(host, "start", "--no-block", brainRefreshService);
   return "on";
 }

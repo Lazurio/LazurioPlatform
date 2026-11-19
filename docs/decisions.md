@@ -15884,8 +15884,13 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       systemd confirms, and a copy of the brain taken. Then come `gbrain
       embeddings enable` and, where the column has another width,
       `gbrain migrate embeddings --no-embed` to 768, which keeps every page
-      and fact. After that, the server computes the vectors itself in the
-      background.
+      and fact, and then `gbrain embed --stale --catch-up` while the server is
+      still stopped. On PGLite there is no other way. A running server holds
+      the brain's lock and refuses both a CLI embed and an embed-backfill job,
+      and it computes nothing of the backlog by itself; this was verified on
+      fictional data on 2026-11-19. The memory is therefore down for the
+      first embedding: about 7 minutes for a brain like the largest measured
+      one, and about an hour at ten times its size.
     - **When it fails.** The copy comes back without the model, and the step
       is not tried again for this pin.
     - **Without the model.** gbrain falls back to words.

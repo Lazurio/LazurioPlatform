@@ -143,8 +143,8 @@ describe("brain keys", () => {
       probe: "kept",
     });
     expect(brain.keys).toHaveLength(3);
-    // Kept keys with a known id still clear orphans, which needs the owner once.
-    expect(brain.logins).toBe(logins + 1);
+    // Kept keys revoke nothing, so the owner credential is not used at all.
+    expect(brain.logins).toBe(logins);
   });
 
   test("Machines' Launchpad key is kept by the id their ledger records, and nothing is revoked while it works", async () => {
