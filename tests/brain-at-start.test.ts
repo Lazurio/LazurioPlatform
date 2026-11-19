@@ -72,8 +72,14 @@ async function stand() {
   const servers = new Map<string, CustomServerInput>();
   const calls: string[] = [];
   /** An add creates the server and then fails to connect it; the process
-   * dies at the save after the add. */
-  const fail = { connect: false, dieAtSave: false };
+   * dies at a save before it reaches Executor, or right after it saved; a
+   * save changes the configuration and then fails. */
+  const fail = {
+    connect: false,
+    dieAtSave: false,
+    dieAfterSave: false,
+    partialSave: false,
+  };
   const sessions: BrainServerSessions = {
     async addCustom(server) {
       calls.push("add");
@@ -109,6 +115,10 @@ async function stand() {
     async updateCustom(id, server) {
       calls.push("update");
       if (fail.dieAtSave) throw new Error("killed");
+      // The configuration (the attempt's header gone) is saved first.
+      servers.set(id, { ...server, bearer: null } as CustomServerInput);
+      if (fail.partialSave) return { kind: "blocked" };
+      if (fail.dieAfterSave) throw new Error("killed");
       servers.set(id, server);
       return { kind: "saved" };
     },
@@ -177,12 +187,44 @@ describe("Executor's server Brain", () => {
       "killed",
     );
     fail.dieAtSave = false;
-    expect(await convergeBrainServer(paths, sessions)).toBe("added");
+    // Its id was recorded before the save: saved again, the same server.
+    expect(await convergeBrainServer(paths, sessions)).toBe("updated");
     expect([...servers.keys()]).toEqual(["brain"]);
-    expect(servers.get("brain")).toMatchObject({ headers: [] });
+    expect(servers.get("brain")).toMatchObject({
+      bearer: { value: "e".repeat(32) },
+      headers: [],
+    });
     expect(calls).toEqual(["add", "update", "update"]);
     expect(await convergeBrainServer(paths, sessions)).toBe("kept");
   });
+
+  for (const boundary of ["dieAfterSave", "partialSave"] as const)
+    for (const path of ["add", "recovery"] as const)
+      test(`a save that ${boundary === "dieAfterSave" ? "died right after it saved" : "changed the configuration and then failed"}, on the ${path}: the next run saves its own server again`, async () => {
+        const { paths, handOver, servers, sessions, fail } = await stand();
+        await handOver("e".repeat(32));
+        if (path === "recovery") {
+          // The add created the server, marked, without connecting it.
+          fail.connect = true;
+          expect(await convergeBrainServer(paths, sessions)).toBe("failed");
+          fail.connect = false;
+        }
+        fail[boundary] = true;
+        await convergeBrainServer(paths, sessions).catch(() => "killed");
+        fail[boundary] = false;
+        // The mark is gone with the save; the recorded id still says whose.
+        expect(servers.get("brain")).toMatchObject({ headers: [] });
+        expect(await convergeBrainServer(paths, sessions)).toBe("updated");
+        expect([...servers.keys()]).toEqual(["brain"]);
+        expect(servers.get("brain")).toMatchObject({
+          bearer: { value: "e".repeat(32) },
+        });
+        expect(await convergeBrainServer(paths, sessions)).toBe("kept");
+        // A key rotated later is still saved into it.
+        await handOver("f".repeat(32));
+        expect(await convergeBrainServer(paths, sessions)).toBe("updated");
+        expect(bearerOf(servers.get("brain"))).toBe("f".repeat(32));
+      });
 
   const theirs: CustomServerInput = {
     type: "http",

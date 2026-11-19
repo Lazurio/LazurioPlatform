@@ -155,23 +155,37 @@ export async function convergeBrainServer(
   });
   const digest = digestOf(token);
   const record = await readJson(recordPath(paths));
-  const write = async (slug: string) => {
+  /** The server's id, recorded as Lazurio's; with the key's digest only
+   * once a save with that key succeeded (until then a run saves again). */
+  const write = async (slug: string, saved: boolean) => {
     await mkdir(dirname(recordPath(paths)), { recursive: true, mode: 0o700 });
     await writeDurableFile(
       dirname(recordPath(paths)),
       basename(recordPath(paths)),
-      Buffer.from(`${JSON.stringify({ slug, key: digest })}\n`),
+      Buffer.from(
+        `${JSON.stringify(saved ? { slug, key: digest } : { slug })}\n`,
+      ),
     );
+  };
+  /** Saves Lazurio's server as it should be (the key, no attempt's mark).
+   * Its id is recorded first, so a save that dies half way, or a run that
+   * dies after it, is saved again by the next run, never lost. */
+  const own = async (
+    id: string,
+    result: "added" | "updated",
+  ): Promise<BrainServerResult> => {
+    await write(id, false);
+    const saved = await sessions.updateCustom(id, server);
+    if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
+    await write(id, true);
+    return result;
   };
   const slug = typeof record?.slug === "string" ? record.slug : undefined;
   if (slug !== undefined) {
     const settings = await sessions.customSettings(slug);
     if (settings.kind === "custom-server" && settings.type === "http") {
       if (record?.key === digest && settings.url === server.url) return "kept";
-      const saved = await sessions.updateCustom(slug, server);
-      if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
-      await write(slug);
-      return "updated";
+      return own(slug, "updated");
     }
   }
   const ids = await sessions.customIdsNamed(server.name);
@@ -192,13 +206,7 @@ export async function convergeBrainServer(
       )
         mine.push(id);
     }
-    if (mine.length === 1) {
-      const id = mine[0] as string;
-      const saved = await sessions.updateCustom(id, server);
-      if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
-      await write(id);
-      return "added";
-    }
+    if (mine.length === 1) return own(mine[0] as string, "added");
   }
   if (ids.length > 0) {
     // A server of that name this attempt did not create: someone's.
@@ -232,11 +240,8 @@ export async function convergeBrainServer(
   }
   if (added.kind !== "connected" || typeof added.app !== "string")
     return "failed";
-  // Saved again without the attempt's header, then recorded.
-  const saved = await sessions.updateCustom(added.app, server);
-  if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
-  await write(added.app);
-  return "added";
+  // Its id recorded, then saved again without the attempt's header.
+  return own(added.app, "added");
 }
 
 /** The header that marks one attempt's server: its name carries the nonce
