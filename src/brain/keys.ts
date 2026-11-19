@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
@@ -26,8 +27,17 @@ export const brainKeyScopes: Readonly<Record<BrainKeyKind, readonly string[]>> =
     probe: Object.freeze(["read"]),
   });
 
+/** A key Lazurio knows: its id; for one Lazurio minted, a digest of its
+ * token (which handover it is) and, until every earlier key of its name is
+ * revoked, `sweep`. */
+export type KeyRecord = Readonly<{
+  id: string;
+  digest?: string;
+  sweep?: boolean;
+}>;
+
 export type BrainState = Readonly<{
-  keys?: Partial<Record<BrainKeyKind, Readonly<{ id: string }>>>;
+  keys?: Partial<Record<BrainKeyKind, KeyRecord>>;
   /** The vault's connection: which repository the brain was put on and
    * when `sync.on_commit` and git durability were switched on for it. */
   vault?: Readonly<{
@@ -150,6 +160,10 @@ const handoverPath = (paths: BrainPaths, kind: BrainKeyKind) =>
     probe: paths.probeKey,
   })[kind];
 
+/** Which token a record's key is, without the token: a digest of it. */
+const tokenDigest = (token: string) =>
+  createHash("sha256").update(token).digest("hex").slice(0, 32);
+
 async function handedOverToken(path: string): Promise<string | undefined> {
   try {
     const value = JSON.parse(await readFile(path, "utf8")) as {
@@ -207,13 +221,17 @@ export async function convergeBrainKeys(
   const { paths, http } = input;
   const base = input.base ?? brainUrl;
   const state = await readBrainState(paths);
-  const ids: Partial<Record<BrainKeyKind, Readonly<{ id: string }>>> = {
+  const ids: Partial<Record<BrainKeyKind, KeyRecord>> = {
     ...(state.keys ?? {}),
   };
   if (ids.launchpad === undefined) {
     const id = await machinesLaunchpadId(paths.home);
     if (id !== undefined) ids.launchpad = Object.freeze({ id });
   }
+  const persist = async () => {
+    const current = await readBrainState(paths);
+    await writeBrainState(paths, { ...current, keys: { ...ids } });
+  };
   const outcomes = {} as Record<BrainKeyKind, KeyOutcome>;
   let session: Awaited<ReturnType<typeof adminSession>> | undefined;
   const owner = async () => {
@@ -224,12 +242,32 @@ export async function convergeBrainKeys(
     const name = brainKeyNames[kind];
     const path = handoverPath(paths, kind);
     const current = await handedOverToken(path);
+    const record = ids[kind];
+    // The handover is the key Lazurio minted under this record only where
+    // its token is the one the record's digest names.
+    const bound =
+      record?.digest !== undefined &&
+      current !== undefined &&
+      record.digest === tokenDigest(current);
+    if (record?.sweep && !bound) {
+      // A run died between recording a mint and handing it over: that key
+      // was never handed to anyone, so it goes.
+      const admin = await owner();
+      if (admin === null || !(await admin.revoke(record.id))) {
+        outcomes[kind] = "incomplete";
+        continue;
+      }
+      delete ids[kind];
+      await persist();
+    }
     let keep: string | undefined;
     if (current !== undefined && (await keyWorks(http, base, current))) {
-      // The key handed over works: nothing is revoked. Its id is not known
-      // for sure (another manager may have minted it before it yielded), so
-      // revoking "every other" key could revoke the very one in use.
+      // The key handed over works and is kept. Earlier keys of its name are
+      // revoked only where Lazurio minted it (its id is certain); otherwise
+      // (another manager may have minted it) revoking "every other" key
+      // could revoke the very one in use.
       outcomes[kind] = "kept";
+      if (bound && record?.sweep) keep = record.id;
     } else {
       const admin = await owner();
       const minted =
@@ -238,6 +276,15 @@ export async function convergeBrainKeys(
         outcomes[kind] = "failed";
         continue;
       }
+      // Recorded before it is handed over: the next run knows its id, which
+      // handover it is, and that earlier keys of its name still go.
+      const before = ids[kind];
+      ids[kind] = Object.freeze({
+        id: minted.id,
+        digest: tokenDigest(minted.token),
+        sweep: true,
+      });
+      await persist();
       try {
         await mkdir(dirname(path), { recursive: true, mode: 0o700 });
         await writeDurableFile(
@@ -248,24 +295,25 @@ export async function convergeBrainKeys(
           ),
         );
       } catch {
-        await admin?.revoke(minted.id);
+        if (await admin?.revoke(minted.id)) {
+          if (before === undefined) delete ids[kind];
+          else ids[kind] = before;
+          await persist();
+        }
         outcomes[kind] = "failed";
         continue;
       }
-      ids[kind] = Object.freeze({ id: minted.id });
       keep = minted.id;
       outcomes[kind] = "minted";
-      // The token handed over and its id are bound at once: an interrupted
-      // run never leaves a working key whose id Lazurio does not know.
-      await writeBrainState(paths, { ...state, keys: { ...ids } });
     }
-    // Only after its own mint, whose id is certain: every other active key
-    // of this name goes, an earlier one, Machines' where Lazurio took it over,
-    // or an orphan of a run that died.
+    // Only for a key whose id is certain: every other active key of this
+    // name goes, an earlier one, Machines' where Lazurio took it over, or an
+    // orphan of a run that died. Until all are gone the record says so, and
+    // the next run tries again.
     if (keep !== undefined) {
       const admin = await owner();
       const keys = admin === null ? null : await admin.keys();
-      if (keys === null) outcomes[kind] = "incomplete";
+      let swept = keys !== null;
       for (const key of keys ?? [])
         if (
           key.name === name &&
@@ -273,7 +321,12 @@ export async function convergeBrainKeys(
           key.status === "active" &&
           !(await admin?.revoke(key.id))
         )
-          outcomes[kind] = "incomplete";
+          swept = false;
+      if (swept) {
+        const { sweep: _done, ...rest } = ids[kind] as KeyRecord;
+        ids[kind] = Object.freeze(rest);
+        await persist();
+      } else outcomes[kind] = "incomplete";
     }
   }
   const next: BrainState = Object.freeze({

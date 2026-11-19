@@ -133,11 +133,14 @@ describe("brain keys", () => {
       ["lazurio-brain-probe", ["read"]],
     ]);
     const state = await readBrainState(paths);
-    expect(state.keys).toEqual({
+    expect(state.keys).toMatchObject({
       launchpad: { id: "id-1" },
       executor: { id: "id-2" },
       probe: { id: "id-3" },
     });
+    // Every earlier key of its name is gone: nothing left to revoke.
+    for (const record of Object.values(state.keys ?? {}))
+      expect(record?.sweep).toBeUndefined();
     // The state never carries a token or the owner credential.
     const text = await readFile(paths.state, "utf8");
     expect(text).not.toContain("tok-");
@@ -256,41 +259,72 @@ describe("brain keys", () => {
         "incomplete",
         "incomplete",
       ]);
-      // The next run finishes the revocation (the new key works: kept,
-      // and only a later mint revokes) and the new key stays.
       expect(active("lazurio-launchpad-memory")).toHaveLength(2);
+      // The next run keeps the new key and finishes the revocation: only
+      // the key handed over stays, and setup says kept.
+      const again = await convergeBrainKeys({ paths, http: brainHttp, base });
+      expect(Object.values(again.outcomes)).toEqual(["kept", "kept", "kept"]);
       const handed = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
-      expect(brain.keys.find((k) => k.token === handed.token)?.status).toBe(
-        "active",
+      expect(active("lazurio-launchpad-memory").map((k) => k.token)).toEqual([
+        handed.token,
+      ]);
+      expect((await readBrainState(paths)).keys?.launchpad?.sweep).toBe(
+        undefined,
       );
     }
   });
 
-  test("a run that stops after handing a key over has already bound its id; the next run keeps that working key", async () => {
+  test("a run that died after handing a new key over, before revoking the earlier: the next run revokes it and keeps the new", async () => {
     brain.keys = [];
     brain.failing = new Set();
     const paths = await home();
-    // The run stops right after the first handover: its listing fails and
-    // the stand-in dies there (no further state is written by this test).
+    await convergeBrainKeys({ paths, http: brainHttp, base });
+    const earlier = active("lazurio-launchpad-memory")[0];
+    if (earlier) earlier.token = `tok-gone-${earlier.id}`;
+    // The run dies at its listing: the new key is recorded and handed over,
+    // the earlier is still active.
     brain.failing = new Set(["list"]);
     await convergeBrainKeys({ paths, http: brainHttp, base });
     brain.failing = new Set();
-    const state = await readBrainState(paths);
-    const handed = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
-    const minted = brain.keys.find((k) => k.token === handed.token);
-    expect(state.keys?.launchpad).toEqual({ id: minted?.id as string });
+    expect(active("lazurio-launchpad-memory")).toHaveLength(2);
+    expect((await readBrainState(paths)).keys?.launchpad?.sweep).toBe(true);
     const again = await convergeBrainKeys({ paths, http: brainHttp, base });
     expect(again.outcomes.launchpad).toBe("kept");
-    expect(minted?.status).toBe("active");
-    // Stopped in the instant between the handover and its id: the id is
-    // unknown, and still no working key is revoked as an orphan.
-    await writeBrainState(paths, { keys: {} });
-    const before = brain.keys.filter((k) => k.status === "active").length;
-    const after = await convergeBrainKeys({ paths, http: brainHttp, base });
-    expect(Object.values(after.outcomes)).toEqual(["kept", "kept", "kept"]);
-    expect(brain.keys.filter((k) => k.status === "active")).toHaveLength(
-      before,
-    );
+    const handed = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
+    expect(active("lazurio-launchpad-memory").map((k) => k.token)).toEqual([
+      handed.token,
+    ]);
+  });
+
+  test("a run that died after recording a mint, before handing it over: the next run revokes that key and keeps the working one", async () => {
+    brain.keys = [];
+    brain.failing = new Set();
+    const paths = await home();
+    await convergeBrainKeys({ paths, http: brainHttp, base });
+    const working = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
+    // A key minted and recorded, its handover never written.
+    brain.keys.push({
+      id: "id-orphan",
+      name: "lazurio-launchpad-memory",
+      token: `tok-orphan-${"q".repeat(32)}`,
+      status: "active",
+      scopes: ["read"],
+    });
+    const state = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...state,
+      keys: {
+        ...state.keys,
+        launchpad: { id: "id-orphan", digest: "0".repeat(32), sweep: true },
+      },
+    });
+    const again = await convergeBrainKeys({ paths, http: brainHttp, base });
+    expect(again.outcomes.launchpad).toBe("kept");
+    expect(active("lazurio-launchpad-memory").map((k) => k.token)).toEqual([
+      working.token,
+    ]);
+    // A working key whose id is not certain is never revoked as an orphan.
+    expect((await readBrainState(paths)).keys?.launchpad).toBeUndefined();
   });
 
   test("an owner credential the brain refuses mints nothing and says failed", async () => {
