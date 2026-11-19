@@ -41,16 +41,18 @@ import { writeBrainUnits } from "./units";
 // Switching a brain on is a step of its own, done once and like a move:
 // only while Buddy is idle, the model answering first (gbrain probes it
 // before any change), the server stopped as systemd confirms, a copy of
-// ~/.gbrain, then `gbrain embeddings enable` and, where the brain's vector
-// column has another width (a brain created without embeddings has 1024),
-// `gbrain migrate embeddings --no-embed` to the model's 768, which keeps
-// every page and fact, and `gbrain embed --stale --catch-up`: the first
+// ~/.gbrain, then `gbrain embeddings enable` and, only where the brain's
+// vector column has another width than the model's (a brain created without
+// embeddings has 1024, the model's width too), `gbrain migrate embeddings
+// --no-embed` to it, which keeps every page and fact, and then always
+// `gbrain embed --stale --catch-up`: the first
 // vectors are computed while the server is still stopped. On PGLite there is
 // no other way: a running server holds the brain's lock and refuses both a
 // CLI embed and an embed-backfill job (`pglite_busy`, verified on fictional
 // data on 2026-11-19), and it computes nothing of the backlog by itself. The
-// memory is therefore down for the first embedding: about 7 minutes for a
-// brain like the largest measured one, an hour at ten times its size. The
+// memory is therefore down for the first embedding: measured on a 4-vCPU
+// Personal Environment, 8.6 minutes for a brain like the largest measured
+// one and 86 at ten times its size. The
 // server then starts with the model and must answer with the same page
 // count; later writes are embedded as they come. If any step fails, the copy
 // comes back without the model and the step is not tried again for this pin
@@ -212,7 +214,7 @@ export function renderMeaningUnit(server: string, model: string): string {
     "[Service]",
     "Type=simple",
     `Environment=LD_LIBRARY_PATH=${dirname(server)}`,
-    `ExecStart=${server} -m ${model} --embeddings --pooling mean -c 2048 -b 2048 -ub 2048 --host 127.0.0.1 --port ${meaningPort}`,
+    `ExecStart=${server} -m ${model} --embeddings --pooling ${meaningPin.pooling} -c ${meaningPin.context} -b ${meaningPin.context} -ub ${meaningPin.context} --host 127.0.0.1 --port ${meaningPort}`,
     "Nice=10",
     "CPUWeight=20",
     "IOSchedulingClass=idle",
@@ -315,24 +317,28 @@ async function switchOn(
       "--json",
     ]);
   const direct = await enable(width);
-  if (direct.ok) return null;
-  const column = columnWidth(direct.out);
-  if (column === null) return "enable";
-  if (!(await enable(column)).ok) return "enable";
-  const migrated = await gbrain([
-    "migrate",
-    "embeddings",
-    "--to",
-    model,
-    "--dim",
-    width,
-    "--yes",
-    "--max-cost-usd",
-    "0",
-    "--no-embed",
-    "--json",
-  ]);
-  if (!migrated.ok) return "migrate";
+  if (!direct.ok) {
+    // The column has another width: enable at it, then move to the model's.
+    const column = columnWidth(direct.out);
+    if (column === null) return "enable";
+    if (!(await enable(column)).ok) return "enable";
+    const migrated = await gbrain([
+      "migrate",
+      "embeddings",
+      "--to",
+      model,
+      "--dim",
+      width,
+      "--yes",
+      "--max-cost-usd",
+      "0",
+      "--no-embed",
+      "--json",
+    ]);
+    if (!migrated.ok) return "migrate";
+  }
+  // Every vector, whichever way the model was enabled, while the server is
+  // stopped: it computes none of them by itself.
   const embedded = await gbrain(["embed", "--stale", "--catch-up", "--json"]);
   return embedded.ok ? null : "embed";
 }

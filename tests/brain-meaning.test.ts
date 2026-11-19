@@ -10,11 +10,7 @@ import {
   downloadVerified,
   type MeaningHost,
 } from "../src/brain/meaning";
-import {
-  meaningPaths,
-  meaningPin,
-  meaningUnit,
-} from "../src/brain/meaning-pin";
+import { meaningPaths, meaningUnit } from "../src/brain/meaning-pin";
 import {
   brainPaths,
   brainPin,
@@ -69,7 +65,14 @@ describe("the model's download", () => {
 });
 
 async function stand(
-  options: Readonly<{ migrateFails?: boolean; idle?: boolean }> = {},
+  options: Readonly<{
+    /** The brain's vector column, as gbrain reads it (a brain created
+     * without embeddings has 1024, bge-m3's width too). */
+    column?: string;
+    migrateFails?: boolean;
+    embedFails?: boolean;
+    idle?: boolean;
+  }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-meaning-"));
   const paths = brainPaths(join(root, "home"));
@@ -131,7 +134,8 @@ async function stand(
     const ok = { exitCode: 0, stdout: "", stderr: "" };
     if (argv[1] === "embeddings") {
       const dims = argv[argv.indexOf("--embedding-dimensions") + 1];
-      if (dims === "768")
+      const column = options.column ?? "1024";
+      if (dims !== column)
         return {
           exitCode: 1,
           stdout: JSON.stringify({
@@ -142,7 +146,7 @@ async function stand(
                 "embeddings",
                 "enable",
                 "--embedding-dimensions",
-                "1024",
+                column,
               ],
             },
           }),
@@ -152,8 +156,12 @@ async function stand(
     }
     if (argv[1] === "migrate") {
       // A failure may come after the brain changed: the copy must come back.
-      await writeFile(join(paths.brain, "config.json"), '{"brain":"768d"}');
+      await writeFile(join(paths.brain, "config.json"), '{"brain":"moved"}');
       if (options.migrateFails) return { ...ok, exitCode: 1 };
+    }
+    if (argv[1] === "embed") {
+      await writeFile(join(paths.brain, "config.json"), '{"brain":"vectors"}');
+      if (options.embedFails) return { ...ok, exitCode: 1 };
     }
     return ok;
   };
@@ -197,7 +205,7 @@ const unit = (paths: ReturnType<typeof brainPaths>, name: string) =>
   readFile(join(paths.units, name), "utf8");
 
 describe("switching search by meaning on", () => {
-  test("the model runs at a lower priority, the brain moves to its width with a copy, and the server computes in the background", async () => {
+  test("the model runs at a lower priority; the brain gets every vector with the server stopped, after a copy", async () => {
     const { host, paths, calls } = await stand();
     expect(await convergeMeaning(host)).toBe("on");
     const model = await unit(paths, meaningUnit);
@@ -211,20 +219,16 @@ describe("switching search by meaning on", () => {
     expect(await unit(paths, brainUnit)).toContain(
       "Environment=GBRAIN_EMBED_CONCURRENCY=2",
     );
-    // A brain created without embeddings has another width: enabled at it,
-    // moved to the model's (pages and facts kept), and every vector computed
-    // while the server is still stopped (the only way on PGLite).
+    // A brain created without embeddings has bge-m3's width (1024): enabled
+    // at once, then every vector computed while the server is still stopped
+    // (the only way on PGLite; the server computes none by itself).
+    expect(model).toContain("-m ");
+    expect(model).toContain("--pooling cls -c 4096");
     const gbrain = calls.filter(
       (c) => c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed",
     );
-    expect(
-      gbrain.map((c) =>
-        c.slice(1, 3).concat(c.includes("--no-embed") ? ["--no-embed"] : []),
-      ),
-    ).toEqual([
+    expect(gbrain.map((c) => c.slice(1, 3))).toEqual([
       ["embeddings", "enable"],
-      ["embeddings", "enable"],
-      ["migrate", "embeddings", "--no-embed"],
       ["embed", "--stale"],
     ]);
     const embedded = calls.findIndex((c) => c[1] === "embed");
@@ -250,8 +254,8 @@ describe("switching search by meaning on", () => {
     ).toBe('{"brain":"before"}');
     const state = await readBrainState(paths);
     expect(state.meaning).toMatchObject({
-      provider: meaningPin.provider,
-      dimensions: 768,
+      provider: "llama-server:bge-m3",
+      dimensions: 1024,
     });
     expect(state.meaningAttempt).toBeUndefined();
     // Once on, a later run only keeps the model running.
@@ -262,9 +266,32 @@ describe("switching search by meaning on", () => {
     );
   });
 
+  test("a column of another width is enabled at it, moved to the model's with every page kept, then embedded", async () => {
+    const { host, calls } = await stand({ column: "768" });
+    expect(await convergeMeaning(host)).toBe("on");
+    const gbrain = calls.filter(
+      (c) => c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed",
+    );
+    expect(
+      gbrain.map((c) =>
+        c.slice(1, 3).concat(c.includes("--no-embed") ? ["--no-embed"] : []),
+      ),
+    ).toEqual([
+      ["embeddings", "enable"],
+      ["embeddings", "enable"],
+      ["migrate", "embeddings", "--no-embed"],
+      ["embed", "--stale"],
+    ]);
+  });
+
   test("a failed step brings the brain before back without the model and is not tried again for this pin", async () => {
-    const { host, paths, world } = await stand({ migrateFails: true });
-    expect(await convergeMeaning(host)).toBe("restored:migrate");
+    const moved = await stand({ column: "768", migrateFails: true });
+    expect(await convergeMeaning(moved.host)).toBe("restored:migrate");
+    expect(await readFile(join(moved.paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    const { host, paths, world } = await stand({ embedFails: true });
+    expect(await convergeMeaning(host)).toBe("restored:embed");
     expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
       '{"brain":"before"}',
     );

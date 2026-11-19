@@ -15870,27 +15870,37 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
    goes there, but an Organization's work only as a link (0180, 0246); no
    secrets; never quote its content in shared places.
 10. **Search by meaning, locally.** Matěj made a local model the way if
-    today's Environments can compute it. On a Personal Environment with
-    4 vCPU and 8 GB, the model took 168 to 244 MB, used no processor at rest,
-    and did not slow an agent's turn. The plan's coordinator concluded on
-    2026-11-18 that the condition holds; Matěj's word stands over that.
+    today's Environments can compute it. The plan's coordinator concluded on
+    2026-11-18 that the condition holds; Matěj's word stands over that. On
+    2026-11-19 he chose the multilingual model, because a search that finds
+    nothing in Czech would not help people.
+    - **The measurement behind the choice.** A Personal Environment with
+      4 vCPU and 8 GB, and 24 Czech questions sharing no word with their
+      pages:
+      - the multilingual `bge-m3` put the right page first 23 times, and
+        `nomic-embed-text-v1.5` 5 times;
+      - `bge-m3` takes 756 to 886 MB, leaves at least 4.4 GB of the
+        Environment free and answers a query by meaning in 0.3 to 0.4 s;
+      - an agent's turn was not slowed down.
     - **What runs.** Lazurio pins `llama.cpp`'s server and the model
-      `nomic-embed-text-v1.5`, each file by its SHA-256, in
-      `src/brain/meaning-pin.ts`. They run as Lazurio's user unit
-      `lazurio-gbrain-meaning.service` on loopback, at a lower priority
-      (`Nice=10`, `CPUWeight=20`, idle I/O).
+      `bge-m3`, each file by its SHA-256, in `src/brain/meaning-pin.ts`. They
+      run as Lazurio's user unit `lazurio-gbrain-meaning.service` on
+      loopback, at a lower priority (`Nice=10`, `CPUWeight=20`, idle I/O).
     - **Switching a brain on.** This happens once, like a move: only while
       Buddy is idle, the model answering first, the server stopped as
       systemd confirms, and a copy of the brain taken. Then come `gbrain
-      embeddings enable` and, where the column has another width,
-      `gbrain migrate embeddings --no-embed` to 768, which keeps every page
-      and fact, and then `gbrain embed --stale --catch-up` while the server is
-      still stopped. On PGLite there is no other way. A running server holds
-      the brain's lock and refuses both a CLI embed and an embed-backfill job,
-      and it computes nothing of the backlog by itself; this was verified on
-      fictional data on 2026-11-19. The memory is therefore down for the
-      first embedding: about 7 minutes for a brain like the largest measured
-      one, and about an hour at ten times its size.
+      embeddings enable` and `gbrain embed --stale --catch-up` while the
+      server is still stopped. Where the column has another width than the
+      model's, `gbrain migrate embeddings --no-embed` comes between them and
+      keeps every page and fact. A brain created without embeddings already
+      has the model's width, 1024.
+      - **Why with the server stopped:** on PGLite there is no other way. A
+        running server holds the brain's lock and refuses both a CLI embed and
+        an embed-backfill job, and it computes nothing of the backlog by
+        itself; this was verified on fictional data on 2026-11-19.
+      - **How long the memory is down:** for the first embedding, 8.6 minutes
+        for a brain like the largest measured one and 86 minutes at ten times
+        its size, measured on Bob.
     - **When it fails.** The copy comes back without the model, and the step
       is not tried again for this pin.
     - **Without the model.** gbrain falls back to words.
@@ -15900,8 +15910,8 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       service run by Lazurio; that one stays a written fallback only.
       Settings → Tools gets no row for the memory yet.
     - **Before the wave.** It was measured on a server processor, not an i7.
-      Before the wave to people, the same is verified on one
-      customer-class Environment.
+      Before the wave to people, the same is verified on one customer-class
+      Environment: memory, the first embedding and queries in Czech.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
