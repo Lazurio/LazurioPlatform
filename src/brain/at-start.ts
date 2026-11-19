@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type {
@@ -126,12 +126,12 @@ async function readJson(path: string): Promise<Record<string, unknown> | null> {
  * again with the new key after setup minted one. A server of that name
  * Lazurio did not add is left alone (`name-taken`).
  *
- * Its record is written before the server is added (`pending`): where an
- * add created the server but did not connect it, or the record of its id
- * was not written, the next run finds the one server of that name and
- * completes it, but only under its own pending record and only a server
- * that is exactly what it adds (remote, its address, a Bearer token).
- * Anything else of that name stays someone's. */
+ * Each add is marked: its record (`pending`, a fresh nonce) is written
+ * first, and the server is added with a header named by that nonce. Where
+ * an add created the server but did not connect it, or the record of its id
+ * was not written, the next run completes only the server that carries its
+ * own mark. A server of that name without it (one that was there before,
+ * or one created meanwhile) stays someone's. */
 export async function convergeBrainServer(
   paths: BrainPaths,
   sessions: BrainServerSessions,
@@ -163,14 +163,6 @@ export async function convergeBrainServer(
       Buffer.from(`${JSON.stringify({ slug, key: digest })}\n`),
     );
   };
-  const pending = async () => {
-    await mkdir(dirname(recordPath(paths)), { recursive: true, mode: 0o700 });
-    await writeDurableFile(
-      dirname(recordPath(paths)),
-      basename(recordPath(paths)),
-      Buffer.from(`${JSON.stringify({ pending: true })}\n`),
-    );
-  };
   const slug = typeof record?.slug === "string" ? record.slug : undefined;
   if (slug !== undefined) {
     const settings = await sessions.customSettings(slug);
@@ -182,43 +174,71 @@ export async function convergeBrainServer(
       return "updated";
     }
   }
-  if (record?.pending === true) {
-    // An earlier add of Lazurio's may have created it: the one server of
-    // that name, exactly what Lazurio adds, is completed with the key.
-    const ids = await sessions.customIdsNamed(server.name);
-    if (ids === null) return "failed";
-    if (ids.length === 1) {
-      const id = ids[0] as string;
+  const ids = await sessions.customIdsNamed(server.name);
+  if (ids === null) return "failed";
+  const nonce = typeof record?.pending === "string" ? record.pending : null;
+  if (nonce !== null) {
+    // An earlier add of Lazurio's may have created it: only the server that
+    // carries that attempt's own header, which nobody else knows, is
+    // completed with the key; its header goes with the save.
+    const mine: string[] = [];
+    for (const id of ids) {
       const settings = await sessions.customSettings(id);
       if (
-        settings.kind !== "custom-server" ||
-        settings.type !== "http" ||
-        settings.url !== server.url ||
-        !settings.bearer ||
-        settings.headers.length > 0
+        settings.kind === "custom-server" &&
+        settings.type === "http" &&
+        settings.url === server.url &&
+        settings.headers.includes(attemptHeader(nonce))
       )
-        return "name-taken";
+        mine.push(id);
+    }
+    if (mine.length === 1) {
+      const id = mine[0] as string;
       const saved = await sessions.updateCustom(id, server);
       if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
       await write(id);
       return "added";
     }
-    if (ids.length > 1) return "name-taken";
-  } else {
-    try {
-      await pending();
-    } catch {
-      return "failed";
-    }
   }
-  const added = await sessions.addCustom(server);
+  if (ids.length > 0) {
+    // A server of that name this attempt did not create: someone's.
+    await rm(recordPath(paths), { force: true }).catch(() => undefined);
+    return "name-taken";
+  }
+  // The attempt's own mark, before the add: a header whose name carries a
+  // fresh nonce, recorded first, so a later run tells this add's server
+  // from any other, whatever happens between.
+  const fresh = randomBytes(12).toString("hex");
+  try {
+    await mkdir(dirname(recordPath(paths)), { recursive: true, mode: 0o700 });
+    await writeDurableFile(
+      dirname(recordPath(paths)),
+      basename(recordPath(paths)),
+      Buffer.from(`${JSON.stringify({ pending: fresh })}\n`),
+    );
+  } catch {
+    return "failed";
+  }
+  const added = await sessions.addCustom({
+    ...server,
+    headers: Object.freeze([
+      Object.freeze({ name: attemptHeader(fresh), value: "1" }),
+    ]),
+  });
   if (added.kind === "blocked" && added.reason === "name-taken") {
-    // That server was there before this add: never Lazurio's to complete.
+    // Another server of that name came first: never Lazurio's to complete.
     await rm(recordPath(paths), { force: true }).catch(() => undefined);
     return "name-taken";
   }
   if (added.kind !== "connected" || typeof added.app !== "string")
     return "failed";
+  // Saved again without the attempt's header, then recorded.
+  const saved = await sessions.updateCustom(added.app, server);
+  if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
   await write(added.app);
   return "added";
 }
+
+/** The header that marks one attempt's server: its name carries the nonce
+ * (Executor shows a header's name, never its value). */
+const attemptHeader = (nonce: string) => `X-Lazurio-Attempt-${nonce}`;

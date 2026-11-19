@@ -71,17 +71,18 @@ async function stand() {
     );
   const servers = new Map<string, CustomServerInput>();
   const calls: string[] = [];
-  /** An add creates the server and then fails to connect it. */
-  const fail = { connect: false };
+  /** An add creates the server and then fails to connect it; the process
+   * dies at the save after the add. */
+  const fail = { connect: false, dieAtSave: false };
   const sessions: BrainServerSessions = {
     async addCustom(server) {
       calls.push("add");
       if ([...servers.values()].some((s) => s.name === server.name))
         return { kind: "blocked", reason: "name-taken" };
-      // Executor creates the server before its connection.
-      servers.set("brain", { ...server, bearer: null } as CustomServerInput);
-      if (fail.connect) return { kind: "blocked", reason: "connect-failed" };
+      // Executor creates the server, its headers included, before its
+      // connection.
       servers.set("brain", server);
+      if (fail.connect) return { kind: "blocked", reason: "connect-failed" };
       return { kind: "connected", app: "brain" };
     },
     async customIdsNamed(name) {
@@ -99,13 +100,15 @@ async function stand() {
         type: "http",
         name: server.name,
         url: server.url,
-        // Executor keeps the auth method an add declared, connected or not.
+        // Executor keeps the auth method an add declared, connected or not,
+        // and shows a header's name, never its value.
         bearer: true,
-        headers: [],
+        headers: server.headers.map((header) => header.name),
       };
     },
     async updateCustom(id, server) {
       calls.push("update");
+      if (fail.dieAtSave) throw new Error("killed");
       servers.set(id, server);
       return { kind: "saved" };
     },
@@ -131,7 +134,8 @@ describe("Executor's server Brain", () => {
       headers: [],
     });
     expect(await convergeBrainServer(paths, sessions)).toBe("kept");
-    expect(calls).toEqual(["add"]);
+    // Added with the attempt's mark, then saved without it.
+    expect(calls).toEqual(["add", "update"]);
     // Lazurio's record carries the server's id and a digest, never the key.
     const record = await readFile(
       join(dirname(paths.state), "executor.json"),
@@ -147,7 +151,7 @@ describe("Executor's server Brain", () => {
     await handOver("f".repeat(32));
     expect(await convergeBrainServer(paths, sessions)).toBe("updated");
     expect(bearerOf(servers.get("brain"))).toBe("f".repeat(32));
-    expect(calls).toEqual(["add", "update"]);
+    expect(calls).toEqual(["add", "update", "update"]);
   });
 
   test("an add that created the server but did not connect it is completed by the next run", async () => {
@@ -157,40 +161,61 @@ describe("Executor's server Brain", () => {
     expect(await convergeBrainServer(paths, sessions)).toBe("failed");
     fail.connect = false;
     expect(await convergeBrainServer(paths, sessions)).toBe("added");
-    expect(bearerOf(servers.get("brain"))).toBe("e".repeat(32));
+    expect(servers.get("brain")).toMatchObject({
+      bearer: { value: "e".repeat(32) },
+      headers: [],
+    });
     expect(calls).toEqual(["add", "update"]);
     expect(await convergeBrainServer(paths, sessions)).toBe("kept");
   });
 
-  test("a record of the id that was not written: the next run completes the server it added, not a second one", async () => {
-    const { paths, handOver, servers, calls, sessions } = await stand();
+  test("a run that died after its add: the next run completes the server it added, not a second one", async () => {
+    const { paths, handOver, servers, calls, sessions, fail } = await stand();
     await handOver("e".repeat(32));
-    expect(await convergeBrainServer(paths, sessions)).toBe("added");
-    // The process died before the record of the id: only the pending one.
-    await writeFile(
-      join(dirname(paths.state), "executor.json"),
-      `${JSON.stringify({ pending: true })}\n`,
+    fail.dieAtSave = true;
+    await expect(convergeBrainServer(paths, sessions)).rejects.toThrow(
+      "killed",
     );
+    fail.dieAtSave = false;
     expect(await convergeBrainServer(paths, sessions)).toBe("added");
     expect([...servers.keys()]).toEqual(["brain"]);
-    expect(calls).toEqual(["add", "update"]);
+    expect(servers.get("brain")).toMatchObject({ headers: [] });
+    expect(calls).toEqual(["add", "update", "update"]);
     expect(await convergeBrainServer(paths, sessions)).toBe("kept");
   });
 
+  const theirs: CustomServerInput = {
+    type: "http",
+    name: "Brain",
+    url: "http://127.0.0.1:3131/mcp",
+    bearer: { value: "s".repeat(32) },
+    headers: [],
+  };
+
   test("a server of that name that was there before is never completed, even one that looks like Lazurio's", async () => {
-    const { paths, handOver, servers, sessions } = await stand();
-    const theirs: CustomServerInput = {
-      type: "http",
-      name: "Brain",
-      url: "http://127.0.0.1:3131/mcp",
-      bearer: { value: "s".repeat(32) },
-      headers: [],
-    };
+    const { paths, handOver, servers, calls, sessions } = await stand();
     servers.set("someone", theirs);
     await handOver("e".repeat(32));
     expect(await convergeBrainServer(paths, sessions)).toBe("name-taken");
     expect(await convergeBrainServer(paths, sessions)).toBe("name-taken");
     expect(servers.get("someone")).toEqual(theirs);
+    expect(calls).toEqual([]);
+  });
+
+  test("a run that died after its pending record, before its add, never completes a look-alike server found later", async () => {
+    // There before, or created by someone in the meantime: either way it
+    // carries no mark of this attempt.
+    const { paths, handOver, servers, calls, sessions } = await stand();
+    await mkdir(dirname(paths.state), { recursive: true });
+    await writeFile(
+      join(dirname(paths.state), "executor.json"),
+      `${JSON.stringify({ pending: "0123456789abcdef01234567" })}\n`,
+    );
+    servers.set("someone", theirs);
+    await handOver("e".repeat(32));
+    expect(await convergeBrainServer(paths, sessions)).toBe("name-taken");
+    expect(servers.get("someone")).toEqual(theirs);
+    expect(calls).toEqual([]);
   });
 
   test("a server named Brain Lazurio did not add is left alone; no key, no server", async () => {
