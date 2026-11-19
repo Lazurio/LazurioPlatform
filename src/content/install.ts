@@ -37,6 +37,7 @@ import {
   type RootResolution,
   resolveAnonymousRoot,
   resolveOrganizationRootRepository,
+  rootAdmins,
 } from "./organization-root";
 import {
   gbrainCommitMessage,
@@ -48,6 +49,7 @@ import {
 } from "./personalspace-bootstrap";
 import { dataMountOf, provideRepository } from "./provide";
 import {
+  type AppointedAdmins,
   type BranchRules,
   classifySlotAccess,
   type OrganizationRole,
@@ -483,8 +485,8 @@ const record = (value: unknown): Readonly<Record<string, unknown>> =>
 // otherwise are left out. The role scope comes first, as the resident applies it
 // (`R:lazurio/runtime/lazurio-update-lib.mjs`, restricted slot policy): a
 // restricted (Organization Admin only) slot and every slot below one are in
-// scope only for a verified Organization Admin, and are otherwise
-// `excluded_by_role_scope`; a slot whose
+// scope only for a verified Organization Admin or Organization Owner
+// (`./role`), and are otherwise `excluded_by_role_scope`; a slot whose
 // access declaration (its own or one above it) is malformed is never
 // materialized, for any role. Neither asks GitHub anything.
 export function declaredChildren(
@@ -761,18 +763,38 @@ async function accountAccess(
   }
   // The person's live role decides the scope; nothing starts without one.
   // A Module Maintainer or Module Contributor is confirmed by the root's
-  // permission alone; an Organization Admin, a Module Reader and a live
-  // resolution also need the membership.
+  // permission alone; an Organization Admin, an Organization Owner, a Module
+  // Reader and a live resolution also need the membership, and an appointed
+  // Organization Admin the root's organization_admins (decision 0245), read
+  // only for an active member. An unread list confirms no Admin: the scope
+  // falls to the narrower role.
   const requested = context.roles[login.toLowerCase()] ?? null;
   const membership =
     requested === "module-maintainer" || requested === "module-contributor"
       ? ({ kind: "none" } as const)
       : await host.github.membership(login);
+  let admins: AppointedAdmins | undefined;
+  if (
+    (requested === null || requested === "organization-admin") &&
+    membership.kind === "member" &&
+    membership.state === "active"
+  ) {
+    const declared = await rootAdmins(host.github, login, rootRepository);
+    admins =
+      declared.kind === "declared"
+        ? {
+            kind: "declared",
+            ids: declared.admins.map((admin) => admin.githubId),
+          }
+        : declared;
+  }
   const role = verifyOrganizationRole({
     requested,
     membership,
     rootPermission,
     rootBranchRules: branchRules,
+    account: viewer.databaseId,
+    admins,
   });
   // Only the CLI's bare form asks for `organization-admin`; its agent learns
   // there that the narrower roles are named with --role (the Launchpad's

@@ -18,6 +18,8 @@ apply it.
   (`src/organizations/canonical-manifest.ts`) checks the authored document and its
   cross-field rules; `organizationSettings`
   (`src/organizations/organization-settings.ts`) is the only reader of `settings`;
+  `organizationAdmins` (`src/organizations/organization-admins.ts`) is the only
+  reader of `organization_admins`;
   `src/organizations/root-resolution.ts` resolves an Organization root's
   compatibility state. The readers are the contract as it is enforced.
 - **The JSON Schema of `lazurio.organization.v1`** is
@@ -160,6 +162,50 @@ the leaf refuses any other key.
   field. An Organization adds it only after the release with this reader runs on
   all of its Environments.
 
+## Appointed Organization Admins
+
+Decision [0245](decision-register.md#0245--who-is-who-in-an-organization-its-deployment-repo-holds-the-boundaries-of-trust-and-lazurio-auth-holds-their-use),
+amended on 2026-11-18, ends the transitional rule by which an active Owner of
+the GitHub Organization performed the Organization Admin's administrative acts:
+only an Admin whom an Organization Owner appointed performs them, and the Owner
+role never stands in for the Admin role. Until Lazurio Auth holds the role as
+Machines applies it from the Organization's Deployment Repo, the optional
+`organization_admins` of the root's `lazurio.organization.json` is where agents
+read who the appointed Admins are:
+
+```json
+"organization_admins": [{ "github_id": 101, "github_login": "example-admin" }]
+```
+
+- Each entry has exactly a positive whole `github_id` (a JSON number, at most
+  2^53 − 1) and a `github_login` of GitHub's form. The id is the identity; the
+  login is for people and may go stale after a rename. Ids are unique, and so
+  are logins ignoring letter case; the list has at most 100 entries.
+- An absent field or an empty list appoints no one.
+- It changes by a reviewed pull request to the root, which an Organization
+  Owner merges. It is a pointer for agents, never a grant: it gives no entry,
+  key or access, and the Deployment Repo and Lazurio Auth stay the authority
+  where they are deployed. It goes once `lazurio organization role` reads the
+  role from Lazurio Auth.
+- `parseCanonicalOrganization` accepts the field and keeps it as authored but
+  never judges it. `organizationAdmins` is its only reader: `absent`,
+  `declared`, or `invalid` with the reason. A malformed list confirms no one
+  as an Organization Admin and never turns the Organization into a
+  `conflict`: the projection and its hash, the root state and the root
+  declaration ignore it.
+- `lazurio organization role` and content installation read it from the
+  root's default branch through GitHub (`rootAdmins` in
+  `src/content/organization-root.ts`), never from a checkout's working tree,
+  and only when that file declares the repository the root. The account is
+  the Organization Admin only with an active membership and its GitHub id in
+  the list.
+- The Organization's own `AGENTS.md` may name its Admins in prose; the
+  Organization keeps the two in step, and the list is what agents check.
+- Readers first: older releases reject a manifest with the field as an
+  unknown field, and so does the GEN3 Root's Core until it follows this
+  repository. An Organization adds it only after the release with this
+  reader runs on all of its Environments.
+
 ## The schema
 
 `src/organizations/lazurio.organization.v1.schema.json` states the contract as
@@ -176,11 +222,13 @@ reason.
   `kind`, the `organization` identity with its `forge_binding` and `metadata`,
   `root_repository`, `manifests`, `extensions.legacy`,
   `compatibility.legacy_projection`, `module_port_pool`, `governance`, `teams`,
-  `layers`, `task_sources`, `doctor`, and `settings` as
-  `$defs.organizationSettings`, `workspace.tabs` included.
+  `layers`, `task_sources`, `doctor`, `settings` as
+  `$defs.organizationSettings`, `workspace.tabs` included, and
+  `organization_admins` as `$defs.organizationAdmins`.
 - **Closed where the readers are closed:** the top level, the identity, both
   bindings, `manifests`, `extensions`, `compatibility`, the port pool, a Team's
-  `forge_binding` and every level of `settings` refuse an unknown key. Where the
+  `forge_binding`, every level of `settings` and an entry of
+  `organization_admins` refuse an unknown key. Where the
   readers keep Organization-owned data as authored, the schema is open:
   `metadata`, `extensions.legacy`, `governance`, `doctor`, `layers`,
   `task_sources` and a Team's other fields. `metadata` and `extensions.legacy`
@@ -197,6 +245,8 @@ reason.
   - two Workspace tabs never share a name (in NFC, ignoring letter case), and a
     module is in one tab at most;
   - a tool is declared once in `settings.tools`;
+  - an Organization Admin's GitHub id is named once in `organization_admins`,
+    and so is a login, ignoring letter case;
   - a tab name has at most 40 UTF-16 code units: a name of 21 to 40 characters
     outside the Basic Multilingual Plane, such as emoji, passes only the schema;
   - the declared projection digest is the digest of the projection of this
@@ -212,7 +262,10 @@ reason.
   the Organization usable and applies none of the section (see Organization
   settings above). A consumer that keeps this tolerance validates the manifest
   without `settings` and the section on its own against
-  `#/$defs/organizationSettings`.
+  `#/$defs/organizationSettings`. A malformed `organization_admins` likewise
+  fails the schema while the Platform keeps the Organization usable and
+  appoints no one; a tolerant consumer validates it on its own against
+  `#/$defs/organizationAdmins`.
 - **Consumers pin it** by this repository's commit and the file's SHA-256; the
   GEN3 Root is to do so in its own pull request.
 

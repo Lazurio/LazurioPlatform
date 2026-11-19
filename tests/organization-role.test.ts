@@ -1,10 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmod, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { chmod, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ContentGit } from "../src/content/git";
 import {
   type ContentGitHub,
+  type DeclarationAnswer,
   ghContentGitHub,
   type RepositoryAnswer,
 } from "../src/content/github";
@@ -20,22 +21,47 @@ import {
 } from "../src/organizations/role-cli";
 import { runTool } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
+import { canonicalDocument } from "./fixtures/catalog-folder";
 import {
   mkdirOwnedFixture as mkdir,
   writeOwnedFixture as writeFile,
 } from "./fixtures/owned-files";
 
 // `lazurio organization role` (#866): the live role from the core that scopes
-// content install, the root as the Folder or GitHub has it, the Organization
-// Owners (the Organization Admins until the role in Lazurio Auth is
-// deployed), and GitHub not answering is never a role. The role values are
-// the identifiers of root decision 0234.
+// content install, the root as the Folder or GitHub has it, the appointed
+// Organization Admins from the root's organization_admins (decision 0245,
+// amended 2026-11-18: the Owner role is never the Admin role), and GitHub
+// not answering is never a role. The role values are the identifiers of root
+// decision 0234. The viewer is `ada`, GitHub id 1.
+
+/** The root `Acme/Acme_GEN3`'s lazurio.organization.json, declaring itself
+ * the root of Acme, with `admins` as its organization_admins (absent when
+ * undefined). */
+function rootDeclaration(admins?: unknown): DeclarationAnswer {
+  const document: Record<string, unknown> = {
+    ...canonicalDocument("acme", "organization", [], "Acme"),
+    root_repository: {
+      forge: "github",
+      locator: "Acme/Acme_GEN3",
+      default_branch: "main",
+      binding_state: "unverified",
+    },
+  };
+  if (admins !== undefined) document.organization_admins = admins;
+  return { kind: "file", value: document };
+}
+const ada = { github_id: 1, github_login: "ada" };
+const cy = { github_id: 3, github_login: "cy" };
 
 type Answers = Readonly<{
   viewer?: "signed-in" | "signed-out" | "unavailable";
   membership?: MembershipAnswer;
   root?: RepositoryAnswer;
-  owners?: readonly string[] | "unavailable" | "absent";
+  /** The root's lazurio.organization.json; by default it declares itself
+   * and appoints no one. */
+  declaration?: DeclarationAnswer;
+  /** Collects the repositories whose declaration was asked. */
+  declared?: string[];
   /** The root's branch-rule capability; absent, the method is missing. */
   branchRules?: "available" | "unavailable" | "unknown";
   /** Collects the repositories whose branch rules were asked. */
@@ -86,19 +112,16 @@ function fakeGitHub(answers: Answers = {}): ContentGitHub {
     async memberships() {
       return answers.memberships ?? [];
     },
+    async declaration(owner: string, name: string) {
+      answers.declared?.push(`${owner}/${name}`);
+      return answers.declaration ?? rootDeclaration();
+    },
     ...(answers.branchRules === undefined
       ? {}
       : {
           async branchRules(owner: string, name: string) {
             answers.asked?.push(`${owner}/${name}`);
             return answers.branchRules;
-          },
-        }),
-    ...(answers.owners === "absent"
-      ? {}
-      : {
-          async owners() {
-            return answers.owners ?? ["ada", "bob"];
           },
         }),
   };
@@ -112,12 +135,15 @@ const resolved = async () =>
     repository: "Acme/Acme_GEN3",
   });
 
-test("an active Organization Owner is the Organization Admin, with the root and the Organization Admins", async () => {
+test("an appointed Organization Admin who is also an Organization Owner is the Organization Admin, with the root and the appointed Admins", async () => {
+  const declared: string[] = [];
   expect(
     await readOrganizationRole({
       organization: "Acme",
       github: fakeGitHub({
         membership: { kind: "member", state: "active", role: "admin" },
+        declaration: rootDeclaration([cy, ada]),
+        declared,
       }),
       root: resolved,
     }),
@@ -128,9 +154,201 @@ test("an active Organization Owner is the Organization Admin, with the root and 
     role: "organization-admin",
     verified: true,
     rootRepository: "Acme/Acme_GEN3",
-    admins: ["ada", "bob"],
+    admins: ["cy", "ada"],
     source: "github",
   });
+  expect(declared).toEqual(["Acme/Acme_GEN3"]);
+});
+
+test("an appointed Organization Admin who is no Organization Owner is the Organization Admin, whatever the root's permission", async () => {
+  for (const permission of ["read", "write", "maintain", null] as const) {
+    const answer = await readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        membership: { kind: "member", state: "active", role: "member" },
+        declaration: rootDeclaration([ada]),
+        ...(permission === null
+          ? {}
+          : {
+              root: {
+                kind: "observed",
+                repository: {
+                  fullName: "Acme/Acme_GEN3",
+                  owner: { login: "Acme", databaseId: 2, kind: "Organization" },
+                  private: true,
+                  archived: false,
+                  readable: true,
+                  permission,
+                },
+              },
+            }),
+      }),
+      root: resolved,
+    });
+    expect([permission, answer.role, answer.verified, answer.admins]).toEqual([
+      permission,
+      "organization-admin",
+      true,
+      ["ada"],
+    ]);
+  }
+});
+
+test("an Organization Owner who is not appointed is the Organization Owner, never the Organization Admin", async () => {
+  const answer = await readOrganizationRole({
+    organization: "Acme",
+    github: fakeGitHub({
+      membership: { kind: "member", state: "active", role: "admin" },
+      declaration: rootDeclaration([cy]),
+    }),
+    root: resolved,
+  });
+  expect(answer).toMatchObject({
+    role: "organization-owner",
+    verified: true,
+    admins: ["cy"],
+  });
+  expect("detail" in answer).toBe(false);
+  // The same login under another id is not the account: the id decides.
+  expect(
+    (
+      await readOrganizationRole({
+        organization: "Acme",
+        github: fakeGitHub({
+          membership: { kind: "member", state: "active", role: "admin" },
+          declaration: rootDeclaration([{ github_id: 9, github_login: "ada" }]),
+        }),
+        root: resolved,
+      })
+    ).role,
+  ).toBe("organization-owner");
+});
+
+test("an appointed Admin without an active membership is no Organization Admin", async () => {
+  const writer = {
+    kind: "observed" as const,
+    repository: {
+      fullName: "Acme/Acme_GEN3",
+      owner: { login: "Acme", databaseId: 2, kind: "Organization" as const },
+      private: true,
+      archived: false,
+      readable: true,
+      permission: "write" as const,
+    },
+  };
+  const roleOf = (membership: MembershipAnswer, root?: RepositoryAnswer) =>
+    readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        membership,
+        declaration: rootDeclaration([ada]),
+        ...(root === undefined ? {} : { root }),
+      }),
+      root: resolved,
+    });
+  // A pending invitation, even of an Owner: nothing is confirmed from it.
+  for (const role of ["member", "admin"] as const)
+    expect(
+      await roleOf({ kind: "member", state: "pending", role }),
+    ).toMatchObject({ role: null, verified: false, admins: ["ada"] });
+  // No membership (the listing confirms it): write on the root names only
+  // the Module role.
+  expect(await roleOf({ kind: "none" }, writer)).toMatchObject({
+    role: "module-contributor",
+    verified: true,
+    admins: ["ada"],
+  });
+});
+
+test("a root without organization_admins, or with an empty list, appoints no one", async () => {
+  for (const declaration of [rootDeclaration(), rootDeclaration([])]) {
+    const owner = await readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({
+        membership: { kind: "member", state: "active", role: "admin" },
+        declaration,
+      }),
+      root: resolved,
+    });
+    expect(owner).toMatchObject({ role: "organization-owner", admins: [] });
+    const member = await readOrganizationRole({
+      organization: "Acme",
+      github: fakeGitHub({ declaration }),
+      root: resolved,
+    });
+    expect(member).toMatchObject({ role: "module-reader", admins: [] });
+  }
+});
+
+test("a root whose organization_admins cannot be read confirms no role for an active member, and says why", async () => {
+  const cases: [DeclarationAnswer, string][] = [
+    [
+      { kind: "unavailable" },
+      "GitHub did not answer for the lazurio.organization.json of Acme/Acme_GEN3",
+    ],
+    [
+      { kind: "missing" },
+      "Acme/Acme_GEN3 has no lazurio.organization.json this account can read",
+    ],
+    [
+      { kind: "file", value: { schema_version: "lazurio.organization.v1" } },
+      "does not declare it the root of Acme",
+    ],
+    [rootDeclaration([ada, ada]), "github_id 1 is named more than once"],
+    [
+      rootDeclaration([{ github_id: "1", github_login: "ada" }]),
+      "github_id must be a positive whole number",
+    ],
+    [rootDeclaration({ ada: 1 }), "organization_admins must be a list"],
+  ];
+  for (const [declaration, reason] of cases)
+    for (const role of ["admin", "member"] as const) {
+      const answer = await readOrganizationRole({
+        organization: "Acme",
+        github: fakeGitHub({
+          membership: { kind: "member", state: "active", role },
+          declaration,
+        }),
+        root: resolved,
+      });
+      expect([reason, role, answer.role, answer.verified]).toEqual([
+        reason,
+        role,
+        null,
+        false,
+      ]);
+      expect(answer.detail).toContain(
+        "whether the account is an appointed Organization Admin is not known",
+      );
+      expect(answer.detail).toContain(reason);
+      expect("admins" in answer).toBe(false);
+    }
+  // Without a membership no one can be an appointed Admin: the Module role
+  // stands, and the answer says why the Admins are missing.
+  const outside = await readOrganizationRole({
+    organization: "Acme",
+    github: fakeGitHub({
+      membership: { kind: "none" },
+      declaration: { kind: "unavailable" },
+      root: {
+        kind: "observed",
+        repository: {
+          fullName: "Acme/Acme_GEN3",
+          owner: { login: "Acme", databaseId: 2, kind: "Organization" },
+          private: true,
+          archived: false,
+          readable: true,
+          permission: "write",
+        },
+      },
+    }),
+    root: resolved,
+  });
+  expect(outside).toMatchObject({ role: "module-contributor", verified: true });
+  expect(outside.detail).toContain(
+    "the appointed Organization Admins are not known",
+  );
+  expect("admins" in outside).toBe(false);
 });
 
 test("a member who reads the root is a Module Reader; write and maintain name a Module Contributor and a Module Maintainer", async () => {
@@ -214,13 +432,13 @@ test("write on a private root is the Module Maintainer where it cannot have bran
   });
 });
 
-test("GitHub not answering is no role: not verified, with the reason, and no Organization Admins when it lists none", async () => {
+test("GitHub not answering is no role: not verified, with the reason, and no Organization Admins when it serves no list", async () => {
   const answer = await readOrganizationRole({
     organization: "Acme",
     github: fakeGitHub({
       membership: { kind: "unavailable" },
       root: { kind: "unavailable" },
-      owners: "unavailable",
+      declaration: { kind: "unavailable" },
     }),
     root: resolved,
   });
@@ -242,12 +460,13 @@ test("GitHub not answering is no role: not verified, with the reason, and no Org
     });
 });
 
-test("an Organization Owner stays the Organization Admin when the root is not found, and the answer says why", async () => {
+test("an Organization Owner is not confirmed when the root is not found: an appointed Admin is not ruled out, and the answer says why", async () => {
+  const declared: string[] = [];
   const answer = await readOrganizationRole({
     organization: "Acme",
     github: fakeGitHub({
       membership: { kind: "member", state: "active", role: "admin" },
-      owners: "absent",
+      declared,
     }),
     root: async () =>
       Object.freeze({
@@ -258,13 +477,15 @@ test("an Organization Owner stays the Organization Admin when the root is not fo
       }),
   });
   expect(answer).toMatchObject({
-    role: "organization-admin",
-    verified: true,
+    role: null,
+    verified: false,
     rootRepository: null,
-    detail:
-      "no repository of Acme this account can read declares itself the root",
   });
+  expect(answer.detail).toBe(
+    "whether the account is an appointed Organization Admin is not known: the root repository of Acme was not found, so its organization_admins could not be read; no repository of Acme this account can read declares itself the root",
+  );
   expect("admins" in answer).toBe(false);
+  expect(declared).toEqual([]);
 });
 
 test("without the membership no role is confirmed, not even a Module Contributor or Module Maintainer from the root", async () => {
@@ -327,11 +548,12 @@ test("a 404 membership counts as no membership only when the listing of membersh
   // It answers without Acme: an outside collaborator with write is a Module
   // Contributor.
   expect((await roleOf([])).role).toBe("module-contributor");
-  // It answers with Acme: that is the membership.
+  // It answers with Acme: that is the membership, of an Owner the root
+  // appoints no Admin.
   expect(
     (await roleOf([{ organization: "acme", state: "active", role: "admin" }]))
       .role,
-  ).toBe("organization-admin");
+  ).toBe("organization-owner");
 });
 
 test("a root the Folder holds of another owner names no role here", async () => {
@@ -392,19 +614,6 @@ test("a root the Folder holds of another owner names no role here", async () => 
   ).toBe("Acme/Acme_GEN3");
 });
 
-test("an empty listing of the Organization Owners is left out, never an empty list of Organization Admins", async () => {
-  const answer = await readOrganizationRole({
-    organization: "Acme",
-    github: fakeGitHub({
-      membership: { kind: "member", state: "active", role: "admin" },
-      owners: [],
-    }),
-    root: resolved,
-  });
-  expect(answer.role).toBe("organization-admin");
-  expect("admins" in answer).toBe(false);
-});
-
 const context = {
   identity: { version: "1.0.0", commit: "0".repeat(40), target: "fixture" },
   platform: process.platform,
@@ -437,25 +646,46 @@ test("the command finds the root the Folder holds, prints JSON, and exits 0 veri
       { github: fakeGitHub(answers), git },
       async () => catalog,
     );
-  const owner = await run(
+  // The Folder holds the root; its appointed Admins are read through
+  // GitHub from the default branch of the checkout's origin.
+  const declared: string[] = [];
+  const admin = await run(
     ["organization", "role", "Acme", "--folder", "/srv/Lazurio", "--json"],
-    { membership: { kind: "member", state: "active", role: "admin" } },
+    {
+      membership: { kind: "member", state: "active", role: "admin" },
+      declaration: rootDeclaration([ada, cy]),
+      declared,
+    },
   );
-  expect(owner.code).toBe(0);
-  expect(JSON.parse(owner.text)).toMatchObject({
+  expect(admin.code).toBe(0);
+  expect(JSON.parse(admin.text)).toMatchObject({
     role: "organization-admin",
     rootRepository: "Acme/Acme_GEN3",
-    admins: ["ada", "bob"],
+    admins: ["ada", "cy"],
   });
   expect(inspected).toEqual(["/srv/Lazurio/organizations/Acme_GEN3"]);
+  expect(declared).toEqual(["Acme/Acme_GEN3"]);
   const human = await run(
     ["organization", "role", "Acme", "--folder", "/srv/Lazurio"],
-    { membership: { kind: "member", state: "active", role: "admin" } },
+    {
+      membership: { kind: "member", state: "active", role: "admin" },
+      declaration: rootDeclaration([ada, cy]),
+    },
   );
   expect(human.text.split("\n")).toEqual([
     "Acme: organization-admin (GitHub, as ada)",
     "  root: Acme/Acme_GEN3",
-    "  Organization Admins: ada, bob",
+    "  Organization Admins: ada, cy",
+  ]);
+  const owner = await run(
+    ["organization", "role", "Acme", "--folder", "/srv/Lazurio"],
+    { membership: { kind: "member", state: "active", role: "admin" } },
+  );
+  expect(owner.code).toBe(0);
+  expect(owner.text.split("\n")).toEqual([
+    "Acme: organization-owner (GitHub, as ada)",
+    "  root: Acme/Acme_GEN3",
+    "  Organization Admins: none appointed (organization_admins of the root)",
   ]);
   const unknown = await run(
     ["organization", "role", "Acme", "--folder", "/srv/Lazurio"],
@@ -553,7 +783,7 @@ case "$*" in
   "api user/memberships/orgs/Acme") echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
   "api --paginate user/memberships/orgs?per_page=100 --jq "*) echo '{"message":"Forbidden","status":"403"}'; exit 1 ;;
   "api repos/Acme/Acme_GEN3") echo '{"full_name":"Acme/Acme_GEN3","private":true,"archived":false,"owner":{"login":"Acme","id":2,"type":"Organization"},"permissions":{"admin":false,"maintain":false,"push":true,"triage":true,"pull":true}}' ;;
-  "api --paginate orgs/Acme/members?role=admin&per_page=100 --jq "*) printf 'ada\\n' ;;
+  "api --header Accept: application/vnd.github.raw+json repos/Acme/Acme_GEN3/contents/lazurio.organization.json") echo '${JSON.stringify((rootDeclaration([ada]) as { value: unknown }).value)}' ;;
   *) echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
 esac
 `,
@@ -646,42 +876,5 @@ esac
     ]);
     await writeFile(join(parent, "mode"), "bad");
     expect(await github.memberships?.()).toBe("unavailable");
-  },
-);
-
-posixTest(
-  "gh lists the Organization Owners without bots, and a listing it refuses or garbles is unavailable",
-  async () => {
-    parent = await realpath(
-      await mkdtemp(join(tmpdir(), "organization-role-")),
-    );
-    const bin = join(parent, "bin");
-    const home = join(parent, "home");
-    await mkdir(bin);
-    await mkdir(home);
-    await writeFile(
-      join(bin, "gh"),
-      `#!/bin/sh
-printf '%s\\n' "$*" >> "${join(parent, "calls")}"
-case "$*" in
-  "api --paginate orgs/Acme/members?role=admin&per_page=100 --jq "*) printf 'ada\\nbob\\n' ;;
-  "api --paginate orgs/Garbled/members?role=admin&per_page=100 --jq "*) printf 'ada\\n-not a login-\\n' ;;
-  *) echo '{"message":"Not Found","status":"404"}'; exit 1 ;;
-esac
-`,
-    );
-    await chmod(join(bin, "gh"), 0o755);
-    const github = ghContentGitHub(
-      { path: bin, home, platform: process.platform, run: runTool },
-      { sleep: async () => {} },
-    );
-    expect(await github.owners?.("Acme")).toEqual(["ada", "bob"]);
-    expect(await github.owners?.("Garbled")).toBe("unavailable");
-    expect(await github.owners?.("Missing")).toBe("unavailable");
-    expect(await github.owners?.("-bad-")).toBe("unavailable");
-    const calls = (await readFile(join(parent, "calls"), "utf8")).split("\n");
-    expect(calls[0]).toBe(
-      'api --paginate orgs/Acme/members?role=admin&per_page=100 --jq .[] | select(.type != "Bot") | .login',
-    );
   },
 );

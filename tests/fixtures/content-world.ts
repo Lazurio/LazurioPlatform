@@ -144,6 +144,9 @@ export async function writeOrganizationRoot(
     slots: Slot[];
     root?: string;
     kind?: "organization" | "template";
+    /** The root's organization_admins (decision 0245); absent when
+     * undefined. */
+    admins?: unknown;
   },
 ) {
   const inventory = {
@@ -165,6 +168,8 @@ export async function writeOrganizationRoot(
       default_branch: "main",
       binding_state: "unverified",
     };
+  if (options.admins !== undefined)
+    document.organization_admins = options.admins;
   const expected = expectedLegacyProjection(document, inventory);
   document.compatibility.legacy_projection.sha256 = expected.hash;
   await writeFile(

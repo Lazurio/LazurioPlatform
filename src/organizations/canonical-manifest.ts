@@ -70,7 +70,9 @@ function binding(input: unknown, repository: boolean) {
 // login and the port pool is in order (tests/organization-schema.test.ts).
 // This does not resolve legacy documents, validate the projection hash or grant access.
 // The optional `settings` section is kept as authored; read it only through
-// `organizationSettings` (./organization-settings), never directly.
+// `organizationSettings` (./organization-settings), never directly. The same
+// holds for `organization_admins` and `organizationAdmins`
+// (./organization-admins).
 export function parseCanonicalOrganization(input: unknown) {
   // Reject executable/lossy values before cloning Organization-owned extension data.
   const value = object(
@@ -95,6 +97,10 @@ export function parseCanonicalOrganization(input: unknown) {
       // `organizationSettings` in ./organization-settings: a malformed optional
       // section is reported there and never makes the whole manifest unusable.
       "settings",
+      // The appointed Organization Admins (decision 0245) likewise, judged
+      // only by `organizationAdmins` in ./organization-admins: a malformed
+      // list confirms no Admin and leaves the rest of the manifest usable.
+      "organization_admins",
     ],
   );
   if (

@@ -145,13 +145,13 @@ posixTest(
       "workspace/docs": "denied",
       "workspace/odd": "blocked",
       "workspace/planned": "no-repository",
-      // A verified Organization Admin (the stub's default membership) installs the
-      // restricted slot too.
+      // A verified Organization Owner (the stub's default membership, whom
+      // the root appoints no Admin) installs the restricted slot too.
       "workspace/secret": "materialized",
       "workspace/secret/db": "excluded",
       "workspace/web": "materialized",
     });
-    expect(outcome?.role).toBe("organization-admin");
+    expect(outcome?.role).toBe("organization-owner");
     for (const path of [
       "workspace/web",
       "mission-control",
@@ -239,17 +239,55 @@ test("the role GitHub confirms, and the scope it gives", () => {
     requested: OrganizationRole | null,
     membership: Parameters<typeof verifyOrganizationRole>[0]["membership"],
     rootPermission: "admin" | "maintain" | "write" | "triage" | "read" | null,
+    // The root's appointed Admins by GitHub id; the account is id 7.
+    admins?: readonly number[] | "unknown",
   ) => {
     const answer = verifyOrganizationRole({
       requested,
       membership,
       rootPermission,
+      account: 7,
+      ...(admins === undefined
+        ? {}
+        : {
+            admins:
+              admins === "unknown"
+                ? { kind: "unknown", detail: "not read" }
+                : { kind: "declared", ids: admins },
+          }),
     });
     return answer.kind === "verified"
       ? `${answer.role}:${answer.restricted}`
       : "unverified";
   };
-  expect(verify(null, owner, "admin")).toBe("organization-admin:include");
+  // The Owner role is never the Organization Admin (decision 0245, amended
+  // 2026-11-18): an Owner the root does not appoint is the Organization
+  // Owner, with the same full scope.
+  expect(verify(null, owner, "admin")).toBe("organization-owner:include");
+  expect(verify(null, owner, "admin", [])).toBe("organization-owner:include");
+  expect(verify(null, owner, "admin", [8])).toBe("organization-owner:include");
+  expect(verify(null, owner, "admin", "unknown")).toBe(
+    "organization-owner:include",
+  );
+  // An appointed Admin who is also an Owner, and one who is not.
+  expect(verify(null, owner, "admin", [8, 7])).toBe(
+    "organization-admin:include",
+  );
+  expect(verify(null, member, "read", [7])).toBe("organization-admin:include");
+  expect(verify(null, member, null, [7])).toBe("organization-admin:include");
+  // An appointed Admin without an active membership is none.
+  expect(
+    verify(
+      null,
+      { kind: "member", state: "pending", role: "member" },
+      "read",
+      [7],
+    ),
+  ).toBe("unverified");
+  expect(verify(null, none, "write", [7])).toBe("module-contributor:exclude");
+  expect(verify(null, { kind: "unavailable" }, null, [7])).toBe("unverified");
+  // An unread list confirms no Admin: the scope falls to the narrower role.
+  expect(verify(null, member, "read", "unknown")).toBe("module-reader:exclude");
   expect(verify(null, member, "admin")).toBe("module-maintainer:exclude");
   expect(verify(null, member, "maintain")).toBe("module-maintainer:exclude");
   expect(verify(null, member, "write")).toBe("module-contributor:exclude");
@@ -267,10 +305,23 @@ test("the role GitHub confirms, and the scope it gives", () => {
   // Write needs no membership (as before): an outside collaborator Module Contributor.
   expect(verify(null, none, "write")).toBe("module-contributor:exclude");
   expect(verify(null, none, null)).toBe("unverified");
+  // The bare form (the full installation): an appointed Admin, else an Owner
+  // confirmed as the Organization Owner.
   expect(verify("organization-admin", owner, null)).toBe(
+    "organization-owner:include",
+  );
+  expect(verify("organization-admin", owner, null, [7])).toBe(
+    "organization-admin:include",
+  );
+  expect(verify("organization-admin", member, "read", [7])).toBe(
     "organization-admin:include",
   );
   expect(verify("organization-admin", member, "admin")).toBe("unverified");
+  expect(verify("organization-admin", member, "admin", [8])).toBe("unverified");
+  expect(verify("organization-admin", member, "admin", "unknown")).toBe(
+    "unverified",
+  );
+  expect(verify("organization-admin", none, "admin", [7])).toBe("unverified");
   expect(
     verify(
       "organization-admin",
@@ -537,6 +588,98 @@ posixTest(
   90_000,
 );
 
+// The appointed Organization Admin (decision 0245, amended 2026-11-18): an
+// active member whose GitHub id the root's organization_admins names, read
+// from the root's default branch; the Owner role is never the Admin role.
+posixTest(
+  "an appointed Organization Admin who is no Organization Owner gets the full installation; a malformed list appoints no one",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world, {
+      admins: [{ github_id: 12345, github_login: "example" }],
+    });
+    for (const roles of [undefined, { alpha: "organization-admin" } as const]) {
+      const folder = await presetFolder(world, "local");
+      const { github, calls } = stubGitHub(world, {
+        repositories: {
+          ...alphaReadable,
+          "Alpha/alpha_GEN3": { permission: "read" },
+        },
+        membership: { kind: "member", state: "active", role: "member" },
+      });
+      const { steps, result } = await installAlpha(
+        github,
+        folder,
+        roles === undefined ? undefined : { ...roles },
+      );
+      expect(result.kind === "content-install" && result.state).toBe(
+        "succeeded",
+      );
+      expect(result.kind === "content-install" && result.items[0]?.role).toBe(
+        "organization-admin",
+      );
+      expect(
+        steps.find((step) => step.key === "access" && step.state === "done")
+          ?.detail,
+      ).toBe("as example (organization-admin); root Alpha/alpha_GEN3 (named)");
+      expect(results(result)["workspace/secret"]).toBe("materialized");
+      // The list is read from the root's default branch through GitHub.
+      expect(
+        calls.filter(
+          (call) =>
+            call.kind === "declaration" &&
+            call.args.join("/") === "Alpha/alpha_GEN3",
+        ).length,
+      ).toBeGreaterThanOrEqual(2);
+    }
+  },
+  90_000,
+);
+
+posixTest(
+  "a root whose organization_admins is malformed confirms no Organization Admin: the bare form fails closed and the live role is the narrower one",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world, {
+      admins: [
+        { github_id: 12345, github_login: "example" },
+        { github_id: 12345, github_login: "example-two" },
+      ],
+    });
+    const membership = {
+      kind: "member",
+      state: "active",
+      role: "member",
+    } as const;
+    const repositories = {
+      ...alphaReadable,
+      "Alpha/alpha_GEN3": { permission: "read" as const },
+    };
+    const bare = await installAlpha(
+      stubGitHub(world, { repositories, membership }).github,
+      await presetFolder(world, "local"),
+      { alpha: "organization-admin" },
+    );
+    expect(summary(bare.steps)).toEqual(["access:failed:role-unverified"]);
+    expect(
+      bare.steps.find(
+        (step) => step.key === "access" && step.state === "failed",
+      )?.detail,
+    ).toContain("github_id 12345 is named more than once");
+    const live = await installAlpha(
+      stubGitHub(world, { repositories, membership }).github,
+      await presetFolder(world, "local"),
+    );
+    expect(
+      live.result.kind === "content-install" && live.result.items[0]?.role,
+    ).toBe("module-reader");
+    expect(results(live.result)["workspace/secret"]).toBe(
+      "excluded_by_role_scope",
+    );
+  },
+  90_000,
+);
+
 // A module's declared data mount (launchpad-parity B7, amended 2026-10-17):
 // installed with its module, on its declared branch, by the same function;
 // left out while its module is not there.
@@ -714,7 +857,7 @@ posixTest(
     const { steps, result } = await resolveAlpha(github, folder);
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
     expect(accessDetail(steps)?.detail).toBe(
-      "as example (organization-admin); root Alpha/alpha_GEN3 (by name)",
+      "as example (organization-owner); root Alpha/alpha_GEN3 (by name)",
     );
     // Its declaration was read before anything was cloned; no scan.
     // (GitHub compares names case-insensitively; the login is as named.)
@@ -753,7 +896,7 @@ posixTest(
     const { steps, result } = await resolveAlpha(github, folder);
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
     expect(accessDetail(steps)?.detail).toBe(
-      "as example (organization-admin); root Alpha/home (by scan)",
+      "as example (organization-owner); root Alpha/home (by scan)",
     );
     expect(calls.some((call) => call.kind === "organizationRepositories")).toBe(
       true,
@@ -871,7 +1014,7 @@ posixTest(
       "Alpha/home",
     );
     expect(accessDetail(accepted.steps)?.detail).toBe(
-      "as example (organization-admin); root Alpha/home (named)",
+      "as example (organization-owner); root Alpha/home (named)",
     );
     // `other` declares `home` its root, not itself: refused, and no other
     // source is tried.

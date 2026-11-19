@@ -80,7 +80,8 @@
     "layers": { "description": "Organization-owned, kept as authored.", "type": "array" },
     "task_sources": { "description": "Organization-owned, kept as authored.", "type": "array" },
     "doctor": { "description": "Organization-owned, kept as authored.", "type": "object" },
-    "settings": { "$ref": "#/$defs/organizationSettings" }
+    "settings": { "$ref": "#/$defs/organizationSettings" },
+    "organization_admins": { "$ref": "#/$defs/organizationAdmins" }
   },
   "allOf": [
     {
@@ -151,6 +152,20 @@
       "else": { "properties": { "repository_id": false } }
     },
     "port": { "type": "integer", "minimum": 1024, "maximum": 65535 },
+    "organizationAdmins": {
+      "description": "The appointed Organization Admins (decision 0245), read only by organizationAdmins in src/organizations/organization-admins.ts. Absent or empty, no one is appointed. A pointer for agents until Lazurio Auth holds the role, never a grant. Ids and logins (ignoring letter case) are unique (checked by the reader).",
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["github_id", "github_login"],
+        "properties": {
+          "github_id": { "description": "The account's numeric GitHub id.", "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+          "github_login": { "description": "The account's GitHub login as the Organization wrote it; the id is the identity.", "type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$" }
+        }
+      }
+    },
     "team": {
       "description": "A Team of the Organization; more Organization-owned fields are kept as authored.",
       "type": "object",

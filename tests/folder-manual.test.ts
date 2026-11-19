@@ -1382,13 +1382,15 @@ test("missing rights are escalated on every preset; only the Team hands every pu
       for (const sentence of locale === "cs"
         ? [
             "## Když na něco nemáš práva",
-            "`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`",
+            "jmenovaní Admini Organizace podle `lazurio organization role <org> --json`",
+            "nikdy podle výpisu Vlastníků Organizace",
             "Přiřazení je tu výslovná výjimka z pravidla o issues výše.",
             "- **Když GitHub odmítne push,** práci nezahazuj",
           ]
         : [
             "## When you lack the rights for something",
-            "`gh api \"orgs/<org>/members?role=admin\" --jq '.[].login'`",
+            "the appointed Organization Admins by `lazurio organization role <org> --json`",
+            "never by the list of Organization Owners",
             "Assigning is an explicit exception to the issue rule above.",
             "- **When GitHub refuses a push,** never discard the work",
           ])

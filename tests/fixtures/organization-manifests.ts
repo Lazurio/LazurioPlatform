@@ -920,6 +920,103 @@ export const manifestRefusals: readonly ManifestCase[] = [
   ],
 ];
 
+/** The appointed Organization Admins (`organization_admins`, decision
+ * 0245): lists the canonical reader keeps as authored and
+ * `organizationAdmins` accepts, by name, with the GitHub ids it reads. */
+export const acceptedOrganizationAdmins: readonly (readonly [
+  name: string,
+  admins: unknown,
+  ids: readonly number[],
+])[] = [
+  ["none appointed", [], []],
+  ["one Admin", [{ github_id: 101, github_login: "example-admin" }], [101]],
+  [
+    "two Admins, the largest safe id",
+    [
+      { github_id: 101, github_login: "example-admin" },
+      { github_id: 9007199254740991, github_login: "Example-Two" },
+    ],
+    [101, 9007199254740991],
+  ],
+];
+
+/** Lists `organizationAdmins` refuses, with a fragment of its detail. The
+ * canonical reader still accepts the manifest; no one is appointed. */
+export const organizationAdminsRefusals: readonly (readonly [
+  name: string,
+  admins: unknown,
+  detail: string,
+])[] = [
+  ["not a list", { github_id: 101 }, "must be a list"],
+  ["null", null, "must be a list"],
+  ["an entry that is no object", ["example-admin"], "must be an object"],
+  [
+    "an entry without its login",
+    [{ github_id: 101 }],
+    "exactly github_id and github_login",
+  ],
+  [
+    "an entry with another key",
+    [{ github_id: 101, github_login: "example-admin", role: "owner" }],
+    "exactly github_id and github_login",
+  ],
+  [
+    "an id as text",
+    [{ github_id: "101", github_login: "example-admin" }],
+    "positive whole number",
+  ],
+  [
+    "a zero id",
+    [{ github_id: 0, github_login: "example-admin" }],
+    "positive whole number",
+  ],
+  [
+    "a fractional id",
+    [{ github_id: 1.5, github_login: "example-admin" }],
+    "positive whole number",
+  ],
+  [
+    "an id beyond a safe integer",
+    [{ github_id: 9007199254740992, github_login: "example-admin" }],
+    "positive whole number",
+  ],
+  [
+    "a login GitHub does not allow",
+    [{ github_id: 101, github_login: "-example" }],
+    "must be a GitHub login",
+  ],
+  [
+    "a login too long",
+    [{ github_id: 101, github_login: "e".repeat(40) }],
+    "must be a GitHub login",
+  ],
+  [
+    "more than 100 Admins",
+    Array.from({ length: 101 }, (_, index) => ({
+      github_id: index + 1,
+      github_login: `example-${index + 1}`,
+    })),
+    "more than 100",
+  ],
+  // What only the reader checks: items compared by one field.
+  [
+    "one id twice",
+    [
+      { github_id: 101, github_login: "example-admin" },
+      { github_id: 101, github_login: "example-other" },
+    ],
+    "github_id 101 is named more than once",
+  ],
+  [
+    "one login twice ignoring case",
+    [
+      { github_id: 101, github_login: "example-admin" },
+      { github_id: 102, github_login: "Example-Admin" },
+    ],
+    "github_login Example-Admin is named more than once",
+  ],
+];
+
 const issue = (
   code: OrganizationSettingsIssue["code"],
   path: string,
