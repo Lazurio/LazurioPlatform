@@ -17,7 +17,10 @@ import {
   exitUpdateAvailable,
   exitUsage,
 } from "../update/errors";
+import { developmentVersion } from "../update/identity";
 import { serviceEnvironment } from "../update/service-control";
+import { type ArchiveExport, exportArchive, shownPath } from "./archive/export";
+import { type ArchiveVerify, verifyArchive } from "./archive/verify";
 import { type BuddyChat, buddyChat } from "./chat";
 import type { ActiveWork } from "./gateway-refresh";
 import { createHermesGateway, type HermesGateway } from "./hermes-gateway";
@@ -128,7 +131,46 @@ buddy persona [--apply] [--confirm] [--folder <absolute Folder>] [--json]
   {kind: "buddy-persona", state, reason?, persona?, locale?, files?,
   prompts?, restart?, chat?}. The Folder is found as for lazurio doctor.
   Exit status: 0 in place or applied, 10 outdated, waiting or not personal,
-  1 unavailable or failed, 2 usage.`;
+  1 unavailable or failed, 2 usage.
+buddy archive export [--output <absolute dir>] [--json]
+buddy archive verify <absolute dir> [--json]
+  Buddy GEN3's conversation as an archive (plan LZD-0033 R6a),
+  lazurio.conversation-archive.v1: manifest.json, records.jsonl (one record
+  per line, by time) and attachments/. export reads Hermes's
+  ~/.hermes/state.db (Telegram and other platforms, and the web chat's
+  questions, answers and commentary) and Buddy's T3 Code
+  ~/.t3-buddy/userdata/statev2.sqlite (the web chat as the person saw it,
+  with the files in userdata/attachments), both opened read-only; it runs
+  neither Hermes nor T3 Code and uses no network. Compaction copies count
+  once; envelopes, tool rows, NO_REPLY, compaction summaries, Kanban and
+  Delegace notifications are left out, and so is a message with no text,
+  attachment or options, counted under <source>.skipped.empty in the
+  manifest's source_accounting. Every attachment inside the home is
+  copied, never moved, and named by its sha256; one that is absent or
+  outside the home is listed as missing. Into
+  ~/Buddy/archiv/buddy-gen3-<UTC stamp>/ or --output, which must not exist
+  (output-exists); owner-only, written beside it and renamed into place at
+  the end. Before that the export counts every group from the sources once
+  more by another path, checks ids, order, empty records and each copied
+  file's sha256, and requires that no relevant source row failed to parse
+  (a T3 message's payload, Hermes's tool calls, commentary items or clarify
+  arguments; source.parseable.<source>.<column>); when any of them fails
+  nothing is published (incomplete, the failed checks named). A missing
+  attachment is reported, not fatal. Refused, nothing written: without
+  Hermes's store (hermes-source-missing: Telegram, the questions and the
+  commentary live only there), and without a readable T3 store while
+  Hermes holds web-chat rows or commentary left to it (t3-source-missing, with their
+  count in covered_rows); neither store: no-sources.
+  Exporting the same sources again yields the same records.jsonl. verify
+  checks an archive from itself alone, without the sources: format,
+  records.jsonl against the manifest's digest and counts, ids, order and
+  each attachment's sha256. Both print counts, paths and check names, never
+  a conversation's text. JSON on stdout: {kind: "buddy-archive-export",
+  state: exported|refused|failed, reason?, path?, records?, by?,
+  attachments?, attachments_missing?, covered_rows?, failed?} and {kind:
+  "buddy-archive-verify", state: verified|failed, reason?, path, records?,
+  checks?, failed?}.
+  Exit status: 0 exported or verified, 1 refused or failed, 2 usage.`;
 
 export type BuddyContext = CliContext &
   Readonly<{
@@ -149,7 +191,7 @@ export type BuddyContext = CliContext &
   }>;
 
 const usageText =
-  "Usage: buddy chat [--apply] | buddy status | buddy sign-in start | buddy sign-out | buddy persona [--apply] [--confirm], each with [--folder <absolute Folder>] [--json]";
+  "Usage: buddy chat [--apply] | buddy status | buddy sign-in start | buddy sign-out | buddy persona [--apply] [--confirm], each with [--folder <absolute Folder>] [--json] | buddy archive export [--output <absolute dir>] [--json] | buddy archive verify <absolute dir> [--json]";
 const usage = Object.freeze({ code: exitUsage, stderr: usageText });
 
 const exitOf = (answer: BuddyChat): number =>
@@ -172,6 +214,8 @@ const commands: Readonly<Record<string, readonly string[]>> = {
   "sign-in start": ["json", "folder"],
   "sign-out": ["json", "folder"],
   persona: ["apply", "confirm", "json", "folder"],
+  "archive export": ["output", "json"],
+  "archive verify": ["json"],
 };
 
 const absent = Object.freeze({
@@ -206,7 +250,13 @@ export async function runBuddyCommand(
   context: BuddyContext,
 ): Promise<CommandOutput> {
   let command: string;
-  let values: { apply?: boolean; confirm?: boolean; folder?: string };
+  let values: {
+    apply?: boolean;
+    confirm?: boolean;
+    folder?: string;
+    output?: string;
+  };
+  let archive: string | undefined;
   try {
     const parsed = parseArgs({
       args: [...args],
@@ -218,9 +268,19 @@ export async function runBuddyCommand(
         confirm: { type: "boolean" },
         json: { type: "boolean" },
         folder: { type: "string" },
+        output: { type: "string" },
       },
     });
-    command = parsed.positionals.join(" ");
+    const [first, second, third, ...rest] = parsed.positionals;
+    if (
+      first === "archive" &&
+      second === "verify" &&
+      third !== undefined &&
+      rest.length === 0
+    ) {
+      command = "archive verify";
+      archive = third;
+    } else command = parsed.positionals.join(" ");
     const names = parsed.tokens.flatMap((token) =>
       token.kind === "option" ? [token.name] : [],
     );
@@ -231,13 +291,26 @@ export async function runBuddyCommand(
       allowed === undefined ||
       names.some((name) => !allowed.includes(name)) ||
       new Set(names).size !== names.length ||
-      (parsed.values.folder !== undefined && !isAbsolute(parsed.values.folder))
+      (parsed.values.folder !== undefined &&
+        !isAbsolute(parsed.values.folder)) ||
+      (parsed.values.output !== undefined &&
+        !isAbsolute(parsed.values.output)) ||
+      (archive !== undefined && !isAbsolute(archive))
     )
       return usage;
     values = parsed.values;
   } catch {
     return usage;
   }
+  if (command === "archive export")
+    return archiveExportOutput(
+      context,
+      await archiveExport(context, values.output),
+    );
+  if (command === "archive verify")
+    return archive === undefined
+      ? usage
+      : archiveVerifyOutput(await verifyArchive(archive));
   if (command === "chat" || command === "persona") {
     try {
       const folder = values.folder ?? (await operatorFolder(context));
@@ -339,6 +412,82 @@ export async function runBuddyCommand(
     code: answer.kind === "signed-in" ? exitOk : exitFailure,
     stdout: "",
     ...blockedWords(answer),
+  };
+}
+
+/** `archive export` in the home of this process's account. */
+async function archiveExport(
+  context: BuddyContext,
+  output: string | undefined,
+): Promise<ArchiveExport> {
+  const home = toolsEnvironmentOf(context.env, context.platform).home;
+  if (home === undefined || !isAbsolute(home))
+    return {
+      kind: "buddy-archive-export",
+      state: "failed",
+      reason: "home-unknown",
+    };
+  const version = (context.identity as { version?: unknown } | undefined)
+    ?.version;
+  try {
+    return await exportArchive({
+      home,
+      output,
+      version: typeof version === "string" ? version : developmentVersion,
+      now: context.now ?? (() => new Date()),
+    });
+  } catch {
+    return {
+      kind: "buddy-archive-export",
+      state: "failed",
+      reason: "write-failed",
+    };
+  }
+}
+
+function archiveExportOutput(
+  context: BuddyContext,
+  answer: ArchiveExport,
+): CommandOutput {
+  const home = toolsEnvironmentOf(context.env, context.platform).home ?? "";
+  const where = answer.path === undefined ? "" : shownPath(home, answer.path);
+  const words =
+    answer.state === "exported"
+      ? answer.attachments_missing
+        ? `Buddy's conversation is archived in ${where}; ${answer.attachments_missing} attachments were missing.`
+        : undefined
+      : answer.reason === "output-exists"
+        ? `${where} already exists; nothing was written.`
+        : answer.reason === "output-parent-missing"
+          ? `The directory for ${where} does not exist; nothing was written.`
+          : answer.reason === "no-sources"
+            ? "No Buddy GEN3 conversation was found in this home."
+            : answer.reason === "hermes-source-missing"
+              ? "Hermes's store is missing, so the conversation cannot be archived completely; nothing was written."
+              : answer.reason === "t3-source-missing"
+                ? `Buddy's T3 Code store is missing or unreadable, and Hermes left ${answer.covered_rows ?? 0} web-chat messages or commentary to it; nothing was written.`
+                : answer.reason === "incomplete"
+                  ? `The archive did not pass its checks (${(answer.failed ?? []).join(", ")}); nothing was written.`
+                  : "Buddy's conversation could not be archived; nothing was written.";
+  return {
+    code: answer.state === "exported" ? exitOk : exitFailure,
+    stdout: JSON.stringify(answer),
+    ...(words === undefined ? {} : { stderr: words }),
+  };
+}
+
+function archiveVerifyOutput(answer: ArchiveVerify): CommandOutput {
+  return {
+    code: answer.state === "verified" ? exitOk : exitFailure,
+    stdout: JSON.stringify(answer),
+    ...(answer.state === "verified"
+      ? {}
+      : {
+          stderr:
+            answer.reason === "unreadable"
+              ? "The archive's manifest or records could not be read."
+              : `The archive does not match: ${(answer.failed ?? []).join(", ")}.`,
+        }),
   };
 }
 
