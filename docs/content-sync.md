@@ -356,7 +356,7 @@ or `infra`, and never on the person's own computer (`local`).
 | --- | --- |
 | A guest Module of another Organization (F67) | The root's answer proves nothing about another owner's repository, so a refusal cannot be told from a token that lost that Organization. It stays hidden in Apps and is never run |
 | A Team Environment | Its content is the hosting's, and its answers come from a broker, not from GitHub |
-| A Henry Environment, Server services | gh signs in as the persona or the Organization's app, and the handover records no id to prove it against |
+| A Henry Environment, Server services | gh signs in as Henry's account or the Organization's app, and the handover records no id to prove it against |
 | A public Environment | It has no identity |
 
 **The removal.** Under the content lock, the module's apps stop first through `retire`
@@ -412,14 +412,14 @@ The content follows the Environment's kind, which is the Folder's recorded prese
 | Public Environment (`entry.audience` `public`) | any | Only the Organization of its handover, read anonymously as a Module Reader ([below](#a-public-environment-anonymous-reading)); never a Personalspace |
 
 The Automated Environment uses the ordinary explicit installation under its
-signed-in persona account (F9 amendment of 2026-10-12). Its preset describes the
+signed-in account of the Organization's Henry (F9 amendment of 2026-10-12). Its preset describes the
 working arrangement and responsible user; it does not require a hosting archive,
 prove a Module Maintainer role, or grant repository access. Its repositories are ordinary
 Git clones, including tracked internal symlinks. CLI and Settings → This Environment
 use this same core; the content response owns UI availability. Since [F27's addendum
 of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
 Začínáme offers and starts it there too, as on a work Environment: after the AI and
-the persona's GitHub, by itself in an open Launchpad view that saw one of them arrive,
+Henry's GitHub account, by itself in an open Launchpad view that saw one of them arrive,
 and the install route refuses `ai-missing` while the AI is provably missing.
 
 A request for an item the kind never holds is refused as a whole

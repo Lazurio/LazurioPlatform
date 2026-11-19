@@ -768,17 +768,17 @@ test("the responsible user's own account is the missing GitHub basic: the count,
   expect(appsSetupLine(automated({}), cs)).toEqual({
     tone: "info",
     icon: "key",
-    text: "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony.",
+    text: "Na GitHubu je přihlášený váš vlastní účet, sem patří účet Henryho Organizace.",
     actions: [{ action: "open-start", label: "Přepnout účet" }],
   });
   expect(appsSetupLine(automated({}), en)?.text).toBe(
-    "GitHub is signed in with your own account; the persona's belongs here.",
+    "GitHub is signed in with your own account; the account of the Organization's Henry belongs here.",
   );
   // The persona's account not there yet: the line names it.
   expect(appsSetupLine(automated({ github: "missing" }), cs)).toEqual({
     tone: "info",
     icon: "key",
-    text: "Účet persony na GitHubu není připojený.",
+    text: "Účet Henryho Organizace na GitHubu není připojený.",
     actions: [{ action: "sign-in-gh", label: "Připojit GitHub" }],
   });
   // A start request never signs anyone out: only the step's own button.
@@ -816,12 +816,12 @@ test("the tour's GitHub stops name the persona's account on the Automated Enviro
     tourStop(step, fresh(preset, { ai: "organization" }), apps, cs);
   expect(at("hosted-organization-steward", "gear")).toMatchObject({
     target: "gear",
-    title: "Připojte GitHub persony",
-    text: "Agenti pracují pod jejím účtem.",
+    title: "Připojte GitHub Henryho",
+    text: "Agenti pracují pod jeho účtem.",
   });
   expect(at("hosted-organization-steward", "github")).toMatchObject({
     target: "start-github",
-    title: "Připojte účet persony",
+    title: "Připojte účet Henryho",
     text: "Váš vlastní účet sem nepatří.",
   });
   expect(at("hosted-organization-personal", "gear")).toMatchObject({
@@ -840,7 +840,7 @@ test("the tour's GitHub stops name the persona's account on the Automated Enviro
       en,
     ),
   ).toMatchObject({
-    title: "Connect the persona's account",
+    title: "Connect Henry's account",
     text: "Your own account does not belong here.",
   });
 });

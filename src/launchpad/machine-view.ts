@@ -6,7 +6,7 @@ import { fill } from "./update-view";
 // The recorded assignment of an Organization work VM as the Launchpad's
 // "This Environment" shows it, in the words the Folder renders it with
 // (src/folder/render.ts assignmentLine). `automation` is the Automated
-// Environment of an Organization persona (decision 0169), named by its
+// Environment of the Organization's Henry (decision 0169), named by its
 // responsible operator; `services` the services Environment of a server,
 // named Služby serveru (root decision 0209), which names nobody.
 export type AssignmentView =

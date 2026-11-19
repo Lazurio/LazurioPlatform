@@ -1253,10 +1253,10 @@ test("gh's code on the Automated Environment is confirmed with the persona's acc
   const cs = messages("cs");
   const en = messages("en");
   expect(ghCodeText(cs, "login", true)).toBe(
-    "Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým.",
+    "Zkopírujte kód a na GitHubu ho potvrďte účtem Henryho Organizace, ne svým.",
   );
   expect(ghCodeText(en, "install", true)).toBe(
-    "Copy the code and confirm it on GitHub with the persona's account, not your own.",
+    "Copy the code and confirm it on GitHub with the account of the Organization's Henry, not your own.",
   );
   for (const mode of ["install", "login"] as const) {
     expect(ghCodeText(cs, mode, false)).toBe(cs.toolsLoginGhText);

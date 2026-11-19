@@ -838,55 +838,55 @@ const uiCraft: readonly Text[] = [
 ];
 
 // `henry-review` (decision F14, addendum of 2026-11-01): asking the
-// Organization's persona for a review and handing it a pull request to take
+// Organization's Henry for a review and handing it a pull request to take
 // through, from the Lazurio Root's skill of the same name, without the
 // Root's mechanics. The request and the handover go only through GitHub,
-// which the persona's intake reads (decision 0169); a verdict counts only on
+// which Henry's intake reads (decisions 0169, 0250); a verdict counts only on
 // the exact head with an approval submitted after the last commit. The
-// persona's own side of the contract is in this-machine.md's bot team
+// Henry's own side of the contract is in this-machine.md's bot team
 // chapter; this is the other side, for every agent that asks.
 const henryReviewDescription = t(
-  "Použij, když hotový pull request potřebuje review persony Organizace (jejího Henryho), nebo jí chceš předat jeho dotažení do main. Žádost i předání jdou jen přes GitHub a verdikt platí jen na přesném headu se schválením po posledním commitu. Nepoužívej k obcházení review, merge, nasazení ani přístupů.",
-  "Use when a finished pull request needs the review of the Organization's persona (its Henry), or when you hand the persona its completion into main. The request and the handover go only through GitHub, and a verdict counts only on the exact head with an approval submitted after the last commit. Never use it to bypass review, merge, deployment or access.",
+  "Použij, když hotový pull request potřebuje review Henryho Organizace, nebo mu chceš předat jeho dotažení do main. Žádost i předání jdou jen přes GitHub a verdikt platí jen na přesném headu se schválením po posledním commitu. Nepoužívej k obcházení review, merge, nasazení ani přístupů.",
+  "Use when a finished pull request needs the review of the Organization's Henry, or when you hand Henry its completion into main. The request and the handover go only through GitHub, and a verdict counts only on the exact head with an approval submitted after the last commit. Never use it to bypass review, merge, deployment or access.",
 );
 
 const henryReview: readonly Text[] = [
   t(
-    "Henry je persona Organizace: tým botů Lazurio MausBot v Prostředí s automatizacemi, s vlastním GitHub účtem persony a odpovědným člověkem (decision 0169). Vlastní práva nemá, jedná v grantech svého účtu. Práci si bere sám z GitHubu: review, když je jeho účet požádaným reviewerem nebo pull request už reviewoval, a dotažení, když je assignee. Jiná cesta k němu nevede: žádný soubor, skript, SSH ani zpráva jinému vláknu.",
-    "Henry is the Organization's persona: a Lazurio MausBot bot team in the Environment with automations, with the persona's own GitHub account and a responsible person (decision 0169). It has no rights of its own and acts within its account's grants. It takes work from GitHub by itself: a review when its account is a requested reviewer or has reviewed the pull request before, and the completion when it is the assignee. No other way reaches it: no file, script, SSH or message to another thread.",
+    "Henry Organizace je agent, který je pravou rukou Admina Organizace: tým botů Lazurio MausBot v Prostředí s automatizacemi, pod vlastním účtem na GitHubu, který je Členem Organizace s přesně nastavenými právy, a s odpovědným člověkem (decision 0169 a 0250). Jedná jen v grantech svého účtu. Práci si bere sám z GitHubu: review, když je jeho účet požádaným reviewerem nebo pull request už reviewoval, a dotažení, když je assignee. Jiná cesta k němu nevede: žádný soubor, skript, SSH ani zpráva jinému vláknu.",
+    "The Organization's Henry is the agent who is the Organization Admin's right hand: a Lazurio MausBot bot team in the Environment with automations, under its own GitHub account, which is an Organization Member with exactly set rights, and with a responsible person (decisions 0169 and 0250). It acts only within its account's grants. It takes work from GitHub by itself: a review when its account is a requested reviewer or has reviewed the pull request before, and the completion when it is the assignee. No other way reaches it: no file, script, SSH or message to another thread.",
   ),
   blank,
   t("## Postup", "## Steps"),
   t(
-    "1. **Login.** Najdi ho v `AGENTS.md` Organizace, které repozitář patří. Když tam žádná persona není, Organizace Henryho nemá a review dělá člověk.",
-    "1. **Login.** Find it in the `AGENTS.md` of the Organization the repository belongs to. When it names no persona, the Organization has no Henry and a person reviews.",
+    "1. **Login.** Najdi ho v `AGENTS.md` Organizace, které repozitář patří. Když tam žádný Henry Organizace ani Henry integrátora, který Organizaci spravuje, uvedený není, review dělá člověk.",
+    "1. **Login.** Find it in the `AGENTS.md` of the Organization the repository belongs to. When it names neither the Organization's Henry nor the Henry of the integrator that manages the Organization, a person reviews.",
   ),
   t(
-    "2. **Připrav pull request.** Popis říká proč a co se mění, kontroly na headu jsou zelené a pull request je Ready (`gh pr ready <n>`). Draft pull request persona nevidí.",
-    "2. **Prepare the pull request.** The description says why and what changes, the checks on the head are green and the pull request is Ready (`gh pr ready <n>`). The persona does not see a Draft pull request.",
+    "2. **Připrav pull request.** Popis říká proč a co se mění, kontroly na headu jsou zelené a pull request je Ready (`gh pr ready <n>`). Draft pull request Henry nevidí.",
+    "2. **Prepare the pull request.** The description says why and what changes, the checks on the head are green and the pull request is Ready (`gh pr ready <n>`). Henry does not see a Draft pull request.",
   ),
   t(
-    "3. **Požádej o review:** `gh pr edit <n> --add-reviewer <login>`. Žádost znamená „vyžádáno“, ne „hotovo“. Po pushi ji neopakuj, nový head persona najde sama. Chyba 422 „Reviews may only be requested from collaborators“ znamená špatný login, nebo účet persony k repozitáři nemá přístup; přístup nepřidávej, řekni to uživateli.",
-    "3. **Request the review:** `gh pr edit <n> --add-reviewer <login>`. The request means “requested”, not “done”. Do not repeat it after a push; the persona finds the new head by itself. Error 422 “Reviews may only be requested from collaborators” means a wrong login or that the persona's account has no access to the repository; do not add access, tell the user.",
+    "3. **Požádej o review:** `gh pr edit <n> --add-reviewer <login>`. Žádost znamená „vyžádáno“, ne „hotovo“. Po pushi ji neopakuj, nový head Henry najde sám. Chyba 422 „Reviews may only be requested from collaborators“ znamená špatný login, nebo účet Henryho k repozitáři nemá přístup; přístup nepřidávej, řekni to uživateli.",
+    "3. **Request the review:** `gh pr edit <n> --add-reviewer <login>`. The request means “requested”, not “done”. Do not repeat it after a push; Henry finds the new head by itself. Error 422 “Reviews may only be requested from collaborators” means a wrong login or that Henry's account has no access to the repository; do not add access, tell the user.",
   ),
   t(
-    "4. **Předej dotažení** jen na pokyn uživatele: přidej personu jako assignee, sebe odeber a do komentáře napiš stav, ověření a další krok. Předávat smí jen ten, kdo má k repozitáři živé právo zápisu. Přiřazení nepřidává práva: kde merge smí jen Vlastník Organizace (třeba v `infra`), persona po review předá dokončení Vlastníkovi Organizace.",
-    "4. **Hand over the completion** only on the user's instruction: add the persona as assignee, remove yourself and write the state, the verification and the next step in a comment. Only someone with live write access to the repository may hand over. An assignment adds no rights: where only an Organization Owner may merge (in `infra`, say), the persona hands the completion to an Organization Owner after its review.",
+    "4. **Předej dotažení** jen na pokyn uživatele: přidej Henryho jako assignee, sebe odeber a do komentáře napiš stav, ověření a další krok. Předávat smí jen ten, kdo má k repozitáři živé právo zápisu. Přiřazení nepřidává práva: kde merge smí jen Vlastník Organizace (třeba v `infra`), Henry po review předá dokončení Vlastníkovi Organizace.",
+    "4. **Hand over the completion** only on the user's instruction: add Henry as assignee, remove yourself and write the state, the verification and the next step in a comment. Only someone with live write access to the repository may hand over. An assignment adds no rights: where only an Organization Owner may merge (in `infra`, say), Henry hands the completion to an Organization Owner after its review.",
   ),
   t(
-    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a pak požádej o verdikt na nezměněném headu formálně, `gh pr edit <n> --add-reviewer <login>`: komentář ani @zmínka se za žádost nepočítá a persona na ně nereaguje.",
-    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request, then ask for a verdict on the unchanged head formally with `gh pr edit <n> --add-reviewer <login>`: a comment or an @mention does not count as a request and the persona does not act on it.",
+    "5. **Nálezy** vyřiď s úsudkem: skutečnou vadu oprav hned, na ostatní odpověz věcnou námitkou v pull requestu a pak požádej o verdikt na nezměněném headu formálně, `gh pr edit <n> --add-reviewer <login>`: komentář ani @zmínka se za žádost nepočítá a Henry na ně nereaguje.",
+    "5. **Findings** you handle with judgement: fix a real defect right away, answer the rest with a factual objection in the pull request, then ask for a verdict on the unchanged head formally with `gh pr edit <n> --add-reviewer <login>`: a comment or an @mention does not count as a request and Henry does not act on it.",
   ),
   blank,
   t(
-    "Pull request, který založil účet persony, persona sama nereviewuje; schvaluje ho člověk.",
-    "The persona never reviews a pull request its own account opened; a person approves it.",
+    "Pull request, který založil účet Henryho, Henry sám nereviewuje; schvaluje ho člověk.",
+    "Henry never reviews a pull request its own account opened; a person approves it.",
   ),
   blank,
   t("## Ověření", "## Verification"),
   t(
-    "- **Verdikt** platí, jen když review od loginu persony má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu; starší schválení se podle pravidla projektu nepočítá, ani když nese `commit_id` headu: `gh pr view <n> --json headRefOid,reviews,commits`.",
-    "- **A verdict** counts only when the review from the persona's login has a `commit_id` equal to the current head and was submitted after the last commit; by this project's rule an earlier approval does not count, even when it carries the head's `commit_id`: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **Verdikt** platí, jen když review od loginu Henryho má `commit_id` rovné aktuálnímu headu a je odeslané po posledním commitu; starší schválení se podle pravidla projektu nepočítá, ani když nese `commit_id` headu: `gh pr view <n> --json headRefOid,reviews,commits`.",
+    "- **A verdict** counts only when the review from Henry's login has a `commit_id` equal to the current head and was submitted after the last commit; by this project's rule an earlier approval does not count, even when it carries the head's `commit_id`: `gh pr view <n> --json headRefOid,reviews,commits`.",
   ),
   t(
     "- **Dotažení** je hotové, až je pull request mergnutý, nebo předaný dalšímu jmenovanému assignee se stavem a dalším krokem. Komentář ani schválení samo nestačí.",
@@ -1042,7 +1042,10 @@ function skillText(source: InstructionSource, name: SkillName): string {
         locale,
         name,
         henryReviewDescription,
-        { cs: "Review personou", en: "Review by the persona" },
+        {
+          cs: "Review Henrym Organizace",
+          en: "Review by the Organization's Henry",
+        },
         henryReview,
       );
     case "admin-request":
