@@ -11,11 +11,14 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
+import { setupTimeoutMs } from "../src/brain/at-start";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   convergeMeaning,
   downloadVerified,
   type MeaningHost,
+  meaningEmbedLimitMs,
+  meaningStepLimitMs,
 } from "../src/brain/meaning";
 import { meaningPaths, meaningUnit } from "../src/brain/meaning-pin";
 import {
@@ -369,6 +372,37 @@ describe("switching search by meaning on", () => {
       "migrate embeddings --to",
       "embed --stale --catch-up",
     ]);
+  });
+
+  test("an embedding that reaches its limit brings the copy back, and the Launchpad waits longer than that limit", async () => {
+    const { host, paths, world } = await stand();
+    const run = host.run;
+    let limit = 0;
+    const slow = {
+      ...host,
+      run: async (
+        argv: readonly string[],
+        timeout: number,
+        env: Readonly<Record<string, string>>,
+      ) => {
+        if (argv[1] !== "embed") return run(argv, timeout, env);
+        limit = timeout;
+        // The embedding wrote some vectors before its limit ended it.
+        await writeFile(join(paths.brain, "config.json"), '{"brain":"half"}');
+        return "timeout" as const;
+      },
+    } as typeof host;
+    expect(await convergeMeaning(slow)).toBe("restored:embed");
+    expect(limit).toBe(meaningEmbedLimitMs);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    expect(world.server).toBe(true);
+    // Setup as the Launchpad's child outlasts the embedding, the copy, a
+    // migration and the start around it.
+    expect(setupTimeoutMs).toBeGreaterThan(
+      meaningEmbedLimitMs + 4 * meaningStepLimitMs,
+    );
   });
 
   test("a refusal gbrain does not explain is not tried further", async () => {

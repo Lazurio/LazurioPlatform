@@ -28,7 +28,14 @@ export type BrainSetupLabels = Readonly<{
   meaning?: string;
 }>;
 
-const setupTimeoutMs = 45 * 60_000;
+/** How long the Launchpad lets one setup run: longer than its longest
+ * supported step, the first embedding of a brain switched to search by
+ * meaning (gbrain's `embed`, limited to 6 hours; 86 minutes were measured for
+ * ten times the largest measured brain), with the copy, a migration and the
+ * start around it. A setup it ends anyway leaves its gbrain command
+ * running in its own group; the next setup ends that writer before it
+ * recovers or starts anything (`./writers.ts`). */
+export const setupTimeoutMs = 8 * 3_600_000;
 
 /** Runs `lazurio brain setup --json` as a child process of `executable`;
  * null when it did not finish or printed no labels. */

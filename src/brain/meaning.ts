@@ -315,6 +315,13 @@ function columnWidth(refusal: Record<string, unknown> | null): string | null {
  * the column has another width, move it to the model's, keeping pages and
  * facts, then compute every vector while the server is stopped (the only
  * way on PGLite). */
+/** How long the first embedding may take (86 minutes were measured for ten
+ * times the largest measured brain); a run that reaches it ends gbrain's
+ * whole process group and brings the copy back. */
+export const meaningEmbedLimitMs = 6 * 3_600_000;
+/** How long any other of gbrain's steps here may take. */
+export const meaningStepLimitMs = 15 * 60_000;
+
 export async function switchOn(
   host: MeaningHost,
   command: string,
@@ -330,7 +337,7 @@ export async function switchOn(
     const result = await host
       .run(
         [command, ...args],
-        args[0] === "embed" ? 6 * 3_600_000 : 900_000,
+        args[0] === "embed" ? meaningEmbedLimitMs : meaningStepLimitMs,
         env,
       )
       .catch(() => "timeout" as const);
