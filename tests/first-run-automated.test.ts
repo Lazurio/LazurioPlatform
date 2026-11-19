@@ -276,6 +276,54 @@ posixTest(
     } finally {
       await automated.close();
     }
+    // An Organization here whose root resolves conflict, with the old stop
+    // that sent people to Začínáme before (#1094): the prompt is about the
+    // root, as Apps' line is, never the old stop (Pablo's review of #1098).
+    const conflictPort = freePort();
+    const conflicted = await hosted(
+      "hosted-organization-steward",
+      conflictPort,
+      machine(conflictPort, "automation"),
+      {
+        content: stub(
+          {
+            allowed: true,
+            items: [
+              {
+                kind: "organization",
+                login: "example-org",
+                name: "Example",
+                state: "present",
+                reason: "organization-conflict",
+              },
+            ],
+          },
+          {
+            ...failedAnswer,
+            failure: {
+              ...failedAnswer.failure,
+              code: "destination-occupied",
+              detail:
+                "organizations/example-org_GEN3 exists and was left untouched",
+            },
+          },
+        ),
+      },
+    );
+    try {
+      const answer = await fetch(
+        `${conflicted.base}/.lazurio/prompts/prepare-content?org=example-org`,
+        { headers: conflicted.valid },
+      );
+      expect(answer.status).toBe(200);
+      const text = ((await answer.json()) as Record<string, string>).text;
+      expect(text?.split("\n")[0]).toBe(
+        "Organizace Example (GitHub example-org) je v tomto Pracovním Prostředí stažená, ale Lazurio ji nespouští: její kořen v `organizations/` se rozliší jako `conflict` (dokumenty Organizace si odporují), takže se její moduly nespustí.",
+      );
+      expect(text).not.toContain("exists and was left untouched");
+    } finally {
+      await conflicted.close();
+    }
     const teamPort = freePort();
     const team = await hosted(
       "hosted-organization-team",

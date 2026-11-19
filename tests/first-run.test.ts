@@ -4,6 +4,7 @@ import { type ContentFact, contentFact } from "../src/launchpad/content-view";
 import {
   appsSetupLine,
   autoStartStep,
+  basicState,
   basicsDone,
   composioFact,
   contentBlockedBy,
@@ -1303,4 +1304,42 @@ test("the content never starts by itself when GitHub arrives without SSH; it sta
       work({ ai: "connected", github: "connected" }),
     ]),
   ).toEqual([2]);
+});
+
+test("an Organization here whose root resolves conflict keeps the basics done and says so in Apps with Chat (#1094)", () => {
+  const conflicted = {
+    state: "ready",
+    conflicted: {
+      kind: "organization",
+      login: "example",
+      name: "Example",
+      state: "present",
+      reason: "organization-conflict",
+    },
+  } as const;
+  const facts = fresh("hosted-organization-personal", {
+    ai: "organization",
+    github: "connected",
+    content: conflicted,
+  });
+  // Začínáme does not take it back: every basic is done.
+  expect(nextBasic(facts)).toBeNull();
+  expect(basicState(facts, "content")).toBe("done");
+  expect(appsSetupLine(facts, cs)).toEqual({
+    tone: "failed",
+    icon: "warning",
+    text: "Moduly Organizace Example teď nejdou spustit: její dokumenty si odporují. Agent v Chatu to opraví.",
+    actions: [{ action: "resolve-in-chat", label: "Vyřešit v Chatu" }],
+  });
+  // Where the Environment has no onboarding there is no such line.
+  expect(
+    appsSetupLine(
+      fresh("hosted-organization-team", {
+        ai: "organization",
+        github: "connected",
+        content: conflicted,
+      }),
+      cs,
+    ),
+  ).toBeNull();
 });
