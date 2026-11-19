@@ -94,7 +94,7 @@ async function stand(
     paths.probeKey,
     JSON.stringify({ url: "http://127.0.0.1:3131", token: "p".repeat(32) }),
   );
-  await writeBrainUnits(paths.units, command, false);
+  await writeBrainUnits(paths, command, false);
   await writeBrainState(paths, {
     release: {
       commit: brainPin.commit,

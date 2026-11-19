@@ -1,14 +1,16 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { unitMarker } from "../update/service-control";
 import { readBrainState } from "./keys";
 import {
   type BrainPaths,
   type brainKeyNames,
   brainPin,
+  brainRefreshService,
+  brainRefreshTimer,
   brainUnit,
   releaseCommand,
 } from "./pin";
+import { unitOwner } from "./units";
 
 // What is there of the person's brain, read only (no network beyond
 // loopback, nothing written): who runs it, which release, whether it
@@ -41,7 +43,10 @@ export type BrainOwner =
   /** No unit at all. */
   | "absent"
   /** A unit of that name nobody of these wrote: left alone. */
-  | "foreign";
+  | "foreign"
+  /** A unit of that name that cannot be read: left alone, never taken for
+   * absent. */
+  | "unreadable";
 
 export type BrainKeys = Readonly<
   Record<keyof typeof brainKeyNames, "handed-over" | "missing" | "invalid">
@@ -106,24 +111,35 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-/** The interim installer's unit: its `ExecStart` runs `gbrain serve` from
- * the person's `~/.bun` (buddy-install.sh 2026-10-30.7). */
-const interimServe = /^ExecStart=.*%h\/\.bun\/bin\/gbrain serve --http\b/m;
 /** Machines' global unit: `workspace_hermes` runs the system command. */
 const machinesServe = /^ExecStart=.*\/usr\/local\/bin\/gbrain serve --http\b/m;
 
+/** Who runs the server unit: the person's own (`unitOwner`, exact), or else
+ * Machines' global one. Only a missing file is absence; any other error of a
+ * read leaves the brain alone. */
 export async function brainOwner(
   paths: BrainPaths,
   globalUnits: string,
 ): Promise<BrainOwner> {
-  const own = await readText(join(paths.units, brainUnit));
-  if (own !== undefined) {
-    if (own.startsWith(unitMarker)) return "lazurio";
-    if (interimServe.test(own)) return "interim";
-    return "foreign";
+  const own = await unitOwner(paths, paths.units, brainUnit);
+  // Its refresh service and timer are written with it: one nobody of these
+  // wrote, or one that cannot be read, leaves the whole brain alone, before
+  // anything is installed or written.
+  for (const name of [brainRefreshService, brainRefreshTimer]) {
+    const refresh = await unitOwner(paths, paths.units, name);
+    if (refresh === "unreadable" || refresh === "foreign") return refresh;
+    if (refresh === "interim" && own !== "interim" && own !== "absent")
+      return "foreign";
   }
-  const global = await readText(join(globalUnits, brainUnit));
-  if (global === undefined) return "absent";
+  if (own !== "absent") return own;
+  let global: string;
+  try {
+    global = await readFile(join(globalUnits, brainUnit), "utf8");
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === "ENOENT"
+      ? "absent"
+      : "unreadable";
+  }
   return machinesServe.test(global) ? "machines" : "foreign";
 }
 
@@ -187,6 +203,7 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
       case "machines":
         return "machines" as const;
       case "foreign":
+      case "unreadable":
         return "foreign" as const;
       case "lazurio":
         if (running === null) return "not-running" as const;

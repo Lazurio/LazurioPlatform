@@ -289,7 +289,7 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
         return failed("credential", status);
       }
       try {
-        await writeBrainUnits(paths.units, release);
+        await writeBrainUnits(paths, release);
       } catch {
         return failed("units", status);
       }

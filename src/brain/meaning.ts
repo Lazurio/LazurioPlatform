@@ -436,7 +436,7 @@ export async function convergeMeaning(
         preserveTimestamps: true,
       });
       await chmod(host.paths.brain, 0o700);
-      await writeBrainUnits(host.paths.units, release.command, false);
+      await writeBrainUnits(host.paths, release.command, false);
     } catch {
       await record("stopped", "copy-not-restored");
       await keepDown(host);
@@ -458,7 +458,7 @@ export async function convergeMeaning(
   const refused = await switchOn(host, release.command);
   if (refused !== null) return fallBack(refused);
   try {
-    await writeBrainUnits(host.paths.units, release.command, true);
+    await writeBrainUnits(host.paths, release.command, true);
   } catch {
     return fallBack("units");
   }

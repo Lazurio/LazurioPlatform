@@ -1,9 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { brainPaths, brainPin, brainUnit } from "../src/brain/pin";
+import {
+  brainPaths,
+  brainPin,
+  brainUnit,
+  releaseCommand,
+} from "../src/brain/pin";
 import { type BrainHost, brainStatus } from "../src/brain/status";
+import { renderBrainUnits } from "../src/brain/units";
 import { unitMarker } from "../src/update/service-control";
 
 // The read of the person's brain (plan LZD-0033 R11a): who runs it, which
@@ -116,15 +122,42 @@ describe("brain status", () => {
     ).toMatchObject({ state: "foreign" });
   });
 
-  test("Lazurio's own unit: running at the pin, outdated, or not running", async () => {
-    const own = `${unitMarker}\n[Service]\n`;
+  test("Lazurio's marker alone does not make a unit Lazurio's", async () => {
     expect(
-      await brainStatus(await world({ unit: own, health: brainPin.version })),
+      await brainStatus(
+        await world({ unit: `${unitMarker}\n[Service]\nExecStart=/opt/x\n` }),
+      ),
+    ).toMatchObject({ state: "foreign", owner: "foreign" });
+  });
+
+  test("a unit that cannot be read is never taken for absent", async () => {
+    const w = await world({ unit: interimUnit });
+    await chmod(join(w.paths.units, brainUnit), 0o000);
+    const status = await brainStatus(w);
+    await chmod(join(w.paths.units, brainUnit), 0o644);
+    // Root reads anything; the check means something only for a person.
+    if (process.getuid?.() !== 0)
+      expect(status).toMatchObject({ state: "foreign", owner: "unreadable" });
+  });
+
+  test("Lazurio's own unit: running at the pin, outdated, or not running", async () => {
+    // The unit is read against its own home: render it for the world's.
+    const ownIn = async (health?: string) => {
+      const w = await world({ health });
+      const text = renderBrainUnits(
+        releaseCommand(w.paths, brainPin.commit),
+        false,
+      )[brainUnit];
+      await writeFile(join(w.paths.units, brainUnit), text ?? "");
+      return w;
+    };
+    expect(
+      await brainStatus(await ownIn(brainPin.version)),
     ).toMatchObject({ state: "running", owner: "lazurio" });
     expect(
-      await brainStatus(await world({ unit: own, health: "0.60.315.0" })),
+      await brainStatus(await ownIn("0.60.315.0")),
     ).toMatchObject({ state: "outdated", running: "0.60.315.0" });
-    expect(await brainStatus(await world({ unit: own }))).toMatchObject({
+    expect(await brainStatus(await ownIn())).toMatchObject({
       state: "not-running",
       running: null,
     });

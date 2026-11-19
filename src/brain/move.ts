@@ -260,7 +260,7 @@ class Move {
       return this.stayStopped("previous-missing");
     try {
       await writeBrainUnits(
-        host.paths.units,
+        host.paths,
         previous.command,
         (await readBrainState(host.paths)).meaning !== undefined,
       );
@@ -310,7 +310,7 @@ class Move {
     await this.persist({ result: "moving", brainIntact: true });
     try {
       await writeBrainUnits(
-        host.paths.units,
+        host.paths,
         releaseCommand(host.paths, brainPin.commit),
         this.state.meaning !== undefined,
       );

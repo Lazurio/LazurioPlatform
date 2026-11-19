@@ -179,7 +179,9 @@ export async function takeOverInterim(
     return `restored:${why}`;
   };
   try {
-    await writeBrainUnits(paths.units, paths.interimCommand);
+    await writeBrainUnits(paths, paths.interimCommand, false, {
+      takeOver: true,
+    });
   } catch {
     return back("units");
   }

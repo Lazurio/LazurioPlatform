@@ -1,5 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
@@ -7,6 +14,8 @@ import { readBrainState } from "../src/brain/keys";
 import {
   brainPaths,
   brainPin,
+  brainRefreshService,
+  brainRefreshTimer,
   brainUnit,
   releaseCommand,
 } from "../src/brain/pin";
@@ -82,6 +91,8 @@ async function host(
   options: Readonly<{
     installFails?: boolean;
     existingUnit?: string;
+    /** Other units of the brain's names, by name. */
+    existingUnits?: Readonly<Record<string, string>>;
     noHandover?: boolean;
   }> = {},
 ) {
@@ -95,6 +106,10 @@ async function host(
   if (options.existingUnit !== undefined) {
     await mkdir(paths.units, { recursive: true });
     await writeFile(join(paths.units, brainUnit), options.existingUnit);
+  }
+  for (const [name, text] of Object.entries(options.existingUnits ?? {})) {
+    await mkdir(paths.units, { recursive: true });
+    await writeFile(join(paths.units, name), text);
   }
   brain.up = false;
   brain.keys = [];
@@ -245,13 +260,43 @@ describe("brain setup", () => {
   });
 
   test("the interim installer's brain waits for its owner's takeover; a foreign unit is left alone", async () => {
-    const interim =
-      "[Service]\nExecStart=/bin/bash -c 'exec %h/.bun/bin/gbrain serve --http --bind 127.0.0.1 --port 3131'\n";
+    const interim = `[Service]\nExecStart=/bin/bash -c 'GBRAIN_ADMIN_BOOTSTRAP_TOKEN="$$(cat %h/.gbrain/serve/admin-token)" exec %h/.bun/bin/gbrain serve --http --bind 127.0.0.1 --port 3131 --public-url http://127.0.0.1:3131'\n`;
     const a = await host({ existingUnit: interim });
     expect((await brainSetup(a.setupHost)).server).toBe("waits-takeover");
     expect(a.calls).toEqual([]);
     const b = await host({ existingUnit: "[Service]\nExecStart=/opt/other\n" });
     expect((await brainSetup(b.setupHost)).server).toBe("foreign");
     expect(b.calls).toEqual([]);
+  });
+
+  test("a refresh service or timer nobody of these wrote, or one unreadable, leaves the brain alone before anything is installed", async () => {
+    for (const name of [brainRefreshService, brainRefreshTimer]) {
+      const other = await host({
+        existingUnits: { [name]: "[Service]\nExecStart=/opt/other\n" },
+      });
+      expect((await brainSetup(other.setupHost)).server).toBe("foreign");
+      expect(other.calls).toEqual([]);
+      expect(await readFile(join(other.paths.units, name), "utf8")).toBe(
+        "[Service]\nExecStart=/opt/other\n",
+      );
+      // A Lazurio marker on it changes nothing.
+      const marked = await host({
+        existingUnits: {
+          [name]: `${unitMarker}\n[Service]\nExecStart=/opt/other\n`,
+        },
+      });
+      expect((await brainSetup(marked.setupHost)).server).toBe("foreign");
+      expect(marked.calls).toEqual([]);
+    }
+    if (process.getuid?.() === 0) return;
+    const hidden = await host({
+      existingUnits: { [brainRefreshTimer]: "[Timer]\n" },
+    });
+    await chmod(join(hidden.paths.units, brainRefreshTimer), 0o000);
+    const result = await brainSetup(hidden.setupHost);
+    await chmod(join(hidden.paths.units, brainRefreshTimer), 0o644);
+    expect(result.server).toBe("foreign");
+    expect(result.status).toMatchObject({ owner: "unreadable" });
+    expect(hidden.calls).toEqual([]);
   });
 });
