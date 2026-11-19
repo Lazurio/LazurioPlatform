@@ -15,6 +15,7 @@ import {
   verifyOrganizationRole,
 } from "../src/content/role";
 import { contentStatus } from "../src/content/status";
+import { contentFact } from "../src/launchpad/content-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
 import { renameNoReplace } from "../src/platform/rename";
 import { type Slot, writeModule } from "./fixtures/catalog-folder";
@@ -1868,4 +1869,82 @@ posixTest(
     );
   },
   30_000,
+);
+
+posixTest(
+  "a held root whose projection digest was not recomputed stays present: no Začínáme, no install over it (#1094)",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, { repositories: alphaReadable });
+    const host = contentHost(world, github);
+    const installed = await installContent(
+      folder,
+      {
+        items: [{ kind: "organization", login: "Alpha" }],
+        roots: { alpha: "Alpha/alpha_GEN3" },
+      },
+      () => {},
+      host,
+    );
+    expect(installed.kind === "content-install" && installed.state).toBe(
+      "succeeded",
+    );
+    // The incident's edit: the canonical manifest changes, its declared
+    // projection digest does not.
+    const root = join(folder, "organizations", "alpha_GEN3");
+    const path = join(root, "lazurio.organization.json");
+    const canonical = JSON.parse(await readFile(path, "utf8"));
+    canonical.extensions.legacy = {
+      ...canonical.extensions.legacy,
+      access_governance: { agent_rule: "A sentence edited by hand." },
+    };
+    await writeFile(path, `${JSON.stringify(canonical, null, 2)}\n`);
+    // The catalog keeps the Organization's identity; it runs nothing.
+    const [entry] = (await readFolderCatalog(folder)).organizations;
+    expect(entry).toMatchObject({
+      directory: "alpha_GEN3",
+      forgeLogin: "Alpha",
+      displayName: "Alpha Company",
+      state: "conflict",
+      issues: ["canonical_projection_hash_invalid"],
+      executable: false,
+      reason: "organization-conflict",
+      modules: [],
+    });
+    // The Launchpad's status lists it as present, so Začínáme's content
+    // basic is done and nothing starts an installation.
+    const status = await contentStatus(folder, host);
+    expect(status.items[0]).toMatchObject({
+      kind: "organization",
+      login: "Alpha",
+      state: "present",
+      reason: "organization-conflict",
+    });
+    const organizationOnly = {
+      ...status,
+      items: status.items.filter((item) => item.kind === "organization"),
+    };
+    expect(contentFact(organizationOnly as never, null)).toEqual({
+      state: "ready",
+    });
+    // An installation asked for anyway repairs nothing over it: the root
+    // step names the conflict and the command that resolves it.
+    const steps: ContentStep[] = [];
+    const again = await installContent(
+      folder,
+      { items: [{ kind: "organization", login: "Alpha" }] },
+      (step) => steps.push(step),
+      host,
+    );
+    expect(again.kind === "content-install" && again.state).toBe("failed");
+    expect(summary(steps)).toEqual([
+      "access:done",
+      "root:failed:organization-conflict",
+    ]);
+    expect(steps.at(-1)?.detail).toContain(
+      "lazurio organization check --write",
+    );
+  },
 );

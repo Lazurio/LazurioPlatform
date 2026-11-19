@@ -177,8 +177,11 @@ posixTest(
           },
           {
             directory: "broken",
-            organization: null,
-            displayName: null,
+            // A root that resolves conflict keeps the identity its canonical
+            // manifest declares (#1094); it still runs nothing.
+            organization: "broken",
+            displayName: "Broken Company",
+            forgeLogin: "broken",
             state: "conflict",
             issues: ["modules_document_unreadable"],
             executable: false,

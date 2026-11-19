@@ -51,6 +51,7 @@ import {
   type AppDisplay,
   observeOrganizationApplications,
 } from "./read-applications";
+import { readOrganizationDocuments } from "./read-documents";
 import type { OrganizationRootState } from "./root-resolution";
 import { type CatalogService, servicePage } from "./server-services";
 
@@ -533,6 +534,48 @@ function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
     : {};
 }
 
+/** The identity a root that resolves but does not run still declares: its
+ * slug, display name and GitHub login from `lazurio.organization.json`,
+ * whatever else in its documents disagrees (LazurioPlatform#1094). Without
+ * it the catalog listed such a root as nameless and unbound, so the
+ * Launchpad took the Organization for content not prepared and sent a
+ * long-working Environment back to Začínáme, Composio could not name it and
+ * `lazurio update` never fast-forwarded the root, not even to its repair.
+ * Identity only: the entry stays not executable, with no modules. */
+async function heldIdentity(
+  directory: string,
+): Promise<
+  Readonly<{ organization?: string; displayName?: string; forgeLogin?: string }>
+> {
+  const documents = await readOrganizationDocuments(directory).catch(
+    () => null,
+  );
+  if (
+    documents?.kind !== "documents-observed" ||
+    documents.canonical.kind !== "present"
+  )
+    return {};
+  const organization = documents.canonical.value.organization;
+  if (!isRecord(organization)) return {};
+  const slug =
+    typeof organization.slug === "string" &&
+    /^[A-Za-z0-9][A-Za-z0-9-]*$/.test(organization.slug)
+      ? organization.slug
+      : undefined;
+  const bound = forgeLogin(organization);
+  // A root that declares neither is no Organization this Folder can name.
+  if (slug === undefined && bound.forgeLogin === undefined) return {};
+  return {
+    ...(slug === undefined ? {} : { organization: slug }),
+    ...(typeof organization.display_name === "string"
+      ? { displayName: organization.display_name }
+      : slug === undefined
+        ? {}
+        : { displayName: slug }),
+    ...bound,
+  };
+}
+
 // The display of a module's default app, when its declaration was read.
 function defaultDisplay(
   observed: object,
@@ -936,7 +979,14 @@ export async function readCatalogOrganization(
         result.resolution,
         result.refused.file,
       );
-    return failed(name, result.kind, result.resolution);
+    // A root that resolves but does not run keeps its identity: the
+    // Organization is here, only its modules do not start
+    // (LazurioPlatform#1094).
+    const entry = failed(name, result.kind, result.resolution);
+    return result.kind === "organization-conflict" ||
+      result.kind === "organization-not-executable"
+      ? Object.freeze({ ...entry, ...(await heldIdentity(directory)) })
+      : entry;
   }
   const canonical = documents.canonical as Data;
   const organization = canonical.organization as Data;

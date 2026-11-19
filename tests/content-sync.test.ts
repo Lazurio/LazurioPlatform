@@ -1445,3 +1445,38 @@ test("the help of organization sync says that a synchronization clones what this
   expect(contentHelp).toContain("repository-denied");
   expect(contentHelp).not.toContain("never cloned here");
 });
+
+posixTest(
+  "a root that resolves conflict is still fast-forwarded, so its repair on GitHub reaches the Environment by itself (#1094)",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world);
+    const manifest = "lazurio.organization.json";
+    const original = await readFile(fixture.at(manifest), "utf8");
+    // The incident: a commit edits the canonical manifest without its
+    // projection digest. The first run brings it here.
+    await advance(world, "Alpha/alpha_GEN3", async (directory) => {
+      const canonical = JSON.parse(original);
+      canonical.extensions.legacy = {
+        ...canonical.extensions.legacy,
+        access_governance: { agent_rule: "A sentence edited by hand." },
+      };
+      await writeFile(
+        join(directory, manifest),
+        `${JSON.stringify(canonical, null, 2)}\n`,
+      );
+    });
+    expect(byPath((await ran(fixture)).entries)["."]).toBe("fast-forwarded");
+    // The root here now resolves conflict. Its repair lands on GitHub.
+    const repaired = await advance(world, "Alpha/alpha_GEN3", (directory) =>
+      writeFile(join(directory, manifest), original),
+    );
+    // The next run fast-forwards it to the repair, with no hand on the
+    // Environment.
+    const run = await ran(fixture);
+    expect(byPath(run.entries)["."]).toBe("fast-forwarded");
+    expect(await head(fixture.at("."))).toBe(repaired);
+    expect(await readFile(fixture.at(manifest), "utf8")).toBe(original);
+  },
+  60_000,
+);
