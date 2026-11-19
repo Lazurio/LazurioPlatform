@@ -306,11 +306,13 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
       "Příprava Organizace Example (GitHub example) v tomto Prostředí se zastavila u kroku „Instaluji“:",
       "bun install in deals failed",
       "",
-      "Dotáhni prosím instalaci se vším všudy:",
-      "1. Zjisti příčinu chyby a oprav ji v tomto Prostředí.",
-      "2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `lazurio organization install example`.",
-      "3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.",
-      "4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo toto Prostředí (třeba v repozitáři), nejdřív se zeptej.",
+      "Tohle je tvůj úkol: udělej ho teď celý, bez dalšího ptaní. Technické podrobnosti neznám a spoléhám na to, že to dotáhneš.",
+      "1. Zjisti příčinu. Začni stavem: `lazurio organization list --json`, `lazurio doctor`, a když Organizace v `organizations/` už je, `lazurio organization check` a `git status` v jejím kořeni.",
+      "2. Oprav ji v tomto Prostředí sám: checkouty, složky, `git pull --ff-only`, příkazy `lazurio`. Na nic z toho se mě neptej.",
+      "3. Je-li příčina v repozitáři (třeba v kořeni Organizace), nejdřív ověř, jestli ji na GitHubu už někdo neopravil; pak checkout jen přetáhni (`git pull --ff-only`). Jinak opravu připrav sám jako pull request podle pravidel Folderu a Organizace (otisk projekce přepočítá `lazurio organization check --write`). Sloučení je Publikace: o tu mě požádej nástrojem na otázky, až bude pull request připravený, a do té doby dokonči všechno, co na něm nezávisí.",
+      "4. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `lazurio organization install example`. Když Organizace už tu je a rozliší se čistě, stačí ověřit, že ji `lazurio organization list` ukazuje.",
+      "5. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.",
+      "6. Na konci mi jednoduše a bez technických podrobností řekni, co bylo špatně, co jsi udělal, co teď funguje a jestli ode mě něco potřebuješ.",
     ].join("\n"),
   );
   const english = preparePrompt({ kind: "personalspace" }, null, en);
@@ -319,7 +321,10 @@ test("the prompt: the wireframe's brief, the step that stopped and its detail", 
   );
   expect(english).toContain("`lazurio personalspace install`");
   expect(english).toContain("`lazurio doctor`");
-  expect(english).toContain("ask me first");
+  // The agent acts (#1094): it asks only for the Publication, never first.
+  expect(english).not.toContain("ask me first");
+  expect(english).toContain("without asking me further");
+  expect(english).toContain("ask me for it with the question tool");
   // The Personalspace names the person's login for the link.
   const ps = { kind: "personalspace" };
   expect(
@@ -436,4 +441,60 @@ test("no download and no Zkusit znovu before their turn (Pablo's review of #436)
     contentView(work, running, cs, { github: "connected", blockedBy: "ai" })
       .rows[0]?.status,
   ).toBe("Stahuji…");
+});
+
+test("an Organization here whose root resolves conflict: Apps says so with Chat, and the prompt is about its root (#1094)", () => {
+  const conflicted = list({
+    allowed: true,
+    items: [
+      {
+        kind: "organization",
+        login: "example",
+        name: "Example",
+        state: "present",
+        reason: "organization-conflict",
+      },
+    ],
+  });
+  expect(contentFact(conflicted, null)).toEqual({
+    state: "ready",
+    conflicted: {
+      kind: "organization",
+      login: "example",
+      name: "Example",
+      state: "present",
+      reason: "organization-conflict",
+    },
+  });
+  const context = prepareContext(conflicted, null, cs);
+  expect(context).toEqual({
+    target: {
+      kind: "organization",
+      name: "Example",
+      login: "example",
+      conflict: true,
+    },
+    failure: null,
+    login: "example",
+  });
+  if (context === null) throw new Error("context");
+  const text = preparePrompt(context.target, context.failure, cs);
+  expect(text.split("\n")[0]).toBe(
+    "Organizace Example (GitHub example) je v tomto Prostředí stažená, ale Lazurio ji nespouští: její kořen v `organizations/` se rozliší jako `conflict` (dokumenty Organizace si odporují), takže se její moduly nespustí.",
+  );
+  expect(text).toContain("`lazurio organization check --write`");
+  // A healthy Organization has nothing to resolve.
+  const healthy = list({
+    allowed: true,
+    items: [
+      {
+        kind: "organization",
+        login: "example",
+        name: "Example",
+        state: "present",
+      },
+    ],
+  });
+  expect(contentFact(healthy, null)).toEqual({ state: "ready" });
+  expect(prepareContext(healthy, null, cs)).toBeNull();
 });

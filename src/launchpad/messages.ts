@@ -1256,6 +1256,8 @@ const en = {
   setupUnready:
     "{name} is not prepared yet. An Organization Admin prepares it.",
   setupResolve: "Solve in Chat",
+  setupConflict:
+    "The modules of {name} do not run now: the Organization's documents disagree. The agent in Chat fixes it.",
   setupRetry: "Try again",
   setupBuddy: "Buddy is waiting for you.",
   setupBuddyAction: "Meet Buddy",
@@ -1693,8 +1695,10 @@ const en = {
     "The preparation of the Organization {name} (GitHub {login}) {in this}",
   preparePromptStoppedAt: "{what} stopped at the step “{step}”:",
   preparePromptStopped: "{what} stopped.",
+  preparePromptConflict:
+    "The Organization {name} (GitHub {login}) is downloaded {in this}, but Lazurio does not run it: its root in `organizations/` resolves as `conflict` (its documents disagree), so its modules do not start.",
   preparePromptBody:
-    "Please finish the installation completely:\n1. Find the cause of the error and fix it {in this}.\n2. Finish the preparation with the same command the Launchpad runs: `{command}`.\n3. Verify the result: `lazurio doctor`, and the tests of the modules that have them.\n4. Tell me briefly what was wrong, what you did and what you verified. If the fix needs a change outside {this} (in a repository, for example), ask me first.",
+    "This is your task: do all of it now, without asking me further. I do not know the technical details and I rely on you to finish it.\n1. Find the cause. Start from the state: `lazurio organization list --json`, `lazurio doctor`, and when the Organization is already in `organizations/`, `lazurio organization check` and `git status` in its root.\n2. Fix it {in this} yourself: checkouts, folders, `git pull --ff-only`, the `lazurio` commands. Ask me about none of it.\n3. When the cause is in a repository (the Organization's root, for example), first check whether someone has fixed it on GitHub already; then only fast-forward the checkout (`git pull --ff-only`). Otherwise prepare the fix yourself as a pull request, following the rules of the Folder and of the Organization (`lazurio organization check --write` recomputes the projection digest). Merging it is a Publication: ask me for it with the question tool once the pull request is ready, and meanwhile finish everything that does not depend on it.\n4. Finish the preparation with the same command Lazurio runs: `{command}`. When the Organization is here already and resolves cleanly, checking that `lazurio organization list` shows it is enough.\n5. Verify the result: `lazurio doctor`, and the tests of the modules that have them.\n6. At the end, tell me plainly, without technical details, what was wrong, what you did, what works now and whether you need anything from me.",
   toolsDescriptionGh:
     "The connection to GitHub, where your modules are kept. Nothing works here without it.",
   toolsDescriptionComposio:
@@ -3673,6 +3677,8 @@ const cs: Record<MessageKey, string> = {
   setupFailed: "Příprava se zastavila.",
   setupUnready: "{name} ještě není připravená. Připravuje ji Admin Organizace.",
   setupResolve: "Vyřešit v Chatu",
+  setupConflict:
+    "Moduly Organizace {name} teď nejdou spustit: její dokumenty si odporují. Agent v Chatu to opraví.",
   setupRetry: "Zkusit znovu",
   setupBuddy: "Buddy na vás čeká.",
   setupBuddyAction: "Seznámit se",
@@ -4078,8 +4084,10 @@ const cs: Record<MessageKey, string> = {
     "Příprava Organizace {name} (GitHub {login}) {v tomto}",
   preparePromptStoppedAt: "{what} se zastavila u kroku „{step}“:",
   preparePromptStopped: "{what} se zastavila.",
+  preparePromptConflict:
+    "Organizace {name} (GitHub {login}) je {v tomto} stažená, ale Lazurio ji nespouští: její kořen v `organizations/` se rozliší jako `conflict` (dokumenty Organizace si odporují), takže se její moduly nespustí.",
   preparePromptBody:
-    "Dotáhni prosím instalaci se vším všudy:\n1. Zjisti příčinu chyby a oprav ji {v tomto}.\n2. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `{command}`.\n3. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n4. Řekni mi stručně, co bylo špatně, co jsi udělal a co jsi ověřil. Kdyby oprava potřebovala změnu mimo {toto} (třeba v repozitáři), nejdřív se zeptej.",
+    "Tohle je tvůj úkol: udělej ho teď celý, bez dalšího ptaní. Technické podrobnosti neznám a spoléhám na to, že to dotáhneš.\n1. Zjisti příčinu. Začni stavem: `lazurio organization list --json`, `lazurio doctor`, a když Organizace v `organizations/` už je, `lazurio organization check` a `git status` v jejím kořeni.\n2. Oprav ji {v tomto} sám: checkouty, složky, `git pull --ff-only`, příkazy `lazurio`. Na nic z toho se mě neptej.\n3. Je-li příčina v repozitáři (třeba v kořeni Organizace), nejdřív ověř, jestli ji na GitHubu už někdo neopravil; pak checkout jen přetáhni (`git pull --ff-only`). Jinak opravu připrav sám jako pull request podle pravidel Folderu a Organizace (otisk projekce přepočítá `lazurio organization check --write`). Sloučení je Publikace: o tu mě požádej nástrojem na otázky, až bude pull request připravený, a do té doby dokonči všechno, co na něm nezávisí.\n4. Dokonči přípravu stejným příkazem, jaký spouští Lazurio: `{command}`. Když Organizace už tu je a rozliší se čistě, stačí ověřit, že ji `lazurio organization list` ukazuje.\n5. Ověř výsledek: `lazurio doctor`, a u modulů, které mají testy, jejich testy.\n6. Na konci mi jednoduše a bez technických podrobností řekni, co bylo špatně, co jsi udělal, co teď funguje a jestli ode mě něco potřebuješ.",
   toolsDescriptionGh:
     "Připojení na GitHub, kde jsou uložené vaše moduly. Bez něj tu nic nefunguje.",
   toolsDescriptionComposio:

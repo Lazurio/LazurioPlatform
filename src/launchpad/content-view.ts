@@ -238,7 +238,13 @@ export type ContentFact =
   | Readonly<{ state: "loading" }>
   | Readonly<{ state: "unknown" }>
   | Readonly<{ state: "none" }>
-  | Readonly<{ state: "ready" }>
+  | Readonly<{
+      state: "ready";
+      /** An Organization that is here but resolves conflict, so its
+       * modules do not run (#1094): the basics are done, the line in Apps
+       * says so and offers Chat. */
+      conflicted?: Extract<ContentItem, { kind: "organization" }>;
+    }>
   | Readonly<{ state: "missing"; item: ContentItem }>
   | Readonly<{ state: "failed"; item: ContentItem | null; job: ContentJob }>;
 
@@ -261,9 +267,26 @@ export function contentFact(
       return { state: "failed", item: stopped, job };
   }
   const [first] = missing;
-  return first === undefined
+  if (first !== undefined) return { state: "missing", item: first };
+  const conflicted = conflictedOrganization(list);
+  return conflicted === null
     ? { state: "ready" }
-    : { state: "missing", item: first };
+    : { state: "ready", conflicted };
+}
+
+/** The first Organization that is here but whose root resolves conflict
+ * (#1094), or null. */
+export function conflictedOrganization(
+  list: ContentList | null,
+): Extract<ContentItem, { kind: "organization" }> | null {
+  for (const item of list?.items ?? [])
+    if (
+      item.kind === "organization" &&
+      item.state === "present" &&
+      item.reason === "organization-conflict"
+    )
+      return item;
+  return null;
 }
 
 /** One row of "Obsah Prostředí". */
@@ -436,7 +459,13 @@ export function contentView(
 
 /** The item a stopped installation is about, as the prompt names it. */
 export type PrepareTarget =
-  | Readonly<{ kind: "organization"; name: string; login: string }>
+  | Readonly<{
+      kind: "organization";
+      name: string;
+      login: string;
+      /** Here, but its root resolves conflict (#1094). */
+      conflict?: true;
+    }>
   | Readonly<{ kind: "personalspace" }>;
 
 /** The prepared prompt of "Vyřešit v Chatu" (the wireframe's
@@ -463,12 +492,19 @@ export function preparePrompt(
       : { kind: "organization", login: target.login },
   );
   const head =
-    failure === null
-      ? [fill(copy.preparePromptStopped, { what })]
-      : [
-          fill(copy.preparePromptStoppedAt, { what, step: failure.step }),
-          ...(failure.detail === "" ? [] : [failure.detail]),
-        ];
+    target.kind === "organization" && target.conflict === true
+      ? [
+          fill(copy.preparePromptConflict, {
+            name: target.name,
+            login: target.login,
+          }),
+        ]
+      : failure === null
+        ? [fill(copy.preparePromptStopped, { what })]
+        : [
+            fill(copy.preparePromptStoppedAt, { what, step: failure.step }),
+            ...(failure.detail === "" ? [] : [failure.detail]),
+          ];
   return [...head, "", fill(copy.preparePromptBody, { command })].join("\n");
 }
 
@@ -486,7 +522,22 @@ export function prepareContext(
    * or the person's for the Personalspace; null when none is known. */
   login: string | null;
 }> | null {
-  if (job?.state !== "failed") return null;
+  if (job?.state !== "failed") {
+    // No stop, but an Organization here that does not run (#1094): the
+    // same Chat, about its root.
+    const conflicted = conflictedOrganization(list);
+    if (conflicted === null) return null;
+    return {
+      target: {
+        kind: "organization",
+        name: conflicted.name ?? conflicted.login,
+        login: conflicted.login,
+        conflict: true,
+      },
+      failure: null,
+      login: conflicted.login,
+    };
+  }
   const failure = job.failure;
   const ref = failure?.item ?? null;
   const item =

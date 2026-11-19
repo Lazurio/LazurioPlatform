@@ -924,6 +924,23 @@ export function appsSetupLine(
   copy: Copy,
 ): SetupLine | null {
   const next = nextBasic(facts);
+  // The basics are done, but an Organization here does not run because its
+  // root resolves conflict (#1094): said where the person works, with the
+  // agent in Chat, never by sending them back to Začínáme.
+  if (
+    next === null &&
+    basicsOnboarding(facts) &&
+    facts.content.state === "ready" &&
+    facts.content.conflicted !== undefined
+  ) {
+    const item = facts.content.conflicted;
+    return {
+      tone: "failed",
+      icon: "warning",
+      text: fill(copy.setupConflict, { name: item.name ?? item.login }),
+      actions: [{ action: "resolve-in-chat", label: copy.setupResolve }],
+    };
+  }
   if (next === null || next === undefined) return null;
   if (next === "buddy")
     return {
