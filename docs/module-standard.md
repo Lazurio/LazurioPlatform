@@ -726,11 +726,11 @@ before the switch, the new version started beside the running one and switched
 to only when its health is good, and the mode with its approvers in the
 Deployment Repo (decision 0245). A Module is built so that this works: one
 process, deep health, and in `app/v4` migrations that only expand. While the
-two versions share the same data, only one of them writes. The host's proposal
-(Machines#1356) first stops the old version and then starts the new one as the
-writer, with a return to the previous release when its health fails, so writes
-pause until the new version is healthy. A later step starts the new version
-beside the running one without `LAZURIO_RUNTIME_DATA_WRITER=true`, so it reads
+two versions share the same data, only one of them writes. In the host's
+proposal (Machines#1356) the first slice, R1, stops the old version and then
+starts the new one as the writer, with a return to the previous release when its
+health fails, so writes pause for the length of the start. The slice R1b starts
+the new version beside the running one without `LAZURIO_RUNTIME_DATA_WRITER=true`, so it reads
 and answers health but writes, pulls and publishes nothing (the writer rule),
 and starts it as the writer only after the old version has ended. Until the application host deploys this way, a version is
 deployed through a reviewed pull request to the Deployment Repo, and its merge is
