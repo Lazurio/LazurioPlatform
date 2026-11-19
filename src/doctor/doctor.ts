@@ -1,5 +1,12 @@
+import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { type BrainHttp, keyWorks } from "../brain/admin";
+import { processBrainHost } from "../brain/host";
+import { readBrainState } from "../brain/keys";
+import { moveKeepsDown } from "../brain/move";
+import { brainUrl } from "../brain/pin";
+import { type BrainHost, brainStatus } from "../brain/status";
 import {
   observePaymentCards,
   paymentCardsCauses,
@@ -129,6 +136,7 @@ import {
   observeCodexAppServer,
 } from "../update/codex-app-server";
 import type { ErrorContext } from "../update/errors";
+import { runProcess } from "../update/self-check";
 import { detectServiceControl } from "../update/service-control";
 import { readStatus, type UpdateStatus } from "../update/update";
 
@@ -173,6 +181,8 @@ export const doctorCheckIds = [
   // minimum, missing or below it; `lazurio update` provisions it.
   "organization-tool",
   "executor",
+  // The person's brain of a Personal Environment (plan LZD-0033 R11a).
+  "brain",
   // The shared GitHub App sign-in pilot (decision F48): only while
   // it is on.
   "github-sign-in",
@@ -233,6 +243,7 @@ export const doctorGroupOf: Readonly<Record<DoctorCheckId, DoctorGroup>> =
     tool: "tools",
     "organization-tool": "tools",
     executor: "tools",
+    brain: "tools",
     "github-sign-in": "tools",
     "github-leftover": "tools",
     catalog: "organizations",
@@ -331,6 +342,18 @@ const ownReasons = [
   "executor-conflict",
   "executor-not-running",
   "executor-incomplete",
+  // The person's brain (plan LZD-0033 R11a): as `lazurio brain status` reads
+  // it; Machines' brain or a host before their handover is theirs.
+  "brain-not-installed",
+  "brain-adoptable",
+  "brain-outdated",
+  "brain-not-running",
+  "brain-stopped",
+  "brain-key",
+  "brain-foreign",
+  "brain-machines",
+  "brain-waits-machines",
+  "brain-keyword-only",
   // Modules: optional runtime secrets a module's app would start without
   // (decision F48); a note on an `ok` module, never a refusal.
   "runtime-secret-not-provided",
@@ -1108,6 +1131,11 @@ export type DoctorEnvironment = RecoveryEnvironment &
     fetch?: ((url: string, init: RequestInit) => Promise<Response>) | undefined;
     /** Tests only: where Executor is read (F44); this process's otherwise. */
     executor?: ExecutorHost | undefined;
+    /** Tests only: where the person's brain is read (plan LZD-0033 R11a);
+     * this process's otherwise. */
+    brain?:
+      | (BrainHost & Readonly<{ http: BrainHttp; base?: string }>)
+      | undefined;
     /** Ask the access service for this Environment's targets and try each
      * route (`testRoutes`, `ssh <id> true` bound to it): it contacts the service
      * and the targets, so only on an explicit request (F70). */
@@ -1325,6 +1353,60 @@ async function executorCheck(host: ExecutorHost): Promise<DoctorCheck> {
     : check("executor", "warn", `executor-${status.state}`, context);
 }
 
+/** The person's brain as `lazurio brain status` reads it (plan LZD-0033
+ * R11a): `ok` running the pin with every key Lazurio handed over working,
+ * `warn` otherwise, `skipped` where it is not offered, where Machines run it
+ * or have not handed it over yet. Never `fail`: without the brain the agents
+ * lose their memory, not their work. It reads the handed-over keys only,
+ * never the brain's owner credential, and changes nothing. */
+async function brainCheck(
+  host: BrainHost & Readonly<{ http: BrainHttp; base?: string }>,
+): Promise<DoctorCheck> {
+  const status = await brainStatus(host).catch(() => null);
+  if (status === null) return check("brain", "skipped", "internal");
+  if (status.state === "unsupported")
+    return check(
+      "brain",
+      "skipped",
+      status.reason === "handover-unreadable"
+        ? "handover-unreadable"
+        : "not-offered",
+    );
+  const context: ErrorContext =
+    status.running === null ? {} : { toolVersion: status.running };
+  if (!status.handover)
+    return check("brain", "skipped", "brain-waits-machines", context);
+  if (status.state === "machines")
+    return check("brain", "skipped", "brain-machines", context);
+  if (moveKeepsDown(await readBrainState(host.paths)))
+    return check("brain", "warn", "brain-stopped", context);
+  if (status.state !== "running")
+    return check("brain", "warn", `brain-${status.state}`, context);
+  for (const path of [
+    host.paths.launchpadKey,
+    host.paths.executorKey,
+    host.paths.probeKey,
+  ]) {
+    let token: unknown;
+    try {
+      token = (JSON.parse(await readFile(path, "utf8")) as { token?: unknown })
+        .token;
+    } catch {
+      token = undefined;
+    }
+    if (
+      typeof token !== "string" ||
+      !(await keyWorks(host.http, host.base ?? brainUrl, token))
+    )
+      return check("brain", "warn", "brain-key", context);
+  }
+  // Search by meaning (decided 2026-11-18): without the model the memory
+  // still answers, by words only, and the person should know.
+  if (status.meaning !== "on")
+    return check("brain", "warn", "brain-keyword-only", context);
+  return check("brain", "ok", undefined, context);
+}
+
 /** ChatGPT's apps (decision F42's addendum of 2026-10-27): `ok` where they
  * are allowed or Codex has them and its suggestions off; `warn` where they
  * are not allowed and Codex still has them, or its suggestions of plugins,
@@ -1523,6 +1605,17 @@ export async function collectDoctor(
       }),
   );
 
+  const brain = await brainCheck(
+    environment.brain ??
+      processBrainHost({
+        hostedFolder: async () => environment.hostedFolder?.(),
+        env,
+        platform,
+        run: environment.tools.run,
+        service: runProcess,
+      }),
+  );
+
   // The GitHub sign-in pilot, read only where its switch is on.
   const githubPaths = pilotPaths(env);
   const github =
@@ -1621,6 +1714,7 @@ export async function collectDoctor(
       ),
     ...organizationTools,
     executor,
+    brain,
     ...githubChecks(github),
     ...catalogChecks(catalog, deniedBySync(syncRecord)),
     ...syncChecks(syncRecord, folder !== undefined, environment.now()),

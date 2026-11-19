@@ -271,6 +271,15 @@ export function createIntegrationsRoutes(
     /** Something changed outside these routes (the Organization's settings,
      * decision F45): the next reading reads again. */
     forget: () => reader.forget(),
+    /** Executor's custom servers, as the form adds and saves them, for the
+     * Launchpad's own server Brain (plan LZD-0033 R11a). */
+    customServers: Object.freeze({
+      addCustom: (server: CustomServerInput) => sessions.addCustom(server),
+      customSettings: (id: string) => sessions.customSettings(id),
+      updateCustom: (id: string, server: CustomServerInput) =>
+        sessions.updateCustom(id, server),
+      customIdsNamed: (name: string) => sessions.customIdsNamed(name),
+    }),
     handles: (path: string) =>
       path === "/api/integrations" || path.startsWith("/api/integrations/"),
     async handle(
