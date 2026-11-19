@@ -166,18 +166,23 @@ export function resolveOrganizationRootDocuments(documents: Documents) {
       issues.push("canonical_manifest_invalid");
     }
     if (!expected) state = "conflict";
-    else if (!expected.declaredHashMatches) {
-      state = "conflict";
-      issues.push("canonical_projection_hash_invalid");
-    } else if (legacy.kind !== "present") state = "current";
-    else if (organizationDocumentHash(legacy.value) === expected.hash)
-      state = "transition";
-    else if (semanticParity(legacy.value, modules.value, expected.hash)) {
-      state = "projection_drift";
-      issues.push("legacy_projection_drift");
-    } else {
-      state = "conflict";
-      issues.push("normalized_semantics_conflict");
+    else {
+      // A stale declared digest is reported, never decisive (LZD-0041
+      // phase A): the canonical manifest is the authority, the digest only
+      // serves readers older than this Platform, and `lazurio organization
+      // check --write` rewrites it for them.
+      if (expected.declaredHashMatches === false)
+        issues.push("canonical_projection_hash_invalid");
+      if (legacy.kind !== "present") state = "current";
+      else if (organizationDocumentHash(legacy.value) === expected.hash)
+        state = "transition";
+      else if (semanticParity(legacy.value, modules.value, expected.hash)) {
+        state = "projection_drift";
+        issues.push("legacy_projection_drift");
+      } else {
+        state = "conflict";
+        issues.push("normalized_semantics_conflict");
+      }
     }
   }
   return Object.freeze({

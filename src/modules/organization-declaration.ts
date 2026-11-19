@@ -17,8 +17,11 @@ import {
 // `lazurio.organization.json` and `modules.manifest.json`, and the
 // canonical manifest names that projection's digest
 // (`compatibility.legacy_projection.sha256`). A new slot changes the
-// projection; without the two follow-ups the root would resolve `conflict`
-// (`canonical_projection_hash_invalid`) and stop executing after the merge.
+// projection; without the two follow-ups a reader up to Platform 0.1.23 or
+// the Root's Core would resolve the root `conflict`
+// (`canonical_projection_hash_invalid`) and stop executing it after the merge.
+// Since LZD-0041 phase A this Platform only reports a stale digest, but the
+// declaration keeps both right for those readers until phase C1.
 // The root's generator left this to `lazurio migrate organization-manifest
 // --write`, which a Platform-only Environment does not have. This writes
 // what that command writes: the projection `JSON.stringify(…, null, 2)` with
@@ -61,7 +64,12 @@ export function declareOrganizationSlots(
     );
   }
   const before = resolve(canonical, texts.modules, texts.legacy);
-  if (!before.executable || before.issues.length > 0)
+  // A stale declared digest is the one issue a declaration tolerates: the
+  // declaration rewrites the digest anyway (LZD-0041 phase A).
+  const blocking = before.issues.filter(
+    (issue) => issue !== "canonical_projection_hash_invalid",
+  );
+  if (!before.executable || blocking.length > 0)
     throw new ModuleScaffoldError(
       "manifest_invalid",
       `The Organization root resolves ${before.state}${before.issues.length > 0 ? ` (${before.issues.join(", ")})` : ""}; a slot is declared only in a root that resolves cleanly.`,
@@ -77,20 +85,21 @@ export function declareOrganizationSlots(
   } catch {
     throw refused("The Organization's projection could not be generated.");
   }
-  const previous = (
-    canonical as {
+  // A root that declares the projection's digest keeps it right for older
+  // readers; one that declares none is left without (LZD-0041 phase A).
+  const previous = projection.declared;
+  let nextCanonical = texts.canonical;
+  if (previous !== null) {
+    nextCanonical = replaceOnce(texts.canonical, previous, projection.hash);
+    const expected = structuredClone(canonical) as {
       compatibility: { legacy_projection: { sha256: string } };
-    }
-  ).compatibility.legacy_projection.sha256;
-  const nextCanonical = replaceOnce(texts.canonical, previous, projection.hash);
-  const expected = structuredClone(canonical) as {
-    compatibility: { legacy_projection: { sha256: string } };
-  };
-  expected.compatibility.legacy_projection.sha256 = projection.hash;
-  if (canonicalJson(JSON.parse(nextCanonical)) !== canonicalJson(expected))
-    throw refused(
-      "The projection's digest could not be replaced in lazurio.organization.json verifiably.",
-    );
+    };
+    expected.compatibility.legacy_projection.sha256 = projection.hash;
+    if (canonicalJson(JSON.parse(nextCanonical)) !== canonicalJson(expected))
+      throw refused(
+        "The projection's digest could not be replaced in lazurio.organization.json verifiably.",
+      );
+  }
   const legacy =
     texts.legacy === null
       ? null

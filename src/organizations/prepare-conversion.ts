@@ -136,7 +136,7 @@ export function prepareOrganizationConversion(
     throw new Error("Organization conversion requires reconciled inventory");
   // Also rejects conflicting aliases, unknown binding fields and lossy defaults.
   const projected = expectedLegacyProjection(inspected.canonical, modules);
-  if (!projected.declaredHashMatches) {
+  if (projected.declaredHashMatches !== true) {
     // Fixed section labels only: never put private values or arbitrary metadata
     // keys into diagnostic messages. A mismatch remains a refusal, not a repair.
     const known = [

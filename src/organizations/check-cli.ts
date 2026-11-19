@@ -31,6 +31,9 @@ const notRunning = organizationRootStates.filter(
  * This command can: it uses the reader's own resolution and generator
  * (`resolveOrganizationRoot`, `expectedLegacyProjection`), never a second
  * implementation, so a root it calls fine is one the Launchpad runs.
+ * Since LZD-0041 phase A this Platform only reports a stale digest; the
+ * command stays the bridge for readers that still decide by it (Lazurio up
+ * to 0.1.23, the Root's Core) until phase C1.
  *
  * `--write` changes one value only: the declared digest, byte for byte in
  * place, and only where the canonical manifest is otherwise valid and the
@@ -42,10 +45,11 @@ export const checkHelp = `organization check [<Organization directory>] [--write
   (catalog, Launchpad, content install, Composio): ${running.join(", ")}
   (run), or ${notRunning.join(", ")} (do not run),
   with the issues found. Run it in the root after editing lazurio.organization.json,
-  company.gen3.json or modules.manifest.json, and in the root's CI. A
-  conflict with canonical_projection_hash_invalid means the canonical
-  manifest changed but compatibility.legacy_projection.sha256 was not
-  recomputed: --write replaces that one value with the digest Lazurio
+  company.gen3.json or modules.manifest.json, and in the root's CI. The
+  issue canonical_projection_hash_invalid means the canonical manifest
+  changed but compatibility.legacy_projection.sha256 was not recomputed.
+  This Lazurio still runs such a root; Lazurio up to 0.1.23 and the Core
+  resolve it as conflict. --write replaces that one value with the digest Lazurio
   computes, nothing else, keeping the file's permissions, and checks again;
   it writes nothing where the digest cannot be computed, where it is right
   or where it is not the only problem. The directory defaults to the
@@ -212,8 +216,9 @@ export async function runOrganizationCheck(
   let found = await inspect(directory);
   let outcome: OrganizationCheckAnswer["write"];
   if (write) {
+    // Since LZD-0041 phase A a stale digest no longer makes the root
+    // `conflict`; the digest is rewritten when it is the only issue.
     const onlyDigest =
-      found.state === "conflict" &&
       found.issues.length === 1 &&
       found.issues[0] === "canonical_projection_hash_invalid";
     if (
@@ -273,7 +278,7 @@ export function checkText(answer: OrganizationCheckAnswer): string {
     answer.write === undefined
   )
     lines.push(
-      "  The canonical manifest changed without its projection digest. Run: lazurio organization check --write",
+      "  The canonical manifest changed without its projection digest. This Lazurio runs the root anyway; Lazurio up to 0.1.23 and the Core do not. Run: lazurio organization check --write",
     );
   if (answer.write !== undefined)
     lines.push(`  ${writeSentence[answer.write]}`);

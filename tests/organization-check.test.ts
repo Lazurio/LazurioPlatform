@@ -123,7 +123,7 @@ test("a pinned root runs and --write has nothing to do", async () => {
   expect(answer.write).toBe("nothing-to-write");
 });
 
-test("an edited projection without its digest is a conflict the check names (#1094)", async () => {
+test("an edited projection without its digest runs, and the check names the stale digest for older readers (#1094, LZD-0041 phase A)", async () => {
   const { edited, legacy } = editedWithoutDigest();
   const directory = await root(edited, legacy);
   const { code, text } = await runOrganizationCheckCommand([
@@ -131,9 +131,10 @@ test("an edited projection without its digest is a conflict the check names (#10
     "check",
     directory,
   ]);
-  expect(code).toBe(1);
-  expect(text).toContain("conflict (does not run)");
+  expect(code).toBe(0);
+  expect(text).toContain("transition (runs)");
   expect(text).toContain("canonical_projection_hash_invalid");
+  expect(text).toContain("Lazurio up to 0.1.23 and the Core do not");
   expect(text).toContain("lazurio organization check --write");
 });
 
@@ -154,17 +155,21 @@ test("--write rewrites only the digest and the root runs again (#1094)", async (
   expect(changed).toEqual([`      "sha256": "${answer.expectedDigest}"`]);
 });
 
-test("--write leaves a diverging company.gen3.json a conflict", async () => {
+test("--write leaves a diverging company.gen3.json a conflict and writes nothing", async () => {
   const { edited } = editedWithoutDigest();
   // company.gen3.json keeps the old sentence: the documents disagree, which
-  // a digest must never hide.
+  // a digest must never hide. Since LZD-0041 phase A the stale digest no
+  // longer masks the divergence, so both are named and nothing is written.
   const stale = expectedLegacyProjection(pin(unpinned), modules).projection;
   const directory = await root(edited, stale);
   const answer = await runOrganizationCheck(directory, true);
-  expect(answer.write).toBe("digest-rewritten");
+  expect(answer.write).toBe("not-only-digest");
   expect(answer.state).toBe("conflict");
   expect(answer.executable).toBe(false);
-  expect(answer.issues).toEqual(["normalized_semantics_conflict"]);
+  expect(answer.issues).toEqual([
+    "canonical_projection_hash_invalid",
+    "normalized_semantics_conflict",
+  ]);
 });
 
 test("--write keeps the manifest's permissions whatever the umask, and leaves no temporary file (Pablo's review)", async () => {

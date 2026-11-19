@@ -145,11 +145,13 @@ test("Core-compatible projection admits planned slots and Productionspace withou
     }),
   ).toEqual({ state: "transition", executable: true, issues: [] });
   expect(JSON.stringify({ declaration, inventory })).toBe(before);
+  // A stale declared digest is reported but decides nothing (LZD-0041
+  // phase A): without company.gen3.json the root is current and runs.
   expect(
     resolve({ canonical: present(unpinned), modules: present(inventory) }),
   ).toMatchObject({
-    state: "conflict",
-    executable: false,
+    state: "current",
+    executable: true,
     issues: ["canonical_projection_hash_invalid"],
   });
 });

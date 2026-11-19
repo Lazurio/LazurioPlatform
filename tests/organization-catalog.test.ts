@@ -1104,7 +1104,7 @@ posixTest(
 );
 
 posixTest(
-  "a root whose only issue is its stale projection digest keeps its identity; any other conflict leaves it unknown (#1094, Pablo's review of LZD-0041)",
+  "a stale projection digest runs; a root whose generated projection is out of date keeps its identity; any other conflict leaves it unknown (#1094, LZD-0041 phase A)",
   async () => {
     await folderFixture(async (folder) => {
       const organizations = join(folder, "organizations");
@@ -1124,8 +1124,14 @@ posixTest(
         change(canonical);
         await writeFile(path, `${JSON.stringify(canonical, null, 2)}\n`);
       };
-      // alpha: only the digest is stale (the incident).
+      // alpha: the canonical manifest is edited, neither company.gen3.json
+      // nor the digest follows.
       await edit("alpha_GEN3", (canonical) => {
+        canonical.extensions.legacy = { note: "edited by hand" };
+      });
+      // beta (`current`, no company.gen3.json): only the digest is stale,
+      // as in the incident of #1094. Since LZD-0041 phase A it runs.
+      await edit("beta", (canonical) => {
         canonical.extensions.legacy = { note: "edited by hand" };
       });
       // delta: its GitHub binding changed too, so it no longer agrees with
@@ -1140,11 +1146,21 @@ posixTest(
         displayName: "Alpha Company",
         forgeLogin: "alpha",
         state: "conflict",
-        issues: ["canonical_projection_hash_invalid"],
+        issues: [
+          "canonical_projection_hash_invalid",
+          "normalized_semantics_conflict",
+        ],
         executable: false,
         reason: "organization-conflict",
         modules: [],
       });
+      const beta = findCatalogOrganization(catalog, "beta");
+      expect(beta).toMatchObject({
+        state: "current",
+        issues: ["canonical_projection_hash_invalid"],
+        executable: true,
+      });
+      expect(beta?.modules.length).toBeGreaterThan(0);
       const delta = findCatalogOrganization(catalog, "delta");
       expect(delta?.state).toBe("conflict");
       expect(delta?.executable).toBe(false);

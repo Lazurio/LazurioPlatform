@@ -117,11 +117,25 @@ export function expectedLegacyProjection(
   output.modules = projected;
   const projection = snapshotOrganizationDocument(output) as Data;
   const hash = organizationDocumentHash(projection);
-  const declared = ((canonical.compatibility as Data).legacy_projection as Data)
-    .sha256;
+  const declared = declaredProjectionDigest(canonical);
   return Object.freeze({
     projection,
     hash,
-    declaredHashMatches: hash === declared,
+    /** The digest the canonical manifest declares, or null without one. */
+    declared,
+    /** Whether the declared digest is the computed one; null when none is
+     * declared. Since LZD-0041 phase A it informs (`lazurio organization
+     * check --write` keeps it right for older readers); it never decides. */
+    declaredHashMatches: declared === null ? null : hash === declared,
   });
+}
+
+/** `compatibility.legacy_projection.sha256` of a validated canonical
+ * manifest, or null where it declares no compatibility projection. */
+export function declaredProjectionDigest(canonical: unknown): string | null {
+  const compatibility = (canonical as Data | null)?.compatibility as
+    | Data
+    | undefined;
+  const sha256 = (compatibility?.legacy_projection as Data | undefined)?.sha256;
+  return typeof sha256 === "string" ? sha256 : null;
 }

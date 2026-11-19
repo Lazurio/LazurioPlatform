@@ -17,6 +17,7 @@ import {
 import { contentStatus } from "../src/content/status";
 import { contentFact } from "../src/launchpad/content-view";
 import { readFolderCatalog } from "../src/organizations/catalog";
+import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
 import { renameNoReplace } from "../src/platform/rename";
 import { type Slot, writeModule } from "./fixtures/catalog-folder";
 import {
@@ -1872,7 +1873,7 @@ posixTest(
 );
 
 posixTest(
-  "a held root whose projection digest was not recomputed stays present: no Začínáme, no install over it (#1094)",
+  "a held root whose generated projection was not regenerated stays present: no Začínáme, no install over it (#1094)",
   async () => {
     world = await createWorld();
     await alphaRemotes(world);
@@ -1891,11 +1892,19 @@ posixTest(
     expect(installed.kind === "content-install" && installed.state).toBe(
       "succeeded",
     );
-    // The incident's edit: the canonical manifest changes, its declared
-    // projection digest does not.
+    // The canonical manifest changes, neither its declared projection
+    // digest nor the generated company.gen3.json follows. (A stale digest
+    // alone no longer holds a root since LZD-0041 phase A.)
     const root = join(folder, "organizations", "alpha_GEN3");
     const path = join(root, "lazurio.organization.json");
     const canonical = JSON.parse(await readFile(path, "utf8"));
+    const modules = JSON.parse(
+      await readFile(join(root, "modules.manifest.json"), "utf8"),
+    );
+    await writeFile(
+      join(root, "company.gen3.json"),
+      `${JSON.stringify(expectedLegacyProjection(canonical, modules).projection, null, 2)}\n`,
+    );
     canonical.extensions.legacy = {
       ...canonical.extensions.legacy,
       access_governance: { agent_rule: "A sentence edited by hand." },
@@ -1908,7 +1917,10 @@ posixTest(
       forgeLogin: "Alpha",
       displayName: "Alpha Company",
       state: "conflict",
-      issues: ["canonical_projection_hash_invalid"],
+      issues: [
+        "canonical_projection_hash_invalid",
+        "normalized_semantics_conflict",
+      ],
       executable: false,
       reason: "organization-conflict",
       modules: [],
@@ -1951,8 +1963,7 @@ posixTest(
       "access:done",
       "root:failed:organization-conflict",
     ]);
-    expect(steps.at(-1)?.detail).toContain(
-      "lazurio organization check --write",
-    );
+    expect(steps.at(-1)?.detail).toContain("lazurio organization check");
+    expect(steps.at(-1)?.detail).not.toContain("--write");
   },
 );
