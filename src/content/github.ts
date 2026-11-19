@@ -115,10 +115,6 @@ export type ContentGitHub = Readonly<{
       }>[]
     | "unavailable"
   >;
-  /** The Organization's active Owners as GitHub lists them to this identity
-   * (`GET orgs/<org>/members?role=admin`), without bot accounts, or
-   * `unavailable`. Only `lazurio organization role` reads it (#866). */
-  owners?(organization: string): Promise<readonly string[] | "unavailable">;
   /** The viewer's own repositories created from `template`, as
    * `<owner>/<name>`, or `unavailable`. */
   templateDerived(template: string): Promise<readonly string[] | "unavailable">;
@@ -651,21 +647,6 @@ export function ghContentGitHub(
         entries.push(Object.freeze({ organization, state, role }));
       }
       return Object.freeze(entries);
-    },
-    async owners(organization) {
-      if (!githubLoginPattern.test(organization)) return "unavailable";
-      const answer = await run([
-        "api",
-        "--paginate",
-        `orgs/${organization}/members?role=admin&per_page=100`,
-        "--jq",
-        '.[] | select(.type != "Bot") | .login',
-      ]);
-      if (answer.kind !== "ok") return "unavailable";
-      const logins = answer.stdout.split("\n").filter((line) => line !== "");
-      return logins.every((login) => githubLoginPattern.test(login))
-        ? Object.freeze(logins)
-        : "unavailable";
     },
     async templateDerived(template) {
       if (!repositoryPattern.test(template)) return "unavailable";

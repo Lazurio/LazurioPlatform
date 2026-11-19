@@ -4,8 +4,10 @@ import type { ContentGitHub } from "../content/github";
 import { type ContentHost, processGitHubHost } from "../content/host";
 import { githubLoginPattern } from "../content/model";
 import {
+  type RootAdmins,
   type RootResolution,
   resolveOrganizationRootRepository,
+  rootAdmins,
 } from "../content/organization-root";
 import {
   type BranchRules,
@@ -22,27 +24,36 @@ import { shown } from "./cli";
 /** `lazurio organization role <Organization>` (#866): the live role of the
  * account gh is signed in with, from the same core that scopes `lazurio
  * content install` (`verifyOrganizationRole`, the root as
- * `resolveOrganizationRootRepository` finds it), and the Organization
- * Admins, for the agent that must know whether its user is the Organization
- * Admin before it does or prepares what only the Organization Admin does
- * (root decisions 0228, 0230). The role values are the identifiers of root
- * decision 0234. GitHub is the source until Lazurio Auth holds the
- * Organization Admin role (0228); the output keeps its shape when the source
- * changes. */
+ * `resolveOrganizationRootRepository` finds it), and the appointed
+ * Organization Admins, for the agent that must know whether its user is the
+ * Organization Admin before it does or prepares what only the Organization
+ * Admin does (root decisions 0230, 0245). The role values are the
+ * identifiers of root decision 0234. The Organization Admin is the person an
+ * Organization Owner appointed, never the Owner role itself (0245, amended
+ * 2026-11-18): until Lazurio Auth holds the role, the appointment is read
+ * from the root's `organization_admins` on its default branch
+ * (`rootAdmins`), a pointer for agents and never a grant; the output keeps
+ * its shape when the source changes. */
 export const roleHelp = `organization role <Organization> [--folder <absolute Folder>] [--json]
   The role GitHub confirms now in the Organization named by its GitHub login
   for the account gh is signed in with here (root decision 0234):
-  organization-admin (today an active Organization Owner: until the
-  Organization Admin role in Lazurio Auth is deployed, only the Admin's
-  administrative acts fall to that Owner, never access to an Environment,
-  decision 0245), or the Module role on the Organization's root repository
-  as root decision 0232 maps its permission: module-maintainer (maintain,
-  or write where the root cannot have branch rules), module-contributor
-  (write where it can, or where GitHub does not say) or module-reader (an
-  active member of the Organization who reads it). A Module's own
-  repository may give the account another Module role. Then the active
-  Organization Owners as GitHub lists them, to whom those acts fall,
-  without bot accounts. The root is
+  organization-admin (an appointed Organization Admin: an active member of
+  the Organization whose GitHub id the root's lazurio.organization.json
+  names in organization_admins on its default branch, decision 0245),
+  organization-owner (an active Organization Owner who is not an appointed
+  Admin: the Owner role performs none of the Admin's administrative acts and
+  gives no entry to an Environment), or the Module role on the
+  Organization's root repository as root decision 0232 maps its permission:
+  module-maintainer (maintain, or write where the root cannot have branch
+  rules), module-contributor (write where it can, or where GitHub does not
+  say) or module-reader (an active member of the Organization who reads it).
+  A Module's own repository may give the account another Module role. Then
+  the appointed Organization Admins by the logins organization_admins gives
+  them; none when it is absent or empty. organization_admins is a pointer
+  until the role in Lazurio Auth is deployed, never a grant. When the root's
+  organization_admins cannot be read, no role is confirmed for an active
+  member, since any of them could be an appointed Admin, and the reason is
+  printed. The root is
   the one the Folder holds, otherwise the one GitHub declares, as for content
   install; the Folder is --folder, otherwise the supervised unit's or the
   declared operator's, and without one only GitHub is asked. A role GitHub
@@ -65,9 +76,10 @@ export type OrganizationRoleAnswer = Readonly<{
   source: "github";
   /** `<owner>/<name>` of the root repository, when it was found. */
   rootRepository: string | null;
-  /** The Organization Admins: the active Organization Owners as GitHub
-   * lists them to this account, without bots; absent when GitHub did not
-   * list any. */
+  /** The appointed Organization Admins: the logins the root's
+   * `organization_admins` gives them, in its order; empty when it appoints no
+   * one; absent when it could not be read (`detail` says why). Never the
+   * Organization Owners. */
   admins?: readonly string[];
   /** Why the role is not verified, or what was not found on the way. */
   detail?: string;
@@ -127,8 +139,8 @@ async function observedMembership(
 }
 
 /** The answer for one Organization: who gh is, the root, the permission on
- * it, the membership and the Organization Owners. GitHub not answering never
- * yields a role (fail closed). */
+ * it, the membership and the appointed Organization Admins. GitHub not
+ * answering never yields a role (fail closed). */
 export async function readOrganizationRole(
   input: Readonly<{
     organization: string;
@@ -180,45 +192,69 @@ export async function readOrganizationRole(
     }
   }
   const membership = await observedMembership(github, organization);
-  // The highest live role needs the Organization Owner check: without the
-  // membership a write or maintain on the root could be an Organization
-  // Owner's, so no role is
-  // confirmed (content install, which only scopes, takes the narrower role
-  // from the same core and its plain membership).
+  const admins: RootAdmins = await rootAdmins(
+    github,
+    organization,
+    rootRepository,
+  );
+  // The highest live role needs the Organization Owner check and, for an
+  // active member, the appointed Admins: without the membership a write or
+  // maintain on the root could be an Organization Owner's, and without the
+  // root's organization_admins any active member could be an appointed
+  // Organization Admin, so no role is confirmed (content install, which only
+  // scopes, takes the narrower role from the same core and its plain
+  // membership).
   const role =
     membership.kind === "unobservable"
       ? ({ kind: "unverified", detail: membership.detail } as const)
-      : verifyOrganizationRole({
-          requested: null,
-          membership,
-          rootPermission,
-          rootBranchRules: branchRules,
-        });
-  const owners =
-    github.owners === undefined
-      ? "unavailable"
-      : await github.owners(organization);
+      : membership.kind === "member" &&
+          membership.state === "active" &&
+          admins.kind === "unknown"
+        ? ({
+            kind: "unverified",
+            detail: `whether the account is an appointed Organization Admin is not known: ${admins.detail}`,
+          } as const)
+        : verifyOrganizationRole({
+            requested: null,
+            membership,
+            rootPermission,
+            rootBranchRules: branchRules,
+            account: viewer.viewer.databaseId,
+            admins:
+              admins.kind === "declared"
+                ? {
+                    kind: "declared",
+                    ids: admins.admins.map((admin) => admin.githubId),
+                  }
+                : admins,
+          });
   const found =
     foreign === null
       ? rootDetail(resolution)
       : `the Folder's root of ${organization} is a checkout of ${foreign}, which does not belong to ${organization}`;
-  const detail =
+  // A verified role beside an unread list says why the Admins are missing.
+  const parts = [
     role.kind === "unverified"
-      ? found === undefined
-        ? role.detail
-        : `${role.detail}; ${found}`
-      : found;
+      ? role.detail
+      : admins.kind === "unknown"
+        ? `the appointed Organization Admins are not known: ${admins.detail}`
+        : undefined,
+    found,
+  ].filter((part): part is string => part !== undefined);
+  const detail = parts.length === 0 ? undefined : parts.join("; ");
   return answer({
     login: viewer.viewer.login,
     role: role.kind === "verified" ? role.role : null,
     verified: role.kind === "verified",
     rootRepository,
-    // An empty listing is what GitHub shows an account that may not see the
-    // Organization Owners, never a definitive "no Organization Admins": the
-    // key is left out.
-    ...(owners === "unavailable" || owners.length === 0
-      ? {}
-      : { admins: owners }),
+    // An unread list is never "no Organization Admins": the key is left out.
+    ...(admins.kind === "declared"
+      ? {
+          admins: Object.freeze(
+            admins.admins.map((admin) => admin.githubLogin),
+          ),
+        }
+      : {}),
     ...(detail === undefined ? {} : { detail }),
   });
 }
@@ -293,7 +329,7 @@ export async function runOrganizationRoleCommand(
       : `${organization}: role not verified${detail === undefined ? "" : ` (${detail})`}; proceed as for an Organization Member`,
     ...(result.verified && detail !== undefined ? [`  ${detail}`] : []),
     `  root: ${result.rootRepository ?? "not found"}`,
-    `  Organization Admins: ${result.admins === undefined ? "GitHub did not list them" : result.admins.length === 0 ? "none listed" : result.admins.join(", ")}`,
+    `  Organization Admins: ${result.admins === undefined ? "not known (organization_admins of the root was not read)" : result.admins.length === 0 ? "none appointed (organization_admins of the root)" : result.admins.join(", ")}`,
   ];
   return {
     code: result.verified ? 0 : 1,

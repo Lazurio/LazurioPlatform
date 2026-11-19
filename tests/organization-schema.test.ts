@@ -3,12 +3,14 @@ import Ajv2020 from "ajv/dist/2020";
 import { parseCanonicalOrganization } from "../src/organizations/canonical-manifest";
 import schema from "../src/organizations/lazurio.organization.v1.schema.json";
 import { expectedLegacyProjection } from "../src/organizations/legacy-projection";
+import { organizationAdmins } from "../src/organizations/organization-admins";
 import { organizationSettings } from "../src/organizations/organization-settings";
 import type { readOrganizationDocuments } from "../src/organizations/read-documents";
 import { resolveOrganizationRootDocuments } from "../src/organizations/root-resolution";
 import { parseUniqueJson } from "../src/providers/unique-json";
 import { canonicalDocument } from "./fixtures/catalog-folder";
 import {
+  acceptedOrganizationAdmins,
   acceptedSettings,
   accessRequestsRefusals,
   chatgptAppsRefusals,
@@ -18,6 +20,7 @@ import {
   manifestRefusals,
   manifestVariants,
   microsoft365Refusals,
+  organizationAdminsRefusals,
   toolsRefusals,
   unverifiedManifest,
   verifiedManifest,
@@ -27,14 +30,17 @@ import {
 // The schema of lazurio.organization.v1 (decision 0225, #799) and the readers
 // it is written from judge the same synthetic manifests alike. A case is one
 // JSON text and the inventory beside it, read as an Organization root is
-// read: the JSON reader, `parseCanonicalOrganization`, `organizationSettings`
-// and the root resolution. Its declared projection digest is pinned, so the
+// read: the JSON reader, `parseCanonicalOrganization`, `organizationSettings`,
+// `organizationAdmins` and the root resolution. Its declared projection digest is pinned, so the
 // readers judge only the case's own change.
 
 const ajv = new Ajv2020({ strict: true });
 const validate = ajv.compile(schema);
 const validateSettings = ajv.compile({
   $ref: `${schema.$id}#/$defs/organizationSettings`,
+});
+const validateAdmins = ajv.compile({
+  $ref: `${schema.$id}#/$defs/organizationAdmins`,
 });
 
 type Documents = Extract<
@@ -63,6 +69,7 @@ function readersAccept({ text, inventory, legacy }: Case): boolean {
     document = parseUniqueJson(text);
     const canonical = parseCanonicalOrganization(document);
     if (organizationSettings(canonical).status === "invalid") return false;
+    if (organizationAdmins(canonical).status === "invalid") return false;
   } catch {
     return false;
   }
@@ -201,6 +208,15 @@ const cases: readonly Case[] = [
   ...acceptedSettings.map(([name, settings]) =>
     manifestCase(`settings: ${name}`, true, unverifiedManifest(settings)),
   ),
+  ...acceptedOrganizationAdmins.map(([name, admins]) =>
+    manifestCase(
+      `organization_admins: ${name}`,
+      true,
+      changed(verifiedManifest(), (v) => {
+        v.organization_admins = admins;
+      }),
+    ),
+  ),
   // The documents the Folder catalog fixtures write.
   manifestCase(
     "catalog Organization with Teams",
@@ -219,6 +235,15 @@ const cases: readonly Case[] = [
   ),
   ...settingsRefusals.map(([name, settings]) =>
     manifestCase(`settings: ${name}`, false, unverifiedManifest(settings)),
+  ),
+  ...organizationAdminsRefusals.map(([name, admins]) =>
+    manifestCase(
+      `organization_admins: ${name}`,
+      false,
+      changed(verifiedManifest(), (v) => {
+        v.organization_admins = admins;
+      }),
+    ),
   ),
   ...readerOnlyCases,
 ];
@@ -245,6 +270,18 @@ const readerOnly = new Map<string, string>([
   [
     "settings: a tool declared twice",
     "A tool is declared once: items compared by one field.",
+  ],
+  [
+    "organization_admins: an id beyond a safe integer",
+    "An Organization Admin's id is at most 9007199254740991, which a decimal string's pattern cannot bound below 16 digits: a value compared.",
+  ],
+  [
+    "organization_admins: one id twice",
+    "An Organization Admin's GitHub id is named once: items compared by one field.",
+  ],
+  [
+    "organization_admins: one login twice ignoring case",
+    "An Organization Admin's login is named once, ignoring letter case: items compared by one field.",
   ],
   [
     "settings: tab name of 21 emoji",
@@ -303,5 +340,17 @@ test("the settings definition judges a section on its own as organizationSetting
   for (const [name, settings] of settingsRefusals)
     expect(validateSettings(settings), name).toBe(
       readerOnly.has(`settings: ${name}`),
+    );
+});
+
+// A malformed organization_admins appoints no one and leaves the
+// Organization usable; a consumer that keeps this tolerance validates the
+// list on its own against the schema's definition.
+test("the organizationAdmins definition judges a list on its own as organizationAdmins does", () => {
+  for (const [name, admins] of acceptedOrganizationAdmins)
+    expect(validateAdmins(admins), name).toBe(true);
+  for (const [name, admins] of organizationAdminsRefusals)
+    expect(validateAdmins(admins), name).toBe(
+      readerOnly.has(`organization_admins: ${name}`),
     );
 });

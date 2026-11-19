@@ -5,11 +5,21 @@
 // plus the Module Reader of Matěj's direction of 2026-10-05 (decision F9,
 // addendum 2026-10-05), which the resident does not know. The values are the
 // identifiers of root decision 0234 (`organization-admin`,
-// `module-maintainer`, `module-contributor`, `module-reader`); the
-// resident's `builder` and `steward` and this CLI's former `reader` are
-// accepted only as deprecated aliases of `--role` (`src/content/cli.ts`):
+// `organization-owner`, `module-maintainer`, `module-contributor`,
+// `module-reader`); the resident's `builder` and `steward` and this CLI's
+// former `reader` are accepted only as deprecated aliases of `--role`
+// (`src/content/cli.ts`):
 // - a verified Organization Admin gets the full installation, restricted
-//   (Organization Admin only) slots included;
+//   (Organization Admin only) slots included. The Organization Admin is the
+//   person an Organization Owner appointed (root decision 0245, amended
+//   2026-11-18): an active member whose GitHub id the root's
+//   `organization_admins` names, never the Owner role itself;
+// - a verified Organization Owner who is not an appointed Admin keeps the
+//   full installation it had, now as the Organization Owner
+//   (`organization-owner`): an Owner's effective access to restricted
+//   repositories is the owner-role exception of root decision 0150, and the
+//   install's scope is no administrative act of the Admin, which the Owner
+//   role ended standing in for on 2026-11-18;
 // - a Module Maintainer, Module Contributor or Module Reader gets everything
 //   else: restricted slots and every slot below one are excluded before any
 //   provider operation (`excluded_by_role_scope`). These are the Module role
@@ -21,13 +31,16 @@
 //   cannot;
 // - a role that cannot be verified fails closed (`role-unverified`) before
 //   anything is cloned.
-// GitHub is the only authority; nothing here is recorded or cached, and the
-// role decides only the install's scope, never access: a Module Reader's
-// clones are read-only because GitHub refuses their pushes, not because of
-// anything here.
+// GitHub is the only authority on access; nothing here is recorded or
+// cached, and the role decides only the install's scope, never access: a
+// Module Reader's clones are read-only because GitHub refuses their pushes,
+// not because of anything here. The appointed Admins are read from the root's
+// default branch through GitHub (`rootAdmins`), a pointer until Lazurio Auth
+// holds the role.
 
 export const organizationRoles = [
   "organization-admin",
+  "organization-owner",
   "module-maintainer",
   "module-contributor",
   "module-reader",
@@ -49,7 +62,8 @@ export type RepositoryPermission =
 
 /** `GET /user/memberships/orgs/<org>` through gh: an Organization Owner is
  * an active membership with GitHub's organization role `admin` (as
- * `organization-owner.ts` reads it). */
+ * `organization-owner.ts` reads it). That is the Owner, never the
+ * Organization Admin (root decision 0234). */
 export type MembershipAnswer =
   | Readonly<{
       kind: "member";
@@ -63,8 +77,8 @@ export type RoleVerification =
   | Readonly<{
       kind: "verified";
       role: OrganizationRole;
-      /** Restricted slots: in scope only for a verified Organization
-       * Admin. */
+      /** Restricted slots: in scope only for a verified Organization Admin
+       * or Organization Owner. */
       restricted: "include" | "exclude";
     }>
   | Readonly<{ kind: "unverified"; detail: string }>;
@@ -114,18 +128,46 @@ const verified = (role: OrganizationRole): RoleVerification =>
   Object.freeze({
     kind: "verified",
     role,
-    restricted: role === "organization-admin" ? "include" : "exclude",
+    restricted:
+      role === "organization-admin" || role === "organization-owner"
+        ? "include"
+        : "exclude",
   });
+
+/** The appointed Organization Admins' GitHub ids as the root's
+ * `organization_admins` declares them (empty: no one appointed), or why they
+ * are not known. */
+export type AppointedAdmins =
+  | Readonly<{ kind: "declared"; ids: readonly number[] }>
+  | Readonly<{ kind: "unknown"; detail: string }>;
+
+/** Whether the account is an appointed Organization Admin: an active member
+ * of the Organization whose GitHub id the root names (decision 0245). An
+ * unknown list confirms no one. */
+const isAppointedAdmin = (
+  membership: MembershipAnswer,
+  account: number | null,
+  admins: AppointedAdmins,
+) =>
+  isActiveMember(membership) &&
+  account !== null &&
+  admins.kind === "declared" &&
+  admins.ids.includes(account);
 
 /** The role GitHub confirms now. `requested` is the role the caller asks
  * for — `organization-admin` for the CLI's bare `organization install
- * <login>` (the resident's Admin installation), `module-contributor`,
- * `module-maintainer` or `module-reader` for its `--role` — or null to
- * resolve it live (the Launchpad picks the form from the live role, in the
- * order Organization Admin, Module Maintainer, Module Contributor, Module
- * Reader): the Organization Admin by an active Organization Owner membership
- * (until the role in Lazurio Auth is deployed, root decision 0228); the
- * Module role on the root repository by its permission as root decision
+ * <login>` (the resident's Admin installation, the full one),
+ * `module-contributor`, `module-maintainer` or `module-reader` for its
+ * `--role` — or null to resolve it live (the Launchpad picks the form from
+ * the live role, in the order Organization Admin, Organization Owner, Module
+ * Maintainer, Module Contributor, Module Reader): the Organization Admin by
+ * an active membership together with the account's GitHub id in the root's
+ * `organization_admins` (root decision 0245, amended 2026-11-18; a pointer
+ * until the role in Lazurio Auth is deployed); the Organization Owner by an
+ * active Organization Owner membership, which alone never makes anyone the
+ * Organization Admin; the bare form confirms an Owner who is not an appointed
+ * Admin as the Organization Owner, whose installation is the same full one;
+ * the Module role on the root repository by its permission as root decision
  * 0232 maps it (`moduleRole`: `maintain` the Module Maintainer, `write` the
  * Module Contributor, or the Module Maintainer where the root cannot have
  * branch rules; the resident's `builder` gate reads WRITE); the Module
@@ -147,22 +189,39 @@ export function verifyOrganizationRole(
     /** Whether the root repository can have branch rules; only `write`
      * depends on it. Absent, `unknown`. */
     rootBranchRules?: BranchRules | undefined;
+    /** The account's numeric GitHub id; absent, no one is an appointed
+     * Admin. */
+    account?: number | null | undefined;
+    /** The root's appointed Organization Admins; absent, not read, so no one
+     * is an appointed Admin. */
+    admins?: AppointedAdmins | undefined;
   }>,
 ): RoleVerification {
   const { requested, membership, rootPermission } = input;
   const branchRules = input.rootBranchRules ?? "unknown";
-  const admin = isOwner(membership);
+  const admins: AppointedAdmins = input.admins ?? {
+    kind: "unknown",
+    detail: "the root's organization_admins was not read",
+  };
+  const admin = isAppointedAdmin(membership, input.account ?? null, admins);
+  const owner = isOwner(membership);
   const live = moduleRole(rootPermission, branchRules);
   if (requested === "organization-admin")
     return admin
       ? verified("organization-admin")
-      : {
-          kind: "unverified",
-          detail:
-            membership.kind === "unavailable"
-              ? "GitHub did not answer the Organization membership"
-              : "the account is not an active Organization Owner",
-        };
+      : owner
+        ? verified("organization-owner")
+        : {
+            kind: "unverified",
+            detail:
+              membership.kind === "unavailable"
+                ? "GitHub did not answer the Organization membership"
+                : !isActiveMember(membership)
+                  ? "the account is neither an appointed Organization Admin nor an Organization Owner: it has no active membership of the Organization"
+                  : admins.kind === "unknown"
+                    ? `the account is not an active Organization Owner, and whether it is an appointed Organization Admin is not known: ${admins.detail}`
+                    : "the account is neither an appointed Organization Admin (organization_admins of the root) nor an active Organization Owner",
+          };
   if (requested === "module-maintainer")
     return live === "module-maintainer"
       ? verified("module-maintainer")
@@ -199,6 +258,7 @@ export function verifyOrganizationRole(
             : "the account has no read permission on the root repository",
         };
   if (admin) return verified("organization-admin");
+  if (owner) return verified("organization-owner");
   if (live !== null) return verified(live);
   if (isActiveMember(membership) && atLeast(rootPermission, "read"))
     return verified("module-reader");
@@ -209,7 +269,7 @@ export function verifyOrganizationRole(
         ? "GitHub did not answer the membership or the root repository's permission"
         : membership.kind === "unavailable"
           ? "the account has no write permission on the root repository and GitHub did not answer the Organization membership"
-          : "the account is neither an Organization Owner, nor has write permission on the root repository, nor is an active Organization Member who reads it",
+          : "the account is neither an appointed Organization Admin, nor an Organization Owner, nor has write permission on the root repository, nor is an active Organization Member who reads it",
   };
 }
 

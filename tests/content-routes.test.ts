@@ -685,7 +685,9 @@ posixTest(
     const result = parsed.at(-1);
     expect(result.kind).toBe("content-install");
     expect(result.state).toBe("succeeded");
-    expect(result.items[0].role).toBe("organization-admin");
+    // The bare form by an Organization Owner the root appoints no Admin:
+    // the full installation, confirmed as the Organization Owner.
+    expect(result.items[0].role).toBe("organization-owner");
 
     // One install with --role <value>: its exit code, the role GitHub
     // confirmed, the stdout lines (JSON only) and the stderr notices.

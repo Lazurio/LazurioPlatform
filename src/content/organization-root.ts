@@ -1,6 +1,10 @@
 import { join } from "node:path";
 import { parseCanonicalOrganization } from "../organizations/canonical-manifest";
 import type { Catalog } from "../organizations/catalog";
+import {
+  type OrganizationAdmin,
+  organizationAdmins,
+} from "../organizations/organization-admins";
 import type { ContentGit } from "./git";
 import type { ContentGitHub } from "./github";
 import { repositoryPattern, sameRepository } from "./model";
@@ -98,6 +102,65 @@ export function declaresRoot(
   } catch {
     return false;
   }
+}
+
+/** The appointed Organization Admins as the root declares them, or why they
+ * are not known. */
+export type RootAdmins =
+  | Readonly<{
+      kind: "declared";
+      /** The root whose `organization_admins` this is. */
+      repository: string;
+      /** Empty when the root appoints no one. */
+      admins: readonly OrganizationAdmin[];
+    }>
+  | Readonly<{ kind: "unknown"; detail: string }>;
+
+/** The appointed Organization Admins of the Organization bound to `login`
+ * (decision 0245): the `organization_admins` of `repository`'s
+ * `lazurio.organization.json` on its default branch, as this identity reads
+ * it through GitHub, and only when that file declares `repository` the root
+ * of `login`. Never a checkout's working tree: the default branch is what an
+ * Organization Owner merged, and a checkout may carry an unmerged edit. A
+ * root that GitHub does not serve, that does not declare itself or whose list
+ * is malformed names no Admin (`unknown`, with the reason). */
+export async function rootAdmins(
+  github: Pick<ContentGitHub, "declaration">,
+  login: string,
+  repository: string | null,
+): Promise<RootAdmins> {
+  const unknown = (detail: string): RootAdmins =>
+    Object.freeze({ kind: "unknown", detail });
+  if (repository === null || !namesRootOf(repository, login))
+    return unknown(
+      `the root repository of ${login} was not found, so its organization_admins could not be read`,
+    );
+  const [owner, name] = repository.split("/") as [string, string];
+  const answer = await github.declaration(owner, name);
+  if (answer.kind === "unavailable")
+    return unknown(
+      `GitHub did not answer for the lazurio.organization.json of ${repository}`,
+    );
+  if (answer.kind === "missing")
+    return unknown(
+      `${repository} has no lazurio.organization.json this account can read on its default branch`,
+    );
+  if (!declaresRoot(answer.value, login, repository))
+    return unknown(
+      `the lazurio.organization.json on the default branch of ${repository} does not declare it the root of ${login}`,
+    );
+  const verdict = organizationAdmins(
+    answer.value as Readonly<Record<string, unknown>>,
+  );
+  if (verdict.status === "invalid")
+    return unknown(
+      `the organization_admins of ${repository} is malformed (${verdict.detail})`,
+    );
+  return Object.freeze({
+    kind: "declared",
+    repository,
+    admins: verdict.admins,
+  });
 }
 
 const failed = (
