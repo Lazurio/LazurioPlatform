@@ -1926,8 +1926,16 @@ posixTest(
       ...status,
       items: status.items.filter((item) => item.kind === "organization"),
     };
+    // Ready, with the Organization that does not run named for Apps' line.
     expect(contentFact(organizationOnly as never, null)).toEqual({
       state: "ready",
+      conflicted: {
+        kind: "organization",
+        login: "Alpha",
+        name: "Alpha Company",
+        state: "present",
+        reason: "organization-conflict",
+      },
     });
     // An installation asked for anyway repairs nothing over it: the root
     // step names the conflict and the command that resolves it.
