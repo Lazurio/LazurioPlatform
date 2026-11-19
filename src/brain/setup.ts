@@ -21,7 +21,11 @@ import {
 import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
 import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
-import { type TakeoverResult, takeOverInterim } from "./takeover";
+import {
+  consentToTakeover,
+  type TakeoverResult,
+  takeOverInterim,
+} from "./takeover";
 import { writeBrainUnits } from "./units";
 import { convergeVault, type VaultResult } from "./vault";
 
@@ -82,6 +86,7 @@ export type SetupResult = Readonly<{
     | "stopped"
     | "waits-move"
     | "waits-takeover"
+    | "existing-brain"
     | "takeover-refused"
     | "busy"
     | "waits-machines"
@@ -165,7 +170,15 @@ async function move(
  * `take-over` may meet, and two runs would mint, revoke, move or take over
  * against each other. A kernel lock beside Lazurio's state, released when its
  * holder ends or dies; a run that finds it held changes nothing (`busy`). */
-export async function brainSetup(host: SetupHost): Promise<SetupResult> {
+export async function brainSetup(
+  host: SetupHost,
+  options: Readonly<{
+    /** The owner's consent to the takeover (`lazurio brain take-over`),
+     * recorded under the same lock, so it never overwrites a journal of a
+     * run in progress. A run that finds the lock held records nothing. */
+    consent?: Date;
+  }> = {},
+): Promise<SetupResult> {
   if ((await host.context()).kind === "unsupported")
     return Object.freeze({
       server: "unsupported",
@@ -184,6 +197,8 @@ export async function brainSetup(host: SetupHost): Promise<SetupResult> {
     return Object.freeze({ server: "busy", status: await brainStatus(host) });
   }
   try {
+    if (options.consent !== undefined)
+      await consentToTakeover(host.paths, options.consent);
     return await setupOnce(host);
   } finally {
     await lock.release();
@@ -206,6 +221,11 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
   }
   const command = { run: host.service, env: host.env };
   const { paths } = host;
+  // An install a run left half way (a failed reload, enable or start, or a
+  // release not recorded) is resumed, never merely started.
+  const pendingInstall =
+    status.state !== "unsupported" &&
+    (await readBrainState(paths)).install?.commit === brainPin.commit;
   switch (status.state) {
     case "unsupported":
       return Object.freeze({ server: "unsupported", status });
@@ -239,8 +259,10 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
     case "outdated":
       return move(host, status.running as string);
     case "running":
+      if (pendingInstall) return install(host, status);
       break;
     case "not-running":
+      if (pendingInstall) return install(host, status);
       if (
         !(await systemctl(command, "start", brainUnit)) ||
         !(await answers(host))
@@ -248,74 +270,91 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
         return failed("start", status);
       break;
     case "not-installed": {
-      if (
-        (await installPinnedRelease({
-          paths,
-          run: host.run,
-          bun: host.bun,
-          path: host.env.PATH,
-        })) === "failed"
-      )
-        return failed("install", status);
-      const release = releaseCommand(paths, brainPin.commit);
-      const hasBrain = await stat(join(paths.brain, "config.json")).then(
-        () => true,
-        () => false,
-      );
-      if (!hasBrain) {
-        const init = await host
-          .run(
-            [
-              release,
-              "init",
-              "--pglite",
-              "--no-embedding",
-              "--non-interactive",
-            ],
-            300_000,
-            {
-              HOME: paths.home,
-              GBRAIN_HOME: paths.home,
-              PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-            },
-          )
-          .catch(() => "timeout" as const);
-        if (init === "timeout" || init.exitCode !== 0)
-          return failed("init", status);
-      }
-      try {
-        await ensureAdminToken(paths);
-      } catch {
-        return failed("credential", status);
-      }
-      try {
-        await writeBrainUnits(paths, release);
-      } catch {
-        return failed("units", status);
-      }
-      if (!(await systemctl(command, "daemon-reload")))
-        return failed("reload", status);
-      if (!(await systemctl(command, "enable", brainUnit)))
-        return failed("enable", status);
-      if (
-        !(await systemctl(command, "start", brainUnit)) ||
-        !(await answers(host))
-      )
-        return failed("start", status);
-      const state = await readBrainState(paths);
-      await writeBrainState(paths, {
-        ...state,
-        release: {
-          commit: brainPin.commit,
-          version: brainPin.version,
-          command: release,
-          source: "lazurio",
-        },
-      });
-      return finish(host, "installed");
+      if (pendingInstall) return install(host, status);
+      // A brain without a unit is someone's: never started without its
+      // owner's takeover, its copy and its way back; reported only.
+      if (status.brain)
+        return Object.freeze({ server: "existing-brain", status });
+      return install(host, status);
     }
   }
   return finish(host, status.state === "not-running" ? "started" : "running");
+}
+
+/** Lazurio's install of the pin, every step verified; resumable. The
+ * journal is written before the brain is created, so a brain under it is
+ * Lazurio's own and a later run finishes it. */
+async function install(
+  host: SetupHost,
+  status: BrainStatus,
+): Promise<SetupResult> {
+  const { paths } = host;
+  const command = { run: host.service, env: host.env };
+  const before = await readBrainState(paths);
+  if (before.install?.commit !== brainPin.commit)
+    await writeBrainState(paths, {
+      ...before,
+      install: {
+        commit: brainPin.commit,
+        at: (host.now?.() ?? new Date()).toISOString(),
+      },
+    });
+  if (
+    (await installPinnedRelease({
+      paths,
+      run: host.run,
+      bun: host.bun,
+      path: host.env.PATH,
+    })) === "failed"
+  )
+    return failed("install", status);
+  const release = releaseCommand(paths, brainPin.commit);
+  const hasBrain = await stat(join(paths.brain, "config.json")).then(
+    () => true,
+    () => false,
+  );
+  if (!hasBrain) {
+    const init = await host
+      .run(
+        [release, "init", "--pglite", "--no-embedding", "--non-interactive"],
+        300_000,
+        {
+          HOME: paths.home,
+          GBRAIN_HOME: paths.home,
+          PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+        },
+      )
+      .catch(() => "timeout" as const);
+    if (init === "timeout" || init.exitCode !== 0)
+      return failed("init", status);
+  }
+  try {
+    await ensureAdminToken(paths);
+  } catch {
+    return failed("credential", status);
+  }
+  try {
+    await writeBrainUnits(paths, release);
+  } catch {
+    return failed("units", status);
+  }
+  if (!(await systemctl(command, "daemon-reload")))
+    return failed("reload", status);
+  if (!(await systemctl(command, "enable", brainUnit)))
+    return failed("enable", status);
+  if (!(await systemctl(command, "start", brainUnit)) || !(await answers(host)))
+    return failed("start", status);
+  const { install: _done, ...state } = await readBrainState(paths);
+  await writeBrainState(paths, {
+    ...state,
+    release: {
+      commit: brainPin.commit,
+      version: brainPin.version,
+      command: release,
+      source: "lazurio",
+    },
+  });
+  return finish(host, "installed");
 }
 
 /** Lazurio's server answers: the keys, the vault, and the keys again where

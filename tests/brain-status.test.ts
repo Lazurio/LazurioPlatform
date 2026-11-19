@@ -143,7 +143,7 @@ describe("brain status", () => {
   test("Lazurio's own unit: running at the pin, outdated, or not running", async () => {
     // The unit is read against its own home: render it for the world's.
     const ownIn = async (health?: string) => {
-      const w = await world({ health });
+      const w = await world({ health: health ?? null });
       const text = renderBrainUnits(
         releaseCommand(w.paths, brainPin.commit),
         false,
@@ -151,12 +151,14 @@ describe("brain status", () => {
       await writeFile(join(w.paths.units, brainUnit), text ?? "");
       return w;
     };
-    expect(
-      await brainStatus(await ownIn(brainPin.version)),
-    ).toMatchObject({ state: "running", owner: "lazurio" });
-    expect(
-      await brainStatus(await ownIn("0.60.315.0")),
-    ).toMatchObject({ state: "outdated", running: "0.60.315.0" });
+    expect(await brainStatus(await ownIn(brainPin.version))).toMatchObject({
+      state: "running",
+      owner: "lazurio",
+    });
+    expect(await brainStatus(await ownIn("0.60.315.0"))).toMatchObject({
+      state: "outdated",
+      running: "0.60.315.0",
+    });
     expect(await brainStatus(await ownIn())).toMatchObject({
       state: "not-running",
       running: null,

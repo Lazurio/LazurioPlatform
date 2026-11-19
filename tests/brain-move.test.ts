@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
 import { runBrainCommand } from "../src/brain/cli";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
@@ -14,6 +14,7 @@ import {
 } from "../src/brain/pin";
 import { brainSetup, type SetupHost } from "../src/brain/setup";
 import { consentToTakeover, interimUnitsCopy } from "../src/brain/takeover";
+import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
@@ -410,6 +411,39 @@ describe("a move that stopped or was interrupted", () => {
 });
 
 describe("lazurio brain take-over", () => {
+  test("while another run holds the lock, the consent is not recorded and that run's journal stays as it wrote it", async () => {
+    const { host, paths } = await stand();
+    const journal = {
+      move: {
+        from: "0.60.315.0",
+        to: brainPin.commit,
+        result: "moving",
+        at: "2026-11-19T00:00:00.000Z",
+      },
+    } as never;
+    await writeBrainState(paths, journal);
+    const before = await readFile(paths.state, "utf8");
+    const lock = await acquireFileLock(
+      join(dirname(paths.state), "setup.lock"),
+      { timeoutMs: 0 },
+    );
+    try {
+      const result = await runBrainCommand(["take-over"], {
+        identity: {} as never,
+        platform: "linux",
+        env: {},
+        executable: "lazurio",
+        host,
+      });
+      expect(result.stdout?.split("\n")[0]).toBe("server busy");
+      expect(result.code).toBe(2);
+    } finally {
+      await lock.release();
+    }
+    expect(await readFile(paths.state, "utf8")).toBe(before);
+    expect((await readBrainState(paths)).takeover).toBeUndefined();
+  });
+
   test("records the owner's consent, takes over and moves, and prints closed labels only, never a key", async () => {
     const { host, paths } = await stand();
     const context = {

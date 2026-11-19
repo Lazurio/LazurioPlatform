@@ -3,7 +3,11 @@ import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
-import { convergeBrainKeys, readBrainState } from "../src/brain/keys";
+import {
+  convergeBrainKeys,
+  readBrainState,
+  writeBrainState,
+} from "../src/brain/keys";
 import { brainPaths } from "../src/brain/pin";
 
 // The keys Lazurio mints over the brain's admin API (plan LZD-0033 R11a),
@@ -22,6 +26,8 @@ const brain = {
   admin: "admin-secret-for-tests-only",
   keys: [] as Key[],
   logins: 0,
+  /** The admin API's list, mint or revoke answering 500. */
+  failing: new Set<"list" | "mint" | "revoke">(),
 };
 let server: ReturnType<typeof Bun.serve>;
 let base: string;
@@ -54,8 +60,13 @@ beforeAll(() => {
       if (!cookie.includes("admin=1"))
         return new Response("{}", { status: 401 });
       if (url.pathname === "/admin/api/api-keys" && request.method === "GET")
-        return Response.json(brain.keys.map(({ token: _t, ...key }) => key));
+        if (brain.failing.has("list"))
+          return new Response("{}", { status: 500 });
+        else
+          return Response.json(brain.keys.map(({ token: _t, ...key }) => key));
       if (url.pathname === "/admin/api/api-keys") {
+        if (brain.failing.has("mint"))
+          return new Response("{}", { status: 500 });
         const key = {
           id: `id-${brain.keys.length + 1}`,
           name: body.name,
@@ -72,6 +83,8 @@ beforeAll(() => {
         });
       }
       if (url.pathname === "/admin/api/api-keys/revoke") {
+        if (brain.failing.has("revoke"))
+          return new Response("{}", { status: 500 });
         for (const key of brain.keys)
           if (key.id === body.id) key.status = "revoked";
         return Response.json({});
@@ -212,6 +225,72 @@ describe("brain keys", () => {
     });
     expect(active("lazurio-launchpad-memory")).toHaveLength(1);
     expect(active("lazurio-executor-brain")).toHaveLength(1);
+  });
+
+  test("a mint the brain refuses says failed; a list or revoke it refuses says incomplete, the new key kept", async () => {
+    brain.keys = [];
+    brain.failing = new Set(["mint"]);
+    const refused = await convergeBrainKeys({
+      paths: await home(),
+      http: brainHttp,
+      base,
+    });
+    expect(Object.values(refused.outcomes)).toEqual([
+      "failed",
+      "failed",
+      "failed",
+    ]);
+    for (const step of ["list", "revoke"] as const) {
+      brain.keys = [];
+      brain.failing = new Set();
+      const paths = await home();
+      await convergeBrainKeys({ paths, http: brainHttp, base });
+      // Every handed-over key stops working: each is minted anew, and the
+      // earlier one cannot be listed or revoked.
+      for (const key of brain.keys) key.token = `tok-gone-${key.id}`;
+      brain.failing = new Set([step]);
+      const result = await convergeBrainKeys({ paths, http: brainHttp, base });
+      brain.failing = new Set();
+      expect(Object.values(result.outcomes)).toEqual([
+        "incomplete",
+        "incomplete",
+        "incomplete",
+      ]);
+      // The next run finishes the revocation (the new key works: kept,
+      // and only a later mint revokes) and the new key stays.
+      expect(active("lazurio-launchpad-memory")).toHaveLength(2);
+      const handed = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
+      expect(brain.keys.find((k) => k.token === handed.token)?.status).toBe(
+        "active",
+      );
+    }
+  });
+
+  test("a run that stops after handing a key over has already bound its id; the next run keeps that working key", async () => {
+    brain.keys = [];
+    brain.failing = new Set();
+    const paths = await home();
+    // The run stops right after the first handover: its listing fails and
+    // the stand-in dies there (no further state is written by this test).
+    brain.failing = new Set(["list"]);
+    await convergeBrainKeys({ paths, http: brainHttp, base });
+    brain.failing = new Set();
+    const state = await readBrainState(paths);
+    const handed = JSON.parse(await readFile(paths.launchpadKey, "utf8"));
+    const minted = brain.keys.find((k) => k.token === handed.token);
+    expect(state.keys?.launchpad).toEqual({ id: minted?.id as string });
+    const again = await convergeBrainKeys({ paths, http: brainHttp, base });
+    expect(again.outcomes.launchpad).toBe("kept");
+    expect(minted?.status).toBe("active");
+    // Stopped in the instant between the handover and its id: the id is
+    // unknown, and still no working key is revoked as an orphan.
+    await writeBrainState(paths, { keys: {} });
+    const before = brain.keys.filter((k) => k.status === "active").length;
+    const after = await convergeBrainKeys({ paths, http: brainHttp, base });
+    expect(Object.values(after.outcomes)).toEqual(["kept", "kept", "kept"]);
+    expect(brain.keys.filter((k) => k.status === "active")).toHaveLength(
+      before,
+    );
   });
 
   test("an owner credential the brain refuses mints nothing and says failed", async () => {

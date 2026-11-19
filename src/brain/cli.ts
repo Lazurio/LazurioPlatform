@@ -7,7 +7,6 @@ import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
-import { consentToTakeover } from "./takeover";
 
 /** `lazurio brain`: the person's memory of a Personal Environment (plan
  * LZD-0033 R11a), a tool Lazurio looks after like Executor. */
@@ -29,10 +28,12 @@ brain setup [--json]
   the pin with a copy first and a way back, only while Buddy is idle. A
   brain Machines run is only reported. Prints closed labels only, never a key.
   Exit status: 0 running the pin, 2 not here, waiting or held on the
-  previous release, 1 not finished or stopped for a person.
+  previous release, 1 not finished (a key not minted or an earlier one not
+  revoked included) or stopped for a person.
 brain take-over [--json]
   The owner's consent to take over the brain an earlier installer runs on
-  this Personal Environment, recorded once; then what setup does.`;
+  this Personal Environment, recorded once under setup's lock (while another
+  run holds it, nothing is recorded: busy); then what setup does.`;
 
 export type BrainCliContext = CliContext &
   Readonly<{ host?: SetupHost | undefined }>;
@@ -51,11 +52,13 @@ export function brainStatusText(status: BrainStatus): string {
   if (status.state === "unsupported")
     return `Not available: ${reasons[status.reason]}.`;
   const head = {
-    "not-installed": `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
+    "not-installed": status.brain
+      ? "A memory is here without a unit; Lazurio leaves it as it is until a person decides."
+      : `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
     adoptable: `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees.`,
     machines: "The memory is run by Machines on this Environment.",
     foreign:
-      "A unit gbrain.service that Lazurio did not write is in place; Lazurio leaves it alone.",
+      "A unit of the memory (gbrain.service or its refresh) that Lazurio did not write, or cannot read, is in place; Lazurio leaves it alone.",
     outdated: `The memory runs ${status.running}; Lazurio moves it to ${status.pin} with a copy first.`,
     "not-running":
       "The memory is set up and does not answer; lazurio brain setup starts it.",
@@ -131,16 +134,22 @@ export async function runBrainCommand(
       const status = await brainStatus(host);
       if (status.state === "unsupported")
         return { code: exitUsage, stdout: brainStatusText(status) };
-      await consentToTakeover(host.paths, new Date());
     }
-    const result = await brainSetup(host);
-    const code = ["installed", "started", "running", "moved"].includes(
-      result.server,
-    )
-      ? exitOk
-      : ["failed", "stopped", "takeover-refused"].includes(result.server)
+    const result = await brainSetup(
+      host,
+      command === "take-over" ? { consent: new Date() } : {},
+    );
+    // A key not minted, or an earlier one not revoked, is not finished.
+    const keysIncomplete = Object.values(result.keys ?? {}).some(
+      (outcome) => outcome === "failed" || outcome === "incomplete",
+    );
+    const code =
+      ["failed", "stopped", "takeover-refused"].includes(result.server) ||
+      keysIncomplete
         ? exitFailure
-        : exitUsage;
+        : ["installed", "started", "running", "moved"].includes(result.server)
+          ? exitOk
+          : exitUsage;
     // Closed labels and the status only: the result carries no key.
     return {
       code,

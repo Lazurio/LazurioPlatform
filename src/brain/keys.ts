@@ -53,6 +53,10 @@ export type BrainState = Readonly<{
     backup?: string;
     reason?: string;
   }>;
+  /** Lazurio's install of a pin, from before its brain is created until its
+   * release is recorded: the brain under it is Lazurio's own, and a run
+   * that finds it resumes every step (`./setup.ts`). */
+  install?: Readonly<{ commit: string; at: string }>;
   /** The last move of the brain to a pin (`./move.ts`). */
   move?: MoveRecord;
   release?: Readonly<{
@@ -84,7 +88,9 @@ export type MoveRecord = Readonly<{
 }>;
 
 /** One closed label per key: what setup prints, never a value. */
-export type KeyOutcome = "kept" | "minted" | "failed";
+/** `incomplete`: minted and handed over, but an earlier key of its name
+ * could not be listed or revoked; the next run tries again. */
+export type KeyOutcome = "kept" | "minted" | "incomplete" | "failed";
 
 export async function readBrainState(paths: BrainPaths): Promise<BrainState> {
   try {
@@ -221,6 +227,9 @@ export async function convergeBrainKeys(
       ids[kind] = Object.freeze({ id: minted.id });
       keep = minted.id;
       outcomes[kind] = "minted";
+      // The token handed over and its id are bound at once: an interrupted
+      // run never leaves a working key whose id Lazurio does not know.
+      await writeBrainState(paths, { ...state, keys: { ...ids } });
     }
     // Only after its own mint, whose id is certain: every other active key
     // of this name goes, an earlier one, Machines' where Lazurio took it over,
@@ -228,9 +237,15 @@ export async function convergeBrainKeys(
     if (keep !== undefined) {
       const admin = await owner();
       const keys = admin === null ? null : await admin.keys();
+      if (keys === null) outcomes[kind] = "incomplete";
       for (const key of keys ?? [])
-        if (key.name === name && key.id !== keep && key.status === "active")
-          await admin?.revoke(key.id);
+        if (
+          key.name === name &&
+          key.id !== keep &&
+          key.status === "active" &&
+          !(await admin?.revoke(key.id))
+        )
+          outcomes[kind] = "incomplete";
     }
   }
   const next: BrainState = Object.freeze({

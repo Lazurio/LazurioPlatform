@@ -10,6 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
+import { runBrainCommand } from "../src/brain/cli";
 import { readBrainState } from "../src/brain/keys";
 import {
   brainPaths,
@@ -93,6 +94,8 @@ async function host(
     existingUnit?: string;
     /** Other units of the brain's names, by name. */
     existingUnits?: Readonly<Record<string, string>>;
+    /** A brain already here (its config). */
+    existingBrain?: boolean;
     noHandover?: boolean;
   }> = {},
 ) {
@@ -111,9 +114,15 @@ async function host(
     await mkdir(paths.units, { recursive: true });
     await writeFile(join(paths.units, name), text);
   }
+  if (options.existingBrain) {
+    await mkdir(paths.brain, { recursive: true });
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"theirs"}');
+  }
   brain.up = false;
   brain.keys = [];
   const calls: string[][] = [];
+  /** systemctl verbs that fail, changeable between runs. */
+  const failing = new Set<string>();
   const run: ToolRunner = async (command, _timeout, env) => {
     calls.push([...command]);
     if (command[1] === "add") {
@@ -137,6 +146,8 @@ async function host(
   };
   const service: ProcessRunner = async (command) => {
     calls.push([...command]);
+    if (failing.has(command[2] as string))
+      return { exitCode: 1, stdout: "", stderr: "" };
     if (command[2] === "start") {
       brain.admin = (await readFile(paths.adminToken, "utf8")).trim();
       brain.up = true;
@@ -169,7 +180,7 @@ async function host(
     tries: 3,
     waitMs: 1,
   };
-  return { setupHost, paths, calls };
+  return { setupHost, paths, calls, failing };
 }
 
 describe("brain setup", () => {
@@ -245,6 +256,69 @@ describe("brain setup", () => {
       ),
     ).toBe(false);
   });
+
+  test("a key the brain will not mint makes setup not finished: exit 1", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    // The owner credential no longer opens a session, and the handed-over
+    // key stops working: nothing can be minted.
+    await writeFile(paths.adminToken, `${"0".repeat(64)}\n`);
+    for (const key of brain.keys) key.status = "revoked";
+    const result = await runBrainCommand(["setup"], {
+      identity: {} as never,
+      platform: "linux",
+      env: {},
+      executable: "lazurio",
+      host: setupHost,
+    });
+    expect(result.stdout).toContain("key launchpad failed");
+    expect(result.code).toBe(1);
+  });
+
+  test("a brain already here without a unit is reported, never started or changed", async () => {
+    const { setupHost, paths, calls } = await host({ existingBrain: true });
+    const result = await brainSetup(setupHost);
+    expect(result).toMatchObject({
+      server: "existing-brain",
+      status: { state: "not-installed", brain: true },
+    });
+    expect(calls).toEqual([]);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"theirs"}',
+    );
+    expect((await readBrainState(paths)).install).toBeUndefined();
+  });
+
+  for (const verb of ["daemon-reload", "enable", "start"])
+    test(`an install stopped at ${verb} is resumed by the next run, every step again, and only then recorded`, async () => {
+      const { setupHost, paths, calls, failing } = await host();
+      failing.add(verb);
+      const first = await brainSetup(setupHost);
+      expect(first.server).toBe("failed");
+      const state = await readBrainState(paths);
+      // The brain created under the journal is Lazurio's own: not reported
+      // as someone else's, and no release recorded yet.
+      expect(state.install?.commit).toBe(brainPin.commit);
+      expect(state.release).toBeUndefined();
+      failing.clear();
+      brain.up = false;
+      calls.length = 0;
+      const again = await brainSetup(setupHost);
+      expect(again.server).toBe("installed");
+      expect(
+        calls.filter((c) => c[0] === "systemctl").map((c) => c.slice(2)),
+      ).toEqual([
+        ["daemon-reload"],
+        ["enable", brainUnit],
+        ["start", brainUnit],
+      ]);
+      // The brain is not created twice.
+      expect(calls.some((c) => c[1] === "init")).toBe(false);
+      const after = await readBrainState(paths);
+      expect(after.install).toBeUndefined();
+      expect(after.release?.commit).toBe(brainPin.commit);
+      expect((await brainSetup(setupHost)).server).toBe("running");
+    });
 
   test("a failed install stops before anything is written or started", async () => {
     const { setupHost, paths, calls } = await host({ installFails: true });
