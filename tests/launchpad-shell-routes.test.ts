@@ -101,11 +101,14 @@ posixTest(
         expect(shell?.environments.map((entry) => entry.kind)).toEqual([
           "workstation",
         ]);
-        // Every readable Organization of the fixture, once per slug, no
-        // template and no unreadable one.
+        // Every Organization of the fixture that names itself, once per
+        // slug, no template. A root that resolves conflict keeps its name
+        // (#1094): the person sees their Organization and, in Apps, why its
+        // modules do not run.
         expect(shell?.organizations.map((entry) => entry.slug)).toEqual([
           "alpha",
           "beta",
+          "broken",
           "delta",
         ]);
         expect(
