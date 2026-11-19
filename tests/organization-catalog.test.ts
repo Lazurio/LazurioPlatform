@@ -177,11 +177,8 @@ posixTest(
           },
           {
             directory: "broken",
-            // A root that resolves conflict keeps the identity its canonical
-            // manifest declares (#1094); it still runs nothing.
-            organization: "broken",
-            displayName: "Broken Company",
-            forgeLogin: "broken",
+            organization: null,
+            displayName: null,
             state: "conflict",
             issues: ["modules_document_unreadable"],
             executable: false,
@@ -1101,6 +1098,57 @@ posixTest(
           .filter(([, outcome]) => outcome === "skipped")
           .map(([module]) => module),
       ).toEqual(["finance", "payroll", "planned"]);
+    });
+  },
+  30_000,
+);
+
+posixTest(
+  "a root whose only issue is its stale projection digest keeps its identity; any other conflict leaves it unknown (#1094, Pablo's review of LZD-0041)",
+  async () => {
+    await folderFixture(async (folder) => {
+      const organizations = join(folder, "organizations");
+      const edit = async (
+        directory: string,
+        change: (canonical: Record<string, any>) => void,
+      ) => {
+        const path = join(
+          organizations,
+          directory,
+          "lazurio.organization.json",
+        );
+        const canonical = JSON.parse(await Bun.file(path).text());
+        change(canonical);
+        await writeFile(path, `${JSON.stringify(canonical, null, 2)}\n`);
+      };
+      // alpha: only the digest is stale (the incident).
+      await edit("alpha_GEN3", (canonical) => {
+        canonical.extensions.legacy = { note: "edited by hand" };
+      });
+      // delta: its GitHub binding changed too, so it no longer agrees with
+      // its modules manifest on who it is (canonical_manifest_invalid).
+      await edit("delta", (canonical) => {
+        canonical.organization.forge_binding.locator = "someone-else";
+      });
+      const catalog = await readFolderCatalog(folder);
+      const alpha = findCatalogOrganization(catalog, "alpha_GEN3");
+      expect(alpha).toMatchObject({
+        organization: "alpha",
+        displayName: "Alpha Company",
+        forgeLogin: "alpha",
+        state: "conflict",
+        issues: ["canonical_projection_hash_invalid"],
+        executable: false,
+        reason: "organization-conflict",
+        modules: [],
+      });
+      const delta = findCatalogOrganization(catalog, "delta");
+      expect(delta?.state).toBe("conflict");
+      expect(delta?.executable).toBe(false);
+      expect(delta?.issues).toEqual(["canonical_manifest_invalid"]);
+      expect(delta?.organization).toBeNull();
+      expect(delta?.displayName).toBeNull();
+      expect(delta?.forgeLogin).toBeUndefined();
     });
   },
   30_000,

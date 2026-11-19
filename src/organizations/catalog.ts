@@ -534,6 +534,25 @@ function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
     : {};
 }
 
+/** The issues under which a root's declared identity is still certain: only
+ * its projection digest is stale (`canonical_projection_hash_invalid`), or
+ * its legacy projection drifted with parity proven (`legacy_projection_drift`).
+ * The resolution reaches the digest only after the canonical manifest
+ * parsed and its GitHub login agreed with the modules manifest's
+ * (`inspectCanonicalInventory`; otherwise `canonical_manifest_invalid`), so
+ * under these issues two documents agree on who the Organization is.
+ * Every other issue (an unreadable or invalid document, a legacy identity
+ * that disagrees, diverging semantics) leaves the identity unknown, so the
+ * catalog never names, binds or hands to Composio an Organization it cannot
+ * be sure of (Pablo's review of LZD-0041). */
+const identityIssues: readonly string[] = Object.freeze([
+  "canonical_projection_hash_invalid",
+  "legacy_projection_drift",
+]);
+
+export const identityTrusted = (issues: readonly string[]): boolean =>
+  issues.length > 0 && issues.every((issue) => identityIssues.includes(issue));
+
 /** The identity a root that resolves but does not run still declares: its
  * slug, display name and GitHub login from `lazurio.organization.json`,
  * whatever else in its documents disagrees (LazurioPlatform#1094). Without
@@ -983,8 +1002,9 @@ export async function readCatalogOrganization(
     // Organization is here, only its modules do not start
     // (LazurioPlatform#1094).
     const entry = failed(name, result.kind, result.resolution);
-    return result.kind === "organization-conflict" ||
-      result.kind === "organization-not-executable"
+    return (result.kind === "organization-conflict" ||
+      result.kind === "organization-not-executable") &&
+      identityTrusted(result.resolution.issues)
       ? Object.freeze({ ...entry, ...(await heldIdentity(directory)) })
       : entry;
   }
