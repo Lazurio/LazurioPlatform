@@ -21,6 +21,7 @@ const added = keys.filter(
       "tourGearBuddyTitle",
       "tourBuddyTitle",
       "tourBuddyText",
+      "tourBuddyGen4Text",
       "guideStartBuddy",
       "guideStartAiAgents",
       "guideBuddyState",
@@ -137,6 +138,7 @@ test("Lazurio's own lines say vy, never ty", () => {
     "buddyRunning",
     "buddySaveChanged",
     "tourBuddyText",
+    "tourBuddyGen4Text",
     "setupBuddy",
   ] as const)
     expect({ key, text: cs[key] }).toEqual({
