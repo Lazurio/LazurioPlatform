@@ -8,11 +8,17 @@ import {
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
+  buddySignalPath,
+  parseBuddySignal,
+  unavailableSignal,
+} from "./buddy-signal";
+import {
   currentEnvironment,
   isBuddysOwnPage,
   parseShell,
   type Shell,
   type ShellAccount,
+  type ShellBuddySignal,
   type ShellSignedOut,
   shellSchema,
 } from "./contract";
@@ -1331,6 +1337,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private view: BuddyBubbleView | null = null;
   private unfollow: (() => void) | null = null;
   private leavePage: (() => void) | null = null;
+  // Buddy GEN4's sign as the stream says it now, while the document names
+  // one (`buddy.signal`); the document's own until the stream speaks.
+  private signalSource: EventSource | null = null;
+  private liveSignal: ShellBuddySignal | null = null;
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1344,6 +1354,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   disconnectedCallback() {
     this.unfollow?.();
     this.unfollow = null;
+    this.stopSignal();
     if (bubbleHost === this) bubbleHost = null;
     this.follow();
     guide.detach(this);
@@ -1456,6 +1467,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       // Prostředí's (decision F60's addendum of 2026-10-26).
       meeting: () =>
         buddyMeeting(state.drawn(), this.origin(), this.getAttribute("lang")),
+      signal: () => {
+        const drawn = state.drawn()?.buddy?.signal;
+        return drawn === undefined ? null : (this.liveSignal ?? drawn);
+      },
       frameWindow: () => this.view?.frameWindow() ?? null,
       session: sessionStore(),
       draw: (model) => {
@@ -1488,8 +1503,42 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         play: (explainer) => guide.play(explainer, null),
       },
     });
+    // The stream of Buddy GEN4's sign while this bubble shows him and the
+    // document names one; none otherwise.
+    if (origin !== null && state.drawn()?.buddy?.signal !== undefined)
+      this.followSignal();
+    else this.stopSignal();
     this.bubble.update();
     guide.changed();
+  }
+
+  /** Follows `/.lazurio/buddy/signal` on this page's own origin, which the
+   * gateway forwards to the Launchpad behind the same admission as the
+   * document. A message it cannot read and every error of the stream (it
+   * reconnects by itself) are `unavailable`, never quiet. */
+  private followSignal(): void {
+    if (this.signalSource !== null || typeof EventSource === "undefined")
+      return;
+    const source = new EventSource(buddySignalPath);
+    const show = (signal: ShellBuddySignal) => {
+      this.liveSignal = signal;
+      this.bubble?.update();
+    };
+    source.addEventListener("message", (event) => {
+      let value: unknown;
+      try {
+        value = JSON.parse(String(event.data));
+      } catch {}
+      show(parseBuddySignal(value) ?? unavailableSignal);
+    });
+    source.addEventListener("error", () => show(unavailableSignal));
+    this.signalSource = source;
+  }
+
+  private stopSignal(): void {
+    this.signalSource?.close();
+    this.signalSource = null;
+    this.liveSignal = null;
   }
 
   /** Buddy's origin while this is the page's bubble; none on Buddy's own

@@ -6,6 +6,9 @@
 
 import type { ShellBuddySignal, ShellBuddySignalState } from "./contract";
 
+/** Where the Launchpad streams the sign, on every origin of the shell. */
+export const buddySignalPath = "/.lazurio/buddy/signal";
+
 export type BuddySignalState = ShellBuddySignalState;
 export type BuddySignal = ShellBuddySignal;
 

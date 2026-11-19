@@ -102,6 +102,19 @@ export type BuddyBubbleView = Readonly<{
   home(): Readonly<{ x: number; y: number }> | null;
 }>;
 
+/** One sway of his figure, restarted when it already runs. */
+function sway(figure: HTMLElement): void {
+  figure.removeAttribute("data-sway");
+  // Reading the layout restarts the animation the attribute names.
+  void figure.offsetWidth;
+  figure.dataset.sway = "";
+  figure.addEventListener(
+    "animationend",
+    () => figure.removeAttribute("data-sway"),
+    { once: true },
+  );
+}
+
 export function createBuddyBubbleView(
   host: HTMLElement,
   options: Readonly<{
@@ -370,7 +383,8 @@ export function createBuddyBubbleView(
       launcher.dataset.fallback = "";
       picture.src = logoUrl;
     });
-    // Before the meeting: his "1", which the label says in words.
+    // Before the meeting his "1", after it Buddy GEN4's sign; the label
+    // says either in words.
     const badge = document.createElement("span");
     badge.className = "badge";
     badge.setAttribute("aria-hidden", "true");
@@ -507,7 +521,7 @@ export function createBuddyBubbleView(
         return;
       }
       parts ??= build();
-      const { dialog, launcher, picture, badge, meet } = parts;
+      const { dialog, launcher, figure, picture, badge, meet } = parts;
       if (avatar !== model.launcher.avatar) {
         avatar = model.launcher.avatar;
         delete launcher.dataset.fallback;
@@ -519,10 +533,20 @@ export function createBuddyBubbleView(
       if (model.launcher.away) launcher.dataset.away = "";
       else delete launcher.dataset.away;
       badge.hidden = model.launcher.badge === null;
-      // Something new waits for the person: he hops now and then.
-      if (model.launcher.badge !== null) launcher.dataset.calling = "";
+      // Before the meeting he hops now and then while his "1" waits.
+      if (model.launcher.badge !== null && model.launcher.sign === null)
+        launcher.dataset.calling = "";
       else delete launcher.dataset.calling;
       badge.textContent = model.launcher.badge ?? "";
+      // Buddy GEN4's sign: one sway when it turns to something for the
+      // person, then he stands still; no endless animation.
+      const sign = model.launcher.sign;
+      if (sign !== (launcher.dataset.sign ?? null)) {
+        if (sign === "waiting" || sign === "failed" || sign === "answered")
+          sway(figure);
+        if (sign === null) delete launcher.dataset.sign;
+        else launcher.dataset.sign = sign;
+      }
       lift(launcher, model.launcher.spot);
       dialog.setAttribute("aria-label", buddyWindowName);
       // Before the meeting: his hello in place of the frame, which stays

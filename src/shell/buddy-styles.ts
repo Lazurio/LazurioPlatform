@@ -102,6 +102,10 @@ const bubbleCss = `
 @keyframes buddy-call { 0%, 14%, 100% { transform: none; } 4% { transform: translateY(1px) scale(1.06, 0.92); } 8% { transform: translateY(-12px) scale(0.97, 1.05); } 12% { transform: translateY(0) scale(1.04, 0.95); } }
 .badge { position: absolute; top: -3px; right: -3px; display: grid; min-width: 20px; height: 20px; box-sizing: border-box; padding: 0 5px; place-items: center; border: 2px solid var(--lz-white); border-radius: var(--lz-radius-pill); background: var(--lz-red-500); color: var(--lz-white); font-size: 11px; font-weight: 700; line-height: 1; pointer-events: none; }
 .badge[hidden] { display: none; }
+.figure[data-sway] { animation: buddy-call 1.2s ease-in-out; }
+.launcher[data-sign="answered"] .badge { min-width: 12px; width: 12px; height: 12px; padding: 0; top: 0; right: 0; }
+.launcher[data-sign="unavailable"] .figure { filter: grayscale(1); opacity: 0.6; }
+.launcher[data-sign="unavailable"] .badge { min-width: 12px; width: 12px; height: 12px; padding: 0; top: 0; right: 0; background: linear-gradient(135deg, transparent 42%, var(--lz-white) 42%, var(--lz-white) 58%, transparent 58%), var(--lz-gray-500); }
 .launcher[data-spot] { background: var(--lz-white); box-shadow: 0 0 0 2px var(--lz-blue-500), var(--lz-shadow-float); pointer-events: none; animation: buddy-hop 1.6s ease-in-out 0.3s infinite; }
 .launcher[data-spot]::after { position: absolute; inset: -8px; box-sizing: border-box; border: 2px solid var(--lz-blue-500); border-radius: 50%; content: ""; pointer-events: none; animation: buddy-ring 1.6s ease-out 0.3s infinite; }
 @keyframes buddy-ring { from { opacity: 0.9; transform: scale(0.9); } to { opacity: 0; transform: scale(1.3); } }
@@ -120,7 +124,7 @@ const bubbleCss = `
 .meet-line { max-width: 85%; margin: 0; padding: 9px 12px; border: 1px solid var(--shell-line); border-radius: 12px 12px 12px 4px; background: var(--shell-raised); color: var(--shell-ink); font-size: 14px; line-height: 1.45; }
 .meet-action { display: flex; min-height: 36px; margin: auto 12px 12px; padding: 0 14px; align-items: center; justify-content: center; border-radius: var(--lz-radius-sm); background: var(--lz-accent-button); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .meet-action:hover { background: var(--lz-accent-button-hover); }
-@media (prefers-reduced-motion: reduce) { .launcher::before, .figure, .launcher[data-drag] .figure { transition: none; } .launcher:hover .figure, .launcher[data-drag] .figure { transform: none; } .launcher img, .figure[data-landed], .launcher[data-calling] .figure, .launcher[data-spot], .launcher[data-spot]::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .launcher::before, .figure, .launcher[data-drag] .figure { transition: none; } .launcher:hover .figure, .launcher[data-drag] .figure { transform: none; } .launcher img, .figure[data-landed], .launcher[data-calling] .figure, .figure[data-sway], .launcher[data-spot], .launcher[data-spot]::after { animation: none; } }
 `;
 
 /** The bubble's stylesheet in its element's shadow root. */

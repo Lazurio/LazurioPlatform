@@ -106,6 +106,11 @@ export type ShellCopy = Readonly<{
    * (root decision 0199); his name is not known here, so he is "your
    * Buddy". The window's close button. */
   buddyNew: string;
+  /** The sign by Buddy GEN4's avatar, in words for assistive technology. */
+  buddyWaiting: string;
+  buddyFailed: string;
+  buddyAnswered: string;
+  buddyUnavailable: string;
   buddyHello: string;
   buddyNeedsSignIn: string;
   buddyNeedsMeeting: string;
@@ -177,6 +182,10 @@ const en: ShellCopy = {
   guideName: "Lazurio guide",
   guideDocs: "Documentation",
   buddyNew: "Buddy, 1 new message",
+  buddyWaiting: "Buddy is waiting for you",
+  buddyFailed: "Buddy: something went wrong",
+  buddyAnswered: "Buddy has answered",
+  buddyUnavailable: "Buddy cannot be reached right now",
   buddyHello: "Hi, I'm your Buddy.",
   buddyNeedsSignIn: "Sign me in to ChatGPT so I can answer you.",
   buddyNeedsMeeting:
@@ -240,6 +249,10 @@ const cs: ShellCopy = {
   guideName: "Průvodce Lazuriem",
   guideDocs: "Dokumentace",
   buddyNew: "Buddy, 1 nová zpráva",
+  buddyWaiting: "Buddy na vás čeká",
+  buddyFailed: "Buddy: něco se nepovedlo",
+  buddyAnswered: "Buddy odpověděl",
+  buddyUnavailable: "Buddy teď není dostupný",
   buddyHello: "Ahoj, já jsem váš Buddy.",
   buddyNeedsSignIn: "Abych vám mohl odpovídat, přihlaste mě k ChatGPT.",
   buddyNeedsMeeting: "Pojďme se seznámit, ať vím, jak vám mám říkat.",

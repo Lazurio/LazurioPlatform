@@ -1,12 +1,12 @@
-import type { BuddySignal } from "../shell/buddy-signal";
+import { type BuddySignal, buddySignalPath } from "../shell/buddy-signal";
+
+export { buddySignalPath };
 
 // The sign by Buddy GEN4's avatar as a stream (plan LZD-0033, the sign): the
 // shell's bubble on every page of the person's Osobní Prostředí follows it
 // on its own origin, which the gateway forwards to the Launchpad behind the
 // same admission as the shell document. Each event is the whole sign, the
 // first one the current; a comment keeps idle proxies from closing it.
-
-export const buddySignalPath = "/.lazurio/buddy/signal";
 
 const keepaliveMs = 25_000;
 // How long EventSource waits before it reconnects after the stream ends.
