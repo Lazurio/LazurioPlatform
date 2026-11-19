@@ -104,6 +104,11 @@ import {
   createSystemdUserRunner,
 } from "./modules/systemd-user-runner";
 import {
+  CheckUsageError,
+  checkHelp,
+  runOrganizationCheckCommand,
+} from "./organizations/check-cli";
+import {
   CatalogUsageError,
   catalogHelp,
   runCatalogCommand,
@@ -584,6 +589,17 @@ async function runOtherCommand(args: string[]): Promise<number> {
       return 2;
     }
   }
+  if (args[0] === "organization" && args[1] === "check") {
+    try {
+      const { code, text } = await runOrganizationCheckCommand(args);
+      console.log(text);
+      return code;
+    } catch (error) {
+      if (!(error instanceof CheckUsageError)) throw error;
+      console.error(`${error.message}\n${checkHelp}`);
+      return 2;
+    }
+  }
   if (args[0] === "organization" && args[1] === "role") {
     try {
       const { code, text } = await runOrganizationRoleCommand(
@@ -769,6 +785,7 @@ private Organization metadata: keep it in the owning scope, not public logs.
 This is not a migration writer or authority to apply the draft. Exit 0 draft, 2 blocked.`);
     console.log(catalogHelp);
     console.log(roleHelp);
+    console.log(checkHelp);
     console.log(contentHelp);
     console.log(moduleHelp);
     console.log(moduleReadinessHelp);
