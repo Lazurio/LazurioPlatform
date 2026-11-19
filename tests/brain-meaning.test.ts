@@ -81,6 +81,8 @@ async function stand(
     idle?: boolean;
     /** Another process answers on the model's port. */
     portTaken?: boolean;
+    /** gbrain refuses another width without saying the column's. */
+    bareRefusal?: boolean;
   }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-meaning-"));
@@ -144,6 +146,8 @@ async function stand(
     if (argv[1] === "embeddings") {
       const dims = argv[argv.indexOf("--embedding-dimensions") + 1];
       const column = options.column ?? "1024";
+      if (dims !== column && options.bareRefusal)
+        return { exitCode: 1, stdout: '{"error":"width"}', stderr: "" };
       if (dims !== column)
         return {
           exitCode: 1,
@@ -163,6 +167,11 @@ async function stand(
         };
       return ok;
     }
+    if (argv[1] === "migrate" && argv.includes("--status"))
+      return {
+        ...ok,
+        stdout: `banner\n${JSON.stringify({ column_dims: Number(options.column ?? "1024") })}`,
+      };
     if (argv[1] === "migrate") {
       // A failure may come after the brain changed: the copy must come back.
       await writeFile(join(paths.brain, "config.json"), '{"brain":"moved"}');
@@ -309,6 +318,28 @@ describe("switching search by meaning on", () => {
       ["migrate", "embeddings", "--no-embed"],
       ["embed", "--stale"],
     ]);
+  });
+
+  test("a refusal that does not say the column's width is read from gbrain's status of the column", async () => {
+    const { host, calls } = await stand({ column: "768", bareRefusal: true });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(
+      calls
+        .filter((c) =>
+          ["embeddings", "migrate", "embed"].includes(c[1] as string),
+        )
+        .map((c) => c.slice(1, 4).join(" ")),
+    ).toEqual([
+      "embeddings enable --embedding-model",
+      "migrate embeddings --status",
+      "embeddings enable --embedding-model",
+      "migrate embeddings --to",
+      "embed --stale --catch-up",
+    ]);
+    const enables = calls.filter((c) => c[1] === "embeddings");
+    expect(enables[1]?.[enables[1].indexOf("--embedding-dimensions") + 1]).toBe(
+      "768",
+    );
   });
 
   test("a failed step brings the brain before back without the model and is not tried again for this pin", async () => {

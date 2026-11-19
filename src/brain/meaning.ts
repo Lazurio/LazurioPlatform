@@ -305,7 +305,7 @@ function columnWidth(refusal: Record<string, unknown> | null): string | null {
  * the column has another width, move it to the model's, keeping pages and
  * facts, then compute every vector while the server is stopped (the only
  * way on PGLite). */
-async function switchOn(
+export async function switchOn(
   host: MeaningHost,
   command: string,
 ): Promise<string | null> {
@@ -343,8 +343,23 @@ async function switchOn(
   const direct = await enable(width);
   if (!direct.ok) {
     // The column has another width: enable at it, then move to the model's.
-    const column = columnWidth(direct.out);
-    if (column === null) return "enable";
+    // Its width from the refusal, else from gbrain's own status of the
+    // column (`migrate embeddings --status`).
+    let column = columnWidth(direct.out);
+    if (column === null) {
+      const status = await gbrain([
+        "migrate",
+        "embeddings",
+        "--status",
+        "--json",
+      ]);
+      const dims = status.out?.column_dims;
+      column =
+        typeof dims === "number" && Number.isInteger(dims) && dims > 0
+          ? String(dims)
+          : null;
+    }
+    if (column === null || column === width) return "enable";
     if (!(await enable(column)).ok) return "enable";
     const migrated = await gbrain([
       "migrate",
