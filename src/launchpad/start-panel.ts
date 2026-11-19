@@ -605,6 +605,7 @@ export function createStartPanel(
           facts.preset,
           options.organizations(),
         ),
+        withoutGithub: facts.withoutGithub === true,
       },
       copy,
     );
@@ -676,6 +677,10 @@ export function createStartPanel(
       return node;
     });
     steps.replaceChildren(...nodes);
+    // The content's rows belong to its step: where Začínáme has none (the
+    // person has no GitHub account), they stay out of sight, never below
+    // the steps on their own.
+    content.hidden = !view.steps.some((step) => step.basic === "content");
     if (aiFocused && !focusAi) {
       const ai = steps.querySelector<HTMLElement>('[data-step="ai"]');
       const target =

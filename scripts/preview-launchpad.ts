@@ -274,6 +274,15 @@ const ghFake = process.argv.slice(3).includes("gh-signed-out")
       ? "refused"
       : null;
 const ghSlow = process.argv.slice(3).includes("gh-slow");
+// With `without-github` anywhere after the mode, a hosted preview's work
+// Environment is assigned to a person by their Lazurio account with no
+// GitHub account (root decisions 0192 and 0216, `assigneeWithoutGithub`):
+// Začínáme has only the AI step, Apps offers no GitHub sign-in and the
+// Folder's texts say there is no access to repositories. Use it with
+// `fresh` and `gh-signed-out`, as such an Environment is.
+const withoutGithubAccount =
+  process.argv[2] === "hosted" &&
+  process.argv.slice(3).includes("without-github");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
 const codexSignedOut = process.argv.slice(3).includes("codex-signed-out");
@@ -430,13 +439,15 @@ else {
           )
         : agentEntryRouted(
             hubRouted(
-              organizationWithEntry(
-                listenPort,
-                host,
-                true,
-                true,
-                publicEnvironment,
-                sharedApps ? "operator" : assignment,
+              withoutGithubAssignee(
+                organizationWithEntry(
+                  listenPort,
+                  host,
+                  true,
+                  true,
+                  publicEnvironment,
+                  sharedApps ? "operator" : assignment,
+                ),
               ),
             ),
           ),
@@ -445,6 +456,27 @@ else {
 }
 if (personalPool)
   await mkdir(join(folder, "personalspace", "example_GEN3"), { mode: 0o700 });
+/** With `without-github`: the binding's assignment names the person by a
+ * Lazurio account without a GitHub account; otherwise it is unchanged. */
+function withoutGithubAssignee<T extends { owner: unknown }>(machine: T): T {
+  if (!withoutGithubAccount) return machine;
+  const owner = machine.owner as Readonly<Record<string, unknown>>;
+  return {
+    ...machine,
+    owner: {
+      ...owner,
+      team: null,
+      assignment: {
+        kind: "operator",
+        account: {
+          username: "example-person",
+          subject: "https://auth.example.invalid/realms/workspace/0000-0001",
+          github: null,
+        },
+      },
+    },
+  };
+}
 if (!fresh && mode !== "personal") await writeExample();
 async function writeExample() {
   const root = await writeOrganization(folder, "example_GEN3", {

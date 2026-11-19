@@ -2180,6 +2180,7 @@ const tools = createToolsPanel({
   // The Automated Environment's gh is the persona's account (F27's addendum
   // of 2026-10-30): its code is confirmed with that account.
   persona: () => personaGithub(profileState?.preset),
+  withoutGithub: () => profileState?.withoutGithub === true,
 });
 const voice = voicePanel({
   post,

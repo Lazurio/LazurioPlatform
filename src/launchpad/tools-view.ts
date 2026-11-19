@@ -190,10 +190,15 @@ const composioHeld = (value: unknown): value is ComposioHeld =>
 export function heldLine(
   tool: Pick<ToolOverview, "held">,
   copy: Copy,
+  /** The person has no GitHub account (`assigneeWithoutGithub`): the
+   * Organization is never downloaded here, so nothing comes first. */
+  withoutGithub = false,
 ): string | null {
   if (tool.held === undefined) return null;
   return tool.held === "organization-absent"
-    ? copy.toolsComposioHeld
+    ? withoutGithub
+      ? copy.toolsComposioHeldWithoutGithub
+      : copy.toolsComposioHeld
     : copy.toolsComposioOrgUnverified;
 }
 

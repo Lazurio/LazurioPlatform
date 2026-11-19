@@ -621,6 +621,8 @@ export function optionalRows(
      * offered, with how many phones are paired; absent or null hides it. */
     phone?: Readonly<{ ready: boolean; devices: number }> | null;
     organization?: boolean;
+    /** The person has no GitHub account (`TourFacts.withoutGithub`). */
+    withoutGithub?: boolean;
   }>,
   copy: Copy,
 ): readonly OptionalRow[] {
@@ -639,9 +641,18 @@ export function optionalRows(
       id: "composio",
       title: "Composio",
       text: copy.startComposioText,
-      status: copy.startComposioWaiting,
+      // Without the person's GitHub account nothing comes first: it waits
+      // for nothing.
+      status:
+        input.withoutGithub === true && input.composio === "organization-absent"
+          ? copy.startComposioUnavailable
+          : copy.startComposioWaiting,
       note:
-        heldLine({ held: input.composio }, copy) ?? copy.startComposioWaiting,
+        heldLine(
+          { held: input.composio },
+          copy,
+          input.withoutGithub === true,
+        ) ?? copy.startComposioWaiting,
       action: null,
     });
   else if (input.composio !== "none")

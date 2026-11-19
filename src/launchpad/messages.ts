@@ -475,6 +475,8 @@ const en = {
     "The name of {this}'s Organization cannot be read, so nothing connects through Composio now; ask the agent in Chat to check it.",
   toolsComposioHeld:
     "Composio connects here in the Composio organization that belongs to your Organization, and the Organization is not in {this} yet. Download it in Getting started first; if that does not work, ask an Organization Admin to add you to the Organization's Team on GitHub. Then Composio can be connected.",
+  toolsComposioHeldWithoutGithub:
+    "Composio connects here in the Composio organization that belongs to your Organization, and the Organization's content is not downloaded to {this}, because it has no access to repositories on GitHub. So Composio cannot be connected here now.",
   toolsComposioCreateTitle: "One more step in Composio",
   toolsComposioCreateText: "Create an organization with this name in Composio.",
   toolsComposioCreateName: "Organization name",
@@ -1403,6 +1405,7 @@ const en = {
   startNotConnected: "Not connected",
   startUnfinished: "Not finished",
   startComposioWaiting: "Waiting for the Organization",
+  startComposioUnavailable: "Not available here",
   startFinish: "Finish",
   startSshTitle: "SSH from your own computer",
   startSshText: "A terminal and an editor on your computer.",
@@ -2951,6 +2954,8 @@ const cs: Record<MessageKey, string> = {
     "Jméno Organizace {tohoto} nejde přečíst, takže přes Composio teď nic nepřipojíte; požádejte o kontrolu agenta v Chatu.",
   toolsComposioHeld:
     "Composio se tu připojuje do organizace v Composiu, která patří vaší Organizaci, a Organizace v {tomto} ještě není. Nejdřív ji stáhněte v Začínáme; když to nejde, požádejte Admina Organizace, ať vás přidá do Teamu Organizace na GitHubu. Pak bude Composio možné připojit.",
+  toolsComposioHeldWithoutGithub:
+    "Composio se tu připojuje do organizace v Composiu, která patří vaší Organizaci, a obsah Organizace se do {tohoto} nestahuje, protože nemá přístup k repozitářům na GitHubu. Composio tu proto teď připojit nejde.",
   toolsComposioCreateTitle: "Ještě jeden krok v Composiu",
   toolsComposioCreateText: "Založte v Composiu organizaci s tímto jménem.",
   toolsComposioCreateName: "Jméno organizace",
@@ -3823,6 +3828,7 @@ const cs: Record<MessageKey, string> = {
   startNotConnected: "Nepřipojeno",
   startUnfinished: "Nedokončeno",
   startComposioWaiting: "Čeká na Organizaci",
+  startComposioUnavailable: "Tady nejde připojit",
   startFinish: "Dokončit",
   startSshTitle: "SSH z vlastního počítače",
   startSshText: "Terminál a editor ve vašem počítači.",

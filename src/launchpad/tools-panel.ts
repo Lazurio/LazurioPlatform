@@ -115,6 +115,9 @@ export function createToolsPanel(
      * Environment): gh's code is confirmed with the persona's account
      * (`ghCodeText`). */
     persona?: () => boolean;
+    /** Whether the person has no GitHub account (`assigneeWithoutGithub`):
+     * Composio's held line says the Organization is never downloaded here. */
+    withoutGithub?: () => boolean;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -1559,7 +1562,7 @@ export function createToolsPanel(
       if (line !== null) text.append(element("p", "tool-organization", line));
     // Composio whose organization cannot be told yet: why it offers no
     // sign-in, and what comes first (decision F42).
-    const waits = heldLine(tool, copy);
+    const waits = heldLine(tool, copy, options.withoutGithub?.() === true);
     if (waits !== null) text.append(element("p", "tool-organization", waits));
 
     const agent = button(
