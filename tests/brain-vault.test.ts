@@ -1,9 +1,16 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rename,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
-import { readBrainState } from "../src/brain/keys";
+import { readBrainState, writeBrainState } from "../src/brain/keys";
 import { brainPaths, brainRefreshTimer, brainUnit } from "../src/brain/pin";
 import {
   convergeVault,
@@ -187,7 +194,12 @@ describe("the vault's decision", () => {
 });
 
 async function stand(
-  options: Readonly<{ fail?: string; idle?: boolean }> = {},
+  options: Readonly<{
+    fail?: string;
+    idle?: boolean;
+    /** The server ignores a stop (systemd says it still runs). */
+    neverStops?: boolean;
+  }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-vault-"));
   const paths = brainPaths(join(root, "home"));
@@ -266,11 +278,26 @@ async function stand(
     calls.push([...command]);
     const verb = command[2];
     if (verb === options.fail) return { exitCode: 1, stdout: "", stderr: "" };
-    if (verb === "stop") brain.up = false;
-    if (verb === "start") brain.up = true;
+    const unit = command.slice(3).find((a) => !a.startsWith("-"));
+    const isTimer = unit === brainRefreshTimer;
+    if (verb === "stop") {
+      if (isTimer) brain.timer = false;
+      else if (!options.neverStops) brain.up = false;
+    }
+    if (verb === "start") {
+      if (isTimer) brain.timer = true;
+      else brain.up = true;
+    }
     if (verb === "enable") brain.timer = true;
-    const answer = verb === "is-active" ? (brain.timer ? 0 : 3) : 0;
-    return { exitCode: answer, stdout: "", stderr: "" };
+    if (verb === "is-active") {
+      const on = isTimer ? brain.timer : brain.up;
+      return {
+        exitCode: on ? 0 : 3,
+        stdout: on ? "active\n" : "inactive\n",
+        stderr: "",
+      };
+    }
+    return { exitCode: 0, stdout: "", stderr: "" };
   };
   const http: BrainHttp = async (method, url, body) => {
     if (!brain.up) return null;
@@ -401,7 +428,7 @@ describe("the vault's connection", () => {
   });
 
   test("a failed fetch brings the brain before back whole and keeps the attempt aside", async () => {
-    const { host, paths, calls } = await stand({ fail: "fetch" });
+    const { host, paths, calls, brain } = await stand({ fail: "fetch" });
     expect(await convergeVault(host)).toBe("stop:rebuild-fetch");
     expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
       '{"before":true}',
@@ -410,7 +437,9 @@ describe("the vault's connection", () => {
     const home = await readdir(paths.home);
     expect(home).toContain(".gbrain.failed-20261118T233000Z");
     expect(home.some((name) => name.startsWith(".gbrain.bak-"))).toBe(false);
-    expect(calls.at(-1)).toEqual(["systemctl", "--user", "start", brainUnit]);
+    // Back up: the server answers and its timer refreshes again.
+    expect(calls).toContainEqual(["systemctl", "--user", "start", brainUnit]);
+    expect(brain.up && brain.timer).toBe(true);
     expect((await readBrainState(paths)).vault?.rebuild?.state).toBe(
       "restored-after-fetch",
     );
@@ -434,6 +463,126 @@ describe("the vault's connection", () => {
       '{"before":true}',
     );
     expect(calls.some((c) => c[1] === "init")).toBe(false);
+  });
+
+  // A run that died at each stage of a rebuild: the next run brings the
+  // brain before back, the server and its timer up, before anything else.
+  const interrupted = async (
+    stage: "stopping" | "moving" | "started",
+    options: Readonly<{ neverStops?: boolean }> = {},
+  ) => {
+    const s = await stand(options);
+    const backup = join(s.paths.home, ".gbrain.bak-20261118T230000Z");
+    if (stage !== "stopping") await rename(s.paths.brain, backup);
+    if (stage === "started") {
+      // rebuildCore had made a new brain and begun the vault's checkout.
+      await mkdir(join(s.paths.brain, "serve"), { recursive: true });
+      await writeFile(join(s.paths.brain, "config.json"), '{"vault":true}');
+      await mkdir(join(s.vault, ".git"), { recursive: true });
+    }
+    s.brain.up = false;
+    s.brain.timer = false;
+    await writeBrainState(s.paths, {
+      vault: {
+        repo,
+        rebuild: {
+          state: stage,
+          at: "2026-11-18T23:00:00.000Z",
+          backup: ".gbrain.bak-20261118T230000Z",
+          vaultDir: s.vault,
+          moveAside: false,
+        },
+      },
+    });
+    return { ...s, backup };
+  };
+
+  for (const stage of ["stopping", "moving", "started"] as const)
+    test(`a rebuild interrupted at ${stage} is recovered by the next run: the brain before back, server and timer up`, async () => {
+      const { host, paths, calls, brain } = await interrupted(stage);
+      expect(await convergeVault(host)).toBe("stop:rebuild-interrupted");
+      expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+        '{"before":true}',
+      );
+      expect(brain.up && brain.timer).toBe(true);
+      expect(calls.some((c) => c[1] === "init")).toBe(false);
+      expect((await readBrainState(paths)).vault?.rebuild?.state).toBe(
+        "restored-after-interrupted",
+      );
+      if (stage === "started")
+        expect(await readdir(paths.home)).toContain(
+          ".gbrain.failed-20261118T233000Z",
+        );
+    });
+
+  test("a recovery whose server systemd does not confirm stopped moves nothing and keeps the journal", async () => {
+    const { host, paths, brain } = await interrupted("started", {
+      neverStops: true,
+    });
+    brain.up = true;
+    const before = await readFile(paths.state, "utf8");
+    expect(await convergeVault(host)).toBe("stop:rebuild-recover-not-stopped");
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"vault":true}',
+    );
+    expect(await readFile(paths.state, "utf8")).toBe(before);
+  });
+
+  test("a rollback after a failed step moves nothing while the server still runs, and the next run finishes it", async () => {
+    const s = await stand({ fail: "fetch" });
+    // The server stops for the rebuild, then ignores the rollback's stop.
+    const service = s.host.service;
+    let stops = 0;
+    const host = {
+      ...s.host,
+      service: async (command: readonly string[]) => {
+        if (command[2] === "stop" && command[3] === brainUnit) stops++;
+        if (stops > 1 && command[2] === "stop" && command[3] === brainUnit) {
+          // Something started it again in between, and it does not stop.
+          s.brain.up = true;
+          return { exitCode: 1, stdout: "", stderr: "" };
+        }
+        return service(command, 60_000);
+      },
+    } as VaultHost;
+    expect(await convergeVault(host)).toBe("stop:rebuild-fetch");
+    // The server runs again and does not stop: nothing moved.
+    expect(await readFile(join(s.paths.brain, "config.json"), "utf8")).toBe(
+      '{"vault":true}',
+    );
+    expect((await readBrainState(s.paths)).vault?.rebuild?.state).toBe(
+      "started",
+    );
+    // A later run whose stop works brings the brain before back.
+    expect(await convergeVault(s.host)).toBe("stop:rebuild-interrupted");
+    expect(await readFile(join(s.paths.brain, "config.json"), "utf8")).toBe(
+      '{"before":true}',
+    );
+  });
+
+  test("a brain that could not be brought back waits for a person: nothing is touched", async () => {
+    const { host, paths, calls } = await stand();
+    await writeBrainState(paths, {
+      vault: {
+        repo,
+        rebuild: {
+          state: "restore-failed-after-fetch",
+          at: "2026-11-18T23:00:00.000Z",
+        },
+      },
+    });
+    expect(await convergeVault(host)).toBe("stop:rebuild-restore-failed");
+    expect(
+      calls.filter(
+        (c) => c[0] === "systemctl" && !["is-active"].includes(c[2] as string),
+      ),
+    ).toEqual([]);
+    // Only reads: nothing created, fetched or checked out.
+    expect(
+      calls.some(
+        (c) => c[1] === "init" || c.includes("fetch") || c.includes("checkout"),
+      ),
+    ).toBe(false);
   });
 
   test("a brain with pages off the vault is a person's decision", async () => {

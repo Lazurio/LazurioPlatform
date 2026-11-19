@@ -20,7 +20,7 @@ import {
   brainUnit,
   releaseCommand,
 } from "../src/brain/pin";
-import { brainSetup, type SetupHost } from "../src/brain/setup";
+import { brainSetup, keysAfterVault, type SetupHost } from "../src/brain/setup";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
@@ -372,5 +372,26 @@ describe("brain setup", () => {
     expect(result.server).toBe("foreign");
     expect(result.status).toMatchObject({ owner: "unreadable" });
     expect(hidden.calls).toEqual([]);
+  });
+});
+
+describe("keys after the vault's step", () => {
+  const done = { state: "done", at: "2026-11-19T01:00:00.000Z" };
+  test("a rebuild that succeeded and was followed by a failed durability or timer still gets its keys", () => {
+    for (const failure of ["stop:durability-not-on", "stop:timer-not-on"])
+      expect(keysAfterVault(failure as never, undefined, done)).toBe(true);
+    expect(
+      keysAfterVault(
+        "stop:durability,timer-not-on",
+        { ...done, at: "x" },
+        done,
+      ),
+    ).toBe(true);
+  });
+  test("a recovered or rolled-back rebuild gets its keys; an unchanged record does not", () => {
+    expect(keysAfterVault("stop:rebuild-interrupted", done, done)).toBe(true);
+    expect(keysAfterVault("connected", done, done)).toBe(false);
+    expect(keysAfterVault("stop:durability-not-on", done, done)).toBe(false);
+    expect(keysAfterVault("local", undefined, undefined)).toBe(false);
   });
 });

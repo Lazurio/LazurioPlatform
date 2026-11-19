@@ -357,6 +357,26 @@ async function install(
   return finish(host, "installed");
 }
 
+type RebuildRecord = NonNullable<
+  NonNullable<Awaited<ReturnType<typeof readBrainState>>["vault"]>["rebuild"]
+>;
+
+/** Whether the vault's step made the brain anew or brought it back from its
+ * copy, so its keys must be converged again: by its result, or by a rebuild
+ * record it changed even when a later step (durability, the timer) failed. */
+export function keysAfterVault(
+  vault: VaultResult,
+  before: RebuildRecord | undefined,
+  after: RebuildRecord | undefined,
+): boolean {
+  return (
+    vault === "rebuilt" ||
+    vault.startsWith("stop:rebuild-") ||
+    (after !== undefined &&
+      (after.at !== before?.at || after.state !== before?.state))
+  );
+}
+
 /** Lazurio's server answers: the keys, the vault, and the keys again where
  * the vault's connection made the brain anew (it has no key then). */
 async function finish(
@@ -370,6 +390,7 @@ async function finish(
   let vault: VaultResult | undefined;
   if (host.vault !== undefined) {
     const state = await readBrainState(paths);
+    const rebuildBefore = state.vault?.rebuild;
     vault = await convergeVault({
       paths,
       folder: host.vault.folder,
@@ -384,7 +405,10 @@ async function finish(
       ...(host.tries === undefined ? {} : { tries: host.tries }),
       ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
     });
-    if (vault === "rebuilt" || vault.startsWith("stop:rebuild-"))
+    // A brain made anew, or brought back from its copy, gets its keys again,
+    // whatever failed after (durability, the timer): it has none of its own.
+    const rebuildAfter = (await readBrainState(paths)).vault?.rebuild;
+    if (keysAfterVault(vault, rebuildBefore, rebuildAfter))
       keys = await convergeBrainKeys({ paths, http: host.http, base });
   }
   // Search by meaning only on the pin: a brain held on an earlier release

@@ -67,10 +67,16 @@ const present = (path: string) =>
     () => false,
   );
 
-const service = (host: MoveHost, ...args: string[]) =>
+/** What a stop needs: systemd of the person, and its environment. */
+export type ServiceHost = Readonly<{
+  service: ProcessRunner;
+  env: Readonly<Record<string, string | undefined>>;
+}>;
+
+const service = (host: ServiceHost, ...args: string[]) =>
   systemctl({ run: host.service, env: host.env }, ...args);
 
-async function inactive(host: MoveHost, unit: string): Promise<boolean> {
+async function inactive(host: ServiceHost, unit: string): Promise<boolean> {
   const answer = await host
     .service(["systemctl", "--user", "is-active", unit], 60_000)
     .catch(() => "timeout" as const);
@@ -82,7 +88,7 @@ async function inactive(host: MoveHost, unit: string): Promise<boolean> {
 }
 
 /** The timer and the server stopped, as systemd confirms it. */
-export async function stoppedForSure(host: MoveHost): Promise<boolean> {
+export async function stoppedForSure(host: ServiceHost): Promise<boolean> {
   for (const unit of [brainRefreshTimer, brainUnit])
     await service(host, "stop", unit);
   for (const unit of [brainRefreshTimer, brainUnit])

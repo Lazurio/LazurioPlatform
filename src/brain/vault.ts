@@ -19,6 +19,7 @@ import {
   readBrainState,
   writeBrainState,
 } from "./keys";
+import { stoppedForSure } from "./move";
 import {
   type BrainPaths,
   brainKeyNames,
@@ -840,16 +841,30 @@ async function rebuildCore(
     throw new VaultFailure("start");
 }
 
-/** The brain before comes back whole; the failed attempt is kept aside. */
+/** The server and its timer back, as systemd and the server confirm. */
+async function backUp(host: VaultHost): Promise<boolean> {
+  return (
+    (await service(host, "start", brainUnit)) &&
+    (await answers(host)) &&
+    (await switchTimer(host))
+  );
+}
+
+type Restored = "restored" | "not-stopped" | "failed";
+
+/** The brain before comes back whole; the failed attempt is kept aside.
+ * Nothing is moved unless systemd confirms the server and its timer stopped
+ * (PGLite is held by a running server), and never without the copy. */
 async function restore(
   host: VaultHost,
   backup: string,
   vaultDir: string,
   at: string,
-): Promise<boolean> {
+): Promise<Restored> {
   const { brain, home } = host.paths;
+  if (!(await stoppedForSure(host))) return "not-stopped";
+  if (!(await present(backup))) return "failed";
   const aside = join(home, `.gbrain.failed-${at}`);
-  await service(host, "stop", brainUnit);
   await mkdir(aside, { recursive: true, mode: 0o700 });
   if (await present(brain)) await rename(brain, join(aside, "gbrain"));
   if (await present(vaultDir))
@@ -860,7 +875,74 @@ async function restore(
   if (await present(join(backup, "vault-checkout")))
     await rename(join(backup, "vault-checkout"), vaultDir);
   await rename(backup, brain);
-  return (await service(host, "start", brainUnit)) && (await answers(host));
+  return (await backUp(host)) ? "restored" : "failed";
+}
+
+/** What a run that stopped half way through the move moved comes back:
+ * the brain from the copy's place, the vault's checkout from inside it.
+ * Only with the server confirmed stopped. */
+async function putBack(
+  host: VaultHost,
+  backup: string,
+  vaultDir: string | undefined,
+): Promise<Restored> {
+  if (!(await stoppedForSure(host))) return "not-stopped";
+  const checkout = join(backup, "vault-checkout");
+  if (
+    vaultDir !== undefined &&
+    (await present(checkout)) &&
+    !(await present(vaultDir))
+  )
+    await rename(checkout, vaultDir);
+  if (!(await present(host.paths.brain)) && (await present(backup)))
+    await rename(backup, host.paths.brain);
+  if (!(await present(host.paths.brain))) return "failed";
+  return (await backUp(host)) ? "restored" : "failed";
+}
+
+/** A rebuild a run left at `stopping`, `moving` or `started` is recovered
+ * before anything else: the brain before comes back, or the journal stays
+ * for the next run when the server cannot be confirmed stopped. */
+async function recoverRebuild(
+  host: VaultHost,
+  journal: NonNullable<NonNullable<BrainState["vault"]>["rebuild"]>,
+  at: string,
+): Promise<
+  Readonly<{
+    result: VaultResult;
+    rebuild: NonNullable<NonNullable<BrainState["vault"]>["rebuild"]>;
+  }>
+> {
+  const backup =
+    journal.backup === undefined
+      ? undefined
+      : join(host.paths.home, journal.backup);
+  let outcome: Restored;
+  if (journal.state === "stopping" || backup === undefined)
+    // Nothing is moved before `moving` is recorded.
+    outcome = (await backUp(host)) ? "restored" : "failed";
+  else if (journal.state === "moving")
+    outcome = await putBack(host, backup, journal.vaultDir);
+  else if (journal.vaultDir === undefined) outcome = "failed";
+  else
+    outcome = await restore(
+      host,
+      backup,
+      journal.vaultDir,
+      stamp(new Date(at)),
+    );
+  if (outcome === "not-stopped")
+    return { result: "stop:rebuild-recover-not-stopped", rebuild: journal };
+  return {
+    result: "stop:rebuild-interrupted",
+    rebuild: {
+      state:
+        outcome === "restored"
+          ? "restored-after-interrupted"
+          : "restore-failed-after-interrupted",
+      at,
+    },
+  };
 }
 
 /** Puts the brain on the vault; a rebuild or a stop of the server happens
@@ -881,6 +963,19 @@ export async function convergeVault(host: VaultHost): Promise<VaultResult> {
       vault: Object.freeze({ ...vault }),
     });
   };
+  const journal = state.vault?.rebuild;
+  if (
+    journal !== undefined &&
+    ["stopping", "moving", "started"].includes(journal.state)
+  ) {
+    const recovered = await recoverRebuild(host, journal, now().toISOString());
+    vault.rebuild = recovered.rebuild;
+    await save();
+    return recovered.result;
+  }
+  // A brain that could not be brought back waits for a person.
+  if (journal?.state.startsWith("restore-failed-"))
+    return "stop:rebuild-restore-failed";
   if (repo !== undefined && vault.repo !== repo) vault = { repo };
   let result: VaultResult;
   switch (plan.action) {
@@ -926,33 +1021,52 @@ export async function convergeVault(host: VaultHost): Promise<VaultResult> {
       const origin = plan.moveAside
         ? (seen.vaultOrigin as string)
         : `https://github.com/${repo}.git`;
-      // The brain is moved only once its server is down: PGLite is held by
-      // a running server. A move that fails puts back what it moved.
-      if (!(await service(host, "stop", brainUnit))) {
-        await service(host, "start", brainUnit);
+      // The journal comes first: a run that dies from here on is recovered
+      // by the next one (`recoverRebuild`).
+      const journalOf = (stage: string) => ({
+        state: stage,
+        at: now().toISOString(),
+        backup: basename(backup),
+        vaultDir,
+        moveAside: plan.moveAside,
+      });
+      vault.rebuild = journalOf("stopping");
+      await save();
+      // The brain is moved only once systemd confirms its server and timer
+      // are down: PGLite is held by a running server.
+      if (!(await stoppedForSure(host))) {
+        const back = await backUp(host);
+        vault.rebuild = {
+          state: back ? "restored-after-stop" : "restore-failed-after-stop",
+          at: now().toISOString(),
+        };
         result = "stop:rebuild-stop";
         break;
       }
+      vault.rebuild = journalOf("moving");
+      await save();
       try {
         await rename(host.paths.brain, backup);
         if (plan.moveAside)
           await rename(vaultDir, join(backup, "vault-checkout"));
       } catch {
-        if (await present(join(backup, "vault-checkout")))
-          await rename(join(backup, "vault-checkout"), vaultDir).catch(
-            () => undefined,
-          );
-        if (!(await present(host.paths.brain)) && (await present(backup)))
-          await rename(backup, host.paths.brain).catch(() => undefined);
-        await service(host, "start", brainUnit);
+        const back = await putBack(host, backup, vaultDir).catch(
+          () => "failed" as const,
+        );
+        vault.rebuild =
+          back === "not-stopped"
+            ? journalOf("moving")
+            : {
+                state:
+                  back === "restored"
+                    ? "restored-after-move"
+                    : "restore-failed-after-move",
+                at: now().toISOString(),
+              };
         result = "stop:rebuild-move";
         break;
       }
-      vault.rebuild = {
-        state: "started",
-        at: now().toISOString(),
-        backup: basename(backup),
-      };
+      vault.rebuild = journalOf("started");
       await save();
       try {
         await rebuildCore(host, {
@@ -964,14 +1078,19 @@ export async function convergeVault(host: VaultHost): Promise<VaultResult> {
       } catch (error) {
         const code = error instanceof VaultFailure ? error.code : "unexpected";
         const back = await restore(host, backup, vaultDir, at).catch(
-          () => false,
+          () => "failed" as const,
         );
-        vault.rebuild = {
-          state: back
-            ? `restored-after-${code}`
-            : `restore-failed-after-${code}`,
-          at: now().toISOString(),
-        };
+        // Not confirmed stopped: the journal stays, the next run restores.
+        vault.rebuild =
+          back === "not-stopped"
+            ? journalOf("started")
+            : {
+                state:
+                  back === "restored"
+                    ? `restored-after-${code}`
+                    : `restore-failed-after-${code}`,
+                at: now().toISOString(),
+              };
         result = `stop:rebuild-${code}`;
         break;
       }

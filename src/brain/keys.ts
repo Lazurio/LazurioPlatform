@@ -34,7 +34,17 @@ export type BrainState = Readonly<{
     repo?: string;
     onCommit?: string;
     durability?: string;
-    rebuild?: Readonly<{ state: string; at: string; backup?: string }>;
+    /** A rebuild's journal, written before each stage: `stopping`,
+     * `moving`, `started` (a run that finds one of these recovers it),
+     * `done`, `restored-after-…`, or `restore-failed-after-…` (stopped for a
+     * person). `vaultDir` and `moveAside` say what the move touches. */
+    rebuild?: Readonly<{
+      state: string;
+      at: string;
+      backup?: string;
+      vaultDir?: string;
+      moveAside?: boolean;
+    }>;
   }>;
   /** The owner's consent to take the interim installer's brain over, and
    * how the takeover went. */
