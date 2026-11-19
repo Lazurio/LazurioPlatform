@@ -172,6 +172,23 @@ test("--write leaves a diverging company.gen3.json a conflict and writes nothing
   ]);
 });
 
+test("the text of a stale digest next to another issue says the real state and does not offer --write (Pablo's review of #1114)", async () => {
+  const { edited } = editedWithoutDigest();
+  const stale = expectedLegacyProjection(pin(unpinned), modules).projection;
+  const directory = await root(edited, stale);
+  const { code, text } = await runOrganizationCheckCommand([
+    "organization",
+    "check",
+    directory,
+  ]);
+  expect(code).toBe(1);
+  expect(text).toContain("conflict (does not run)");
+  expect(text).toContain("normalized_semantics_conflict");
+  expect(text).not.toContain("runs the root anyway");
+  expect(text).not.toContain("Run: lazurio organization check --write");
+  expect(text).toContain("Resolve the other issues first");
+});
+
 test("--write keeps the manifest's permissions whatever the umask, and leaves no temporary file (Pablo's review)", async () => {
   const { edited, legacy } = editedWithoutDigest();
   const directory = await root(edited, legacy);

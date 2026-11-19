@@ -1168,6 +1168,29 @@ posixTest(
       expect(delta?.organization).toBeNull();
       expect(delta?.displayName).toBeNull();
       expect(delta?.forgeLogin).toBeUndefined();
+      // A company.gen3.json that names another Organization, by its slug or
+      // by its GitHub login, leaves alpha's identity unknown although the
+      // issues are the same (Pablo's review of #1114).
+      const legacyPath = join(organizations, "alpha_GEN3", "company.gen3.json");
+      const legacy = JSON.parse(await Bun.file(legacyPath).text());
+      for (const company of [
+        { ...legacy.company, github_org: "different" },
+        { ...legacy.company, slug: "different" },
+      ]) {
+        await writeFile(
+          legacyPath,
+          `${JSON.stringify({ ...legacy, company }, null, 2)}\n`,
+        );
+        const other = findCatalogOrganization(
+          await readFolderCatalog(folder),
+          "alpha_GEN3",
+        );
+        expect(other?.state).toBe("conflict");
+        expect(other?.issues).toContain("normalized_semantics_conflict");
+        expect(other?.organization).toBeNull();
+        expect(other?.displayName).toBeNull();
+        expect(other?.forgeLogin).toBeUndefined();
+      }
     });
   },
   30_000,

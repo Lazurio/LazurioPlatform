@@ -79,8 +79,10 @@ validated as the authored manifest and never a second schema:
   divergence, an unreadable or malformed document or a missing inventory is
   `conflict`. This recognizes drift only where parity is proven.
 - The declared digest (`compatibility.legacy_projection.sha256`) is optional and never
-  decides a state (LZD-0041 phase A, after Platform 0.1.23). A root without it, or without
-  `company.gen3.json`, is `current` and runs. A stale declared digest is reported as the
+  decides a state (LZD-0041 phase A, after Platform 0.1.23). A root without
+  `company.gen3.json` is `current` and runs, whether or not it declares the digest; a root
+  with `company.gen3.json` is resolved by parity as above (`transition`, `projection_drift`
+  or `conflict`), whatever its digest. A stale declared digest is reported as the
   issue `canonical_projection_hash_invalid` next to the state the documents give,
   because readers older than this Platform (the Root's Core, Platform 0.1.23 and
   earlier) still resolve it as `conflict`; `lazurio organization check --write`

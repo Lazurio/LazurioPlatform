@@ -548,7 +548,10 @@ function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
  * `transition` root (the canonical manifest edited, `company.gen3.json` not
  * regenerated) is `normalized_semantics_conflict` next to it; without this
  * the root would lose its name and send its Environment back to Začínáme.
- * Every other issue (an unreadable or invalid document, a legacy document
+ * Under each of them `heldIdentity` still requires a present
+ * company.gen3.json to name the same slug and GitHub login, so a projection
+ * that names another Organization is never trusted (Pablo's review of
+ * #1114). Every other issue (an unreadable or invalid document, a legacy document
  * that is malformed or names another Organization, a missing inventory)
  * leaves the identity unknown, so the catalog never names, binds or hands to
  * Composio an Organization it cannot be sure of (Pablo's review of LZD-0041). */
@@ -560,6 +563,25 @@ const identityIssues: readonly string[] = Object.freeze([
 
 export const identityTrusted = (issues: readonly string[]): boolean =>
   issues.length > 0 && issues.every((issue) => identityIssues.includes(issue));
+
+/** Whether a present company.gen3.json names the same Organization as the
+ * canonical manifest: the same slug and the same GitHub login (ignoring
+ * letter case, as the canonical contract does). An absent one agrees. */
+function legacyAgrees(
+  legacy: Readonly<{ kind: string; value?: unknown }>,
+  slug: string | undefined,
+  login: string | undefined,
+): boolean {
+  if (legacy.kind !== "present") return true;
+  const company = isRecord(legacy.value) ? legacy.value.company : undefined;
+  if (!isRecord(company)) return false;
+  return (
+    company.slug === slug &&
+    typeof company.github_org === "string" &&
+    typeof login === "string" &&
+    company.github_org.toLowerCase() === login.toLowerCase()
+  );
+}
 
 /** The identity a root that resolves but does not run still declares: its
  * slug, display name and GitHub login from `lazurio.organization.json`,
@@ -592,6 +614,11 @@ async function heldIdentity(
   const bound = forgeLogin(organization);
   // A root that declares neither is no Organization this Folder can name.
   if (slug === undefined && bound.forgeLogin === undefined) return {};
+  // A company.gen3.json that names another Organization (another slug or
+  // GitHub login) leaves the identity unknown: the documents do not agree
+  // on who the Organization is, whatever else differs (Pablo's review of
+  // #1114). Only a projection that agrees on both may differ elsewhere.
+  if (!legacyAgrees(documents.legacy, slug, bound.forgeLogin)) return {};
   return {
     ...(slug === undefined ? {} : { organization: slug }),
     ...(typeof organization.display_name === "string"

@@ -278,7 +278,9 @@ export function checkText(answer: OrganizationCheckAnswer): string {
     answer.write === undefined
   )
     lines.push(
-      "  The canonical manifest changed without its projection digest. This Lazurio runs the root anyway; Lazurio up to 0.1.23 and the Core do not. Run: lazurio organization check --write",
+      answer.issues.length === 1
+        ? `  The canonical manifest changed without its projection digest.${answer.executable ? " This Lazurio runs the root anyway; Lazurio up to 0.1.23 and the Core do not." : ""} Run: lazurio organization check --write`
+        : "  The projection digest is stale as well. Resolve the other issues first; lazurio organization check --write rewrites the digest only when it is the only one.",
     );
   if (answer.write !== undefined)
     lines.push(`  ${writeSentence[answer.write]}`);
