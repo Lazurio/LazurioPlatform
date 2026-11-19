@@ -587,7 +587,7 @@ posix(
         kind: "buddy-archive-export",
         state: "refused",
         reason: "t3-source-missing",
-        covered_rows: 4,
+        covered_rows: 5,
       });
       await nothingPublished(home);
       // Its store present but unreadable: the same refusal.
@@ -680,5 +680,24 @@ posix(
           },
         ],
       },
+    ),
+);
+
+posix(
+  "web-chat commentary alone left to a missing T3 Code store refuses the export too",
+  () =>
+    withHome(
+      async (home) => {
+        await rm(join(home, ".t3-buddy"), { recursive: true });
+        expect(await exportTo(home, join(home, "out"))).toEqual({
+          kind: "buddy-archive-export",
+          state: "refused",
+          reason: "t3-source-missing",
+          covered_rows: 1,
+        });
+        await nothingPublished(home);
+      },
+      // Only the ACP assistant row that carries nothing but commentary.
+      { hermes: hermesMessages("/unused").filter((m) => m.uid === "u21") },
     ),
 );

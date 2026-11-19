@@ -284,8 +284,9 @@ export type HermesRead = Readonly<{
   platform: Draft[];
   chatQa: Draft[];
   chatCommentary: ReadonlySet<string>;
-  /** Rows of the web chat (`local`, `acp`), the person's and Buddy's text,
-   * left to T3 Code: without its store they would be lost. */
+  /** Rows and commentary items of the web chat (`local`, `acp`), the
+   * person's and Buddy's text, left to T3 Code: without its store they would
+   * be lost. */
   covered: number;
 }>;
 
@@ -452,6 +453,8 @@ export function readHermes(
         if (isChat) {
           if (raw !== "") chatCommentary.add(normalizeSpace(raw));
           bump(stats, `${tag}.commentary.covered_by_t3`);
+          // Left to T3 Code like the rest of the web chat (`covered`).
+          covered += 1;
           return;
         }
         // Commentary may send a file by a MEDIA: line too.

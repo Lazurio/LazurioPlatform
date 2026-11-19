@@ -159,7 +159,7 @@ buddy archive verify <absolute dir> [--json]
   attachment is reported, not fatal. Refused, nothing written: without
   Hermes's store (hermes-source-missing: Telegram, the questions and the
   commentary live only there), and without a readable T3 store while
-  Hermes holds web-chat rows left to it (t3-source-missing, with their
+  Hermes holds web-chat rows or commentary left to it (t3-source-missing, with their
   count in covered_rows); neither store: no-sources.
   Exporting the same sources again yields the same records.jsonl. verify
   checks an archive from itself alone, without the sources: format,
@@ -465,7 +465,7 @@ function archiveExportOutput(
             : answer.reason === "hermes-source-missing"
               ? "Hermes's store is missing, so the conversation cannot be archived completely; nothing was written."
               : answer.reason === "t3-source-missing"
-                ? `Buddy's T3 Code store is missing or unreadable, and Hermes left ${answer.covered_rows ?? 0} web-chat messages to it; nothing was written.`
+                ? `Buddy's T3 Code store is missing or unreadable, and Hermes left ${answer.covered_rows ?? 0} web-chat messages or commentary to it; nothing was written.`
                 : answer.reason === "incomplete"
                   ? `The archive did not pass its checks (${(answer.failed ?? []).join(", ")}); nothing was written.`
                   : "Buddy's conversation could not be archived; nothing was written.";
