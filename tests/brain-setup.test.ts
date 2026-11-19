@@ -521,19 +521,37 @@ describe("what a dead run left, before the brain starts", () => {
         { detached: true, stdio: "ignore" },
       );
       const ended = new Promise((resolve) => writer.once("exit", resolve));
+      const gone = () => writer.exitCode !== null || writer.signalCode !== null;
+      // Every wait is bounded well inside the test's own limit (Bun's limit
+      // does not cancel the test nor run its `finally`), so a hang fails
+      // here and the writer is still killed and reaped.
+      const within = <T>(ms: number, what: string, promise: Promise<T>) =>
+        Promise.race([
+          promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`${what}: no end in ${ms} ms`)), ms),
+          ),
+        ]);
       try {
         await new Promise((resolve) => setTimeout(resolve, 200));
-        const result = await brainSetup(setupHost);
+        const result = await within(8_000, "setup", brainSetup(setupHost));
         expect(result.server).toBe("running");
-        await ended;
-        expect(writer.exitCode !== null || writer.signalCode !== null).toBe(
-          true,
-        );
+        await within(2_000, "the writer's end", ended);
+        expect(gone()).toBe(true);
       } finally {
-        if (writer.exitCode === null && writer.signalCode === null)
-          writer.kill("SIGKILL");
+        if (!gone()) {
+          try {
+            process.kill(-(writer.pid as number), "SIGKILL");
+          } catch {
+            writer.kill("SIGKILL");
+          }
+          await within(2_000, "the writer's reaping", ended).catch(
+            () => undefined,
+          );
+        }
       }
     },
+    20_000,
   );
 
   test("where there is no /proc to read, no writer is found and nothing waits", async () => {
