@@ -102,6 +102,15 @@ export type BuddyBubbleView = Readonly<{
   home(): Readonly<{ x: number; y: number }> | null;
 }>;
 
+/** The one choice of the launcher's menu: its words, whether it is on,
+ * whether it can be chosen, and what choosing it does. */
+export type BuddyMenuItem = Readonly<{
+  label: string;
+  checked: boolean;
+  disabled: boolean;
+  select: () => void;
+}>;
+
 /** One sway of his figure, restarted when it already runs. */
 function sway(figure: HTMLElement): void {
   figure.removeAttribute("data-sway");
@@ -134,6 +143,9 @@ export function createBuddyBubbleView(
     /** This app's memory (`localStorage`), where his place is kept; null
      * keeps it for this page only. */
     store: Store | null;
+    /** The launcher's menu (right click, long press, the menu key): its one
+     * choice now, or null for no menu. */
+    menu?: () => BuddyMenuItem | null;
   }>,
 ): BuddyBubbleView {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(options.logo)}`;
@@ -395,6 +407,51 @@ export function createBuddyBubbleView(
       if (performance.now() < swallowUntil) return;
       options.toggle();
     });
+    // The launcher's menu: one choice, above him, gone on a choice, on
+    // Escape and on a press anywhere else.
+    const menu = document.createElement("div");
+    menu.className = "menu";
+    menu.setAttribute("role", "menu");
+    menu.hidden = true;
+    const choice = document.createElement("button");
+    choice.type = "button";
+    choice.setAttribute("role", "menuitemcheckbox");
+    menu.append(choice);
+    let chosen: (() => void) | null = null;
+    const closeMenu = () => {
+      if (menu.hidden) return;
+      menu.hidden = true;
+      chosen = null;
+      document.removeEventListener("pointerdown", outside, true);
+    };
+    const outside = (event: PointerEvent) => {
+      if (!event.composedPath().includes(menu)) closeMenu();
+    };
+    launcher.addEventListener("contextmenu", (event) => {
+      const item = options.menu?.() ?? null;
+      if (item === null) return;
+      event.preventDefault();
+      choice.textContent = item.label;
+      choice.setAttribute("aria-checked", String(item.checked));
+      choice.disabled = item.disabled;
+      chosen = item.select;
+      menu.hidden = false;
+      document.addEventListener("pointerdown", outside, true);
+      choice.focus();
+    });
+    choice.addEventListener("click", () => {
+      const select = chosen;
+      closeMenu();
+      launcher.focus();
+      select?.();
+    });
+    menu.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeMenu();
+      launcher.focus();
+    });
     listenMoves(launcher, figure);
     bubble.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -448,7 +505,7 @@ export function createBuddyBubbleView(
     const corner = document.createElement("span");
     corner.className = "corner";
     corner.setAttribute("aria-hidden", "true");
-    bubble.append(corner, dialog, launcher);
+    bubble.append(corner, dialog, menu, launcher);
     // Before the guide's layer, which plays over the bubble.
     root.prepend(bubble);
     return {

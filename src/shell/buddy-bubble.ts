@@ -422,6 +422,8 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     },
     /** The Launchpad lifts the launcher over its own dialog while the
      * dialog shows where Buddy is (true), and lets it back (false). */
+    /** Whether his window shows (the panel or full screen). */
+    windowShown: (): boolean => layout !== "closed",
     spotlight(on: boolean): void {
       if (on === spot) return;
       spot = on;

@@ -130,6 +130,10 @@ import {
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
+import {
+  buddyNoticePath,
+  createBuddyNoticeClaims,
+} from "../shell/buddy-notice";
 import type { ShellSetup } from "../shell/contract";
 import { newTabPagePath } from "../shell/new-tab-protocol";
 import { processSshAccessHost, type SshAccessHost } from "../ssh-access/host";
@@ -563,6 +567,7 @@ const isLazurioDocument = (path: string) =>
   path === chatPairingPath ||
   path === buddyGatePath ||
   path === buddySignalPath ||
+  path === buddyNoticePath ||
   path === mausbotPairingPath ||
   promptRoute.test(path);
 
@@ -1597,6 +1602,9 @@ export async function startLaunchpad(
     installed?.buddySignalAtStart,
   );
   const buddySignalStreams = new Set<() => void>();
+  // Which one tab, on any origin of the shell, tells a change of the sign.
+  const buddyNoticeClaims =
+    buddySignal === null ? null : createBuddyNoticeClaims(buddySignal.current);
   // His Telegram (decision F66): his own bot from BotFather, connected
   // through Hermes's own writers and read live from Hermes; the restart that
   // brings a change in is F64's, made once he is idle, at most once in two
@@ -2320,6 +2328,26 @@ export async function startLaunchpad(
         if (buddySignal === null) return response({ error: "not-found" }, 404);
         server.timeout(request, 0);
         return buddySignalStream(buddySignal, buddySignalStreams);
+      }
+      if (url.pathname === buddyNoticePath) {
+        // A tab that would tell a change of Buddy GEN4's sign in a browser
+        // notice claims it first (buddy-notice.ts): the first claim of the
+        // current change wins, on whichever origin of the shell it comes.
+        if (request.method !== "POST")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (buddyNoticeClaims === null)
+          return response({ error: "not-found" }, 404);
+        const text = await request.text().catch(() => "");
+        let key: unknown;
+        try {
+          const value: unknown = text.length > 1_024 ? null : JSON.parse(text);
+          key =
+            typeof value === "object" && value !== null && "key" in value
+              ? value.key
+              : undefined;
+        } catch {}
+        return response({ notify: buddyNoticeClaims.claim(key) });
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the

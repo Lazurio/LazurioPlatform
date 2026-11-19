@@ -5,7 +5,9 @@ import {
   buddyName,
   createBuddyBubble,
 } from "./buddy-bubble";
+import type { BuddyMenuItem } from "./buddy-element";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
+import { buddyNoticePath, createBuddyNotifier } from "./buddy-notice";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
   buddySignalPath,
@@ -1329,6 +1331,26 @@ function pageTheme(element: Element): BuddyTheme {
  * page's merged document names Buddy's origin. The page's events the frame's
  * context follows (its messages, the path, the colour scheme) are listened
  * to only while the frame exists. */
+// The person's choice of the browser's notices of Buddy GEN4's sign, on
+// this origin (each origin has its own permission).
+const noticesKey = "lazurio.buddy.notices";
+const noticesOn = (): boolean => {
+  try {
+    return browserStore()?.getItem(noticesKey) === "on";
+  } catch {
+    return false;
+  }
+};
+const setNoticesOn = (on: boolean): void => {
+  try {
+    if (on) browserStore()?.setItem(noticesKey, "on");
+    else browserStore()?.removeItem(noticesKey);
+  } catch {}
+};
+/** The browser's permission for notices; null where it has none. */
+const notificationPermission = (): NotificationPermission | null =>
+  typeof Notification === "undefined" ? null : Notification.permission;
+
 export class LazurioBuddy extends HTMLElement implements GuideElement {
   // `hidden` too: the launcher's corner on the document follows it
   // (`launcherOnPage`, F60's addendum of 2026-10-25).
@@ -1341,6 +1363,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   // one (`buddy.signal`); the document's own until the stream speaks.
   private signalSource: EventSource | null = null;
   private liveSignal: ShellBuddySignal | null = null;
+  private notifier: ReturnType<typeof createBuddyNotifier> | null = null;
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1481,6 +1504,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             escape: () => this.bubble?.escape() ?? false,
             follow: (href, event) => this.followMeeting(href, event),
             store: browserStore(),
+            menu: () => this.noticeMenu(),
           });
         this.view?.draw(model);
         if (model?.frame != null) this.listenPage();
@@ -1524,14 +1548,40 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       this.liveSignal = signal;
       this.bubble?.update();
     };
-    source.addEventListener("message", (event) => {
+    this.notifier ??= createBuddyNotifier({
+      enabled: () => noticesOn() && notificationPermission() === "granted",
+      inView: () =>
+        document.visibilityState === "visible" &&
+        (this.bubble?.windowShown() ?? false),
+      claim: async (key) => {
+        const answer = await fetch(buddyNoticePath, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ key }),
+        });
+        if (!answer.ok) return false;
+        const value: unknown = await answer.json().catch(() => null);
+        return (
+          typeof value === "object" &&
+          value !== null &&
+          "notify" in value &&
+          value.notify === true
+        );
+      },
+      show: (signal) => this.notice(signal),
+    });
+    // The stream's own events, never the window's messages.
+    source.onmessage = (event) => {
       let value: unknown;
       try {
         value = JSON.parse(String(event.data));
       } catch {}
-      show(parseBuddySignal(value) ?? unavailableSignal);
-    });
-    source.addEventListener("error", () => show(unavailableSignal));
+      const signal = parseBuddySignal(value) ?? unavailableSignal;
+      show(signal);
+      void this.notifier?.observe(signal);
+    };
+    source.onerror = () => show(unavailableSignal);
     this.signalSource = source;
   }
 
@@ -1539,6 +1589,73 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     this.signalSource?.close();
     this.signalSource = null;
     this.liveSignal = null;
+    this.notifier = null;
+  }
+
+  /** The launcher's menu where Buddy GEN4's sign is followed and the
+   * browser has notices: the person's choice on this origin. */
+  private noticeMenu(): BuddyMenuItem | null {
+    if (this.signalSource === null) return null;
+    const permission = notificationPermission();
+    if (permission === null) return null;
+    const copy = shellMessages(this.pageLang());
+    if (permission === "denied")
+      return Object.freeze({
+        label: copy.buddyNoticesBlocked,
+        checked: false,
+        disabled: true,
+        select: () => {},
+      });
+    const on = noticesOn() && permission === "granted";
+    return Object.freeze({
+      label: copy.buddyNotices,
+      checked: on,
+      disabled: false,
+      select: () => {
+        if (on) {
+          setNoticesOn(false);
+          return;
+        }
+        // The browser asks the person, on this choice of theirs.
+        void Notification.requestPermission().then((answer) => {
+          if (answer === "granted") setNoticesOn(true);
+        });
+      },
+    });
+  }
+
+  /** The browser's notice of a change of the sign; its click brings this
+   * tab forward with Buddy's window open. */
+  private notice(signal: ShellBuddySignal): void {
+    const copy = shellMessages(this.pageLang());
+    const body =
+      signal.state === "waiting"
+        ? signal.request?.kind === "approval"
+          ? copy.buddyNoticeApproval
+          : copy.buddyNoticeQuestion
+        : signal.state === "failed"
+          ? copy.buddyNoticeFailed
+          : copy.buddyNoticeAnswered;
+    try {
+      const icon = buddyAvatarSource(this.origin());
+      const shown = new Notification(buddyName, {
+        body,
+        tag: "lazurio-buddy",
+        ...(icon === null ? {} : { icon }),
+      });
+      shown.addEventListener("click", () => {
+        window.focus();
+        this.openWindow();
+        shown.close();
+      });
+    } catch {}
+  }
+
+  private pageLang(): "cs" | "en" {
+    const lang = this.getAttribute("lang");
+    return lang === "cs" || lang === "en"
+      ? lang
+      : (state.drawn()?.locale ?? "en");
   }
 
   /** Buddy's origin while this is the page's bubble; none on Buddy's own
