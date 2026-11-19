@@ -296,8 +296,14 @@ const hubRouted = <T extends { entry?: object }>(binding: T): T =>
     ? binding
     : { ...binding, entry: { ...binding.entry, browserListenPort: hubPort } };
 // Buddy's frame routed by a personal preview's entry (decision F60).
+// With `buddy-gen4` instead, the entry also records Buddy GEN4's folder
+// (plan LZD-0033): no Hermes of his own, and his step shows only his names.
+const withBuddyGen4 =
+  process.argv[2] === "personal" &&
+  process.argv.slice(3).includes("buddy-gen4");
 const withBuddy =
-  process.argv[2] === "personal" && process.argv.slice(3).includes("buddy");
+  withBuddyGen4 ||
+  (process.argv[2] === "personal" && process.argv.slice(3).includes("buddy"));
 const noVault =
   process.argv
     .slice(3)
@@ -376,7 +382,16 @@ const buddyOrigin = withBuddy ? `https://buddy.${host}` : null;
 const buddyRouted = <T extends { entry?: object }>(binding: T): T =>
   buddyOrigin === null || binding.entry === undefined
     ? binding
-    : { ...binding, entry: { ...binding.entry, buddyOrigin } };
+    : {
+        ...binding,
+        entry: {
+          ...binding.entry,
+          buddyOrigin,
+          ...(withBuddyGen4
+            ? { buddyFolder: join(parent, "Buddy"), buddyProfile: "buddy" }
+            : {}),
+        },
+      };
 const parent = await realpath(
   await mkdtemp(join(tmpdir(), "launchpad-preview-")),
 );
@@ -598,7 +613,7 @@ await mkdir(join(home, "bin"), { recursive: true });
 // signed in, behind the home's `~/.hermes`, and his persona as the installer
 // leaves it, for the person to confirm in "Seznamte se s Buddym".
 let buddyHermes: FakeHermesGateway | null = null;
-if (withBuddy) {
+if (withBuddy && !withBuddyGen4) {
   // A Hermes that takes Buddy's own words for a pairing reply
   // (Lazurio/hermes-agent#19).
   buddyHermes = await fakeHermesGateway({
