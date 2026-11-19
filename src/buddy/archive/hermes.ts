@@ -284,6 +284,9 @@ export type HermesRead = Readonly<{
   platform: Draft[];
   chatQa: Draft[];
   chatCommentary: ReadonlySet<string>;
+  /** Rows of the web chat (`local`, `acp`), the person's and Buddy's text,
+   * left to T3 Code: without its store they would be lost. */
+  covered: number;
 }>;
 
 /** The rows of `state.db` as the person saw them. Compaction copies share a
@@ -360,6 +363,7 @@ export function readHermes(
   const platform: Draft[] = [];
   const chatQa: Draft[] = [];
   const chatCommentary = new Set<string>();
+  let covered = 0;
   for (const [key, row] of unique) {
     const source = sessions.get(row.session_id);
     if (source === undefined) {
@@ -383,6 +387,7 @@ export function readHermes(
     if (role === "user") {
       if (isChat) {
         bump(stats, `${tag}.user.covered_by_t3`);
+        covered += 1;
         continue;
       }
       if (
@@ -430,7 +435,7 @@ export function readHermes(
     let items: unknown[] = [];
     if (truthy(row.codex_message_items)) {
       const parsed = parseJson(row.codex_message_items ?? "");
-      if (!parsed.ok) bump(stats, `${tag}.warn.codex_items_unparsed`);
+      if (!parsed.ok) bump(stats, `${tag}.unparsed.codex_message_items`);
       else if (Array.isArray(parsed.value)) items = parsed.value;
     }
 
@@ -468,7 +473,7 @@ export function readHermes(
     // Questions asked by the clarify tool, and the person's answers.
     if (truthy(row.tool_calls)) {
       const parsed = parseJson(row.tool_calls ?? "");
-      if (!parsed.ok) bump(stats, `${tag}.warn.tool_calls_unparsed`);
+      if (!parsed.ok) bump(stats, `${tag}.unparsed.tool_calls`);
       const calls =
         parsed.ok && Array.isArray(parsed.value) ? parsed.value : [];
       let asked = 0;
@@ -485,7 +490,7 @@ export function readHermes(
               : "{}",
           );
           if (!parsedArgs.ok) {
-            bump(stats, `${tag}.warn.clarify_args_unparsed`);
+            bump(stats, `${tag}.unparsed.clarify_arguments`);
             continue;
           }
           args = parsedArgs.value;
@@ -578,6 +583,7 @@ export function readHermes(
     }
     if (isChat) {
       bump(stats, `${tag}.assistant_text.covered_by_t3`);
+      covered += 1;
       continue;
     }
     if (content.trim() === "NO_REPLY") {
@@ -611,7 +617,7 @@ export function readHermes(
     });
     bump(stats, `${tag}.buddy.${kind}`);
   }
-  return { platform, chatQa, chatCommentary };
+  return { platform, chatQa, chatCommentary, covered };
 }
 
 /** A path named by Hermes, as an attachment to copy. */

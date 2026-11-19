@@ -152,15 +152,22 @@ buddy archive verify <absolute dir> [--json]
   (output-exists); owner-only, written beside it and renamed into place at
   the end. Before that the export counts every group from the sources once
   more by another path, checks ids, order, empty records and each copied
-  file's sha256; when any of them fails nothing is published (incomplete,
-  the failed checks named). A missing attachment is reported, not fatal.
+  file's sha256, and requires that no relevant source row failed to parse
+  (a T3 message's payload, Hermes's tool calls, commentary items or clarify
+  arguments; source.parseable.<source>.<column>); when any of them fails
+  nothing is published (incomplete, the failed checks named). A missing
+  attachment is reported, not fatal. Refused, nothing written: without
+  Hermes's store (hermes-source-missing: Telegram, the questions and the
+  commentary live only there), and without a readable T3 store while
+  Hermes holds web-chat rows left to it (t3-source-missing, with their
+  count in covered_rows); neither store: no-sources.
   Exporting the same sources again yields the same records.jsonl. verify
   checks an archive from itself alone, without the sources: format,
   records.jsonl against the manifest's digest and counts, ids, order and
   each attachment's sha256. Both print counts, paths and check names, never
   a conversation's text. JSON on stdout: {kind: "buddy-archive-export",
   state: exported|refused|failed, reason?, path?, records?, by?,
-  attachments?, attachments_missing?, failed?} and {kind:
+  attachments?, attachments_missing?, covered_rows?, failed?} and {kind:
   "buddy-archive-verify", state: verified|failed, reason?, path, records?,
   checks?, failed?}.
   Exit status: 0 exported or verified, 1 refused or failed, 2 usage.`;
@@ -455,9 +462,13 @@ function archiveExportOutput(
           ? `The directory for ${where} does not exist; nothing was written.`
           : answer.reason === "no-sources"
             ? "No Buddy GEN3 conversation was found in this home."
-            : answer.reason === "incomplete"
-              ? `The archive did not pass its checks (${(answer.failed ?? []).join(", ")}); nothing was written.`
-              : "Buddy's conversation could not be archived; nothing was written.";
+            : answer.reason === "hermes-source-missing"
+              ? "Hermes's store is missing, so the conversation cannot be archived completely; nothing was written."
+              : answer.reason === "t3-source-missing"
+                ? `Buddy's T3 Code store is missing or unreadable, and Hermes left ${answer.covered_rows ?? 0} web-chat messages to it; nothing was written.`
+                : answer.reason === "incomplete"
+                  ? `The archive did not pass its checks (${(answer.failed ?? []).join(", ")}); nothing was written.`
+                  : "Buddy's conversation could not be archived; nothing was written.";
   return {
     code: answer.state === "exported" ? exitOk : exitFailure,
     stdout: JSON.stringify(answer),

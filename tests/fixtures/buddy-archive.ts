@@ -352,6 +352,8 @@ type T3Message = {
   createdBy?: string;
   attachments?: unknown[];
   at: string;
+  /** Stored instead of the payload, e.g. JSON that does not parse. */
+  rawPayload?: string;
 };
 
 export const t3Messages: T3Message[] = [
@@ -438,18 +440,19 @@ export function writeT3(path: string, messages: readonly T3Message[]) {
       m.role,
       m.at,
       m.at,
-      JSON.stringify({
-        id: m.id,
-        threadId: m.thread ?? "buddy",
-        role: m.role,
-        text: m.text,
-        attachments: m.attachments ?? [],
-        streaming: false,
-        createdAt: m.at,
-        updatedAt: m.at,
-        createdBy: m.createdBy ?? "agent",
-        creationSource: m.createdBy === "user" ? "web" : "provider",
-      }),
+      m.rawPayload ??
+        JSON.stringify({
+          id: m.id,
+          threadId: m.thread ?? "buddy",
+          role: m.role,
+          text: m.text,
+          attachments: m.attachments ?? [],
+          streaming: false,
+          createdAt: m.at,
+          updatedAt: m.at,
+          createdBy: m.createdBy ?? "agent",
+          creationSource: m.createdBy === "user" ? "web" : "provider",
+        }),
     );
   db.close();
 }

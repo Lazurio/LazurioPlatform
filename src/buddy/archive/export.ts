@@ -79,6 +79,8 @@ export type ArchiveExport = Readonly<{
   by?: Record<string, number>;
   attachments?: number;
   attachments_missing?: number;
+  /** With t3-source-missing: Hermes's web-chat rows left to T3 Code. */
+  covered_rows?: number;
   failed?: readonly string[];
 }>;
 
@@ -258,7 +260,7 @@ function recountChecks(
       key === "chat/assistant/question" ||
       key === "chat/user/answer";
     const groups = new Set([
-      ...hermes.keys(),
+      ...[...hermes.keys()].filter((key) => !key.startsWith("unparsed/")),
       ...Object.keys(by).filter(fromHermes),
       "chat/assistant/question",
       "chat/user/answer",
@@ -289,6 +291,31 @@ function recountChecks(
       t3.get("chat/user/attachments") ?? 0,
     );
   }
+  return checks;
+}
+
+/** Every source row the export could not parse fails the archive: it may
+ * hide a question, an answer or commentary. The recount's own count (SQL,
+ * json_valid = 0) and the export's must both be zero. */
+function parseChecks(
+  stats: Stats,
+  recounts: readonly (Map<string, number> | undefined)[],
+): Check[] {
+  const checks: Check[] = [];
+  for (const recount of recounts)
+    for (const [key, source] of recount ?? []) {
+      if (!key.startsWith("unparsed/")) continue;
+      const [, store, what] = key.split("/");
+      let exported = 0;
+      for (const [name, n] of stats)
+        if (name.startsWith(`${store}.`) && name.endsWith(`.unparsed.${what}`))
+          exported += n;
+      checks.push({
+        name: `source.parseable.${store}.${what}`,
+        ok: source === 0 && exported === 0,
+        detail: `source ${source} rows, export ${exported} rows`,
+      });
+    }
   return checks;
 }
 
@@ -417,9 +444,13 @@ export async function exportArchive(
   const hasHermes = await exists(hermesPath);
   const hasT3 = await exists(t3Path);
   if (!hasHermes && !hasT3) return answer("failed", { reason: "no-sources" });
+  // Every Buddy GEN3 runs Hermes: Telegram, the questions and the
+  // commentary live only there, so without it nothing can be complete.
+  if (!hasHermes) return answer("refused", { reason: "hermes-source-missing" });
+  let covered = 0;
+  let chatCommentary: ReadonlySet<string> = new Set();
   try {
-    let chatCommentary: ReadonlySet<string> = new Set();
-    if (hasHermes) {
+    {
       const db = openReadOnly(hermesPath);
       try {
         const missing = missingHermesColumns(db);
@@ -432,11 +463,23 @@ export async function exportArchive(
         const read = readHermes(db, home, hermesAttachment, stats);
         drafts = [...read.platform, ...read.chatQa];
         chatCommentary = read.chatCommentary;
+        covered = read.covered;
         hermesCounts = recountHermes(db);
       } finally {
         db.close();
       }
     }
+  } catch {
+    return answer("failed", { reason: "source-unreadable" });
+  }
+  // The web chat's messages are T3 Code's: Hermes's rows of it were left to
+  // T3 Code, and without its store they would be lost without a trace.
+  const t3Missing = answer("refused", {
+    reason: "t3-source-missing",
+    covered_rows: covered,
+  });
+  if (!hasT3 && covered > 0) return t3Missing;
+  try {
     if (hasT3) {
       const db = openReadOnly(t3Path);
       try {
@@ -458,7 +501,9 @@ export async function exportArchive(
       }
     }
   } catch {
-    return answer("failed", { reason: "source-unreadable" });
+    return covered > 0
+      ? t3Missing
+      : answer("failed", { reason: "source-unreadable" });
   }
 
   if (options.output === undefined)
@@ -490,6 +535,7 @@ export async function exportArchive(
     const checks = [
       ...recordChecks(records),
       ...recountChecks(records, empty, hermesCounts, t3Counts),
+      ...parseChecks(stats, [hermesCounts, t3Counts]),
       ...(await attachmentChecks(staging, records)),
     ];
     const missing = records.flatMap((record) =>

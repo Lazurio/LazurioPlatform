@@ -132,6 +132,31 @@ export function recountHermes(db: Database): Map<string, number> {
     "user",
     "answer",
   );
+  // Rows the export could not parse, which may hide a question or
+  // commentary: counted here without json_valid filtering them away.
+  const unparsed = (what: string, sql: string) =>
+    counts.set(
+      `unparsed/hermes/${what}`,
+      Number((db.query(sql).get() as { n: number | null }).n ?? 0),
+    );
+  const relevant = `o.role = 'assistant' and coalesce(o.summary, 0) = 0`;
+  unparsed(
+    "codex_message_items",
+    `${base} select count(*) as n from o where ${relevant} and coalesce(o.cmi, '') <> '' and not json_valid(o.cmi)`,
+  );
+  unparsed(
+    "tool_calls",
+    `${base} select count(*) as n from o where ${relevant} and coalesce(o.tool_calls, '') <> '' and not json_valid(o.tool_calls)`,
+  );
+  unparsed(
+    "clarify_arguments",
+    `${base} select count(*) as n from o, json_each(case when json_valid(o.tool_calls) and json_type(o.tool_calls) = 'array' then o.tool_calls else '[]' end) c
+      where ${relevant} and json_type(c.value) = 'object'
+        and json_extract(c.value, '$.function.name') = 'clarify'
+        and json_type(c.value, '$.function.arguments') = 'text'
+        and json_extract(c.value, '$.function.arguments') <> ''
+        and not json_valid(json_extract(c.value, '$.function.arguments'))`,
+  );
   return counts;
 }
 
@@ -143,6 +168,12 @@ export function recountT3(db: Database): Map<string, number> {
     Number((db.query(sql).get() as { n: number | null }).n ?? 0);
   const user = `${from} and m.role = 'user' and json_extract(m.payload_json, '$.createdBy') = 'user'`;
   return new Map([
+    [
+      "unparsed/t3/payload_json",
+      one(
+        `select count(*) as n from orchestration_v2_projection_messages m where ${liveThread(threads)} and not (json_valid(m.payload_json) and json_type(m.payload_json) = 'object')`,
+      ),
+    ],
     ["chat/user/message", one(`select count(*) as n ${user}`)],
     [
       "chat/assistant/message+commentary",

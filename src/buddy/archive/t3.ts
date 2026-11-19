@@ -113,7 +113,7 @@ export function readT3(
       if (!isObject(parsed)) throw new Error("payload");
       payload = parsed;
     } catch {
-      bump(stats, "t3.warn.payload_unparsed");
+      bump(stats, "t3.unparsed.payload_json");
       continue;
     }
     const text = typeof payload.text === "string" ? payload.text : "";

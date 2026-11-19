@@ -7,6 +7,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
   stat,
   writeFile,
@@ -566,4 +567,118 @@ posix(
       // Again into the same second: the directory exists.
       expect((await run(["archive", "export"])).code).toBe(1);
     }),
+);
+
+const nothingPublished = async (home: string) => {
+  expect(
+    (await readdir(home)).filter((n) => n === "out" || n.startsWith(".out.")),
+  ).toEqual([]);
+};
+
+posix(
+  "without T3 Code's store while Hermes holds web-chat rows the export refuses; without Hermes it refuses; Hermes alone without a web chat exports",
+  () =>
+    withHome(async (home) => {
+      const t3 = join(home, ".t3-buddy");
+      const hermes = join(home, ".hermes");
+      const kept = join(home, "kept-t3");
+      await rename(t3, kept);
+      expect(await exportTo(home, join(home, "out"))).toEqual({
+        kind: "buddy-archive-export",
+        state: "refused",
+        reason: "t3-source-missing",
+        covered_rows: 4,
+      });
+      await nothingPublished(home);
+      // Its store present but unreadable: the same refusal.
+      await mkdir(join(t3, "userdata"), { recursive: true });
+      await writeFile(join(t3, "userdata", "statev2.sqlite"), "not sqlite");
+      expect(await exportTo(home, join(home, "out"))).toMatchObject({
+        state: "refused",
+        reason: "t3-source-missing",
+      });
+      await rm(t3, { recursive: true });
+      await rename(kept, t3);
+      await rename(hermes, join(home, "kept-hermes"));
+      expect(await exportTo(home, join(home, "out"))).toEqual({
+        kind: "buddy-archive-export",
+        state: "refused",
+        reason: "hermes-source-missing",
+      });
+      await nothingPublished(home);
+      await rm(t3, { recursive: true });
+      expect(await exportTo(home, join(home, "out"))).toEqual({
+        kind: "buddy-archive-export",
+        state: "failed",
+        reason: "no-sources",
+      });
+    }),
+);
+
+posix("Hermes alone, without any web-chat row, exports", () =>
+  withHome(
+    async (home) => {
+      await rm(join(home, ".t3-buddy"), { recursive: true });
+      const answer = await exportTo(home, join(home, "out"));
+      expect(answer).toMatchObject({ state: "exported" });
+      expect(answer.by?.["chat/user/message"]).toBeUndefined();
+      expect((await verifyArchive(join(home, "out"))).state).toBe("verified");
+    },
+    {
+      hermes: hermesMessages("/unused").filter(
+        (m) => !["s-acp", "s-local"].includes(m.session),
+      ),
+    },
+  ),
+);
+
+posix(
+  "a T3 message whose payload does not parse fails the archive and publishes nothing",
+  () =>
+    withHome(
+      async (home) => {
+        const answer = await exportTo(home, join(home, "out"));
+        expect(answer).toMatchObject({
+          state: "failed",
+          reason: "incomplete",
+          failed: ["source.parseable.t3.payload_json"],
+        });
+        expect(JSON.stringify(answer)).not.toContain("Ahoj");
+        await nothingPublished(home);
+      },
+      {
+        t3: t3Messages.map((m) =>
+          m.id === "m1" ? { ...m, rawPayload: '{"text": "Ahoj z webu' } : m,
+        ),
+      },
+    ),
+);
+
+posix(
+  "a Hermes row whose tool calls do not parse fails the archive and publishes nothing",
+  () =>
+    withHome(
+      async (home) => {
+        const answer = await exportTo(home, join(home, "out"));
+        expect(answer).toMatchObject({
+          state: "failed",
+          reason: "incomplete",
+          failed: ["source.parseable.hermes.tool_calls"],
+        });
+        await nothingPublished(home);
+      },
+      {
+        hermes: [
+          ...hermesMessages("/unused"),
+          {
+            session: "s-tg2",
+            role: "assistant",
+            at: 1_700_000_095,
+            uid: "u60",
+            content: "",
+            tool_calls: '[{"id": "call_x", "function": {"name": "clarify"',
+          },
+        ],
+      },
+    ),
 );
