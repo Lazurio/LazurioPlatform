@@ -1653,7 +1653,7 @@ const en = {
   contentDownloadAll: "Download all",
   contentNeedsGithub: "Starts by itself once GitHub is connected.",
   contentWithoutGithub:
-    "Not downloaded here: this Environment has no access to repositories on GitHub.",
+    "Not downloaded here: {this} has no access to repositories on GitHub.",
   contentNeedsAi: "Offered once AI is connected.",
   contentRefusedAi: "Connect AI in Getting started first.",
   contentNotAllowed: "{This} cannot prepare its content.",
@@ -4048,7 +4048,7 @@ const cs: Record<MessageKey, string> = {
   contentDownloadAll: "Stáhnout vše",
   contentNeedsGithub: "Spustí se samo po připojení GitHubu.",
   contentWithoutGithub:
-    "Sem se nestahuje: toto Prostředí nemá přístup k repozitářům na GitHubu.",
+    "Sem se nestahuje: {toto} nemá přístup k repozitářům na GitHubu.",
   contentNeedsAi: "Nabídne se po připojení AI.",
   contentRefusedAi: "Nejdřív připojte AI v Začínáme.",
   contentNotAllowed: "Tady se obsah připravit nedá.",
