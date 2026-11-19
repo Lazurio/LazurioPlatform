@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   stat,
   symlink,
@@ -115,7 +116,9 @@ test("Buddy GEN4 works with threads and the Brain, not with Hermes, Telegram or 
 });
 
 async function home() {
-  return mkdtemp(join(tmpdir(), "buddy-gen4-"));
+  // Canonical: on macOS `tmpdir()` is behind the `/var` symlink, which the
+  // Buddy folder's parent check refuses, as it would any symlinked home.
+  return realpath(await mkdtemp(join(tmpdir(), "buddy-gen4-")));
 }
 
 test("the folder is created owner-only, written once, and a second refresh writes nothing", async () => {
