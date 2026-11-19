@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
@@ -72,6 +79,8 @@ async function stand(
     migrateFails?: boolean;
     embedFails?: boolean;
     idle?: boolean;
+    /** Another process answers on the model's port. */
+    portTaken?: boolean;
   }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-meaning-"));
@@ -167,8 +176,26 @@ async function stand(
   };
   const http: BrainHttp = async (method, url) => {
     const { pathname, port } = new URL(url);
-    if (port === "3132")
-      return world.model ? { status: 200, body: "{}" } : null;
+    if (port === "3132") {
+      // Another process on the model's port answers, but not as the model.
+      if (options.portTaken)
+        return pathname === "/props"
+          ? {
+              status: 200,
+              body: JSON.stringify({ model_path: "/srv/other.gguf" }),
+            }
+          : { status: 200, body: "{}" };
+      if (!world.model) return null;
+      return pathname === "/props"
+        ? {
+            status: 200,
+            body: JSON.stringify({
+              model_path: mp.model,
+              model_alias: "bge-m3",
+            }),
+          }
+        : { status: 200, body: "{}" };
+    }
     if (!world.server) return null;
     if (pathname === "/health")
       return {
@@ -306,5 +333,100 @@ describe("switching search by meaning on", () => {
     expect(world.model).toBe(true);
     expect(calls.some((c) => c[2] === "stop")).toBe(false);
     expect(await unit(paths, brainUnit)).not.toContain("LLAMA_SERVER_BASE_URL");
+  });
+
+  test("a model unit nobody of these wrote, or one unreadable, is left alone", async () => {
+    const { host, paths, calls } = await stand();
+    await writeFile(
+      join(paths.units, meaningUnit),
+      "[Service]\nExecStart=/opt/x\n",
+    );
+    expect(await convergeMeaning(host)).toBe("waits:unit-foreign");
+    expect(await unit(paths, meaningUnit)).toBe(
+      "[Service]\nExecStart=/opt/x\n",
+    );
+    expect(calls.some((c) => c[2] === "enable" || c[2] === "stop")).toBe(false);
+    if (process.getuid?.() === 0) return;
+    await chmod(join(paths.units, meaningUnit), 0o000);
+    expect(await convergeMeaning(host)).toBe("waits:unit-unreadable");
+    await chmod(join(paths.units, meaningUnit), 0o644);
+  });
+
+  test("Lazurio's own earlier model unit, known by its digest, is rewritten", async () => {
+    const { host, paths } = await stand();
+    const earlier = "# an earlier unit of Lazurio's\n";
+    await writeFile(join(paths.units, meaningUnit), earlier);
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningUnit: createHash("sha256").update(earlier).digest("hex"),
+    });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(await unit(paths, meaningUnit)).toContain("--alias bge-m3");
+  });
+
+  test("another process on the model's port never gets the brain's text: nothing stops", async () => {
+    const { host, calls, world } = await stand({ portTaken: true });
+    expect(await convergeMeaning(host)).toBe("waits:port-taken");
+    expect(calls.some((c) => c[2] === "stop")).toBe(false);
+    expect(calls.some((c) => c[1] === "embeddings" || c[1] === "embed")).toBe(
+      false,
+    );
+    expect(world.server).toBe(true);
+  });
+
+  test("a run that died before the copy was whole: the brain untouched, the server back, tried again later", async () => {
+    const { host, paths, world } = await stand();
+    const backup = ".gbrain.bak-meaning-20261119T000000Z";
+    await mkdir(join(paths.home, backup), { recursive: true });
+    await writeFile(join(paths.home, backup, "partial"), "x");
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result: "stopping",
+        at: "2026-11-19T00:00:00.000Z",
+        backup,
+      },
+    });
+    world.server = false;
+    world.timer = false;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(await readdir(paths.home)).not.toContain(backup);
+    expect(world.server && world.timer).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    // The next idle run switches it on.
+    expect(await convergeMeaning(host)).toBe("on");
+  });
+
+  test("a run that died after gbrain began: the copy comes back without the model", async () => {
+    const { host, paths, world } = await stand();
+    const backup = ".gbrain.bak-meaning-20261119T000000Z";
+    await mkdir(join(paths.home, backup), { recursive: true });
+    await writeFile(
+      join(paths.home, backup, "config.json"),
+      '{"brain":"before"}',
+    );
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"half-moved"}');
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result: "started",
+        at: "2026-11-19T00:00:00.000Z",
+        backup,
+      },
+    });
+    world.server = false;
+    world.timer = false;
+    expect(await convergeMeaning(host)).toBe("restored:interrupted");
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    expect(await unit(paths, brainUnit)).not.toContain("LLAMA_SERVER_BASE_URL");
+    expect(world.server && world.timer).toBe(true);
+    expect(await convergeMeaning(host)).toBe("held");
   });
 });

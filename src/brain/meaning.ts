@@ -6,6 +6,7 @@ import {
   mkdir,
   open,
   readdir,
+  readFile,
   rename,
   rm,
 } from "node:fs/promises";
@@ -214,7 +215,7 @@ export function renderMeaningUnit(server: string, model: string): string {
     "[Service]",
     "Type=simple",
     `Environment=LD_LIBRARY_PATH=${dirname(server)}`,
-    `ExecStart=${server} -m ${model} --embeddings --pooling ${meaningPin.pooling} -c ${meaningPin.context} -b ${meaningPin.context} -ub ${meaningPin.context} --host 127.0.0.1 --port ${meaningPort}`,
+    `ExecStart=${server} -m ${model} --alias ${meaningAlias} --embeddings --pooling ${meaningPin.pooling} -c ${meaningPin.context} -b ${meaningPin.context} -ub ${meaningPin.context} --host 127.0.0.1 --port ${meaningPort}`,
     "Nice=10",
     "CPUWeight=20",
     "IOSchedulingClass=idle",
@@ -227,17 +228,40 @@ export function renderMeaningUnit(server: string, model: string): string {
   ].join("\n");
 }
 
+/** The name the model server answers to: gbrain's model of the provider. */
+const meaningAlias = meaningPin.provider.replace(/^llama-server:/, "");
+
 /** Whether the model server answers on loopback. */
 export async function meaningAnswers(host: MoveHost): Promise<boolean> {
   const answer = await host.http("GET", `${meaningUrl}/health`);
   return answer !== null && answer.status === 200;
 }
 
+/** Whether what answers on the model's port is Lazurio's model server: it
+ * names the pinned model file (in the person's home, named by its digest)
+ * and its alias. Any other process there never gets the brain's text. */
+export async function modelIsOurs(host: MoveHost): Promise<boolean> {
+  const answer = await host.http("GET", `${meaningUrl}/props`);
+  if (answer === null || answer.status !== 200) return false;
+  try {
+    const props = JSON.parse(answer.body) as {
+      model_path?: unknown;
+      model_alias?: unknown;
+    };
+    return (
+      props.model_path === meaningPaths(host.paths.home).model &&
+      props.model_alias === meaningAlias
+    );
+  } catch {
+    return false;
+  }
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitForModel(host: MoveHost): Promise<boolean> {
   for (let i = 0; i < (host.tries ?? 60); i++) {
-    if (await meaningAnswers(host)) return true;
+    if (await modelIsOurs(host)) return true;
     await sleep(host.waitMs ?? 1000);
   }
   return false;
@@ -343,45 +367,18 @@ async function switchOn(
   return embedded.ok ? null : "embed";
 }
 
-/** The model server, and the brain switched on once. */
-export async function convergeMeaning(
-  host: MeaningHost,
-): Promise<MeaningResult> {
-  const installed = await installMeaning(host);
-  if (typeof installed === "string") return `waits:${installed}`;
-  const paths = meaningPaths(host.paths.home);
-  try {
-    await mkdir(host.paths.units, { recursive: true });
-    await writeDurableFile(
-      host.paths.units,
-      meaningUnit,
-      Buffer.from(renderMeaningUnit(installed.server, paths.model)),
-    );
-  } catch {
-    return "waits:unit";
-  }
-  if (
-    !(await service(host, "daemon-reload")) ||
-    !(await service(host, "enable", "--now", meaningUnit)) ||
-    !(await waitForModel(host))
-  )
-    return "waits:model";
-  const state = await readBrainState(host.paths);
-  if (state.meaning?.provider === meaningPin.provider) return "on";
-  const attempt = state.meaningAttempt;
-  if (attempt?.provider === meaningPin.provider && attempt.result !== "started")
-    return attempt.result === "restored"
-      ? "held"
-      : `stopped:${attempt.reason ?? "unknown"}`;
-  if (!(await host.idle())) return "waits-idle";
-  const release = state.release;
-  if (release === undefined) return "waits:release-unknown";
-  const before = await pages(host);
-  if (before === null) return "waits:page-count";
-  const now = (host.now ?? (() => new Date()))();
-  const backup = join(host.paths.home, `.gbrain.bak-meaning-${stampOf(now)}`);
-  const record = async (
-    result: "started" | "restored" | "stopped",
+const digestOf = (text: string) =>
+  createHash("sha256").update(text).digest("hex");
+
+type Release = NonNullable<
+  Awaited<ReturnType<typeof readBrainState>>["release"]
+>;
+
+/** Writes the attempt's journal: its stage, when it began and its copy. */
+const recorder =
+  (host: MeaningHost, now: Date) =>
+  async (
+    result: "stopping" | "started" | "restored" | "stopped",
     reason?: string,
   ) => {
     const current = await readBrainState(host.paths);
@@ -396,9 +393,181 @@ export async function convergeMeaning(
       }),
     });
   };
+
+async function clearAttempt(host: MeaningHost): Promise<void> {
+  const { meaningAttempt: _gone, ...current } = await readBrainState(
+    host.paths,
+  );
+  await writeBrainState(host.paths, current);
+}
+
+/** The brain before, without the model, from the attempt's copy: never
+ * under a running server; the server back on its release, confirmed. */
+async function restoreCopy(
+  host: MeaningHost,
+  release: Release,
+  backup: string,
+  now: Date,
+  reason: string,
+): Promise<MeaningResult> {
+  const record = recorder(host, now);
+  if (!(await stoppedForSure(host))) {
+    await record("stopped", "not-stopped");
+    await keepDown(host);
+    return "stopped:not-stopped";
+  }
+  const failed = join(
+    host.paths.home,
+    `.gbrain.failed-meaning-${stampOf(now)}`,
+  );
+  try {
+    if (!(await present(backup))) throw new Error("no copy");
+    if (await present(host.paths.brain)) await rename(host.paths.brain, failed);
+    await cp(backup, host.paths.brain, {
+      recursive: true,
+      verbatimSymlinks: true,
+      preserveTimestamps: true,
+    });
+    await chmod(host.paths.brain, 0o700);
+    await writeBrainUnits(host.paths, release.command, false);
+  } catch {
+    await record("stopped", "copy-not-restored");
+    await keepDown(host);
+    return "stopped:copy-not-restored";
+  }
+  const back =
+    (await service(host, "daemon-reload")) &&
+    (await service(host, "start", brainUnit)) &&
+    (await answers(host)) === release.version;
+  if (!back) {
+    await record("stopped", "no-answer");
+    await keepDown(host);
+    return "stopped:no-answer";
+  }
+  await service(host, "start", brainRefreshTimer);
+  await record("restored", reason);
+  return `restored:${reason}`;
+}
+
+/** An attempt a run left half way. `stopping`: the brain was not touched
+ * (gbrain's steps begin only after `started`), so a partial copy goes, the
+ * server comes back, and the next idle run tries again. `started`: gbrain
+ * may have changed the brain, so its copy comes back as after a failed
+ * step. Null where there is nothing to recover. */
+async function recoverAttempt(
+  host: MeaningHost,
+): Promise<MeaningResult | null> {
+  const state = await readBrainState(host.paths);
+  const attempt = state.meaningAttempt;
+  if (
+    attempt?.provider !== meaningPin.provider ||
+    (attempt.result !== "stopping" && attempt.result !== "started")
+  )
+    return null;
+  const backup =
+    attempt.backup === undefined
+      ? undefined
+      : join(host.paths.home, attempt.backup);
+  if (attempt.result === "stopping") {
+    if (backup !== undefined)
+      await rm(backup, { recursive: true, force: true }).catch(() => undefined);
+    await service(host, "start", brainUnit);
+    await service(host, "start", brainRefreshTimer);
+    await clearAttempt(host);
+    return "waits:interrupted";
+  }
+  const at = new Date(attempt.at);
+  if (state.release === undefined || backup === undefined) {
+    await recorder(host, at)("stopped", "interrupted-unknown");
+    await keepDown(host);
+    return "stopped:interrupted-unknown";
+  }
+  return restoreCopy(host, state.release, backup, at, "interrupted");
+}
+
+/** The model server, and the brain switched on once. */
+export async function convergeMeaning(
+  host: MeaningHost,
+): Promise<MeaningResult> {
+  const installed = await installMeaning(host);
+  if (typeof installed === "string") return `waits:${installed}`;
+  const paths = meaningPaths(host.paths.home);
+  const text = renderMeaningUnit(installed.server, paths.model);
+  // A unit of that name is Lazurio's only if it is what Lazurio writes now
+  // or wrote last (its digest); anything else, or one that cannot be read,
+  // is left alone.
+  let existing: string | undefined;
+  try {
+    existing = await readFile(join(host.paths.units, meaningUnit), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT")
+      return "waits:unit-unreadable";
+  }
+  if (
+    existing !== undefined &&
+    existing !== text &&
+    digestOf(existing) !== (await readBrainState(host.paths)).meaningUnit
+  )
+    return "waits:unit-foreign";
+  // Something else on the model's port is never asked.
+  if ((await meaningAnswers(host)) && !(await modelIsOurs(host))) {
+    const ours = await systemctl(
+      { run: host.service, env: host.env },
+      "is-active",
+      "--quiet",
+      meaningUnit,
+    );
+    if (!ours) return "waits:port-taken";
+  }
+  try {
+    await mkdir(host.paths.units, { recursive: true });
+    if (existing !== text)
+      await writeDurableFile(host.paths.units, meaningUnit, Buffer.from(text));
+    const state = await readBrainState(host.paths);
+    if (state.meaningUnit !== digestOf(text))
+      await writeBrainState(host.paths, {
+        ...state,
+        meaningUnit: digestOf(text),
+      });
+  } catch {
+    return "waits:unit";
+  }
+  if (
+    !(await service(host, "daemon-reload")) ||
+    !(await service(host, "enable", "--now", meaningUnit))
+  )
+    return "waits:model";
+  if (existing !== undefined && existing !== text)
+    await service(host, "restart", meaningUnit);
+  if (!(await waitForModel(host)))
+    return (await meaningAnswers(host)) ? "waits:port-taken" : "waits:model";
+  const recovered = await recoverAttempt(host);
+  if (recovered !== null) return recovered;
+  const state = await readBrainState(host.paths);
+  if (state.meaning?.provider === meaningPin.provider) return "on";
+  const attempt = state.meaningAttempt;
+  if (
+    attempt?.provider === meaningPin.provider &&
+    (attempt.result === "restored" || attempt.result === "stopped")
+  )
+    return attempt.result === "restored"
+      ? "held"
+      : `stopped:${attempt.reason ?? "unknown"}`;
+  if (!(await host.idle())) return "waits-idle";
+  const release = state.release;
+  if (release === undefined) return "waits:release-unknown";
+  const before = await pages(host);
+  if (before === null) return "waits:page-count";
+  const now = (host.now ?? (() => new Date()))();
+  const backup = join(host.paths.home, `.gbrain.bak-meaning-${stampOf(now)}`);
+  const record = recorder(host, now);
+  // The intent before the server stops: a run that dies from here on is
+  // recovered by the next one (`recoverAttempt`).
+  await record("stopping");
   if (!(await stoppedForSure(host))) {
     await service(host, "start", brainUnit);
     await service(host, "start", brainRefreshTimer);
+    await clearAttempt(host);
     return "waits:not-stopped";
   }
   try {
@@ -414,47 +583,12 @@ export async function convergeMeaning(
     await rm(backup, { recursive: true, force: true }).catch(() => undefined);
     await service(host, "start", brainUnit);
     await service(host, "start", brainRefreshTimer);
+    await clearAttempt(host);
     return "waits:copy";
   }
   await record("started");
-  const fallBack = async (reason: string): Promise<MeaningResult> => {
-    // The brain before, without the model: never under a running server.
-    if (!(await stoppedForSure(host))) {
-      await record("stopped", "not-stopped");
-      await keepDown(host);
-      return "stopped:not-stopped";
-    }
-    const failed = join(
-      host.paths.home,
-      `.gbrain.failed-meaning-${stampOf(now)}`,
-    );
-    try {
-      await rename(host.paths.brain, failed);
-      await cp(backup, host.paths.brain, {
-        recursive: true,
-        verbatimSymlinks: true,
-        preserveTimestamps: true,
-      });
-      await chmod(host.paths.brain, 0o700);
-      await writeBrainUnits(host.paths, release.command, false);
-    } catch {
-      await record("stopped", "copy-not-restored");
-      await keepDown(host);
-      return "stopped:copy-not-restored";
-    }
-    const back =
-      (await service(host, "daemon-reload")) &&
-      (await service(host, "start", brainUnit)) &&
-      (await answers(host)) === release.version;
-    if (!back) {
-      await record("stopped", "no-answer");
-      await keepDown(host);
-      return "stopped:no-answer";
-    }
-    await service(host, "start", brainRefreshTimer);
-    await record("restored", reason);
-    return `restored:${reason}`;
-  };
+  const fallBack = (reason: string) =>
+    restoreCopy(host, release, backup, now, reason);
   const refused = await switchOn(host, release.command);
   if (refused !== null) return fallBack(refused);
   try {

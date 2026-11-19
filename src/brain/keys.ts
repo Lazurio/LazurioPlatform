@@ -68,10 +68,15 @@ export type BrainState = Readonly<{
   }>;
   /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
   meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;
-  /** The last attempt to switch it on, while it is not on. */
+  /** The SHA-256 of the model's unit as Lazurio last wrote it: a unit of
+   * that name is Lazurio's only if it is that or what it writes now. */
+  meaningUnit?: string;
+  /** The last attempt to switch it on, while it is not on: `stopping` is
+   * written before the server stops and `started` once the copy is whole;
+   * a run that finds either recovers it first. */
   meaningAttempt?: Readonly<{
     provider: string;
-    result: "started" | "restored" | "stopped";
+    result: "stopping" | "started" | "restored" | "stopped";
     at: string;
     backup?: string;
     reason?: string;
