@@ -726,11 +726,13 @@ before the switch, the new version started beside the running one and switched
 to only when its health is good, and the mode with its approvers in the
 Deployment Repo (decision 0245). A Module is built so that this works: one
 process, deep health, and in `app/v4` migrations that only expand. While the
-old and the new version run over the same data, only one of them writes: the
-proposal (Machines#1356) starts the new version beside the running one without
-`LAZURIO_RUNTIME_DATA_WRITER=true`, so it reads and answers health but writes,
-pulls and publishes nothing (the writer rule), and starts it as the writer only
-after the old version has ended. Until the application host deploys this way, a version is
+two versions share the same data, only one of them writes. The host's proposal
+(Machines#1356) first stops the old version and then starts the new one as the
+writer, with a return to the previous release when its health fails, so writes
+pause until the new version is healthy. A later step starts the new version
+beside the running one without `LAZURIO_RUNTIME_DATA_WRITER=true`, so it reads
+and answers health but writes, pulls and publishes nothing (the writer rule),
+and starts it as the writer only after the old version has ended. Until the application host deploys this way, a version is
 deployed through a reviewed pull request to the Deployment Repo, and its merge is
 the approval (decision 0239). In `app/v4` an automatically deployed migration only
 expands the schema; one that drops or narrows it goes only through an approved
