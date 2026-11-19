@@ -1882,8 +1882,8 @@ function building(preset: PresetName): readonly Text[] {
     blank,
     t("## Organizace a její manifest", "## The Organization and its manifest"),
     t(
-      "- Organizaci popisuje `lazurio.organization.json` (Teams, moduly, sloty) spolu s `modules.manifest.json`. `company.gen3.json` je jen generovaná projekce; ručně ji needituj. Deklarace měníš PR do kořene Organizace.",
-      "- An Organization is described by `lazurio.organization.json` (Teams, modules, slots) together with `modules.manifest.json`. `company.gen3.json` is only a generated projection; never edit it by hand. Change the declarations by a PR to the Organization root.",
+      "- Organizaci popisuje `lazurio.organization.json` (Teams, moduly, sloty) spolu s `modules.manifest.json`. `company.gen3.json` je jen generovaná projekce; ručně ji needituj. Deklarace měníš PR do kořene Organizace. Po každé změně těchto souborů spusť v kořeni `lazurio organization check`; hlásí-li `canonical_projection_hash_invalid`, přepočti otisk projekce příkazem `lazurio organization check --write` a dej ho do stejného PR. Kořen, který kontrolou neprojde, Lazurio nespustí a Prostředí Organizace ji přestanou vidět.",
+      "- An Organization is described by `lazurio.organization.json` (Teams, modules, slots) together with `modules.manifest.json`. `company.gen3.json` is only a generated projection; never edit it by hand. Change the declarations by a PR to the Organization root. After every change to these files run `lazurio organization check` in the root; when it reports `canonical_projection_hash_invalid`, recompute the projection digest with `lazurio organization check --write` and put it in the same PR. A root that fails the check does not run, and the Organization's Environments stop seeing it.",
     ),
     t(
       "- Deklarace nic neopravňuje; rozhodují živé GitHub granty. Slot s omezeným přístupem patří Adminovi Organizace; `infra`, repozitář nasazení, cílově vidí a mění jen Vlastníci Organizace a jmenované stroje a Admin Organizace v něm pracuje jen do nasazení správy v Přehledu Organizace (decision 0245); když na Environmentu člověka bez přístupu k němu chybí, je to záměr.",
