@@ -8,15 +8,15 @@ since `v0.1.22` (47 commits; among them computer contract v3, Apps, Brain, links
 Standard and Buddy GEN4 R2/R3, whose window is enabled only by a lane's `buddy.generation: 4`). The canary stage ran on
 2026-11-19 from 17:23:42Z to 17:38:17Z and is green.
 
-The record is [`qualification/canary/v0.1.23-rc.4.json`](../../qualification/canary/v0.1.23-rc.4.json), added by the same
-pull request as this file. Machines are opaque ids under the key of the earlier records, kept only at the station, so
-every Machine keeps the id it had there.
+The record is [`qualification/canary/v0.1.23-rc.4.json`](../../qualification/canary/v0.1.23-rc.4.json), added by the
+same pull request as this file. Machines are opaque ids under the key of the earlier records, kept only at the station,
+so every Machine keeps the id it had there.
 
 **This record is not a release.** The final `v0.1.23` is tagged only after the condition the release owner set for this
-release is met (a canary on a Personal Environment that still runs Buddy GEN3, with its person's consent) and on the
-release owner's approval in the `release` environment. `main` has moved on since the candidate, so the final is a
-release commit off `main`, as for `v0.1.20` to `v0.1.22`: its parent is this record's merge, its tree is
-`1c415d99`'s outside `qualification/` and `docs/evidence/`.
+release is met (a canary on a Personal Environment that still runs Buddy GEN3, with its person's consent; met at
+22:00–22:05Z, see below) and on the release owner's approval in the `release` environment. `main` has moved on since the
+candidate, so the final is a release commit off `main`, as for `v0.1.20` to `v0.1.22`: its parent is this record's
+merge, its tree is `1c415d99`'s outside `qualification/` and `docs/evidence/`.
 
 ## The candidate
 
@@ -70,19 +70,50 @@ Environment in scope; R2 reads every Machine as healthy on the candidate after i
 ### Per Machine
 
 At both edges `recover` answered `healthy` with all five checks `ok`, `update status` answered running and active
-`0.1.23-rc.4`, and the Launchpad unit's `NRestarts` was 0. T3 Code is not part of this candidate; its version is
-recorded to tell a change apart.
+`0.1.23-rc.4`, and the Launchpad unit's `NRestarts` was 0. The check `launchpad-health` of `recover` is the Launchpad's
+own `GET /health` (`src/recover/observe.ts`): it is `ok` only when `/health` answers in normal mode, not in recovery
+mode, with the version equal to the active one, so the `/health` column is that answer at each edge. T3 Code is not part
+of this candidate; its version is recorded to tell a change apart.
 
-| Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 | T3 Code |
-|---|---|---|---|---|---|
-| work (Owner) | ok | ok | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | 0.1.10-lazurio.2 |
-| work (services) | ok | ok | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | 0.1.2-lazurio.6 |
-| work (team) | ok | ok | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | 0.1.2-lazurio.6 |
-| work (member) | ok | ok | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | 0.1.9-lazurio.2 |
-| personal (Owner) | ok | ok | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | 0.1.10-preview.20261119.1 |
+| Machine | Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 | `/health` R1 / R2 | Modules started and opened | T3 Code |
+|---|---|---|---|---|---|---|---|---|
+| `4cb47f16810a7edb` | work (Owner) | 17:31:39Z | 17:37:26Z | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | normal, 0.1.23-rc.4 / normal, 0.1.23-rc.4 | Knowledgebase 17:33:08Z, Design system 17:33:14Z: each from its tile, its own origin, HTTP 200, its heading | 0.1.10-lazurio.2 |
+| `7d3f2189170e39ea` | work (services) | 17:31:43Z | 17:37:31Z | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | normal, 0.1.23-rc.4 / normal, 0.1.23-rc.4 | none to start: its one tile is the Organization's AI pool service (a service page, not a module), as for `v0.1.22` | 0.1.2-lazurio.6 |
+| `9289bc065828421b` | work (team) | 17:32:11Z | 17:38:03Z | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | normal, 0.1.23-rc.4 / normal, 0.1.23-rc.4 | none to start: Apps shows 0 module tiles | 0.1.2-lazurio.6 |
+| `c04fe553256c9e52` | work (member) | 17:32:15Z | 17:38:08Z | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | normal, 0.1.23-rc.4 / normal, 0.1.23-rc.4 | Knowledgebase 17:34:13Z: from its tile, its own origin, HTTP 200, its heading | 0.1.9-lazurio.2 |
+| `bce5a5489ecd7010` | personal (Owner) | 17:31:34Z | 17:37:21Z | healthy / healthy | 0.1.23-rc.4 / 0.1.23-rc.4 | normal, 0.1.23-rc.4 / normal, 0.1.23-rc.4 | none to start: Apps shows 0 module tiles | 0.1.10-preview.20261119.1 |
+
+The Team Environment is listed as `work`, because the record's kinds are `work` and `personal`.
+
+### Added after review, 22:05:55–22:12:33Z
+
+The review asked for module coverage on every Machine. The stage itself started and opened modules only on the two Work
+Environments that carry them, and did not look at Apps on the other three. So the same thread ran the missing look
+afterwards, bracketed by two more readings, all as the test accounts. This is outside the record's window and does not
+change it. Between the windows the pilot Organization's host got Machines v0.12.256 (infra#345, applied
+17:52–18:28Z), and T3 Code on the Owner's Work Environment updated itself to 0.1.10-lazurio.3 between R3 and R4. No
+Platform pin changed.
+
+1. **R3, 22:06:01–22:06:47Z.** Every Machine: `recover` healthy, active `0.1.23-rc.4`, `/health` normal with
+   `0.1.23-rc.4`, `NRestarts` 0.
+2. **Apps on every Environment each account lists, about 22:07Z.** Owner's Work Environment: 12 tiles. Member's: 11.
+   Prostředí služeb: 1 tile, the AI pool service (CLIProxyAPI, "Open the service's page"); the check for a startable
+   module there found none, by design. Team Environment: 0. Owner's Personal Environment: 0.
+3. **The main path again, 22:09:43–22:10:53Z.** Knowledgebase and the Design system on the Owner's Work Environment,
+   and Knowledgebase on the member's, each started and opened from its tile on its own origin with HTTP 200. Both chats
+   answered, and Připojení was right on every Environment: 19 of 19 required. The same two optional
+   Marketplace checks failed on the script's stale list of versions.
+4. **R4, 22:11:48–22:12:33Z.** The same readings as R3, all the same except T3 Code above.
+
+## The Buddy GEN3 canary, 22:00–22:05Z
+
+This was the release owner's condition. One Personal Environment that still runs Buddy GEN3 took the candidate with its
+person's consent: `lazurio update --version v0.1.23-rc.4` 22:00:57–22:01:06Z, `updated` 0.1.22 → 0.1.23-rc.4, exit 0,
+Folder refreshed, Launchpad restarted. The shared Chat, the Buddy GEN3 unit (its own Chat copy answering on its port),
+Hermes and MausBot did not change and were not restarted; no failed unit, `lazurio doctor` ok. The person opened
+Lazurio, opened Buddy and wrote to it; Buddy answered ("Funguje to"). Known and not blocking: Apps → Brain on that
+Environment says the map has no access to its memory yet and that a later update adds it. That is the new feature's own
+message, not a fault.
 
 ## Not verified
-
-- A Personal Environment running Buddy GEN3 on the candidate (the Owner test account's is converted to Buddy GEN4); the
-  release waits for it.
 - Safari, Firefox, a phone; the candidate's other changes beyond the main path.
