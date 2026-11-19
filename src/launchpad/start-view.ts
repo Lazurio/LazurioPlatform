@@ -535,8 +535,9 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
           },
         ]),
     ai,
-    github,
-    contentStep(facts, copy),
+    // Where the person has no GitHub account, the AI is the only basic:
+    // no GitHub step, not even a skipped one, and no content step.
+    ...(facts.withoutGithub === true ? [] : [github, contentStep(facts, copy)]),
   ];
   const done = basicsDone(facts);
   const total = basicsOf(facts).length;
@@ -548,7 +549,7 @@ export function startView(facts: StartFacts, copy: Copy): StartView | null {
     done,
     total,
     steps,
-    github: action,
+    github: facts.withoutGithub === true ? null : action,
     ai: aiAction,
     buddy,
   };

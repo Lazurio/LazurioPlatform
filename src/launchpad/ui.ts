@@ -1,3 +1,4 @@
+import { assigneeWithoutGithub } from "../folder/presets";
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
 import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
@@ -291,6 +292,7 @@ function drawGuide(route: PageRoute) {
             : "none",
       tools: toolTargets,
       buddy: buddyHere(),
+      withoutGithub: profileState?.withoutGithub === true,
     },
     copy,
   );
@@ -527,6 +529,9 @@ let profileState: Readonly<{
    * Automated Environment's responsible user (`responsibleLogin`, F27's
    * addendum of 2026-10-30); null elsewhere. */
   responsible: string | null;
+  /** The person has no GitHub account (`assigneeWithoutGithub`): Začínáme
+   * has only the AI, and nothing offers GitHub's sign-in or the content. */
+  withoutGithub: boolean;
 }> | null = null;
 // Whether the profile was read (`POST /api/profile`), and whether that read
 // failed.
@@ -600,6 +605,7 @@ function firstRunFacts(): TourFacts | null {
     ...(buddyHere()
       ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
       : {}),
+    ...(profileState.withoutGithub ? { withoutGithub: true as const } : {}),
   };
 }
 // Whether this Environment's GitHub identity can prepare the Organization
@@ -744,6 +750,7 @@ const content = createContentPanel({
           profileState.revision,
           profileState.responsible,
         ),
+  withoutGithub: () => profileState?.withoutGithub === true,
   modules: (login) => catalog.modulesOf(login),
   pluralModules: (count) =>
     copy[
@@ -1262,6 +1269,7 @@ function provideOwnSetup(facts: TourFacts | null) {
           list: content.list(),
           job: content.job(),
           ...(facts.buddy === undefined ? {} : { buddy: facts.buddy }),
+          ...(facts.withoutGithub === true ? { withoutGithub: true } : {}),
         })
       : shellDocument.setup === undefined || facts.buddy === undefined
         ? undefined
@@ -2039,6 +2047,7 @@ async function load() {
     revision: current.revision,
     machine: current.machine?.name ?? null,
     responsible: responsibleLogin(current.preset.name, current.machine),
+    withoutGithub: assigneeWithoutGithub(current.preset.name, current.machine),
   };
   // The content core owns availability; a persona account uses the same
   // content operation as a person's work Environment.

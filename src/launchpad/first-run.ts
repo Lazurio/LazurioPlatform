@@ -307,6 +307,11 @@ export type TourFacts = Readonly<{
   /** Buddy's basic where the Environment has Buddy (an Osobní Prostředí
    * whose entry names his origin); absent everywhere else. */
   buddy?: BuddyFact | undefined;
+  /** `true` where the Environment's person has no GitHub account
+   * (`assigneeWithoutGithub`, src/folder/presets.ts): its basics are only
+   * the AI, since without GitHub there is nothing to sign in to and no
+   * content to download. Absent everywhere else. */
+  withoutGithub?: true | undefined;
 }>;
 
 /** A public Environment's demo onboarding (root decision 0204's line on
@@ -346,9 +351,17 @@ export const buddyBasics = Object.freeze([
 ] as const);
 export type Basic = (typeof buddyBasics)[number];
 
+/** The basics of an Environment whose person has no GitHub account
+ * (`withoutGithub`): the AI alone. No GitHub step is shown there, not even
+ * as skipped, and no content step, since nothing can be downloaded. */
+export const withoutGithubBasics = Object.freeze(["ai"] as const);
+
 /** The basics of this Environment, in their order: four with Buddy, three
- * elsewhere. */
-export function basicsOf(facts: Pick<TourFacts, "buddy">): readonly Basic[] {
+ * elsewhere, one where its person has no GitHub account. */
+export function basicsOf(
+  facts: Pick<TourFacts, "buddy" | "withoutGithub">,
+): readonly Basic[] {
+  if (facts.withoutGithub === true) return withoutGithubBasics;
   return facts.buddy === undefined ? basics : buddyBasics;
 }
 
@@ -457,6 +470,8 @@ export function nextBasic(facts: TourFacts): Basic | null | undefined {
   }
   if (facts.ai === "loading") return undefined;
   if (facts.ai === "missing") return "ai";
+  // Without the person's GitHub account the AI is the last basic.
+  if (facts.withoutGithub === true) return null;
   const github = basicState(facts, "github");
   if (github === "unknown") return undefined;
   if (github === "missing") return "github";
@@ -755,10 +770,16 @@ export function tourStop(
 export type ContentBlock = "ai" | "github" | "unknown";
 
 export function contentBlockedBy(
-  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
+  facts: Pick<
+    TourFacts,
+    "preset" | "audience" | "ai" | "github" | "withoutGithub"
+  >,
 ): ContentBlock | null {
   if (!basicsOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
+  // Without the person's GitHub account nothing is downloaded at all: no
+  // button, no start by itself, no start request.
+  if (facts.withoutGithub === true) return "github";
   if (facts.ai === "missing") return "ai";
   if (facts.ai === "loading") return "unknown";
   if (githubMissing(facts.github)) return "github";
@@ -854,6 +875,8 @@ export function startDecision(
     return facts.buddy.confirmed === true ? "drop" : "meet-buddy";
   }
   if (request === "sign-in-gh") {
+    // No GitHub sign-in is offered where the person has no GitHub account.
+    if (facts.withoutGithub === true) return "drop";
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
     return facts.github === "connected" || facts.github === "own-account"
@@ -1063,9 +1086,17 @@ export function shellSetup(
     job: ContentJob | null;
     /** Buddy's basic where the Environment has him (decision F65). */
     buddy?: BuddyFact | undefined;
+    /** The person has no GitHub account (`TourFacts.withoutGithub`). */
+    withoutGithub?: true | undefined;
   }>,
 ): ShellSetup | undefined {
   if (!basicsOnboarding(input) || input.github === "unknown") return undefined;
+  // `lazurio.shell.v1` counts GitHub as a basic (`github` is required), so
+  // an Environment whose person has no GitHub account leaves the setup out,
+  // as an Environment without the onboarding does: the column head never
+  // prompts for a sign-in that cannot exist. Začínáme and Apps still lead to
+  // a missing AI.
+  if (input.withoutGithub === true) return undefined;
   const fact = contentFact(input.list, input.job);
   const buddy =
     input.buddy === undefined

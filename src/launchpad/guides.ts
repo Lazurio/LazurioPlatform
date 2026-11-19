@@ -237,28 +237,43 @@ export const vaultAgentsGuide = (
  * Environment, the AI first, GitHub, the optional ones. With Buddy
  * (decision F65) his step first and the agents' own AI after it, in at
  * most four stops: the steps, Buddy, the AI, GitHub. */
-export const startGuide = (copy: Copy, buddy = false): PageGuideInput =>
-  buddy
+export const startGuide = (
+  copy: Copy,
+  buddy = false,
+  withoutGithub = false,
+): PageGuideInput =>
+  withoutGithub
     ? {
-        id: "settings-start-buddy",
-        title: copy.startTitle,
-        steps: [
-          { text: copy.guideStartSteps, at: "start-steps" },
-          { text: copy.guideStartBuddy, at: "start-buddy" },
-          { text: copy.guideStartAiAgents, at: "start-ai" },
-          { text: copy.guideStartGithub, at: "start-github" },
-        ],
-      }
-    : {
+        // The person has no GitHub account: no GitHub step to point at.
         id: "settings-start",
         title: copy.startTitle,
         steps: [
           { text: copy.guideStartSteps, at: "start-steps" },
           { text: copy.guideStartAi, at: "start-ai" },
-          { text: copy.guideStartGithub, at: "start-github" },
           { text: copy.guideStartOptional, at: "start-optional" },
         ],
-      };
+      }
+    : buddy
+      ? {
+          id: "settings-start-buddy",
+          title: copy.startTitle,
+          steps: [
+            { text: copy.guideStartSteps, at: "start-steps" },
+            { text: copy.guideStartBuddy, at: "start-buddy" },
+            { text: copy.guideStartAiAgents, at: "start-ai" },
+            { text: copy.guideStartGithub, at: "start-github" },
+          ],
+        }
+      : {
+          id: "settings-start",
+          title: copy.startTitle,
+          steps: [
+            { text: copy.guideStartSteps, at: "start-steps" },
+            { text: copy.guideStartAi, at: "start-ai" },
+            { text: copy.guideStartGithub, at: "start-github" },
+            { text: copy.guideStartOptional, at: "start-optional" },
+          ],
+        };
 
 /** Nastavení → Buddy (decisions F65 and F66): whether he works with his
  * own sign-in, his name and how he addresses the person, and where else to
@@ -536,6 +551,9 @@ export type PageGuideFacts = Readonly<{
   /** Whether the Environment has Buddy (decision F65): Začínáme explains
    * his step, and Nastavení → Buddy is his. Absent: no Buddy. */
   buddy?: boolean | undefined;
+  /** Whether the person has no GitHub account (`TourFacts.withoutGithub`):
+   * Začínáme has no GitHub step to point at. Absent as false. */
+  withoutGithub?: boolean | undefined;
 }>;
 
 const none: PageGuide = Object.freeze({ help: null, video: null, guides: [] });
@@ -600,7 +618,11 @@ export function pageGuide(
       switch (route.section) {
         case "start": {
           if (facts.start !== "basics") return none;
-          const guide = startGuide(copy, facts.buddy === true);
+          const guide = startGuide(
+            copy,
+            facts.buddy === true,
+            facts.withoutGithub === true,
+          );
           return plays(guide.id, [guide]);
         }
         case "general":

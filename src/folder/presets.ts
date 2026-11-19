@@ -276,6 +276,52 @@ export function personalMemoryHere(
   return preset === "hosted-personal" && visitorPreset(machine) === null;
 }
 
+/** Whether this is an Organization's work Environment of one person whose
+ * Lazurio account has no GitHub account (root decisions 0192 and 0216: the
+ * assignment receipt verified none, `account.github` null), the first
+ * stage of an Organization Member without GitHub. The Environment then has
+ * no access to repositories on GitHub: Začínáme has no GitHub or content
+ * step, Apps and the shell's column offer no GitHub sign-in, and the
+ * Folder's texts say what an agent does instead of a pull request. Only on
+ * `hosted-organization-personal`, never a public Environment (which has its
+ * own `none` identity), and only by the recorded assignment, never inferred:
+ * an assignment named by a GitHub login and every other preset are
+ * unchanged. Pure and free of Node, so the page, the server and the Folder
+ * share it, from a binding or `POST /api/profile`'s machine. */
+export function assigneeWithoutGithub(
+  preset: string | null | undefined,
+  machine:
+    | Readonly<{
+        owner: Readonly<{
+          kind: string;
+          assignment?: Readonly<{ kind: string }> | undefined;
+        }>;
+        entry?: Readonly<{ audience?: EntryAudience }> | null | undefined;
+      }>
+    | null
+    | undefined,
+): boolean {
+  if (preset !== "hosted-organization-personal") return false;
+  if (machine === null || machine === undefined) return false;
+  if (visitorPreset(machine) !== null) return false;
+  if (machine.owner.kind !== "organization") return false;
+  const assignment: unknown = machine.owner.assignment;
+  if (
+    typeof assignment !== "object" ||
+    assignment === null ||
+    (assignment as { kind?: unknown }).kind !== "operator" ||
+    !("account" in assignment)
+  )
+    return false;
+  const account: unknown = (assignment as { account: unknown }).account;
+  return (
+    typeof account === "object" &&
+    account !== null &&
+    "github" in account &&
+    (account as { github: unknown }).github === null
+  );
+}
+
 /** Whether nobody may change `setting` in this Environment: only where the
  * Try overlay fixes it. */
 export function isFixed(

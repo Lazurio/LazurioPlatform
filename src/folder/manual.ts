@@ -13,6 +13,7 @@ import {
   ownInstructionsOfOrganization,
 } from "./own-instructions";
 import {
+  assigneeWithoutGithub,
   githubIdentity,
   type PresetName,
   personalMemoryHere,
@@ -57,6 +58,8 @@ import {
   visitorsHeading,
   visitorsOf,
   visitorsRules,
+  withoutGithubIdentity,
+  withoutGithubWork,
 } from "./render";
 
 // The agent manual shipped with the product (decision F14): complete for an
@@ -692,6 +695,20 @@ const brainRules: readonly Text[] = [
   ),
 ];
 
+// The chapter for an Environment whose person has no GitHub account
+// (`assigneeWithoutGithub`), in the Publication part of the working rules.
+// AGENTS.md says it in one line (`withoutGithubWork`).
+const withoutGithubChapter: readonly Text[] = [
+  t(
+    "### Prostředí bez účtu GitHub",
+    "### An Environment without a GitHub account",
+  ),
+  t(
+    "Uživatel tohoto Prostředí je člen Organizace bez účtu GitHub. Toto Prostředí proto nemá přístup k repozitářům na GitHubu: obsah Organizace (její `AGENTS.md`, Knowledgebase, moduly a jejich aplikace) tu není a `gh` tu nikdo nepřihlašuje, ani jiným účtem. Pracuješ s tím, co ti uživatel dá, se soubory v `~/Documents/`, s prohlížečem Prostředí a s připojenými Integracemi. Oddíly níže o worktree, pull requestech, issue a review tu neplatí. Změnu, která by patřila do repozitáře, popiš uživateli v chatu (co, proč, navržený text nebo diff), ulož ji do `~/Documents/<úkol>/` a dej mu odkaz z `lazurio files link <cesta>`. Neslibuj, že se obsah Organizace nebo přístup k repozitářům objeví; když úkol bez nich udělat nejde, řekni to.",
+    "The user of this Environment is a member of the Organization without a GitHub account. This Environment therefore has no access to repositories on GitHub: the Organization's content (its `AGENTS.md`, Knowledgebase, modules and their applications) is not here, and nobody signs `gh` in here, not with another account either. You work with what the user gives you, with the files in `~/Documents/`, with the Environment browser and with the connected Integrations. The sections below on worktrees, pull requests, issues and review do not apply here. Describe a change that would belong in a repository to the user in the chat (what, why, the proposed text or diff), save it under `~/Documents/<task>/` and give them the link from `lazurio files link <path>`. Do not promise that the Organization's content or access to repositories will appear; when a task cannot be done without them, say so.",
+  ),
+];
+
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -699,6 +716,8 @@ function workingHere(
 ): readonly Text[] {
   const team = preset === "hosted-organization-team";
   const isPublic = githubIdentity(preset, machine) === "none";
+  // The person has no GitHub account: no access to repositories here.
+  const withoutGithub = assigneeWithoutGithub(preset, machine);
   return [
     t(
       "## Nejdřív pochop, o čem je řeč",
@@ -799,7 +818,15 @@ function workingHere(
     // public Environment publishes nothing and proposes nothing on GitHub,
     // so it keeps only what Publication is. A Team Environment's pull
     // request stays with its named publisher (F31).
-    ...(isPublic ? buddyPublicationRules : publicationRules),
+    ...(isPublic
+      ? buddyPublicationRules
+      : withoutGithub
+        ? [withoutGithubWork, ...buddyPublicationRules]
+        : publicationRules),
+    // An Environment whose person has no GitHub account (the first stage of
+    // an Organization Member without GitHub): what an agent does here, and
+    // that the GitHub chapters below do not apply. It promises no content.
+    ...(withoutGithub ? [blank, ...withoutGithubChapter] : []),
     ...(team
       ? [
           t(
@@ -2634,7 +2661,9 @@ function boundaries(
         ]
       : []),
     providerIdentity === "own-sign-in"
-      ? ownSignInIdentity
+      ? assigneeWithoutGithub(preset, machine)
+        ? withoutGithubIdentity
+        : ownSignInIdentity
       : providerIdentity === "persona-account"
         ? personaIdentity
         : providerIdentity === "none"
@@ -3212,7 +3241,12 @@ function operatorClient(
     filesOut,
     ...(origin === undefined
       ? []
-      : launchpadRouting(preset, origin, githubIdentity(preset, machine))),
+      : launchpadRouting(
+          preset,
+          origin,
+          githubIdentity(preset, machine),
+          assigneeWithoutGithub(preset, machine),
+        )),
     ...(origin === undefined
       ? []
       : [aiSignInRouting(origin, githubIdentity(preset, machine))].filter(

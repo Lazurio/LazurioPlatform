@@ -343,6 +343,10 @@ export function contentView(
     modules?: (login: string) => number | null;
     pluralModules?: (count: number) => string;
     resolve?: Resolve;
+    /** The person has no GitHub account (`TourFacts.withoutGithub`):
+     * nothing is downloaded, and the note says so instead of waiting for a
+     * GitHub sign-in. */
+    withoutGithub?: boolean;
   }>,
 ): ContentView {
   const resolve = options.resolve ?? "chat";
@@ -419,11 +423,13 @@ export function contentView(
         ? "github"
         : null;
   const notYet =
-    block === "ai"
-      ? copy.contentNeedsAi
-      : block === "github"
-        ? copy.contentNeedsGithub
-        : null;
+    options.withoutGithub === true
+      ? copy.contentWithoutGithub
+      : block === "ai"
+        ? copy.contentNeedsAi
+        : block === "github"
+          ? copy.contentNeedsGithub
+          : null;
   const blockedBy = !list.allowed ? copy.contentNotAllowed : null;
   // Not its turn: no action, only why (nothing while it is not read yet).
   if (!running && missing.length > 0 && block !== null)

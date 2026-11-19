@@ -37,6 +37,9 @@ export function createContentPanel(
     /** What must come before the installation (`contentBlockedBy`, root
      * decision 0201 point 3): until then nothing offers or starts it. */
     blockedBy: () => ContentBlock | null;
+    /** The person has no GitHub account here (`TourFacts.withoutGithub`):
+     * nothing is downloaded, and the note says so. Absent as false. */
+    withoutGithub?: () => boolean;
     /** An Organization's module count once it is here, by its login. */
     modules: (login: string) => number | null;
     /** "5 modulů": the count in the page's language. */
@@ -193,6 +196,7 @@ export function createContentPanel(
     const view = contentView(read, job, copy, {
       github: options.github(),
       blockedBy: options.blockedBy(),
+      withoutGithub: options.withoutGithub?.() === true,
       modules: options.modules,
       pluralModules: options.pluralModules,
       resolve: options.resolveKind(),

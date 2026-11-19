@@ -84,7 +84,12 @@ import {
   ownInstructionsProblem,
 } from "../folder/own-instructions";
 import { inspectCheckoutDirectory } from "../folder/owned-directory";
-import { isFixed, type PresetName, selectablePresets } from "../folder/presets";
+import {
+  assigneeWithoutGithub,
+  isFixed,
+  type PresetName,
+  selectablePresets,
+} from "../folder/presets";
 import { readFolderState } from "../folder/read-state";
 import {
   enabledTools,
@@ -1816,6 +1821,10 @@ export async function startLaunchpad(
           : signIn.state,
         ...read,
         ...(buddyRead === undefined ? {} : { buddy: buddyRead.fact }),
+        // The person has no GitHub account: no setup in the document.
+        ...(assigneeWithoutGithub(preset, current.preferences.machine)
+          ? { withoutGithub: true as const }
+          : {}),
       }),
       buddyOpen: buddyRead?.open === true,
     };
