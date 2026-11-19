@@ -19,6 +19,7 @@ import {
 } from "../src/shell/buddy-bubble";
 import {
   buddyClearanceProperty,
+  buddyMenuPlace,
   launcherClearance,
   launcherOnPage,
 } from "../src/shell/buddy-element";
@@ -1706,4 +1707,47 @@ test("Buddy GEN4's sign on the launcher: a badge and words per state, none while
   page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
   bubble.update();
   expect(last()?.launcher).toMatchObject({ badge: "1", sign: null });
+});
+
+test("the launcher's menu stands beside the launcher where it is, moved or not, and within the viewport", () => {
+  const viewport = { width: 1280, height: 760 };
+  const menu = { width: 200, height: 44 };
+  const launcher = (left: number, top: number) => ({
+    left,
+    top,
+    width: 58,
+    height: 58,
+  });
+  // At home in the bottom right corner: above him, right edges together.
+  expect(buddyMenuPlace(launcher(1198, 678), menu, viewport)).toEqual({
+    left: 1056,
+    top: 626,
+  });
+  // Moved to the top left: below him, and never off the left edge.
+  expect(buddyMenuPlace(launcher(4, 4), menu, viewport)).toEqual({
+    left: 8,
+    top: 70,
+  });
+  // On a phone, against the right edge and a short viewport.
+  expect(
+    buddyMenuPlace(
+      launcher(330, 20),
+      { width: 260, height: 44 },
+      {
+        width: 390,
+        height: 100,
+      },
+    ),
+  ).toEqual({ left: 122, top: 48 });
+  // A menu wider than the viewport still starts at its margin.
+  expect(
+    buddyMenuPlace(
+      launcher(300, 300),
+      { width: 500, height: 44 },
+      {
+        width: 390,
+        height: 760,
+      },
+    ).left,
+  ).toBe(8);
 });

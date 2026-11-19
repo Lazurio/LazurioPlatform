@@ -60,14 +60,29 @@ export function createBuddyNotifier(seams: BuddyNoticeSeams) {
   });
 }
 
+/** How often a tab with Buddy's window in view says so, and how long the
+ * Launchpad holds every notice back after it last did. */
+export const buddyViewingEveryMs = 10_000;
+export const buddyViewingHoldMs = 20_000;
+
 /** The Launchpad's claims: the first claim of the current change wins; a
- * claim of anything but the current change, or a second one, loses. Keeps
- * the last few changes only. */
-export function createBuddyNoticeClaims(current: () => ShellBuddySignal) {
+ * claim of anything but the current change, a second one, and every claim
+ * while a tab on any origin has Buddy's window in view (`viewing`, said
+ * every `buddyViewingEveryMs`) loses. Keeps the last few changes only. */
+export function createBuddyNoticeClaims(
+  current: () => ShellBuddySignal,
+  now: () => number = Date.now,
+) {
   const claimed: string[] = [];
+  let viewedUntil = Number.NEGATIVE_INFINITY;
   return Object.freeze({
+    /** A tab has Buddy's window in view now. */
+    viewing(): void {
+      viewedUntil = now() + buddyViewingHoldMs;
+    },
     claim(key: unknown): boolean {
       if (typeof key !== "string") return false;
+      if (now() < viewedUntil) return false;
       if (buddyNoticeKey(current()) !== key) return false;
       if (claimed.includes(key)) return false;
       claimed.push(key);

@@ -7,7 +7,11 @@ import {
 } from "./buddy-bubble";
 import type { BuddyMenuItem } from "./buddy-element";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
-import { buddyNoticePath, createBuddyNotifier } from "./buddy-notice";
+import {
+  buddyNoticePath,
+  buddyViewingEveryMs,
+  createBuddyNotifier,
+} from "./buddy-notice";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
   buddySignalPath,
@@ -1364,6 +1368,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private signalSource: EventSource | null = null;
   private liveSignal: ShellBuddySignal | null = null;
   private notifier: ReturnType<typeof createBuddyNotifier> | null = null;
+  // While Buddy's window is in view here, the Launchpad hears so every
+  // `buddyViewingEveryMs`, and no tab on any origin tells a notice.
+  private viewingTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly viewingChanged = () => this.followViewing();
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1507,6 +1515,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             menu: () => this.noticeMenu(),
           });
         this.view?.draw(model);
+        this.followViewing();
         if (model?.frame != null) this.listenPage();
         else {
           this.leavePage?.();
@@ -1583,6 +1592,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     };
     source.onerror = () => show(unavailableSignal);
     this.signalSource = source;
+    document.addEventListener("visibilitychange", this.viewingChanged);
   }
 
   private stopSignal(): void {
@@ -1590,6 +1600,31 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     this.signalSource = null;
     this.liveSignal = null;
     this.notifier = null;
+    document.removeEventListener("visibilitychange", this.viewingChanged);
+    this.followViewing();
+  }
+
+  /** Says to the Launchpad that Buddy's window is in view here, at once and
+   * then on a beat, while it is and a sign is followed. */
+  private followViewing(): void {
+    const inView =
+      this.signalSource !== null &&
+      document.visibilityState === "visible" &&
+      (this.bubble?.windowShown() ?? false);
+    if (inView && this.viewingTimer === null) {
+      const say = () =>
+        void fetch(buddyNoticePath, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ viewing: true }),
+        }).catch(() => undefined);
+      say();
+      this.viewingTimer = setInterval(say, buddyViewingEveryMs);
+    } else if (!inView && this.viewingTimer !== null) {
+      clearInterval(this.viewingTimer);
+      this.viewingTimer = null;
+    }
   }
 
   /** The launcher's menu where Buddy GEN4's sign is followed and the

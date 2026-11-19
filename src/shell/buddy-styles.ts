@@ -102,7 +102,7 @@ const bubbleCss = `
 @keyframes buddy-call { 0%, 14%, 100% { transform: none; } 4% { transform: translateY(1px) scale(1.06, 0.92); } 8% { transform: translateY(-12px) scale(0.97, 1.05); } 12% { transform: translateY(0) scale(1.04, 0.95); } }
 .badge { position: absolute; top: -3px; right: -3px; display: grid; min-width: 20px; height: 20px; box-sizing: border-box; padding: 0 5px; place-items: center; border: 2px solid var(--lz-white); border-radius: var(--lz-radius-pill); background: var(--lz-red-500); color: var(--lz-white); font-size: 11px; font-weight: 700; line-height: 1; pointer-events: none; }
 .badge[hidden] { display: none; }
-.menu { position: fixed; inset: auto var(--buddy-x) calc(var(--buddy-y) + ${buddyLauncherSize + 8}px) auto; z-index: ${buddyLayer}; padding: 4px; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-sm); background: var(--shell-raised); box-shadow: var(--lz-shadow-float); }
+.menu { position: fixed; inset: auto; left: 0; top: 0; z-index: ${buddyLayer}; padding: 4px; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-sm); background: var(--shell-raised); box-shadow: var(--lz-shadow-float); }
 .menu[hidden] { display: none; }
 .menu button { display: flex; min-height: 36px; padding: 0 12px 0 32px; align-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: var(--shell-ink); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; position: relative; }
 .menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--shell-hover); outline: none; }

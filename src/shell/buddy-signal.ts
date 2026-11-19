@@ -30,23 +30,10 @@ const states = new Set<BuddySignalState>([
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-/** One line of `t3 lazurio buddy signal --json --follow` (version 1). A
- * line of another version, shape or state is `unavailable`. */
-export function parseBuddySignalLine(line: string): BuddySignal {
-  let value: unknown;
-  try {
-    value = JSON.parse(line);
-  } catch {
-    return unavailableSignal;
-  }
-  return parseBuddySignal(value) ?? unavailableSignal;
-}
-
-/** A sign as the server, the shell document or the stream carry it; null
- * for anything else. */
+/** A sign as the shell document and the stream carry it (no version: the
+ * shell document's schema versions it); null for anything else. */
 export function parseBuddySignal(value: unknown): BuddySignal | null {
   if (!isRecord(value)) return null;
-  if (value.version !== undefined && value.version !== 1) return null;
   const state = value.state;
   if (typeof state !== "string" || !states.has(state as BuddySignalState))
     return null;

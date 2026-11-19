@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import {
   buddyNoticeKey,
+  buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
 } from "../src/shell/buddy-notice";
@@ -93,4 +94,22 @@ test("the Launchpad lets one claim of the current change through, and none of an
   expect(claims.claim(42)).toBe(false);
   current = sign("failed", 2);
   expect(claims.claim(buddyNoticeKey(current))).toBe(true);
+});
+
+test("while a tab on any origin has Buddy's window in view, no other tab tells a notice", () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  // Another tab shows his window: the background tab's claim loses.
+  claims.viewing();
+  at += buddyViewingHoldMs - 1;
+  expect(claims.claim(key)).toBe(false);
+  // The window is no longer said to be in view: the change is told once.
+  at += 1;
+  expect(claims.claim(key)).toBe(true);
+  expect(claims.claim(key)).toBe(false);
 });

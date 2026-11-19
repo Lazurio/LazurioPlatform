@@ -111,6 +111,41 @@ export type BuddyMenuItem = Readonly<{
   select: () => void;
 }>;
 
+type Box = Readonly<{
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}>;
+
+/** Where the launcher's menu goes for the launcher where it stands now:
+ * above it, its right edge on his, and below him where there is no room
+ * above; always within the viewport, `margin` from its edges. */
+export function buddyMenuPlace(
+  launcher: Box,
+  menu: Readonly<{ width: number; height: number }>,
+  viewport: Readonly<{ width: number; height: number }>,
+  margin = 8,
+): Readonly<{ left: number; top: number }> {
+  const clamp = (value: number, low: number, high: number) =>
+    Math.max(low, Math.min(value, Math.max(low, high)));
+  const left = clamp(
+    launcher.left + launcher.width - menu.width,
+    margin,
+    viewport.width - menu.width - margin,
+  );
+  const above = launcher.top - menu.height - margin;
+  const top =
+    above >= margin
+      ? above
+      : clamp(
+          launcher.top + launcher.height + margin,
+          margin,
+          viewport.height - menu.height - margin,
+        );
+  return Object.freeze({ left, top });
+}
+
 /** One sway of his figure, restarted when it already runs. */
 function sway(figure: HTMLElement): void {
   figure.removeAttribute("data-sway");
@@ -436,6 +471,14 @@ export function createBuddyBubbleView(
       choice.disabled = item.disabled;
       chosen = item.select;
       menu.hidden = false;
+      // Beside the launcher where it stands now, moved or not.
+      const at = buddyMenuPlace(
+        launcher.getBoundingClientRect(),
+        menu.getBoundingClientRect(),
+        { width: window.innerWidth, height: window.innerHeight },
+      );
+      menu.style.left = `${at.left}px`;
+      menu.style.top = `${at.top}px`;
       document.addEventListener("pointerdown", outside, true);
       choice.focus();
     });

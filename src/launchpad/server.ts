@@ -2339,15 +2339,20 @@ export async function startLaunchpad(
         if (buddyNoticeClaims === null)
           return response({ error: "not-found" }, 404);
         const text = await request.text().catch(() => "");
-        let key: unknown;
+        let value: unknown = null;
         try {
-          const value: unknown = text.length > 1_024 ? null : JSON.parse(text);
-          key =
-            typeof value === "object" && value !== null && "key" in value
-              ? value.key
-              : undefined;
+          value = text.length > 1_024 ? null : JSON.parse(text);
         } catch {}
-        return response({ notify: buddyNoticeClaims.claim(key) });
+        const body =
+          typeof value === "object" && value !== null
+            ? (value as Record<string, unknown>)
+            : {};
+        // A tab with Buddy's window in view holds every notice back.
+        if (body.viewing === true) {
+          buddyNoticeClaims.viewing();
+          return response({ viewing: true });
+        }
+        return response({ notify: buddyNoticeClaims.claim(body.key) });
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the

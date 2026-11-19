@@ -1,7 +1,12 @@
 import { expect, test } from "bun:test";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   type BuddySignal,
   type BuddySignalProcess,
+  buddySignalLineLimit,
+  buddySignalProcess,
   createBuddySignalFollower,
   parseBuddySignalLine,
   unavailableSignal,
@@ -54,6 +59,17 @@ test("a line of T3 Code's follower is the sign; anything else is unavailable, ne
     line({ version: 2, state: "quiet" }),
     line({ version: 1, state: "sleeping" }),
     line({ version: 1 }),
+    // T3 Code versions its lines: an unversioned one is no sign, quiet or not.
+    line({
+      state: "quiet",
+      threadId: "t",
+      since: null,
+      request: null,
+      startedBy: "person",
+    }),
+    line({ ...waiting, threadId: undefined }),
+    line({ ...waiting, startedBy: "nobody" }),
+    `${line(waiting).slice(0, -1)},"pad":"${"x".repeat(70 * 1024)}"}`,
     line({
       version: 1,
       state: "unavailable",
@@ -180,3 +196,72 @@ test("a closed follower starts nothing and reports nothing more", async () => {
   expect(runs).toHaveLength(1);
   expect(seen).toEqual([]);
 });
+
+test("from a quiet sign, a line it cannot read turns it unavailable at once", async () => {
+  const quiet = line({ ...waiting, state: "quiet", request: null });
+  for (const unreadable of [
+    line({
+      state: "quiet",
+      threadId: "t",
+      since: null,
+      request: null,
+      startedBy: "person",
+    }),
+    "{ broken",
+    line({ version: 2, state: "quiet" }),
+  ]) {
+    const { runs, follower } = harness();
+    follower.start();
+    await settle();
+    runs[0]?.feed(quiet);
+    expect(follower.current().state).toBe("quiet");
+    runs[0]?.feed(unreadable);
+    expect(follower.current().state).toBe("unavailable");
+    follower.close();
+  }
+});
+
+const posix = test.skipIf(process.platform === "win32");
+
+posix(
+  "the follower's process says unavailable as soon as a line grows too long, and reads the next line again",
+  async () => {
+    const root = await mkdtemp(join(tmpdir(), "buddy-signal-"));
+    try {
+      const bin = join(root, "bin");
+      await mkdir(bin);
+      const quiet = line({ ...waiting, state: "quiet", request: null });
+      // A stand-in for T3 Code's CLI: a quiet sign, a line longer than any
+      // sign without its end for a while, then its end and a sign again.
+      await writeFile(join(root, "first"), `${quiet}\n`);
+      await writeFile(join(root, "long"), "x".repeat(buddySignalLineLimit * 3));
+      await writeFile(join(root, "rest"), `\n${line(waiting)}\n`);
+      await writeFile(
+        join(bin, "t3"),
+        `#!/bin/sh\ncat "${root}/first" "${root}/long"\nsleep 1\ncat "${root}/rest"\nsleep 30\n`,
+        { mode: 0o755 },
+      );
+      const seen: string[] = [];
+      const started = await buddySignalProcess({
+        // Ours first; the shell's own tools after it.
+        path: `${bin}:/usr/bin:/bin`,
+        home: root,
+        platform: process.platform,
+      })((text) => seen.push(parseBuddySignalLine(text).state));
+      try {
+        const deadline = Date.now() + 5_000;
+        while (seen.length < 2 && Date.now() < deadline) await Bun.sleep(20);
+        // Before the long line ends.
+        expect(seen).toEqual(["quiet", "unavailable"]);
+        while (seen.length < 3 && Date.now() < deadline) await Bun.sleep(20);
+        expect(seen).toEqual(["quiet", "unavailable", "waiting"]);
+      } finally {
+        started.stop();
+        await started.exited;
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  },
+  15_000,
+);

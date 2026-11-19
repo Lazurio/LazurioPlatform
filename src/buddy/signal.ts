@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { buddyGeneration, type MachineEntry } from "../folder/machine-binding";
 import {
   type BuddySignal,
-  parseBuddySignalLine,
+  parseBuddySignal,
   unavailableSignal,
 } from "../shell/buddy-signal";
 import { resolveOnPath } from "../tools/status";
@@ -19,10 +19,45 @@ import { resolveOnPath } from "../tools/status";
 export {
   type BuddySignal,
   type BuddySignalState,
-  parseBuddySignal,
-  parseBuddySignalLine,
   unavailableSignal,
 } from "../shell/buddy-signal";
+
+/** The longest line a follower reads; a longer one is no sign. */
+export const buddySignalLineLimit = 64 * 1024;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** One line of `t3 lazurio buddy signal --json --follow`, which T3 Code
+ * versions (Lazurio/t3code#232, version 1): exactly that version, a known
+ * state and, but for `unavailable`, its thread and the members of version
+ * 1. Anything else, an unversioned line included, is `unavailable`. */
+export function parseBuddySignalLine(line: string): BuddySignal {
+  if (line.length > buddySignalLineLimit) return unavailableSignal;
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return unavailableSignal;
+  }
+  if (!isRecord(value) || value.version !== 1) return unavailableSignal;
+  if (value.state === "unavailable") return unavailableSignal;
+  if (
+    typeof value.threadId !== "string" ||
+    !(value.since === null || typeof value.since === "string") ||
+    !(value.request === null || isRecord(value.request)) ||
+    !(value.startedBy === "person" || value.startedBy === "other")
+  )
+    return unavailableSignal;
+  return (
+    parseBuddySignal({
+      state: value.state,
+      since: value.since,
+      request: value.request,
+      startedBy: value.startedBy,
+    }) ?? unavailableSignal
+  );
+}
 
 const sameSignal = (left: BuddySignal, right: BuddySignal) =>
   left.state === right.state &&
@@ -186,17 +221,24 @@ export function buddySignalProcess(environment: {
       child.once("close", () => resolve());
     });
     let buffer = "";
+    // Within a line too long to be a sign, until its end.
+    let skipping = false;
     child.stdout?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => {
       buffer += chunk;
       let newline = buffer.indexOf("\n");
       while (newline !== -1) {
-        onLine(buffer.slice(0, newline));
+        if (!skipping) onLine(buffer.slice(0, newline));
+        skipping = false;
         buffer = buffer.slice(newline + 1);
         newline = buffer.indexOf("\n");
       }
-      // No sign is this long: drop it rather than grow without end.
-      if (buffer.length > 64 * 1024) buffer = "";
+      // No sign is this long: say so at once, and drop the rest of it.
+      if (buffer.length > buddySignalLineLimit) {
+        if (!skipping) onLine(buffer);
+        skipping = true;
+        buffer = "";
+      }
     });
     const stop = () => {
       if (child.exitCode !== null || child.signalCode !== null) return;
