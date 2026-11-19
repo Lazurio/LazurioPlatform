@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import type {
   CustomServerInput,
@@ -83,6 +83,8 @@ export type BrainServerSessions = Readonly<{
     id: string,
     server: CustomServerInput,
   ): Promise<Readonly<{ kind: string }>>;
+  /** The ids of the custom servers of a name; null when unreadable. */
+  customIdsNamed(name: string): Promise<readonly string[] | null>;
 }>;
 
 export type BrainServerResult =
@@ -115,7 +117,14 @@ async function readJson(path: string): Promise<Record<string, unknown> | null> {
 /** Executor's custom remote server Brain with the Executor key (read,
  * write): added once, kept while it carries the key handed over, saved
  * again with the new key after setup minted one. A server of that name
- * Lazurio did not add is left alone (`name-taken`). */
+ * Lazurio did not add is left alone (`name-taken`).
+ *
+ * Its record is written before the server is added (`pending`): where an
+ * add created the server but did not connect it, or the record of its id
+ * was not written, the next run finds the one server of that name and
+ * completes it, but only under its own pending record and only a server
+ * that is exactly what it adds (remote, its address, a Bearer token).
+ * Anything else of that name stays someone's. */
 export async function convergeBrainServer(
   paths: BrainPaths,
   sessions: BrainServerSessions,
@@ -147,6 +156,14 @@ export async function convergeBrainServer(
       Buffer.from(`${JSON.stringify({ slug, key: digest })}\n`),
     );
   };
+  const pending = async () => {
+    await mkdir(dirname(recordPath(paths)), { recursive: true, mode: 0o700 });
+    await writeDurableFile(
+      dirname(recordPath(paths)),
+      basename(recordPath(paths)),
+      Buffer.from(`${JSON.stringify({ pending: true })}\n`),
+    );
+  };
   const slug = typeof record?.slug === "string" ? record.slug : undefined;
   if (slug !== undefined) {
     const settings = await sessions.customSettings(slug);
@@ -158,9 +175,41 @@ export async function convergeBrainServer(
       return "updated";
     }
   }
+  if (record?.pending === true) {
+    // An earlier add of Lazurio's may have created it: the one server of
+    // that name, exactly what Lazurio adds, is completed with the key.
+    const ids = await sessions.customIdsNamed(server.name);
+    if (ids === null) return "failed";
+    if (ids.length === 1) {
+      const id = ids[0] as string;
+      const settings = await sessions.customSettings(id);
+      if (
+        settings.kind !== "custom-server" ||
+        settings.type !== "http" ||
+        settings.url !== server.url ||
+        !settings.bearer ||
+        settings.headers.length > 0
+      )
+        return "name-taken";
+      const saved = await sessions.updateCustom(id, server);
+      if (saved.kind !== "saved" && saved.kind !== "connected") return "failed";
+      await write(id);
+      return "added";
+    }
+    if (ids.length > 1) return "name-taken";
+  } else {
+    try {
+      await pending();
+    } catch {
+      return "failed";
+    }
+  }
   const added = await sessions.addCustom(server);
-  if (added.kind === "blocked" && added.reason === "name-taken")
+  if (added.kind === "blocked" && added.reason === "name-taken") {
+    // That server was there before this add: never Lazurio's to complete.
+    await rm(recordPath(paths), { force: true }).catch(() => undefined);
     return "name-taken";
+  }
   if (added.kind !== "connected" || typeof added.app !== "string")
     return "failed";
   await write(added.app);

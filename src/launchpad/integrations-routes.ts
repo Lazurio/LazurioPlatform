@@ -278,6 +278,7 @@ export function createIntegrationsRoutes(
       customSettings: (id: string) => sessions.customSettings(id),
       updateCustom: (id: string, server: CustomServerInput) =>
         sessions.updateCustom(id, server),
+      customIdsNamed: (name: string) => sessions.customIdsNamed(name),
     }),
     handles: (path: string) =>
       path === "/api/integrations" || path.startsWith("/api/integrations/"),
