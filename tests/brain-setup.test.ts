@@ -529,7 +529,10 @@ describe("what a dead run left, before the brain starts", () => {
         Promise.race([
           promise,
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error(`${what}: no end in ${ms} ms`)), ms),
+            setTimeout(
+              () => reject(new Error(`${what}: no end in ${ms} ms`)),
+              ms,
+            ),
           ),
         ]);
       try {
