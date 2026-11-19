@@ -229,12 +229,47 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
     ]);
   });
 
-  test("no thread of Buddy yet: nothing runs", async () => {
+  test("no_thread is unknown: T3 Code answers it also when finding or reading his thread failed", async () => {
+    // T3 Code 0.1.10-lazurio.3 maps a failed search or read to `no-thread`
+    // (`readBuddySignal`), which the CLI prints as `no_thread`: whether his
+    // thread is absent or could not be read, the brain waits.
     const stand = t3({
       signal: `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`,
     });
-    expect(await ask(stand)).toBe("idle");
+    expect(await ask(stand)).toBe("unknown");
     expect(stand.calls).toHaveLength(1);
+    // Through buddyIdle, as setup asks it: busy, so nothing stops.
+    expect(
+      await buddyIdle({
+        home: "/home/bob",
+        service: systemd("inactive"),
+        activeWork: work("idle"),
+        generation: 4,
+        gen4Turn: () => ask(stand),
+      }),
+    ).toBe(false);
+  });
+
+  test("a malformed answer is unknown and never throws", async () => {
+    for (const signal of [
+      '{"error":null}\n',
+      '{"error":"no_thread"}\n',
+      "null\n",
+      "[]\n",
+      '{"threadId":42}\n',
+      '{"threadId":""}\n',
+      `${signalOf}${signalOf}`,
+      "",
+    ])
+      expect(await ask(t3({ signal, events: eventsWith("idle") }))).toBe(
+        "unknown",
+      );
+    for (const events of [
+      `${JSON.stringify({ kind: "thread", threadId: thread, status: null })}\n${JSON.stringify({ kind: "synced" })}\n`,
+      `${JSON.stringify({ kind: "thread", threadId: "another", status: "idle" })}\n${JSON.stringify({ kind: "synced" })}\n`,
+      "not json\n",
+    ])
+      expect(await ask(t3({ signal: signalOf, events }))).toBe("unknown");
   });
 
   test("anything else is unknown: another refusal, an earlier T3 Code's help, no thread line, no synced line, no answer", async () => {

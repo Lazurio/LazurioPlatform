@@ -6,14 +6,16 @@ import type { ToolRunner } from "../tools/status";
 // #1103). Buddy GEN4 is a thread of the person's shared T3 Code (`~/.t3`),
 // and T3 Code's own agent CLI answers both questions, so there is one way
 // to this information (agreed with the thread that holds Buddy's T3 Code):
-// - `t3 lazurio buddy signal --json` names Buddy's thread (`threadId`), or
-//   refuses with `no_thread` where he has none yet: then nothing runs;
+// - `t3 lazurio buddy signal --json` names Buddy's thread (`threadId`);
 // - `t3 events --thread <id>` prints that thread's line with its `status`,
 //   then a `synced` line.
-// Fail closed: a refusal of any other kind, an answer that is not that JSON
-// (a T3 Code before 0.1.10-lazurio.3 prints its help for `signal`), a
-// thread missing from the events, no `synced` line, or no answer in time is
-// `unknown`, which the brain takes for work.
+// Fail closed: every refusal, `no_thread` included, is `unknown`, which the
+// brain takes for work. In T3 Code 0.1.10-lazurio.3 `no_thread` also stands
+// for a failed search for his thread or a failed read of its records
+// (`readBuddySignal` maps both failures to it), so it does not prove that no
+// turn runs. So are an answer that is not that JSON (a T3 Code before
+// 0.1.10-lazurio.3 prints its help for `signal`), a thread missing from the
+// events, no `synced` line, and no answer in time.
 
 /** A thread's states (T3 Code 0.1.10-lazurio.3: `idle` and its runs'
  * `OrchestrationV2RunStatus`): while a turn is under way, and once none is.
@@ -74,10 +76,9 @@ export async function buddyGen4Turn(
   };
   const signal = await ask(["lazurio", "buddy", "signal", "--json"]);
   const answer = signal?.length === 1 ? signal[0] : undefined;
-  if (answer === undefined) return "unknown";
-  const error = answer.error as Record<string, unknown> | undefined;
-  if (error !== undefined)
-    return error.code === "no_thread" ? "idle" : "unknown";
+  // A refusal, whatever its shape (`{"error": …}`, `{"error": null}`), and
+  // `no_thread` too, leaves the brain waiting.
+  if (answer === undefined || "error" in answer) return "unknown";
   const threadId = answer.threadId;
   if (typeof threadId !== "string" || threadId.length === 0) return "unknown";
   const events = await ask(["events", "--thread", threadId]);
