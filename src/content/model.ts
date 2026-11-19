@@ -102,6 +102,8 @@ export const contentFailureCodes = [
   "root-declaration-invalid",
   "root-declaration-mismatch",
   "organization-unreadable",
+  // a root here that resolves conflict (LazurioPlatform#1094)
+  "organization-conflict",
   // materialization of one repository
   "destination-occupied",
   "destination-invalid",
