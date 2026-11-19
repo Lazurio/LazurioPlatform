@@ -1,9 +1,22 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { constants } from "node:fs";
+import { lstat, open, rename, rm } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { expectedLegacyProjection } from "./legacy-projection";
 import { organizationDocumentFiles } from "./read-documents";
-import { resolveOrganizationRoot } from "./root-resolution";
+import {
+  executionAdmission,
+  executionAdmissionVariants,
+  organizationRootStates,
+  resolveOrganizationRoot,
+} from "./root-resolution";
+
+const running: readonly string[] =
+  executionAdmissionVariants[executionAdmission];
+const notRunning = organizationRootStates.filter(
+  (state) => !running.includes(state),
+);
 
 /** `lazurio organization check` (LazurioPlatform#1094): the state of an
  * Organization root exactly as every Lazurio reader resolves it, and the
@@ -26,14 +39,16 @@ import { resolveOrganizationRoot } from "./root-resolution";
  * the digest never papers over diverging documents. */
 export const checkHelp = `organization check [<Organization directory>] [--write] [--json]
   The state of an Organization root as Lazurio resolves it for every reader
-  (catalog, Launchpad, content install, Composio): transition, current,
-  projection_drift (all run), or legacy, missing, conflict (not run), with
-  the issues found. Run it in the root after editing lazurio.organization.json,
+  (catalog, Launchpad, content install, Composio): ${running.join(", ")}
+  (run), or ${notRunning.join(", ")} (do not run),
+  with the issues found. Run it in the root after editing lazurio.organization.json,
   company.gen3.json or modules.manifest.json, and in the root's CI. A
   conflict with canonical_projection_hash_invalid means the canonical
   manifest changed but compatibility.legacy_projection.sha256 was not
   recomputed: --write replaces that one value with the digest Lazurio
-  computes, nothing else, and checks again. The directory defaults to the
+  computes, nothing else, keeping the file's permissions, and checks again;
+  it writes nothing where the digest cannot be computed, where it is right
+  or where it is not the only problem. The directory defaults to the
   current one. Exit status: 0 runs, 1 does not run, 2 usage.`;
 
 export class CheckUsageError extends Error {}
@@ -53,8 +68,11 @@ export type OrganizationCheckAnswer = Readonly<{
   write?:
     | "digest-rewritten"
     | "nothing-to-write"
+    | "digest-unknown"
     | "not-only-digest"
-    | "digest-not-unique";
+    | "digest-not-unique"
+    | "manifest-not-regular"
+    | "manifest-changed";
 }>;
 
 /** The expected and declared digests of a canonical manifest, when both can
@@ -102,16 +120,44 @@ async function inspect(directory: string): Promise<Inspection> {
   };
 }
 
-/** Replaces the declared digest in the canonical manifest's text: exactly
- * one occurrence of the declared value, written next to it and renamed into
- * place, so the rest of the file keeps its bytes. */
+type RewriteOutcome =
+  | "digest-rewritten"
+  | "digest-not-unique"
+  | "manifest-not-regular"
+  | "manifest-changed";
+
+/** The canonical manifest's bytes and identity, read without following a
+ * link; null when it is not a regular file. */
+async function readManifest(path: string) {
+  const info = await lstat(path).catch(() => null);
+  if (info === null || !info.isFile()) return null;
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const stat = await handle.stat();
+    if (!stat.isFile() || stat.ino !== info.ino) return null;
+    return { bytes: await handle.readFile(), mode: stat.mode & 0o7777, stat };
+  } finally {
+    await handle.close();
+  }
+}
+
+/** Replaces the declared digest in the canonical manifest's text (Pablo's
+ * review of #1095): exactly one occurrence of the declared value; the new
+ * bytes go to a temporary file created exclusively under an unpredictable
+ * name next to it, with the manifest's own permissions; the manifest must be
+ * the same regular file with the same bytes just before the rename; the
+ * temporary file is removed on any failure. The rest of the file keeps its
+ * bytes. */
 async function rewriteDigest(
   directory: string,
   declared: string,
   expected: string,
-): Promise<"digest-rewritten" | "digest-not-unique"> {
-  const path = join(directory, organizationDocumentFiles.canonical);
-  const text = await readFile(path, "utf8");
+): Promise<RewriteOutcome> {
+  const name = organizationDocumentFiles.canonical;
+  const path = join(directory, name);
+  const before = await readManifest(path);
+  if (before === null) return "manifest-not-regular";
+  const text = before.bytes.toString("utf8");
   const quoted = JSON.stringify(declared);
   const first = text.indexOf(quoted);
   if (first === -1 || text.indexOf(quoted, first + quoted.length) !== -1)
@@ -120,9 +166,42 @@ async function rewriteDigest(
     text.slice(0, first) +
     JSON.stringify(expected) +
     text.slice(first + quoted.length);
-  const temporary = `${path}.lazurio-check-${process.pid}`;
-  await writeFile(temporary, next, "utf8");
-  await rename(temporary, path);
+  const temporary = join(
+    directory,
+    `.${name}.tmp-${randomBytes(8).toString("hex")}`,
+  );
+  const file = await open(
+    temporary,
+    constants.O_WRONLY |
+      constants.O_CREAT |
+      constants.O_EXCL |
+      constants.O_NOFOLLOW,
+    0o600,
+  );
+  try {
+    try {
+      await file.writeFile(next, "utf8");
+      // The umask never widens or narrows what the manifest had.
+      await file.chmod(before.mode);
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    const now = await readManifest(path);
+    if (
+      now === null ||
+      now.stat.ino !== before.stat.ino ||
+      now.stat.dev !== before.stat.dev ||
+      !now.bytes.equals(before.bytes)
+    ) {
+      await rm(temporary, { force: true });
+      return "manifest-changed";
+    }
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
   return "digest-rewritten";
 }
 
@@ -136,20 +215,20 @@ export async function runOrganizationCheck(
     const onlyDigest =
       found.state === "conflict" &&
       found.issues.length === 1 &&
-      found.issues[0] === "canonical_projection_hash_invalid" &&
-      found.expectedDigest !== undefined &&
-      found.declaredDigest !== undefined;
+      found.issues[0] === "canonical_projection_hash_invalid";
     if (
-      found.issues.includes("canonical_projection_hash_invalid") &&
-      !onlyDigest
+      found.expectedDigest === undefined ||
+      found.declaredDigest === undefined
     )
-      outcome = "not-only-digest";
-    else if (!onlyDigest) outcome = "nothing-to-write";
+      outcome = "digest-unknown";
+    else if (found.expectedDigest === found.declaredDigest)
+      outcome = "nothing-to-write";
+    else if (!onlyDigest) outcome = "not-only-digest";
     else {
       outcome = await rewriteDigest(
         directory,
-        found.declaredDigest as string,
-        found.expectedDigest as string,
+        found.declaredDigest,
+        found.expectedDigest,
       );
       if (outcome === "digest-rewritten") found = await inspect(directory);
     }
@@ -170,6 +249,12 @@ const writeSentence: Record<
   "digest-rewritten":
     "compatibility.legacy_projection.sha256 rewritten to the digest Lazurio computes.",
   "nothing-to-write": "The digest is right; nothing was written.",
+  "digest-unknown":
+    "Not written: the digest cannot be computed here, as the documents cannot be read or are invalid.",
+  "manifest-not-regular":
+    "Not written: lazurio.organization.json is not a regular file.",
+  "manifest-changed":
+    "Not written: lazurio.organization.json changed while it was rewritten. Run the command again.",
   "not-only-digest":
     "Not written: the digest is not the only problem. Resolve the other issues first.",
   "digest-not-unique":

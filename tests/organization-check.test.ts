@@ -1,5 +1,17 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  lstat,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rename,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -153,6 +165,68 @@ test("--write leaves a diverging company.gen3.json a conflict", async () => {
   expect(answer.state).toBe("conflict");
   expect(answer.executable).toBe(false);
   expect(answer.issues).toEqual(["normalized_semantics_conflict"]);
+});
+
+test("--write keeps the manifest's permissions whatever the umask, and leaves no temporary file (Pablo's review)", async () => {
+  const { edited, legacy } = editedWithoutDigest();
+  const directory = await root(edited, legacy);
+  const path = join(directory, "lazurio.organization.json");
+  await chmod(path, 0o600);
+  const umask = process.umask(0o022);
+  try {
+    expect((await runOrganizationCheck(directory, true)).write).toBe(
+      "digest-rewritten",
+    );
+  } finally {
+    process.umask(umask);
+  }
+  expect((await stat(path)).mode & 0o777).toBe(0o600);
+  expect((await lstat(path)).isFile()).toBe(true);
+  expect(
+    (await readdir(directory)).filter((name) => name.includes(".tmp-")),
+  ).toEqual([]);
+});
+
+test("--write never follows a link: a linked manifest is refused and its target untouched (Pablo's review)", async () => {
+  const { edited, legacy } = editedWithoutDigest();
+  const directory = await root(edited, legacy);
+  const path = join(directory, "lazurio.organization.json");
+  // The manifest itself becomes a link to a file elsewhere.
+  const elsewhere = join(
+    directory,
+    "..",
+    `${directory.split("/").pop()}-elsewhere.json`,
+  );
+  roots.push(elsewhere);
+  await rename(path, elsewhere);
+  await symlink(elsewhere, path);
+  const before = await readFile(elsewhere, "utf8");
+  const answer = await runOrganizationCheck(directory, true);
+  expect(answer.write).not.toBe("digest-rewritten");
+  expect(await readFile(elsewhere, "utf8")).toBe(before);
+  expect((await lstat(path)).isSymbolicLink()).toBe(true);
+});
+
+test("--write where the digest cannot be computed says so and writes nothing (Pablo's review)", async () => {
+  const directory = await realpath(
+    await mkdtemp(join(tmpdir(), "lazurio-organization-check-")),
+  );
+  roots.push(directory);
+  const answer = await runOrganizationCheck(directory, true);
+  expect(answer.write).toBe("digest-unknown");
+  expect(answer.executable).toBe(false);
+  expect(await readdir(directory)).toEqual([]);
+});
+
+test("the help names exactly the states Lazurio runs", async () => {
+  const { checkHelp } = await import("../src/organizations/check-cli");
+  const { executionAdmission, executionAdmissionVariants } = await import(
+    "../src/organizations/root-resolution"
+  );
+  const running = executionAdmissionVariants[executionAdmission].join(", ");
+  expect(checkHelp).toContain(`${running}\n  (run)`);
+  expect(checkHelp).toContain("projection_drift");
+  expect(checkHelp).not.toMatch(/projection_drift[^(]*\(run\)/);
 });
 
 test("a directory without documents does not run", async () => {
