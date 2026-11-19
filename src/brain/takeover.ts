@@ -1,4 +1,4 @@
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import type { ProcessRunner } from "../update/self-check";
@@ -11,7 +11,7 @@ import {
   brainRefreshTimer,
   brainUnit,
 } from "./pin";
-import { writeBrainUnits } from "./units";
+import { unitOwner, writeBrainUnits } from "./units";
 
 // The interim installer's brain taken over in place (plan LZD-0033 R11a,
 // part B), only once the Environment's owner has switched it on
@@ -36,7 +36,8 @@ export type TakeoverResult =
   | "taken-over"
   | "waits-consent"
   | `refused:${string}`
-  | `restored:${string}`;
+  | `restored:${string}`
+  | `restore-failed:${string}`;
 
 const githubPin = /^github:Lazurio\/gbrain#([0-9a-f]{40})$/;
 
@@ -111,6 +112,64 @@ const unitNames = [brainUnit, brainRefreshService, brainRefreshTimer];
 export const interimUnitsCopy = (paths: BrainPaths) =>
   join(dirname(paths.state), "interim-units");
 
+/** The interim installer's units back from their copy, the ones that were
+ * not there before removed; systemd reads them again. True only when every
+ * write and the reload succeeded and the server's unit is the interim
+ * installer's again. */
+async function putInterimBack(
+  host: TakeoverHost,
+  created: readonly string[],
+): Promise<boolean> {
+  const { paths } = host;
+  const copy = interimUnitsCopy(paths);
+  let whole = true;
+  for (const name of unitNames) {
+    if (created.includes(name)) {
+      await rm(join(paths.units, name), { force: true }).catch(() => {
+        whole = false;
+      });
+      continue;
+    }
+    const text = await readFile(join(copy, name)).catch(() => undefined);
+    if (text === undefined) continue;
+    await writeDurableFile(paths.units, name, text).catch(() => {
+      whole = false;
+    });
+  }
+  const reloaded = await systemctl(
+    { run: host.service, env: host.env },
+    "daemon-reload",
+  );
+  return (
+    whole &&
+    reloaded &&
+    (await unitOwner(paths, paths.units, brainUnit)) === "interim"
+  );
+}
+
+/** A takeover a run left in progress (`taking-over`): the interim
+ * installer's units come back first, so nothing bypasses the takeover or
+ * loses the release it ran; the takeover is then tried again by setup (the
+ * consent stays). Null where there is nothing to resume. */
+export async function resumeTakeover(
+  host: TakeoverHost,
+): Promise<TakeoverResult | null> {
+  const state = await readBrainState(host.paths);
+  if (state.takeover?.state !== "taking-over") return null;
+  const back = await putInterimBack(host, state.takeover.created ?? []);
+  const current = await readBrainState(host.paths);
+  const { release: _r, created: _c, ...takeover } = current.takeover ?? {};
+  await writeBrainState(host.paths, {
+    ...current,
+    takeover: Object.freeze({
+      ...takeover,
+      state: back ? "failed-interrupted" : "restore-failed-interrupted",
+      at: (host.now ?? (() => new Date()))().toISOString(),
+    }),
+  });
+  return back ? "restored:interrupted" : "restore-failed:interrupted";
+}
+
 /** Records the owner's consent; `lazurio brain take-over` calls it. */
 export async function consentToTakeover(
   paths: BrainPaths,
@@ -133,15 +192,17 @@ export async function takeOverInterim(
   const now = () => (host.now ?? (() => new Date()))().toISOString();
   const state = await readBrainState(paths);
   if (state.takeover?.consent === undefined) return "waits-consent";
-  const record = async (takeover: "done" | "restored" | `failed-${string}`) => {
+  // A way back that did not complete waits for a person.
+  if (state.takeover.state?.startsWith("restore-failed-"))
+    return `restore-failed:${state.takeover.state.slice("restore-failed-".length)}`;
+  const record = async (
+    takeover: `failed-${string}` | `restore-failed-${string}`,
+  ) => {
     const current = await readBrainState(paths);
+    const { release: _r, created: _c, ...rest } = current.takeover ?? {};
     await writeBrainState(paths, {
       ...current,
-      takeover: Object.freeze({
-        ...current.takeover,
-        state: takeover,
-        at: now(),
-      }),
+      takeover: Object.freeze({ ...rest, state: takeover, at: now() }),
     });
   };
   // What runs must be what the interim installer says it installed.
@@ -168,15 +229,31 @@ export async function takeOverInterim(
   }
   if (kept[brainUnit] === undefined) return "refused:no-unit";
   const command = { run: host.service, env: host.env };
+  const created = unitNames.filter((name) => kept[name] === undefined);
+  // The journal before the first unit: a run that dies from here on is
+  // put back by the next one (`resumeTakeover`).
+  try {
+    const current = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...current,
+      takeover: Object.freeze({
+        ...current.takeover,
+        state: "taking-over",
+        at: now(),
+        release: Object.freeze({ ...release }),
+        created,
+      }),
+    });
+  } catch {
+    return "refused:journal";
+  }
   const back = async (why: string): Promise<TakeoverResult> => {
-    for (const name of unitNames) {
-      const text = kept[name];
-      if (text !== undefined)
-        await writeDurableFile(paths.units, name, text).catch(() => undefined);
+    if (await putInterimBack(host, created)) {
+      await record(`failed-${why}`);
+      return `restored:${why}`;
     }
-    await systemctl(command, "daemon-reload");
-    await record(`failed-${why}`);
-    return `restored:${why}`;
+    await record(`restore-failed-${why}`);
+    return `restore-failed:${why}`;
   };
   try {
     await writeBrainUnits(paths, paths.interimCommand, false, {
@@ -197,9 +274,10 @@ export async function takeOverInterim(
     return back("enable");
   const current = await readBrainState(paths);
   const vault = await interimVault(paths.home);
+  const { release: _r, created: _c, ...takeover } = current.takeover ?? {};
   await writeBrainState(paths, {
     ...current,
-    takeover: Object.freeze({ ...current.takeover, state: "done", at: now() }),
+    takeover: Object.freeze({ ...takeover, state: "done", at: now() }),
     release: Object.freeze({
       commit: release.commit,
       version: release.version,

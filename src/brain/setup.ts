@@ -23,6 +23,7 @@ import { brainPin, brainUnit, brainUrl, releaseCommand } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
 import {
   consentToTakeover,
+  resumeTakeover,
   type TakeoverResult,
   takeOverInterim,
 } from "./takeover";
@@ -145,6 +146,15 @@ const moveHost = (host: SetupHost) => ({
   ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
 });
 
+const takeoverHost = (host: SetupHost) => ({
+  paths: host.paths,
+  service: host.service,
+  http: host.http,
+  base: host.base ?? brainUrl,
+  env: host.env,
+  ...(host.now === undefined ? {} : { now: host.now }),
+});
+
 /** The move to the pin and what follows it. */
 async function move(
   host: SetupHost,
@@ -213,6 +223,16 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
   if (status.state !== "unsupported" && !status.handover)
     return Object.freeze({ server: "waits-machines", status });
   if (status.state !== "unsupported") {
+    // A takeover a run left in progress is put back before anything reads
+    // the units as Lazurio's; setup then starts again from what is there.
+    const resumed = await resumeTakeover(takeoverHost(host));
+    if (resumed?.startsWith("restore-failed:"))
+      return Object.freeze({
+        server: "takeover-refused",
+        takeover: resumed,
+        status: await brainStatus(host),
+      });
+    if (resumed !== null) return setupOnce(host);
     const state = await readBrainState(host.paths);
     // A move that stopped stays stopped until a person decides; one a run
     // left half way is finished before anything else starts.
@@ -234,14 +254,7 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
     case "foreign":
       return Object.freeze({ server: "foreign", status });
     case "adoptable": {
-      const takeover = await takeOverInterim({
-        paths,
-        service: host.service,
-        http: host.http,
-        base: host.base ?? brainUrl,
-        env: host.env,
-        ...(host.now === undefined ? {} : { now: host.now }),
-      });
+      const takeover = await takeOverInterim(takeoverHost(host));
       if (takeover !== "taken-over")
         return Object.freeze({
           server:

@@ -50,8 +50,21 @@ export type BrainState = Readonly<{
    * how the takeover went. */
   takeover?: Readonly<{
     consent?: string;
-    state?: "done" | "restored" | `failed-${string}`;
+    /** `taking-over`: the journal of a takeover in progress, written before
+     * the first unit; a run that finds it puts the interim installer's
+     * units back first (`resumeTakeover`). `restore-failed-…`: the way back
+     * did not complete; stopped for a person. */
+    state?:
+      | "taking-over"
+      | "done"
+      | "restored"
+      | `failed-${string}`
+      | `restore-failed-${string}`;
     at?: string;
+    /** While taking over: the release the interim installer ran, and the
+     * unit names that were not there before (removed on the way back). */
+    release?: Readonly<{ commit: string; version: string }>;
+    created?: readonly string[];
   }>;
   /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
   meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;

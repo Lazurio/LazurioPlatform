@@ -8,12 +8,19 @@ import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   brainPaths,
   brainPin,
+  brainRefreshService,
   brainRefreshTimer,
   brainUnit,
   releaseCommand,
 } from "../src/brain/pin";
 import { brainSetup, type SetupHost } from "../src/brain/setup";
-import { consentToTakeover, interimUnitsCopy } from "../src/brain/takeover";
+import { brainStatus } from "../src/brain/status";
+import {
+  consentToTakeover,
+  interimUnitsCopy,
+  resumeTakeover,
+} from "../src/brain/takeover";
+import { writeBrainUnits } from "../src/brain/units";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
@@ -352,6 +359,79 @@ describe("the interim installer's brain", () => {
     expect(await unitText(paths)).toContain(
       `exec ${paths.interimCommand} serve --http`,
     );
+  });
+});
+
+describe("a takeover interrupted or not put back", () => {
+  test("a run that dies after the units are written is put back by the next, which takes over again", async () => {
+    const { host, paths, systemd } = await stand({ consent: true });
+    const service = host.service;
+    // What a run leaves when it dies right after writing the units: the
+    // copy, the journal, and Lazurio's units naming the interim command.
+    const copy = interimUnitsCopy(paths);
+    await mkdir(copy, { recursive: true });
+    for (const name of [brainUnit, brainRefreshTimer])
+      await writeFile(
+        join(copy, name),
+        await readFile(join(paths.units, name)),
+      );
+    const before = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...before,
+      takeover: {
+        ...before.takeover,
+        state: "taking-over",
+        release: { commit: interimCommit, version: interimVersion },
+        created: [brainRefreshService],
+      },
+    });
+    const journal = (await readBrainState(paths)).takeover;
+    await writeBrainUnits(paths, paths.interimCommand, false, {
+      takeOver: true,
+    });
+    expect(await brainStatus(host)).toMatchObject({ owner: "lazurio" });
+    // The units read as Lazurio's now; the journal stops the next run from
+    // moving them as such: the interim installer's come back first, and the
+    // takeover runs again (without it, the move would run and the takeover
+    // would never be recorded done).
+    // Taken over again, recorded, and moved.
+    const result = await brainSetup(host);
+    expect(result).toMatchObject({ server: "moved", takeover: "taken-over" });
+    expect((await readBrainState(paths)).takeover).toMatchObject({
+      state: "done",
+      consent: journal?.consent as string,
+    });
+    expect((await readBrainState(paths)).takeover?.created).toBeUndefined();
+    expect(systemd.running).toBe(brainPin.version);
+  });
+
+  test("a way back that systemd does not reload is not called restored, and waits for a person", async () => {
+    const { host, paths, calls } = await stand({ consent: true });
+    const service = host.service;
+    const broken: SetupHost = {
+      ...host,
+      service: async (command, timeout) =>
+        command[2] === "daemon-reload"
+          ? { exitCode: 1, stdout: "", stderr: "" }
+          : service(command, timeout),
+    };
+    const result = await brainSetup(broken);
+    expect(result).toMatchObject({
+      server: "takeover-refused",
+      takeover: "restore-failed:reload",
+    });
+    expect((await readBrainState(paths)).takeover?.state).toBe(
+      "restore-failed-reload",
+    );
+    calls.length = 0;
+    const again = await brainSetup(host);
+    expect(again).toMatchObject({
+      server: "takeover-refused",
+      takeover: "restore-failed:reload",
+    });
+    expect(
+      calls.some((c) => c[0] === "systemctl" && c[2] !== "is-active"),
+    ).toBe(false);
   });
 });
 
