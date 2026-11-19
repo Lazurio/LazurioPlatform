@@ -29,6 +29,10 @@ import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { buddyFolderOwed } from "../buddy/persona-folder";
 import { createPersonaSave } from "../buddy/persona-save";
 import { createBuddySignIn } from "../buddy/sign-in";
+import {
+  type BuddySignalFollowerSeams,
+  buddySignalFollowerFor,
+} from "../buddy/signal";
 import { buddyStatus } from "../buddy/status";
 import { type BotChecker, createBuddyTelegram } from "../buddy/telegram";
 import { createTelegramRestart } from "../buddy/telegram-restart";
@@ -203,6 +207,7 @@ import {
   buddyT3Active,
 } from "./buddy-gate";
 import { createBuddyRoutes } from "./buddy-routes";
+import { buddySignalPath, buddySignalStream } from "./buddy-signal-stream";
 import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
 import { withGuestAccess } from "./catalog-view";
@@ -557,6 +562,7 @@ const isLazurioDocument = (path: string) =>
   path === browserViewPath ||
   path === chatPairingPath ||
   path === buddyGatePath ||
+  path === buddySignalPath ||
   path === mausbotPairingPath ||
   promptRoute.test(path);
 
@@ -762,6 +768,10 @@ export async function startLaunchpad(
      * `src/t3-links/`): exactly where it sets Executor up. Absent: it never
      * does. */
     t3LinksAtStart?: (() => Promise<boolean>) | undefined;
+    /** How this Launchpad starts following the sign by Buddy GEN4's avatar
+     * (plan LZD-0033, `src/buddy/signal.ts`): only where the entry names
+     * Buddy GEN4. Absent: it never follows it. */
+    buddySignalAtStart?: BuddySignalFollowerSeams["start"] | undefined;
   }>,
   hostedOptions: HostedOptions = {},
   // Where the tools screen reads its live facts: this process's PATH and
@@ -1580,6 +1590,13 @@ export async function startLaunchpad(
   // operation, the outcome and the reason, never a code, a handle, a ticket
   // or Hermes's session.
   const buddyGateway = createHermesGateway({ home: toolsEnvironment.home });
+  // The sign by Buddy GEN4's avatar (plan LZD-0033): one follower of the
+  // shared T3 Code for the whole Launchpad, and the streams that pass it on.
+  const buddySignal = buddySignalFollowerFor(
+    entry,
+    installed?.buddySignalAtStart,
+  );
+  const buddySignalStreams = new Set<() => void>();
   // His Telegram (decision F66): his own bot from BotFather, connected
   // through Hermes's own writers and read live from Hermes; the restart that
   // brings a change in is F64's, made once he is idle, at most once in two
@@ -1814,6 +1831,7 @@ export async function startLaunchpad(
         buddyOpen: hasOnboarding(inputs.preset)
           ? setup.peek()?.buddyOpen === true
           : false,
+        ...(buddySignal === null ? {} : { buddySignal: buddySignal.current() }),
       });
     })().catch(() => null);
     try {
@@ -2085,6 +2103,9 @@ export async function startLaunchpad(
                 ...(known?.setup === undefined ? {} : { setup: known.setup }),
                 theme: shellThemeOf(theme),
                 buddyOpen: known?.buddyOpen === true,
+                ...(buddySignal === null
+                  ? {}
+                  : { buddySignal: buddySignal.current() }),
               }),
               tailnet,
             ),
@@ -2288,6 +2309,17 @@ export async function startLaunchpad(
         } catch {
           return notFound();
         }
+      }
+      if (url.pathname === buddySignalPath) {
+        // The sign by Buddy GEN4's avatar as a stream (plan LZD-0033): the
+        // bubble on each page of the shell follows it, behind the same
+        // admission as the shell document. None where nothing follows it.
+        if (request.method !== "GET")
+          return response({ error: "method-not-allowed" }, 405);
+        if (closing) return response({ error: "closing" }, 503);
+        if (buddySignal === null) return response({ error: "not-found" }, 404);
+        server.timeout(request, 0);
+        return buddySignalStream(buddySignal, buddySignalStreams);
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the
@@ -3719,6 +3751,7 @@ export async function startLaunchpad(
   // without anyone opening a page. A Platform update restarts the Launchpad;
   // the Folder refresh that writes his new layer may come after it. Never a
   // reason for the start to wait or fail.
+  buddySignal?.start();
   const buddyAtStart =
     entry?.buddyOrigin === undefined
       ? Promise.resolve()
@@ -3892,6 +3925,8 @@ export async function startLaunchpad(
       catalog.close();
       buddyPersona.close();
       buddyTelegramRestart.close();
+      buddySignal?.close();
+      for (const stop of [...buddySignalStreams]) stop();
       if (!closePending)
         closePending = (async () => {
           // Close admission immediately, before waiting for HTTP requests to drain.

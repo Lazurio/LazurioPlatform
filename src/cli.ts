@@ -7,6 +7,7 @@ import {
 } from "./browser/cli";
 import { runViewService } from "./browser/people/serve";
 import { buddyHelp, runBuddyCommand } from "./buddy/cli";
+import { buddySignalProcess } from "./buddy/signal";
 import {
   computerHelp,
   runComputerCommand,
@@ -181,6 +182,13 @@ async function installedLaunchpad(explicitBase: string, folder: string) {
     // The links between T3 Code servers along the Environment's edges (root
     // decision 0157, amended 2026-11-17): exactly where it sets Executor up.
     t3LinksAtStart: executorAtStart(context, base),
+    // The sign by Buddy GEN4's avatar (plan LZD-0033): the server follows it
+    // only where the entry names Buddy GEN4.
+    buddySignalAtStart: buddySignalProcess({
+      path: process.env.PATH,
+      home: process.env.HOME,
+      platform: process.platform,
+    }),
     // ChatGPT's apps in the operator's Codex (decision F42's addendum of
     // 2026-10-27): exactly where it sets Executor up.
     codexAppsAtStart: executorAtStart(context, base),

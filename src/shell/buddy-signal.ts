@@ -1,0 +1,70 @@
+// The sign by Buddy GEN4's avatar (plan LZD-0033, the sign) as the shell
+// carries it: the Launchpad's document and stream (`buddy.signal`), the
+// bubble's badge and the browser's notice. Pure, for the server and the
+// page alike. T3 Code computes it from Buddy's thread (Lazurio/t3code#232);
+// `unavailable` is every reading that could not be made, never quiet.
+
+import type { ShellBuddySignal, ShellBuddySignalState } from "./contract";
+
+export type BuddySignalState = ShellBuddySignalState;
+export type BuddySignal = ShellBuddySignal;
+
+export const unavailableSignal: BuddySignal = Object.freeze({
+  state: "unavailable",
+  since: null,
+  request: null,
+  startedBy: null,
+});
+
+const states = new Set<BuddySignalState>([
+  "waiting",
+  "failed",
+  "answered",
+  "quiet",
+  "unavailable",
+]);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** One line of `t3 lazurio buddy signal --json --follow` (version 1). A
+ * line of another version, shape or state is `unavailable`. */
+export function parseBuddySignalLine(line: string): BuddySignal {
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch {
+    return unavailableSignal;
+  }
+  return parseBuddySignal(value) ?? unavailableSignal;
+}
+
+/** A sign as the server, the shell document or the stream carry it; null
+ * for anything else. */
+export function parseBuddySignal(value: unknown): BuddySignal | null {
+  if (!isRecord(value)) return null;
+  if (value.version !== undefined && value.version !== 1) return null;
+  const state = value.state;
+  if (typeof state !== "string" || !states.has(state as BuddySignalState))
+    return null;
+  if (state === "unavailable") return unavailableSignal;
+  const since =
+    typeof value.since === "string" && !Number.isNaN(Date.parse(value.since))
+      ? value.since
+      : null;
+  const kind = isRecord(value.request) ? value.request.kind : undefined;
+  const request =
+    state === "waiting" && (kind === "question" || kind === "approval")
+      ? Object.freeze({ kind })
+      : null;
+  const startedBy =
+    value.startedBy === "person" || value.startedBy === "other"
+      ? value.startedBy
+      : null;
+  return Object.freeze({
+    state: state as BuddySignalState,
+    since,
+    request,
+    startedBy,
+  });
+}
