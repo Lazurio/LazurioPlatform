@@ -376,6 +376,48 @@ posix(
 );
 
 posix(
+  "a file Buddy sent in the web chat (a MEDIA: line in T3 Code's record of his reply) is an attachment, not text left over",
+  () =>
+    withHome(
+      async (home) => {
+        const dir = join(home, "out");
+        const answer = await exportTo(home, dir);
+        expect(answer).toMatchObject({ state: "exported" });
+        const records = await readRecords(dir);
+        const reply = records.find((r) => r.id === "t3:m8");
+        const report = await readFile(join(home, "report.pdf"));
+        expect(reply).toMatchObject({
+          channel: "chat",
+          author: "assistant",
+          kind: "message",
+          text: "Posílám přehled.",
+        });
+        expect(reply?.attachments).toEqual([
+          {
+            name: "report.pdf",
+            mime: "application/pdf",
+            path: `attachments/${sha256(report).slice(0, 12)}-report.pdf`,
+            size: report.length,
+            sha256: sha256(report),
+          },
+        ]);
+        expect(await verifyArchive(dir)).toMatchObject({ state: "verified" });
+      },
+      {
+        t3: [
+          ...t3Messages,
+          {
+            id: "m8",
+            role: "assistant",
+            text: `Posílám přehled.\nMEDIA:${"~"}/report.pdf`,
+            at: "2023-11-14T22:18:00.000Z",
+          },
+        ],
+      },
+    ),
+);
+
+posix(
   "an empty source message is left out and counted, never blocking the export; an empty question with options stays",
   () =>
     withHome(
