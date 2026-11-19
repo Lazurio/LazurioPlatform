@@ -364,7 +364,11 @@ the exit code and the message (`src/modules/templates/_bun/app/v1/tests/start.te
   The health only reads: it writes no data, opens no draft, commits and
   migrates nothing. It checks no sibling Application and no outside service, so
   a sibling's outage never fails a rollout it has nothing to do with; a missing
-  sibling replica the App states plainly in its interface instead.
+  sibling replica the App states plainly in its interface instead. The health
+  path answers a request whose `Host` is the hostname of the entrypoint's
+  `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` as it answers loopback, and
+  never redirects; module-kit's `allowedHosts` admits exactly that hostname. A
+  host's probe counts only 2xx as healthy: a redirect, 403 or 503 is not.
 - **Start time.** The start opens the data and reaches a good health without
   importing, migrating or generating data, which is Preparation's. How long a
   start may take is the application host's limit, not the Module's.
