@@ -1110,7 +1110,10 @@ posixTest(
       const organizations = join(folder, "organizations");
       const edit = async (
         directory: string,
-        change: (canonical: Record<string, any>) => void,
+        change: (canonical: {
+          extensions: Record<string, unknown>;
+          organization: { forge_binding: { locator: string } };
+        }) => void,
       ) => {
         const path = join(
           organizations,
