@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { spawn } from "node:child_process";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
+  rename,
   stat,
   writeFile,
 } from "node:fs/promises";
@@ -11,7 +14,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
 import { runBrainCommand } from "../src/brain/cli";
-import { readBrainState } from "../src/brain/keys";
+import { readBrainState, writeBrainState } from "../src/brain/keys";
+import { meaningPin } from "../src/brain/meaning-pin";
 import {
   brainPaths,
   brainPin,
@@ -32,6 +36,7 @@ import { unitMarker } from "../src/update/service-control";
 
 const brain = {
   up: false,
+  timer: false,
   version: brainPin.version,
   admin: "",
   keys: [] as { id: string; name: string; token: string; status: string }[],
@@ -119,6 +124,7 @@ async function host(
     await writeFile(join(paths.brain, "config.json"), '{"brain":"theirs"}');
   }
   brain.up = false;
+  brain.timer = false;
   brain.keys = [];
   const calls: string[][] = [];
   /** systemctl verbs that fail, changeable between runs. */
@@ -148,8 +154,31 @@ async function host(
     calls.push([...command]);
     if (failing.has(command[2] as string))
       return { exitCode: 1, stdout: "", stderr: "" };
-    if (command[2] === "start") {
-      brain.admin = (await readFile(paths.adminToken, "utf8")).trim();
+    if (command[2] === "stop" && command[3] === brainUnit) brain.up = false;
+    if (command.includes(brainRefreshTimer)) {
+      if (command[2] === "stop") brain.timer = false;
+      if (command[2] === "start" || command.includes("--now"))
+        brain.timer = true;
+    }
+    if (command[2] === "is-active") {
+      const on = command.at(-1) === brainUnit ? brain.up : brain.timer;
+      return {
+        exitCode: on ? 0 : 3,
+        stdout: on ? "active\n" : "inactive\n",
+        stderr: "",
+      };
+    }
+    if (command[2] === "start" && command[3] === brainUnit) {
+      // gbrain does not start without its owner credential, or on a brain
+      // a run left half migrated.
+      const admin = await readFile(paths.adminToken, "utf8").catch(() => null);
+      const config = await readFile(
+        join(paths.brain, "config.json"),
+        "utf8",
+      ).catch(() => null);
+      if (admin === null || config === null || config.includes("half"))
+        return { exitCode: 1, stdout: "", stderr: "" };
+      brain.admin = admin.trim();
       brain.up = true;
     }
     return { exitCode: 0, stdout: "", stderr: "" };
@@ -397,5 +426,99 @@ describe("keys after the vault's step", () => {
     expect(keysAfterVault("connected", done, done)).toBe(false);
     expect(keysAfterVault("stop:durability-not-on", done, done)).toBe(false);
     expect(keysAfterVault("local", undefined, undefined)).toBe(false);
+  });
+});
+
+describe("what a dead run left, before the brain starts", () => {
+  const at = "2026-11-19T00:00:00.000Z";
+
+  test("a rebuild that died with ~/.gbrain moved to its copy: setup brings it back before starting anything", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    // The run died in `moving`: the brain (its owner credential with it) is
+    // only in its copy, so its server cannot start.
+    const backup = ".gbrain.bak-20261119T000000Z";
+    await rename(paths.brain, join(paths.home, backup));
+    brain.up = false;
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      vault: {
+        rebuild: {
+          state: "moving",
+          at,
+          backup,
+          vaultDir: join(paths.home, "vault"),
+          moveAside: false,
+        },
+      },
+    });
+    const result = await brainSetup(setupHost);
+    expect(result.server).toBe("running");
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe("{}");
+    expect((await readBrainState(paths)).vault?.rebuild?.state).toBe(
+      "restored-after-interrupted",
+    );
+    expect(brain.up && brain.timer).toBe(true);
+  });
+
+  test("a switch to search by meaning that died half migrated: the copy comes back though the brain does not start", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    const backup = ".gbrain.bak-meaning-20261119T000000Z";
+    await cp(paths.brain, join(paths.home, backup), { recursive: true });
+    await writeFile(join(paths.brain, "config.json"), '{"half":true}');
+    brain.up = false;
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: meaningPin.provider,
+        result: "started",
+        at,
+        backup,
+      },
+    });
+    const result = await brainSetup(setupHost);
+    expect(result.server).toBe("running");
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe("{}");
+    expect((await readBrainState(paths)).meaningAttempt).toMatchObject({
+      result: "restored",
+      reason: "interrupted",
+    });
+  });
+
+  test("a takeover whose way back failed waits for a person, even where Lazurio's unit is in place", async () => {
+    const { setupHost, paths, calls } = await host();
+    await brainSetup(setupHost);
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      takeover: { consent: at, state: "restore-failed-reload", at },
+    });
+    brain.up = false;
+    calls.length = 0;
+    const result = await brainSetup(setupHost);
+    expect(result).toMatchObject({
+      server: "takeover-refused",
+      takeover: "restore-failed:reload",
+    });
+    expect(calls.some((c) => c[2] === "start" || c[1] === "add")).toBe(false);
+  });
+
+  test("a gbrain command a dead run left still writing is ended before setup goes on", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    // An embedding of Lazurio's release, in its own process group, as a
+    // killed setup leaves it.
+    const command = releaseCommand(paths, brainPin.commit);
+    const writer = spawn(
+      process.execPath,
+      ["-e", "setInterval(() => {}, 1000)", command, "embed", "--stale"],
+      { detached: true, stdio: "ignore" },
+    );
+    const ended = new Promise((resolve) => writer.once("exit", resolve));
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const result = await brainSetup(setupHost);
+    expect(result.server).toBe("running");
+    await ended;
+    expect(writer.exitCode !== null || writer.signalCode !== null).toBe(true);
   });
 });

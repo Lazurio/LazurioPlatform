@@ -17,6 +17,7 @@ import {
   convergeMeaning,
   type MeaningFetch,
   type MeaningResult,
+  recoverAttempt,
 } from "./meaning";
 import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
 import {
@@ -34,7 +35,8 @@ import {
   takeOverInterim,
 } from "./takeover";
 import { writeBrainUnits } from "./units";
-import { convergeVault, type VaultResult } from "./vault";
+import { convergeVault, recoverVaultJournal, type VaultResult } from "./vault";
+import { endStrayWriters } from "./writers";
 
 // `lazurio brain setup`: brings the person's brain to Lazurio's care. What
 // this step does, by what is there (`brainStatus`):
@@ -109,7 +111,9 @@ export type SetupResult = Readonly<{
     | "reload"
     | "enable"
     | "start"
-    | "answer";
+    | "answer"
+    /** A gbrain command a dead run left could not be ended. */
+    | "writers";
   keys?: Readonly<Record<BrainKeyKind, KeyOutcome>>;
   takeover?: TakeoverResult;
   move?: MoveResult;
@@ -224,6 +228,66 @@ export async function brainSetup(
   }
 }
 
+/** The vault's host, for its journal now and its connection after. */
+const vaultHostOf = async (host: SetupHost) => ({
+  paths: host.paths,
+  folder: host.vault?.folder ?? "",
+  command:
+    (await readBrainState(host.paths)).release?.command ??
+    releaseCommand(host.paths, brainPin.commit),
+  gh: host.vault?.gh,
+  run: host.run,
+  service: host.service,
+  http: host.http,
+  base: host.base ?? brainUrl,
+  env: host.env,
+  idle: idleOf(host),
+  ...(host.now === undefined ? {} : { now: host.now }),
+  ...(host.tries === undefined ? {} : { tries: host.tries }),
+  ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
+});
+
+/** Before anything starts or asks the brain: a writer a dead run left is
+ * ended; a takeover whose way back failed waits for a person, whatever the
+ * units say now; a takeover, a vault's rebuild or a switch to search by
+ * meaning that a run left half way is recovered from its journal. `again`
+ * once something was recovered (setup reads what is there anew); a result
+ * where it stops; null where there was nothing. */
+async function recoverFirst(
+  host: SetupHost,
+): Promise<SetupResult | "again" | null> {
+  const stop = async (
+    extra: Readonly<{
+      takeover?: TakeoverResult;
+      vault?: VaultResult;
+      meaning?: MeaningResult;
+    }>,
+    server: "stopped" | "takeover-refused" = "stopped",
+  ): Promise<SetupResult> =>
+    Object.freeze({ server, ...extra, status: await brainStatus(host) });
+  if (!(await endStrayWriters(host.paths)))
+    return failed("writers", await brainStatus(host));
+  const takeover = (await readBrainState(host.paths)).takeover?.state;
+  if (takeover?.startsWith("restore-failed-"))
+    return stop(
+      {
+        takeover: `restore-failed:${takeover.slice("restore-failed-".length)}`,
+      },
+      "takeover-refused",
+    );
+  const resumed = await resumeTakeover(takeoverHost(host));
+  if (resumed?.startsWith("restore-failed:"))
+    return stop({ takeover: resumed }, "takeover-refused");
+  if (resumed !== null) return "again";
+  const vault = await recoverVaultJournal(await vaultHostOf(host));
+  if (vault === "stop:rebuild-interrupted") return "again";
+  if (vault !== null) return stop({ vault });
+  const meaning = await recoverAttempt(moveHost(host));
+  if (meaning === null) return null;
+  if (meaning.startsWith("stopped:")) return stop({ meaning });
+  return "again";
+}
+
 async function setupOnce(host: SetupHost): Promise<SetupResult> {
   const status = await brainStatus(host);
   // One manager of the Launchpad's key in any order of deployment: until
@@ -232,16 +296,11 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
   if (status.state !== "unsupported" && !status.handover)
     return Object.freeze({ server: "waits-machines", status });
   if (status.state !== "unsupported") {
-    // A takeover a run left in progress is put back before anything reads
-    // the units as Lazurio's; setup then starts again from what is there.
-    const resumed = await resumeTakeover(takeoverHost(host));
-    if (resumed?.startsWith("restore-failed:"))
-      return Object.freeze({
-        server: "takeover-refused",
-        takeover: resumed,
-        status: await brainStatus(host),
-      });
-    if (resumed !== null) return setupOnce(host);
+    // What a run that died left is dealt with before anything else: before
+    // the brain is started or asked, a key minted or the model required.
+    const early = await recoverFirst(host);
+    if (early === "again") return setupOnce(host);
+    if (early !== null) return early;
     const state = await readBrainState(host.paths);
     // A move that stopped stays stopped until a person decides; one a run
     // left half way is finished before anything else starts.
@@ -413,20 +472,7 @@ async function finish(
   if (host.vault !== undefined) {
     const state = await readBrainState(paths);
     const rebuildBefore = state.vault?.rebuild;
-    vault = await convergeVault({
-      paths,
-      folder: host.vault.folder,
-      command: state.release?.command ?? releaseCommand(paths, brainPin.commit),
-      gh: host.vault.gh,
-      run: host.run,
-      service: host.service,
-      http: host.http,
-      base,
-      env: host.env,
-      idle: idleOf(host),
-      ...(host.tries === undefined ? {} : { tries: host.tries }),
-      ...(host.waitMs === undefined ? {} : { waitMs: host.waitMs }),
-    });
+    vault = await convergeVault(await vaultHostOf(host));
     // A brain made anew, or brought back from its copy, gets its keys again,
     // whatever failed after (durability, the timer): it has none of its own.
     const rebuildAfter = (await readBrainState(paths)).vault?.rebuild;

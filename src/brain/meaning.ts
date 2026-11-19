@@ -408,7 +408,7 @@ type Release = NonNullable<
 
 /** Writes the attempt's journal: its stage, when it began and its copy. */
 const recorder =
-  (host: MeaningHost, now: Date) =>
+  (host: MoveHost, now: Date) =>
   async (
     result: "stopping" | "started" | "restored" | "stopped",
     reason?: string,
@@ -426,7 +426,7 @@ const recorder =
     });
   };
 
-async function clearAttempt(host: MeaningHost): Promise<void> {
+async function clearAttempt(host: MoveHost): Promise<void> {
   const { meaningAttempt: _gone, ...current } = await readBrainState(
     host.paths,
   );
@@ -436,7 +436,7 @@ async function clearAttempt(host: MeaningHost): Promise<void> {
 /** The brain before, without the model, from the attempt's copy: never
  * under a running server; the server back on its release, confirmed. */
 async function restoreCopy(
-  host: MeaningHost,
+  host: MoveHost,
   release: Release,
   backup: string,
   now: Date,
@@ -485,9 +485,11 @@ async function restoreCopy(
  * (gbrain's steps begin only after `started`), so a partial copy goes, the
  * server comes back, and the next idle run tries again. `started`: gbrain
  * may have changed the brain, so its copy comes back as after a failed
- * step. Null where there is nothing to recover. */
-async function recoverAttempt(
-  host: MeaningHost,
+ * step. Null where there is nothing to recover. Needs neither the model
+ * nor a server that answers: setup calls it before it starts the brain (a
+ * brain gbrain left half migrated may not start). */
+export async function recoverAttempt(
+  host: MoveHost,
 ): Promise<MeaningResult | null> {
   const state = await readBrainState(host.paths);
   const attempt = state.meaningAttempt;

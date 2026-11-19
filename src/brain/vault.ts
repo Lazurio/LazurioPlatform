@@ -945,10 +945,42 @@ async function recoverRebuild(
   };
 }
 
+/** A rebuild a run left at `stopping`, `moving` or `started` is recovered,
+ * and one whose way back failed waits for a person; null where there is
+ * no such journal. Needs neither the server nor the vault's declaration:
+ * setup calls it before it starts or asks the brain anything (a brain moved
+ * to its copy cannot start). */
+export async function recoverVaultJournal(
+  host: VaultHost,
+): Promise<VaultResult | null> {
+  const state = await readBrainState(host.paths);
+  const journal = state.vault?.rebuild;
+  if (journal?.state.startsWith("restore-failed-"))
+    return "stop:rebuild-restore-failed";
+  if (
+    journal === undefined ||
+    !["stopping", "moving", "started"].includes(journal.state)
+  )
+    return null;
+  const at = (host.now ?? (() => new Date()))().toISOString();
+  const recovered = await recoverRebuild(host, journal, at);
+  const current = await readBrainState(host.paths);
+  await writeBrainState(host.paths, {
+    ...current,
+    vault: Object.freeze({
+      ...(current.vault ?? {}),
+      rebuild: recovered.rebuild,
+    }),
+  });
+  return recovered.result;
+}
+
 /** Puts the brain on the vault; a rebuild or a stop of the server happens
  * only while Buddy is idle. The keys are not touched here: a rebuilt brain
  * has none, and setup converges them right after. */
 export async function convergeVault(host: VaultHost): Promise<VaultResult> {
+  const recovered = await recoverVaultJournal(host);
+  if (recovered !== null) return recovered;
   const state = await readBrainState(host.paths);
   const seen = await observeVault(host, state);
   const plan = vaultPlan(seen);
@@ -963,19 +995,6 @@ export async function convergeVault(host: VaultHost): Promise<VaultResult> {
       vault: Object.freeze({ ...vault }),
     });
   };
-  const journal = state.vault?.rebuild;
-  if (
-    journal !== undefined &&
-    ["stopping", "moving", "started"].includes(journal.state)
-  ) {
-    const recovered = await recoverRebuild(host, journal, now().toISOString());
-    vault.rebuild = recovered.rebuild;
-    await save();
-    return recovered.result;
-  }
-  // A brain that could not be brought back waits for a person.
-  if (journal?.state.startsWith("restore-failed-"))
-    return "stop:rebuild-restore-failed";
   if (repo !== undefined && vault.repo !== repo) vault = { repo };
   let result: VaultResult;
   switch (plan.action) {
