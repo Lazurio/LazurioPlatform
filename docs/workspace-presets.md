@@ -29,10 +29,10 @@ A named, versioned, declarative composition, shipped as data in
 | Composition | The fixed profile axes the preset pins: `access` and `purpose` |
 | Defaults | Initial `locale`, `detail` and `coordination`; the user may change them |
 | Personalspace policy | `present` (intimate, one user) or `never` (Organization-owned Machine) |
-| Provider identity | The user's own sign-in, the brokered Organization identity, or the persona's own account |
+| Provider identity | The user's own sign-in, the brokered Organization identity, or Henry's own account |
 | Enabled surfaces | Which installed surfaces are offered, for example Launchpad, hosted entry and Lazurio MausBot |
 | Supervision policy | Session-scoped applications or the OS service manager |
-| Bot team | `null`, or the defaults Lazurio MausBot starts the persona's bot team with ([Automated preset](#the-automated-preset-automated-environment)) |
+| Bot team | `null`, or the defaults Lazurio MausBot starts the bot team of the Organization's Henry with ([Automated preset](#the-automated-preset-automated-environment)) |
 
 A preset carries no scripts, no infrastructure and no authority. An unknown preset,
 an unknown version or an unsupported combination fails before any mutation. Only whole
@@ -45,7 +45,7 @@ provider identity is in the Platform: on the brokered preset (`hosted-organizati
 the curated gh sign-in and SSH key linking are refused and only a user's account
 left signed in may be signed out ([gh on a Team Environment](environment-tools.md#gh-on-a-team-environment),
 F19 addendum 2026-09-28); on every other preset the curated tools behave the
-same. On the Automated preset that sign-in is the persona's account (below). The bot
+same. On the Automated preset that sign-in is Henry's account (below). The bot
 team is declared for the service that runs Lazurio MausBot and rendered into the
 Folder; Platform applies none of it.
 
@@ -57,7 +57,7 @@ Folder; Platform applies none of it.
 | `hosted-personal` | A user's ONE personal VM (`machine.kind: personal-vm`) | The Machine's Owner; a Buddy is an optional resident of the same Machine | Own sign-in | Present and intimate | None mounted |
 | `hosted-organization-personal` | An Organization-owned work VM assigned to ONE user (`workspace-vm`) | The assigned user | Own sign-in | Never present | `organizations/<org>/` |
 | `hosted-organization-team` | An Organization-owned team VM, one OS account, several users (`workspace-vm`) | The connected Team member; the OS account is not a person | Brokered Organization identity; no personal credentials | Never present | `organizations/<org>/` |
-| `hosted-organization-steward` | The Automated Environment of an Organization persona (`workspace-vm`), decision 0169 | The one responsible user, an Organization Owner or Organization Admin; the persona's bot team works here | The persona's own GitHub user account (a bot account), signed in by that user | Never present | `organizations/<org>/` |
+| `hosted-organization-steward` | The Automated Environment of the Organization's Henry (`workspace-vm`), decision 0169 | The one responsible user, an Organization Owner or Organization Admin; the bot team of the Organization's Henry works here | The persona's own GitHub user account (a bot account), signed in by that user | Never present | `organizations/<org>/` |
 
 The earlier names `hosted-private` and `hosted-team` were never implemented and were
 renamed without compatibility.
@@ -76,7 +76,7 @@ The preset is derived from the typed fields of the root-issued handover
 ([machine handover](machine-handover.md)), never from a Machine name, hostname,
 Team name, operator account or the recorded relationships. Platform never guesses.
 The derivation is a function of one **assignment** value — is the work VM assigned
-to ONE user, shared by a Team, the Automated Environment of a persona, or the
+to ONE user, shared by a Team, the Automated Environment of the Organization's Henry, or the
 services Environment of a server? — and
 `machine.kind`. Since Machines v0.12.61
 the handover states the assignment as `owner.assignment`
@@ -103,14 +103,14 @@ what a new choice may take (issue #107): when the handover states
 | never present | `machine.kind: "personal-vm"` | one user | `hosted-personal` | `hosted-personal` | `hosted-personal` |
 | `{kind: "operator", …}` | `"workspace-vm"`, with or without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | `hosted-organization-personal` |
 | `{kind: "team"}` | `"workspace-vm"`, with or without `owner.team` | the Team | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
-| `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | a persona, one responsible user | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
+| `{kind: "automation", …}` | `"workspace-vm"`, with or without `owner.team` | the Organization's Henry, one responsible user | `hosted-organization-steward` | the three Organization presets | `hosted-organization-steward` |
 | `{kind: "services"}` | `"workspace-vm"`, with or without `owner.team` | the server's services; Organization Admins enter, nobody is named | `hosted-organization-team` | the three Organization presets | `hosted-organization-team` |
 | absent | `"workspace-vm"` without `owner.team` | one user | `hosted-organization-personal` | the three Organization presets | the three Organization presets |
 | absent | `"workspace-vm"` with `owner.team` | **ambiguous** | none: explicit `--preset` required | the three Organization presets | the three Organization presets |
 
 The narrowing follows decision 0168: a Work Team Environment works in GitHub only
 through the Organization bot, and an explicit Work or Automated preset there would
-re-open a user-account sign-in (the user's own account or the persona's); the
+re-open a user-account sign-in (the user's own account or Henry's); the
 same holds for the Team or Work preset on an Automated Environment, and for the Team
 or Automated preset on one user's work VM. No transition allowance keeps the
 Automated preset selectable on an `operator` handover: the handover now states
@@ -152,16 +152,16 @@ handover's `owner.assignment` exactly when it is present (`assigned to user
 Decision 0169 (Lazurio root register) adds a fourth kind of Environment next to the
 three of 0165: **Automated** (Automatizovaný); the Platform decision is
 [F27](decisions.md#f27--the-steward-preset-for-the-automated-environment). Automated work of an Organization is
-done by a bot team of its persona (Henry) in Lazurio MausBot, Lazurio's fork of
+done by a bot team of the Organization's Henry in Lazurio MausBot, Lazurio's fork of
 OpenMausBot. `hosted-organization-steward` is that Environment's preset:
 
 - **Machine and user.** An Organization-owned work VM (`workspace-vm`) with one
   responsible user, an Organization Owner or Organization Admin, who configures the
   automation and answers for it. Only that user connects over SSH, for service
-  interventions; colleagues work with the persona through GitHub. Personalspace is
+  interventions; colleagues work with Henry through GitHub. Personalspace is
   never present; Organization repositories are mounted under `organizations/<org>/`
   exactly as on the other Organization presets. The responsible user installs
-  them with the ordinary content operation, under the persona's live GitHub role:
+  them with the ordinary content operation, under the live GitHub role of Henry's account:
   in Začínáme, where it starts by itself once the AI and GitHub are there, in
   Settings → Toto Prostředí, or with `lazurio organization install`; the
   Automated label neither grants Module Maintainer rights nor requires a hosting archive
@@ -173,23 +173,23 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   prompt, the tour, the content's start by itself and the content-before-AI rule,
   as `hosted-organization-personal` has them (`hasOnboarding` in
   `src/launchpad/first-run.ts`): the AI, done without any action where the
-  Organization's AI pool serves it; GitHub, signed in as the persona's account;
+  Organization's AI pool serves it; GitHub, signed in as Henry's account;
   the handover's Organization; then the optional steps.
-- **Provider identity `persona-account`.** The persona's own GitHub user account
+- **Provider identity `persona-account`.** The own GitHub user account of the Organization's Henry
   (a bot account), one per Organization (not a GitHub App: a code owner, a requested reviewer
   and an assignee must be users). It is neither the user's account nor Lazurio for
   GitHub, which stays the identity of the Work Team Environment (0147, 0168). Every
   tool, T3 Code and every bot acts as that account and within its live GitHub rights.
 - **Curated tools.** The curated gh sign-in and SSH key linking are offered, as on
   the Work presets: the responsible user signs in once with `lazurio tools login
-  gh` or in the Launchpad (Tools), chooses the persona's account in the browser's
+  gh` or in the Launchpad (Tools), chooses Henry's account in the browser's
   device flow and links this Machine's SSH key to it. The user holds the account's
   two-factor authentication and recovery codes outside the Machine. Signing in the
   user's own account there is wrong by the rendered rules. The sign-in gate does
-  not compare accounts (the handover names the user, not the persona) and grants
+  not compare accounts (the handover names the user, not Henry) and grants
   nothing; since F27's addendum of 2026-10-30 Začínáme's GitHub step alone does,
   softly: gh signed in as the login of the handover's `automation` assignment
-  (letter case ignored) is not done there, says that the persona's account
+  (letter case ignored) is not done there, says that Henry's account
   belongs here and offers "Přepnout účet", which signs that account out and opens
   the sign-in again. Nothing else, no sign-in, tool or route, refuses anything by
   it. Composio and wacli behave as on a Work Environment.
@@ -202,8 +202,8 @@ OpenMausBot. `hosted-organization-steward` is that Environment's preset:
   Machine (0169), and the sweep of the purpose vocabulary under decision 0156 is a
   separate step. The communication defaults are the shared ones.
 
-**Bot team.** The preset declares the defaults Lazurio MausBot starts the persona's
-bot team with. The service that installs and runs Lazurio MausBot applies them as its
+**Bot team.** The preset declares the defaults Lazurio MausBot starts the bot team of the
+Organization's Henry with. The service that installs and runs Lazurio MausBot applies them as its
 environment (a Machines workload today); Platform applies none of them, and the
 user may change them in Lazurio MausBot. The Folder renders them into
 `manual/this-machine.md` and a short section of `AGENTS.md`:
@@ -399,11 +399,11 @@ The handover has no selected-preset field and needs none: the preset is derived 
 `owner.assignment` and `machine.kind`, and an explicit choice is recorded locally.
 `relationships` (Machines v0.12.61) is recorded in the binding and rendered into
 `manual/this-machine.md` and `AGENTS.md` when present; it never takes part in the
-derivation and Platform enforces nothing from it. The persona's account (upstream
+derivation and Platform enforces nothing from it. Henry's account (upstream
 decisions 0156 and 0169) is not carried by the handover or the preset: the Automated
-preset renders the rule (the persona's own account, signed in by the responsible
+preset renders the rule (Henry's own account, signed in by the responsible
 user), never an account name, and the `automation` assignment names only the
-responsible user. If the persona's account must appear in
+responsible user. If Henry's account must appear in
 `lazurio.machine.json`, that is an **upstream schema change** in Machines followed by
 a re-pin and conformance test here.
 
@@ -417,7 +417,7 @@ a re-pin and conformance test here.
   revocation on GitHub blocking the next provider operation. Live Team-grant
   verification in the broker is an external dependency under upstream decisions 0147
   and 0149.
-- `hosted-organization-steward`: on a real work VM, the persona's account signed in
+- `hosted-organization-steward`: on a real work VM, Henry's account signed in
   by the user, Lazurio MausBot running with the declared defaults, a review on
   an exact head and an explicitly instructed publication completed through GitHub
   alone (the pilot of DEV-6632), and an idle team calling no model.
@@ -441,7 +441,7 @@ unchanged), derivation from a stored `automation` assignment with and without
 `owner.team`, the fail-closed refusal of every other assignment shape, a synthetic
 `automation` handover read and projected through the vendored #277 schema,
 `folder-init` derived and explicit (handovers without assignment) with the rendered
-persona, bot team and publication rule, the refusal on a personal VM and of a used
+identity of the Organization's Henry, bot team and publication rule, the refusal on a personal VM and of a used
 `personalspace/`, the refresh after a re-assignment to `automation` with
 `--preset`, the gh gate offering sign-in and key linking, and
 the responsible user withheld from recovery evidence. No native run exists.

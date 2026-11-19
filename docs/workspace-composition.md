@@ -47,7 +47,7 @@ what could not be checked against code or a run.
    generated, survives reboots and needs no user's session (section 4.1).
 4. **The Launchpad applies the composition with its own `gh`.** It clones what is
    missing and fast-forwards clean checkouts through the Environment's own GitHub
-   identity (the user's sign-in, the persona's account, or the Team's brokered
+   identity (the user's sign-in, Henry's account, or the Team's brokered
    identity). It never infers access from a GitHub error again: a clone that fails
    while the composition says "granted" is a reported mismatch, not a guess.
 5. **Nothing is removed by an outage, and nothing with local work is ever removed.**
@@ -103,7 +103,7 @@ what could not be checked against code or a run.
 2. **Who registers (O4).** A user registers their own Environment. A Team
    Environment is registered by the Organization Admin. An Automated Environment is
    always an Environment under a user: registered by and accountable to that
-   user, with the persona's account as its GitHub identity. The late evening made
+   user, with Henry's account as its GitHub identity. The late evening made
    this the binding rule of 4.1.
 3. **What runs without a click (O6, O7).** Clones and clean fast-forwards are
    automatic; removal only after a user confirms it; no automatic removal after a
@@ -146,7 +146,7 @@ what could not be checked against code or a run.
    with GitHub linked; that linked GitHub account provides the repositories to the
    Environment (it is the composition subject), and the Environment's `gh` must work as
    the same account. No separate persona binding. Consequence: an Environment that works
-   as a persona's GitHub account is registered under the Lazurio Account the persona's
+   as the GitHub account of an Organization's Henry is registered under the Lazurio Account Henry's
    GitHub account is linked to.
 6. **Teams in Settings.** Settings → Environment keeps showing the Environment's facts,
    including its assigned Team, for troubleshooting. Teams stay out of the workspace
@@ -273,7 +273,7 @@ provides it at its own preparation and fresh install
 ([B7](launchpad-parity.md#b7-organizations-synchronize-and-materialize), amended
 2026-10-17). The subject is a
 GitHub principal: a GitHub user account (the user's own, on a Remote Environment or at
-their workstation, or a persona's) or a GitHub Team (a Team Environment). Teams are not
+their workstation, or Henry's) or a GitHub Team (a Team Environment). Teams are not
 shown in the workspace; they only decide, inside GitHub, what the subject can read.
 Settings → Environment keeps showing the Environment's facts, including its assigned
 Team, because they help troubleshooting (decided, 1.2); F32 removes Teams from the
@@ -356,8 +356,8 @@ Notes:
   Lazurio Account has GitHub linked. That linked GitHub account provides the
   repositories (it is the composition subject), and the Environment's `gh` must work as
   the same account. There is no separate persona binding. Consequence: an Environment
-  that works as a persona's GitHub account is registered under the Lazurio Account the
-  persona's GitHub account is linked to. Today the handover's `automation` assignment
+  that works as the GitHub account of an Organization's Henry is registered under the Lazurio Account
+  Henry's GitHub account is linked to. Today the handover's `automation` assignment
   names the responsible user (F27); how it names the account such an Environment
   registers under is for the decision record (M2).
 - **A Team Environment never uses a user's account** (root 0168; decision F31). It is registered by an Organization Admin, who answers for it; its

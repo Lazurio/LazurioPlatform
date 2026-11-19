@@ -562,14 +562,14 @@ signed in there at all (next section).
 
 On the Automated preset (`hosted-organization-steward`, the Automated Environment of
 upstream decision 0169) the curated gh sign-in and SSH key linking are offered, as on
-a Work Environment. The account signed in is the persona's own GitHub user account
+a Work Environment. The account signed in is the own GitHub user account of the Organization's Henry
 (a bot account), not the user's: the responsible user runs `lazurio tools login gh`
-or the Launchpad's sign-in, chooses the persona's account in the device flow and
+or the Launchpad's sign-in, chooses Henry's account in the device flow and
 keeps its two-factor authentication and recovery codes outside the Environment. The
 rendered Folder states this rule; the gate does not compare accounts
 ([workspace presets](workspace-presets.md#the-automated-preset-automated-environment)).
 Since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
-the sign-in dialog's line says to confirm the code with the persona's account, and
+the sign-in dialog's line says to confirm the code with Henry's account, and
 Začínáme's GitHub step counts gh signed in as the responsible user's own login as not
 done, with "Přepnout účet", which signs it out as "Odhlásit" does and opens the
 sign-in again. That soft check refuses nothing.

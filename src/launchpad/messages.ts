@@ -334,7 +334,7 @@ const en = {
   toolsLoginStartingDetail: "It usually takes a few seconds.",
   toolsLoginGhText: "Copy the code and confirm it on GitHub.",
   toolsLoginGhTextPersona:
-    "Copy the code and confirm it on GitHub with the persona's account, not your own.",
+    "Copy the code and confirm it on GitHub with the account of the Organization's Henry, not your own.",
   toolsLoginGhLink: "Open GitHub",
   toolsLoginCodeLabel: "One-time code",
   toolsLoginComposioText: "Sign in to Composio in your browser.",
@@ -1069,7 +1069,7 @@ const en = {
   machineAssignment: "Assignment",
   machineAssignmentTeam: "Team",
   machineAssignmentAutomation:
-    "automations of an Organization persona; responsible user {operator}",
+    "automations of the Organization's Henry; responsible user {operator}",
   machineTailnet: "Tailnet node",
   machineHost: "Host",
   machineRelationships: "Relationships (enforced by Headscale, not here)",
@@ -1240,9 +1240,10 @@ const en = {
   setupGithubAction: "Connect GitHub",
   setupGithubBroken: "The GitHub connection does not work.",
   setupGithubReconnect: "Connect again",
-  setupGithubPersona: "The persona's GitHub account is not connected.",
+  setupGithubPersona:
+    "The GitHub account of the Organization's Henry is not connected.",
   setupGithubOwnAccount:
-    "GitHub is signed in with your own account; the persona's belongs here.",
+    "GitHub is signed in with your own account; the account of the Organization's Henry belongs here.",
   setupGithubSwitch: "Switch account",
   setupOrganizationMissing: "{name} is not here yet.",
   setupPersonalMissing: "Your personal space is not here yet.",
@@ -1262,7 +1263,7 @@ const en = {
   tourGearAiTitle: "First connect AI",
   tourGearGithubTitle: "Connect GitHub",
   tourGearGithubText: "It opens your repositories.",
-  tourGearGithubPersonaTitle: "Connect the persona's GitHub",
+  tourGearGithubPersonaTitle: "Connect Henry's GitHub",
   tourGearGithubPersonaText: "The agents work under its account.",
   tourGearFailedTitle: "The preparation did not work",
   tourGearFailedText: "See what to do next.",
@@ -1276,7 +1277,7 @@ const en = {
   tourAiText: "Sign in with your ChatGPT or Claude account.",
   tourGithubTitle: "Connect GitHub",
   tourGithubText: "For access to your modules.",
-  tourGithubPersonaTitle: "Connect the persona's account",
+  tourGithubPersonaTitle: "Connect Henry's account",
   tourGithubPersonaText: "Your own account does not belong here.",
   tourPrepareFailedTitle: "The preparation did not work",
   tourPrepareFailedText: "Here is what to do next.",
@@ -1376,11 +1377,11 @@ const en = {
     "The SSH key is on your account, but GitHub refuses the connection now. GitHub most likely has an outage (githubstatus.com); try Check again in a while.",
   startGithubReconnect: "Connect again",
   startGithubPersona:
-    "Not connected. The persona's account belongs here, not yours.",
+    "Not connected. The account of the Organization's Henry belongs here, not yours.",
   startGithubOwnAccount:
-    "Your own account @{login} is signed in. The persona's account belongs here.",
+    "Your own account @{login} is signed in. The account of the Organization's Henry belongs here.",
   startGithubOwnAccountPlain:
-    "Your own account is signed in. The persona's account belongs here.",
+    "Your own account is signed in. The account of the Organization's Henry belongs here.",
   startGithubSwitch: "Switch account",
   startGithubWaiting: "Waiting for your confirmation.",
   startGithubFinishing: "Finishing the connection…",
@@ -2804,7 +2805,7 @@ const cs: Record<MessageKey, string> = {
   toolsLoginStartingDetail: "Obvykle to trvá pár sekund.",
   toolsLoginGhText: "Zkopírujte kód a potvrďte ho na GitHubu.",
   toolsLoginGhTextPersona:
-    "Zkopírujte kód a na GitHubu ho potvrďte účtem persony, ne svým.",
+    "Zkopírujte kód a na GitHubu ho potvrďte účtem Henryho Organizace, ne svým.",
   toolsLoginGhLink: "Otevřít GitHub",
   toolsLoginCodeLabel: "Jednorázový kód",
   toolsLoginComposioText: "Přihlaste se do Composia v prohlížeči.",
@@ -3513,7 +3514,7 @@ const cs: Record<MessageKey, string> = {
   machineAssignment: "Přiřazení",
   machineAssignmentTeam: "Týmové",
   machineAssignmentAutomation:
-    "Automatizace persony Organizace; odpovědný uživatel {operator}",
+    "Automatizace Henryho Organizace; odpovědný uživatel {operator}",
   machineTailnet: "Uzel tailnetu",
   machineHost: "Host",
   machineRelationships: "Vztahy (vynucuje Headscale, ne tato stránka)",
@@ -3658,9 +3659,9 @@ const cs: Record<MessageKey, string> = {
   setupGithubAction: "Připojit GitHub",
   setupGithubBroken: "Připojení GitHubu nefunguje.",
   setupGithubReconnect: "Připojit znovu",
-  setupGithubPersona: "Účet persony na GitHubu není připojený.",
+  setupGithubPersona: "Účet Henryho Organizace na GitHubu není připojený.",
   setupGithubOwnAccount:
-    "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony.",
+    "Na GitHubu je přihlášený váš vlastní účet, sem patří účet Henryho Organizace.",
   setupGithubSwitch: "Přepnout účet",
   setupOrganizationMissing: "{name} tu ještě není.",
   setupPersonalMissing: "Osobní prostor tu ještě není.",
@@ -3679,8 +3680,8 @@ const cs: Record<MessageKey, string> = {
   tourGearAiTitle: "Nejdřív připojte AI",
   tourGearGithubTitle: "Připojte GitHub",
   tourGearGithubText: "Zpřístupní vaše repozitáře.",
-  tourGearGithubPersonaTitle: "Připojte GitHub persony",
-  tourGearGithubPersonaText: "Agenti pracují pod jejím účtem.",
+  tourGearGithubPersonaTitle: "Připojte GitHub Henryho",
+  tourGearGithubPersonaText: "Agenti pracují pod jeho účtem.",
   tourGearFailedTitle: "Příprava se nepovedla",
   tourGearFailedText: "Podívejte se, co dál.",
   tourPersonalText: "Místo pro vaše vlastní věci.",
@@ -3693,7 +3694,7 @@ const cs: Record<MessageKey, string> = {
   tourAiText: "Přihlaste se svým účtem ChatGPT nebo Claude.",
   tourGithubTitle: "Připojte GitHub",
   tourGithubText: "Pro přístup k vašim modulům.",
-  tourGithubPersonaTitle: "Připojte účet persony",
+  tourGithubPersonaTitle: "Připojte účet Henryho",
   tourGithubPersonaText: "Váš vlastní účet sem nepatří.",
   tourPrepareFailedTitle: "Příprava se nepovedla",
   tourPrepareFailedText: "Tady je, co dál.",
@@ -3789,11 +3790,11 @@ const cs: Record<MessageKey, string> = {
   startGithubRefused:
     "SSH klíč na vašem účtu je, ale GitHub teď připojení odmítá. Nejspíš má výpadek (githubstatus.com); za chvíli zkuste Zkontrolovat znovu.",
   startGithubReconnect: "Připojit znovu",
-  startGithubPersona: "Nepřipojeno. Sem patří účet persony, ne váš.",
+  startGithubPersona: "Nepřipojeno. Sem patří účet Henryho Organizace, ne váš.",
   startGithubOwnAccount:
-    "Je přihlášený váš vlastní účet @{login}. Sem patří účet persony.",
+    "Je přihlášený váš vlastní účet @{login}. Sem patří účet Henryho Organizace.",
   startGithubOwnAccountPlain:
-    "Je přihlášený váš vlastní účet. Sem patří účet persony.",
+    "Je přihlášený váš vlastní účet. Sem patří účet Henryho Organizace.",
   startGithubSwitch: "Přepnout účet",
   startGithubWaiting: "Čeká na vaše potvrzení.",
   startGithubFinishing: "Dokončuje se připojení…",

@@ -25,7 +25,7 @@ import { ownDataValue, stateFields } from "./state-fields";
 // The assignment of an Organization work VM, copied by Machines from the owner
 // Deployment Repo (schema v0.12.61) and never inferred. It is the one fact the
 // Organization presets differ on. `automation` is the Henry Environment
-// of decision 0169: the work VM of an Organization persona, with the one
+// of decision 0169: the work VM of the Organization's Henry, with the one
 // responsible operator (an Organization Owner or Organization Admin) named exactly
 // like `operator`; the handover carries it since Machines #277. `services` is
 // the services Environment of a Proxmox server, Služby serveru (root decision

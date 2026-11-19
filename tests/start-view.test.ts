@@ -1128,10 +1128,10 @@ test("the Automated Environment has the Začínáme of a work Environment: AI, t
     basic: "github",
     mark: "later",
     title: "GitHub",
-    status: "Nepřipojeno. Sem patří účet persony, ne váš.",
+    status: "Nepřipojeno. Sem patří účet Henryho Organizace, ne váš.",
   });
   expect(startView(automated(), en)?.steps[1]?.status).toBe(
-    "Not connected. The persona's account belongs here, not yours.",
+    "Not connected. The account of the Organization's Henry belongs here, not yours.",
   );
   expect(startCount(automated())).toBe("0/3");
   // The Organization's AI pool: done without any action.
@@ -1193,7 +1193,8 @@ test("the responsible user's own account on the Automated Environment: not done,
     basic: "github",
     mark: "failed",
     title: "GitHub",
-    status: "Je přihlášený váš vlastní účet @example. Sem patří účet persony.",
+    status:
+      "Je přihlášený váš vlastní účet @example. Sem patří účet Henryho Organizace.",
   });
   expect(view?.github).toEqual({ enabled: true, kind: "switch" });
   expect(view?.done).toBe(1);
@@ -1201,10 +1202,10 @@ test("the responsible user's own account on the Automated Environment: not done,
   expect(view?.steps[2]?.mark).toBe("later");
   expect(startCount(own())).toBe("1/3");
   expect(startView(own(), en)?.steps[1]?.status).toBe(
-    "Your own account @example is signed in. The persona's account belongs here.",
+    "Your own account @example is signed in. The account of the Organization's Henry belongs here.",
   );
   expect(startView(own({ githubLogin: null }), cs)?.steps[1]?.status).toBe(
-    "Je přihlášený váš vlastní účet. Sem patří účet persony.",
+    "Je přihlášený váš vlastní účet. Sem patří účet Henryho Organizace.",
   );
   expect(cs.startGithubSwitch).toBe("Přepnout účet");
   expect(en.startGithubSwitch).toBe("Switch account");

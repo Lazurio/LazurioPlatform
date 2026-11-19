@@ -451,7 +451,7 @@ hosted [workspace presets](docs/workspace-presets.md): `hosted-personal` (the on
 personal VM of a user), `hosted-organization-personal` (an Organization-owned
 work VM assigned to one user), `hosted-organization-team` (an
 Organization-owned team VM shared by a Team) and `hosted-organization-steward` (the
-Automated Environment of an Organization persona with one responsible user,
+Automated Environment of the Organization's Henry with one responsible user,
 upstream decision 0169; proposed). `hosted-personal` follows
 `machine.kind`; between the Organization presets the handover's
 `owner.assignment` (Machines v0.12.61, copied from the reviewed owner overlay,

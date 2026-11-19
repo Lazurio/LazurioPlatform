@@ -263,7 +263,7 @@ information page is reached only from its tile's menu.
   grant it to Teams; without that answer it is not shown (fail closed). Typically that is
   the Organization Owner's own work Environment or computer. A Team Environment acts
   through the brokered Lazurio for GitHub app within its Team's grants (root decisions
-  0147 and 0165), an Automated Environment through its persona's own GitHub account
+  0147 and 0165), an Automated Environment through its Henry's own GitHub account
   (root decision 0169), and the personal Environment has no Organization repositories;
   they get the tile only if their identity really has that capability. The personal
   space has its own "+ Nový modul" for its verified holder, which founds the user's
@@ -571,7 +571,7 @@ Environments, folders and a gear in the rail, the addendum supersedes it.
   Environment's demo onboarding, its notice in the column head and no Integrace,
   Trezor or Nástroje ([F55](decisions.md#f55--a-public-environment-a-demo-onboarding-a-quiet-notice-that-it-is-public-nothing-to-sign-in-to)).
   With `team` or `automated` after the mode, the hosted work Environment is the example
-  Organization's Team Environment or a persona's Automated Environment instead, to see
+  Organization's Team Environment or the Automated Environment of an Organization's Henry instead, to see
   how the page names each kind.
   Screenshots come from Chrome through playwright-core.
 - **A fork's snippet** is in decision F36 point 5 and in the target shell's "The forks
@@ -3279,7 +3279,7 @@ after the wireframe of HumanAndMachine-ai/prototypes-lazurio 1eefc3d (`setup.tsx
 Only where the Environment has the onboarding (`hasOnboarding`): the presets
 `hosted-personal`, `hosted-organization-personal` and `local`, which sign in to GitHub as
 their user, and since [F27's addendum of 2026-10-30](decisions.md#addendum-2026-10-30-matěj-the-automated-environment-has-the-onboarding-of-a-work-environment)
-`hosted-organization-steward`, the Automated Environment, whose GitHub is its persona's own
+`hosted-organization-steward`, the Automated Environment, whose GitHub is its Henry's own
 account, signed in by its responsible user. A Team Environment acts through the
 Organization's app, its basics are the Organization's, and it gets none of it.
 
@@ -3353,11 +3353,11 @@ Organization's app, its basics are the Organization's, and it gets none of it.
      opens "Link SSH key" under the title "Připojit GitHub". A sign-in the page runs, its
      window closed or open: "Čeká na vaše potvrzení." or "Dokončuje se připojení…" with
      the waiting mark and "Otevřít", which shows it again (F19's addendum of 2026-10-19).
-     On the Automated Environment the step names the persona's account: "Nepřipojeno. Sem
-     patří účet persony, ne váš."; with the responsible user's own account signed in, "Je
-     přihlášený váš vlastní účet @login. Sem patří účet persony." with the warning mark
+     On the Automated Environment the step names Henry's account: "Nepřipojeno. Sem
+     patří účet Henryho Organizace, ne váš."; with the responsible user's own account signed in, "Je
+     přihlášený váš vlastní účet @login. Sem patří účet Henryho Organizace." with the warning mark
      and "Přepnout účet", which signs that account out as gh's "Odhlásit" in Nástroje does
-     and opens gh's sign-in, whose dialog says to confirm the code with the persona's
+     and opens gh's sign-in, whose dialog says to confirm the code with Henry's
      account (F27's addendum of 2026-10-30);
   3. **Stáhnout <Organizace>** / **Připravit osobní prostor** / both: the content's own
      rows inside the step (the same `content-panel.ts` as Toto Prostředí draws).
@@ -3388,9 +3388,9 @@ Organization's app, its basics are the Organization's, and it gets none of it.
   Začínáme says only "Tady není co nastavovat.".
 - **The line in Apps** (`appsSetupLine`): until the basics exist, one line under the
   head, the next missing basic first: "AI není připojené." · "Připojit AI";
-  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet persony
+  "GitHub není připojený." · "Připojit GitHub" (on the Automated Environment "Účet Henryho Organizace
   na GitHubu není připojený." · "Připojit GitHub", and with the responsible user's own
-  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet persony." · "Přepnout
+  account "Na GitHubu je přihlášený váš vlastní účet, sem patří účet Henryho Organizace." · "Přepnout
   účet", which leads to the step); "<Organizace> tu ještě není." ·
   "Stáhnout"; "Osobní prostor tu ještě není." · "Připravit"; while it runs "Stahuje se
   <Organizace>." · "Zobrazit"; "Příprava se zastavila." · "Vyřešit v Chatu" or "Připojit

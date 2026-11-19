@@ -28,8 +28,8 @@ type MachineKind = "workstation" | MachineBinding["kind"];
 // OpenMausBot, decision 0169), declared as the defaults its service starts
 // with. The service that installs and runs Lazurio MausBot owns applying them
 // (its environment variables); the preset only states them, and the operator
-// may change them in Lazurio MausBot. None of it grants access: the persona
-// account's live GitHub rights are the limit.
+// may change them in Lazurio MausBot. None of it grants access: the live
+// GitHub rights of the account of the Organization's Henry are the limit.
 export type BotTeam = Readonly<{
   runtime: "mausbot";
   /** `OMB_DEFAULT_BOT_CWD`: every new bot starts in the Lazurio Folder. */
@@ -65,7 +65,8 @@ export type WorkspacePreset = Readonly<{
     coordination: FolderProfile["coordination"];
   }>;
   personalspace: "present" | "never";
-  // `persona-account`: the persona's own machine GitHub user account, signed
+  // `persona-account`: the own machine GitHub user account of the
+  // Organization's Henry (the identifier keeps its old name), signed
   // in by the Environment's responsible operator (decision 0169).
   providerIdentity: "own-sign-in" | "brokered-organization" | "persona-account";
   surfaces: readonly ("launchpad" | "hosted-entry" | "mausbot")[];
@@ -129,11 +130,11 @@ const presets: Readonly<Record<PresetName, WorkspacePreset>> = Object.freeze({
     supervision: "os-service-manager",
     botTeam: null,
   }),
-  // Decision 0169: the Henry Environment of an Organization persona. An
+  // Decision 0169: the Environment of the Organization's Henry (0250). An
   // Organization work VM with one responsible operator (an Organization Owner
   // or Organization Admin)
-  // whose GitHub identity is the persona's own account; Lazurio MausBot runs
-  // the persona's bot team as a service next to the Launchpad and T3 Code.
+  // whose GitHub identity is Henry's own account; Lazurio MausBot runs
+  // Henry's bot team as a service next to the Launchpad and T3 Code.
   // `purpose` stays `human`: a person answers for every Machine (0169), and
   // the vocabulary sweep of decision 0156 is a separate step.
   "hosted-organization-steward": Object.freeze({
@@ -310,7 +311,7 @@ export function parsePresetReference(input: unknown): PresetReference {
 }
 
 // The one fact the Organization presets differ on: is the work VM assigned
-// to ONE operator, shared by a Team, the Henry Environment of a persona
+// to ONE operator, shared by a Team, the Environment of the Organization's Henry
 // with one responsible operator (decision 0169), or the services Environment
 // of a server (root decision 0209)? Since Machines v0.12.61 the handover
 // states it as `owner.assignment` ({kind: "operator", github_login,

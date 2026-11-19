@@ -87,8 +87,8 @@ every machine command except inspect is blocked with
 machine-assignment-pending and nothing is created or refreshed for anybody.
 The workspace preset is derived from the handover (personal-vm -> hosted-personal;
 workspace-vm with owner.assignment operator -> hosted-organization-personal, team
--> hosted-organization-team, automation (the Henry Environment of an
-Organization persona, decision 0169) -> hosted-organization-steward, services
+-> hosted-organization-team, automation (the Environment of the
+Organization's Henry, decision 0169) -> hosted-organization-steward, services
 (the services Environment of a server, root decision 0209) ->
 hosted-organization-team; without owner.assignment and without owner.team ->
 hosted-organization-personal). When

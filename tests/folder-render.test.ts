@@ -312,20 +312,20 @@ test("the Steward preset renders the persona, its bot team and the publication r
     });
   const en = steward("en");
   for (const line of [
-    "- Assignment: the Henry Environment of an Organization persona; responsible user `example` (GitHub id 12345).",
-    "- Identity: the persona's own GitHub user account, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here.",
-    "## Persona bot team",
+    "- Assignment: the Environment of the Organization's Henry; responsible user `example` (GitHub id 12345).",
+    "- Identity: the own GitHub user account of the Organization's Henry, a bot account, signed in to `gh` by the responsible user, who also holds its two-factor authentication and recovery. Every tool, T3 Code and every bot acts as that account within its live GitHub rights. Never sign in the user's own account or anyone else's here.",
+    "## The bot team of the Organization's Henry",
     // The assignment is the instruction (root manual/pull-request-handoff.md);
     // no `/lazurio publish` comment.
-    "- The persona publishes only a pull request a user with write access assigned to it, after an approval of its exact head and with green checks;",
+    "- The Organization's Henry publishes only a pull request a user with write access assigned to it, after an approval of its exact head and with green checks;",
     "Organization `example`",
   ])
     expect(en).toContain(line);
   expect(en).not.toContain("/lazurio publish");
   const cs = steward("cs");
-  expect(cs).toContain("## Tým botů persony");
+  expect(cs).toContain("## Tým botů Henryho Organizace");
   expect(cs).toContain(
-    "- Persona publikuje jen pull request, který jí přiřadil uživatel s právem zápisu, a to po schválení přesného headu a se zelenými kontrolami;",
+    "- Henry Organizace publikuje jen pull request, který mu přiřadil uživatel s právem zápisu, a to po schválení přesného headu a se zelenými kontrolami;",
   );
   expect(cs).not.toContain("/lazurio publish");
   // Issue #99: the text this preset adds says Environment, never Machine.
@@ -338,8 +338,12 @@ test("the Steward preset renders the persona, its bot team and the publication r
       }),
     })["manual/this-machine.md"];
   for (const [document, from, to] of [
-    [en, "## Persona bot team", "## How work is done here"],
-    [cs, "## Tým botů persony", "## Jak se tu pracuje"],
+    [
+      en,
+      "## The bot team of the Organization's Henry",
+      "## How work is done here",
+    ],
+    [cs, "## Tým botů Henryho Organizace", "## Jak se tu pracuje"],
     [manual("en"), "## Lazurio MausBot", "## Enabled tools"],
     [manual("cs"), "## Lazurio MausBot", "## Zapnuté nástroje"],
   ] as const) {
@@ -370,8 +374,8 @@ test("the Steward preset renders the persona, its bot team and the publication r
       // Lazurio MausBot is also an Operator client on every hosted preset;
       // the persona's bot team and its publication rule are the Steward's.
       for (const marker of [
-        "## Persona bot team",
-        "## Tým botů persony",
+        "## The bot team of the Organization's Henry",
+        "## Tým botů Henryho Organizace",
         "/lazurio publish",
       ])
         expect(output).not.toContain(marker);
