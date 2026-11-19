@@ -356,6 +356,18 @@ the exit code and the message (`src/modules/templates/_bun/app/v1/tests/start.te
   serves, and before that 503 or nothing. The Platform's probe counts a 2xx
   status and never follows a redirect (`src/modules/health.ts`), so a site with a
   language index declares `/cs/`, not `/`.
+- **Deep health.** An App with data (`app/v3`, `app/v4`) answers 200 only when
+  its own data are open and readable (in `app/v3` the repository-db checkout,
+  in `app/v4` the database connection), not merely because the process runs;
+  module-kit's `withHealth(handler, path, ready)` answers 503 while `ready()` is
+  false or throws, and the templates pass the store's availability as `ready`.
+  The health only reads: it writes no data, opens no draft, commits and
+  migrates nothing. It checks no sibling Application and no outside service, so
+  a sibling's outage never fails a rollout it has nothing to do with; a missing
+  sibling replica the App states plainly in its interface instead.
+- **Start time.** The start opens the data and reaches a good health without
+  importing, migrating or generating data, which is Preparation's. How long a
+  start may take is the application host's limit, not the Module's.
 - **Stop.** On `SIGTERM` the App ends cleanly with exit code 0. The Platform
   stops the App's whole process group: on Linux the service manager kills what
   still runs after 5 seconds (`TimeoutStopSec=5s`,
@@ -713,7 +725,12 @@ safeguards of an automatic deployment and where the mode is recorded are open in
 before the switch, the new version started beside the running one and switched
 to only when its health is good, and the mode with its approvers in the
 Deployment Repo (decision 0245). A Module is built so that this works: one
-process, deep health, and in `app/v4` migrations that only expand. Until the application host deploys this way, a version is
+process, deep health, and in `app/v4` migrations that only expand. While the
+old and the new version run over the same data, only one of them writes: the
+proposal (Machines#1356) starts the new version beside the running one without
+`LAZURIO_RUNTIME_DATA_WRITER=true`, so it reads and answers health but writes,
+pulls and publishes nothing (the writer rule), and starts it as the writer only
+after the old version has ended. Until the application host deploys this way, a version is
 deployed through a reviewed pull request to the Deployment Repo, and its merge is
 the approval (decision 0239). In `app/v4` an automatically deployed migration only
 expands the schema; one that drops or narrows it goes only through an approved
