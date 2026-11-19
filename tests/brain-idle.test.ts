@@ -2,9 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { buddyGen4Turn } from "../src/brain/buddy-turn";
 import { buddyIdle } from "../src/brain/host";
 import type { ActiveWork } from "../src/buddy/gateway-refresh";
 import { buddyT3Unit } from "../src/buddy/t3-runtime";
+import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 
 // Whether Buddy is idle, so the brain's server may stop for a moment (a move,
@@ -37,11 +39,19 @@ const systemd =
     };
   };
 const work = (answer: ActiveWork) => async () => answer;
+/** A binding that names no Buddy GEN4: the behaviour before #1103. */
+const noGeneration = {
+  generation: undefined,
+  gen4Turn: async (): Promise<ActiveWork> => {
+    throw new Error("T3 Code is asked only for Buddy GEN4");
+  },
+};
 
 describe("is Buddy idle", () => {
   test("no Buddy at all: idle", async () => {
     expect(
       await buddyIdle({
+        ...noGeneration,
         home: await home(),
         service: systemd("active"),
         activeWork: work("unknown"),
@@ -58,6 +68,7 @@ describe("is Buddy idle", () => {
     ] as const)
       expect(
         await buddyIdle({
+          ...noGeneration,
           home: at,
           service: systemd("inactive"),
           activeWork: work(answer),
@@ -76,6 +87,7 @@ describe("is Buddy idle", () => {
     ] as const)
       expect(
         await buddyIdle({
+          ...noGeneration,
           home: at,
           service: systemd(state),
           activeWork: work("idle"),
@@ -94,6 +106,7 @@ describe("is Buddy idle", () => {
       for (const where of [at, hidden])
         expect(
           await buddyIdle({
+            ...noGeneration,
             home: where,
             service: systemd("inactive"),
             activeWork: work("idle"),
@@ -103,5 +116,145 @@ describe("is Buddy idle", () => {
       await chmod(join(at, ".config"), 0o755);
       await chmod(hidden, 0o755);
     }
+  });
+
+  test("Buddy GEN4: only his turn counts, not Hermes or the unit the conversion leaves running", async () => {
+    // The converted Environment keeps `.hermes` and `lazurio-t3-buddy.service`.
+    const at = await home({ hermes: true, t3: true });
+    for (const [turn, idle] of [
+      ["idle", true],
+      ["busy", false],
+      ["unknown", false],
+    ] as const)
+      expect(
+        await buddyIdle({
+          home: at,
+          service: systemd("active"),
+          activeWork: work("busy"),
+          generation: 4,
+          gen4Turn: work(turn),
+        }),
+      ).toBe(idle);
+  });
+
+  test("a binding that could not be read is busy", async () => {
+    expect(
+      await buddyIdle({
+        home: await home(),
+        service: systemd("inactive"),
+        activeWork: work("idle"),
+        generation: "unreadable",
+        gen4Turn: work("idle"),
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("Buddy GEN4's turn, as his T3 Code says it", () => {
+  const thread = "mcp:00000000-0000-4000-8000-000000000001";
+  /** A stand-in of `t3`: `signal` and `events` as T3 Code 0.1.10-lazurio.3
+   * prints them (fictional ids), or what an earlier one prints. */
+  const t3 = (
+    options: Readonly<{
+      signal?: string;
+      events?: string;
+      timeout?: "signal" | "events";
+    }>,
+  ) => {
+    const calls: string[][] = [];
+    const run: ToolRunner = async (argv) => {
+      calls.push([...argv]);
+      const verb = argv[1] === "lazurio" ? "signal" : "events";
+      if (options.timeout === verb) return "timeout";
+      return {
+        exitCode: 0,
+        stdout: (verb === "signal" ? options.signal : options.events) ?? "",
+        stderr: "",
+      };
+    };
+    return { run, calls };
+  };
+  const signalOf = `${JSON.stringify({ state: "answered", threadId: thread, since: null })}\n`;
+  const eventsWith = (status: string) =>
+    `${JSON.stringify({ kind: "thread", sequence: 7, threadId: thread, status })}\n${JSON.stringify({ kind: "synced", sequence: 7 })}\n`;
+  const ask = (stand: ReturnType<typeof t3>) =>
+    buddyGen4Turn({
+      run: stand.run,
+      t3: "/fake/t3",
+      home: "/home/bob",
+      env: {},
+    });
+
+  test("a turn under way is busy; idle and every ended state are idle; a state of neither is unknown", async () => {
+    for (const status of [
+      "preparing",
+      "queued",
+      "starting",
+      "running",
+      "waiting",
+    ])
+      expect(
+        await ask(t3({ signal: signalOf, events: eventsWith(status) })),
+      ).toBe("busy");
+    for (const status of [
+      "idle",
+      "completed",
+      "interrupted",
+      "failed",
+      "cancelled",
+      "rolled_back",
+    ])
+      expect(
+        await ask(t3({ signal: signalOf, events: eventsWith(status) })),
+      ).toBe("idle");
+    expect(
+      await ask(t3({ signal: signalOf, events: eventsWith("paused") })),
+    ).toBe("unknown");
+  });
+
+  test("it asks his T3 Code in ~/.t3 for his thread, then for that thread only", async () => {
+    const stand = t3({ signal: signalOf, events: eventsWith("idle") });
+    await ask(stand);
+    expect(stand.calls).toEqual([
+      [
+        "/fake/t3",
+        "lazurio",
+        "buddy",
+        "signal",
+        "--json",
+        "--base-dir",
+        "/home/bob/.t3",
+      ],
+      ["/fake/t3", "events", "--thread", thread, "--base-dir", "/home/bob/.t3"],
+    ]);
+  });
+
+  test("no thread of Buddy yet: nothing runs", async () => {
+    const stand = t3({
+      signal: `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`,
+    });
+    expect(await ask(stand)).toBe("idle");
+    expect(stand.calls).toHaveLength(1);
+  });
+
+  test("anything else is unknown: another refusal, an earlier T3 Code's help, no thread line, no synced line, no answer", async () => {
+    const cases = [
+      t3({
+        signal: `${JSON.stringify({ error: { code: "not_buddy", message: "x" } })}\n`,
+      }),
+      // T3 Code before 0.1.10-lazurio.3 prints its help for `signal`, exit 0.
+      t3({ signal: "DESCRIPTION\n  Buddy's T3 Code.\n" }),
+      t3({
+        signal: signalOf,
+        events: `${JSON.stringify({ kind: "synced", sequence: 7 })}\n`,
+      }),
+      t3({
+        signal: signalOf,
+        events: `${JSON.stringify({ kind: "thread", threadId: thread, status: "idle" })}\n`,
+      }),
+      t3({ timeout: "signal" }),
+      t3({ signal: signalOf, timeout: "events" }),
+    ];
+    for (const stand of cases) expect(await ask(stand)).toBe("unknown");
   });
 });
