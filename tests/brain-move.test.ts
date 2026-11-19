@@ -15,11 +15,7 @@ import {
 } from "../src/brain/pin";
 import { brainSetup, type SetupHost } from "../src/brain/setup";
 import { brainStatus } from "../src/brain/status";
-import {
-  consentToTakeover,
-  interimUnitsCopy,
-  resumeTakeover,
-} from "../src/brain/takeover";
+import { consentToTakeover, interimUnitsCopy } from "../src/brain/takeover";
 import { writeBrainUnits } from "../src/brain/units";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
@@ -365,7 +361,6 @@ describe("the interim installer's brain", () => {
 describe("a takeover interrupted or not put back", () => {
   test("a run that dies after the units are written is put back by the next, which takes over again", async () => {
     const { host, paths, systemd } = await stand({ consent: true });
-    const service = host.service;
     // What a run leaves when it dies right after writing the units: the
     // copy, the journal, and Lazurio's units naming the interim command.
     const copy = interimUnitsCopy(paths);

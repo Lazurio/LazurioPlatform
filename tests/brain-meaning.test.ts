@@ -83,6 +83,8 @@ async function stand(
     portTaken?: boolean;
     /** gbrain refuses another width without saying the column's. */
     bareRefusal?: boolean;
+    /** The brain holds vectors of another model. */
+    otherVectors?: boolean;
   }> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), "brain-meaning-"));
@@ -146,13 +148,24 @@ async function stand(
     if (argv[1] === "embeddings") {
       const dims = argv[argv.indexOf("--embedding-dimensions") + 1];
       const column = options.column ?? "1024";
+      // Vectors of another model: enabling cannot change their identity.
+      if (options.otherVectors)
+        return {
+          exitCode: 1,
+          stdout: JSON.stringify({ code: "embedding_model_mismatch" }),
+          stderr: "",
+        };
       if (dims !== column && options.bareRefusal)
-        return { exitCode: 1, stdout: '{"error":"width"}', stderr: "" };
+        return {
+          exitCode: 1,
+          stdout: '{"code":"embedding_width_mismatch"}',
+          stderr: "",
+        };
       if (dims !== column)
         return {
           exitCode: 1,
           stdout: JSON.stringify({
-            error: { code: "embedding_width_mismatch" },
+            code: "embedding_width_mismatch",
             fix: {
               argv: [
                 "gbrain",
@@ -339,6 +352,45 @@ describe("switching search by meaning on", () => {
     const enables = calls.filter((c) => c[1] === "embeddings");
     expect(enables[1]?.[enables[1].indexOf("--embedding-dimensions") + 1]).toBe(
       "768",
+    );
+  });
+
+  test("vectors of another model: enabling is refused, so the migration moves them to the model and every vector is computed again", async () => {
+    const { host, calls } = await stand({ column: "768", otherVectors: true });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(
+      calls
+        .filter((c) =>
+          ["embeddings", "migrate", "embed"].includes(c[1] as string),
+        )
+        .map((c) => c.slice(1, 4).join(" ")),
+    ).toEqual([
+      "embeddings enable --embedding-model",
+      "migrate embeddings --to",
+      "embed --stale --catch-up",
+    ]);
+  });
+
+  test("a refusal gbrain does not explain is not tried further", async () => {
+    const { host, paths, calls } = await stand({ column: "768" });
+    const run = host.run;
+    const odd = {
+      ...host,
+      run: async (
+        argv: readonly string[],
+        timeout: number,
+        env: Readonly<Record<string, string>>,
+      ) =>
+        argv[1] === "embeddings"
+          ? { exitCode: 1, stdout: '{"code":"something_else"}', stderr: "" }
+          : run(argv, timeout, env),
+    } as typeof host;
+    expect(await convergeMeaning(odd)).toBe("restored:enable");
+    expect(calls.some((c) => c[1] === "migrate" && c.includes("--to"))).toBe(
+      false,
+    );
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
     );
   });
 

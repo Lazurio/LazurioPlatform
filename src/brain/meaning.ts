@@ -287,6 +287,15 @@ function printed(text: string): Record<string, unknown> | null {
   }
 }
 
+/** gbrain's error code of a refusal. */
+function codeOf(refusal: Record<string, unknown> | null): string | null {
+  const code =
+    refusal?.code ??
+    (refusal?.error as Record<string, unknown> | undefined)?.code ??
+    refusal?.error;
+  return typeof code === "string" ? code : null;
+}
+
 /** The width gbrain says the brain's column has, from its refusal. */
 function columnWidth(refusal: Record<string, unknown> | null): string | null {
   const fix = (refusal?.fix ??
@@ -342,25 +351,32 @@ export async function switchOn(
     ]);
   const direct = await enable(width);
   if (!direct.ok) {
-    // The column has another width: enable at it, then move to the model's.
-    // Its width from the refusal, else from gbrain's own status of the
-    // column (`migrate embeddings --status`).
-    let column = columnWidth(direct.out);
-    if (column === null) {
-      const status = await gbrain([
-        "migrate",
-        "embeddings",
-        "--status",
-        "--json",
-      ]);
-      const dims = status.out?.column_dims;
-      column =
-        typeof dims === "number" && Number.isInteger(dims) && dims > 0
-          ? String(dims)
-          : null;
-    }
-    if (column === null || column === width) return "enable";
-    if (!(await enable(column)).ok) return "enable";
+    // gbrain says why (its error code, verified with the pinned release on
+    // fictional data on 2026-11-19):
+    // - `embedding_width_mismatch`: an empty column of another width; the
+    //   model is enabled at that width first (from the refusal's fix, else
+    //   from `migrate embeddings --status`), then moved to the model's;
+    // - `embedding_model_mismatch`: vectors of another model are there, and
+    //   enabling cannot change their identity; the migration moves them.
+    // Anything else is not tried.
+    const code = codeOf(direct.out);
+    if (code === "embedding_width_mismatch") {
+      let column = columnWidth(direct.out);
+      if (column === null) {
+        const status = await gbrain([
+          "migrate",
+          "embeddings",
+          "--status",
+          "--json",
+        ]);
+        const dims = Number(status.out?.column_dims);
+        column = Number.isInteger(dims) && dims > 0 ? String(dims) : null;
+      }
+      if (column === null || column === width) return "enable";
+      const atColumn = await enable(column);
+      if (!atColumn.ok && codeOf(atColumn.out) !== "embedding_model_mismatch")
+        return "enable";
+    } else if (code !== "embedding_model_mismatch") return "enable";
     const migrated = await gbrain([
       "migrate",
       "embeddings",
