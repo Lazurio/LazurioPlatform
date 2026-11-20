@@ -5,7 +5,11 @@ import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
-import { earlierStepBlockers, moveBlockers } from "./preflight";
+import {
+  earlierStepBlockers,
+  moveBlockers,
+  stopFirstBlockers,
+} from "./preflight";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
 
@@ -60,28 +64,46 @@ const reasons = {
 const megabytes = (bytes: number | null) =>
   bytes === null ? "unknown" : `${Math.ceil(bytes / 1024 / 1024)} MB`;
 
-/** An interim installer's brain: whether a takeover now goes through, and
- * whether the move after it does (`held` stops only the move). */
+/** An interim installer's brain: what a consented run would do, in the
+ * order setup meets its blockers. No handover mark, or a takeover's way
+ * back that did not complete, stops it before anything changes; else an
+ * earlier step's record is dealt with first (things change), then a
+ * refusal stops the takeover, and `held` stops only the move after it. */
 function adoptableText(
   status: Extract<BrainStatus, { owner: unknown }>,
 ): string {
   const from = `The memory runs from an earlier installer (${status.running ?? "not answering"})`;
   const blockers = status.takeoverBlockers ?? [];
+  const gate = blockers.filter((b) => stopFirstBlockers.includes(b));
   const earlier = blockers.filter((b) => earlierStepBlockers.includes(b));
   const refusing = blockers.filter(
-    (b) => !moveBlockers.includes(b) && !earlierStepBlockers.includes(b),
+    (b) =>
+      !moveBlockers.includes(b) &&
+      !earlierStepBlockers.includes(b) &&
+      !stopFirstBlockers.includes(b),
   );
+  const held = blockers.filter((b) => moveBlockers.includes(b));
   const room = status.brainRoom;
   const size =
     room === undefined
       ? ""
       : `\nSize: ${megabytes(room.brainBytes)} in ${room.brainFiles ?? "unknown"} files; room on the disk ${megabytes(room.freeBytes)}, needed ${megabytes(room.neededBytes)}.`;
+  const rest = blockers.filter((b) => !gate.includes(b));
+  if (gate.length > 0)
+    return `${from}; a takeover now would be refused and change nothing: ${gate.join(", ")}.${rest.length > 0 ? ` Once that is resolved, also in the way: ${rest.join(", ")}.` : ""}${size}`;
+  if (earlier.length > 0) {
+    const after =
+      refusing.length > 0
+        ? ` After that, the takeover would still be refused: ${refusing.join(", ")}.`
+        : held.length > 0
+          ? ` After that, a run with consent may take the memory over, but not move it to ${status.pin}: ${held.join(", ")}.`
+          : " After that, a run with consent may take the memory over and move it.";
+    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put a copy back or finish that step.${after} Let a person look at it before consenting.${size}`;
+  }
   if (refusing.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
-  if (earlier.length > 0)
-    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, also without consent: it may stop the memory, put a copy back or finish that step, and a run with consent may then take the memory over and move it. Let a person look at it before consenting.${size}`;
-  if (blockers.length > 0)
-    return `${from}; Lazurio takes it over once its owner agrees, but does not move it to ${status.pin}: ${blockers.join(", ")} (a move to this release was given up before).${size}`;
+  if (held.length > 0)
+    return `${from}; Lazurio takes it over once its owner agrees, but does not move it to ${status.pin}: ${held.join(", ")} (a move to this release was given up before).${size}`;
   return `${from}; Lazurio takes it over once its owner agrees, and nothing known now would stop it or the move to ${status.pin}.${size}`;
 }
 

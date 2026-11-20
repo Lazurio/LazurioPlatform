@@ -650,7 +650,7 @@ describe("the check before a takeover tells what a consented run would meet", ()
       expect(status).toMatchObject({ takeoverBlockers: [c.blocker] });
       const text = brainStatusText(status);
       expect(text).toContain(
-        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, also without consent: it may stop the memory, put a copy back or finish that step`,
+        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, in any run, also without consent: it may stop the memory, put a copy back or finish that step. After that, a run with consent may take the memory over and move it.`,
       );
       expect(text).not.toContain("refused");
       expect(text).not.toContain("change nothing");
@@ -658,6 +658,83 @@ describe("the check before a takeover tells what a consented run would meet", ()
       expect(result).toMatchObject(c.result);
       expect(result.takeover?.startsWith("refused")).not.toBe(true);
       expect(s.systemd.server).toBe(c.serverAfter);
+    });
+
+  // Blockers together: the text follows the order setup meets them in.
+  const interruptedMeaning = {
+    meaningAttempt: {
+      provider: meaningPin.provider,
+      result: "stopping",
+      at: "2026-11-18T23:00:00.000Z",
+    },
+  };
+  test("an earlier step and a refusal: the step is dealt with first, then the takeover is refused", async () => {
+    const s = await stand({ consent: true, tagged: {}, freeBytes: 1024 ** 3 });
+    await writeBrainState(s.paths, interruptedMeaning as never);
+    const status = await brainStatus(withoutConsent(s.host));
+    expect(status).toMatchObject({
+      takeoverBlockers: ["meaning-unfinished", "disk"],
+    });
+    const text = brainStatusText(status);
+    expect(text).toContain(
+      "an earlier step was left unfinished (meaning-unfinished). Setup deals with it first",
+    );
+    expect(text).toContain(
+      "After that, the takeover would still be refused: disk.",
+    );
+    expect(text).not.toContain("change nothing");
+    const before = await unitText(s.paths);
+    expect(await brainSetup(s.host)).toMatchObject({
+      takeover: "refused:disk",
+    });
+    // The recovery did change things: the interrupted attempt is gone and
+    // the server and timer were started; the units are still the installer's.
+    expect((await readBrainState(s.paths)).meaningAttempt).toBeUndefined();
+    expect(s.calls.some((c) => c[2] === "start" && c.includes(brainUnit))).toBe(
+      true,
+    );
+    expect(await unitText(s.paths)).toBe(before);
+  });
+
+  for (const gate of [
+    {
+      blocker: "waits-machines",
+      arrange: (s: Awaited<ReturnType<typeof stand>>) =>
+        rm(join(s.root, "brain-handover")),
+      result: { server: "waits-machines" },
+    },
+    {
+      blocker: "restore-failed",
+      arrange: async (s: Awaited<ReturnType<typeof stand>>) => {
+        const current = await readBrainState(s.paths);
+        await writeBrainState(s.paths, {
+          ...current,
+          takeover: { state: "restore-failed-reload", at: "2026-11-18" },
+        });
+      },
+      result: { takeover: "restore-failed:reload" },
+    },
+  ])
+    test(`${gate.blocker} with an earlier step: nothing is dealt with and nothing changes`, async () => {
+      const s = await stand({ consent: true, tagged: {} });
+      await writeBrainState(s.paths, interruptedMeaning as never);
+      await gate.arrange(s);
+      const status = await brainStatus(withoutConsent(s.host));
+      expect(status).toMatchObject({
+        takeoverBlockers: [gate.blocker, "meaning-unfinished"],
+      });
+      const text = brainStatusText(status);
+      expect(text).toContain(
+        `a takeover now would be refused and change nothing: ${gate.blocker}. Once that is resolved, also in the way: meaning-unfinished.`,
+      );
+      const before = await unitText(s.paths);
+      expect(await brainSetup(s.host)).toMatchObject(gate.result);
+      // The interrupted attempt is still there, untouched; nothing started.
+      expect((await readBrainState(s.paths)).meaningAttempt).toMatchObject({
+        result: "stopping",
+      });
+      expect(s.calls.some((c) => c[2] === "start")).toBe(false);
+      expect(await unitText(s.paths)).toBe(before);
     });
 
   test("room that cannot be told counts as too little", async () => {

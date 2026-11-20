@@ -53,6 +53,15 @@ export type TakeoverBlocker =
  * or leaves it waiting, before anything changes. */
 export const moveBlockers: readonly TakeoverBlocker[] = Object.freeze(["held"]);
 
+/** The blockers setup meets before it deals with any earlier step: no
+ * handover mark (`waits-machines`, before anything else) and a takeover's
+ * way back that did not complete (`restore-failed`, first of the
+ * recovery). With either, a run changes nothing, whatever else is there. */
+export const stopFirstBlockers: readonly TakeoverBlocker[] = Object.freeze([
+  "waits-machines",
+  "restore-failed",
+]);
+
 /** The records of an earlier step that setup deals with before any
  * takeover, in the same run: it may stop the server, put a copy back or
  * finish that step (`stopped:…` keeps the server down), and then take the
