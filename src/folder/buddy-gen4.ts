@@ -464,16 +464,24 @@ const brainSkill: FolderSkill = {
     ),
     blank,
     t(
-      "- **Cesta:** přes Executor (`executor`). Integraci Brainu tohoto Prostředí najdeš v `lazurio integrations list --json`. Když chybí, řekni to uživateli a nepřipojuj ji sám.",
-      "- **Path:** through Executor (`executor`). Find this Environment's Brain integration in `lazurio integrations list --json`. When it is missing, tell the user and do not connect it yourself.",
+      "- **Cesta:** přes Executor (`executor`), kde je Brain vlastním MCP serverem (Apps → Integrace). Integraci Brainu tohoto Prostředí najdeš v `lazurio integrations list --json`. Jména nástrojů ber z toho, co ti Executor nabídne, ne z paměti. Když integrace chybí, řekni to uživateli a nepřipojuj ji sám.",
+      "- **Path:** through Executor (`executor`), where the Brain is a custom MCP server (Apps → Integrace). Find this Environment's Brain integration in `lazurio integrations list --json`. Take the tool names from what Executor offers you, not from memory. When the integration is missing, tell the user and do not connect it yourself.",
     ),
     t(
-      "- **Fakta a preference:** `remember` (vždy s `entity` a stručnou `provenance`, kdo a kdy) a `recall` podle `entity` nebo dotazu.",
-      "- **Facts and preferences:** `remember` (always with an `entity` and a short `provenance`: who and when) and `recall` by `entity` or query.",
+      "- **Fakta a preference:** `remember` vždy s `provenance` (povinná: kdo a kdy) a s `entity`, tedy jménem nebo slugem toho, o kom nebo o čem fakt je (člověk, firma, projekt). Bez `entity` ji GBrain zkusí odvodit sám, ale spolehlivě to nejde, a `recall` fakta hledá právě podle ní. U faktů o člověku nepoužívej `visibility`.",
+      "- **Facts and preferences:** `remember` always with `provenance` (required: who and when) and with `entity`, the name or slug of whom or what the fact is about (a person, a company, a project). Without `entity` GBrain tries to infer it, which is not reliable, and `recall` finds facts by it. Do not use `visibility` for facts about a person.",
     ),
     t(
       "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `put_page`, `edit_page`. Stránku priorit přepisuješ; nedělej z ní desítky poznámek.",
       "- **Pages:** priorities, work in progress and agreements on pages: `get_page`, `put_page`, `edit_page`. You rewrite the priorities page; do not turn it into dozens of notes.",
+    ),
+    t(
+      "- **Přepis existující stránky:** `put_page` bez `expected_revision` skončí `revision_required` a nic nezmění. Nejdřív `get_page` a pak zápis s jeho `expected_revision`. `force: true` jen pro záměrné přepsání cizí verze.",
+      "- **Rewriting an existing page:** `put_page` without `expected_revision` ends with `revision_required` and changes nothing. First `get_page`, then the write with its `expected_revision`. `force: true` only to overwrite another version on purpose.",
+    ),
+    t(
+      "- **Prázdný výsledek:** dokud odpověď `recall` hlásí, že hledání podle významu neběželo (`semantic_degraded`), hledá se jen podle slov a prázdný nebo chudý výsledek neznamená, že tam nic není. Zkus jiná slova, `get_page` nebo `entity`.",
+      "- **An empty result:** while the `recall` answer reports that meaning search did not run (`semantic_degraded`), it matches words only, and an empty or thin result is no proof that nothing is there. Try other words, `get_page` or `entity`.",
     ),
     t(
       "- **Ověření:** po každém zápisu ho přečti zpět. Zdraví Brainu: `get_brain_health`.",

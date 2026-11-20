@@ -184,6 +184,28 @@ test("Buddy GEN3 counts as present while ~/.t3-buddy or ~/.hermes exists in any 
   }
 });
 
+test("buddy-brain: what the pinned GBrain asks for, checked against its source", () => {
+  const skill = (locale: "cs" | "en") =>
+    renderBuddyFolder(source(locale), "buddy", persona)[
+      ".agents/skills/buddy-brain/SKILL.md"
+    ];
+  const cs = skill("cs");
+  const en = skill("en");
+  // No connection name from memory: the tools are what Executor offers.
+  expect(cs).not.toContain("user.personal");
+  expect(cs).toContain("Jména nástrojů ber z toho, co ti Executor nabídne");
+  expect(en).toContain("Take the tool names from what Executor offers you");
+  // remember: provenance required, entity is the subject's name or slug.
+  expect(cs).toContain("`provenance` (povinná");
+  expect(en).toContain("the name or slug of whom or what the fact is about");
+  // put_page on an existing page needs the revision, and a refusal changes nothing.
+  expect(cs).toContain("`revision_required` a nic nezmění");
+  expect(en).toContain("ends with `revision_required` and changes nothing");
+  // Words only while meaning search did not run: empty is no proof.
+  expect(cs).toContain("`semantic_degraded`");
+  expect(en).toContain("no proof that nothing is there");
+});
+
 test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
   const skill = (locale: "cs" | "en") =>
     renderBuddyFolder(source(locale), "buddy", persona)[
