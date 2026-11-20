@@ -421,6 +421,15 @@ const threadsSkill: FolderSkill = {
       "- Hlídání: `watch_pull_request` u pull requestů, `schedule_task` pro obchůzky vláken, která hlídáš.",
       "- Watching: `watch_pull_request` for pull requests, `schedule_task` for rounds of the threads you watch.",
     ),
+    // Findings of the first converted person (#1116, point 4), from trying.
+    t(
+      "- Na obchůzce se neptej nástrojem na otázky: dokud otázka čeká na odpověď, naplánované úlohy vlákna neběží, takže by se zastavila i obchůzka. Co potřebuješ od uživatele, zapiš a zeptej se, až s ním mluvíš.",
+      "- Do not ask with the question tool on a round: while a question waits for its answer, the thread's scheduled tasks do not run, so the round itself would stop. Write down what you need from the user and ask when you talk with the user.",
+    ),
+    t(
+      "- Stav z první věty stavového souboru jiného vlákna ověř u zdroje (pull request, běh, issue, vlákno), než podle něj jednáš nebo ho hlásíš: soubor může být pozadu.",
+      "- Check a state taken from the first sentence of another thread's status file at its source (the pull request, run, issue or thread) before you act on it or report it: the file may lag behind.",
+    ),
     blank,
     t("## V jiném Prostředí", "## In another Environment"),
     t(
@@ -455,16 +464,24 @@ const brainSkill: FolderSkill = {
     ),
     blank,
     t(
-      "- **Cesta:** přes Executor (`executor`). Integraci Brainu tohoto Prostředí najdeš v `lazurio integrations list --json`. Když chybí, řekni to uživateli a nepřipojuj ji sám.",
-      "- **Path:** through Executor (`executor`). Find this Environment's Brain integration in `lazurio integrations list --json`. When it is missing, tell the user and do not connect it yourself.",
+      "- **Cesta:** přes Executor (`executor`), kde je Brain vlastním MCP serverem (Apps → Integrace). Integraci Brainu tohoto Prostředí najdeš v `lazurio integrations list --json`. Jména nástrojů ber z toho, co ti Executor nabídne, ne z paměti. Když integrace chybí, řekni to uživateli a nepřipojuj ji sám.",
+      "- **Path:** through Executor (`executor`), where the Brain is a custom MCP server (Apps → Integrace). Find this Environment's Brain integration in `lazurio integrations list --json`. Take the tool names from what Executor offers you, not from memory. When the integration is missing, tell the user and do not connect it yourself.",
     ),
     t(
-      "- **Fakta a preference:** `remember` (vždy s `entity` a stručnou `provenance`, kdo a kdy) a `recall` podle `entity` nebo dotazu.",
-      "- **Facts and preferences:** `remember` (always with an `entity` and a short `provenance`: who and when) and `recall` by `entity` or query.",
+      "- **Fakta a preference:** `remember` vždy s `provenance` (povinná: kdo a kdy) a s `entity`, tedy jménem nebo slugem toho, o kom nebo o čem fakt je (člověk, firma, projekt). Bez `entity` ji GBrain zkusí odvodit sám, ale spolehlivě to nejde, a `recall` fakta hledá právě podle ní. U faktů o člověku nepoužívej `share: true`, které fakt zpřístupní všem čtenářům zdroje.",
+      "- **Facts and preferences:** `remember` always with `provenance` (required: who and when) and with `entity`, the name or slug of whom or what the fact is about (a person, a company, a project). Without `entity` GBrain tries to infer it, which is not reliable, and `recall` finds facts by it. Do not use `share: true`, which makes the fact readable to every reader of the source, for facts about a person.",
     ),
     t(
       "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `put_page`, `edit_page`. Stránku priorit přepisuješ; nedělej z ní desítky poznámek.",
       "- **Pages:** priorities, work in progress and agreements on pages: `get_page`, `put_page`, `edit_page`. You rewrite the priorities page; do not turn it into dozens of notes.",
+    ),
+    t(
+      "- **Přepis existující stránky:** `put_page` bez `expected_revision` skončí `revision_required` a nic nezmění. Nejdřív `get_page` a pak zápis s jeho `expected_revision`. `force: true` jen pro záměrné přepsání cizí verze.",
+      "- **Rewriting an existing page:** `put_page` without `expected_revision` ends with `revision_required` and changes nothing. First `get_page`, then the write with its `expected_revision`. `force: true` only to overwrite another version on purpose.",
+    ),
+    t(
+      "- **Neúplný výsledek:** prázdný nebo chudý výsledek neznamená, že tam nic není, když odpověď hlásí, že některá část hledání neběžela: v `recall` pole `facts_degraded` (fakta bez hledání podle významu, důvod v `reason`) nebo `search_degraded` (hledání jen podle slov), jinde upozornění `degraded_recall` nebo `_meta.retrieval.degraded` (vynechaná fáze, třeba přeřazení nebo embedding). Zkus jiná slova, `get_page` nebo `entity`; u dočasné chyby (`timeout`, `rate_limited`) zopakuj dotaz za chvíli.",
+      "- **An incomplete result:** an empty or thin result is no proof that nothing is there when the answer reports that part of the search did not run: in `recall` the field `facts_degraded` (facts without meaning search, the reason in `reason`) or `search_degraded` (words only), elsewhere the notice `degraded_recall` or `_meta.retrieval.degraded` (a stage left out, such as the rerank or the embedding). Try other words, `get_page` or `entity`; after a transient failure (`timeout`, `rate_limited`) repeat the call a little later.",
     ),
     t(
       "- **Ověření:** po každém zápisu ho přečti zpět. Zdraví Brainu: `get_brain_health`.",

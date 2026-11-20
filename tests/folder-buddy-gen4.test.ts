@@ -184,6 +184,55 @@ test("Buddy GEN3 counts as present while ~/.t3-buddy or ~/.hermes exists in any 
   }
 });
 
+test("buddy-brain: what the pinned GBrain asks for, checked against its source", () => {
+  const skill = (locale: "cs" | "en") =>
+    renderBuddyFolder(source(locale), "buddy", persona)[
+      ".agents/skills/buddy-brain/SKILL.md"
+    ];
+  const cs = skill("cs");
+  const en = skill("en");
+  // No connection name from memory: the tools are what Executor offers.
+  expect(cs).not.toContain("user.personal");
+  expect(cs).toContain("Jména nástrojů ber z toho, co ti Executor nabídne");
+  expect(en).toContain("Take the tool names from what Executor offers you");
+  // remember: provenance required, entity is the subject's name or slug.
+  expect(cs).toContain("`provenance` (povinná");
+  expect(en).toContain("the name or slug of whom or what the fact is about");
+  // GBrain says "Not for facts about a person" of `share`, not `visibility`.
+  expect(cs).toContain("nepoužívej `share: true`");
+  expect(en).toContain("Do not use `share: true`");
+  // put_page on an existing page needs the revision, and a refusal changes nothing.
+  expect(cs).toContain("`revision_required` a nic nezmění");
+  expect(en).toContain("ends with `revision_required` and changes nothing");
+  // The degraded signals the pinned GBrain really sends (no
+  // `semantic_degraded`): empty is no proof while one of them is there.
+  for (const text of [cs, en]) {
+    expect(text).not.toContain("semantic_degraded");
+    for (const signal of [
+      "`facts_degraded`",
+      "`search_degraded`",
+      "`degraded_recall`",
+      "`_meta.retrieval.degraded`",
+    ])
+      expect(text).toContain(signal);
+  }
+  expect(cs).toContain("neznamená, že tam nic není");
+  expect(en).toContain("no proof that nothing is there");
+});
+
+test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
+  const skill = (locale: "cs" | "en") =>
+    renderBuddyFolder(source(locale), "buddy", persona)[
+      ".agents/skills/buddy-vlakna/SKILL.md"
+    ];
+  expect(skill("cs")).toContain("Na obchůzce se neptej nástrojem na otázky");
+  expect(skill("cs")).toContain("naplánované úlohy vlákna neběží");
+  expect(skill("cs")).toContain("ověř u zdroje");
+  expect(skill("en")).toContain("Do not ask with the question tool on a round");
+  expect(skill("en")).toContain("the thread's scheduled tasks do not run");
+  expect(skill("en")).toContain("at its source");
+});
+
 test("Buddy GEN4 works with threads and the Brain, not with Hermes, Telegram or bots through Delegace", () => {
   for (const locale of locales)
     for (const profile of ["buddy", "employee"] as const) {
