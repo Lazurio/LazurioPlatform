@@ -12,6 +12,7 @@ import { brainHttp, healthVersion } from "./admin";
 import { brainHandoverMark } from "./at-start";
 import { buddyGen4Turn } from "./buddy-turn";
 import { meaningUrl } from "./meaning-pin";
+import { unitState } from "./move";
 import { brainPaths, brainUrl } from "./pin";
 import type { SetupHost } from "./setup";
 import type { BrainContext } from "./status";
@@ -53,6 +54,8 @@ export async function buddyIdle(
   input: Readonly<{
     home: string;
     service: ProcessRunner;
+    /** The environment `systemctl --user` needs (runtime directory, bus). */
+    env: Readonly<Record<string, string | undefined>>;
     activeWork: (hermesHome: string) => Promise<ActiveWork>;
     /** The binding's Buddy; `unreadable` where it could not be read. */
     generation: 3 | 4 | undefined | "unreadable";
@@ -70,9 +73,11 @@ export async function buddyIdle(
   if (hermes === "present" && (await input.activeWork(hermesHome)) !== "idle")
     return false;
   if (t3 === "present") {
-    const answer = await input
-      .service(["systemctl", "--user", "is-active", buddyT3Unit], 60_000)
-      .catch(() => "timeout" as const);
+    const answer = await unitState(
+      { service: input.service, env: input.env },
+      "is-active",
+      buddyT3Unit,
+    );
     if (
       answer === "timeout" ||
       !["inactive", "failed"].includes(answer.stdout.trim())
@@ -112,6 +117,7 @@ export function processBrainHost(
     buddyIdle({
       home,
       service: input.service,
+      env: input.env,
       activeWork: askActiveWork,
       generation,
       gen4Turn: async () =>

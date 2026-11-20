@@ -30,6 +30,7 @@ import {
 import { writeBrainUnits } from "../src/brain/units";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
+import { userManager, userRuntime } from "./fixtures/user-manager";
 
 // Search by meaning (plan LZD-0033 R11a, decided 2026-11-18): the pinned
 // model verified by its digest, its unit at a lower priority, and the brain
@@ -239,11 +240,11 @@ async function stand(
   const host: MeaningHost = {
     paths,
     run,
-    service,
+    service: userManager(service),
     http,
     base: "http://127.0.0.1:3131",
     bun: "/fake/bun",
-    env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
+    env: { HOME: paths.home, PATH: "/usr/bin:/bin", ...userRuntime },
     idle: async () => options.idle ?? true,
     now: () => new Date("2026-11-19T00:10:00Z"),
     tries: 2,

@@ -41,6 +41,7 @@ const systemd =
 const work = (answer: ActiveWork) => async () => answer;
 /** A binding that names no Buddy GEN4: the behaviour before #1103. */
 const noGeneration = {
+  env: { XDG_RUNTIME_DIR: "/run/user/1000" },
   generation: undefined,
   gen4Turn: async (): Promise<ActiveWork> => {
     throw new Error("T3 Code is asked only for Buddy GEN4");
@@ -131,6 +132,7 @@ describe("is Buddy idle", () => {
           home: at,
           service: systemd("active"),
           activeWork: work("busy"),
+          env: {},
           generation: 4,
           gen4Turn: work(turn),
         }),
@@ -143,6 +145,7 @@ describe("is Buddy idle", () => {
         home: await home(),
         service: systemd("inactive"),
         activeWork: work("idle"),
+        env: {},
         generation: "unreadable",
         gen4Turn: work("idle"),
       }),
@@ -244,6 +247,7 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
         home: "/home/bob",
         service: systemd("inactive"),
         activeWork: work("idle"),
+        env: {},
         generation: 4,
         gen4Turn: () => ask(stand),
       }),
