@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import type { ProcessRunner } from "../update/self-check";
@@ -11,10 +11,11 @@ import {
   brainRefreshTimer,
   brainUnit,
 } from "./pin";
+import { brainRoom, type FreeBytes, roomShort } from "./room";
 import { unitOwner, writeBrainUnits } from "./units";
 
 // The interim installer's brain taken over in place (plan LZD-0033 R11a,
-// part B), only once the Environment's owner has switched it on
+// part B), only in a run the Environment's owner starts for it
 // (`lazurio brain take-over`): nothing moves and nothing restarts. Its
 // units in ~/.config/systemd/user become Lazurio's, naming the same
 // command in ~/.bun, after a copy of them for the way back; systemd reads
@@ -30,7 +31,15 @@ export type TakeoverHost = Readonly<{
   base: string;
   env: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
+  freeBytes?: FreeBytes;
 }>;
+
+/** Whether the interim installer's command is there (the units name it). */
+export const interimPresent = (paths: BrainPaths) =>
+  stat(paths.interimCommand).then(
+    () => true,
+    () => false,
+  );
 
 export type TakeoverResult =
   | "taken-over"
@@ -39,28 +48,50 @@ export type TakeoverResult =
   | `restored:${string}`
   | `restore-failed:${string}`;
 
-const githubPin = /^github:Lazurio\/gbrain#([0-9a-f]{40})$/;
+/** The two ways the interim installer named the fork: by its commit, or (in
+ * its earlier runs) by a release tag `v<version>-lazurio.<n>`. */
+const githubCommit = /^github:Lazurio\/gbrain#([0-9a-f]{40})$/;
+const githubTag = /^github:Lazurio\/gbrain#v(\d+\.\d+\.\d+\.\d+)-lazurio\.\d+$/;
+/** The commit Bun resolved a tag to, as its lockfile and the package's
+ * `.bun-tag` record it. */
+const lockedCommit = /"gbrain@github:Lazurio\/gbrain#([0-9a-f]{7,40})"/;
+const bunTag = /^Lazurio-gbrain-([0-9a-f]{7,40})\s*$/;
 
 /** The interim installer's release: the commit Bun installed from the fork
- * and the version that package carries; null where either is not readable. */
+ * and the version that package carries; null where either is not known for
+ * sure. A tag counts only where Bun recorded the commit it resolved it to
+ * (`bun.lock`, `.bun-tag`), both agree where both are there, and the tag's
+ * version is the package's. */
 export async function interimRelease(
   paths: BrainPaths,
 ): Promise<Readonly<{ commit: string; version: string }> | null> {
   const global = join(paths.home, ".bun", "install", "global");
+  const text = (path: string) => readFile(path, "utf8").catch(() => undefined);
   try {
     const manifest = JSON.parse(
-      await readFile(join(global, "package.json"), "utf8"),
+      (await text(join(global, "package.json"))) ?? "",
     ) as { dependencies?: Record<string, unknown> };
-    const pinned = githubPin.exec(String(manifest.dependencies?.gbrain ?? ""));
+    const named = String(manifest.dependencies?.gbrain ?? "");
     const pkg = JSON.parse(
-      await readFile(
-        join(global, "node_modules", "gbrain", "package.json"),
-        "utf8",
-      ),
+      (await text(join(global, "node_modules", "gbrain", "package.json"))) ??
+        "",
     ) as { version?: unknown };
-    if (pinned?.[1] === undefined || typeof pkg.version !== "string")
-      return null;
-    return Object.freeze({ commit: pinned[1], version: pkg.version });
+    if (typeof pkg.version !== "string") return null;
+    const commit = githubCommit.exec(named)?.[1];
+    if (commit !== undefined)
+      return Object.freeze({ commit, version: pkg.version });
+    const tagged = githubTag.exec(named)?.[1];
+    if (tagged === undefined || tagged !== pkg.version) return null;
+    const lock = lockedCommit.exec(
+      (await text(join(global, "bun.lock"))) ?? "",
+    )?.[1];
+    const tag = bunTag.exec(
+      (await text(join(global, "node_modules", "gbrain", ".bun-tag"))) ?? "",
+    )?.[1];
+    const resolved = lock ?? tag;
+    if (resolved === undefined) return null;
+    if (lock !== undefined && tag !== undefined && lock !== tag) return null;
+    return Object.freeze({ commit: resolved, version: pkg.version });
   } catch {
     return null;
   }
@@ -149,8 +180,8 @@ async function putInterimBack(
 
 /** A takeover a run left in progress (`taking-over`): the interim
  * installer's units come back first, so nothing bypasses the takeover or
- * loses the release it ran; the takeover is then tried again by setup (the
- * consent stays). Null where there is nothing to resume. */
+ * loses the release it ran; the takeover is then tried again only in a run
+ * its owner consents to. Null where there is nothing to resume. */
 export async function resumeTakeover(
   host: TakeoverHost,
 ): Promise<TakeoverResult | null> {
@@ -170,31 +201,25 @@ export async function resumeTakeover(
   return back ? "restored:interrupted" : "restore-failed:interrupted";
 }
 
-/** Records the owner's consent; `lazurio brain take-over` calls it. */
-export async function consentToTakeover(
-  paths: BrainPaths,
-  now: Date,
-): Promise<void> {
-  const state = await readBrainState(paths);
-  await writeBrainState(paths, {
-    ...state,
-    takeover: Object.freeze({
-      ...(state.takeover ?? {}),
-      consent: now.toISOString(),
-    }),
-  });
-}
-
+/** Takes the interim installer's brain over, only with its owner's consent
+ * given for this very run (`lazurio brain take-over`). A consent is never
+ * kept for later: one recorded by an earlier release, one given in a run
+ * that stopped before the takeover (Machines not ready, a foreign unit, a
+ * refusal, a failed journal), counts for nothing, so no later run, start of
+ * the Launchpad or newer release takes the brain over (and then moves it)
+ * at a time nobody chose. The consent's time is kept only as the record of
+ * a takeover that ran. */
 export async function takeOverInterim(
   host: TakeoverHost,
+  consent: Date | undefined,
 ): Promise<TakeoverResult> {
   const { paths } = host;
   const now = () => (host.now ?? (() => new Date()))().toISOString();
   const state = await readBrainState(paths);
-  if (state.takeover?.consent === undefined) return "waits-consent";
-  // A way back that did not complete waits for a person.
-  if (state.takeover.state?.startsWith("restore-failed-"))
+  // A way back that did not complete waits for a person, consent or not.
+  if (state.takeover?.state?.startsWith("restore-failed-"))
     return `restore-failed:${state.takeover.state.slice("restore-failed-".length)}`;
+  if (consent === undefined) return "waits-consent";
   const record = async (
     takeover: `failed-${string}` | `restore-failed-${string}`,
   ) => {
@@ -205,12 +230,29 @@ export async function takeOverInterim(
       takeover: Object.freeze({ ...rest, state: takeover, at: now() }),
     });
   };
+  // A refusal changes nothing; it is recorded, and its owner consents again
+  // for another attempt (no consent outlives the run that gave it). A
+  // consent an earlier release recorded is dropped with it.
+  const refuse = async (why: string): Promise<TakeoverResult> => {
+    const current = await readBrainState(paths);
+    const { consent: _dropped, ...rest } = current.takeover ?? {};
+    await writeBrainState(paths, {
+      ...current,
+      takeover: Object.freeze({ ...rest, state: `refused-${why}`, at: now() }),
+    });
+    return `refused:${why}`;
+  };
   // What runs must be what the interim installer says it installed.
   const release = await interimRelease(paths);
-  if (release === null) return "refused:release-unknown";
+  if (release === null) return refuse("release-unknown");
   const running = await healthVersion(host.http, host.base);
-  if (running === null) return "refused:not-running";
-  if (running !== release.version) return "refused:other-version";
+  if (running === null) return refuse("not-running");
+  if (running !== release.version) return refuse("other-version");
+  // The way back of the move after it starts this command again.
+  if (!(await interimPresent(paths))) return refuse("command-missing");
+  // Room for the copies of the brain, the pin and the model: a copy that
+  // fails for want of room would hold the pin for good.
+  if (roomShort(await brainRoom(paths, host.freeBytes))) return refuse("disk");
   // A copy of every unit of these names that is there, for the way back.
   const copy = interimUnitsCopy(paths);
   const kept: Record<string, Buffer> = {};
@@ -225,9 +267,9 @@ export async function takeOverInterim(
       await writeDurableFile(copy, name, text);
     }
   } catch {
-    return "refused:copy";
+    return refuse("copy");
   }
-  if (kept[brainUnit] === undefined) return "refused:no-unit";
+  if (kept[brainUnit] === undefined) return refuse("no-unit");
   const command = { run: host.service, env: host.env };
   const created = unitNames.filter((name) => kept[name] === undefined);
   // The journal before the first unit: a run that dies from here on is
@@ -238,6 +280,8 @@ export async function takeOverInterim(
       ...current,
       takeover: Object.freeze({
         ...current.takeover,
+        // The record of the consent this takeover runs with.
+        consent: consent.toISOString(),
         state: "taking-over",
         at: now(),
         release: Object.freeze({ ...release }),

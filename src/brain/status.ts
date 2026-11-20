@@ -10,6 +10,8 @@ import {
   brainUnit,
   releaseCommand,
 } from "./pin";
+import { type TakeoverBlocker, takeoverCheck } from "./preflight";
+import type { BrainRoom, FreeBytes } from "./room";
 import { unitOwner } from "./units";
 
 // What is there of the person's brain, read only (no network beyond
@@ -76,6 +78,16 @@ export type BrainStatus =
       /** Search by meaning: `on` where it is switched on and the model
        * answers, otherwise `keyword-only` (gbrain falls back to words). */
       meaning: "on" | "keyword-only";
+      /** Where the interim installer runs the brain: the release a takeover
+       * would record (its commit and version), or null where it is not known
+       * for sure and a takeover would be refused (`release-unknown`). Read
+       * only, so its owner sees before consenting whether it would pass. */
+      interimRelease?: Readonly<{ commit: string; version: string }> | null;
+      /** There too: every reason known before that would stop the takeover
+       * or the move right after it (`./preflight.ts`); empty where none. */
+      takeoverBlockers?: readonly TakeoverBlocker[];
+      /** There too: the brain's size and the room on the disk. */
+      brainRoom?: BrainRoom;
     }>;
 
 export type BrainHost = Readonly<{
@@ -92,6 +104,8 @@ export type BrainHost = Readonly<{
   health(): Promise<string | null>;
   /** Whether the model of search by meaning answers on loopback. */
   meaning?: () => Promise<boolean>;
+  /** Room left on the file system of a path (the disk's, by default). */
+  freeBytes?: FreeBytes;
 }>;
 
 async function readText(path: string): Promise<string | undefined> {
@@ -185,6 +199,18 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
     switchedOn && (await host.meaning?.().catch(() => false)) === true
       ? ("on" as const)
       : ("keyword-only" as const);
+  const interimCheck = async () => {
+    const check = await takeoverCheck(paths, {
+      handover,
+      running,
+      ...(host.freeBytes === undefined ? {} : { freeBytes: host.freeBytes }),
+    });
+    return {
+      interimRelease: check.release,
+      takeoverBlockers: check.blockers,
+      brainRoom: check.room,
+    };
+  };
   const base = {
     owner,
     pin: brainPin.version,
@@ -193,6 +219,7 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
     keys,
     handover,
     meaning,
+    ...(owner === "interim" ? await interimCheck() : {}),
   };
   const state = (() => {
     switch (owner) {

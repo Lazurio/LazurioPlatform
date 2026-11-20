@@ -5,6 +5,12 @@ import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
+import {
+  earlierStepBlockers,
+  meaningBlockers,
+  moveBlockers,
+  stopFirstBlockers,
+} from "./preflight";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
 
@@ -15,6 +21,11 @@ export const brainHelp = `brain status [--json]
   who runs its server (Lazurio, the interim installer, Machines), the
   version answering on 127.0.0.1:3131 and the pinned one (${brainPin.version}),
   whether the brain is there, and which of Lazurio's keys are handed over.
+  Where an earlier installer runs it: the release a takeover would record
+  (interimRelease), every reason known now that would refuse the takeover
+  or, as held does, only the move after it (takeoverBlockers, empty where
+  none) and the brain's size beside the room on the disk (brainRoom), from
+  file sizes only; the text gives the sizes in MB, --json in bytes.
   Nothing is changed and the network is not used.
 brain setup [--json]
   What the Launchpad starts after it starts on a Personal Environment:
@@ -32,8 +43,12 @@ brain setup [--json]
   revoked included) or stopped for a person.
 brain take-over [--json]
   The owner's consent to take over the brain an earlier installer runs on
-  this Personal Environment, recorded once under setup's lock (while another
-  run holds it, nothing is recorded: busy); then what setup does.`;
+  this Personal Environment, then what setup does, under setup's lock (while
+  another run holds it, nothing happens: busy). The consent counts only for
+  this run: where the takeover does not run (Machines not ready, a unit not
+  the installer's, its release not known for sure, the server not answering
+  its version), nothing takes the brain over later until its owner runs
+  take-over again. A consent an earlier release recorded counts for nothing.`;
 
 export type BrainCliContext = CliContext &
   Readonly<{ host?: SetupHost | undefined }>;
@@ -47,6 +62,66 @@ const reasons = {
     "the person's memory belongs to a Personal Environment, and this one is not",
 } as const;
 
+const megabytes = (bytes: number | null) =>
+  bytes === null ? "unknown" : `${Math.ceil(bytes / 1024 / 1024)} MB`;
+
+/** An interim installer's brain: what a consented run would do, in the
+ * order setup meets its blockers. No handover mark, or a takeover's way
+ * back that did not complete, stops it before anything changes; else an
+ * earlier step's record is dealt with first (things change), then a
+ * refusal stops the takeover, and `held` stops only the move after it. */
+function adoptableText(
+  status: Extract<BrainStatus, { owner: unknown }>,
+): string {
+  const from = `The memory runs from an earlier installer (${status.running ?? "not answering"})`;
+  const blockers = status.takeoverBlockers ?? [];
+  const gate = blockers.filter((b) => stopFirstBlockers.includes(b));
+  const earlier = blockers.filter((b) => earlierStepBlockers.includes(b));
+  const refusing = blockers.filter(
+    (b) =>
+      !moveBlockers.includes(b) &&
+      !meaningBlockers.includes(b) &&
+      !earlierStepBlockers.includes(b) &&
+      !stopFirstBlockers.includes(b),
+  );
+  const held = blockers.filter((b) => moveBlockers.includes(b));
+  const meaningHeld = blockers.filter((b) => meaningBlockers.includes(b));
+  // What a consented run does once nothing before stops it.
+  const outcome =
+    refusing.length > 0
+      ? `the takeover would be refused: ${refusing.join(", ")}`
+      : held.length > 0
+        ? `a run with consent takes the memory over, but does not move it to ${status.pin}: ${held.join(", ")} (a move to this release was given up before)`
+        : meaningHeld.length > 0
+          ? `a run with consent takes the memory over and moves it to ${status.pin}, but does not switch search by meaning on: ${meaningHeld.join(", ")} (given up or stopped for this model before)`
+          : `a run with consent takes the memory over and moves it to ${status.pin}`;
+  const room = status.brainRoom;
+  const size =
+    room === undefined
+      ? ""
+      : `\nSize: ${megabytes(room.brainBytes)} in ${room.brainFiles ?? "unknown"} files; room on the disk ${megabytes(room.freeBytes)}, needed ${megabytes(room.neededBytes)}.`;
+  const rest = blockers.filter((b) => !gate.includes(b));
+  if (gate.length > 0)
+    return `${from}; a takeover now would be refused and change nothing: ${gate.join(", ")}.${rest.length > 0 ? ` Once that is resolved, also in the way: ${rest.join(", ")}.` : ""}${size}`;
+  if (earlier.length > 0) {
+    // What follows the earlier step, as setup goes on (`setupOnce`): a
+    // stopped move keeps the server down in every run; a move left half way
+    // is finished or undone by a run that then takes nothing over; the rest
+    // (`recoverFirst`) go on to the takeover only where they complete.
+    const tail = earlier.includes("move-stopped")
+      ? "A move stopped for a person keeps the memory stopped and disabled in every run until a person decides; no run takes it over."
+      : earlier.includes("move-unfinished")
+        ? "The run that finishes or undoes the unfinished move takes nothing over; a later run with consent is checked anew."
+        : `If that completes, in the same run ${outcome}; if it does not, setup stops there for a person.`;
+    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. ${tail} Let a person look at it before consenting.${size}`;
+  }
+  if (refusing.length > 0)
+    return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
+  if (held.length > 0 || meaningHeld.length > 0)
+    return `${from}; once its owner agrees, ${outcome}.${size}`;
+  return `${from}; Lazurio takes it over once its owner agrees, and nothing known now would stop it or the move to ${status.pin}.${size}`;
+}
+
 /** Plain lines; never a key, a token or a path of the person's. */
 export function brainStatusText(status: BrainStatus): string {
   if (status.state === "unsupported")
@@ -55,7 +130,7 @@ export function brainStatusText(status: BrainStatus): string {
     "not-installed": status.brain
       ? "A memory is here without a unit; Lazurio leaves it as it is until a person decides."
       : `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
-    adoptable: `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees.`,
+    adoptable: adoptableText(status),
     machines: "The memory is run by Machines on this Environment.",
     foreign:
       "A unit of the memory (gbrain.service or its refresh) that Lazurio did not write, or cannot read, is in place; Lazurio leaves it alone.",
