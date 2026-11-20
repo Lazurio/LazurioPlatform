@@ -1200,6 +1200,40 @@ What "ready as an Application" means for each generation, and how
     and `data/v2/`, a website without a Module manifest).
   - `app/v3` keeps its records in repository-db: a data repository of their own,
     `<slug>-data`, mounted as `db/`. It is the default for a new Module with data.
+    A record is one document, `<id>.yaml` in a directory per collection.
+    repository-db merges canonical YAML semantically, so two copies that publish
+    at the same time (two Environments, or the Application and an Environment)
+    and changed different records get no merge conflict. They can still get a
+    validation conflict when their changes together break a rule across records
+    (repository-db `docs/operations.md`, `publish_conflict`). A collection kept
+    in one file gets no record-level merge: Git merges only text changes that do
+    not overlap, so a field of the whole collection that every save rewrites,
+    such as `updatedAt`, makes two concurrent publications of that file conflict
+    even when they changed different records. The second publisher's checkout
+    then stays in conflict
+    ([repository-db#46](https://github.com/Lazurio/repository-db/issues/46)
+    reproduces it with a JSON collection). A Module that keeps such a file
+    recovers by itself, by the engine's own way out:
+    1. `conflict --abort`. It ends the stopped replay and moves `HEAD` back to
+       where the unsent commits branched off the remote, without changing a
+       file, so every unsent change is a draft again (repository-db
+       `src/conflict.ts`, `abortConflict`).
+    2. Before it discards anything, it keeps outside the checkout every change
+       the draft now holds in the conflicting file against that `HEAD`: each
+       changed record with its new content and its version in `HEAD`, the
+       version the change started from. A draft is published as a whole, so
+       the file may hold earlier changes besides the one that triggered the
+       publication.
+    3. `discard --record` of that file, which puts the whole file back to
+       `HEAD`, and `sync --pull` (the other side comes in).
+    4. For each kept change it compares that record in the fresh file with the
+       version from step 2. Unchanged: it applies the change again. Changed: it
+       does not apply it, overwrites nothing, and reports it as
+       `record_changed` where its draft is reviewed. Then it publishes what it
+       applied.
+
+    When the other side has converged instead, `finish-send --head
+    <pendingHead>` sends the waiting commit.
   - `app/v4` keeps its records in a Dolt database in the Server services of the
     Organization's server (root decision 0209, decided, not yet deployed): on GitHub
     are the App, the process and the schema, not the rows. A Dolt outside the server
