@@ -65,7 +65,12 @@ export type MeaningFetch = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-export type MeaningHost = MoveHost & Readonly<{ fetch: MeaningFetch }>;
+export type MeaningHost = MoveHost &
+  Readonly<{
+    fetch: MeaningFetch;
+    /** The pause between two windows (`meaningPauseMs` where not given). */
+    pauseMs?: number;
+  }>;
 
 export type MeaningResult =
   | "on"
@@ -315,36 +320,148 @@ function columnWidth(refusal: Record<string, unknown> | null): string | null {
  * the column has another width, move it to the model's, keeping pages and
  * facts, then compute every vector while the server is stopped (the only
  * way on PGLite). */
-/** How long the first embedding may take (86 minutes were measured for ten
- * times the largest measured brain); a run that reaches it ends gbrain's
- * whole process group and brings the copy back. */
-export const meaningEmbedLimitMs = 6 * 3_600_000;
+/** How long one window of the embedding keeps the server stopped: gbrain's
+ * own budget (`GBRAIN_EMBED_TIME_BUDGET_MS`), after which it stops between
+ * batches, keeps what it computed and says how many chunks are left. Then
+ * the server runs again, with the model, until the next window. */
+export const meaningWindowMs = 3 * 60_000;
+/** How long one batch to the local model may take. gbrain's default (60 s)
+ * is for a provider across a network; a batch of 32 texts on a fully loaded
+ * Environment of 4 vCPU needs longer, and an abandoned batch is computed
+ * again (verified 2026-11-20: 192 batches abandoned, the step failed). */
+export const meaningBatchLimitMs = 10 * 60_000;
+/** The limit of one window's process: its budget, a batch begun just before
+ * it, and the rest; a run that reaches it ends gbrain's process group. */
+export const meaningEmbedLimitMs =
+  meaningWindowMs + meaningBatchLimitMs + 5 * 60_000;
+/** How long the server runs between two windows, so Buddy and the agents
+ * reach the memory: longer than a window, so the memory answers most of
+ * the time even where the filling takes many windows (on a fully loaded
+ * Environment the model, at a lower priority, computes few vectors in one:
+ * 11 of 188 chunks in 4 minutes, measured 2026-11-20 on 4 cores). */
+export const meaningPauseMs = 5 * 60_000;
+/** Windows in one setup run, and windows in a row without progress after
+ * which the filling stops for a person. */
+export const meaningMaxWindows = 40;
+export const meaningMaxStalled = 2;
 /** How long any other of gbrain's steps here may take. */
 export const meaningStepLimitMs = 15 * 60_000;
 
-export async function switchOn(
-  host: MeaningHost,
-  command: string,
-): Promise<string | null> {
-  const env: Record<string, string> = {
-    HOME: host.paths.home,
-    GBRAIN_HOME: host.paths.home,
-    PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
-    LLAMA_SERVER_BASE_URL: `${meaningUrl}/v1`,
-    GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
-  };
-  const gbrain = async (args: readonly string[]) => {
+/** gbrain's exit code where an embedding stopped at its budget with chunks
+ * left (`BUDGET_STOP_EXIT_CODE`, src/core/exit-codes.ts of the pin). */
+const budgetStopExit = 11;
+
+const gbrainEnv = (host: MeaningHost): Record<string, string> => ({
+  HOME: host.paths.home,
+  GBRAIN_HOME: host.paths.home,
+  PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+  LLAMA_SERVER_BASE_URL: `${meaningUrl}/v1`,
+  GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
+  GBRAIN_AI_EMBED_TIMEOUT_MS: String(meaningBatchLimitMs),
+  GBRAIN_EMBED_TIME_BUDGET_MS: String(meaningWindowMs),
+});
+
+const gbrainOf =
+  (host: MeaningHost, command: string) => async (args: readonly string[]) => {
     const result = await host
       .run(
         [command, ...args],
         args[0] === "embed" ? meaningEmbedLimitMs : meaningStepLimitMs,
-        env,
+        gbrainEnv(host),
       )
       .catch(() => "timeout" as const);
     return result === "timeout"
-      ? { ok: false, out: null }
-      : { ok: result.exitCode === 0, out: printed(result.stdout) };
+      ? { ok: false, exit: null, out: null }
+      : {
+          ok: result.exitCode === 0,
+          exit: result.exitCode,
+          out: printed(result.stdout),
+        };
   };
+
+/** One window of the embedding, with the server stopped: `done` where no
+ * chunk is left, `partial` where gbrain stopped at its budget or computed
+ * some and failed some (it keeps every vector it wrote; the next window goes
+ * on), `failed` where it computed nothing. Closed labels and counts only. */
+export type EmbedWindow =
+  | Readonly<{ result: "done"; embedded: number }>
+  | Readonly<{ result: "partial"; embedded: number; remaining?: number }>
+  | Readonly<{ result: "failed"; reason: string }>;
+
+export async function embedWindow(
+  host: MeaningHost,
+  command: string,
+): Promise<EmbedWindow> {
+  const ran = await gbrainOf(host, command)(["embed", "--stale", "--json"]);
+  if (ran.exit === null) return { result: "failed", reason: "embed-limit" };
+  const count = (key: string) => {
+    const value = ran.out?.[key];
+    return typeof value === "number" && Number.isInteger(value) && value >= 0
+      ? value
+      : undefined;
+  };
+  const embedded = count("embedded") ?? 0;
+  const remaining = count("remaining_stale");
+  const failures = count("failures") ?? 0;
+  if (ran.ok && failures === 0) return { result: "done", embedded };
+  if (ran.exit === budgetStopExit || embedded > 0)
+    return {
+      result: "partial",
+      embedded,
+      ...(remaining === undefined ? {} : { remaining }),
+    };
+  const reason = ran.out?.reason;
+  return {
+    result: "failed",
+    reason:
+      reason === "stall_timeout"
+        ? "embed-stalled"
+        : failures > 0
+          ? "embed-failures"
+          : "embed",
+  };
+}
+
+/** The owner's claim of the pages saved before gbrain tracked trust, run
+ * once with the server stopped: they then read as the owner's own notes,
+ * not as quoted source material. Pages agents wrote since stay quoted (and
+ * a remote write still unquotes what it gets). A failure changes nothing
+ * else and is recorded, never retried by itself. */
+async function claimLegacyTrust(
+  host: MeaningHost,
+  command: string,
+  now: Date,
+): Promise<void> {
+  const state = await readBrainState(host.paths);
+  if (state.trustClaim !== undefined) return;
+  const gbrain = gbrainOf(host, command);
+  const preview = await gbrain([
+    "trust",
+    "claim-sources",
+    "--dry-run",
+    "--json",
+  ]);
+  const claimed =
+    preview.ok && (await gbrain(["trust", "claim-sources", "--json"])).ok;
+  const current = await readBrainState(host.paths);
+  await writeBrainState(host.paths, {
+    ...current,
+    trustClaim: Object.freeze({
+      at: now.toISOString(),
+      result: claimed ? ("claimed" as const) : ("failed" as const),
+    }),
+  });
+}
+
+/** gbrain's own steps before the vectors, with the server stopped: enable
+ * the model and, where the column has another width, move it to the
+ * model's, keeping pages and facts. Null where it went through, else the
+ * step that refused. */
+export async function switchOn(
+  host: MeaningHost,
+  command: string,
+): Promise<string | null> {
+  const gbrain = gbrainOf(host, command);
   const model = meaningPin.provider;
   const width = String(meaningPin.dimensions);
   const enable = (dims: string) =>
@@ -400,10 +517,7 @@ export async function switchOn(
     ]);
     if (!migrated.ok) return "migrate";
   }
-  // Every vector, whichever way the model was enabled, while the server is
-  // stopped: it computes none of them by itself.
-  const embedded = await gbrain(["embed", "--stale", "--catch-up", "--json"]);
-  return embedded.ok ? null : "embed";
+  return null;
 }
 
 const digestOf = (text: string) =>
@@ -414,13 +528,32 @@ type Release = NonNullable<
 >;
 
 /** Writes the attempt's journal: its stage, when it began and its copy. */
+type Attempt = NonNullable<
+  Awaited<ReturnType<typeof readBrainState>>["meaningAttempt"]
+>;
+
 const recorder =
   (host: MoveHost, now: Date) =>
   async (
-    result: "stopping" | "started" | "restored" | "stopped",
+    result: Attempt["result"],
     reason?: string,
+    extra: Partial<
+      Pick<
+        Attempt,
+        "phase" | "windowBackup" | "remaining" | "windows" | "stalled"
+      >
+    > = {},
   ) => {
     const current = await readBrainState(host.paths);
+    const before = current.meaningAttempt;
+    // What the filling counted so far stays with the attempt.
+    const kept = {
+      ...(before?.windows === undefined ? {} : { windows: before.windows }),
+      ...(before?.stalled === undefined ? {} : { stalled: before.stalled }),
+      ...(before?.remaining === undefined
+        ? {}
+        : { remaining: before.remaining }),
+    };
     await writeBrainState(host.paths, {
       ...current,
       meaningAttempt: Object.freeze({
@@ -429,6 +562,8 @@ const recorder =
         at: now.toISOString(),
         backup: `.gbrain.bak-meaning-${stampOf(now)}`,
         ...(reason === undefined ? {} : { reason }),
+        ...kept,
+        ...extra,
       }),
     });
   };
@@ -441,13 +576,22 @@ async function clearAttempt(host: MoveHost): Promise<void> {
 }
 
 /** The brain before, without the model, from the attempt's copy: never
- * under a running server; the server back on its release, confirmed. */
+ * under a running server; the server back on its release, confirmed. With
+ * `filling`, the brain before a window instead: it already has the model
+ * and part of its vectors, so the server comes back with the model and the
+ * filling goes on (`filling` records how), or stops after windows in a row
+ * that failed. */
 async function restoreCopy(
   host: MoveHost,
   release: Release,
   backup: string,
   now: Date,
   reason: string,
+  filling?: Readonly<{
+    next: () => Promise<MeaningResult>;
+    /** The window's own name for the brain it puts aside. */
+    failedName: string;
+  }>,
 ): Promise<MeaningResult> {
   const record = recorder(host, now);
   if (!(await stoppedForSure(host))) {
@@ -457,7 +601,7 @@ async function restoreCopy(
   }
   const failed = join(
     host.paths.home,
-    `.gbrain.failed-meaning-${stampOf(now)}`,
+    filling?.failedName ?? `.gbrain.failed-meaning-${stampOf(now)}`,
   );
   try {
     if (!(await present(backup))) throw new Error("no copy");
@@ -468,7 +612,7 @@ async function restoreCopy(
       preserveTimestamps: true,
     });
     await chmod(host.paths.brain, 0o700);
-    await writeBrainUnits(host.paths, release.command, false);
+    await writeBrainUnits(host.paths, release.command, filling !== undefined);
   } catch {
     await record("stopped", "copy-not-restored");
     await keepDown(host);
@@ -484,6 +628,7 @@ async function restoreCopy(
     return "stopped:no-answer";
   }
   await service(host, "start", brainRefreshTimer);
+  if (filling !== undefined) return filling.next();
   await record("restored", reason);
   return `restored:${reason}`;
 }
@@ -505,6 +650,37 @@ export async function recoverAttempt(
     (attempt.result !== "stopping" && attempt.result !== "started")
   )
     return null;
+  const at = new Date(attempt.at);
+  if (attempt.phase === "filling") {
+    // A window a run left: its own copy, the brain with the model before it.
+    const window =
+      attempt.windowBackup === undefined
+        ? undefined
+        : join(host.paths.home, attempt.windowBackup);
+    const record = recorder(host, at);
+    if (attempt.result === "stopping") {
+      if (window !== undefined)
+        await rm(window, { recursive: true, force: true }).catch(
+          () => undefined,
+        );
+      await service(host, "start", brainUnit);
+      await service(host, "start", brainRefreshTimer);
+      await record("filling");
+      return "waits:interrupted";
+    }
+    if (state.release === undefined || window === undefined) {
+      await record("stopped", "interrupted-unknown");
+      await keepDown(host);
+      return "stopped:interrupted-unknown";
+    }
+    return restoreCopy(host, state.release, window, at, "interrupted", {
+      failedName: `.gbrain.failed-meaning-window-${stampOf((host.now ?? (() => new Date()))())}`,
+      next: async () => {
+        await record("filling", "interrupted");
+        return "waits:interrupted";
+      },
+    });
+  }
   const backup =
     attempt.backup === undefined
       ? undefined
@@ -517,7 +693,6 @@ export async function recoverAttempt(
     await clearAttempt(host);
     return "waits:interrupted";
   }
-  const at = new Date(attempt.at);
   if (state.release === undefined || backup === undefined) {
     await recorder(host, at)("stopped", "interrupted-unknown");
     await keepDown(host);
@@ -594,6 +769,8 @@ export async function convergeMeaning(
     return attempt.result === "restored"
       ? "held"
       : `stopped:${attempt.reason ?? "unknown"}`;
+  if (attempt?.provider === meaningPin.provider && attempt.result === "filling")
+    return fill(host, state.release, attempt);
   if (!(await host.idle())) return "waits-idle";
   const release = state.release;
   if (release === undefined) return "waits:release-unknown";
@@ -632,6 +809,10 @@ export async function convergeMeaning(
     restoreCopy(host, release, backup, now, reason);
   const refused = await switchOn(host, release.command);
   if (refused !== null) return fallBack(refused);
+  await claimLegacyTrust(host, release.command, now);
+  // The first window: until it ends, the copy before is the way back.
+  const window = await embedWindow(host, release.command);
+  if (window.result === "failed") return fallBack(window.reason);
   try {
     await writeBrainUnits(host.paths, release.command, true);
   } catch {
@@ -644,6 +825,22 @@ export async function convergeMeaning(
     return fallBack("start");
   if ((await answers(host)) !== release.version) return fallBack("no-answer");
   if ((await pages(host)) !== before) return fallBack("page-count");
+  if (window.result === "done") return switchedOn(host, now);
+  // Vectors are left: the server runs with the model and what is computed
+  // (search by meaning over it, every new page embedded as it comes), and
+  // the rest follows in short windows.
+  await record("filling", undefined, {
+    windows: 1,
+    stalled: window.embedded > 0 ? 0 : 1,
+    ...(window.remaining === undefined ? {} : { remaining: window.remaining }),
+  });
+  await service(host, "start", brainRefreshTimer);
+  const filling = (await readBrainState(host.paths)).meaningAttempt;
+  return filling === undefined ? "waits:filling" : fill(host, release, filling);
+}
+
+/** Search by meaning on: every vector computed. */
+async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
   const { meaningAttempt: _done, ...current } = await readBrainState(
     host.paths,
   );
@@ -652,9 +849,101 @@ export async function convergeMeaning(
     meaning: Object.freeze({
       provider: meaningPin.provider,
       dimensions: meaningPin.dimensions,
-      at: now.toISOString(),
+      at: at.toISOString(),
     }),
   });
   await service(host, "start", brainRefreshTimer);
   return "on";
+}
+
+/** The copy before each window (one, replaced by the next window). */
+const windowName = ".gbrain.bak-meaning-window";
+
+/** The vectors still missing, in windows: each only while Buddy is idle,
+ * the server stopped for at most a window (`meaningWindowMs`) after a copy,
+ * then running again with the model for a pause. A window that fails brings
+ * its copy back and the server with the model; after windows in a row
+ * without progress, the filling stops (`restored`: not tried again for this
+ * pin) with the vectors computed so far kept. Ends where Buddy works or the
+ * run's windows are used up (`waits:filling`): the next run goes on. */
+async function fill(
+  host: MeaningHost,
+  release: Release | undefined,
+  attempt: Attempt,
+): Promise<MeaningResult> {
+  if (release === undefined) return "waits:release-unknown";
+  const at = new Date(attempt.at);
+  const record = recorder(host, at);
+  const window = join(host.paths.home, windowName);
+  for (let n = 0; n < meaningMaxWindows; n++) {
+    // The server runs between windows.
+    await sleep(host.pauseMs ?? meaningPauseMs);
+    if (!(await host.idle())) return "waits:filling";
+    const before = await pages(host);
+    if (before === null) return "waits:page-count";
+    await rm(window, { recursive: true, force: true }).catch(() => undefined);
+    const inWindow = { phase: "filling" as const, windowBackup: windowName };
+    await record("stopping", undefined, inWindow);
+    if (!(await stoppedForSure(host))) {
+      await service(host, "start", brainUnit);
+      await service(host, "start", brainRefreshTimer);
+      await record("filling", "not-stopped");
+      return "waits:not-stopped";
+    }
+    try {
+      await cp(host.paths.brain, window, {
+        recursive: true,
+        verbatimSymlinks: true,
+        preserveTimestamps: true,
+        errorOnExist: true,
+        force: false,
+      });
+      await chmod(window, 0o700);
+    } catch {
+      await rm(window, { recursive: true, force: true }).catch(() => undefined);
+      await service(host, "start", brainUnit);
+      await service(host, "start", brainRefreshTimer);
+      await record("filling", "copy");
+      return "waits:copy";
+    }
+    await record("started", undefined, inWindow);
+    const result = await embedWindow(host, release.command);
+    const counted = (await readBrainState(host.paths)).meaningAttempt;
+    const windows = (counted?.windows ?? 0) + 1;
+    const progressed =
+      result.result === "done" ||
+      (result.result === "partial" && result.embedded > 0);
+    const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
+    const back = (reason: string) =>
+      restoreCopy(host, release, window, at, reason, {
+        failedName: `.gbrain.failed-meaning-window-${stampOf((host.now ?? (() => new Date()))())}-${windows}`,
+        next: async () => {
+          if (stalled >= meaningMaxStalled) {
+            await record("restored", reason, { windows, stalled });
+            return `restored:${reason}`;
+          }
+          await record("filling", reason, { windows, stalled });
+          return `waits:${reason}`;
+        },
+      });
+    if (result.result === "failed") return back(result.reason);
+    if (!(await service(host, "start", brainUnit))) return back("start");
+    if ((await answers(host)) !== release.version) return back("no-answer");
+    if ((await pages(host)) !== before) return back("page-count");
+    await rm(window, { recursive: true, force: true }).catch(() => undefined);
+    if (result.result === "done") return switchedOn(host, at);
+    await record("filling", undefined, {
+      windows,
+      stalled,
+      ...(result.remaining === undefined
+        ? {}
+        : { remaining: result.remaining }),
+    });
+    await service(host, "start", brainRefreshTimer);
+    if (stalled >= meaningMaxStalled) {
+      await record("restored", "embed-stalled", { windows, stalled });
+      return "restored:embed-stalled";
+    }
+  }
+  return "waits:filling";
 }

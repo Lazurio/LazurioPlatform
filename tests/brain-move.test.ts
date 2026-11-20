@@ -457,7 +457,7 @@ describe("the check before a takeover tells what a consented run would meet", ()
     expect(room?.brainFiles).toBe(5);
     const mib = 1024 * 1024;
     expect(room?.neededBytes).toBe(
-      3 * (room?.brainBytes as number) + 640 * mib + 768 * mib + 1024 * mib,
+      4 * (room?.brainBytes as number) + 640 * mib + 768 * mib + 1024 * mib,
     );
     expect(room?.freeBytes).toBe(64 * 1024 ** 3);
     // The plain text says the same, sizes in MB.

@@ -85,14 +85,27 @@ export type BrainState = Readonly<{
   meaningUnit?: string;
   /** The last attempt to switch it on, while it is not on: `stopping` is
    * written before the server stops and `started` once the copy is whole;
-   * a run that finds either recovers it first. */
+   * a run that finds either recovers it first. `filling`: the model is on
+   * and the server runs with it, while the vectors still missing are
+   * computed in short windows (`phase: "filling"` on the window's own
+   * `stopping` and `started`, whose copy is `windowBackup`). */
   meaningAttempt?: Readonly<{
     provider: string;
-    result: "stopping" | "started" | "restored" | "stopped";
+    result: "stopping" | "started" | "filling" | "restored" | "stopped";
     at: string;
     backup?: string;
     reason?: string;
+    phase?: "filling";
+    windowBackup?: string;
+    /** Chunks gbrain said were left after the last window. */
+    remaining?: number;
+    /** Windows run, and the windows in a row that made no progress. */
+    windows?: number;
+    stalled?: number;
   }>;
+  /** The owner's claim of the pages saved before gbrain tracked trust
+   * (`gbrain trust claim-sources`), run once: its outcome. */
+  trustClaim?: Readonly<{ at: string; result: "claimed" | "failed" }>;
   /** Lazurio's install of a pin, from before its brain is created until its
    * release is recorded: the brain under it is Lazurio's own, and a run
    * that finds it resumes every step (`./setup.ts`). */
