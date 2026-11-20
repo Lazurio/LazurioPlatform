@@ -23324,8 +23324,8 @@ while Buddy is in his corner.
 
 ### F60 addendum of 2026-11-20: the frame hears whether his window shows it
 
-**Proposed; decided by Matěj only once he consents** (`<the time of the consent, passed on by
-the coordinating thread>`). The protocol `lazurio.buddy.*` v1 gains one message from the host
+**Decided by Matěj (Organization Admin) on 2026-11-20**, whose consent the coordinating
+thread BUDDY GEN4 passed on at 11:35 UTC. The protocol `lazurio.buddy.*` v1 gains one message from the host
 to the frame. Point 3 stays: the frame stays alive inside a closed window.
 
 - **The message.** `{type: "lazurio.buddy.shown", v: 1, shown: boolean}` says whether the
