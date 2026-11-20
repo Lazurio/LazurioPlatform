@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readdir,
@@ -10,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
-import { runBrainCommand } from "../src/brain/cli";
+import { brainStatusText, runBrainCommand } from "../src/brain/cli";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   brainPaths,
@@ -458,8 +459,44 @@ describe("the check before a takeover tells what a consented run would meet", ()
       3 * (room?.brainBytes as number) + 640 * mib + 768 * mib + 1024 * mib,
     );
     expect(room?.freeBytes).toBe(64 * 1024 ** 3);
+    // The plain text says the same, sizes in MB.
+    const text = brainStatusText(status);
+    expect(text).toContain("nothing known now would stop it or the move");
+    expect(text).toContain(
+      `Size: 1 MB in 5 files; room on the disk 65536 MB, needed ${Math.ceil((room?.neededBytes as number) / mib)} MB.`,
+    );
     expect(await brainSetup(host)).toMatchObject({ takeover: "taken-over" });
     expect((await readBrainState(paths)).move?.result).toBe("done");
+  });
+
+  test("a takeover whose journal is not written changes nothing, and a later ordinary run does not take over", async () => {
+    // Root writes into a read-only directory anyway: nothing to show there.
+    if (process.getuid?.() === 0) return;
+    const { host, paths } = await stand({ consent: true, tagged: {} });
+    // An ordinary run first, so setup's lock and the copy's place exist.
+    expect((await brainSetup(withoutConsent(host))).takeover).toBe(
+      "waits-consent",
+    );
+    await mkdir(interimUnitsCopy(paths), { recursive: true });
+    const state = dirname(paths.state);
+    const before = await unitText(paths);
+    await chmod(state, 0o500);
+    try {
+      expect(await brainSetup(host)).toMatchObject({
+        server: "takeover-refused",
+        takeover: "refused:journal",
+      });
+    } finally {
+      await chmod(state, 0o700);
+    }
+    expect(await unitText(paths)).toBe(before);
+    // Once the state can be written again, an ordinary run only reports.
+    expect(await brainSetup(withoutConsent(host))).toMatchObject({
+      server: "waits-takeover",
+      takeover: "waits-consent",
+    });
+    expect(await unitText(paths)).toBe(before);
+    expect((await readBrainState(paths)).takeover?.consent).toBeUndefined();
   });
 
   // Each blocker the check names, and what the consented run then does.
@@ -539,15 +576,30 @@ describe("the check before a takeover tells what a consented run would meet", ()
     test(`${c.blocker}: named before, and the consented run meets it`, async () => {
       const s = await stand({ consent: true, tagged: {}, ...c.options });
       await c.arrange?.(s);
-      expect(await brainStatus(withoutConsent(s.host))).toMatchObject({
+      const status = await brainStatus(withoutConsent(s.host));
+      expect(status).toMatchObject({
         state: "adoptable",
         takeoverBlockers: [c.blocker],
       });
+      // The owner reads, in plain text, what the consented run then does:
+      // a refusal that changes nothing, or a takeover without the move.
+      const text = brainStatusText(status);
       const before = await unitText(s.paths);
       expect(await brainSetup(s.host)).toMatchObject(c.result);
+      const after = await unitText(s.paths);
       if (c.unitsKept) {
-        expect(await unitText(s.paths)).toBe(before);
+        expect(after).toBe(before);
         expect(s.calls.some((call) => call[2] === "stop")).toBe(false);
+        expect(text).toContain(
+          `a takeover now would be refused and change nothing: ${c.blocker}.`,
+        );
+      } else {
+        expect(after).not.toBe(before);
+        expect(s.calls.some((call) => call[2] === "stop")).toBe(false);
+        expect(text).toContain(
+          `Lazurio takes it over once its owner agrees, but does not move it to ${brainPin.version}: ${c.blocker}`,
+        );
+        expect(text).not.toContain("refused");
       }
     });
 

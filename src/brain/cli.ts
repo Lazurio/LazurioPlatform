@@ -5,6 +5,7 @@ import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
+import { moveBlockers } from "./preflight";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
 
@@ -16,9 +17,10 @@ export const brainHelp = `brain status [--json]
   version answering on 127.0.0.1:3131 and the pinned one (${brainPin.version}),
   whether the brain is there, and which of Lazurio's keys are handed over.
   Where an earlier installer runs it: the release a takeover would record
-  (interimRelease), every reason known now that would stop the takeover or
-  the move after it (takeoverBlockers, empty where none) and the brain's
-  size beside the room on the disk (brainRoom), from file sizes only.
+  (interimRelease), every reason known now that would refuse the takeover
+  or, as held does, only the move after it (takeoverBlockers, empty where
+  none) and the brain's size beside the room on the disk (brainRoom), from
+  file sizes only; the text gives the sizes in MB, --json in bytes.
   Nothing is changed and the network is not used.
 brain setup [--json]
   What the Launchpad starts after it starts on a Personal Environment:
@@ -55,6 +57,29 @@ const reasons = {
     "the person's memory belongs to a Personal Environment, and this one is not",
 } as const;
 
+const megabytes = (bytes: number | null) =>
+  bytes === null ? "unknown" : `${Math.ceil(bytes / 1024 / 1024)} MB`;
+
+/** An interim installer's brain: whether a takeover now goes through, and
+ * whether the move after it does (`held` stops only the move). */
+function adoptableText(
+  status: Extract<BrainStatus, { owner: unknown }>,
+): string {
+  const from = `The memory runs from an earlier installer (${status.running ?? "not answering"})`;
+  const blockers = status.takeoverBlockers ?? [];
+  const refusing = blockers.filter((b) => !moveBlockers.includes(b));
+  const room = status.brainRoom;
+  const size =
+    room === undefined
+      ? ""
+      : `\nSize: ${megabytes(room.brainBytes)} in ${room.brainFiles ?? "unknown"} files; room on the disk ${megabytes(room.freeBytes)}, needed ${megabytes(room.neededBytes)}.`;
+  if (refusing.length > 0)
+    return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
+  if (blockers.length > 0)
+    return `${from}; Lazurio takes it over once its owner agrees, but does not move it to ${status.pin}: ${blockers.join(", ")} (a move to this release was given up before).${size}`;
+  return `${from}; Lazurio takes it over once its owner agrees, and nothing known now would stop it or the move to ${status.pin}.${size}`;
+}
+
 /** Plain lines; never a key, a token or a path of the person's. */
 export function brainStatusText(status: BrainStatus): string {
   if (status.state === "unsupported")
@@ -63,10 +88,7 @@ export function brainStatusText(status: BrainStatus): string {
     "not-installed": status.brain
       ? "A memory is here without a unit; Lazurio leaves it as it is until a person decides."
       : `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
-    adoptable:
-      (status.takeoverBlockers ?? []).length === 0
-        ? `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees, and nothing known now would stop it.`
-        : `The memory runs from an earlier installer (${status.running ?? "not answering"}); a takeover now would not go through: ${(status.takeoverBlockers ?? []).join(", ")}.`,
+    adoptable: adoptableText(status),
     machines: "The memory is run by Machines on this Environment.",
     foreign:
       "A unit of the memory (gbrain.service or its refresh) that Lazurio did not write, or cannot read, is in place; Lazurio leaves it alone.",

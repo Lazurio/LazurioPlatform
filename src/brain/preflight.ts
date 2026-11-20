@@ -45,6 +45,12 @@ export type TakeoverBlocker =
   | "command-missing"
   | "disk";
 
+/** The blockers that stop only the move after the takeover: the takeover
+ * itself goes through (and rewrites the units), the brain stays on its
+ * release under Lazurio's units. Every other blocker refuses the takeover,
+ * or leaves it waiting, before anything changes. */
+export const moveBlockers: readonly TakeoverBlocker[] = Object.freeze(["held"]);
+
 export type TakeoverCheck = Readonly<{
   /** The release a takeover would record, or null (`release-unknown`). */
   release: Readonly<{ commit: string; version: string }> | null;
