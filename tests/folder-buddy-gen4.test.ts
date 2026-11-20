@@ -13,7 +13,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Persona } from "../src/buddy/persona";
-import { writeBuddyFolderLocked } from "../src/folder/buddy-folder";
+import {
+  buddyGen3Present,
+  writeBuddyFolderLocked,
+} from "../src/folder/buddy-folder";
 import {
   buddyFolderPaths,
   buddyFolderSkillNames,
@@ -101,6 +104,84 @@ test("the persona's names and address are filled in; without a persona the text 
   expect(generic).toContain("Jsi Buddy, Buddy");
   expect(generic).not.toContain("(uživatel)");
   expect(generic).toContain("Uživateli vykáš");
+});
+
+test("informal address from Settings → Buddy says it overrides the tone block's formal address", () => {
+  const named = renderBuddyAgents(source("cs"), "buddy", persona);
+  // The default tone block asks for vykání; the persona's tykání must win,
+  // and say so, so that the text does not contradict itself.
+  expect(named).toContain("V češtině uživateli standardně vykej");
+  expect(named).toContain(
+    "Aleně tykáš, jak si uživatel nastavil v Nastavení → Buddy; tato volba má přednost před větou o vykání v bloku tónu výše.",
+  );
+  expect(renderBuddyAgents(source("en"), "buddy", persona)).toContain(
+    "this choice takes precedence over the sentence on formal address in the tone block above",
+  );
+  // Formal address needs no exception.
+  expect(renderBuddyAgents(source("cs"), "buddy")).not.toContain(
+    "má přednost před větou o vykání",
+  );
+});
+
+test("while Buddy GEN3 is still in the home, the text says to leave his folders, services and chat alone", () => {
+  for (const locale of locales)
+    for (const profile of ["buddy", "employee"] as const) {
+      const without = renderBuddyAgents(source(locale), profile, persona);
+      const beside = renderBuddyAgents(source(locale), profile, persona, {
+        gen3: true,
+      });
+      for (const word of [
+        "~/.t3-buddy",
+        "~/.hermes",
+        "lazurio-t3-buddy.service",
+      ])
+        expect({
+          locale,
+          profile,
+          word,
+          without: without.includes(word),
+        }).toEqual({ locale, profile, word, without: false });
+      expect(beside).toContain("~/.t3-buddy");
+      expect(beside).toContain("~/.hermes");
+      expect(beside).toContain("hermes-gateway.service");
+      expect(beside).toContain("~/Buddy/archiv/");
+    }
+  const cs = renderBuddyAgents(source("cs"), "buddy", persona, { gen3: true });
+  expect(cs).toContain("Na tyto složky a služby nesahej");
+  // A precaution, never a claim about the archive's state: the folders may
+  // still be there after a verified archive (R9 removes them later).
+  expect(cs).toContain("Mohou být zdrojem jeho rozhovoru");
+  expect(cs).not.toContain("Jen tam je jeho rozhovor");
+  expect(cs).not.toContain("teprve vyvézt");
+  const en = renderBuddyAgents(source("en"), "buddy", persona, { gen3: true });
+  expect(en).toContain("They may be the source of his conversation");
+  expect(en).not.toContain("is only there");
+  expect(en).not.toContain("yet to be exported");
+  // Only AGENTS.md changes; the skills are the same bytes.
+  const plain = renderBuddyFolder(source("cs"), "buddy", persona);
+  const gen3 = renderBuddyFolder(source("cs"), "buddy", persona, {
+    gen3: true,
+  });
+  for (const path of buddyFolderPaths)
+    if (path !== "AGENTS.md") expect(gen3[path]).toBe(plain[path]);
+  expect(gen3["AGENTS.md"]).not.toBe(plain["AGENTS.md"]);
+});
+
+test("Buddy GEN3 counts as present while ~/.t3-buddy or ~/.hermes exists in any form", async () => {
+  const home = await realpath(await mkdtemp(join(tmpdir(), "buddy-gen3-")));
+  try {
+    expect(await buddyGen3Present(home)).toBe(false);
+    await mkdir(join(home, ".hermes"));
+    expect(await buddyGen3Present(home)).toBe(true);
+    await rm(join(home, ".hermes"), { recursive: true });
+    await symlink(join(home, "elsewhere"), join(home, ".t3-buddy"));
+    expect(await buddyGen3Present(home)).toBe(true);
+    await rm(join(home, ".t3-buddy"));
+    await writeFile(join(home, ".hermes"), "");
+    expect(await buddyGen3Present(home)).toBe(true);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
 });
 
 test("Buddy GEN4 works with threads and the Brain, not with Hermes, Telegram or bots through Delegace", () => {

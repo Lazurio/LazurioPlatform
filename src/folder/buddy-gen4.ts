@@ -302,6 +302,25 @@ function always(profile: BuddyProfile): readonly Text[] {
   ];
 }
 
+// While Buddy GEN3 is still on this Environment (his own T3 Code in
+// `~/.t3-buddy` and Hermes in `~/.hermes`), they may hold the source of his
+// conversation for the archive of plan LZD-0033 R6a; R9 removes them only
+// after that archive is verified and a second copy is recorded. Their
+// presence says nothing about whether the archive exists, so the text says
+// only to preserve them. Buddy GEN4, with full access, must leave both alone
+// (a finding of the first converted person, 2026-11-20).
+const gen3Beside: readonly Text[] = [
+  t("## Starý Buddy vedle", "## The old Buddy beside you"),
+  t(
+    "- V tomto Prostředí ještě je Buddy předchozí generace: jeho T3 Code ve `~/.t3-buddy` a Hermes ve `~/.hermes`, se službami `lazurio-t3-buddy.service` a `hermes-gateway.service`. Mohou být zdrojem jeho rozhovoru s uživatelem pro archiv ve `~/Buddy/archiv/`, proto musí zůstat celé, dokud archiv není ověřený a uložený i jinde. Jestli archiv už je, z toho, že tu jsou, nepoznáš.",
+    "- This Environment still has the previous generation of Buddy: his T3 Code in `~/.t3-buddy` and Hermes in `~/.hermes`, with the services `lazurio-t3-buddy.service` and `hermes-gateway.service`. They may be the source of his conversation with the user for the archive in `~/Buddy/archiv/`, so they must stay whole until that archive is verified and kept elsewhere too. Their presence does not tell you whether the archive exists.",
+  ),
+  t(
+    "- Na tyto složky a služby nesahej: nic v nich neměň, nemaž, nezastavuj ani neuklízej, a nepiš do jeho chatu ani přes jeho Telegram. Odstraní je Lazurio až po ověřeném archivu, ne ty.",
+    "- Leave these folders and services alone: change, delete, stop or clean up nothing in them, and do not write into his chat or through his Telegram. Lazurio removes them after the verified archive, not you.",
+  ),
+];
+
 function speech(names: Names): readonly Text[] {
   return [
     t("## Jak mluvíš", "## How you talk"),
@@ -311,8 +330,8 @@ function speech(names: Names): readonly Text[] {
     ),
     names.informal
       ? t(
-          `- ${names.userDative.cs.charAt(0).toUpperCase()}${names.userDative.cs.slice(1)} tykáš, jak si uživatel nastavil v Nastavení → Buddy. Ostatním lidem vykáš.`,
-          `- You address ${names.userDative.en} informally (in Czech tykání), as the user chose in Settings → Buddy. Other people you address formally.`,
+          `- ${names.userDative.cs.charAt(0).toUpperCase()}${names.userDative.cs.slice(1)} tykáš, jak si uživatel nastavil v Nastavení → Buddy; tato volba má přednost před větou o vykání v bloku tónu výše. Ostatním lidem vykáš.`,
+          `- You address ${names.userDative.en} informally (in Czech tykání), as the user chose in Settings → Buddy; this choice takes precedence over the sentence on formal address in the tone block above. Other people you address formally.`,
         )
       : t(
           "- Uživateli vykáš (vy, váš, vám malým písmenem, výzvy v množném čísle), dokud si v Nastavení → Buddy nezvolí tykání. Ostatním lidem vykáš.",
@@ -321,10 +340,15 @@ function speech(names: Names): readonly Text[] {
   ];
 }
 
+/** What the Environment says beside the Folder: `gen3` while Buddy GEN3's
+ * own T3 Code or Hermes is still in the home (`buddyGen3Present`). */
+export type BuddyContext = Readonly<{ gen3?: boolean }>;
+
 export function renderBuddyAgents(
   input: unknown,
   profile: BuddyProfile,
   persona?: Persona,
+  context: BuddyContext = {},
 ): string {
   const source = parseInstructionSource(input);
   const locale = source.profile.locale;
@@ -349,6 +373,7 @@ export function renderBuddyAgents(
     ...(profile === "buddy" ? [...takeover.map(pick), ""] : []),
     ...always(profile).map(pick),
     "",
+    ...(context.gen3 === true ? [...gen3Beside.map(pick), ""] : []),
     // The default voice only, as in Buddy GEN3's layer: a custom voice is the
     // Folder's text, which this folder does not carry.
     ...voiceSection(locale),
@@ -478,10 +503,11 @@ export function renderBuddyFolder(
   input: unknown,
   profile: BuddyProfile,
   persona?: Persona,
+  context: BuddyContext = {},
 ): Readonly<Record<BuddyFolderPath, string>> {
   const source = parseInstructionSource(input);
   const files: Partial<Record<BuddyFolderPath, string>> = {
-    "AGENTS.md": renderBuddyAgents(source, profile, persona),
+    "AGENTS.md": renderBuddyAgents(source, profile, persona, context),
   };
   for (const name of buddyFolderSkillNames) {
     const document = buddyFolderSkillDocument(source.profile.locale, name);
