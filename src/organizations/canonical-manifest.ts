@@ -75,15 +75,13 @@ export function parseCanonicalOrganization(input: unknown) {
   // Reject executable/lossy values before cloning Organization-owned extension data.
   const value = object(
     snapshotOrganizationDocument(input),
+    ["schema_version", "kind", "organization", "manifests", "extensions"],
     [
-      "schema_version",
-      "kind",
-      "organization",
-      "manifests",
-      "extensions",
+      // The compatibility projection's contract (company.gen3.json and its
+      // digest) is optional since LZD-0041 phase A: older readers (Core, a
+      // Platform up to 0.1.23) still need it, so `module create` keeps
+      // writing it, but it never decides whether a root runs.
       "compatibility",
-    ],
-    [
       "root_repository",
       "module_port_pool",
       "governance",
@@ -139,16 +137,18 @@ export function parseCanonicalOrganization(input: unknown) {
     legacyReserved.some((key) => Object.hasOwn(record(extensions.legacy), key))
   )
     throw new Error("Organization extension collision");
-  const projection = object(
-    object(value.compatibility, ["legacy_projection"]).legacy_projection,
-    ["path", "algorithm", "sha256"],
-  );
-  if (
-    projection.path !== "company.gen3.json" ||
-    projection.algorithm !== "sha256-canonical-json-v1"
-  )
-    throw new Error("Unsupported projection contract");
-  text(projection.sha256, /^sha256:[0-9a-f]{64}$/);
+  if (value.compatibility !== undefined) {
+    const projection = object(
+      object(value.compatibility, ["legacy_projection"]).legacy_projection,
+      ["path", "algorithm", "sha256"],
+    );
+    if (
+      projection.path !== "company.gen3.json" ||
+      projection.algorithm !== "sha256-canonical-json-v1"
+    )
+      throw new Error("Unsupported projection contract");
+    text(projection.sha256, /^sha256:[0-9a-f]{64}$/);
+  }
   if (value.module_port_pool !== undefined) {
     const pool = object(value.module_port_pool, ["start", "end"]);
     for (const port of [pool.start, pool.end])

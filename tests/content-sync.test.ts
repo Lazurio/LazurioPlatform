@@ -1449,14 +1449,12 @@ test("the help of organization sync says that a synchronization clones what this
 });
 
 posixTest(
-  "a root that resolves conflict is still fast-forwarded, so its repair on GitHub reaches the Environment by itself (#1094)",
+  "the edit of #1094, a canonical manifest without its projection digest, no longer holds a root: it runs and its children follow (LZD-0041 phase A)",
   async () => {
     world = await createWorld();
     const fixture = await organization(world);
     const manifest = "lazurio.organization.json";
     const original = await readFile(fixture.at(manifest), "utf8");
-    // The incident: a commit edits the canonical manifest without its
-    // projection digest. The first run brings it here.
     await advance(world, "Alpha/alpha_GEN3", async (directory) => {
       const canonical = JSON.parse(original);
       canonical.extensions.legacy = {
@@ -1469,9 +1467,52 @@ posixTest(
       );
     });
     expect(byPath((await ran(fixture)).entries)["."]).toBe("fast-forwarded");
-    // The root here now resolves conflict. While it does, only the root is
-    // synchronized: a module's new commit is not taken from a declaration
-    // Lazurio does not run (Pablo's review of #1096).
+    const resolved = await resolveOrganizationRoot(fixture.at("."));
+    expect(resolved.kind === "root-resolved" && resolved.state).toBe("current");
+    expect(resolved.kind === "root-resolved" && resolved.executable).toBe(true);
+    expect(resolved.kind === "root-resolved" && resolved.issues).toEqual([
+      "canonical_projection_hash_invalid",
+    ]);
+    const web = await advance(world, "Alpha/web", (directory) =>
+      writeFile(join(directory, "a.txt"), "2\n"),
+    );
+    const run = await ran(fixture);
+    expect(byPath(run.entries)["workspace/web"]).toBe("fast-forwarded");
+    expect(await head(fixture.at("workspace/web"))).toBe(web);
+  },
+  60_000,
+);
+
+posixTest(
+  "a root that resolves conflict is still fast-forwarded, so its repair on GitHub reaches the Environment by itself (#1094)",
+  async () => {
+    world = await createWorld();
+    const fixture = await organization(world);
+    const canonical = JSON.parse(
+      await readFile(fixture.at("lazurio.organization.json"), "utf8"),
+    );
+    const modules = JSON.parse(
+      await readFile(fixture.at("modules.manifest.json"), "utf8"),
+    );
+    // A commit brings a company.gen3.json that diverges from what the
+    // canonical manifest projects (normalized_semantics_conflict). The first
+    // run brings it here.
+    const projection = expectedLegacyProjection(canonical, modules)
+      .projection as { company: Record<string, unknown> };
+    await advance(world, "Alpha/alpha_GEN3", (directory) =>
+      writeFile(
+        join(directory, "company.gen3.json"),
+        `${JSON.stringify({ ...projection, company: { ...projection.company, display_name: "Edited by hand" } }, null, 2)}\n`,
+      ),
+    );
+    expect(byPath((await ran(fixture)).entries)["."]).toBe("fast-forwarded");
+    const resolved = await resolveOrganizationRoot(fixture.at("."));
+    expect(resolved.kind === "root-resolved" && resolved.state).toBe(
+      "conflict",
+    );
+    // While it resolves conflict, only the root is synchronized: a module's
+    // new commit is not taken from a declaration Lazurio does not run
+    // (Pablo's review of #1096).
     const webBefore = await head(fixture.at("workspace/web"));
     const web = await advance(world, "Alpha/web", (directory) =>
       writeFile(join(directory, "a.txt"), "2\n"),
@@ -1482,15 +1523,13 @@ posixTest(
     expect(await head(fixture.at("workspace/web"))).toBe(webBefore);
     // Its repair lands on GitHub.
     const repaired = await advance(world, "Alpha/alpha_GEN3", (directory) =>
-      writeFile(join(directory, manifest), original),
+      rm(join(directory, "company.gen3.json")),
     );
     // The next run fast-forwards it to the repair, with no hand on the
-    // Environment.
+    // Environment, and the children follow again in the same run.
     const run = await ran(fixture);
     expect(byPath(run.entries)["."]).toBe("fast-forwarded");
     expect(await head(fixture.at("."))).toBe(repaired);
-    expect(await readFile(fixture.at(manifest), "utf8")).toBe(original);
-    // With the root repaired, its children follow again in the same run.
     expect(byPath(run.entries)["workspace/web"]).toBe("fast-forwarded");
     expect(await head(fixture.at("workspace/web"))).toBe(web);
   },

@@ -1104,7 +1104,7 @@ posixTest(
 );
 
 posixTest(
-  "a root whose only issue is its stale projection digest keeps its identity; any other conflict leaves it unknown (#1094, Pablo's review of LZD-0041)",
+  "a stale projection digest runs; a root whose generated projection is out of date keeps its identity; any other conflict leaves it unknown (#1094, LZD-0041 phase A)",
   async () => {
     await folderFixture(async (folder) => {
       const organizations = join(folder, "organizations");
@@ -1124,8 +1124,14 @@ posixTest(
         change(canonical);
         await writeFile(path, `${JSON.stringify(canonical, null, 2)}\n`);
       };
-      // alpha: only the digest is stale (the incident).
+      // alpha: the canonical manifest is edited, neither company.gen3.json
+      // nor the digest follows.
       await edit("alpha_GEN3", (canonical) => {
+        canonical.extensions.legacy = { note: "edited by hand" };
+      });
+      // beta (`current`, no company.gen3.json): only the digest is stale,
+      // as in the incident of #1094. Since LZD-0041 phase A it runs.
+      await edit("beta", (canonical) => {
         canonical.extensions.legacy = { note: "edited by hand" };
       });
       // delta: its GitHub binding changed too, so it no longer agrees with
@@ -1140,11 +1146,21 @@ posixTest(
         displayName: "Alpha Company",
         forgeLogin: "alpha",
         state: "conflict",
-        issues: ["canonical_projection_hash_invalid"],
+        issues: [
+          "canonical_projection_hash_invalid",
+          "normalized_semantics_conflict",
+        ],
         executable: false,
         reason: "organization-conflict",
         modules: [],
       });
+      const beta = findCatalogOrganization(catalog, "beta");
+      expect(beta).toMatchObject({
+        state: "current",
+        issues: ["canonical_projection_hash_invalid"],
+        executable: true,
+      });
+      expect(beta?.modules.length).toBeGreaterThan(0);
       const delta = findCatalogOrganization(catalog, "delta");
       expect(delta?.state).toBe("conflict");
       expect(delta?.executable).toBe(false);
@@ -1152,6 +1168,29 @@ posixTest(
       expect(delta?.organization).toBeNull();
       expect(delta?.displayName).toBeNull();
       expect(delta?.forgeLogin).toBeUndefined();
+      // A company.gen3.json that names another Organization, by its slug or
+      // by its GitHub login, leaves alpha's identity unknown although the
+      // issues are the same (Pablo's review of #1114).
+      const legacyPath = join(organizations, "alpha_GEN3", "company.gen3.json");
+      const legacy = JSON.parse(await Bun.file(legacyPath).text());
+      for (const company of [
+        { ...legacy.company, github_org: "different" },
+        { ...legacy.company, slug: "different" },
+      ]) {
+        await writeFile(
+          legacyPath,
+          `${JSON.stringify({ ...legacy, company }, null, 2)}\n`,
+        );
+        const other = findCatalogOrganization(
+          await readFolderCatalog(folder),
+          "alpha_GEN3",
+        );
+        expect(other?.state).toBe("conflict");
+        expect(other?.issues).toContain("normalized_semantics_conflict");
+        expect(other?.organization).toBeNull();
+        expect(other?.displayName).toBeNull();
+        expect(other?.forgeLogin).toBeUndefined();
+      }
     });
   },
   30_000,

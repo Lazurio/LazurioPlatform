@@ -76,9 +76,18 @@ validated as the authored manifest and never a second schema:
   `sha256-canonical-json-v1` digest already pinned for conversion preview. Exact digest
   equality proves `transition` parity; a legacy document that round-trips through the
   pure conversion to the same projection is `projection_drift`; every other
-  divergence, an unreadable or malformed document, a stale declared digest or a
-  missing inventory is `conflict`. This recognizes drift only where parity is
-  proven and is stricter than the Root's Core, never looser.
+  divergence, an unreadable or malformed document or a missing inventory is
+  `conflict`. This recognizes drift only where parity is proven.
+- The declared digest (`compatibility.legacy_projection.sha256`) is optional and never
+  decides a state (LZD-0041 phase A, after Platform 0.1.23). A root without
+  `company.gen3.json` is `current` and runs, whether or not it declares the digest; a root
+  with `company.gen3.json` is resolved by parity as above (`transition`, `projection_drift`
+  or `conflict`), whatever its digest. A stale declared digest is reported as the
+  issue `canonical_projection_hash_invalid` next to the state the documents give,
+  because readers older than this Platform (the Root's Core, Platform 0.1.23 and
+  earlier) still resolve it as `conflict`; `lazurio organization check --write`
+  rewrites it for them, and `lazurio module create` keeps writing the projection and
+  its digest until phase C1 of LZD-0041.
 - Execution admission (`resolveOrganizationApplication`, hence Launchpad/CLI
   `prepare`, `clean-prepare` and `start`, and `executable` in the Folder catalog)
   asks one rule, `isExecutableOrganizationState` in
@@ -199,8 +208,8 @@ reason.
   - a tool is declared once in `settings.tools`;
   - a tab name has at most 40 UTF-16 code units: a name of 21 to 40 characters
     outside the Basic Multilingual Plane, such as emoji, passes only the schema;
-  - the declared projection digest is the digest of the projection of this
-    manifest and its inventory;
+  - the declared projection digest, where one is declared, is the digest of the
+    projection of this manifest and its inventory (reported, not decisive);
   - `modules.manifest.json` exists, is well formed and names the same
     Organization, and `company.gen3.json`, while it exists, is this manifest's
     projection;

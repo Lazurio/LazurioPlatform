@@ -819,7 +819,7 @@ async function installOrganization(
       return steps.fail(
         "root",
         "organization-conflict",
-        `${relative(folder, directory)} resolves conflict (${resolved.issues.join(", ") || "unreadable documents"}); run lazurio organization check in it${resolved.issues.includes("canonical_projection_hash_invalid") ? ", and lazurio organization check --write rewrites the projection digest" : ""}, then bring the fix to its main by a pull request or fast-forward it from GitHub`,
+        `${relative(folder, directory)} resolves conflict (${resolved.issues.join(", ") || "unreadable documents"}); run lazurio organization check in it${resolved.issues.length === 1 && resolved.issues[0] === "canonical_projection_hash_invalid" ? ", and lazurio organization check --write rewrites the projection digest" : ""}, then bring the fix to its main by a pull request or fast-forward it from GitHub`,
       );
     steps.done("root", `present at ${relative(folder, directory)}`);
   } else {

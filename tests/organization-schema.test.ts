@@ -97,6 +97,7 @@ function inventoryOf(document: Manifest) {
 function pinned(document: Manifest, inventory: unknown): Manifest {
   try {
     const { hash } = expectedLegacyProjection(document, inventory);
+    if (document.compatibility === undefined) return document;
     return {
       ...document,
       compatibility: {
@@ -149,12 +150,8 @@ const readerOnlyCases: readonly Case[] = [
       workspace: { tabs: [{ name: emoji.repeat(21), modules: [] }] },
     }),
   ),
-  {
-    ...plain,
-    name: "stale projection digest",
-    accepted: false,
-    text: JSON.stringify(unverifiedManifest()),
-  },
+  // A stale projection digest is no refusal since LZD-0041 phase A: the
+  // readers report it and run the root (tests/organization-root-resolution).
   {
     ...plain,
     name: "inventory of another Organization",
@@ -249,10 +246,6 @@ const readerOnly = new Map<string, string>([
   [
     "settings: tab name of 21 emoji",
     "The reader counts a name's 40 characters in UTF-16 code units, JSON Schema in code points, so 21 to 40 characters outside the Basic Multilingual Plane pass only the schema.",
-  ],
-  [
-    "stale projection digest",
-    "The declared digest must be the digest of the projection of this manifest and its inventory: a projection fingerprint.",
   ],
   [
     "inventory of another Organization",

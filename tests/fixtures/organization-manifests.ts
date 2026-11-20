@@ -330,6 +330,14 @@ export const manifestVariants: readonly ManifestCase[] = [
       v.settings = everySetting;
     },
   ],
+  [
+    // Optional since LZD-0041 phase A: the compatibility projection's
+    // contract serves older readers only.
+    "without compatibility",
+    (v) => {
+      delete v.compatibility;
+    },
+  ],
 ];
 
 /** Changes of the verified manifest the canonical reader refuses. */
@@ -346,7 +354,7 @@ export const manifestRefusals: readonly ManifestCase[] = [
       delete v.schema_version;
     },
   ],
-  ...["kind", "manifests", "extensions", "compatibility"].map(
+  ...["kind", "manifests", "extensions"].map(
     (key): ManifestCase => [
       `missing ${key}`,
       (v) => {

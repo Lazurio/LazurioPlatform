@@ -727,7 +727,7 @@ posixTest(
 );
 
 posixTest(
-  "transition parity admits; drift, conflict, stale digest, malformed projection and missing inventory refuse before descendant inspection",
+  "transition parity admits; drift, conflict, malformed projection and missing inventory refuse before descendant inspection; a stale digest admits (LZD-0041 phase A)",
   async () => {
     await fixture(async (root, inventory) => {
       const document = declared(verified, inventory);
@@ -856,7 +856,8 @@ posixTest(
       await symlink("/nonexistent-workspace-fixture", join(root, "workspace"));
       await refused(false);
       await rm(join(root, "company.gen3.json"));
-      // A canonical edit without regenerated digest is stale, not `current`.
+      // A canonical edit without regenerated digest is reported, but it is
+      // `current` and admitted since LZD-0041 phase A.
       await writeFile(
         join(root, "lazurio.organization.json"),
         JSON.stringify({
@@ -864,17 +865,14 @@ posixTest(
           organization: { ...document.organization, display_name: "Edited" },
         }),
       );
-      const stale = {
-        kind: "organization-conflict",
+      expect(await readOrganizationApplications(root)).toMatchObject({
+        kind: "applications-observed",
+        admission: "executable",
         resolution: {
-          state: "conflict",
+          state: "current",
           issues: ["canonical_projection_hash_invalid"],
         },
-      } as const;
-      expect(await readOrganizationApplications(root)).toEqual(stale);
-      await expect(
-        resolveOrganizationApplication(root, selection),
-      ).rejects.toThrow("Selected Organization unavailable");
+      });
       await writeFile(
         join(root, "lazurio.organization.json"),
         JSON.stringify(document),
