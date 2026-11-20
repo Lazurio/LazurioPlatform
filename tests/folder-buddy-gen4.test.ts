@@ -198,11 +198,25 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   // remember: provenance required, entity is the subject's name or slug.
   expect(cs).toContain("`provenance` (povinná");
   expect(en).toContain("the name or slug of whom or what the fact is about");
+  // GBrain says "Not for facts about a person" of `share`, not `visibility`.
+  expect(cs).toContain("nepoužívej `share: true`");
+  expect(en).toContain("Do not use `share: true`");
   // put_page on an existing page needs the revision, and a refusal changes nothing.
   expect(cs).toContain("`revision_required` a nic nezmění");
   expect(en).toContain("ends with `revision_required` and changes nothing");
-  // Words only while meaning search did not run: empty is no proof.
-  expect(cs).toContain("`semantic_degraded`");
+  // The degraded signals the pinned GBrain really sends (no
+  // `semantic_degraded`): empty is no proof while one of them is there.
+  for (const text of [cs, en]) {
+    expect(text).not.toContain("semantic_degraded");
+    for (const signal of [
+      "`facts_degraded`",
+      "`search_degraded`",
+      "`degraded_recall`",
+      "`_meta.retrieval.degraded`",
+    ])
+      expect(text).toContain(signal);
+  }
+  expect(cs).toContain("neznamená, že tam nic není");
   expect(en).toContain("no proof that nothing is there");
 });
 

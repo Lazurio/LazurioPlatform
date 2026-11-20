@@ -468,8 +468,8 @@ const brainSkill: FolderSkill = {
       "- **Path:** through Executor (`executor`), where the Brain is a custom MCP server (Apps → Integrace). Find this Environment's Brain integration in `lazurio integrations list --json`. Take the tool names from what Executor offers you, not from memory. When the integration is missing, tell the user and do not connect it yourself.",
     ),
     t(
-      "- **Fakta a preference:** `remember` vždy s `provenance` (povinná: kdo a kdy) a s `entity`, tedy jménem nebo slugem toho, o kom nebo o čem fakt je (člověk, firma, projekt). Bez `entity` ji GBrain zkusí odvodit sám, ale spolehlivě to nejde, a `recall` fakta hledá právě podle ní. U faktů o člověku nepoužívej `visibility`.",
-      "- **Facts and preferences:** `remember` always with `provenance` (required: who and when) and with `entity`, the name or slug of whom or what the fact is about (a person, a company, a project). Without `entity` GBrain tries to infer it, which is not reliable, and `recall` finds facts by it. Do not use `visibility` for facts about a person.",
+      "- **Fakta a preference:** `remember` vždy s `provenance` (povinná: kdo a kdy) a s `entity`, tedy jménem nebo slugem toho, o kom nebo o čem fakt je (člověk, firma, projekt). Bez `entity` ji GBrain zkusí odvodit sám, ale spolehlivě to nejde, a `recall` fakta hledá právě podle ní. U faktů o člověku nepoužívej `share: true`, které fakt zpřístupní všem čtenářům zdroje.",
+      "- **Facts and preferences:** `remember` always with `provenance` (required: who and when) and with `entity`, the name or slug of whom or what the fact is about (a person, a company, a project). Without `entity` GBrain tries to infer it, which is not reliable, and `recall` finds facts by it. Do not use `share: true`, which makes the fact readable to every reader of the source, for facts about a person.",
     ),
     t(
       "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `put_page`, `edit_page`. Stránku priorit přepisuješ; nedělej z ní desítky poznámek.",
@@ -480,8 +480,8 @@ const brainSkill: FolderSkill = {
       "- **Rewriting an existing page:** `put_page` without `expected_revision` ends with `revision_required` and changes nothing. First `get_page`, then the write with its `expected_revision`. `force: true` only to overwrite another version on purpose.",
     ),
     t(
-      "- **Prázdný výsledek:** dokud odpověď `recall` hlásí, že hledání podle významu neběželo (`semantic_degraded`), hledá se jen podle slov a prázdný nebo chudý výsledek neznamená, že tam nic není. Zkus jiná slova, `get_page` nebo `entity`.",
-      "- **An empty result:** while the `recall` answer reports that meaning search did not run (`semantic_degraded`), it matches words only, and an empty or thin result is no proof that nothing is there. Try other words, `get_page` or `entity`.",
+      "- **Neúplný výsledek:** prázdný nebo chudý výsledek neznamená, že tam nic není, když odpověď hlásí, že některá část hledání neběžela: v `recall` pole `facts_degraded` (fakta bez hledání podle významu, důvod v `reason`) nebo `search_degraded` (hledání jen podle slov), jinde upozornění `degraded_recall` nebo `_meta.retrieval.degraded` (vynechaná fáze, třeba přeřazení nebo embedding). Zkus jiná slova, `get_page` nebo `entity`; u dočasné chyby (`timeout`, `rate_limited`) zopakuj dotaz za chvíli.",
+      "- **An incomplete result:** an empty or thin result is no proof that nothing is there when the answer reports that part of the search did not run: in `recall` the field `facts_degraded` (facts without meaning search, the reason in `reason`) or `search_degraded` (words only), elsewhere the notice `degraded_recall` or `_meta.retrieval.degraded` (a stage left out, such as the rerank or the embedding). Try other words, `get_page` or `entity`; after a transient failure (`timeout`, `rate_limited`) repeat the call a little later.",
     ),
     t(
       "- **Ověření:** po každém zápisu ho přečti zpět. Zdraví Brainu: `get_brain_health`.",
