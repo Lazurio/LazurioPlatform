@@ -679,6 +679,10 @@ const brainRules: readonly Text[] = [
     "- **What belongs there.** What has to last, write with `remember`: the user's personal notes and preferences, agreements, decisions and what you promised. For an Organization's work only a short description and a link to its place in the Organization (a plan, an issue, a pull request); its content, data and state stay in its repositories and applications (0180, 0246).",
   ),
   t(
+    '- **Úpravy stránek.** Existující stránku měň přes `edit_page` (`expected_revision` z `get_page` s `include_content: true`, přesný `old_text` a `new_text`). `put_page` jen pro novou stránku nebo přepis celé stránky vlastním textem, nikdy z přečteného výpisu: text z `get_page` nebo `search` může přijít obalený jako citace (`quoted: "transcript"`) a obal by se uložil do stránky.',
+    '- **Editing pages.** Change an existing page with `edit_page` (`expected_revision` from `get_page` with `include_content: true`, an exact `old_text` and `new_text`). `put_page` only for a new page or a rewrite of a whole page with your own text, never from a read: text from `get_page` or `search` may come wrapped as a quote (`quoted: "transcript"`) and the wrapper would be stored in the page.',
+  ),
+  t(
     "- **Podpis.** Všichni agenti tohoto Prostředí mají do Brainu jeden společný přístup; kdo co zapsal, říká podpis. Pole `provenance` každého zápisu proto nese, odkud to víš, datum a kdo zapisuje: druh agenta a vlákno (například `Claude Code · T3 thread <UUID>`).",
     "- **Signature.** All agents of this Environment share one access to the Brain; the signature says who wrote what. So the `provenance` of every write carries where you learned it, the date and who writes: the kind of agent and the thread (for example `Claude Code · T3 thread <UUID>`).",
   ),
