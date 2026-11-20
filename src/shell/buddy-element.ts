@@ -33,7 +33,9 @@ import { icon } from "./icons";
 // the page as the panel (`show`), as a modal over it in full screen
 // (`showModal`, so the page behind is inert and Escape asks to return), and
 // closed with the frame kept alive inside (a frame moved to another parent
-// would load again). Full screen covers the whole window, so the way back
+// would load again). Where the page follows Buddy GEN4's sign, the bubble
+// drops the frame of a closed window and this removes it, so that nothing
+// hidden reads his answers as seen (buddy-bubble.ts). Full screen covers the whole window, so the way back
 // is Escape or the frame's own control. The guide's layer stands after the
 // bubble in the same shadow root (guide-layer.ts); while Buddy is out of the
 // launcher presenting an explanation, the launcher waits empty (`data-away`,

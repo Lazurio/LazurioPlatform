@@ -155,7 +155,8 @@ export type BuddyBubbleModel = Readonly<{
     sign: Exclude<ShellBuddySignalState, "quiet"> | null;
     spot: boolean;
   }>;
-  /** The frame, from the first open on; null before. */
+  /** The frame, from the first open on; null before, and where the page
+   * follows Buddy GEN4's sign also while his window is closed. */
   frame: BuddyFrameModel | null;
   /** Before the meeting the window shows this instead of the frame. */
   meeting: BuddyMeetingModel | null;
@@ -323,7 +324,23 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     });
     show(remembered(), "frame");
   }
-  const draw = () => seams.draw(model());
+  /** Where the page follows Buddy GEN4's sign, a closed window holds no
+   * frame. T3 Code counts a mounted view of the thread as the person
+   * looking at it, so a frame kept alive behind a closed window would read
+   * every answer as seen, and the sign would never say `answered`. The frame
+   * goes once the window is closed and no explanation it asked for still
+   * plays (that one still answers it), and loads anew at the next open. For
+   * Buddy GEN3, without a sign, the frame stays as before (F60). */
+  function dropHiddenFrame(): void {
+    if (frame === null || layout !== "closed" || asked !== null) return;
+    if ((seams.signal?.() ?? null) === null) return;
+    frame = null;
+    sender?.reset();
+  }
+  const draw = () => {
+    dropHiddenFrame();
+    seams.draw(model());
+  };
   // The page's language for the sign's words: the element's, else the
   // person's profile.
   const pageLang = (): "cs" | "en" => {
@@ -506,6 +523,8 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       asked = null;
       if (layout === "closed" && was.restore !== "closed")
         show(was.restore, "frame");
+      // A window that stays closed lets a GEN4 frame go now.
+      else draw();
     },
     /** The guide's figure, Buddy presenting an explanation, left the
      * launcher (true) or is back in it (false): the launcher waits empty

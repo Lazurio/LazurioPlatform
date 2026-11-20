@@ -1709,6 +1709,88 @@ test("Buddy GEN4's sign on the launcher: a badge and words per state, none while
   expect(last()?.launcher).toMatchObject({ badge: "1", sign: null });
 });
 
+test("Buddy GEN4's closed window holds no frame: an answer that comes after the person closed it shows by the launcher", () => {
+  const { bubble, page, last, fromFrame, contexts } = fakeBubble();
+  const sign = (state: ShellBuddySignal["state"]): ShellBuddySignal => ({
+    state,
+    since: state === "quiet" ? null : "2026-11-20T02:18:53.000Z",
+    request: state === "waiting" ? { kind: "question" } : null,
+    startedBy: state === "quiet" ? null : "person",
+  });
+  page.signal = sign("quiet");
+  bubble.update();
+  // The person opens his window and asks; the frame says it is ready.
+  bubble.toggle();
+  const first = last()?.frame ?? null;
+  expect(first).not.toBeNull();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(contexts()).toHaveLength(1);
+  // He closes it while Buddy works: no frame stays behind to read the
+  // answer as seen (T3 Code counts a mounted view as the person looking).
+  bubble.toggle();
+  expect(last()).toMatchObject({ layout: "closed", frame: null });
+  // The answer comes: the launcher says so.
+  page.signal = sign("answered");
+  bubble.update();
+  expect(last()?.launcher).toMatchObject({
+    sign: "answered",
+    badge: "",
+    label: "Buddy odpověděl",
+  });
+  // The gone frame is heard no more: its late request changes nothing.
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "fullscreen" });
+  expect(last()).toMatchObject({ layout: "closed", frame: null });
+  // Opened again: a new frame, which hears the context after its own ready.
+  bubble.toggle();
+  const second = last()?.frame ?? null;
+  expect(second).not.toBeNull();
+  expect(second).not.toBe(first);
+  expect(contexts()).toHaveLength(1);
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(contexts()).toHaveLength(2);
+  // The frame's own close control drops it too.
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "closed" });
+  expect(last()).toMatchObject({ layout: "closed", frame: null });
+});
+
+test("Buddy GEN4's frame stays while his window steps aside for an explanation it asked for, and goes once the window stays closed", () => {
+  const { bubble, page, last, fromFrame, log } = fakeBubble();
+  page.signal = {
+    state: "quiet",
+    since: null,
+    request: null,
+    startedBy: null,
+  };
+  bubble.update();
+  bubble.toggle();
+  const frame = last()?.frame ?? null;
+  fromFrame({ type: "lazurio.guide.play", v: 1, explainer: "files" });
+  // The window steps aside; the frame waits for the explanation's end.
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  bubble.guided({ type: "started", explainer: "files" });
+  page.playing = null;
+  bubble.guided({ type: "done", explainer: "files" });
+  expect(last()).toMatchObject({ layout: "panel", frame });
+  expect(
+    log.posted
+      .map(({ message }) => (message as { type: string }).type)
+      .filter((type) => type.startsWith("lazurio.guide.")),
+  ).toEqual(["lazurio.guide.started", "lazurio.guide.done"]);
+  // The person takes over while another plays and leaves it closed: the
+  // frame still hears the end, then goes.
+  fromFrame({ type: "lazurio.guide.play", v: 1, explainer: "vault" });
+  bubble.guided({ type: "started", explainer: "vault" });
+  bubble.toggle();
+  bubble.toggle();
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  bubble.guided({ type: "closed", explainer: "vault" });
+  expect(log.posted.at(-1)?.message).toMatchObject({
+    type: "lazurio.guide.closed",
+    explainer: "vault",
+  });
+  expect(last()).toMatchObject({ layout: "closed", frame: null });
+});
+
 test("the launcher's menu stands beside the launcher where it is, moved or not, and within the viewport", () => {
   const viewport = { width: 1280, height: 760 };
   const menu = { width: 200, height: 44 };
