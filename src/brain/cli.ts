@@ -15,6 +15,10 @@ export const brainHelp = `brain status [--json]
   who runs its server (Lazurio, the interim installer, Machines), the
   version answering on 127.0.0.1:3131 and the pinned one (${brainPin.version}),
   whether the brain is there, and which of Lazurio's keys are handed over.
+  Where an earlier installer runs it: the release a takeover would record
+  (interimRelease), every reason known now that would stop the takeover or
+  the move after it (takeoverBlockers, empty where none) and the brain's
+  size beside the room on the disk (brainRoom), from file sizes only.
   Nothing is changed and the network is not used.
 brain setup [--json]
   What the Launchpad starts after it starts on a Personal Environment:
@@ -60,9 +64,9 @@ export function brainStatusText(status: BrainStatus): string {
       ? "A memory is here without a unit; Lazurio leaves it as it is until a person decides."
       : `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
     adoptable:
-      status.interimRelease === null
-        ? `The memory runs from an earlier installer (${status.running ?? "not answering"}), whose release Lazurio cannot tell for sure; a takeover would be refused.`
-        : `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees.`,
+      (status.takeoverBlockers ?? []).length === 0
+        ? `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees, and nothing known now would stop it.`
+        : `The memory runs from an earlier installer (${status.running ?? "not answering"}); a takeover now would not go through: ${(status.takeoverBlockers ?? []).join(", ")}.`,
     machines: "The memory is run by Machines on this Environment.",
     foreign:
       "A unit of the memory (gbrain.service or its refresh) that Lazurio did not write, or cannot read, is in place; Lazurio leaves it alone.",

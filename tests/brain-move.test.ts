@@ -73,6 +73,8 @@ type Options = Readonly<{
     bunTag?: string | null;
     tag?: string;
   }>;
+  /** Room left on the disk (64 GiB where not given). */
+  freeBytes?: number | null;
 }>;
 
 async function stand(options: Options = {}) {
@@ -282,6 +284,8 @@ async function stand(options: Options = {}) {
     env: { HOME: paths.home, PATH: "/usr/bin:/bin", ...userRuntime },
     base: "http://127.0.0.1:3131",
     idle: async () => options.idle ?? true,
+    freeBytes: async () =>
+      options.freeBytes === undefined ? 64 * 1024 ** 3 : options.freeBytes,
     now: () => now,
     tries: 2,
     waitMs: 1,
@@ -434,6 +438,129 @@ describe("the interim installer's brain installed from a release tag", () => {
         "waits-consent",
       );
     }
+  });
+});
+
+describe("the check before a takeover tells what a consented run would meet", () => {
+  test("with nothing in the way the check is empty, gives the sizes, and the takeover goes through", async () => {
+    const { host, paths } = await stand({ consent: true, tagged: {} });
+    const status = await brainStatus(host);
+    expect(status).toMatchObject({
+      state: "adoptable",
+      interimRelease: { commit: "5586fb4", version: interimVersion },
+      takeoverBlockers: [],
+    });
+    const room = status.state === "unsupported" ? undefined : status.brainRoom;
+    // config.json, the admin token and the three keys, by their sizes.
+    expect(room?.brainFiles).toBe(5);
+    const mib = 1024 * 1024;
+    expect(room?.neededBytes).toBe(
+      3 * (room?.brainBytes as number) + 640 * mib + 768 * mib + 1024 * mib,
+    );
+    expect(room?.freeBytes).toBe(64 * 1024 ** 3);
+    expect(await brainSetup(host)).toMatchObject({ takeover: "taken-over" });
+    expect((await readBrainState(paths)).move?.result).toBe("done");
+  });
+
+  // Each blocker the check names, and what the consented run then does.
+  const cases: ReadonlyArray<{
+    blocker: string;
+    options?: Options;
+    arrange?: (s: Awaited<ReturnType<typeof stand>>) => Promise<void> | void;
+    result: Record<string, unknown>;
+    unitsKept: boolean;
+  }> = [
+    {
+      blocker: "release-unknown",
+      options: { tagged: { lock: null, bunTag: null } },
+      result: { takeover: "refused:release-unknown" },
+      unitsKept: true,
+    },
+    {
+      blocker: "not-running",
+      arrange: (s) => {
+        s.systemd.running = null;
+      },
+      result: { takeover: "refused:not-running" },
+      unitsKept: true,
+    },
+    {
+      blocker: "other-version",
+      arrange: (s) => {
+        s.systemd.running = "0.60.316.0";
+      },
+      result: { takeover: "refused:other-version" },
+      unitsKept: true,
+    },
+    {
+      blocker: "command-missing",
+      arrange: (s) => rm(s.paths.interimCommand),
+      result: { takeover: "refused:command-missing" },
+      unitsKept: true,
+    },
+    {
+      blocker: "disk",
+      options: { freeBytes: 1024 ** 3 },
+      result: { takeover: "refused:disk" },
+      unitsKept: true,
+    },
+    {
+      blocker: "waits-machines",
+      arrange: (s) => rm(join(s.root, "brain-handover")),
+      result: { server: "waits-machines" },
+      unitsKept: true,
+    },
+    {
+      blocker: "restore-failed",
+      arrange: (s) =>
+        writeBrainState(s.paths, {
+          takeover: { state: "restore-failed-reload", at: "2026-11-18" },
+        }),
+      result: { takeover: "restore-failed:reload" },
+      unitsKept: true,
+    },
+    {
+      blocker: "held",
+      arrange: (s) =>
+        writeBrainState(s.paths, {
+          move: {
+            to: brainPin.commit,
+            from: interimVersion,
+            at: "2026-11-18",
+            result: "held",
+          },
+        } as never),
+      // Taken over, and not moved: the pin was given up before.
+      result: { server: "held", takeover: "taken-over" },
+      unitsKept: false,
+    },
+  ];
+  for (const c of cases)
+    test(`${c.blocker}: named before, and the consented run meets it`, async () => {
+      const s = await stand({ consent: true, tagged: {}, ...c.options });
+      await c.arrange?.(s);
+      expect(await brainStatus(withoutConsent(s.host))).toMatchObject({
+        state: "adoptable",
+        takeoverBlockers: [c.blocker],
+      });
+      const before = await unitText(s.paths);
+      expect(await brainSetup(s.host)).toMatchObject(c.result);
+      if (c.unitsKept) {
+        expect(await unitText(s.paths)).toBe(before);
+        expect(s.calls.some((call) => call[2] === "stop")).toBe(false);
+      }
+    });
+
+  test("room that cannot be told counts as too little", async () => {
+    const { host } = await stand({
+      consent: true,
+      tagged: {},
+      freeBytes: null,
+    });
+    expect(await brainStatus(host)).toMatchObject({
+      takeoverBlockers: ["disk"],
+    });
+    expect(await brainSetup(host)).toMatchObject({ takeover: "refused:disk" });
   });
 });
 

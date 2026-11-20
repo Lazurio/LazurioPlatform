@@ -1,4 +1,4 @@
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import type { ProcessRunner } from "../update/self-check";
@@ -11,6 +11,7 @@ import {
   brainRefreshTimer,
   brainUnit,
 } from "./pin";
+import { brainRoom, type FreeBytes, roomShort } from "./room";
 import { unitOwner, writeBrainUnits } from "./units";
 
 // The interim installer's brain taken over in place (plan LZD-0033 R11a,
@@ -30,7 +31,15 @@ export type TakeoverHost = Readonly<{
   base: string;
   env: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
+  freeBytes?: FreeBytes;
 }>;
+
+/** Whether the interim installer's command is there (the units name it). */
+export const interimPresent = (paths: BrainPaths) =>
+  stat(paths.interimCommand).then(
+    () => true,
+    () => false,
+  );
 
 export type TakeoverResult =
   | "taken-over"
@@ -239,6 +248,11 @@ export async function takeOverInterim(
   const running = await healthVersion(host.http, host.base);
   if (running === null) return refuse("not-running");
   if (running !== release.version) return refuse("other-version");
+  // The way back of the move after it starts this command again.
+  if (!(await interimPresent(paths))) return refuse("command-missing");
+  // Room for the copies of the brain, the pin and the model: a copy that
+  // fails for want of room would hold the pin for good.
+  if (roomShort(await brainRoom(paths, host.freeBytes))) return refuse("disk");
   // A copy of every unit of these names that is there, for the way back.
   const copy = interimUnitsCopy(paths);
   const kept: Record<string, Buffer> = {};

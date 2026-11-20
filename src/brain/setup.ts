@@ -169,6 +169,7 @@ const takeoverHost = (host: SetupHost) => ({
   base: host.base ?? brainUrl,
   env: host.env,
   ...(host.now === undefined ? {} : { now: host.now }),
+  ...(host.freeBytes === undefined ? {} : { freeBytes: host.freeBytes }),
 });
 
 /** The move to the pin and what follows it. */
