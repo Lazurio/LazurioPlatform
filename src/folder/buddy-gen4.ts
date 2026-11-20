@@ -421,6 +421,15 @@ const threadsSkill: FolderSkill = {
       "- Hlídání: `watch_pull_request` u pull requestů, `schedule_task` pro obchůzky vláken, která hlídáš.",
       "- Watching: `watch_pull_request` for pull requests, `schedule_task` for rounds of the threads you watch.",
     ),
+    // Findings of the first converted person (#1116, point 4), from trying.
+    t(
+      "- Na obchůzce se neptej nástrojem na otázky: dokud otázka čeká na odpověď, naplánované úlohy vlákna neběží, takže by se zastavila i obchůzka. Co potřebuješ od uživatele, zapiš a zeptej se, až s ním mluvíš.",
+      "- Do not ask with the question tool on a round: while a question waits for its answer, the thread's scheduled tasks do not run, so the round itself would stop. Write down what you need from the user and ask when you talk with the user.",
+    ),
+    t(
+      "- Stav z první věty stavového souboru jiného vlákna ověř u zdroje (pull request, běh, issue, vlákno), než podle něj jednáš nebo ho hlásíš: soubor může být pozadu.",
+      "- Check a state taken from the first sentence of another thread's status file at its source (the pull request, run, issue or thread) before you act on it or report it: the file may lag behind.",
+    ),
     blank,
     t("## V jiném Prostředí", "## In another Environment"),
     t(

@@ -184,6 +184,19 @@ test("Buddy GEN3 counts as present while ~/.t3-buddy or ~/.hermes exists in any 
   }
 });
 
+test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
+  const skill = (locale: "cs" | "en") =>
+    renderBuddyFolder(source(locale), "buddy", persona)[
+      ".agents/skills/buddy-vlakna/SKILL.md"
+    ];
+  expect(skill("cs")).toContain("Na obchůzce se neptej nástrojem na otázky");
+  expect(skill("cs")).toContain("naplánované úlohy vlákna neběží");
+  expect(skill("cs")).toContain("ověř u zdroje");
+  expect(skill("en")).toContain("Do not ask with the question tool on a round");
+  expect(skill("en")).toContain("the thread's scheduled tasks do not run");
+  expect(skill("en")).toContain("at its source");
+});
+
 test("Buddy GEN4 works with threads and the Brain, not with Hermes, Telegram or bots through Delegace", () => {
   for (const locale of locales)
     for (const profile of ["buddy", "employee"] as const) {
