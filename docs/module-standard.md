@@ -1200,17 +1200,30 @@ What "ready as an Application" means for each generation, and how
     and `data/v2/`, a website without a Module manifest).
   - `app/v3` keeps its records in repository-db: a data repository of their own,
     `<slug>-data`, mounted as `db/`. It is the default for a new Module with data.
-    A record is one document, `<id>.yaml` in a directory per collection, because
-    repository-db merges canonical YAML record by record: two copies that publish
+    A record is one document, `<id>.yaml` in a directory per collection.
+    repository-db merges canonical YAML semantically, so two copies that publish
     at the same time (two Environments, or the Application and an Environment)
-    then conflict only when both changed the same record. A collection kept in
-    one file, such as a JSON array with a collection-level `updatedAt`, conflicts
-    on every two concurrent publications, and the copy that publishes second
-    stays in conflict until `conflict --abort`
-    ([repository-db#46](https://github.com/Lazurio/repository-db/issues/46)). A
-    Module that keeps such a file recovers by itself: it aborts, reads the fresh
-    state, repeats its own write, and refuses with a typed answer when the
-    record it changed has changed meanwhile.
+    and changed different records get no merge conflict. They can still get a
+    validation conflict when their changes together break a rule across records
+    (repository-db `docs/operations.md`, `publish_conflict`). A collection kept
+    in one file gets no record-level merge: Git merges only text changes that do
+    not overlap, so a field of the whole collection that every save rewrites,
+    such as `updatedAt`, makes two concurrent publications of that file conflict
+    even when they changed different records. The second publisher's checkout
+    then stays in conflict
+    ([repository-db#46](https://github.com/Lazurio/repository-db/issues/46)
+    reproduces it with a JSON collection). A Module that keeps such a file
+    recovers by itself, by the engine's own way out:
+    1. It keeps the operation it meant to do and the version of the record it
+       started from, outside the checkout.
+    2. `conflict --abort` (its commit becomes a draft again), `discard --record`
+       of the conflicting file, `sync --pull` (the other side comes in).
+    3. It compares the record it changed in the fresh file with the version it
+       started from. Unchanged: it repeats its operation and publishes again.
+       Changed: it refuses with `record_changed` and overwrites nothing.
+
+    When the other side has converged instead, `finish-send --head
+    <pendingHead>` sends the waiting commit.
   - `app/v4` keeps its records in a Dolt database in the Server services of the
     Organization's server (root decision 0209, decided, not yet deployed): on GitHub
     are the App, the process and the schema, not the rows. A Dolt outside the server
