@@ -161,17 +161,31 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
     options: Readonly<{
       signal?: string;
       events?: string;
-      timeout?: "signal" | "events";
+      /** What `t3 --version` prints (T3 Code 0.1.10-lazurio.3 where not
+       * given), and its exit code. */
+      version?: string;
+      versionExit?: number;
+      timeout?: "signal" | "events" | "version";
     }>,
   ) => {
     const calls: string[][] = [];
     const run: ToolRunner = async (argv) => {
       calls.push([...argv]);
-      const verb = argv[1] === "lazurio" ? "signal" : "events";
+      const verb =
+        argv[1] === "lazurio"
+          ? "signal"
+          : argv[1] === "--version"
+            ? "version"
+            : "events";
       if (options.timeout === verb) return "timeout";
       return {
-        exitCode: 0,
-        stdout: (verb === "signal" ? options.signal : options.events) ?? "",
+        exitCode: verb === "version" ? (options.versionExit ?? 0) : 0,
+        stdout:
+          (verb === "signal"
+            ? options.signal
+            : verb === "version"
+              ? (options.version ?? "t3 v0.1.10-lazurio.3\n")
+              : options.events) ?? "",
         stderr: "",
       };
     };
@@ -232,15 +246,78 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
     ]);
   });
 
-  test("no_thread is unknown: T3 Code answers it also when finding or reading his thread failed", async () => {
-    // T3 Code 0.1.10-lazurio.3 maps a failed search or read to `no-thread`
-    // (`readBuddySignal`), which the CLI prints as `no_thread`: whether his
-    // thread is absent or could not be read, the brain waits.
+  const noThread = `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`;
+
+  test("no_thread is idle where his T3 Code tells it from a failed read (0.1.10-lazurio.4 on)", async () => {
+    for (const version of [
+      "t3 v0.1.10-lazurio.4\n",
+      "t3 v0.1.10-lazurio.12\n",
+      "t3 v0.1.11-lazurio.1\n",
+      "t3 v0.2.0-lazurio.1\n",
+      "t3 v1.0.0-lazurio.1\n",
+    ]) {
+      const stand = t3({ signal: noThread, version });
+      expect(await ask(stand)).toBe("idle");
+      // His version is asked only after a no_thread, and no events.
+      expect(stand.calls).toEqual([
+        [
+          "/fake/t3",
+          "lazurio",
+          "buddy",
+          "signal",
+          "--json",
+          "--base-dir",
+          "/home/bob/.t3",
+        ],
+        ["/fake/t3", "--version"],
+      ]);
+    }
+    // Through buddyIdle, as setup asks it: idle, so the move may run.
+    const stand = t3({ signal: noThread, version: "t3 v0.1.10-lazurio.4\n" });
+    expect(
+      await buddyIdle({
+        home: "/home/bob",
+        service: systemd("inactive"),
+        activeWork: work("idle"),
+        env: {},
+        generation: 4,
+        gen4Turn: () => ask(stand),
+      }),
+    ).toBe(true);
+  });
+
+  test("a failed read (unavailable) is unknown on every T3 Code, and its version is not asked", async () => {
     const stand = t3({
-      signal: `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`,
+      signal: `${JSON.stringify({ error: { code: "unavailable", message: "x" } })}\n`,
+      version: "t3 v0.1.10-lazurio.4\n",
     });
     expect(await ask(stand)).toBe("unknown");
     expect(stand.calls).toHaveLength(1);
+  });
+
+  test("no_thread is unknown on any other T3 Code, or where its version is not known for sure", async () => {
+    for (const options of [
+      // 0.1.10-lazurio.3 maps a failed search or read to `no_thread` too.
+      { version: "t3 v0.1.10-lazurio.3\n" },
+      { version: "t3 v0.1.9-lazurio.12\n" },
+      // A preview build or upstream's release: not known to carry the fix.
+      { version: "t3 v0.1.10-preview.20261120.1\n" },
+      { version: "t3 v0.1.11\n" },
+      { version: "" },
+      { version: "DESCRIPTION\n" },
+      { version: "t3 v0.1.10-lazurio.4\n", versionExit: 1 },
+      { version: "t3 v0.1.10-lazurio.4\n", timeout: "version" as const },
+    ])
+      expect(await ask(t3({ signal: noThread, ...options }))).toBe("unknown");
+  });
+
+  test("no_thread is unknown on T3 Code 0.1.10-lazurio.3: it answers it also when finding or reading his thread failed", async () => {
+    // T3 Code 0.1.10-lazurio.3 maps a failed search or read to `no-thread`
+    // (`readBuddySignal`), which the CLI prints as `no_thread`: whether his
+    // thread is absent or could not be read, the brain waits.
+    const stand = t3({ signal: noThread });
+    expect(await ask(stand)).toBe("unknown");
+    expect(stand.calls).toHaveLength(2);
     // Through buddyIdle, as setup asks it: busy, so nothing stops.
     expect(
       await buddyIdle({
