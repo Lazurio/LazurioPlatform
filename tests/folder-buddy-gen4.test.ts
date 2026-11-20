@@ -204,6 +204,27 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   // put_page on an existing page needs the revision, and a refusal changes nothing.
   expect(cs).toContain("`revision_required` a nic nezmění");
   expect(en).toContain("ends with `revision_required` and changes nothing");
+  // A page changes through edit_page; the quote wrapper the pinned GBrain may
+  // put around any read (quoted: "transcript") is never part of a write.
+  expect(cs).toContain("**Úprava existující stránky:** vždy `edit_page`");
+  expect(en).toContain("**Changing an existing page:** always `edit_page`");
+  for (const text of [cs, en]) {
+    expect(text).toContain("`include_content: true`");
+    expect(text).toContain('`quoted: "transcript"`');
+  }
+  expect(cs).toContain("Obal není součást textu stránky");
+  expect(en).toContain("The wrapper is not part of the page's text");
+  // new_text is the wanted replacement, never taken from the read.
+  expect(cs).toContain(
+    "`new_text` napiš sám jako požadovanou náhradu, bez obalu",
+  );
+  expect(en).toContain(
+    "write `new_text` yourself as the replacement you want, without the wrapper",
+  );
+  for (const text of [cs, en])
+    expect(text).toContain("`edits: [{ old_text, new_text }]`");
+  expect(cs).not.toContain("Stránku priorit přepisuješ");
+  expect(en).not.toContain("You rewrite the priorities page");
   // The degraded signals the pinned GBrain really sends (no
   // `semantic_degraded`): empty is no proof while one of them is there.
   for (const text of [cs, en]) {
