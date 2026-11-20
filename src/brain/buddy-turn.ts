@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { ActiveWork } from "../buddy/gateway-refresh";
 import type { ToolRunner } from "../tools/status";
@@ -9,11 +10,15 @@ import type { ToolRunner } from "../tools/status";
 // - `t3 lazurio buddy signal --json` names Buddy's thread (`threadId`);
 // - `t3 events --thread <id>` prints that thread's line with its `status`,
 //   then a `synced` line.
-// Fail closed: every refusal, `no_thread` included, is `unknown`, which the
-// brain takes for work. In T3 Code 0.1.10-lazurio.3 `no_thread` also stands
-// for a failed search for his thread or a failed read of its records
-// (`readBuddySignal` maps both failures to it), so it does not prove that no
-// turn runs. So are an answer that is not that JSON (a T3 Code before
+// Fail closed: every refusal is `unknown`, which the brain takes for work,
+// with one exception. `no_thread` is `idle` (a Buddy without a thread runs no
+// turn) only where the T3 Code server that answered tells it from a failed
+// read: from 0.1.10-lazurio.4 (Lazurio/t3code#239) a thread confirmed absent
+// answers `no_thread` and a failed read `unavailable`. The server's own
+// record names its version (`server-runtime.json`); the CLI's does not count. Before it, `no_thread` also
+// stood for a failed search for his thread or a failed read of its records,
+// so it did not prove that no turn runs (Lazurio/LazurioPlatform#1111). So
+// are `unknown` an answer that is not that JSON (a T3 Code before
 // 0.1.10-lazurio.3 prints its help for `signal`), a thread missing from the
 // events, no `synced` line, and no answer in time.
 
@@ -57,6 +62,72 @@ function jsonLines(
   return lines;
 }
 
+/** Whether a T3 Code server of this version (`0.1.10-lazurio.4`) tells a
+ * thread confirmed absent from a failed read: a release of Lazurio's fork
+ * from 0.1.10-lazurio.4 on. Any other version (upstream's, a preview build,
+ * one that cannot be read) does not, as far as Lazurio can know. */
+export function tellsNoThread(version: string): boolean {
+  const found = /^v?(\d+)\.(\d+)\.(\d+)-lazurio\.(\d+)$/.exec(version.trim());
+  if (found === null) return false;
+  const mine = found.slice(1).map(Number);
+  // Compared part by part: major, minor, patch, then the fork's release.
+  const fixed = [0, 1, 10, 4];
+  for (const [i, part] of fixed.entries()) {
+    const own = mine[i] ?? 0;
+    if (own !== part) return own > part;
+  }
+  return true;
+}
+
+/** The T3 Code server that answers the CLI, as it records itself in
+ * `<base>/userdata/server-runtime.json` (the file the CLI finds it by): its
+ * process, when it started and its version. Null where the file cannot be
+ * read, has another shape, names no version or a process that is not
+ * running. The CLI's own version says nothing of it: an update can point
+ * the CLI at a newer release while the older server runs on until it is
+ * restarted, and `no_thread` is the server's answer. */
+type RunningServer = Readonly<{
+  pid: number;
+  startedAt: string;
+  version: string;
+}>;
+
+async function runningServer(
+  baseDir: string,
+  alive: (pid: number) => boolean,
+): Promise<RunningServer | null> {
+  try {
+    const state = JSON.parse(
+      await readFile(join(baseDir, "userdata", "server-runtime.json"), "utf8"),
+    ) as Record<string, unknown>;
+    const { version, pid, startedAt, serverVersion } = state;
+    if (
+      version !== 1 ||
+      typeof pid !== "number" ||
+      !Number.isInteger(pid) ||
+      pid <= 0 ||
+      typeof startedAt !== "string" ||
+      typeof serverVersion !== "string" ||
+      !alive(pid)
+    )
+      return null;
+    return { pid, startedAt, version: serverVersion };
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a process runs: a signal 0 to it, which only checks. */
+export const processAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // Running, but not ours to signal.
+    return (error as NodeJS.ErrnoException).code === "EPERM";
+  }
+};
+
 /** Buddy GEN4's turn, as his T3 Code says it: `t3` is the person's T3 Code
  * CLI, `home` their home (T3 Code's data in `<home>/.t3`). */
 export async function buddyGen4Turn(
@@ -65,9 +136,14 @@ export async function buddyGen4Turn(
     t3: string;
     home: string;
     env: Readonly<Record<string, string>>;
+    /** Whether a process runs (`processAlive` where not given). */
+    alive?: (pid: number) => boolean;
   }>,
 ): Promise<ActiveWork> {
   const baseDir = join(input.home, ".t3");
+  const alive = input.alive ?? processAlive;
+  // The server before the question, to compare with the one after it.
+  const before = await runningServer(baseDir, alive);
   const ask = async (args: readonly string[]) => {
     const result = await input
       .run([input.t3, ...args, "--base-dir", baseDir], timeoutMs, input.env)
@@ -76,9 +152,30 @@ export async function buddyGen4Turn(
   };
   const signal = await ask(["lazurio", "buddy", "signal", "--json"]);
   const answer = signal?.length === 1 ? signal[0] : undefined;
-  // A refusal, whatever its shape (`{"error": …}`, `{"error": null}`), and
-  // `no_thread` too, leaves the brain waiting.
-  if (answer === undefined || "error" in answer) return "unknown";
+  if (answer === undefined) return "unknown";
+  if ("error" in answer) {
+    // `{"error":{"code":"no_thread",…}}`: no thread, where the server that
+    // answered says so only when it knows: the same running server (its
+    // process and start) before and after the question, of a version that
+    // tells it from a failed read. Every other refusal, whatever its shape
+    // (`unavailable`, `{"error": null}`), leaves the brain waiting.
+    const error = answer.error as { code?: unknown } | null;
+    if (
+      typeof error !== "object" ||
+      error === null ||
+      error.code !== "no_thread"
+    )
+      return "unknown";
+    const after = await runningServer(baseDir, alive);
+    return before !== null &&
+      after !== null &&
+      before.pid === after.pid &&
+      before.startedAt === after.startedAt &&
+      before.version === after.version &&
+      tellsNoThread(after.version)
+      ? "idle"
+      : "unknown";
+  }
   const threadId = answer.threadId;
   if (typeof threadId !== "string" || threadId.length === 0) return "unknown";
   const events = await ask(["events", "--thread", threadId]);

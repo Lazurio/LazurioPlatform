@@ -155,19 +155,48 @@ describe("is Buddy idle", () => {
 
 describe("Buddy GEN4's turn, as his T3 Code says it", () => {
   const thread = "mcp:00000000-0000-4000-8000-000000000001";
+  /** The record a T3 Code server writes of itself
+   * (`~/.t3/userdata/server-runtime.json`), fictional values; a string is
+   * written as it is, null leaves the file out. */
+  type Runtime = Record<string, unknown> | string | null;
+  const server = (serverVersion: string, pid = 4242): Runtime => ({
+    version: 1,
+    pid,
+    port: 3773,
+    origin: "http://127.0.0.1:3773",
+    startedAt: "2026-11-20T20:00:00.000Z",
+    serviceManaged: true,
+    serverVersion,
+  });
   /** A stand-in of `t3`: `signal` and `events` as T3 Code 0.1.10-lazurio.3
-   * prints them (fictional ids), or what an earlier one prints. */
+   * prints them (fictional ids), or what an earlier one prints; the server's
+   * record before the question (0.1.10-lazurio.3 where not given) and, where
+   * `restarted` gives one, the record a server started meanwhile wrote. */
   const t3 = (
     options: Readonly<{
       signal?: string;
       events?: string;
       timeout?: "signal" | "events";
+      runtime?: Runtime;
+      restarted?: Runtime;
     }>,
   ) => {
     const calls: string[][] = [];
-    const run: ToolRunner = async (argv) => {
+    const stand = { calls, home: "", run: undefined as unknown as ToolRunner };
+    const write = async (runtime: Runtime) => {
+      const file = join(stand.home, ".t3", "userdata", "server-runtime.json");
+      await mkdir(join(stand.home, ".t3", "userdata"), { recursive: true });
+      if (runtime === null) return;
+      await writeFile(
+        file,
+        typeof runtime === "string" ? runtime : JSON.stringify(runtime),
+      );
+    };
+    stand.run = async (argv) => {
       calls.push([...argv]);
       const verb = argv[1] === "lazurio" ? "signal" : "events";
+      if (verb === "signal" && options.restarted !== undefined)
+        await write(options.restarted);
       if (options.timeout === verb) return "timeout";
       return {
         exitCode: 0,
@@ -175,18 +204,32 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
         stderr: "",
       };
     };
-    return { run, calls };
+    return Object.assign(stand, {
+      prepare: async () => {
+        stand.home = await mkdtemp(join(tmpdir(), "brain-turn-"));
+        await write(
+          options.runtime === undefined
+            ? server("0.1.10-lazurio.3")
+            : options.runtime,
+        );
+      },
+    });
   };
   const signalOf = `${JSON.stringify({ state: "answered", threadId: thread, since: null })}\n`;
   const eventsWith = (status: string) =>
     `${JSON.stringify({ kind: "thread", sequence: 7, threadId: thread, status })}\n${JSON.stringify({ kind: "synced", sequence: 7 })}\n`;
-  const ask = (stand: ReturnType<typeof t3>) =>
-    buddyGen4Turn({
+  /** Process 4242 and 4243 run; any other does not. */
+  const alive = (pid: number) => pid === 4242 || pid === 4243;
+  const ask = async (stand: ReturnType<typeof t3>) => {
+    await stand.prepare();
+    return buddyGen4Turn({
       run: stand.run,
       t3: "/fake/t3",
-      home: "/home/bob",
+      home: stand.home,
       env: {},
+      alive,
     });
+  };
 
   test("a turn under way is busy; idle and every ended state are idle; a state of neither is unknown", async () => {
     for (const status of [
@@ -218,27 +261,106 @@ describe("Buddy GEN4's turn, as his T3 Code says it", () => {
   test("it asks his T3 Code in ~/.t3 for his thread, then for that thread only", async () => {
     const stand = t3({ signal: signalOf, events: eventsWith("idle") });
     await ask(stand);
+    const base = join(stand.home, ".t3");
     expect(stand.calls).toEqual([
-      [
-        "/fake/t3",
-        "lazurio",
-        "buddy",
-        "signal",
-        "--json",
-        "--base-dir",
-        "/home/bob/.t3",
-      ],
-      ["/fake/t3", "events", "--thread", thread, "--base-dir", "/home/bob/.t3"],
+      ["/fake/t3", "lazurio", "buddy", "signal", "--json", "--base-dir", base],
+      ["/fake/t3", "events", "--thread", thread, "--base-dir", base],
     ]);
   });
 
-  test("no_thread is unknown: T3 Code answers it also when finding or reading his thread failed", async () => {
+  const noThread = `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`;
+
+  test("no_thread is idle where the server that answered tells it from a failed read (0.1.10-lazurio.4 on)", async () => {
+    for (const version of [
+      "0.1.10-lazurio.4",
+      "0.1.10-lazurio.12",
+      "0.1.11-lazurio.1",
+      "0.2.0-lazurio.1",
+      "1.0.0-lazurio.1",
+    ]) {
+      const stand = t3({ signal: noThread, runtime: server(version) });
+      expect(await ask(stand)).toBe("idle");
+      // The signal only: no events, and never the CLI's version.
+      expect(stand.calls).toHaveLength(1);
+    }
+    // Through buddyIdle, as setup asks it: idle, so the move may run.
+    const stand = t3({
+      signal: noThread,
+      runtime: server("0.1.10-lazurio.4"),
+    });
+    expect(
+      await buddyIdle({
+        home: "/home/bob",
+        service: systemd("inactive"),
+        activeWork: work("idle"),
+        env: {},
+        generation: 4,
+        gen4Turn: () => ask(stand),
+      }),
+    ).toBe(true);
+  });
+
+  test("a failed read (unavailable) is unknown on every T3 Code", async () => {
+    const stand = t3({
+      signal: `${JSON.stringify({ error: { code: "unavailable", message: "x" } })}\n`,
+      runtime: server("0.1.10-lazurio.4"),
+    });
+    expect(await ask(stand)).toBe("unknown");
+  });
+
+  test("a newer CLI before an older running server: its no_thread, a failed read there, is unknown", async () => {
+    // An update pointed the CLI at 0.1.10-lazurio.4, and the 0.1.10-lazurio.3
+    // service runs on until it is restarted: it answers a failed read of
+    // Buddy's thread with `no_thread`. Only the server's own record counts.
+    const stand = t3({
+      signal: noThread,
+      runtime: server("0.1.10-lazurio.3"),
+    });
+    expect(await ask(stand)).toBe("unknown");
+    expect(stand.calls.some((call) => call.includes("--version"))).toBe(false);
+  });
+
+  test("no_thread is unknown where the answering server is not known for sure", async () => {
+    const recorded = server("0.1.10-lazurio.4") as Record<string, unknown>;
+    for (const options of [
+      // Earlier releases and builds not known to carry the fix.
+      { runtime: server("0.1.9-lazurio.12") },
+      { runtime: server("0.1.10-preview.20261120.1") },
+      { runtime: server("0.1.11") },
+      // No record, one that is not JSON, of another shape or without a
+      // version (a server before it recorded one), or of a process that does
+      // not run.
+      { runtime: null },
+      { runtime: "not json" },
+      { runtime: { ...recorded, version: 2 } },
+      { runtime: { ...recorded, pid: "4242" } },
+      { runtime: { ...recorded, serverVersion: undefined } },
+      { runtime: server("0.1.10-lazurio.4", 9999) },
+      // A server restarted during the question: the answer may be the
+      // earlier one's, whichever version follows.
+      {
+        runtime: server("0.1.10-lazurio.3"),
+        restarted: server("0.1.10-lazurio.4", 4243),
+      },
+      {
+        runtime: server("0.1.10-lazurio.4"),
+        restarted: server("0.1.10-lazurio.4", 4243),
+      },
+      {
+        runtime: server("0.1.10-lazurio.4"),
+        restarted: { ...recorded, startedAt: "2026-11-20T20:05:00.000Z" },
+      },
+      // Gone during the question.
+      { runtime: server("0.1.10-lazurio.4"), restarted: "" },
+    ])
+      expect(await ask(t3({ signal: noThread, ...options }))).toBe("unknown");
+  });
+
+  test("no_thread is unknown on T3 Code 0.1.10-lazurio.3: it answers it also when finding or reading his thread failed", async () => {
     // T3 Code 0.1.10-lazurio.3 maps a failed search or read to `no-thread`
     // (`readBuddySignal`), which the CLI prints as `no_thread`: whether his
     // thread is absent or could not be read, the brain waits.
-    const stand = t3({
-      signal: `${JSON.stringify({ error: { code: "no_thread", message: "x" } })}\n`,
-    });
+    const stand = t3({ signal: noThread });
     expect(await ask(stand)).toBe("unknown");
     expect(stand.calls).toHaveLength(1);
     // Through buddyIdle, as setup asks it: busy, so nothing stops.
