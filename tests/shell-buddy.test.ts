@@ -900,6 +900,47 @@ test("a frame hidden behind his hello hears it is not shown: the frame exists, t
   expect(shown()).toEqual([true, false, true]);
 });
 
+test("a frame loaded anew behind his hello hears its ready answered, that it is hidden, and stays hidden until opened", () => {
+  const { bubble, last, fromFrame, log, page } = fakeBubble();
+  const sent = () =>
+    log.posted
+      .map(({ message }) => message as { type: string; shown?: boolean })
+      .filter((message) => message.type.startsWith("lazurio.buddy."))
+      .map((message) =>
+        message.type === "lazurio.buddy.shown"
+          ? `shown:${message.shown}`
+          : message.type,
+      );
+  bubble.update();
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(sent()).toEqual(["shown:true", "lazurio.buddy.context"]);
+  // The meeting returns: the window closes.
+  page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
+  bubble.update();
+  expect(sent()).toEqual([
+    "shown:true",
+    "lazurio.buddy.context",
+    "shown:false",
+  ]);
+  // The kept frame loads anew (a sign-in) while the hello is shown: its
+  // ready is answered, hidden first, then the context.
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(sent().slice(3)).toEqual(["shown:false", "lazurio.buddy.context"]);
+  // It still asks for nothing while the hello is shown.
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "fullscreen" });
+  expect(last()?.layout).toBe("panel");
+  // The meeting ends with the window closed: nothing more, it stays hidden.
+  page.meeting = null;
+  bubble.update();
+  expect(last()?.layout).toBe("closed");
+  expect(sent().slice(3)).toEqual(["shown:false", "lazurio.buddy.context"]);
+  // Opened: shown.
+  bubble.toggle();
+  expect(sent().slice(5)).toEqual(["shown:true"]);
+});
+
 test("without Buddy's origin the bubble draws nothing, makes no frame and hears nothing", () => {
   const { bubble, log, fromFrame } = fakeBubble({ origin: null });
   bubble.update();

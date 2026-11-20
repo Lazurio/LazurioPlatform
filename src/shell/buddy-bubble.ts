@@ -467,9 +467,11 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     receive(
       event: Readonly<{ data: unknown; origin: string; source: unknown }>,
     ): void {
-      // Before the meeting the window is his hello, not the frame.
-      if (origin === null || frame === null || meeting !== null) return;
-      if (receiver?.receive(event) != null) return;
+      if (origin === null || frame === null) return;
+      // Before the meeting the window is his hello, not the frame: the
+      // frame asks for nothing then, but one loaded anew behind the hello
+      // still hears its `ready` answered, that it is hidden among it.
+      if (meeting === null && receiver?.receive(event) != null) return;
       const window = seams.frameWindow();
       const message = acceptBuddyFrameMessage(
         {
@@ -487,6 +489,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         sender?.ready();
         return;
       }
+      if (meeting !== null) return;
       // A window the person opened is resized or closed; none is opened.
       if (layout === "closed" || message.mode === layout) return;
       if (message.mode === "closed") {
