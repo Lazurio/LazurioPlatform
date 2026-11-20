@@ -13,6 +13,7 @@ import type { Store } from "../src/shell/account";
 import {
   type BuddyBubbleModel,
   type BuddyMeeting,
+  buddyFrameReplyHoldMs,
   buddyLayoutKey,
   buddyMeeting,
   createBuddyBubble,
@@ -74,6 +75,7 @@ import {
 } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
+import { type ManualClock, manualClock } from "./fixtures/manual-clock";
 
 // Buddy's bubble, the shell's side (decision F60; root decision 0210 point
 // 8, plan DEV-6676 P3, the contract of drafts/buddy-web-v1 sections 1 to 3):
@@ -737,6 +739,7 @@ function fakeBubble(
     known?: readonly string[];
     tour?: boolean;
     plays?: boolean;
+    clock?: ManualClock;
   }> = {},
 ) {
   const log = {
@@ -771,6 +774,9 @@ function fakeBubble(
     }),
     meeting: () => page.meeting,
     signal: () => page.signal,
+    ...(options.clock === undefined
+      ? {}
+      : { setTimer: options.clock.setTimer }),
     frameWindow: () => (log.drawn.at(-1)?.frame ? frame : null),
     session,
     draw: (model) => {
@@ -1753,8 +1759,9 @@ test("Buddy GEN4's closed window holds no frame: an answer that comes after the 
   expect(last()).toMatchObject({ layout: "closed", frame: null });
 });
 
-test("Buddy GEN4's frame stays while his window steps aside for an explanation it asked for, and goes once the window stays closed", () => {
-  const { bubble, page, last, fromFrame, log } = fakeBubble();
+test("Buddy GEN4's frame stays while his window steps aside for an explanation it asked for, and goes once the window stays closed and the end has reached it", () => {
+  const clock = manualClock();
+  const { bubble, page, last, fromFrame, log } = fakeBubble({ clock });
   page.signal = {
     state: "quiet",
     since: null,
@@ -1788,6 +1795,14 @@ test("Buddy GEN4's frame stays while his window steps aside for an explanation i
     type: "lazurio.guide.closed",
     explainer: "vault",
   });
+  // The reply is posted, not yet delivered: the frame stays while it
+  // travels, then goes.
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  bubble.changed();
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  clock.advance(buddyFrameReplyHoldMs - 1);
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  clock.advance(1);
   expect(last()).toMatchObject({ layout: "closed", frame: null });
 });
 

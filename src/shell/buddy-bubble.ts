@@ -175,6 +175,9 @@ export type BuddyBubbleSeams = Readonly<{
   /** The sign by Buddy GEN4's avatar as the page follows it; null for
    * Buddy GEN3 and wherever none is followed. */
   signal?: () => ShellBuddySignal | null;
+  /** Runs `run` after `ms`; the answer cancels it. `setTimeout` where
+   * absent. */
+  setTimer?: (run: () => void, ms: number) => () => void;
   /** The window of the frame the view made; null before. */
   frameWindow: () => BuddyFrameWindow | null;
   /** This tab's memory (`sessionStorage`), or null. */
@@ -197,6 +200,11 @@ export type BuddyBubbleSeams = Readonly<{
 /** Buddy's name on the launcher and the frame, and on the guide's card
  * where he presents it: a name, the same in every language. */
 export const buddyName = "Buddy";
+
+/** How long a closed window's GEN4 frame stays after the guide's last
+ * reply to it, so that the reply reaches it (a message posted to a frame
+ * removed in the same task is never delivered). */
+export const buddyFrameReplyHoldMs = 1_000;
 
 // What the launcher's badge shows for each sign: a question mark while he
 // waits for the person, an exclamation mark when something failed, a dot
@@ -235,6 +243,14 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   let step: Readonly<{ path: string; guide: BuddyGuideStep }> | null = null;
   let sender: ReturnType<typeof createBuddyContextSender> | null = null;
   let receiver: ReturnType<typeof createGuideReceiver> | null = null;
+  // While the guide's last reply travels to a GEN4 frame: its cancel.
+  let replyHold: (() => void) | null = null;
+  const setTimer =
+    seams.setTimer ??
+    ((run: () => void, ms: number) => {
+      const timer = setTimeout(run, ms);
+      return () => clearTimeout(timer);
+    });
 
   const remembered = (): BuddyWindowSize => {
     try {
@@ -329,13 +345,25 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
    * looking at it, so a frame kept alive behind a closed window would read
    * every answer as seen, and the sign would never say `answered`. The frame
    * goes once the window is closed and no explanation it asked for still
-   * plays (that one still answers it), and loads anew at the next open. For
-   * Buddy GEN3, without a sign, the frame stays as before (F60). */
+   * plays (that one still answers it), and loads anew at the next open. A
+   * message to the frame arrives after the task that posted it, and never
+   * in a frame removed before that: after the guide's last word to it the
+   * frame stays `buddyFrameReplyHoldMs`. For Buddy GEN3, without a sign, the
+   * frame stays as before (F60). */
   function dropHiddenFrame(): void {
     if (frame === null || layout !== "closed" || asked !== null) return;
+    if (replyHold !== null) return;
     if ((seams.signal?.() ?? null) === null) return;
     frame = null;
     sender?.reset();
+  }
+  /** Holds the frame while the guide's reply travels to it. */
+  function holdForReply(): void {
+    replyHold?.();
+    replyHold = setTimer(() => {
+      replyHold = null;
+      draw();
+    }, buddyFrameReplyHoldMs);
   }
   const draw = () => {
     dropHiddenFrame();
@@ -523,8 +551,9 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       asked = null;
       if (layout === "closed" && was.restore !== "closed")
         show(was.restore, "frame");
-      // A window that stays closed lets a GEN4 frame go now.
-      else draw();
+      // A window that stays closed lets a GEN4 frame go once the reply has
+      // reached it.
+      else holdForReply();
     },
     /** The guide's figure, Buddy presenting an explanation, left the
      * launcher (true) or is back in it (false): the launcher waits empty
