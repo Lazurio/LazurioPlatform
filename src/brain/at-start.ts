@@ -30,10 +30,9 @@ export type BrainSetupLabels = Readonly<{
 }>;
 
 /** How long the Launchpad lets one setup run: longer than its longest
- * supported step, the first embedding of a brain switched to search by
- * meaning (gbrain's `embed`, limited to 6 hours; 86 minutes were measured for
- * ten times the largest measured brain), with the copy, a migration and the
- * start around it. A setup it ends anyway leaves its gbrain command
+ * supported step, a move or one window of search by meaning (gbrain's
+ * `embed` with its budget and one batch, `meaningEmbedLimitMs`), with the
+ * copy, a migration and the start around it. A setup it ends anyway leaves its gbrain command
  * running in its own group; the next setup ends that writer before it
  * recovers or starts anything (`./writers.ts`). */
 export const setupTimeoutMs = 8 * 3_600_000;
@@ -102,8 +101,13 @@ export async function brainSetupAtStart(
   // `fills` runs (a day at the default pause); a later start goes on from
   // the brain's own record. It ends at `on`, `held`, a stop for a person or
   // any other answer.
+  // Another setup holding the lock (`busy`, no meaning in its answer) is
+  // passing: while a meaning waited before it, the next run comes as well.
+  let waiting = false;
   for (let i = 0; i < (input.fills ?? 288); i++) {
-    if (labels === null || !meaningWaits(labels) || signal.aborted) break;
+    if (labels === null || signal.aborted) break;
+    if (labels.server !== "busy") waiting = meaningWaits(labels);
+    if (!waiting) break;
     input.report?.(labels);
     await sleep(input.fillMs ?? meaningPauseMs, signal);
     if (signal.aborted) break;

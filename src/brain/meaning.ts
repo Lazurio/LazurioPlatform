@@ -40,19 +40,20 @@ import { writeBrainUnits } from "./units";
 // vector column has another width than the model's (a brain created without
 // embeddings has 1024, the model's width too) or already holds another
 // model's vectors (gbrain refuses to enable over them), `gbrain migrate
-// embeddings --no-embed` to it, which keeps every page and fact, and then always
-// `gbrain embed --stale --catch-up`: the first
-// vectors are computed while the server is still stopped. On PGLite there is
-// no other way: a running server holds the brain's lock and refuses both a
-// CLI embed and an embed-backfill job (`pglite_busy`, verified on fictional
-// data on 2026-11-19), and it computes nothing of the backlog by itself. The
-// memory is therefore down for the first embedding: measured on a 4-vCPU
-// Personal Environment, 8.6 minutes for a brain like the largest measured
-// one and 86 at ten times its size. The
-// server then starts with the model and must answer with the same page
-// count; later writes are embedded as they come. If any step fails, the copy
-// comes back without the model and the step is not tried again for this pin
-// (`held`).
+// embeddings --no-embed` to it, which keeps every page and fact. The vectors
+// are then computed with the server stopped, as on PGLite there is no other
+// way: a running server holds the brain's lock and refuses both a CLI embed
+// and an embed-backfill job (`pglite_busy`, verified on fictional data on
+// 2026-11-19), and it computes nothing of the backlog by itself. Since the
+// amendment of 2026-11-20 to decision F44 point 10, they are computed in
+// windows (`gbrain embed --stale` with its time budget), one per setup run,
+// the server running with the model between them; the Launchpad runs setup
+// again while windows are left (`./at-start.ts`). Every window, and every
+// way back, is committed before the server starts, so no copy ever comes
+// back over a write. The first window that fails brings the copy before
+// back without the model and is not tried again for this pin (`held`); a
+// later one brings its own copy back with the model, and windows in a row
+// without progress stop the filling with the vectors kept.
 
 export type MeaningFetch = (
   url: string,
@@ -599,19 +600,28 @@ async function restoreCopy(
     await keepDown(host);
     return "stopped:copy-not-restored";
   }
+  // The way back is committed before the server starts: from its start on
+  // it may take writes, so no later run recovers this attempt by bringing
+  // the copy back once more over them (a start systemd reports as failed
+  // may have started it too).
+  let result: MeaningResult;
+  if (filling !== undefined) result = await filling.next();
+  else {
+    await record("restored", reason);
+    result = `restored:${reason}`;
+  }
   const back =
     (await service(host, "daemon-reload")) &&
     (await service(host, "start", brainUnit)) &&
     (await answers(host)) === release.version;
   if (!back) {
+    // Kept down for a person, the brain as it is: never copied over.
     await record("stopped", "no-answer");
     await keepDown(host);
     return "stopped:no-answer";
   }
   await service(host, "start", brainRefreshTimer);
-  if (filling !== undefined) return filling.next();
-  await record("restored", reason);
-  return `restored:${reason}`;
+  return result;
 }
 
 /** An attempt a run left half way. `stopping`: the brain was not touched

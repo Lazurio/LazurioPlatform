@@ -86,6 +86,24 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
     close.abort();
   });
 
+  test("another setup holding the lock while windows are left: the next run comes as well", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, input } = world([
+      filling,
+      { server: "busy" },
+      { server: "running", meaning: "on" },
+    ]);
+    expect(await brainSetupAtStart(input)).toEqual({
+      server: "running",
+      meaning: "on",
+    });
+    expect(state.runs).toBe(3);
+    // A busy first answer, with no meaning waiting before it, is the answer.
+    const lone = world([{ server: "busy" }, filling]);
+    expect(await brainSetupAtStart(lone.input)).toEqual({ server: "busy" });
+    expect(lone.state.runs).toBe(1);
+  });
+
   test("the runs one start makes for windows are bounded", async () => {
     const filling = { server: "running", meaning: "waits:filling" };
     const { state, input } = world(Array(20).fill(filling));

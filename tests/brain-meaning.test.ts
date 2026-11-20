@@ -915,6 +915,40 @@ describe("the vectors in short windows, the server running with the model betwee
     ).toEqual({ brain: "vectors", windows: 3 });
   });
 
+  test("a way back is committed before the server starts: a run that died then is not rolled back again over a write", async () => {
+    // A window that fails: its copy comes back, and at the server's start
+    // the attempt already reads `filling` with no window in progress.
+    const window = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 3 },
+        { exit: 0, embedded: 30 },
+      ],
+    });
+    expect(await convergeMeaning(window.host)).toBe("waits:filling");
+    expect(await convergeMeaning(window.host)).toBe("waits:embed-failures");
+    const last = window.atStart.at(-1) as { result?: string; phase?: string };
+    expect(last.result).toBe("filling");
+    expect(last.phase).toBeUndefined();
+    // Had the run died there, the server would have taken a write; the next
+    // run computes over it, never a copy back.
+    await writeFile(
+      join(window.paths.brain, "config.json"),
+      JSON.stringify({ brain: "written" }),
+    );
+    expect(await convergeMeaning(window.host)).toBe("on");
+    expect(
+      JSON.parse(
+        await readFile(join(window.paths.brain, "config.json"), "utf8"),
+      ),
+    ).toEqual({ brain: "vectors", windows: 3 });
+    // The first window's way back (the copy before, without the model) too:
+    // `restored` at the server's start, so a later run never restores again.
+    const first = await stand({ embedFails: true });
+    expect(await convergeMeaning(first.host)).toBe("restored:embed");
+    expect(first.atStart.at(-1)).toMatchObject({ result: "restored" });
+  });
+
   test("failures now and then over many windows keep one failed brain only", async () => {
     const { host, paths } = await stand({
       windows: [
