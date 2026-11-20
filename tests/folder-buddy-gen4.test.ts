@@ -214,6 +214,13 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   }
   expect(cs).toContain("Obal není součást textu stránky");
   expect(en).toContain("The wrapper is not part of the page's text");
+  // new_text is the wanted replacement, never taken from the read.
+  expect(cs).toContain(
+    "`new_text` napiš sám jako požadovanou náhradu, bez obalu",
+  );
+  expect(en).toContain(
+    "write `new_text` yourself as the replacement you want, without the wrapper",
+  );
   for (const text of [cs, en])
     expect(text).toContain("`edits: [{ old_text, new_text }]`");
   expect(cs).not.toContain("Stránku priorit přepisuješ");
