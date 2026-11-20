@@ -8,7 +8,32 @@
       "expect": {
         "ready": "lazurio.buddy.ready",
         "layout": "lazurio.buddy.layout",
-        "context": "lazurio.buddy.context"
+        "context": "lazurio.buddy.context",
+        "shown": "lazurio.buddy.shown"
+      }
+    },
+    {
+      "name": "the window shows the frame",
+      "call": "buddyShownMessage",
+      "args": [
+        true
+      ],
+      "expect": {
+        "type": "lazurio.buddy.shown",
+        "v": 1,
+        "shown": true
+      }
+    },
+    {
+      "name": "the window does not show the frame",
+      "call": "buddyShownMessage",
+      "args": [
+        false
+      ],
+      "expect": {
+        "type": "lazurio.buddy.shown",
+        "v": 1,
+        "shown": false
       }
     },
     {

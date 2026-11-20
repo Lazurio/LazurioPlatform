@@ -29,6 +29,16 @@ import { environmentName, hereOf, organizationOf } from "./view";
 //                  environment: {id, kind, name} | null,
 //                  organization: {slug, name} | null,
 //                  app, page: {path}, guide: {explainer, step} | null}
+//                 {type: "lazurio.buddy.shown", v: 1, shown: boolean}
+//
+// `shown` says whether the person's window shows the frame (F60's addendum
+// of 2026-11-20): T3 Code counts a mounted view of a thread as the person
+// looking at it, so a frame kept alive behind a closed window would read
+// Buddy's answers as seen. The host sends it after `ready`, before every
+// context, and on every change; the same value twice in a row only right
+// before a context (`createBuddyShownSender`). A frame counts a visit only once it hears
+// `shown: true`; a frame that hears a context without `shown` first (an
+// older host) behaves as before.
 //
 // The host sends the context after `ready` (again after every `ready`: the
 // frame loaded anew) and after every change, never the same twice
@@ -72,6 +82,7 @@ export const buddyMessage = Object.freeze({
   ready: "lazurio.buddy.ready",
   layout: "lazurio.buddy.layout",
   context: "lazurio.buddy.context",
+  shown: "lazurio.buddy.shown",
 });
 
 /** The protocol's major; a message without `v: 1` is no message of it. */
@@ -494,6 +505,10 @@ export function buddyContext(facts: BuddyContextFacts): BuddyContext | null {
   });
 }
 
+/** The message that tells the frame whether the window shows it. */
+export const buddyShownMessage = (shown: boolean) =>
+  Object.freeze({ type: buddyMessage.shown, v: buddyMajor, shown });
+
 /** A frame's window, as the host posts to it. */
 export type BuddyFrameWindow = Readonly<{
   postMessage(message: unknown, targetOrigin: string): void;
@@ -511,6 +526,9 @@ export function createBuddyContextSender(
     frame: () => BuddyFrameWindow | null;
     /** The context of the page now (`buddyContext`), or null. */
     context: () => BuddyContext | null;
+    /** Runs right before each context goes, so that `shown` precedes it
+     * (`createBuddyShownSender`'s `beforeContext`). */
+    before?: () => void;
   }>,
 ) {
   let ready = false;
@@ -522,6 +540,7 @@ export function createBuddyContextSender(
     if (frame === null || context === null) return false;
     const text = JSON.stringify(context);
     if (!force && text === sent) return false;
+    seams.before?.();
     try {
       frame.postMessage(context, seams.origin);
     } catch {
@@ -545,6 +564,62 @@ export function createBuddyContextSender(
     reset(): void {
       ready = false;
       sent = null;
+    },
+  });
+}
+
+/** The host's sends of `shown` (the impure side wires it): after the
+ * frame's `ready` always, then only when it changed; nothing before `ready`,
+ * without a frame, and nowhere but the frame's window on exactly Buddy's
+ * `origin`. */
+export function createBuddyShownSender(
+  seams: Readonly<{
+    origin: string;
+    frame: () => BuddyFrameWindow | null;
+    /** Whether the window shows the frame now. */
+    shown: () => boolean;
+  }>,
+) {
+  let ready = false;
+  let sent: boolean | null = null;
+  // Whether `shown` just went with a `ready`, right before its context.
+  let fresh = false;
+  const send = (force: boolean): boolean => {
+    if (!ready || !isShellBuddyOrigin(seams.origin)) return false;
+    const frame = seams.frame();
+    if (frame === null) return false;
+    const shown = seams.shown();
+    if (!force && shown === sent) return false;
+    try {
+      frame.postMessage(buddyShownMessage(shown), seams.origin);
+    } catch {
+      return false;
+    }
+    sent = shown;
+    return true;
+  };
+  return Object.freeze({
+    /** The frame is ready (it loaded, or loaded again): it hears it anew. */
+    ready(): boolean {
+      ready = true;
+      fresh = send(true);
+      return fresh;
+    },
+    /** The window may have opened or closed. */
+    changed(): boolean {
+      return send(false);
+    },
+    /** A context is about to go: `shown` goes first, unless it just went
+     * with the `ready` this context answers. A frame loaded anew takes a
+     * context without it for an older host's, also before the host saw its
+     * new `ready`. */
+    beforeContext(): void {
+      if (!fresh) send(true);
+      fresh = false;
+    },
+    /** The `ready` is answered: the next context gets its own `shown`. */
+    answered(): void {
+      fresh = false;
     },
   });
 }

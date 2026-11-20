@@ -13,6 +13,7 @@ import {
   buddyFrameSource,
   buddyMessage,
   createBuddyContextSender,
+  createBuddyShownSender,
 } from "./buddy-protocol";
 import {
   currentEnvironment,
@@ -233,6 +234,9 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // The guide's last step, on the page's path it showed on.
   let step: Readonly<{ path: string; guide: BuddyGuideStep }> | null = null;
   let sender: ReturnType<typeof createBuddyContextSender> | null = null;
+  // Tells the frame whether his window shows it (F60's addendum of
+  // 2026-11-20), so that a closed window reads none of his answers as seen.
+  let shownSender: ReturnType<typeof createBuddyShownSender> | null = null;
   let receiver: ReturnType<typeof createGuideReceiver> | null = null;
 
   const remembered = (): BuddyWindowSize => {
@@ -323,7 +327,10 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     });
     show(remembered(), "frame");
   }
-  const draw = () => seams.draw(model());
+  const draw = () => {
+    seams.draw(model());
+    shownSender?.changed();
+  };
   // The page's language for the sign's words: the element's, else the
   // person's profile.
   const pageLang = (): "cs" | "en" => {
@@ -372,6 +379,17 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             origin: next,
             frame: seams.frameWindow,
             context,
+            before: () => shownSender?.beforeContext(),
+          });
+    shownSender =
+      next === null
+        ? null
+        : createBuddyShownSender({
+            origin: next,
+            frame: seams.frameWindow,
+            // The window shows the frame only after the meeting: before it
+            // the window holds his hello and the frame stays hidden.
+            shown: () => layout !== "closed" && meeting === null,
           });
     receiver =
       next === null
@@ -450,9 +468,11 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     receive(
       event: Readonly<{ data: unknown; origin: string; source: unknown }>,
     ): void {
-      // Before the meeting the window is his hello, not the frame.
-      if (origin === null || frame === null || meeting !== null) return;
-      if (receiver?.receive(event) != null) return;
+      if (origin === null || frame === null) return;
+      // Before the meeting the window is his hello, not the frame: the
+      // frame asks for nothing then, but one loaded anew behind the hello
+      // still hears its `ready` answered, that it is hidden among it.
+      if (meeting === null && receiver?.receive(event) != null) return;
       const window = seams.frameWindow();
       const message = acceptBuddyFrameMessage(
         {
@@ -464,9 +484,14 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       );
       if (message === null) return;
       if (message.type === buddyMessage.ready) {
+        // `shown` before the context: a frame takes a context without it
+        // for an older host's and would count a visit.
+        shownSender?.ready();
         sender?.ready();
+        shownSender?.answered();
         return;
       }
+      if (meeting !== null) return;
       // A window the person opened is resized or closed; none is opened.
       if (layout === "closed" || message.mode === layout) return;
       if (message.mode === "closed") {

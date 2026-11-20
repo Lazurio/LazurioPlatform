@@ -23322,6 +23322,56 @@ frame was not checked there. Before this change reaches an Environment, T3 Code'
 still reads the clearance; with the change and an older T3 Code the composer narrows only
 while Buddy is in his corner.
 
+### F60 addendum of 2026-11-20: the frame hears whether his window shows it
+
+**Decided by Matěj (Organization Admin) on 2026-11-20**, whose consent the coordinating
+thread BUDDY GEN4 passed on at 11:35 UTC. The protocol `lazurio.buddy.*` v1 gains one message from the host
+to the frame. Point 3 stays: the frame stays alive inside a closed window.
+
+- **The message.** `{type: "lazurio.buddy.shown", v: 1, shown: boolean}` says whether the
+  person's window shows the frame. The host sends it after the frame's `ready` (again after
+  every `ready`), before the context, and whenever the window opens or closes, including while
+  it steps aside for an explanation of the guide and while his hello shows before the meeting
+  (then the frame is hidden: `shown: false`). It also sends it right before every context, so that a frame
+  loaded anew never hears a context without it; otherwise it never sends the same value twice
+  in a row. It sends only to the frame's window on exactly Buddy's origin
+  (`createBuddyShownSender`). The frame takes
+  it, as it takes the context, only from its parent on exactly the host's origin, with exactly
+  these members.
+- **Why.** T3 Code counts a mounted view of a thread as the person looking at it and advances
+  the thread's visit on every update. A frame alive behind a closed window therefore read
+  every one of Buddy GEN4's answers as seen, and the sign by his avatar never said
+  `answered`. The acceptance of the sign as Bob on 0.1.24-rc.3 found this. With the message,
+  T3 Code's frame records a visit only once it hears `shown: true`, also after it loaded anew
+  behind a closed window, and records one when the window shows again (Lazurio/t3code#240).
+- **Compatibility.** Exact keys stay, and so does `v: 1`: the message is a new type, not a new
+  member. A frame that hears a context without `shown` before it (an older host) behaves as
+  before, and so does an older T3 Code, which drops a type it does not know. A newer T3 Code with an older Lazurio is unchanged.
+
+**Considered and set aside:**
+
+| Option | Why not |
+| --- | --- |
+| Drop the frame when the window closes (Lazurio/LazurioPlatform#1121) | Breaks point 3; a reply of the guide posted just before the frame goes is never delivered, and no hold proves delivery without an acknowledgement from the frame |
+| An added member in `lazurio.buddy.context` | Exact keys make any new member v2: an older frame would refuse every context |
+| T3 Code guesses visibility itself (`IntersectionObserver`, `visibilityState`) | A cross-origin frame in a closed `<dialog>` keeps a visible document state; browser-specific and not reliable |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`: the frame hears `shown` after its `ready`, on every open and
+  close and when the window steps aside for an explanation, never the same twice in a row
+  except right before a context, never to `*`; the frame stays the same across a close and an
+  open. Every context comes after a current `shown`, also to a frame loaded anew before the host
+  saw its `ready`, and to one loaded anew behind his hello. The vectors carry
+  `buddyShownMessage`.
+- `tests/shell-buddy-frame-browser.test.ts`, in headless Chrome with the real bubble and
+  element: the frame receives `shown: true`, `false` while the explanation plays, the guide's
+  `started` and `done`, `true`, and `false` when the person closes the window on the same
+  page, in this order, and stays alive.
+
+**Honest limits.** A tab in the background with the window open still counts as looking, as
+T3 Code's own chat does. Live acceptance as Bob comes with the T3 Code release that carries
+Lazurio/t3code#240.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 *Buddy GEN3 (note of 2026-11-16).* This decision describes Buddy GEN3. Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy is a standard T3 Code thread whose harness and model the person chooses, and the Hermes Agent leaves Lazurio. The text below stays in force for each person until their conversion and is then retired.
