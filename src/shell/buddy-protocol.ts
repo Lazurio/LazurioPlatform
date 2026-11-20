@@ -29,6 +29,14 @@ import { environmentName, hereOf, organizationOf } from "./view";
 //                  environment: {id, kind, name} | null,
 //                  organization: {slug, name} | null,
 //                  app, page: {path}, guide: {explainer, step} | null}
+//                 {type: "lazurio.buddy.shown", v: 1, shown: boolean}
+//
+// `shown` says whether the person's window shows the frame (F60's addendum
+// of 2026-11-20): T3 Code counts a mounted view of a thread as the person
+// looking at it, so a frame kept alive behind a closed window would read
+// Buddy's answers as seen. The host sends it after `ready` and on every
+// change, never the same twice (`createBuddyShownSender`); a frame that
+// never hears it behaves as before.
 //
 // The host sends the context after `ready` (again after every `ready`: the
 // frame loaded anew) and after every change, never the same twice
@@ -72,6 +80,7 @@ export const buddyMessage = Object.freeze({
   ready: "lazurio.buddy.ready",
   layout: "lazurio.buddy.layout",
   context: "lazurio.buddy.context",
+  shown: "lazurio.buddy.shown",
 });
 
 /** The protocol's major; a message without `v: 1` is no message of it. */
@@ -494,6 +503,10 @@ export function buddyContext(facts: BuddyContextFacts): BuddyContext | null {
   });
 }
 
+/** The message that tells the frame whether the window shows it. */
+export const buddyShownMessage = (shown: boolean) =>
+  Object.freeze({ type: buddyMessage.shown, v: buddyMajor, shown });
+
 /** A frame's window, as the host posts to it. */
 export type BuddyFrameWindow = Readonly<{
   postMessage(message: unknown, targetOrigin: string): void;
@@ -545,6 +558,47 @@ export function createBuddyContextSender(
     reset(): void {
       ready = false;
       sent = null;
+    },
+  });
+}
+
+/** The host's sends of `shown` (the impure side wires it): after the
+ * frame's `ready` always, then only when it changed; nothing before `ready`,
+ * without a frame, and nowhere but the frame's window on exactly Buddy's
+ * `origin`. */
+export function createBuddyShownSender(
+  seams: Readonly<{
+    origin: string;
+    frame: () => BuddyFrameWindow | null;
+    /** Whether the window shows the frame now. */
+    shown: () => boolean;
+  }>,
+) {
+  let ready = false;
+  let sent: boolean | null = null;
+  const send = (force: boolean): boolean => {
+    if (!ready || !isShellBuddyOrigin(seams.origin)) return false;
+    const frame = seams.frame();
+    if (frame === null) return false;
+    const shown = seams.shown();
+    if (!force && shown === sent) return false;
+    try {
+      frame.postMessage(buddyShownMessage(shown), seams.origin);
+    } catch {
+      return false;
+    }
+    sent = shown;
+    return true;
+  };
+  return Object.freeze({
+    /** The frame is ready (it loaded, or loaded again): it hears it anew. */
+    ready(): boolean {
+      ready = true;
+      return send(true);
+    },
+    /** The window may have opened or closed. */
+    changed(): boolean {
+      return send(false);
     },
   });
 }

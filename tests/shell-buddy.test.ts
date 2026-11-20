@@ -114,6 +114,7 @@ test("the vector files are this contract's, and every export of the protocol has
     "buddyContext",
     "buddyContextKind",
     "createBuddyContextSender",
+    "createBuddyShownSender",
     "parseBuddyContext",
   ]);
   for (const name of Object.keys(protocol))
@@ -801,6 +802,62 @@ function fakeBubble(
       .filter((message) => message.type === "lazurio.buddy.context");
   return { bubble, log, page, frame, session, last, fromFrame, contexts };
 }
+
+test("the frame hears whether his window shows it: after its ready, on every open and close, never the same twice, and it stays alive (F60 point 3)", () => {
+  const { bubble, last, fromFrame, log, page } = fakeBubble();
+  const shown = () =>
+    log.posted
+      .map(({ message, target }) => ({
+        message: message as { type: string; v?: number; shown?: boolean },
+        target,
+      }))
+      .filter(({ message }) => message.type === "lazurio.buddy.shown")
+      .map(({ message, target }) => {
+        expect<unknown>(message).toEqual({
+          type: "lazurio.buddy.shown",
+          v: 1,
+          shown: message.shown,
+        });
+        expect(target).toBe(buddy);
+        return message.shown;
+      });
+  bubble.update();
+  bubble.toggle();
+  const frame = last()?.frame;
+  // Nothing before the frame says it is ready.
+  expect(shown()).toEqual([]);
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(shown()).toEqual([true]);
+  // The person closes the window on the same page: the frame stays and
+  // hears it, so an answer that comes now stays unread.
+  bubble.toggle();
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  expect(shown()).toEqual([true, false]);
+  bubble.changed();
+  expect(shown()).toEqual([true, false]);
+  // Opened again: shown, without loading anew.
+  bubble.toggle();
+  expect(last()?.frame).toBe(frame);
+  expect(shown()).toEqual([true, false, true]);
+  // The window steps aside for an explanation the frame asked for, and
+  // returns.
+  fromFrame({ type: "lazurio.guide.play", v: 1, explainer: "files" });
+  bubble.guided({ type: "started", explainer: "files" });
+  page.playing = null;
+  bubble.guided({ type: "done", explainer: "files" });
+  expect(shown()).toEqual([true, false, true, false, true]);
+  // A frame loaded anew (a sign-in) hears it again.
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(shown()).toEqual([true, false, true, false, true, true]); // Never to an origin that is no Buddy's, never `*`.
+  const none: Posted[] = [];
+  const star = protocol.createBuddyShownSender({
+    origin: "*",
+    frame: () => windowOf(none),
+    shown: () => true,
+  });
+  expect(star.ready()).toBe(false);
+  expect(none).toEqual([]);
+});
 
 test("without Buddy's origin the bubble draws nothing, makes no frame and hears nothing", () => {
   const { bubble, log, fromFrame } = fakeBubble({ origin: null });

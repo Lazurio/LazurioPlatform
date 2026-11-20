@@ -13,6 +13,7 @@ import {
   buddyFrameSource,
   buddyMessage,
   createBuddyContextSender,
+  createBuddyShownSender,
 } from "./buddy-protocol";
 import {
   currentEnvironment,
@@ -233,6 +234,9 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // The guide's last step, on the page's path it showed on.
   let step: Readonly<{ path: string; guide: BuddyGuideStep }> | null = null;
   let sender: ReturnType<typeof createBuddyContextSender> | null = null;
+  // Tells the frame whether his window shows it (F60's addendum of
+  // 2026-11-20), so that a closed window reads none of his answers as seen.
+  let shownSender: ReturnType<typeof createBuddyShownSender> | null = null;
   let receiver: ReturnType<typeof createGuideReceiver> | null = null;
 
   const remembered = (): BuddyWindowSize => {
@@ -323,7 +327,10 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     });
     show(remembered(), "frame");
   }
-  const draw = () => seams.draw(model());
+  const draw = () => {
+    seams.draw(model());
+    shownSender?.changed();
+  };
   // The page's language for the sign's words: the element's, else the
   // person's profile.
   const pageLang = (): "cs" | "en" => {
@@ -372,6 +379,14 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             origin: next,
             frame: seams.frameWindow,
             context,
+          });
+    shownSender =
+      next === null
+        ? null
+        : createBuddyShownSender({
+            origin: next,
+            frame: seams.frameWindow,
+            shown: () => layout !== "closed",
           });
     receiver =
       next === null
@@ -465,6 +480,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       if (message === null) return;
       if (message.type === buddyMessage.ready) {
         sender?.ready();
+        shownSender?.ready();
         return;
       }
       // A window the person opened is resized or closed; none is opened.
