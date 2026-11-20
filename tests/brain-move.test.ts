@@ -1,5 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
@@ -15,11 +22,7 @@ import {
 } from "../src/brain/pin";
 import { brainSetup, type SetupHost } from "../src/brain/setup";
 import { brainStatus } from "../src/brain/status";
-import {
-  consentToTakeover,
-  interimRelease,
-  interimUnitsCopy,
-} from "../src/brain/takeover";
+import { interimRelease, interimUnitsCopy } from "../src/brain/takeover";
 import { writeBrainUnits } from "../src/brain/units";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
@@ -153,7 +156,6 @@ async function stand(options: Options = {}) {
       path,
       JSON.stringify({ url: "http://127.0.0.1:3131", token }),
     );
-  if (options.consent) await consentToTakeover(paths, now);
   await writeFile(join(root, "brain-handover"), "");
   const systemd = {
     server: true,
@@ -261,6 +263,9 @@ async function stand(options: Options = {}) {
     return { status: 404, body: "{}" };
   };
   const host: SetupHost = {
+    // The owner's consent, for the runs of this host (as `take-over` gives
+    // it for its own run).
+    ...(options.consent ? { consent: now } : {}),
     async context() {
       return { kind: "supported" };
     },
@@ -281,11 +286,93 @@ async function stand(options: Options = {}) {
     tries: 2,
     waitMs: 1,
   };
-  return { host, paths, calls, systemd, pinCommand };
+  return { host, paths, calls, systemd, pinCommand, root };
 }
 
 const unitText = (paths: ReturnType<typeof brainPaths>) =>
   readFile(join(paths.units, brainUnit), "utf8");
+
+/** The same host for an ordinary run: the Launchpad's start, `lazurio
+ * update`, a `lazurio brain setup` (no consent given for it). */
+const withoutConsent = (host: SetupHost): SetupHost => {
+  const { consent: _none, ...rest } = host;
+  return rest;
+};
+
+describe("a consent counts only for the run that gave it", () => {
+  test("a consent an earlier release recorded (after its refusal) never takes the brain over in an ordinary run", async () => {
+    const { host, paths, calls } = await stand({ tagged: {} });
+    // What 0.1.24-rc.6 left after `refused:release-unknown`.
+    await writeBrainState(paths, {
+      takeover: { consent: "2026-11-20T16:35:06.129Z" },
+    });
+    const before = await unitText(paths);
+    const result = await brainSetup(host);
+    expect(result).toMatchObject({
+      server: "waits-takeover",
+      takeover: "waits-consent",
+    });
+    expect(await unitText(paths)).toBe(before);
+    expect(calls.some((c) => c[2] === "stop" || c[2] === "daemon-reload")).toBe(
+      false,
+    );
+  });
+
+  test("a consent given while Machines have not marked the handover, or with a foreign unit, does not wait for a later run", async () => {
+    const { host, paths, root } = await stand({ consent: true, tagged: {} });
+    await rm(join(root, "brain-handover"));
+    expect((await brainSetup(host)).server).toBe("waits-machines");
+    await writeFile(join(root, "brain-handover"), "");
+    const later = await brainSetup(withoutConsent(host));
+    expect(later).toMatchObject({ takeover: "waits-consent" });
+    expect(await unitText(paths)).toBe(interimUnit);
+    // A refresh unit nobody of these wrote blocks the run that consented;
+    // once it is gone, an ordinary run still only reports.
+    const foreign = join(paths.units, brainRefreshService);
+    await writeFile(foreign, "[Service]\nExecStart=/opt/other\n");
+    expect((await brainSetup(host)).server).toBe("foreign");
+    await rm(foreign);
+    expect((await brainSetup(withoutConsent(host))).takeover).toBe(
+      "waits-consent",
+    );
+  });
+
+  test("lazurio brain take-over gives its consent for its own run: an ordinary run after it does not take over", async () => {
+    const { host, paths } = await stand({
+      tagged: { lock: null, bunTag: null },
+    });
+    const context = {
+      identity: {} as never,
+      platform: "linux",
+      env: {},
+      executable: "lazurio",
+      host,
+    };
+    // Refused: the release is not known for sure.
+    const refused = await runBrainCommand(["take-over", "--json"], context);
+    expect(JSON.parse(refused.stdout as string)).toMatchObject({
+      takeover: "refused:release-unknown",
+    });
+    // The release becomes known (as a newer Lazurio would read it).
+    await writeFile(
+      join(
+        paths.home,
+        ".bun",
+        "install",
+        "global",
+        "node_modules",
+        "gbrain",
+        ".bun-tag",
+      ),
+      "Lazurio-gbrain-5586fb4",
+    );
+    const ordinary = await runBrainCommand(["setup", "--json"], context);
+    expect(JSON.parse(ordinary.stdout as string)).toMatchObject({
+      server: "waits-takeover",
+      takeover: "waits-consent",
+    });
+  });
+});
 
 describe("the interim installer's brain installed from a release tag", () => {
   test("its release is the commit Bun resolved the tag to: taken over and moved", async () => {
@@ -342,8 +429,10 @@ describe("the interim installer's brain installed from a release tag", () => {
       const takeover = (await readBrainState(paths)).takeover;
       expect(takeover?.consent).toBeUndefined();
       expect(takeover?.state).toBe("refused-release-unknown");
-      // Later runs only report it until its owner consents again.
-      expect((await brainSetup(host)).takeover).toBe("waits-consent");
+      // An ordinary later run (no consent of its own) only reports it.
+      expect((await brainSetup(withoutConsent(host))).takeover).toBe(
+        "waits-consent",
+      );
     }
   });
 });
@@ -602,7 +691,6 @@ describe("a takeover interrupted or not put back", () => {
         created: [brainRefreshService],
       },
     });
-    const journal = (await readBrainState(paths)).takeover;
     await writeBrainUnits(paths, paths.interimCommand, false, {
       takeOver: true,
     });
@@ -616,7 +704,8 @@ describe("a takeover interrupted or not put back", () => {
     expect(result).toMatchObject({ server: "moved", takeover: "taken-over" });
     expect((await readBrainState(paths)).takeover).toMatchObject({
       state: "done",
-      consent: journal?.consent as string,
+      // The record of the consent this run took it over with.
+      consent: "2026-11-18T23:40:00.000Z",
     });
     expect((await readBrainState(paths)).takeover?.created).toBeUndefined();
     expect(systemd.running).toBe(brainPin.version);

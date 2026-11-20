@@ -29,7 +29,6 @@ import {
 } from "./pin";
 import { type BrainHost, type BrainStatus, brainStatus } from "./status";
 import {
-  consentToTakeover,
   resumeTakeover,
   type TakeoverResult,
   takeOverInterim,
@@ -46,9 +45,10 @@ import { endStrayWriters } from "./writers";
 //   running        nothing to start
 //   outdated       the move to the pin with its copy and way back
 //                  (`./move.ts`), only while Buddy is idle
-//   adoptable      the interim installer's brain: reported until its owner
-//                  switches the takeover on (`lazurio brain take-over`), then
-//                  taken over in place (`./takeover.ts`) and moved to the pin
+//   adoptable      the interim installer's brain: reported, except in a run
+//                  its owner starts for it (`lazurio brain take-over`), which
+//                  takes it over in place (`./takeover.ts`); then moved to
+//                  the pin
 //   machines       Machines' brain on a free Environment: theirs, reported
 //   foreign        a unit nobody of these wrote: left alone
 // and then, wherever Lazurio's server answers, the three keys and the
@@ -58,6 +58,9 @@ import { endStrayWriters } from "./writers";
 
 export type SetupHost = BrainHost &
   Readonly<{
+    /** The owner's consent to the takeover given for this run (`lazurio
+     * brain take-over`); absent in every other run. */
+    consent?: Date;
     run: ToolRunner;
     service: ProcessRunner;
     http: BrainHttp;
@@ -206,12 +209,16 @@ async function move(
 export async function brainSetup(
   host: SetupHost,
   options: Readonly<{
-    /** The owner's consent to the takeover (`lazurio brain take-over`),
-     * recorded under the same lock, so it never overwrites a journal of a
-     * run in progress. A run that finds the lock held records nothing. */
+    /** The owner's consent to the takeover (`lazurio brain take-over`), for
+     * this run only: nothing keeps it for a later one. A run that finds the
+     * lock held does nothing with it (`busy`). */
     consent?: Date;
   }> = {},
 ): Promise<SetupResult> {
+  const run: SetupHost =
+    options.consent === undefined
+      ? host
+      : { ...host, consent: options.consent };
   if ((await host.context()).kind === "unsupported")
     return Object.freeze({
       server: "unsupported",
@@ -230,9 +237,7 @@ export async function brainSetup(
     return Object.freeze({ server: "busy", status: await brainStatus(host) });
   }
   try {
-    if (options.consent !== undefined)
-      await consentToTakeover(host.paths, options.consent);
-    return await setupOnce(host);
+    return await setupOnce(run);
   } finally {
     await lock.release();
   }
@@ -332,7 +337,7 @@ async function setupOnce(host: SetupHost): Promise<SetupResult> {
     case "foreign":
       return Object.freeze({ server: "foreign", status });
     case "adoptable": {
-      const takeover = await takeOverInterim(takeoverHost(host));
+      const takeover = await takeOverInterim(takeoverHost(host), host.consent);
       if (takeover !== "taken-over")
         return Object.freeze({
           server:

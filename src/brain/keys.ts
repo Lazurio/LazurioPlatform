@@ -56,8 +56,8 @@ export type BrainState = Readonly<{
       moveAside?: boolean;
     }>;
   }>;
-  /** The owner's consent to take the interim installer's brain over, and
-   * how the takeover went. */
+  /** How taking the interim installer's brain over went, and the time of
+   * the consent it ran with (a record only: no run reads it as consent). */
   takeover?: Readonly<{
     consent?: string;
     /** `taking-over`: the journal of a takeover in progress, written before
@@ -70,7 +70,7 @@ export type BrainState = Readonly<{
       | "restored"
       | `failed-${string}`
       | `restore-failed-${string}`
-      /** Refused before anything changed; the consent is withdrawn. */
+      /** Refused before anything changed. */
       | `refused-${string}`;
     at?: string;
     /** While taking over: the release the interim installer ran, and the

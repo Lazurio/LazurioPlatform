@@ -14,7 +14,7 @@ import {
 import { unitOwner, writeBrainUnits } from "./units";
 
 // The interim installer's brain taken over in place (plan LZD-0033 R11a,
-// part B), only once the Environment's owner has switched it on
+// part B), only in a run the Environment's owner starts for it
 // (`lazurio brain take-over`): nothing moves and nothing restarts. Its
 // units in ~/.config/systemd/user become Lazurio's, naming the same
 // command in ~/.bun, after a copy of them for the way back; systemd reads
@@ -171,8 +171,8 @@ async function putInterimBack(
 
 /** A takeover a run left in progress (`taking-over`): the interim
  * installer's units come back first, so nothing bypasses the takeover or
- * loses the release it ran; the takeover is then tried again by setup (the
- * consent stays). Null where there is nothing to resume. */
+ * loses the release it ran; the takeover is then tried again only in a run
+ * its owner consents to. Null where there is nothing to resume. */
 export async function resumeTakeover(
   host: TakeoverHost,
 ): Promise<TakeoverResult | null> {
@@ -192,31 +192,25 @@ export async function resumeTakeover(
   return back ? "restored:interrupted" : "restore-failed:interrupted";
 }
 
-/** Records the owner's consent; `lazurio brain take-over` calls it. */
-export async function consentToTakeover(
-  paths: BrainPaths,
-  now: Date,
-): Promise<void> {
-  const state = await readBrainState(paths);
-  await writeBrainState(paths, {
-    ...state,
-    takeover: Object.freeze({
-      ...(state.takeover ?? {}),
-      consent: now.toISOString(),
-    }),
-  });
-}
-
+/** Takes the interim installer's brain over, only with its owner's consent
+ * given for this very run (`lazurio brain take-over`). A consent is never
+ * kept for later: one recorded by an earlier release, one given in a run
+ * that stopped before the takeover (Machines not ready, a foreign unit, a
+ * refusal, a failed journal), counts for nothing, so no later run, start of
+ * the Launchpad or newer release takes the brain over (and then moves it)
+ * at a time nobody chose. The consent's time is kept only as the record of
+ * a takeover that ran. */
 export async function takeOverInterim(
   host: TakeoverHost,
+  consent: Date | undefined,
 ): Promise<TakeoverResult> {
   const { paths } = host;
   const now = () => (host.now ?? (() => new Date()))().toISOString();
   const state = await readBrainState(paths);
-  if (state.takeover?.consent === undefined) return "waits-consent";
-  // A way back that did not complete waits for a person.
-  if (state.takeover.state?.startsWith("restore-failed-"))
+  // A way back that did not complete waits for a person, consent or not.
+  if (state.takeover?.state?.startsWith("restore-failed-"))
     return `restore-failed:${state.takeover.state.slice("restore-failed-".length)}`;
+  if (consent === undefined) return "waits-consent";
   const record = async (
     takeover: `failed-${string}` | `restore-failed-${string}`,
   ) => {
@@ -227,12 +221,12 @@ export async function takeOverInterim(
       takeover: Object.freeze({ ...rest, state: takeover, at: now() }),
     });
   };
-  // A refusal changes nothing and withdraws the consent: a later run, or a
-  // later release that would no longer refuse, never takes the brain over
-  // (and then moves it) at a time nobody chose. Its owner consents again.
+  // A refusal changes nothing; it is recorded, and its owner consents again
+  // for another attempt (no consent outlives the run that gave it). A
+  // consent an earlier release recorded is dropped with it.
   const refuse = async (why: string): Promise<TakeoverResult> => {
     const current = await readBrainState(paths);
-    const { consent: _withdrawn, ...rest } = current.takeover ?? {};
+    const { consent: _dropped, ...rest } = current.takeover ?? {};
     await writeBrainState(paths, {
       ...current,
       takeover: Object.freeze({ ...rest, state: `refused-${why}`, at: now() }),
@@ -272,6 +266,8 @@ export async function takeOverInterim(
       ...current,
       takeover: Object.freeze({
         ...current.takeover,
+        // The record of the consent this takeover runs with.
+        consent: consent.toISOString(),
         state: "taking-over",
         at: now(),
         release: Object.freeze({ ...release }),

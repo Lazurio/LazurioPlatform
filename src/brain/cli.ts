@@ -32,11 +32,12 @@ brain setup [--json]
   revoked included) or stopped for a person.
 brain take-over [--json]
   The owner's consent to take over the brain an earlier installer runs on
-  this Personal Environment, recorded once under setup's lock (while another
-  run holds it, nothing is recorded: busy); then what setup does. A takeover
-  refused before anything changed (its release not known for sure, the
-  server not answering its version) withdraws the consent: nothing takes
-  the brain over later until its owner consents again.`;
+  this Personal Environment, then what setup does, under setup's lock (while
+  another run holds it, nothing happens: busy). The consent counts only for
+  this run: where the takeover does not run (Machines not ready, a unit not
+  the installer's, its release not known for sure, the server not answering
+  its version), nothing takes the brain over later until its owner runs
+  take-over again. A consent an earlier release recorded counts for nothing.`;
 
 export type BrainCliContext = CliContext &
   Readonly<{ host?: SetupHost | undefined }>;
