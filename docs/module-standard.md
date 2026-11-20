@@ -560,6 +560,19 @@ The rules:
   account that runs the Environment.
 - **The subject identifies, the username is shown.** An App that remembers a
   person keys them by `subject`; `username` may be `null`.
+- **A person is paired with a record by subject, never by e-mail.** A person
+  whom the App does not know yet asks to be paired (their subject and
+  username), and an Application Admin assigns them to the record, for example
+  to an employee or a technician. The e-mail address in a token is not
+  verified and never decides who someone is.
+- **A name comes from the App's own record.** Over MCP the token carries the
+  subject only (the default scope gives no `preferred_username`), so
+  `username` may be `null` there. A tool that shows or writes a person's name
+  takes it from the App's own record keyed by `subject`.
+- **A role given to the whole Organization is enough.** The App works for a
+  person whose only role comes from a grant to the whole Organization: it needs
+  no Module role, no Team and no Environment of that person, and it treats that
+  role like any other `user` or `admin`.
 - **Finer roles are the Module's.** Approvers, technicians and the like live in
   the Module's own data, keyed by `subject`; Lazurio keeps only the two
   application roles.
@@ -741,6 +754,15 @@ deployed through a reviewed pull request to the Deployment Repo, and its merge i
 the approval (decision 0239). In `app/v4` an automatically deployed migration only
 expands the schema; one that drops or narrows it goes only through an approved
 release with a restore from backup as the way back.
+
+**A person without an Environment.** Some people have only Applications: no
+Environment, no Organization network and no GitHub account. An Application
+therefore depends neither on the Organization's tailnet nor on an Environment's
+address under `*.lazurio.io`, which a person outside the Organization's network
+cannot reach: not for its pages, assets,
+fonts or links, not for its siblings' data or APIs, and not for a service it
+calls. The application host reaches what the App needs, and the person reaches
+only `https://<module>.<org>.lazurio.app`.
 
 **The runtime contract** still holds: built output, one server process, listener
 host and port from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`, direct 200
@@ -983,6 +1005,26 @@ cases when it needs them; a `vite-react` or
   interface offers that person: the same role, the same rules, the same
   redaction. It calls the Module's domain service, the one the interface's API
   calls, never the data files, the repository-db checkout or SQL directly.
+
+### Tools between versions
+
+A client may hold a snapshot of the tools it saw when it was connected. ChatGPT
+Business, for one, keeps the tool list of a published connection until the
+workspace's administrator refreshes it, and a changed tool definition then
+breaks calls without a notice
+([OpenAI: Connecting custom MCP servers in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt),
+FAQ). Since a merge to `main` deploys a new version by default (decision 0249),
+a tool's contract only grows between versions:
+
+- **Allowed:** a new tool, a new optional input field, a new output field, a
+  wider set of accepted values, a better description.
+- **Not allowed in place:** renaming or removing a tool, a new required input
+  field, a renamed or removed field, a field whose meaning or type changes, a
+  narrower set of accepted values, a higher least role.
+- **An incompatible change is a new tool.** It gets a new name (for example
+  `update_measurement_v2`, or a better verb), and the old tool stays and keeps
+  working. Removing it later is itself an incompatible change: it goes only
+  into a release whose CHANGELOG says so.
 
 ### One registry, two transports
 
