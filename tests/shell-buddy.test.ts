@@ -828,6 +828,13 @@ test("the frame hears whether his window shows it: after its ready, on every ope
   expect(shown()).toEqual([]);
   fromFrame({ type: "lazurio.buddy.ready", v: 1 });
   expect(shown()).toEqual([true]);
+  // `shown` goes before the context: a frame takes a context without it
+  // for an older host's.
+  expect(
+    log.posted
+      .map(({ message }) => (message as { type: string }).type)
+      .filter((type) => type.startsWith("lazurio.buddy.")),
+  ).toEqual(["lazurio.buddy.shown", "lazurio.buddy.context"]);
   // The person closes the window on the same page: the frame stays and
   // hears it, so an answer that comes now stays unread.
   bubble.toggle();

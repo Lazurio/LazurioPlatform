@@ -481,8 +481,10 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       );
       if (message === null) return;
       if (message.type === buddyMessage.ready) {
-        sender?.ready();
+        // `shown` before the context: a frame takes a context without it
+        // for an older host's and would count a visit.
         shownSender?.ready();
+        sender?.ready();
         return;
       }
       // A window the person opened is resized or closed; none is opened.

@@ -34,9 +34,11 @@ import { environmentName, hereOf, organizationOf } from "./view";
 // `shown` says whether the person's window shows the frame (F60's addendum
 // of 2026-11-20): T3 Code counts a mounted view of a thread as the person
 // looking at it, so a frame kept alive behind a closed window would read
-// Buddy's answers as seen. The host sends it after `ready` and on every
-// change, never the same twice (`createBuddyShownSender`); a frame that
-// never hears it behaves as before.
+// Buddy's answers as seen. The host sends it after `ready`, before the
+// context, and on every change, never the same twice
+// (`createBuddyShownSender`). A frame counts a visit only once it hears
+// `shown: true`; a frame that hears a context without `shown` first (an
+// older host) behaves as before.
 //
 // The host sends the context after `ready` (again after every `ready`: the
 // frame loaded anew) and after every change, never the same twice

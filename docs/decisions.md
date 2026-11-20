@@ -23330,8 +23330,9 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
 
 - **The message.** `{type: "lazurio.buddy.shown", v: 1, shown: boolean}` says whether the
   person's window shows the frame. The host sends it after the frame's `ready` (again after
-  every `ready`) and whenever the window opens or closes, including while it steps aside for
-  an explanation of the guide. It never sends the same value twice in a row, and sends only
+  every `ready`), before the context, and whenever the window opens or closes, including while
+  it steps aside for an explanation of the guide and while his hello shows before the meeting
+  (then the frame is hidden: `shown: false`). It never sends the same value twice in a row, and sends only
   to the frame's window on exactly Buddy's origin (`createBuddyShownSender`). The frame takes
   it, as it takes the context, only from its parent on exactly the host's origin, with exactly
   these members.
@@ -23339,11 +23340,11 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
   the thread's visit on every update. A frame alive behind a closed window therefore read
   every one of Buddy GEN4's answers as seen, and the sign by his avatar never said
   `answered`. The acceptance of the sign as Bob on 0.1.24-rc.3 found this. With the message,
-  T3 Code's frame records no visit while the window is hidden, and records one when it shows
-  again (Lazurio/t3code#240).
+  T3 Code's frame records a visit only once it hears `shown: true`, also after it loaded anew
+  behind a closed window, and records one when the window shows again (Lazurio/t3code#240).
 - **Compatibility.** Exact keys stay, and so does `v: 1`: the message is a new type, not a new
-  member. A frame that never hears it behaves as before, and so does an older T3 Code, which
-  drops a type it does not know. A newer T3 Code with an older Lazurio is unchanged.
+  member. A frame that hears a context without `shown` before it (an older host) behaves as
+  before, and so does an older T3 Code, which drops a type it does not know. A newer T3 Code with an older Lazurio is unchanged.
 
 **Considered and set aside:**
 
