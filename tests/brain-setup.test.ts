@@ -29,6 +29,7 @@ import { endStrayWriters, strayWriters } from "../src/brain/writers";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
+import { userManager, userRuntime } from "./fixtures/user-manager";
 
 // `lazurio brain setup` on a Personal Environment (plan LZD-0033 R11a),
 // against stand-ins: Bun and `gbrain init` write what they would, systemctl
@@ -196,7 +197,7 @@ async function host(
       return brain.version;
     },
     run,
-    service,
+    service: userManager(service),
     http: brainHttp,
     bun: "/fake/bun",
     // No Personalspace declares a vault yet: the brain stays local.
@@ -205,7 +206,7 @@ async function host(
       gh: undefined,
     },
     idle: async () => true,
-    env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
+    env: { HOME: paths.home, PATH: "/usr/bin:/bin", ...userRuntime },
     base,
     tries: 3,
     waitMs: 1,

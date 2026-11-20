@@ -21,6 +21,7 @@ import {
 } from "../src/brain/vault";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
+import { userManager, userRuntime } from "./fixtures/user-manager";
 
 // The brain onto the person's vault (plan LZD-0033 R11a), the decision and
 // the rebuild Machines' `Vault` makes today, against stand-ins: gh, git and
@@ -349,10 +350,10 @@ async function stand(
     command: "/fake/gbrain",
     gh: "/fake/gh",
     run,
-    service,
+    service: userManager(service),
     http,
     base: "http://127.0.0.1:3131",
-    env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
+    env: { HOME: paths.home, PATH: "/usr/bin:/bin", ...userRuntime },
     idle: async () => options.idle ?? true,
     now: () => new Date("2026-11-18T23:30:00Z"),
     tries: 2,
@@ -535,14 +536,18 @@ describe("the vault's connection", () => {
     let stops = 0;
     const host = {
       ...s.host,
-      service: async (command: readonly string[]) => {
+      service: async (
+        command: readonly string[],
+        timeout: number,
+        env?: Readonly<Record<string, string>>,
+      ) => {
         if (command[2] === "stop" && command[3] === brainUnit) stops++;
         if (stops > 1 && command[2] === "stop" && command[3] === brainUnit) {
           // Something started it again in between, and it does not stop.
           s.brain.up = true;
           return { exitCode: 1, stdout: "", stderr: "" };
         }
-        return service(command, 60_000);
+        return service(command, timeout, env);
       },
     } as VaultHost;
     expect(await convergeVault(host)).toBe("stop:rebuild-fetch");

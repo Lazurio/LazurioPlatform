@@ -19,7 +19,7 @@ import {
   type MeaningResult,
   recoverAttempt,
 } from "./meaning";
-import { type MoveResult, moveKeepsDown, moveToPin } from "./move";
+import { type MoveResult, moveKeepsDown, moveToPin, unitState } from "./move";
 import {
   brainPin,
   brainRefreshTimer,
@@ -504,11 +504,9 @@ async function finish(
 async function ensureTimer(
   host: SetupHost,
 ): Promise<"running" | "started" | "failed"> {
-  const ask = async (verb: string) => {
-    const answer = await host
-      .service(["systemctl", "--user", verb, brainRefreshTimer], 60_000)
-      .catch(() => null);
-    return answer === null || answer === "timeout" ? "" : answer.stdout.trim();
+  const ask = async (verb: "is-active" | "is-enabled") => {
+    const answer = await unitState(host, verb, brainRefreshTimer);
+    return answer === "timeout" ? "" : answer.stdout.trim();
   };
   if ((await ask("is-enabled")) !== "enabled") return "running";
   if ((await ask("is-active")) === "active") return "running";

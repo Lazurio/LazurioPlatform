@@ -2,7 +2,7 @@ import { chmod, cp, lstat, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
-import { systemctl } from "../update/service-control";
+import { serviceEnvironment, systemctl } from "../update/service-control";
 import { type BrainHttp, healthVersion, keyWorks, mcpTool } from "./admin";
 import { installPinnedRelease } from "./install";
 import {
@@ -76,10 +76,25 @@ export type ServiceHost = Readonly<{
 const service = (host: ServiceHost, ...args: string[]) =>
   systemctl({ run: host.service, env: host.env }, ...args);
 
-async function inactive(host: ServiceHost, unit: string): Promise<boolean> {
-  const answer = await host
-    .service(["systemctl", "--user", "is-active", unit], 60_000)
+/** A read of a unit's state from the person's user manager. It needs the
+ * same environment as every other `systemctl --user` (its runtime directory
+ * and bus): the runner passes the child nothing it is not given, and
+ * without them systemctl cannot reach the manager and answers nothing. */
+export const unitState = (
+  host: ServiceHost,
+  verb: "is-active" | "is-enabled",
+  unit: string,
+) =>
+  host
+    .service(
+      ["systemctl", "--user", verb, unit],
+      60_000,
+      serviceEnvironment(host.env),
+    )
     .catch(() => "timeout" as const);
+
+async function inactive(host: ServiceHost, unit: string): Promise<boolean> {
+  const answer = await unitState(host, "is-active", unit);
   // Only a successful read of a stopped state counts as stopped.
   return (
     answer !== "timeout" &&
@@ -102,9 +117,7 @@ export async function keepDown(host: MoveHost): Promise<boolean> {
   for (const unit of [brainRefreshTimer, brainUnit])
     await service(host, "disable", "--now", unit);
   for (const unit of [brainRefreshTimer, brainUnit]) {
-    const enabled = await host
-      .service(["systemctl", "--user", "is-enabled", unit], 60_000)
-      .catch(() => "timeout" as const);
+    const enabled = await unitState(host, "is-enabled", unit);
     if (
       enabled === "timeout" ||
       !["disabled", "masked", "not-found"].includes(enabled.stdout.trim())
@@ -291,9 +304,17 @@ class Move {
     const { host } = this;
     if (!(await stoppedForSure(host))) {
       // The server keeps running where it was: nothing moved, try later.
+      // It answers again before setup goes on (its keys and the vault ask
+      // it next), and the record names no copy, as none was taken.
       await service(host, "start", brainUnit);
       await service(host, "start", brainRefreshTimer);
-      await this.persist({ result: "waits:not-stopped" });
+      await answers(host);
+      const { backup: _none, ...record } = this.record;
+      this.record = Object.freeze({
+        ...record,
+        result: "waits:not-stopped",
+      }) as MoveRecord;
+      await this.persist({});
       return "waits:not-stopped";
     }
     try {

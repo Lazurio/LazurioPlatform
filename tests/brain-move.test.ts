@@ -26,6 +26,7 @@ import {
   interimRefreshTimer,
   interimServerUnit,
 } from "./fixtures/brain-interim-units";
+import { userManager, userRuntime } from "./fixtures/user-manager";
 
 // The interim installer's brain taken over in place and moved to the pin
 // (plan LZD-0033 R11a, part B; the move of HumanAndMachine-ai/Machines#1337),
@@ -234,10 +235,10 @@ async function stand(options: Options = {}) {
       return systemd.running;
     },
     run,
-    service,
+    service: userManager(service),
     http,
     bun: "/fake/bun",
-    env: { HOME: paths.home, PATH: "/usr/bin:/bin" },
+    env: { HOME: paths.home, PATH: "/usr/bin:/bin", ...userRuntime },
     base: "http://127.0.0.1:3131",
     idle: async () => options.idle ?? true,
     now: () => now,
@@ -420,6 +421,24 @@ describe("the interim installer's brain", () => {
     expect(await unitText(paths)).toContain(
       `exec ${paths.interimCommand} serve --http`,
     );
+    // The record names no copy, as none was taken; the server answers
+    // again before the keys are converged, so none of them fails.
+    expect((await readBrainState(paths)).move?.backup).toBeUndefined();
+    expect(Object.values(result.keys ?? {})).not.toContain("failed");
+  });
+
+  test("the server stopped as systemd confirms through the person's user manager: moved", async () => {
+    // A systemctl that, like the real one, reaches the user manager only
+    // with XDG_RUNTIME_DIR in its environment: the stop is read back as
+    // stopped, so the copy is taken and the pin reached (on an Environment
+    // this read once got no environment and answered `waits:not-stopped`).
+    const { host, paths } = await stand({ consent: true });
+    const result = await brainSetup(host);
+    expect(result).toMatchObject({ server: "moved", move: "moved" });
+    const home = await readdir(paths.home);
+    expect(home.some((name) => name.startsWith(".gbrain.bak-move-"))).toBe(
+      true,
+    );
   });
 });
 
@@ -470,10 +489,10 @@ describe("a takeover interrupted or not put back", () => {
     const service = host.service;
     const broken: SetupHost = {
       ...host,
-      service: async (command, timeout) =>
+      service: async (command, timeout, env) =>
         command[2] === "daemon-reload"
           ? { exitCode: 1, stdout: "", stderr: "" }
-          : service(command, timeout),
+          : service(command, timeout, env),
     };
     const result = await brainSetup(broken);
     expect(result).toMatchObject({
@@ -502,13 +521,13 @@ describe("the refresh timer after a move", () => {
     let timerStarts = false;
     const stuck: SetupHost = {
       ...host,
-      service: async (command, timeout) =>
+      service: async (command, timeout, env) =>
         !timerStarts &&
         command.includes(brainRefreshTimer) &&
         (command[2] === "start" ||
           (command[2] === "enable" && command.includes("--now")))
           ? { exitCode: 1, stdout: "", stderr: "" }
-          : service(command, timeout),
+          : service(command, timeout, env),
     };
     const context = {
       identity: {} as never,
