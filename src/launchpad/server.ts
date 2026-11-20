@@ -768,6 +768,12 @@ export async function startLaunchpad(
      * Launchpad sets Executor up, and returns its closed labels; null where
      * it does not run or did not finish. Absent: it never does. */
     brainAtStart?: (() => Promise<BrainSetupLabels | null>) | undefined;
+    /** Tests only: how the brain's wait for Machines' handover mark checks
+     * the mark and how long it waits between checks (#1120). Absent: the
+     * mark's file, every minute. */
+    brainHandover?:
+      | Readonly<{ check?: () => Promise<boolean>; waitMs?: number }>
+      | undefined;
     /** Whether this Launchpad sets the Environment's own vault up after it
      * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
@@ -1233,6 +1239,8 @@ export async function startLaunchpad(
   // and its content as the content routes report it (below).
   const github = createGithubProbe(toolsWithProofs);
   let closing = false;
+  // Ends the brain's wait for Machines' handover mark when this closes.
+  const brainAtStartStop = new AbortController();
   const headers = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -3856,12 +3864,17 @@ export async function startLaunchpad(
       // writes that mark only after this start (#1120).
       const labels = await brainSetupAtStart({
         run: brainAtStart,
-        handover: () =>
-          stat(brainHandoverMark).then(
-            () => true,
-            () => false,
-          ),
-        stopped: () => closing,
+        handover:
+          installed?.brainHandover?.check ??
+          (() =>
+            stat(brainHandoverMark).then(
+              () => true,
+              () => false,
+            )),
+        ...(installed?.brainHandover?.waitMs === undefined
+          ? {}
+          : { waitMs: installed.brainHandover.waitMs }),
+        signal: brainAtStartStop.signal,
         report: (waiting) =>
           console.log(
             JSON.stringify({ scope: "brain", event: "setup", ...waiting }),
@@ -4001,6 +4014,7 @@ export async function startLaunchpad(
     },
     close() {
       closing = true;
+      brainAtStartStop.abort();
       clearInterval(audienceTimer);
       stopRoutes?.();
       stopT3Links?.();

@@ -23,12 +23,13 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
   /** A setup that answers in turn, and a mark that appears after `after`
    * checks. No real time passes: the sleep is counted. */
   const world = (answers: readonly (BrainSetupLabels | null)[], after = 1) => {
-    const state = { runs: 0, checks: 0, sleeps: 0, stopped: false };
+    const state = { runs: 0, checks: 0, sleeps: 0 };
     const reported: BrainSetupLabels[] = [];
+    const close = new AbortController();
     const input = {
       run: async () => answers[state.runs++] ?? null,
       handover: async () => ++state.checks >= after,
-      stopped: () => state.stopped,
+      signal: close.signal,
       report: (labels: BrainSetupLabels) => reported.push(labels),
       waitMs: 60_000,
       waits: 5,
@@ -36,7 +37,7 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
         state.sleeps++;
       },
     };
-    return { state, reported, input };
+    return { state, reported, input, close };
   };
 
   test("an answer other than waits-machines is the answer: nothing waits", async () => {
@@ -68,12 +69,51 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
     expect(never.state).toMatchObject({ runs: 1, checks: 5 });
     const stopping = world([{ server: "waits-machines" }], 99);
     stopping.input.sleep = async () => {
-      stopping.state.stopped = true;
+      stopping.close.abort();
     };
     expect(await brainSetupAtStart(stopping.input)).toEqual({
       server: "waits-machines",
     });
     expect(stopping.state).toMatchObject({ runs: 1, checks: 0 });
+  });
+
+  test("a Launchpad that closes while a check of the mark is under way starts no other setup, even when the mark is there", async () => {
+    const { state, input, close } = world(
+      [{ server: "waits-machines" }, { server: "waits-takeover" }],
+      1,
+    );
+    let answer: (marked: boolean) => void = () => undefined;
+    input.handover = () =>
+      new Promise<boolean>((resolve) => {
+        state.checks++;
+        answer = resolve;
+      });
+    const result = brainSetupAtStart(input);
+    // The check is under way; the Launchpad closes, then the mark is seen.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    close.abort();
+    answer(true);
+    expect(await result).toEqual({ server: "waits-machines" });
+    expect(state).toMatchObject({ runs: 1, checks: 1 });
+  });
+
+  test("closing ends the pending sleep at once, with the real timer", async () => {
+    const { state, input, close } = world([{ server: "waits-machines" }], 99);
+    const { sleep: _counted, ...real } = input;
+    const started = Date.now();
+    const result = brainSetupAtStart({ ...real, waitMs: 3_600_000 });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    close.abort();
+    expect(await result).toEqual({ server: "waits-machines" });
+    expect(Date.now() - started).toBeLessThan(2_000);
+    expect(state).toMatchObject({ runs: 1, checks: 0 });
+  });
+
+  test("a Launchpad already closing runs no setup at all", async () => {
+    const { state, input, close } = world([{ server: "waits-takeover" }]);
+    close.abort();
+    expect(await brainSetupAtStart(input)).toBeNull();
+    expect(state.runs).toBe(0);
   });
 
   test("a mark that cannot be read counts as not there yet", async () => {
