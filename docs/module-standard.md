@@ -1214,17 +1214,21 @@ What "ready as an Application" means for each generation, and how
     ([repository-db#46](https://github.com/Lazurio/repository-db/issues/46)
     reproduces it with a JSON collection). A Module that keeps such a file
     recovers by itself, by the engine's own way out:
-    1. Before it discards anything, it keeps every unpublished change to that
-       file outside the checkout: each record the draft changed against `HEAD`,
-       with its new content and the version it started from. A draft is
-       published as a whole, so the file may hold earlier changes besides the
-       one that triggered the publication.
-    2. `conflict --abort` (its commit becomes a draft again), `discard --record`
-       of the conflicting file, which puts the whole file back to `HEAD`, and
-       `sync --pull` (the other side comes in).
-    3. For each kept change it compares that record in the fresh file with the
-       version the change started from. Unchanged: it applies the change again.
-       Changed: it does not apply it, overwrites nothing, and reports it as
+    1. `conflict --abort`. It ends the stopped replay and moves `HEAD` back to
+       where the unsent commits branched off the remote, without changing a
+       file, so every unsent change is a draft again (repository-db
+       `src/conflict.ts`, `abortConflict`).
+    2. Before it discards anything, it keeps outside the checkout every change
+       the draft now holds in the conflicting file against that `HEAD`: each
+       changed record with its new content and its version in `HEAD`, the
+       version the change started from. A draft is published as a whole, so
+       the file may hold earlier changes besides the one that triggered the
+       publication.
+    3. `discard --record` of that file, which puts the whole file back to
+       `HEAD`, and `sync --pull` (the other side comes in).
+    4. For each kept change it compares that record in the fresh file with the
+       version from step 2. Unchanged: it applies the change again. Changed: it
+       does not apply it, overwrites nothing, and reports it as
        `record_changed` where its draft is reviewed. Then it publishes what it
        applied.
 
