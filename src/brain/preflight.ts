@@ -1,4 +1,5 @@
 import { type BrainState, readBrainState } from "./keys";
+import { meaningPin } from "./meaning-pin";
 import { brainPin } from "./pin";
 import { type BrainRoom, brainRoom, type FreeBytes, roomShort } from "./room";
 import { interimPresent, interimRelease } from "./takeover";
@@ -9,16 +10,22 @@ import { interimPresent, interimRelease } from "./takeover";
 // recorded, the server's version, the sizes of the brain's files (never
 // their content) and the room on the disk. Each blocker is a branch of setup
 // that ends in a refusal, a held or stopped move, or a report only, before
-// the brain is touched, except the four records of an earlier step
+// the brain is touched, except the five records of an earlier step
 // (`earlierStepBlockers`): setup deals with them first, in any run, which may
-// stop the server, put a copy back or finish that step, and a consented run
-// may then take the brain over, so a person looks at them first:
+// stop the server, put units or a copy back or finish that step, and a
+// consented run may then take the brain over, so a person looks at them
+// first:
 //   waits-machines      no handover mark: setup only reports
 //   restore-failed      an earlier takeover's way back did not complete
+//   takeover-unfinished a takeover a run left after its journal (the
+//                       installer's units come back first)
 //   move-stopped        an earlier move stopped for a person
 //   move-unfinished     an earlier move a run left half way (finished first)
 //   vault-unfinished    a rebuild on the vault left half way or not put back
 //   meaning-unfinished  a switch to search by meaning left half way
+//   meaning-held        switching search by meaning on was given up or
+//                       stopped for this model: takeover and move go
+//                       through, search by meaning stays off
 //   held                a move to this pin was given up before: the takeover
 //                       goes through, the move does not (not retried)
 //   release-unknown     the interim installer's release is not known for sure
@@ -36,10 +43,12 @@ import { interimPresent, interimRelease } from "./takeover";
 export type TakeoverBlocker =
   | "waits-machines"
   | "restore-failed"
+  | "takeover-unfinished"
   | "move-stopped"
   | "move-unfinished"
   | "vault-unfinished"
   | "meaning-unfinished"
+  | "meaning-held"
   | "held"
   | "release-unknown"
   | "not-running"
@@ -52,6 +61,13 @@ export type TakeoverBlocker =
  * release under Lazurio's units. Every other blocker refuses the takeover,
  * or leaves it waiting, before anything changes. */
 export const moveBlockers: readonly TakeoverBlocker[] = Object.freeze(["held"]);
+
+/** The blockers that stop only search by meaning after the move: switching
+ * it on was given up for this model before (`restored`), or stopped for a
+ * person (`stopped`); takeover and move go through. */
+export const meaningBlockers: readonly TakeoverBlocker[] = Object.freeze([
+  "meaning-held",
+]);
 
 /** The blockers setup meets before it deals with any earlier step: no
  * handover mark (`waits-machines`, before anything else) and a takeover's
@@ -67,6 +83,7 @@ export const stopFirstBlockers: readonly TakeoverBlocker[] = Object.freeze([
  * finish that step (`stopped:…` keeps the server down), and then take the
  * brain over in that run. Not a refusal: things change. */
 export const earlierStepBlockers: readonly TakeoverBlocker[] = Object.freeze([
+  "takeover-unfinished",
   "move-stopped",
   "move-unfinished",
   "vault-unfinished",
@@ -85,6 +102,10 @@ function unfinished(state: BrainState): TakeoverBlocker[] {
   const found: TakeoverBlocker[] = [];
   if (state.takeover?.state?.startsWith("restore-failed-"))
     found.push("restore-failed");
+  // A run died after the journal: the next run puts the installer's units
+  // back (a reload), then takes over again only with consent.
+  if (state.takeover?.state === "taking-over")
+    found.push("takeover-unfinished");
   const move = state.move?.result;
   if (move?.startsWith("stopped:")) found.push("move-stopped");
   if (move === "moving") found.push("move-unfinished");
@@ -96,9 +117,14 @@ function unfinished(state: BrainState): TakeoverBlocker[] {
       ["stopping", "moving", "started"].includes(rebuild))
   )
     found.push("vault-unfinished");
-  const attempt = state.meaningAttempt?.result;
-  if (attempt === "stopping" || attempt === "started")
-    found.push("meaning-unfinished");
+  // Only an attempt for this model counts: setup recovers or keeps no other.
+  const attempt = state.meaningAttempt;
+  if (attempt?.provider === meaningPin.provider) {
+    if (attempt.result === "stopping" || attempt.result === "started")
+      found.push("meaning-unfinished");
+    if (attempt.result === "restored" || attempt.result === "stopped")
+      found.push("meaning-held");
+  }
   return found;
 }
 

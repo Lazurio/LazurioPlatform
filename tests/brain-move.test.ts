@@ -598,7 +598,7 @@ describe("the check before a takeover tells what a consented run would meet", ()
         expect(after).not.toBe(before);
         expect(s.calls.some((call) => call[2] === "stop")).toBe(false);
         expect(text).toContain(
-          `Lazurio takes it over once its owner agrees, but does not move it to ${brainPin.version}: ${c.blocker}`,
+          `once its owner agrees, a run with consent takes the memory over, but does not move it to ${brainPin.version}: ${c.blocker}`,
         );
         expect(text).not.toContain("refused");
       }
@@ -650,7 +650,7 @@ describe("the check before a takeover tells what a consented run would meet", ()
       expect(status).toMatchObject({ takeoverBlockers: [c.blocker] });
       const text = brainStatusText(status);
       expect(text).toContain(
-        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, in any run, also without consent: it may stop the memory, put a copy back or finish that step. After that, a run with consent may take the memory over and move it.`,
+        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. After that, a run with consent takes the memory over and moves it to ${brainPin.version}.`,
       );
       expect(text).not.toContain("refused");
       expect(text).not.toContain("change nothing");
@@ -679,9 +679,7 @@ describe("the check before a takeover tells what a consented run would meet", ()
     expect(text).toContain(
       "an earlier step was left unfinished (meaning-unfinished). Setup deals with it first",
     );
-    expect(text).toContain(
-      "After that, the takeover would still be refused: disk.",
-    );
+    expect(text).toContain("After that, the takeover would be refused: disk.");
     expect(text).not.toContain("change nothing");
     const before = await unitText(s.paths);
     expect(await brainSetup(s.host)).toMatchObject({
@@ -694,6 +692,79 @@ describe("the check before a takeover tells what a consented run would meet", ()
       true,
     );
     expect(await unitText(s.paths)).toBe(before);
+  });
+
+  test("a takeover a run left after its journal, and a refusal: the units come back first, then the takeover is refused", async () => {
+    const s = await stand({ consent: true, tagged: {}, freeBytes: 1024 ** 3 });
+    // What a run leaves when it dies right after the journal, before the
+    // first unit: the installer's units, still in place.
+    await writeBrainState(s.paths, {
+      takeover: {
+        state: "taking-over",
+        at: "2026-11-18T23:40:00.000Z",
+        release: { commit: "5586fb4", version: interimVersion },
+        created: [brainRefreshService],
+      },
+    });
+    const status = await brainStatus(withoutConsent(s.host));
+    expect(status).toMatchObject({
+      owner: "interim",
+      takeoverBlockers: ["takeover-unfinished", "disk"],
+    });
+    const text = brainStatusText(status);
+    expect(text).toContain(
+      "an earlier step was left unfinished (takeover-unfinished). Setup deals with it first",
+    );
+    expect(text).toContain("After that, the takeover would be refused: disk.");
+    expect(text).not.toContain("change nothing");
+    const before = await unitText(s.paths);
+    expect(await brainSetup(s.host)).toMatchObject({
+      takeover: "refused:disk",
+    });
+    // The recovery ran: systemd read the units again and the journal is
+    // gone; the takeover itself was then refused, the units as they were.
+    expect(s.calls.some((c) => c[2] === "daemon-reload")).toBe(true);
+    const takeover = (await readBrainState(s.paths)).takeover;
+    expect(takeover?.state).toBe("refused-disk");
+    expect(takeover?.created).toBeUndefined();
+    expect(await unitText(s.paths)).toBe(before);
+  });
+
+  test("search by meaning given up for this model: takeover and move go through, search by meaning stays off", async () => {
+    const s = await stand({ consent: true, tagged: {} });
+    await writeBrainState(s.paths, {
+      meaningAttempt: {
+        provider: meaningPin.provider,
+        result: "restored",
+        at: "2026-11-18T23:00:00.000Z",
+      },
+    } as never);
+    const status = await brainStatus(withoutConsent(s.host));
+    expect(status).toMatchObject({ takeoverBlockers: ["meaning-held"] });
+    const text = brainStatusText(status);
+    expect(text).toContain(
+      `once its owner agrees, a run with consent takes the memory over and moves it to ${brainPin.version}, but does not switch search by meaning on: meaning-held`,
+    );
+    expect(text).not.toContain("refused");
+    expect(await brainSetup(s.host)).toMatchObject({
+      takeover: "taken-over",
+    });
+    expect((await readBrainState(s.paths)).move?.result).toBe("done");
+    expect((await readBrainState(s.paths)).meaning).toBeUndefined();
+  });
+
+  test("an attempt for another model is not this one's: nothing is named", async () => {
+    const s = await stand({ consent: true, tagged: {} });
+    await writeBrainState(s.paths, {
+      meaningAttempt: {
+        provider: "llama-server:other",
+        result: "stopping",
+        at: "2026-11-18T23:00:00.000Z",
+      },
+    } as never);
+    expect(await brainStatus(withoutConsent(s.host))).toMatchObject({
+      takeoverBlockers: [],
+    });
   });
 
   for (const gate of [

@@ -7,6 +7,7 @@ import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
 import {
   earlierStepBlockers,
+  meaningBlockers,
   moveBlockers,
   stopFirstBlockers,
 } from "./preflight";
@@ -79,10 +80,21 @@ function adoptableText(
   const refusing = blockers.filter(
     (b) =>
       !moveBlockers.includes(b) &&
+      !meaningBlockers.includes(b) &&
       !earlierStepBlockers.includes(b) &&
       !stopFirstBlockers.includes(b),
   );
   const held = blockers.filter((b) => moveBlockers.includes(b));
+  const meaningHeld = blockers.filter((b) => meaningBlockers.includes(b));
+  // What a consented run does once nothing before stops it.
+  const outcome =
+    refusing.length > 0
+      ? `the takeover would be refused: ${refusing.join(", ")}`
+      : held.length > 0
+        ? `a run with consent takes the memory over, but does not move it to ${status.pin}: ${held.join(", ")} (a move to this release was given up before)`
+        : meaningHeld.length > 0
+          ? `a run with consent takes the memory over and moves it to ${status.pin}, but does not switch search by meaning on: ${meaningHeld.join(", ")} (given up or stopped for this model before)`
+          : `a run with consent takes the memory over and moves it to ${status.pin}`;
   const room = status.brainRoom;
   const size =
     room === undefined
@@ -91,19 +103,12 @@ function adoptableText(
   const rest = blockers.filter((b) => !gate.includes(b));
   if (gate.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${gate.join(", ")}.${rest.length > 0 ? ` Once that is resolved, also in the way: ${rest.join(", ")}.` : ""}${size}`;
-  if (earlier.length > 0) {
-    const after =
-      refusing.length > 0
-        ? ` After that, the takeover would still be refused: ${refusing.join(", ")}.`
-        : held.length > 0
-          ? ` After that, a run with consent may take the memory over, but not move it to ${status.pin}: ${held.join(", ")}.`
-          : " After that, a run with consent may take the memory over and move it.";
-    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put a copy back or finish that step.${after} Let a person look at it before consenting.${size}`;
-  }
+  if (earlier.length > 0)
+    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. After that, ${outcome}. Let a person look at it before consenting.${size}`;
   if (refusing.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
-  if (held.length > 0)
-    return `${from}; Lazurio takes it over once its owner agrees, but does not move it to ${status.pin}: ${held.join(", ")} (a move to this release was given up before).${size}`;
+  if (held.length > 0 || meaningHeld.length > 0)
+    return `${from}; once its owner agrees, ${outcome}.${size}`;
   return `${from}; Lazurio takes it over once its owner agrees, and nothing known now would stop it or the move to ${status.pin}.${size}`;
 }
 
