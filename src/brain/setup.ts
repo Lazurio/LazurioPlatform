@@ -182,6 +182,16 @@ async function move(
       ...extra,
       status: await brainStatus(host),
     });
+  // The server did not answer again after a stop systemd did not confirm:
+  // nothing more asks it in this run (keys, vault, model); the next run
+  // starts from what is there.
+  if (moved === "waits:not-answering")
+    return Object.freeze({
+      server: "failed",
+      step: "answer",
+      ...extra,
+      status: await brainStatus(host),
+    });
   return finish(
     host,
     moved === "moved" ? "moved" : moved === "held" ? "held" : "waits-move",

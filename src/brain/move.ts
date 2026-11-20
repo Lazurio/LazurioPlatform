@@ -306,16 +306,17 @@ class Move {
       // The server keeps running where it was: nothing moved, try later.
       // It answers again before setup goes on (its keys and the vault ask
       // it next), and the record names no copy, as none was taken.
-      await service(host, "start", brainUnit);
+      const restarted =
+        (await service(host, "start", brainUnit)) &&
+        (await answers(host)) !== null;
       await service(host, "start", brainRefreshTimer);
-      await answers(host);
+      // A server that does not come back is its own outcome: setup stops
+      // there, before its keys or the vault would ask it anything.
+      const result = restarted ? "waits:not-stopped" : "waits:not-answering";
       const { backup: _none, ...record } = this.record;
-      this.record = Object.freeze({
-        ...record,
-        result: "waits:not-stopped",
-      }) as MoveRecord;
+      this.record = Object.freeze({ ...record, result }) as MoveRecord;
       await this.persist({});
-      return "waits:not-stopped";
+      return result;
     }
     try {
       await cp(host.paths.brain, this.backup, {

@@ -427,6 +427,47 @@ describe("the interim installer's brain", () => {
     expect(Object.values(result.keys ?? {})).not.toContain("failed");
   });
 
+  test("a stop systemd does not confirm, then a server that does not answer again: setup stops before its keys and the vault", async () => {
+    const { host, paths, calls, systemd } = await stand({ consent: true });
+    const service = host.service;
+    const down: SetupHost = {
+      ...host,
+      service: async (command, timeout, env) => {
+        // systemd never confirms the stop, and the server stays down.
+        if (command[2] === "is-active" && command.at(-1) === brainUnit)
+          return { exitCode: 0, stdout: "active\n", stderr: "" };
+        if (command[2] === "start" && command[3] === brainUnit)
+          return { exitCode: 1, stdout: "", stderr: "" };
+        return service(command, timeout, env);
+      },
+    };
+    const result = await brainSetup(down);
+    expect(result).toMatchObject({
+      server: "failed",
+      step: "answer",
+      move: "waits:not-answering",
+    });
+    // Nothing asked the server that does not answer: no key, no vault.
+    expect(result.keys).toBeUndefined();
+    expect(result.vault).toBeUndefined();
+    expect(systemd.running).toBeNull();
+    expect((await readBrainState(paths)).move).toMatchObject({
+      result: "waits:not-answering",
+    });
+    expect((await readBrainState(paths)).move?.backup).toBeUndefined();
+    void calls;
+    // The next run, whose start works, brings the server back (it is not
+    // running, so setup starts it and converges its keys); the run after
+    // moves it to the pin.
+    const again = await brainSetup(host);
+    expect(again.server).toBe("started");
+    expect(Object.values(again.keys ?? {})).not.toContain("failed");
+    expect(await brainSetup(host)).toMatchObject({
+      server: "moved",
+      move: "moved",
+    });
+  });
+
   test("the server stopped as systemd confirms through the person's user manager: moved", async () => {
     // A systemctl that, like the real one, reaches the user manager only
     // with XDG_RUNTIME_DIR in its environment: the stop is read back as
