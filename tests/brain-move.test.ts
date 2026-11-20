@@ -13,6 +13,7 @@ import { dirname, join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
 import { brainStatusText, runBrainCommand } from "../src/brain/cli";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
+import { meaningPin } from "../src/brain/meaning-pin";
 import {
   brainPaths,
   brainPin,
@@ -601,6 +602,62 @@ describe("the check before a takeover tells what a consented run would meet", ()
         );
         expect(text).not.toContain("refused");
       }
+    });
+
+  // An earlier step's record is no refusal: setup deals with it first, in
+  // any run, and a consented run may then take the brain over.
+  const earlier: ReadonlyArray<{
+    blocker: string;
+    state: Record<string, unknown>;
+    result: Record<string, unknown>;
+    serverAfter: boolean;
+  }> = [
+    {
+      // A switch to search by meaning interrupted before the server
+      // stopped: the server starts again, the record goes, and the same
+      // consented run takes the brain over and moves it.
+      blocker: "meaning-unfinished",
+      state: {
+        meaningAttempt: {
+          provider: meaningPin.provider,
+          result: "stopping",
+          at: "2026-11-18T23:00:00.000Z",
+        },
+      },
+      result: { takeover: "taken-over" },
+      serverAfter: true,
+    },
+    {
+      // A move that stopped for a person: setup keeps the server down.
+      blocker: "move-stopped",
+      state: {
+        move: {
+          to: brainPin.commit,
+          from: interimVersion,
+          at: "2026-11-18",
+          result: "stopped:previous-missing",
+        },
+      },
+      result: { server: "stopped", move: "stopped:previous-missing" },
+      serverAfter: false,
+    },
+  ];
+  for (const c of earlier)
+    test(`${c.blocker}: named as an earlier step, not a refusal, and the consented run deals with it`, async () => {
+      const s = await stand({ consent: true, tagged: {} });
+      await writeBrainState(s.paths, c.state as never);
+      const status = await brainStatus(withoutConsent(s.host));
+      expect(status).toMatchObject({ takeoverBlockers: [c.blocker] });
+      const text = brainStatusText(status);
+      expect(text).toContain(
+        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, also without consent: it may stop the memory, put a copy back or finish that step`,
+      );
+      expect(text).not.toContain("refused");
+      expect(text).not.toContain("change nothing");
+      const result = await brainSetup(s.host);
+      expect(result).toMatchObject(c.result);
+      expect(result.takeover?.startsWith("refused")).not.toBe(true);
+      expect(s.systemd.server).toBe(c.serverAfter);
     });
 
   test("room that cannot be told counts as too little", async () => {

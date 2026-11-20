@@ -9,8 +9,10 @@ import { interimPresent, interimRelease } from "./takeover";
 // recorded, the server's version, the sizes of the brain's files (never
 // their content) and the room on the disk. Each blocker is a branch of setup
 // that ends in a refusal, a held or stopped move, or a report only, before
-// the brain is touched; the four records of an earlier step are what setup
-// deals with before any takeover, so a person looks at them first:
+// the brain is touched, except the four records of an earlier step
+// (`earlierStepBlockers`): setup deals with them first, in any run, which may
+// stop the server, put a copy back or finish that step, and a consented run
+// may then take the brain over, so a person looks at them first:
 //   waits-machines      no handover mark: setup only reports
 //   restore-failed      an earlier takeover's way back did not complete
 //   move-stopped        an earlier move stopped for a person
@@ -50,6 +52,17 @@ export type TakeoverBlocker =
  * release under Lazurio's units. Every other blocker refuses the takeover,
  * or leaves it waiting, before anything changes. */
 export const moveBlockers: readonly TakeoverBlocker[] = Object.freeze(["held"]);
+
+/** The records of an earlier step that setup deals with before any
+ * takeover, in the same run: it may stop the server, put a copy back or
+ * finish that step (`stopped:…` keeps the server down), and then take the
+ * brain over in that run. Not a refusal: things change. */
+export const earlierStepBlockers: readonly TakeoverBlocker[] = Object.freeze([
+  "move-stopped",
+  "move-unfinished",
+  "vault-unfinished",
+  "meaning-unfinished",
+]);
 
 export type TakeoverCheck = Readonly<{
   /** The release a takeover would record, or null (`release-unknown`). */

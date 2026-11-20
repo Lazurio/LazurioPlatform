@@ -5,7 +5,7 @@ import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
 import { brainPin } from "./pin";
-import { moveBlockers } from "./preflight";
+import { earlierStepBlockers, moveBlockers } from "./preflight";
 import { brainSetup, type SetupHost, type SetupResult } from "./setup";
 import { type BrainStatus, brainStatus } from "./status";
 
@@ -67,7 +67,10 @@ function adoptableText(
 ): string {
   const from = `The memory runs from an earlier installer (${status.running ?? "not answering"})`;
   const blockers = status.takeoverBlockers ?? [];
-  const refusing = blockers.filter((b) => !moveBlockers.includes(b));
+  const earlier = blockers.filter((b) => earlierStepBlockers.includes(b));
+  const refusing = blockers.filter(
+    (b) => !moveBlockers.includes(b) && !earlierStepBlockers.includes(b),
+  );
   const room = status.brainRoom;
   const size =
     room === undefined
@@ -75,6 +78,8 @@ function adoptableText(
       : `\nSize: ${megabytes(room.brainBytes)} in ${room.brainFiles ?? "unknown"} files; room on the disk ${megabytes(room.freeBytes)}, needed ${megabytes(room.neededBytes)}.`;
   if (refusing.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
+  if (earlier.length > 0)
+    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, also without consent: it may stop the memory, put a copy back or finish that step, and a run with consent may then take the memory over and move it. Let a person look at it before consenting.${size}`;
   if (blockers.length > 0)
     return `${from}; Lazurio takes it over once its owner agrees, but does not move it to ${status.pin}: ${blockers.join(", ")} (a move to this release was given up before).${size}`;
   return `${from}; Lazurio takes it over once its owner agrees, and nothing known now would stop it or the move to ${status.pin}.${size}`;
