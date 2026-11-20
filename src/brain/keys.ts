@@ -69,7 +69,9 @@ export type BrainState = Readonly<{
       | "done"
       | "restored"
       | `failed-${string}`
-      | `restore-failed-${string}`;
+      | `restore-failed-${string}`
+      /** Refused before anything changed; the consent is withdrawn. */
+      | `refused-${string}`;
     at?: string;
     /** While taking over: the release the interim installer ran, and the
      * unit names that were not there before (removed on the way back). */

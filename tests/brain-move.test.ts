@@ -15,7 +15,11 @@ import {
 } from "../src/brain/pin";
 import { brainSetup, type SetupHost } from "../src/brain/setup";
 import { brainStatus } from "../src/brain/status";
-import { consentToTakeover, interimUnitsCopy } from "../src/brain/takeover";
+import {
+  consentToTakeover,
+  interimRelease,
+  interimUnitsCopy,
+} from "../src/brain/takeover";
 import { writeBrainUnits } from "../src/brain/units";
 import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
@@ -56,6 +60,16 @@ type Options = Readonly<{
   /** The interim installer's three units exactly as it writes them, its
    * server unit's credential check before the start included. */
   installedUnits?: boolean;
+  /** The interim installer named the fork by its release tag, as its
+   * earlier runs did: Bun's lockfile and `.bun-tag` hold the commit it
+   * resolved (as `bun add --global github:Lazurio/gbrain#v0.60.315.0-
+   * lazurio.1` leaves them). `lock` and `bunTag` replace either; null
+   * leaves it out. */
+  tagged?: Readonly<{
+    lock?: string | null;
+    bunTag?: string | null;
+    tag?: string;
+  }>;
 }>;
 
 async function stand(options: Options = {}) {
@@ -80,16 +94,38 @@ async function stand(options: Options = {}) {
   }
   const global = join(paths.home, ".bun", "install", "global");
   await mkdir(join(global, "node_modules", "gbrain"), { recursive: true });
+  const tagged = options.tagged;
   await writeFile(
     join(global, "package.json"),
     JSON.stringify({
-      dependencies: { gbrain: `github:Lazurio/gbrain#${interimCommit}` },
+      dependencies: {
+        gbrain: `github:Lazurio/gbrain#${
+          tagged === undefined
+            ? interimCommit
+            : (tagged.tag ?? `v${interimVersion}-lazurio.1`)
+        }`,
+      },
     }),
   );
   await writeFile(
     join(global, "node_modules", "gbrain", "package.json"),
     JSON.stringify({ version: interimVersion }),
   );
+  if (tagged !== undefined) {
+    // The shapes Bun writes, from a real install of that tag.
+    const lock = tagged.lock === undefined ? "5586fb4" : tagged.lock;
+    const bunTag = tagged.bunTag === undefined ? "5586fb4" : tagged.bunTag;
+    if (lock !== null)
+      await writeFile(
+        join(global, "bun.lock"),
+        `{\n  "lockfileVersion": 1,\n  "packages": {\n    "gbrain": ["gbrain@github:Lazurio/gbrain#${lock}", { "bin": { "gbrain": "src/cli.ts" } }, "Lazurio-gbrain-${lock}", "sha512-x"],\n  }\n}\n`,
+      );
+    if (bunTag !== null)
+      await writeFile(
+        join(global, "node_modules", "gbrain", ".bun-tag"),
+        `Lazurio-gbrain-${bunTag}`,
+      );
+  }
   await mkdir(join(paths.home, ".bun", "bin"), { recursive: true });
   await writeFile(paths.interimCommand, "#!/bin/sh\n", { mode: 0o755 });
   await mkdir(join(paths.home, ".local", "state", "lazurio", "buddy"), {
@@ -250,6 +286,57 @@ async function stand(options: Options = {}) {
 
 const unitText = (paths: ReturnType<typeof brainPaths>) =>
   readFile(join(paths.units, brainUnit), "utf8");
+
+describe("the interim installer's brain installed from a release tag", () => {
+  test("its release is the commit Bun resolved the tag to: taken over and moved", async () => {
+    const { host, paths } = await stand({ consent: true, tagged: {} });
+    expect(await interimRelease(paths)).toEqual({
+      commit: "5586fb4",
+      version: interimVersion,
+    });
+    const result = await brainSetup(host);
+    expect(result).toMatchObject({ takeover: "taken-over" });
+    expect((await readBrainState(paths)).move?.previous).toMatchObject({
+      commit: "5586fb4",
+      version: interimVersion,
+    });
+  });
+
+  test("only the lockfile or only .bun-tag is enough", async () => {
+    for (const tagged of [{ bunTag: null }, { lock: null }]) {
+      const { paths } = await stand({ tagged });
+      expect((await interimRelease(paths))?.commit).toBe("5586fb4");
+    }
+  });
+
+  test("a release not known for sure is refused, changes nothing and withdraws the consent", async () => {
+    for (const tagged of [
+      // Neither records the commit.
+      { lock: null, bunTag: null },
+      // They disagree.
+      { bunTag: "1111111" },
+      // The tag names another version than the package.
+      { tag: "v0.60.316.0-lazurio.1" },
+      // Not a release tag of the fork.
+      { tag: "main" },
+    ]) {
+      const { host, paths, calls } = await stand({ consent: true, tagged });
+      const before = await unitText(paths);
+      const result = await brainSetup(host);
+      expect(result).toMatchObject({
+        server: "takeover-refused",
+        takeover: "refused:release-unknown",
+      });
+      expect(await unitText(paths)).toBe(before);
+      expect(calls.some((c) => c[2] === "stop")).toBe(false);
+      const takeover = (await readBrainState(paths)).takeover;
+      expect(takeover?.consent).toBeUndefined();
+      expect(takeover?.state).toBe("refused-release-unknown");
+      // Later runs only report it until its owner consents again.
+      expect((await brainSetup(host)).takeover).toBe("waits-consent");
+    }
+  });
+});
 
 describe("the interim installer's brain, its units exactly as it writes them", () => {
   test("is adoptable; with consent it is taken over in place and moved to the pin", async () => {

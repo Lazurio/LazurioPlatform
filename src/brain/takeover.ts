@@ -39,28 +39,50 @@ export type TakeoverResult =
   | `restored:${string}`
   | `restore-failed:${string}`;
 
-const githubPin = /^github:Lazurio\/gbrain#([0-9a-f]{40})$/;
+/** The two ways the interim installer named the fork: by its commit, or (in
+ * its earlier runs) by a release tag `v<version>-lazurio.<n>`. */
+const githubCommit = /^github:Lazurio\/gbrain#([0-9a-f]{40})$/;
+const githubTag = /^github:Lazurio\/gbrain#v(\d+\.\d+\.\d+\.\d+)-lazurio\.\d+$/;
+/** The commit Bun resolved a tag to, as its lockfile and the package's
+ * `.bun-tag` record it. */
+const lockedCommit = /"gbrain@github:Lazurio\/gbrain#([0-9a-f]{7,40})"/;
+const bunTag = /^Lazurio-gbrain-([0-9a-f]{7,40})\s*$/;
 
 /** The interim installer's release: the commit Bun installed from the fork
- * and the version that package carries; null where either is not readable. */
+ * and the version that package carries; null where either is not known for
+ * sure. A tag counts only where Bun recorded the commit it resolved it to
+ * (`bun.lock`, `.bun-tag`), both agree where both are there, and the tag's
+ * version is the package's. */
 export async function interimRelease(
   paths: BrainPaths,
 ): Promise<Readonly<{ commit: string; version: string }> | null> {
   const global = join(paths.home, ".bun", "install", "global");
+  const text = (path: string) => readFile(path, "utf8").catch(() => undefined);
   try {
     const manifest = JSON.parse(
-      await readFile(join(global, "package.json"), "utf8"),
+      (await text(join(global, "package.json"))) ?? "",
     ) as { dependencies?: Record<string, unknown> };
-    const pinned = githubPin.exec(String(manifest.dependencies?.gbrain ?? ""));
+    const named = String(manifest.dependencies?.gbrain ?? "");
     const pkg = JSON.parse(
-      await readFile(
-        join(global, "node_modules", "gbrain", "package.json"),
-        "utf8",
-      ),
+      (await text(join(global, "node_modules", "gbrain", "package.json"))) ??
+        "",
     ) as { version?: unknown };
-    if (pinned?.[1] === undefined || typeof pkg.version !== "string")
-      return null;
-    return Object.freeze({ commit: pinned[1], version: pkg.version });
+    if (typeof pkg.version !== "string") return null;
+    const commit = githubCommit.exec(named)?.[1];
+    if (commit !== undefined)
+      return Object.freeze({ commit, version: pkg.version });
+    const tagged = githubTag.exec(named)?.[1];
+    if (tagged === undefined || tagged !== pkg.version) return null;
+    const lock = lockedCommit.exec(
+      (await text(join(global, "bun.lock"))) ?? "",
+    )?.[1];
+    const tag = bunTag.exec(
+      (await text(join(global, "node_modules", "gbrain", ".bun-tag"))) ?? "",
+    )?.[1];
+    const resolved = lock ?? tag;
+    if (resolved === undefined) return null;
+    if (lock !== undefined && tag !== undefined && lock !== tag) return null;
+    return Object.freeze({ commit: resolved, version: pkg.version });
   } catch {
     return null;
   }
@@ -205,12 +227,24 @@ export async function takeOverInterim(
       takeover: Object.freeze({ ...rest, state: takeover, at: now() }),
     });
   };
+  // A refusal changes nothing and withdraws the consent: a later run, or a
+  // later release that would no longer refuse, never takes the brain over
+  // (and then moves it) at a time nobody chose. Its owner consents again.
+  const refuse = async (why: string): Promise<TakeoverResult> => {
+    const current = await readBrainState(paths);
+    const { consent: _withdrawn, ...rest } = current.takeover ?? {};
+    await writeBrainState(paths, {
+      ...current,
+      takeover: Object.freeze({ ...rest, state: `refused-${why}`, at: now() }),
+    });
+    return `refused:${why}`;
+  };
   // What runs must be what the interim installer says it installed.
   const release = await interimRelease(paths);
-  if (release === null) return "refused:release-unknown";
+  if (release === null) return refuse("release-unknown");
   const running = await healthVersion(host.http, host.base);
-  if (running === null) return "refused:not-running";
-  if (running !== release.version) return "refused:other-version";
+  if (running === null) return refuse("not-running");
+  if (running !== release.version) return refuse("other-version");
   // A copy of every unit of these names that is there, for the way back.
   const copy = interimUnitsCopy(paths);
   const kept: Record<string, Buffer> = {};
@@ -225,9 +259,9 @@ export async function takeOverInterim(
       await writeDurableFile(copy, name, text);
     }
   } catch {
-    return "refused:copy";
+    return refuse("copy");
   }
-  if (kept[brainUnit] === undefined) return "refused:no-unit";
+  if (kept[brainUnit] === undefined) return refuse("no-unit");
   const command = { run: host.service, env: host.env };
   const created = unitNames.filter((name) => kept[name] === undefined);
   // The journal before the first unit: a run that dies from here on is
