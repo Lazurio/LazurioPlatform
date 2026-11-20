@@ -941,6 +941,39 @@ test("a frame loaded anew behind his hello hears its ready answered, that it is 
   expect(sent().slice(5)).toEqual(["shown:true"]);
 });
 
+test("every context the frame hears comes after its current shown, also to a frame loaded anew before the host saw its ready", () => {
+  const { bubble, fromFrame, log, page } = fakeBubble();
+  const sent = () =>
+    log.posted
+      .map(({ message }) => message as { type: string; shown?: boolean })
+      .filter((message) => message.type.startsWith("lazurio.buddy."))
+      .map((message) =>
+        message.type === "lazurio.buddy.shown"
+          ? `shown:${message.shown}`
+          : message.type,
+      );
+  bubble.update();
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  bubble.toggle();
+  expect(sent()).toEqual([
+    "shown:true",
+    "lazurio.buddy.context",
+    "shown:false",
+  ]);
+  // The hidden frame loads anew; before the host handles its new ready,
+  // the page changes: the context goes, with shown before it.
+  page.path = "/settings/general";
+  bubble.changed();
+  expect(sent().slice(3)).toEqual(["shown:false", "lazurio.buddy.context"]);
+  // Its ready then: shown and the context again, shown once.
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(sent().slice(5)).toEqual(["shown:false", "lazurio.buddy.context"]);
+  // A change of the window alone is one shown.
+  bubble.toggle();
+  expect(sent().slice(7)).toEqual(["shown:true"]);
+});
+
 test("without Buddy's origin the bubble draws nothing, makes no frame and hears nothing", () => {
   const { bubble, log, fromFrame } = fakeBubble({ origin: null });
   bubble.update();

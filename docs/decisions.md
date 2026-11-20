@@ -23332,8 +23332,10 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
   person's window shows the frame. The host sends it after the frame's `ready` (again after
   every `ready`), before the context, and whenever the window opens or closes, including while
   it steps aside for an explanation of the guide and while his hello shows before the meeting
-  (then the frame is hidden: `shown: false`). It never sends the same value twice in a row, and sends only
-  to the frame's window on exactly Buddy's origin (`createBuddyShownSender`). The frame takes
+  (then the frame is hidden: `shown: false`). It also sends it right before every context, so that a frame
+  loaded anew never hears a context without it; otherwise it never sends the same value twice
+  in a row. It sends only to the frame's window on exactly Buddy's origin
+  (`createBuddyShownSender`). The frame takes
   it, as it takes the context, only from its parent on exactly the host's origin, with exactly
   these members.
 - **Why.** T3 Code counts a mounted view of a thread as the person looking at it and advances
@@ -23356,8 +23358,10 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
 
 **Verified by:**
 - `tests/shell-buddy.test.ts`: the frame hears `shown` after its `ready`, on every open and
-  close and when the window steps aside for an explanation, never the same twice in a row,
-  never to `*`; the frame stays the same across a close and an open. The vectors carry
+  close and when the window steps aside for an explanation, never the same twice in a row
+  except right before a context, never to `*`; the frame stays the same across a close and an
+  open. Every context comes after a current `shown`, also to a frame loaded anew before the host
+  saw its `ready`, and to one loaded anew behind his hello. The vectors carry
   `buddyShownMessage`.
 - `tests/shell-buddy-frame-browser.test.ts`, in headless Chrome with the real bubble and
   element: the frame receives `shown: true`, `false` while the explanation plays, the guide's

@@ -34,9 +34,9 @@ import { environmentName, hereOf, organizationOf } from "./view";
 // `shown` says whether the person's window shows the frame (F60's addendum
 // of 2026-11-20): T3 Code counts a mounted view of a thread as the person
 // looking at it, so a frame kept alive behind a closed window would read
-// Buddy's answers as seen. The host sends it after `ready`, before the
-// context, and on every change, never the same twice
-// (`createBuddyShownSender`). A frame counts a visit only once it hears
+// Buddy's answers as seen. The host sends it after `ready`, before every
+// context, and on every change; the same value twice in a row only right
+// before a context (`createBuddyShownSender`). A frame counts a visit only once it hears
 // `shown: true`; a frame that hears a context without `shown` first (an
 // older host) behaves as before.
 //
@@ -526,6 +526,9 @@ export function createBuddyContextSender(
     frame: () => BuddyFrameWindow | null;
     /** The context of the page now (`buddyContext`), or null. */
     context: () => BuddyContext | null;
+    /** Runs right before each context goes, so that `shown` precedes it
+     * (`createBuddyShownSender`'s `beforeContext`). */
+    before?: () => void;
   }>,
 ) {
   let ready = false;
@@ -537,6 +540,7 @@ export function createBuddyContextSender(
     if (frame === null || context === null) return false;
     const text = JSON.stringify(context);
     if (!force && text === sent) return false;
+    seams.before?.();
     try {
       frame.postMessage(context, seams.origin);
     } catch {
@@ -578,6 +582,8 @@ export function createBuddyShownSender(
 ) {
   let ready = false;
   let sent: boolean | null = null;
+  // Whether `shown` just went with a `ready`, right before its context.
+  let fresh = false;
   const send = (force: boolean): boolean => {
     if (!ready || !isShellBuddyOrigin(seams.origin)) return false;
     const frame = seams.frame();
@@ -596,11 +602,24 @@ export function createBuddyShownSender(
     /** The frame is ready (it loaded, or loaded again): it hears it anew. */
     ready(): boolean {
       ready = true;
-      return send(true);
+      fresh = send(true);
+      return fresh;
     },
     /** The window may have opened or closed. */
     changed(): boolean {
       return send(false);
+    },
+    /** A context is about to go: `shown` goes first, unless it just went
+     * with the `ready` this context answers. A frame loaded anew takes a
+     * context without it for an older host's, also before the host saw its
+     * new `ready`. */
+    beforeContext(): void {
+      if (!fresh) send(true);
+      fresh = false;
+    },
+    /** The `ready` is answered: the next context gets its own `shown`. */
+    answered(): void {
+      fresh = false;
     },
   });
 }

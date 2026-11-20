@@ -379,6 +379,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             origin: next,
             frame: seams.frameWindow,
             context,
+            before: () => shownSender?.beforeContext(),
           });
     shownSender =
       next === null
@@ -487,6 +488,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         // for an older host's and would count a visit.
         shownSender?.ready();
         sender?.ready();
+        shownSender?.answered();
         return;
       }
       if (meeting !== null) return;
