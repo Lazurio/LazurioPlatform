@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
@@ -7,6 +7,8 @@ import { readAgentEntry } from "../agent-entry/settings";
 import {
   type BrainSetupLabels,
   brainAnswers,
+  brainHandoverMark,
+  brainSetupAtStart,
   convergeBrainServer,
 } from "../brain/at-start";
 import { brainPaths } from "../brain/pin";
@@ -3850,7 +3852,21 @@ export async function startLaunchpad(
       // owner credential is never read here; where its server answers,
       // Executor gets the custom server Brain. Closed labels only.
       if (brainAtStart === undefined || closing) return;
-      const labels = await brainAtStart();
+      // Again once Machines mark the handover, where the start's apply
+      // writes that mark only after this start (#1120).
+      const labels = await brainSetupAtStart({
+        run: brainAtStart,
+        handover: () =>
+          stat(brainHandoverMark).then(
+            () => true,
+            () => false,
+          ),
+        stopped: () => closing,
+        report: (waiting) =>
+          console.log(
+            JSON.stringify({ scope: "brain", event: "setup", ...waiting }),
+          ),
+      });
       const server =
         brainAnswers(labels) && !closing
           ? await convergeBrainServer(

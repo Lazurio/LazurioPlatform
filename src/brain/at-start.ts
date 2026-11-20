@@ -37,6 +37,42 @@ export type BrainSetupLabels = Readonly<{
  * recovers or starts anything (`./writers.ts`). */
 export const setupTimeoutMs = 8 * 3_600_000;
 
+/** Machines' mark that they hand the brain over on this host (C1). */
+export const brainHandoverMark = "/etc/lazurio/brain-handover";
+
+/** Setup at the Launchpad's start, and once more as soon as Machines mark
+ * the handover. A converging apply restarts the Launchpad before it writes
+ * the mark as its last step, so the start's setup can answer
+ * `waits-machines`. Until the next start nothing would run it again, so it
+ * runs again when the mark appears, checked every `waitMs`, for at most
+ * `waits` checks. A stopping Launchpad stops waiting. `report` hears the
+ * first answer while it waits. */
+export async function brainSetupAtStart(
+  input: Readonly<{
+    run: () => Promise<BrainSetupLabels | null>;
+    handover: () => Promise<boolean>;
+    stopped: () => boolean;
+    report?: (labels: BrainSetupLabels) => void;
+    waitMs?: number;
+    waits?: number;
+    sleep?: (ms: number) => Promise<void>;
+  }>,
+): Promise<BrainSetupLabels | null> {
+  const first = await input.run();
+  if (first?.server !== "waits-machines") return first;
+  input.report?.(first);
+  const sleep =
+    input.sleep ??
+    ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  for (let i = 0; i < (input.waits ?? 720); i++) {
+    if (input.stopped()) return first;
+    await sleep(input.waitMs ?? 60_000);
+    if (input.stopped()) return first;
+    if (await input.handover().catch(() => false)) return input.run();
+  }
+  return first;
+}
+
 /** Runs `lazurio brain setup --json` as a child process of `executable`;
  * null when it did not finish or printed no labels. */
 export async function runBrainSetup(
