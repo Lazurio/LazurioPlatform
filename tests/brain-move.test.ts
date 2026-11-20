@@ -609,8 +609,13 @@ describe("the check before a takeover tells what a consented run would meet", ()
   const earlier: ReadonlyArray<{
     blocker: string;
     state: Record<string, unknown>;
+    /** What the text says follows, checked against `result`. */
+    tail: string;
     result: Record<string, unknown>;
     serverAfter: boolean;
+    takenOver: boolean;
+    options?: Options;
+    extra?: readonly string[];
   }> = [
     {
       // A switch to search by meaning interrupted before the server
@@ -624,8 +629,10 @@ describe("the check before a takeover tells what a consented run would meet", ()
           at: "2026-11-18T23:00:00.000Z",
         },
       },
+      tail: `If that completes, in the same run a run with consent takes the memory over and moves it to ${brainPin.version}; if it does not, setup stops there for a person.`,
       result: { takeover: "taken-over" },
       serverAfter: true,
+      takenOver: true,
     },
     {
       // A move that stopped for a person: setup keeps the server down.
@@ -638,25 +645,66 @@ describe("the check before a takeover tells what a consented run would meet", ()
           result: "stopped:previous-missing",
         },
       },
+      tail: "A move stopped for a person keeps the memory stopped and disabled in every run until a person decides; no run takes it over.",
       result: { server: "stopped", move: "stopped:previous-missing" },
       serverAfter: false,
+      takenOver: false,
+    },
+    {
+      // The same with a refusal beside it: the refusal is never reached.
+      blocker: "move-stopped",
+      extra: ["disk"],
+      options: { freeBytes: 1024 ** 3 },
+      state: {
+        move: {
+          to: brainPin.commit,
+          from: interimVersion,
+          at: "2026-11-18",
+          result: "stopped:previous-missing",
+        },
+      },
+      tail: "A move stopped for a person keeps the memory stopped and disabled in every run until a person decides; no run takes it over.",
+      result: { server: "stopped", move: "stopped:previous-missing" },
+      serverAfter: false,
+      takenOver: false,
+    },
+    {
+      // A move a run left half way, without its copy: the run undoes it
+      // (here it stays stopped, the previous release unknown) and takes
+      // nothing over.
+      blocker: "move-unfinished",
+      state: {
+        move: {
+          to: brainPin.commit,
+          from: interimVersion,
+          at: "2026-11-18",
+          result: "moving",
+        },
+      },
+      tail: "The run that finishes or undoes the unfinished move takes nothing over; a later run with consent is checked anew.",
+      result: { server: "stopped" },
+      serverAfter: false,
+      takenOver: false,
     },
   ];
   for (const c of earlier)
-    test(`${c.blocker}: named as an earlier step, not a refusal, and the consented run deals with it`, async () => {
-      const s = await stand({ consent: true, tagged: {} });
+    test(`${[c.blocker, ...(c.extra ?? [])].join(" and ")}: named as an earlier step, and the text says what the consented run then does`, async () => {
+      const s = await stand({ consent: true, tagged: {}, ...c.options });
       await writeBrainState(s.paths, c.state as never);
       const status = await brainStatus(withoutConsent(s.host));
-      expect(status).toMatchObject({ takeoverBlockers: [c.blocker] });
+      expect(status).toMatchObject({
+        takeoverBlockers: [c.blocker, ...(c.extra ?? [])],
+      });
       const text = brainStatusText(status);
       expect(text).toContain(
-        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. After that, a run with consent takes the memory over and moves it to ${brainPin.version}.`,
+        `an earlier step was left unfinished (${c.blocker}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. ${c.tail}`,
       );
       expect(text).not.toContain("refused");
       expect(text).not.toContain("change nothing");
       const result = await brainSetup(s.host);
       expect(result).toMatchObject(c.result);
       expect(result.takeover?.startsWith("refused")).not.toBe(true);
+      expect(result.takeover === "taken-over").toBe(c.takenOver);
       expect(s.systemd.server).toBe(c.serverAfter);
     });
 
@@ -679,7 +727,9 @@ describe("the check before a takeover tells what a consented run would meet", ()
     expect(text).toContain(
       "an earlier step was left unfinished (meaning-unfinished). Setup deals with it first",
     );
-    expect(text).toContain("After that, the takeover would be refused: disk.");
+    expect(text).toContain(
+      "If that completes, in the same run the takeover would be refused: disk; if it does not, setup stops there for a person.",
+    );
     expect(text).not.toContain("change nothing");
     const before = await unitText(s.paths);
     expect(await brainSetup(s.host)).toMatchObject({
@@ -715,7 +765,9 @@ describe("the check before a takeover tells what a consented run would meet", ()
     expect(text).toContain(
       "an earlier step was left unfinished (takeover-unfinished). Setup deals with it first",
     );
-    expect(text).toContain("After that, the takeover would be refused: disk.");
+    expect(text).toContain(
+      "If that completes, in the same run the takeover would be refused: disk; if it does not, setup stops there for a person.",
+    );
     expect(text).not.toContain("change nothing");
     const before = await unitText(s.paths);
     expect(await brainSetup(s.host)).toMatchObject({

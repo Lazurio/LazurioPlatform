@@ -103,8 +103,18 @@ function adoptableText(
   const rest = blockers.filter((b) => !gate.includes(b));
   if (gate.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${gate.join(", ")}.${rest.length > 0 ? ` Once that is resolved, also in the way: ${rest.join(", ")}.` : ""}${size}`;
-  if (earlier.length > 0)
-    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. After that, ${outcome}. Let a person look at it before consenting.${size}`;
+  if (earlier.length > 0) {
+    // What follows the earlier step, as setup goes on (`setupOnce`): a
+    // stopped move keeps the server down in every run; a move left half way
+    // is finished or undone by a run that then takes nothing over; the rest
+    // (`recoverFirst`) go on to the takeover only where they complete.
+    const tail = earlier.includes("move-stopped")
+      ? "A move stopped for a person keeps the memory stopped and disabled in every run until a person decides; no run takes it over."
+      : earlier.includes("move-unfinished")
+        ? "The run that finishes or undoes the unfinished move takes nothing over; a later run with consent is checked anew."
+        : `If that completes, in the same run ${outcome}; if it does not, setup stops there for a person.`;
+    return `${from}; an earlier step was left unfinished (${earlier.join(", ")}). Setup deals with it first, in any run, also without consent: it may stop the memory, put units or a copy back or finish that step. ${tail} Let a person look at it before consenting.${size}`;
+  }
   if (refusing.length > 0)
     return `${from}; a takeover now would be refused and change nothing: ${refusing.join(", ")}.${size}`;
   if (held.length > 0 || meaningHeld.length > 0)
