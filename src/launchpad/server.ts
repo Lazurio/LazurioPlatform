@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { Server } from "bun";
@@ -7,6 +7,8 @@ import { readAgentEntry } from "../agent-entry/settings";
 import {
   type BrainSetupLabels,
   brainAnswers,
+  brainHandoverMark,
+  brainSetupAtStart,
   convergeBrainServer,
 } from "../brain/at-start";
 import { brainPaths } from "../brain/pin";
@@ -766,6 +768,12 @@ export async function startLaunchpad(
      * Launchpad sets Executor up, and returns its closed labels; null where
      * it does not run or did not finish. Absent: it never does. */
     brainAtStart?: (() => Promise<BrainSetupLabels | null>) | undefined;
+    /** Tests only: how the brain's wait for Machines' handover mark checks
+     * the mark and how long it waits between checks (#1120). Absent: the
+     * mark's file, every minute. */
+    brainHandover?:
+      | Readonly<{ check?: () => Promise<boolean>; waitMs?: number }>
+      | undefined;
     /** Whether this Launchpad sets the Environment's own vault up after it
      * starts (decision F53): the same rule as Executor's
      * (`vaultAtStart`). Absent: it never does. */
@@ -1231,6 +1239,8 @@ export async function startLaunchpad(
   // and its content as the content routes report it (below).
   const github = createGithubProbe(toolsWithProofs);
   let closing = false;
+  // Ends the brain's wait for Machines' handover mark when this closes.
+  const brainAtStartStop = new AbortController();
   const headers = {
     "Cache-Control": "no-store",
     "X-Content-Type-Options": "nosniff",
@@ -3850,7 +3860,26 @@ export async function startLaunchpad(
       // owner credential is never read here; where its server answers,
       // Executor gets the custom server Brain. Closed labels only.
       if (brainAtStart === undefined || closing) return;
-      const labels = await brainAtStart();
+      // Again once Machines mark the handover, where the start's apply
+      // writes that mark only after this start (#1120).
+      const labels = await brainSetupAtStart({
+        run: brainAtStart,
+        handover:
+          installed?.brainHandover?.check ??
+          (() =>
+            stat(brainHandoverMark).then(
+              () => true,
+              () => false,
+            )),
+        ...(installed?.brainHandover?.waitMs === undefined
+          ? {}
+          : { waitMs: installed.brainHandover.waitMs }),
+        signal: brainAtStartStop.signal,
+        report: (waiting) =>
+          console.log(
+            JSON.stringify({ scope: "brain", event: "setup", ...waiting }),
+          ),
+      });
       const server =
         brainAnswers(labels) && !closing
           ? await convergeBrainServer(
@@ -3985,6 +4014,7 @@ export async function startLaunchpad(
     },
     close() {
       closing = true;
+      brainAtStartStop.abort();
       clearInterval(audienceTimer);
       stopRoutes?.();
       stopT3Links?.();

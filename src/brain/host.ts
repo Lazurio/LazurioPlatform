@@ -9,6 +9,7 @@ import { presetKinds } from "../launchpad/shell-document";
 import { resolveOnPath, type ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { brainHttp, healthVersion } from "./admin";
+import { brainHandoverMark } from "./at-start";
 import { buddyGen4Turn } from "./buddy-turn";
 import { meaningUrl } from "./meaning-pin";
 import { brainPaths, brainUrl } from "./pin";
@@ -153,7 +154,7 @@ export function processBrainHost(
     },
     paths: brainPaths(home),
     globalUnits: "/etc/systemd/user",
-    handover: "/etc/lazurio/brain-handover",
+    handover: brainHandoverMark,
     health: () => healthVersion(brainHttp, brainUrl),
     meaning: async () => {
       const answer = await brainHttp("GET", `${meaningUrl}/health`);
