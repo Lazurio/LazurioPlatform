@@ -859,6 +859,40 @@ test("the frame hears whether his window shows it: after its ready, on every ope
   expect(none).toEqual([]);
 });
 
+test("a frame hidden behind his hello hears it is not shown: the frame exists, the meeting returns, the hello opens, the meeting ends", () => {
+  const { bubble, last, fromFrame, log, page } = fakeBubble();
+  const shown = () =>
+    log.posted
+      .map(({ message }) => message as { type: string; shown?: boolean })
+      .filter((message) => message.type === "lazurio.buddy.shown")
+      .map((message) => message.shown);
+  bubble.update();
+  bubble.toggle();
+  const frame = last()?.frame;
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(shown()).toEqual([true]);
+  // The meeting returns: the open window closes.
+  page.meeting = { step: "introduce", href: meetHref, lang: "cs" };
+  bubble.update();
+  expect(last()).toMatchObject({ layout: "closed", frame });
+  expect(shown()).toEqual([true, false]);
+  // The hello opens in the panel; the frame stays hidden behind it, so it
+  // hears nothing that would read his answers as seen.
+  bubble.toggle();
+  expect(last()?.layout).toBe("panel");
+  expect(last()?.meeting).not.toBeNull();
+  expect(shown()).toEqual([true, false]);
+  // The meeting ends: the window closes, and the frame still is not shown.
+  page.meeting = null;
+  bubble.update();
+  expect(last()?.layout).toBe("closed");
+  expect(shown()).toEqual([true, false]);
+  // Only the next open shows the frame again.
+  bubble.toggle();
+  expect(last()).toMatchObject({ layout: "panel", meeting: null, frame });
+  expect(shown()).toEqual([true, false, true]);
+});
+
 test("without Buddy's origin the bubble draws nothing, makes no frame and hears nothing", () => {
   const { bubble, log, fromFrame } = fakeBubble({ origin: null });
   bubble.update();

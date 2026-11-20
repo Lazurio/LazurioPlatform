@@ -386,7 +386,9 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         : createBuddyShownSender({
             origin: next,
             frame: seams.frameWindow,
-            shown: () => layout !== "closed",
+            // The window shows the frame only after the meeting: before it
+            // the window holds his hello and the frame stays hidden.
+            shown: () => layout !== "closed" && meeting === null,
           });
     receiver =
       next === null
