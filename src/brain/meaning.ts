@@ -582,6 +582,10 @@ async function restoreCopy(
   );
   try {
     if (!(await present(backup))) throw new Error("no copy");
+    // A window's failed brain is kept once: the previous one goes, so
+    // failures over many windows never fill the disk (`./room.ts`).
+    if (filling !== undefined)
+      await rm(failed, { recursive: true, force: true });
     if (await present(host.paths.brain)) await rename(host.paths.brain, failed);
     await cp(backup, host.paths.brain, {
       recursive: true,
@@ -651,7 +655,7 @@ export async function recoverAttempt(
       return "stopped:interrupted-unknown";
     }
     return restoreCopy(host, state.release, window, at, "interrupted", {
-      failedName: `.gbrain.failed-meaning-window-${stampOf((host.now ?? (() => new Date()))())}`,
+      failedName: failedWindowName,
       next: async () => {
         await record("filling", "interrupted");
         return "waits:interrupted";
@@ -799,9 +803,10 @@ export async function convergeMeaning(
     return fallBack("units");
   }
   // Committed before the server starts: from here on the server may take
-  // writes, so a run that dies later never brings a copy back over them;
-  // the next run goes on from `filling` (and only a server that does not
-  // answer, so took none, still falls back).
+  // writes, so no copy ever comes back over the brain, not even where the
+  // start or its answer fails (a start that reports failure may have
+  // started it, and a server that does not answer health may have taken an
+  // MCP write). The next run goes on from `filling`.
   await record("filling", undefined, {
     windows: 1,
     stalled: window.result === "done" || window.embedded > 0 ? 0 : 1,
@@ -809,18 +814,32 @@ export async function convergeMeaning(
       ? { remaining: window.remaining }
       : {}),
   });
-  if (
-    !(await service(host, "daemon-reload")) ||
-    !(await service(host, "start", brainUnit))
-  )
-    return fallBack("start");
-  if ((await answers(host)) !== release.version) return fallBack("no-answer");
+  const started =
+    (await service(host, "daemon-reload")) &&
+    (await service(host, "start", brainUnit));
+  if (!started) return afterCommit(host, record, "start");
+  if ((await answers(host)) !== release.version)
+    return afterCommit(host, record, "no-answer");
   if (window.result === "done") return switchedOn(host, now);
   // Vectors are left: the server runs with the model and what is computed
   // (search by meaning over it, every new page embedded as it comes); the
   // next run, which the Launchpad starts after a pause, computes the rest.
   await service(host, "start", brainRefreshTimer);
   return "waits:filling";
+}
+
+/** A committed window whose server did not start or answer: the brain is
+ * kept as it is (the server may have taken writes), the units name the
+ * model, and the next run starts it (setup starts a brain that does not
+ * answer) and goes on. */
+async function afterCommit(
+  host: MoveHost,
+  record: ReturnType<typeof recorder>,
+  reason: string,
+): Promise<MeaningResult> {
+  await service(host, "start", brainRefreshTimer);
+  await record("filling", reason);
+  return `waits:${reason}`;
 }
 
 /** Search by meaning on: every vector computed. */
@@ -842,6 +861,9 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
 
 /** The copy before each window (one, replaced by the next window). */
 const windowName = ".gbrain.bak-meaning-window";
+/** The brain of the last window that failed, kept for a person (one,
+ * replaced by the next failure). */
+export const failedWindowName = ".gbrain.failed-meaning-window";
 
 /** One window of the vectors still missing, only while Buddy is idle: the
  * server stopped for at most a window (`meaningWindowMs`) after a copy,
@@ -906,7 +928,7 @@ async function fill(
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
   const back = (reason: string) =>
     restoreCopy(host, release, window, at, reason, {
-      failedName: `.gbrain.failed-meaning-window-${stampOf((host.now ?? (() => new Date()))())}-${windows}`,
+      failedName: failedWindowName,
       next: async () => {
         if (stalled >= meaningMaxStalled) {
           await record("restored", reason, { windows, stalled });
@@ -929,8 +951,10 @@ async function fill(
       ? { remaining: result.remaining }
       : {}),
   });
-  if (!(await service(host, "start", brainUnit))) return back("start");
-  if ((await answers(host)) !== release.version) return back("no-answer");
+  if (!(await service(host, "start", brainUnit)))
+    return afterCommit(host, record, "start");
+  if ((await answers(host)) !== release.version)
+    return afterCommit(host, record, "no-answer");
   await rm(window, { recursive: true, force: true }).catch(() => undefined);
   if (result.result === "done") return switchedOn(host, at);
   await service(host, "start", brainRefreshTimer);

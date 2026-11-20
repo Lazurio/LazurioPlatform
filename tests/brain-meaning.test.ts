@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
-import { setupTimeoutMs } from "../src/brain/at-start";
+import { brainSetupAtStart, setupTimeoutMs } from "../src/brain/at-start";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   convergeMeaning,
@@ -109,8 +109,14 @@ async function stand(
     busyFrom?: number;
     /** The window (1 is the first) that loses a page as stored. */
     losesPageIn?: number;
+    /** The start of the server (1 is the first) that systemd reports as
+     * failed though the server runs: an ambiguous start. */
+    startFailsAt?: number;
+    /** Buddy works for the first questions, up to this one. */
+    busyUntil?: number;
   }> = {},
 ) {
+  let starts = 0;
   /** The attempt as recorded at each start of the server: what a run that
    * died right then would leave for the next. */
   const atStart: unknown[] = [];
@@ -176,6 +182,9 @@ async function stand(
       if (name === brainUnit && verb === "start") {
         atStart.push((await readBrainState(paths)).meaningAttempt);
         world.server = true;
+        starts += 1;
+        // The server runs, and may take writes, though systemd says no.
+        if (starts === options.startFailsAt) return done(1);
       }
       if (name.endsWith(".timer") && verb === "stop") world.timer = false;
       if (name.endsWith(".timer") && verb === "start") world.timer = true;
@@ -321,6 +330,8 @@ async function stand(
     idle: async () => {
       idleAsked += 1;
       if (options.busyFrom !== undefined && idleAsked >= options.busyFrom)
+        return false;
+      if (options.busyUntil !== undefined && idleAsked <= options.busyUntil)
         return false;
       return options.idle ?? true;
     },
@@ -870,5 +881,108 @@ describe("the vectors in short windows, the server running with the model betwee
     expect(await convergeMeaning(host)).toBe("held");
     expect(world.server).toBe(true);
     expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
+  });
+
+  test("a start systemd reports as failed after a committed window, though the server runs: the brain is kept, never a copy back", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 11, embedded: 10, remaining: 20, reason: "time_budget" },
+        { exit: 0, embedded: 20 },
+      ],
+      // The first window's start, then the second's is ambiguous.
+      startFailsAt: 2,
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(await convergeMeaning(host)).toBe("waits:start");
+    // The second window's brain stays, not the copy before it.
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 2 });
+    expect((await readBrainState(paths)).meaningAttempt).toMatchObject({
+      result: "filling",
+      reason: "start",
+    });
+    expect(world.server).toBe(true);
+    // The server took a write; the next run goes on over it.
+    await writeFile(
+      join(paths.brain, "config.json"),
+      JSON.stringify({ brain: "written" }),
+    );
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 3 });
+  });
+
+  test("failures now and then over many windows keep one failed brain only", async () => {
+    const { host, paths } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 60, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 2 },
+        { exit: 11, embedded: 10, remaining: 50, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 2 },
+        { exit: 11, embedded: 10, remaining: 40, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 2 },
+        { exit: 0, embedded: 40 },
+      ],
+    });
+    const results: string[] = [];
+    for (let i = 0; i < 7; i++) results.push(await convergeMeaning(host));
+    expect(results.at(-1)).toBe("on");
+    // Each failure came after a window that progressed: never two in a row.
+    expect(results.filter((r) => r === "waits:embed-failures")).toHaveLength(3);
+    const failed = (await readdir(paths.home)).filter((name) =>
+      name.startsWith(".gbrain.failed-meaning"),
+    );
+    expect(failed).toEqual([".gbrain.failed-meaning-window"]);
+  });
+});
+
+describe("the Launchpad goes on by itself while search by meaning waits", () => {
+  /** The Launchpad's start against the stand: each run a setup's meaning,
+   * the pause counted, not waited. */
+  const atStart = (host: Parameters<typeof convergeMeaning>[0]) => {
+    const pauses: number[] = [];
+    let runs = 0;
+    return {
+      pauses,
+      runs: () => runs,
+      start: () =>
+        brainSetupAtStart({
+          run: async () => {
+            runs += 1;
+            return { server: "running", meaning: await convergeMeaning(host) };
+          },
+          handover: async () => true,
+          signal: new AbortController().signal,
+          sleep: async (ms) => {
+            pauses.push(ms);
+          },
+        }),
+    };
+  };
+
+  test("Buddy busy before the first window: the next runs try again and switch it on", async () => {
+    const { host } = await stand({ busyUntil: 2 });
+    const start = atStart(host);
+    expect(await start.start()).toEqual({ server: "running", meaning: "on" });
+    expect(start.runs()).toBe(3);
+  });
+
+  test("windows that fail are tried again until two in a row stop the filling", async () => {
+    const { host } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 3 },
+      ],
+    });
+    const start = atStart(host);
+    expect(await start.start()).toEqual({
+      server: "running",
+      meaning: "restored:embed-failures",
+    });
+    // The first window, then two that failed; then nothing more.
+    expect(start.runs()).toBe(3);
   });
 });

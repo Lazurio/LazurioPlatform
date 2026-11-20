@@ -50,6 +50,12 @@ export const brainHandoverMark = "/etc/lazurio/brain-handover";
  * at once, its pending sleep included, and never starts another setup, not
  * even when a check of the mark it began before closing then succeeds.
  * `report` hears the first answer while it waits. */
+/** Whether a run's search by meaning waits for another run: `waits-idle`
+ * or `waits:…` (filling, a failed window, the model not ready). */
+export const meaningWaits = (labels: BrainSetupLabels | null) =>
+  labels?.meaning === "waits-idle" ||
+  labels?.meaning?.startsWith("waits:") === true;
+
 export async function brainSetupAtStart(
   input: Readonly<{
     run: () => Promise<BrainSetupLabels | null>;
@@ -90,11 +96,14 @@ export async function brainSetupAtStart(
       }
     }
   }
-  // Search by meaning with windows left, or one Buddy's work put off: the
-  // next window's run after a pause, while this start lasts (a later start
-  // goes on from the brain's own record).
-  for (let i = 0; i < (input.fills ?? 600); i++) {
-    if (labels?.meaning !== "waits:filling" || signal.aborted) break;
+  // Search by meaning that waits (windows left, Buddy working before a
+  // window, a window that failed and is tried again, the model not ready
+  // yet): the next run after a pause, while this start lasts and at most
+  // `fills` runs (a day at the default pause); a later start goes on from
+  // the brain's own record. It ends at `on`, `held`, a stop for a person or
+  // any other answer.
+  for (let i = 0; i < (input.fills ?? 288); i++) {
+    if (labels === null || !meaningWaits(labels) || signal.aborted) break;
     input.report?.(labels);
     await sleep(input.fillMs ?? meaningPauseMs, signal);
     if (signal.aborted) break;
