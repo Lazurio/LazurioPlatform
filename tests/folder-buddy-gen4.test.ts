@@ -146,9 +146,17 @@ test("while Buddy GEN3 is still in the home, the text says to leave his folders,
       expect(beside).toContain("hermes-gateway.service");
       expect(beside).toContain("~/Buddy/archiv/");
     }
-  expect(
-    renderBuddyAgents(source("cs"), "buddy", persona, { gen3: true }),
-  ).toContain("Na tyto složky a služby nesahej");
+  const cs = renderBuddyAgents(source("cs"), "buddy", persona, { gen3: true });
+  expect(cs).toContain("Na tyto složky a služby nesahej");
+  // A precaution, never a claim about the archive's state: the folders may
+  // still be there after a verified archive (R9 removes them later).
+  expect(cs).toContain("Mohou být zdrojem jeho rozhovoru");
+  expect(cs).not.toContain("Jen tam je jeho rozhovor");
+  expect(cs).not.toContain("teprve vyvézt");
+  const en = renderBuddyAgents(source("en"), "buddy", persona, { gen3: true });
+  expect(en).toContain("They may be the source of his conversation");
+  expect(en).not.toContain("is only there");
+  expect(en).not.toContain("yet to be exported");
   // Only AGENTS.md changes; the skills are the same bytes.
   const plain = renderBuddyFolder(source("cs"), "buddy", persona);
   const gen3 = renderBuddyFolder(source("cs"), "buddy", persona, {
