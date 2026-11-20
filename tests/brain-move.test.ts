@@ -21,6 +21,11 @@ import { acquireFileLock } from "../src/platform/flock";
 import type { ToolRunner } from "../src/tools/status";
 import type { ProcessRunner } from "../src/update/self-check";
 import { unitMarker } from "../src/update/service-control";
+import {
+  interimRefreshService,
+  interimRefreshTimer,
+  interimServerUnit,
+} from "./fixtures/brain-interim-units";
 
 // The interim installer's brain taken over in place and moved to the pin
 // (plan LZD-0033 R11a, part B; the move of HumanAndMachine-ai/Machines#1337),
@@ -47,6 +52,9 @@ type Options = Readonly<{
   pinLosesPages?: boolean;
   /** systemd never confirms the server stopped. */
   neverStops?: boolean;
+  /** The interim installer's three units exactly as it writes them, its
+   * server unit's credential check before the start included. */
+  installedUnits?: boolean;
 }>;
 
 async function stand(options: Options = {}) {
@@ -55,11 +63,20 @@ async function stand(options: Options = {}) {
   const now = new Date("2026-11-18T23:40:00Z");
   // The interim installer's layout.
   await mkdir(paths.units, { recursive: true });
-  await writeFile(join(paths.units, brainUnit), interimUnit);
-  await writeFile(
-    join(paths.units, brainRefreshTimer),
-    "[Timer]\nOnUnitActiveSec=15min\n",
-  );
+  if (options.installedUnits) {
+    await writeFile(join(paths.units, brainUnit), interimServerUnit);
+    await writeFile(
+      join(paths.units, brainRefreshService),
+      interimRefreshService,
+    );
+    await writeFile(join(paths.units, brainRefreshTimer), interimRefreshTimer);
+  } else {
+    await writeFile(join(paths.units, brainUnit), interimUnit);
+    await writeFile(
+      join(paths.units, brainRefreshTimer),
+      "[Timer]\nOnUnitActiveSec=15min\n",
+    );
+  }
   const global = join(paths.home, ".bun", "install", "global");
   await mkdir(join(global, "node_modules", "gbrain"), { recursive: true });
   await writeFile(
@@ -232,6 +249,54 @@ async function stand(options: Options = {}) {
 
 const unitText = (paths: ReturnType<typeof brainPaths>) =>
   readFile(join(paths.units, brainUnit), "utf8");
+
+describe("the interim installer's brain, its units exactly as it writes them", () => {
+  test("is adoptable; with consent it is taken over in place and moved to the pin", async () => {
+    const without = await stand({ installedUnits: true });
+    expect(await brainStatus(without.host)).toMatchObject({
+      state: "adoptable",
+      owner: "interim",
+    });
+    const { host, paths } = await stand({
+      installedUnits: true,
+      consent: true,
+    });
+    const result = await brainSetup(host);
+    expect(result).toMatchObject({ takeover: "taken-over" });
+    expect(["moved", "waits-move"]).toContain(result.server);
+    // The way back keeps all three units as the installer wrote them.
+    const copy = interimUnitsCopy(paths);
+    expect(await readFile(join(copy, brainUnit), "utf8")).toBe(
+      interimServerUnit,
+    );
+    expect(await readFile(join(copy, brainRefreshService), "utf8")).toBe(
+      interimRefreshService,
+    );
+    expect(await readFile(join(copy, brainRefreshTimer), "utf8")).toBe(
+      interimRefreshTimer,
+    );
+  });
+
+  test("a credential check before the start other than the installer's makes it foreign", async () => {
+    const { host, paths } = await stand({ installedUnits: true });
+    await writeFile(
+      join(paths.units, brainUnit),
+      interimServerUnit.replace(
+        "ExecStartPre=/usr/bin/test -r %h/.gbrain/serve/admin-token",
+        "ExecStartPre=/opt/other/check",
+      ),
+    );
+    expect(await brainStatus(host)).toMatchObject({ owner: "foreign" });
+    await writeFile(
+      join(paths.units, brainUnit),
+      interimServerUnit.replace(
+        "Restart=on-failure",
+        "ExecStartPost=/opt/other/after\nRestart=on-failure",
+      ),
+    );
+    expect(await brainStatus(host)).toMatchObject({ owner: "foreign" });
+  });
+});
 
 describe("the interim installer's brain", () => {
   test("without its owner's consent it is only reported, nothing is touched", async () => {

@@ -112,8 +112,16 @@ export type UnitOwner =
   | "foreign"
   | "unreadable";
 
-/** The interim installer's lines (buddy-install.sh 2026-10-30.7). */
+/** The interim installer's lines (buddy-install.sh 2026-10-30.7). Its
+ * server unit checks its owner credential before the start; an earlier
+ * shape has the start alone. Either, exactly, is the interim installer's. */
 const interimServeExec = `ExecStart=/bin/bash -c 'GBRAIN_ADMIN_BOOTSTRAP_TOKEN="$$(cat %h/.gbrain/serve/admin-token)" exec %h/.bun/bin/gbrain serve --http --bind 127.0.0.1 --port ${brainPort} --public-url ${brainUrl}'`;
+const interimServePre =
+  "ExecStartPre=/usr/bin/test -r %h/.gbrain/serve/admin-token";
+const interimServeShapes: readonly (readonly string[])[] = [
+  [interimServeExec],
+  [interimServePre, interimServeExec],
+];
 const interimRefreshExec =
   "ExecStart=%h/.bun/bin/gbrain sources refresh default --json";
 
@@ -153,7 +161,14 @@ export function unitOwnerOf(
       if (renderBrainUnits(command, meaning)[name] === text) return "lazurio";
   if (text.startsWith(unitMarker)) return "foreign";
   const exec = execLines(text);
-  if (name === brainUnit && exec.length === 1 && exec[0] === interimServeExec)
+  if (
+    name === brainUnit &&
+    interimServeShapes.some(
+      (shape) =>
+        shape.length === exec.length &&
+        shape.every((line, i) => exec[i] === line),
+    )
+  )
     return "interim";
   if (
     name === brainRefreshService &&
