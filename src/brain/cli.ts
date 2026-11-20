@@ -58,7 +58,10 @@ export function brainStatusText(status: BrainStatus): string {
     "not-installed": status.brain
       ? "A memory is here without a unit; Lazurio leaves it as it is until a person decides."
       : `No memory is set up here; lazurio brain setup installs GBrain ${status.pin}.`,
-    adoptable: `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees.`,
+    adoptable:
+      status.interimRelease === null
+        ? `The memory runs from an earlier installer (${status.running ?? "not answering"}), whose release Lazurio cannot tell for sure; a takeover would be refused.`
+        : `The memory runs from an earlier installer (${status.running ?? "not answering"}); Lazurio takes it over once its owner agrees.`,
     machines: "The memory is run by Machines on this Environment.",
     foreign:
       "A unit of the memory (gbrain.service or its refresh) that Lazurio did not write, or cannot read, is in place; Lazurio leaves it alone.",

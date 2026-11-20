@@ -10,6 +10,7 @@ import {
   brainUnit,
   releaseCommand,
 } from "./pin";
+import { interimRelease } from "./takeover";
 import { unitOwner } from "./units";
 
 // What is there of the person's brain, read only (no network beyond
@@ -76,6 +77,11 @@ export type BrainStatus =
       /** Search by meaning: `on` where it is switched on and the model
        * answers, otherwise `keyword-only` (gbrain falls back to words). */
       meaning: "on" | "keyword-only";
+      /** Where the interim installer runs the brain: the release a takeover
+       * would record (its commit and version), or null where it is not known
+       * for sure and a takeover would be refused (`release-unknown`). Read
+       * only, so its owner sees before consenting whether it would pass. */
+      interimRelease?: Readonly<{ commit: string; version: string }> | null;
     }>;
 
 export type BrainHost = Readonly<{
@@ -193,6 +199,9 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
     keys,
     handover,
     meaning,
+    ...(owner === "interim"
+      ? { interimRelease: await interimRelease(paths) }
+      : {}),
   };
   const state = (() => {
     switch (owner) {

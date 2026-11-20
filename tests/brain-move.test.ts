@@ -294,6 +294,11 @@ describe("the interim installer's brain installed from a release tag", () => {
       commit: "5586fb4",
       version: interimVersion,
     });
+    // Its owner sees it before consenting, read only.
+    expect(await brainStatus(host)).toMatchObject({
+      state: "adoptable",
+      interimRelease: { commit: "5586fb4", version: interimVersion },
+    });
     const result = await brainSetup(host);
     expect(result).toMatchObject({ takeover: "taken-over" });
     expect((await readBrainState(paths)).move?.previous).toMatchObject({
@@ -321,6 +326,11 @@ describe("the interim installer's brain installed from a release tag", () => {
       { tag: "main" },
     ]) {
       const { host, paths, calls } = await stand({ consent: true, tagged });
+      // The status says so before anyone consents.
+      expect(await brainStatus(host)).toMatchObject({
+        state: "adoptable",
+        interimRelease: null,
+      });
       const before = await unitText(paths);
       const result = await brainSetup(host);
       expect(result).toMatchObject({
