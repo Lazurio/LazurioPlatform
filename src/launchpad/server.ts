@@ -3879,23 +3879,32 @@ export async function startLaunchpad(
           console.log(
             JSON.stringify({ scope: "brain", event: "setup", ...waiting }),
           ),
+        // After every run, also between windows of search by meaning: where
+        // the server answers, Executor gets Brain at once, not only once the
+        // last window is done.
+        settled: async (run) => {
+          const server =
+            brainAnswers(run) && !closing
+              ? await convergeBrainServer(
+                  brainPaths(homedir()),
+                  integrations.customServers,
+                ).catch(() => "failed" as const)
+              : undefined;
+          if (server === "added" || server === "updated") integrations.forget();
+          if (run !== null && server !== undefined && server !== "kept")
+            console.log(
+              JSON.stringify({
+                scope: "brain",
+                event: "executor",
+                server: run.server,
+                executor: server,
+              }),
+            );
+        },
       });
-      const server =
-        brainAnswers(labels) && !closing
-          ? await convergeBrainServer(
-              brainPaths(homedir()),
-              integrations.customServers,
-            ).catch(() => "failed" as const)
-          : undefined;
-      if (server === "added" || server === "updated") integrations.forget();
       if (labels !== null)
         console.log(
-          JSON.stringify({
-            scope: "brain",
-            event: "setup",
-            ...labels,
-            ...(server === undefined ? {} : { executor: server }),
-          }),
+          JSON.stringify({ scope: "brain", event: "setup", ...labels }),
         );
     })().catch(() => undefined);
   // The Environment's own vault (decision F53), by the same pattern: where

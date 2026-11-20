@@ -103,9 +103,6 @@ export type BrainState = Readonly<{
     windows?: number;
     stalled?: number;
   }>;
-  /** The owner's claim of the pages saved before gbrain tracked trust
-   * (`gbrain trust claim-sources`), run once: its outcome. */
-  trustClaim?: Readonly<{ at: string; result: "claimed" | "failed" }>;
   /** Lazurio's install of a pin, from before its brain is created until its
    * release is recorded: the brain under it is Lazurio's own, and a run
    * that finds it resumes every step (`./setup.ts`). */

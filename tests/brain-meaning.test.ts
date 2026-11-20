@@ -21,7 +21,6 @@ import {
   meaningEmbedLimitMs,
   meaningMaxStalled,
   meaningMaxWindows,
-  meaningPauseMs,
   meaningStepLimitMs,
   meaningWindowMs,
 } from "../src/brain/meaning";
@@ -108,8 +107,13 @@ async function stand(
     >;
     /** Buddy works from this question on (1 is the first). */
     busyFrom?: number;
+    /** The window (1 is the first) that loses a page as stored. */
+    losesPageIn?: number;
   }> = {},
 ) {
+  /** The attempt as recorded at each start of the server: what a run that
+   * died right then would leave for the next. */
+  const atStart: unknown[] = [];
   let windowsRun = 0;
   let idleAsked = 0;
   const root = await mkdtemp(join(tmpdir(), "brain-meaning-"));
@@ -141,7 +145,15 @@ async function stand(
       source: "lazurio",
     },
   });
-  const world = { server: true, timer: true, model: false };
+  // `stored`: the pages as stored; `served`: what the running server
+  // counts, where pages written while it runs count too.
+  const world = {
+    server: true,
+    timer: true,
+    model: false,
+    stored: 46,
+    served: 46,
+  };
   const calls: string[][] = [];
   const service: ProcessRunner = async (argv) => {
     calls.push([...argv]);
@@ -161,7 +173,10 @@ async function stand(
       if (name === meaningUnit && verb === "enable") world.model = true;
       if (name === brainUnit && (verb === "stop" || verb === "disable"))
         world.server = false;
-      if (name === brainUnit && verb === "start") world.server = true;
+      if (name === brainUnit && verb === "start") {
+        atStart.push((await readBrainState(paths)).meaningAttempt);
+        world.server = true;
+      }
       if (name.endsWith(".timer") && verb === "stop") world.timer = false;
       if (name.endsWith(".timer") && verb === "start") world.timer = true;
     }
@@ -217,6 +232,12 @@ async function stand(
       await writeFile(join(paths.brain, "config.json"), '{"brain":"moved"}');
       if (options.migrateFails) return { ...ok, exitCode: 1 };
     }
+    // The pages as stored: gbrain's CLI reads them only while the server is
+    // stopped (it holds the lock otherwise).
+    if (argv[1] === "stats")
+      return world.server
+        ? { ...ok, exitCode: 1, stdout: '{"code":"pglite_busy"}' }
+        : { ...ok, stdout: JSON.stringify({ page_count: world.stored }) };
     if (argv[1] === "embed") {
       if (options.embedFails) {
         await writeFile(
@@ -229,6 +250,7 @@ async function stand(
       const answer =
         windows[Math.min(windowsRun, windows.length - 1)] ?? windows[0];
       windowsRun += 1;
+      if (options.losesPageIn === windowsRun) world.stored -= 1;
       // Each window keeps the vectors it computed.
       await writeFile(
         join(paths.brain, "config.json"),
@@ -281,7 +303,9 @@ async function stand(
       return {
         status: 200,
         body: JSON.stringify({
-          result: { content: [{ text: JSON.stringify({ page_count: 46 }) }] },
+          result: {
+            content: [{ text: JSON.stringify({ page_count: world.served }) }],
+          },
         }),
       };
     return { status: 404, body: "{}" };
@@ -303,10 +327,9 @@ async function stand(
     now: () => new Date("2026-11-19T00:10:00Z"),
     tries: 2,
     waitMs: 1,
-    pauseMs: 1,
     fetch: async () => new Response("never asked", { status: 500 }),
   };
-  return { host, paths, calls, world, command, envs };
+  return { host, paths, calls, world, command, envs, atStart };
 }
 
 const unit = (paths: ReturnType<typeof brainPaths>, name: string) =>
@@ -454,12 +477,10 @@ describe("switching search by meaning on", () => {
       '{"brain":"before"}',
     );
     expect(world.server).toBe(true);
-    // Setup as the Launchpad's child outlasts every window a run may take,
-    // with its pause, and a migration and the start around them.
+    // Setup as the Launchpad's child outlasts the one window a run takes, at
+    // its process limit, and a migration, the counts and the start around it.
     expect(setupTimeoutMs).toBeGreaterThan(
-      meaningMaxWindows * (meaningWindowMs + meaningPauseMs) +
-        meaningEmbedLimitMs +
-        4 * meaningStepLimitMs,
+      meaningEmbedLimitMs + 6 * meaningStepLimitMs,
     );
   });
 
@@ -610,7 +631,7 @@ describe("the vectors in short windows, the server running with the model betwee
   const stops = (calls: string[][]) =>
     calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
 
-  test("a window gbrain stops at its budget leaves the rest to the next windows; each keeps the server stopped for one budget only", async () => {
+  test("a window gbrain stops at its budget leaves the rest to the next runs, one window each; each keeps the server stopped for one budget only", async () => {
     const { host, paths, calls, world, envs } = await stand({
       windows: [
         { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
@@ -618,6 +639,11 @@ describe("the vectors in short windows, the server running with the model betwee
         { exit: 0, embedded: 10 },
       ],
     });
+    // One window per run, so a run stays short and the Launchpad hands the
+    // brain to Executor after the first; it runs setup again after a pause.
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(world.server && world.timer).toBe(true);
+    expect(await convergeMeaning(host)).toBe("waits:filling");
     expect(await convergeMeaning(host)).toBe("on");
     // Three windows, each its own stop of the server.
     expect(calls.filter((c) => c[1] === "embed")).toHaveLength(3);
@@ -662,6 +688,8 @@ describe("the vectors in short windows, the server running with the model betwee
       busyFrom: 2,
     });
     expect(await convergeMeaning(host)).toBe("waits:filling");
+    // Buddy works: the next run does not stop the server.
+    expect(await convergeMeaning(host)).toBe("waits:filling");
     expect(world.server && world.timer).toBe(true);
     expect(stops(calls)).toBe(1);
     expect((await readBrainState(paths)).meaningAttempt).toMatchObject({
@@ -684,6 +712,7 @@ describe("the vectors in short windows, the server running with the model betwee
         { exit: 1, embedded: 0, failures: 3 },
       ],
     });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
     expect(await convergeMeaning(host)).toBe("waits:embed-failures");
     // The brain of the first window is back (its vectors kept), and the
     // server runs with the model.
@@ -740,20 +769,106 @@ describe("the vectors in short windows, the server running with the model betwee
     );
   });
 
-  test("the owner's pages from before trust was tracked are claimed once, with the server stopped, after a preview", async () => {
-    const { host, paths, calls } = await stand();
+  test("a page written while the server runs between windows is never taken for a loss", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 0, embedded: 30 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    // Agents write pages while the server runs; the counts compared are the
+    // stored ones, read with the server stopped, before and after a window.
+    world.served = 48;
+    world.stored = 48;
     expect(await convergeMeaning(host)).toBe("on");
-    const trust = calls.filter((c) => c[1] === "trust").map((c) => c.join(" "));
-    expect(trust).toEqual([
-      expect.stringContaining("trust claim-sources --dry-run --json"),
-      expect.stringContaining("trust claim-sources --json"),
-    ]);
-    expect((await readBrainState(paths)).trustClaim?.result).toBe("claimed");
-    // Before gbrain changed anything for the model: after the server stopped.
-    const claimed = calls.findIndex((c) => c[1] === "trust");
-    const stopped = calls.findIndex(
-      (c) => c[2] === "is-active" && c[3] === brainUnit,
-    );
-    expect(stopped).toBeLessThan(claimed);
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 2 });
+  });
+
+  test("a window that loses a page as stored brings its copy back, with the model", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 11, embedded: 10, remaining: 20, reason: "time_budget" },
+      ],
+      losesPageIn: 2,
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(await convergeMeaning(host)).toBe("waits:page-count");
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 1 });
+    expect(world.server).toBe(true);
+    expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
+  });
+
+  test("a run that died after its window was committed: no copy comes back over pages written since; the next run goes on", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 0, embedded: 30 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    // What a run leaves when it dies after the commit: the attempt back at
+    // `filling`, its window's copy still there, the server taking writes.
+    const window = join(paths.home, ".gbrain.bak-meaning-window");
+    await mkdir(window, { recursive: true });
+    await writeFile(join(window, "config.json"), '{"brain":"window"}');
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"written"}');
+    expect(await convergeMeaning(host)).toBe("on");
+    // The window's old copy went; what was written stayed under the vectors.
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 2 });
+    await expect(readFile(join(window, "config.json"))).rejects.toThrow();
+    expect(world.server).toBe(true);
+  });
+
+  test("each window is committed before the server starts: a run that died at the start leaves nothing a next run would bring back over writes", async () => {
+    const { host, paths, atStart } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+        { exit: 11, embedded: 10, remaining: 20, reason: "time_budget" },
+        { exit: 0, embedded: 20 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(await convergeMeaning(host)).toBe("on");
+    // At every start after a window, the attempt already reads `filling`
+    // with no window in progress (no phase, no copy to bring back), so a run
+    // that died there is not recovered by a copy over pages written since.
+    expect(atStart).toHaveLength(3);
+    for (const attempt of atStart)
+      expect(attempt).toMatchObject({ result: "filling" });
+    for (const attempt of atStart)
+      expect((attempt as { phase?: string }).phase).toBeUndefined();
+    // And such a run's next is an ordinary window over what is there.
+    const state = await readBrainState(paths);
+    expect(state.meaning?.provider).toBe("llama-server:bge-m3");
+  });
+
+  test("after too many windows in all the filling stops for a person, the vectors kept", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    const state = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...state,
+      meaningAttempt: {
+        ...(state.meaningAttempt as NonNullable<typeof state.meaningAttempt>),
+        windows: meaningMaxWindows,
+      },
+    });
+    expect(await convergeMeaning(host)).toBe("restored:embed-windows");
+    expect(await convergeMeaning(host)).toBe("held");
+    expect(world.server).toBe(true);
+    expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
   });
 });

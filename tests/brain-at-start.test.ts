@@ -40,6 +40,59 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
     return { state, reported, input, close };
   };
 
+  test("search by meaning with windows left: setup runs again after the pause while this start lasts, Executor handed the brain after every run", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, reported, input, close } = world([
+      filling,
+      filling,
+      { server: "running", meaning: "on" },
+    ]);
+    const settled: (BrainSetupLabels | null)[] = [];
+    const pauses: number[] = [];
+    const run = {
+      ...input,
+      settled: async (labels: BrainSetupLabels | null) => {
+        settled.push(labels);
+      },
+      fillMs: 300_000,
+      sleep: async (ms: number) => {
+        pauses.push(ms);
+      },
+    };
+    expect(await brainSetupAtStart(run)).toEqual({
+      server: "running",
+      meaning: "on",
+    });
+    expect(state.runs).toBe(3);
+    // Each run's answer goes to Executor's Brain at once, the first window's
+    // too: agents reach the brain while the windows go on.
+    expect(settled).toEqual([
+      filling,
+      filling,
+      { server: "running", meaning: "on" },
+    ]);
+    expect(pauses).toEqual([300_000, 300_000]);
+    expect(reported).toEqual([filling, filling]);
+    // A start that closes during the pause starts no other run.
+    const stopping = world([filling, filling]);
+    const stopped = {
+      ...stopping.input,
+      sleep: async () => {
+        stopping.close.abort();
+      },
+    };
+    expect(await brainSetupAtStart(stopped)).toEqual(filling);
+    expect(stopping.state.runs).toBe(1);
+    close.abort();
+  });
+
+  test("the runs one start makes for windows are bounded", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, input } = world(Array(20).fill(filling));
+    expect(await brainSetupAtStart({ ...input, fills: 4 })).toEqual(filling);
+    expect(state.runs).toBe(5);
+  });
+
   test("an answer other than waits-machines is the answer: nothing waits", async () => {
     const { state, input } = world([{ server: "waits-takeover" }]);
     expect(await brainSetupAtStart(input)).toEqual({

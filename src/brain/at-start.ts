@@ -7,6 +7,7 @@ import type {
 } from "../integrations/custom-server";
 import type { ToolRunner } from "../tools/status";
 import { writeDurableFile } from "../update/durable-file";
+import { meaningPauseMs } from "./meaning";
 import type { BrainPaths } from "./pin";
 
 // The person's brain at the Launchpad's start (plan LZD-0033 R11a, step 4),
@@ -55,25 +56,51 @@ export async function brainSetupAtStart(
     handover: () => Promise<boolean>;
     signal: AbortSignal;
     report?: (labels: BrainSetupLabels) => void;
+    /** After every run, with its labels: the Launchpad hands the brain to
+     * Executor there, so agents reach it while windows are left. */
+    settled?: (labels: BrainSetupLabels | null) => Promise<void>;
     waitMs?: number;
     waits?: number;
+    /** The pause before the next window's run (`meaningPauseMs`), and how
+     * many such runs one start makes at most. */
+    fillMs?: number;
+    fills?: number;
     sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   }>,
 ): Promise<BrainSetupLabels | null> {
   const { signal } = input;
   if (signal.aborted) return null;
-  const first = await input.run();
-  if (first?.server !== "waits-machines" || signal.aborted) return first;
-  input.report?.(first);
   const sleep = input.sleep ?? abortableSleep;
-  for (let i = 0; i < (input.waits ?? 720); i++) {
-    await sleep(input.waitMs ?? 60_000, signal);
-    if (signal.aborted) return first;
-    const marked = await input.handover().catch(() => false);
-    if (signal.aborted) return first;
-    if (marked) return input.run();
+  const run = async () => {
+    const labels = await input.run();
+    if (!signal.aborted) await input.settled?.(labels).catch(() => undefined);
+    return labels;
+  };
+  let labels = await run();
+  if (labels?.server === "waits-machines" && !signal.aborted) {
+    input.report?.(labels);
+    for (let i = 0; i < (input.waits ?? 720); i++) {
+      await sleep(input.waitMs ?? 60_000, signal);
+      if (signal.aborted) return labels;
+      const marked = await input.handover().catch(() => false);
+      if (signal.aborted) return labels;
+      if (marked) {
+        labels = await run();
+        break;
+      }
+    }
   }
-  return first;
+  // Search by meaning with windows left, or one Buddy's work put off: the
+  // next window's run after a pause, while this start lasts (a later start
+  // goes on from the brain's own record).
+  for (let i = 0; i < (input.fills ?? 600); i++) {
+    if (labels?.meaning !== "waits:filling" || signal.aborted) break;
+    input.report?.(labels);
+    await sleep(input.fillMs ?? meaningPauseMs, signal);
+    if (signal.aborted) break;
+    labels = await run();
+  }
+  return labels;
 }
 
 /** A sleep that ends early when `signal` is aborted. */
