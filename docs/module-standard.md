@@ -1214,13 +1214,19 @@ What "ready as an Application" means for each generation, and how
     ([repository-db#46](https://github.com/Lazurio/repository-db/issues/46)
     reproduces it with a JSON collection). A Module that keeps such a file
     recovers by itself, by the engine's own way out:
-    1. It keeps the operation it meant to do and the version of the record it
-       started from, outside the checkout.
+    1. Before it discards anything, it keeps every unpublished change to that
+       file outside the checkout: each record the draft changed against `HEAD`,
+       with its new content and the version it started from. A draft is
+       published as a whole, so the file may hold earlier changes besides the
+       one that triggered the publication.
     2. `conflict --abort` (its commit becomes a draft again), `discard --record`
-       of the conflicting file, `sync --pull` (the other side comes in).
-    3. It compares the record it changed in the fresh file with the version it
-       started from. Unchanged: it repeats its operation and publishes again.
-       Changed: it refuses with `record_changed` and overwrites nothing.
+       of the conflicting file, which puts the whole file back to `HEAD`, and
+       `sync --pull` (the other side comes in).
+    3. For each kept change it compares that record in the fresh file with the
+       version the change started from. Unchanged: it applies the change again.
+       Changed: it does not apply it, overwrites nothing, and reports it as
+       `record_changed` where its draft is reviewed. Then it publishes what it
+       applied.
 
     When the other side has converged instead, `finish-send --head
     <pendingHead>` sends the waiting commit.
