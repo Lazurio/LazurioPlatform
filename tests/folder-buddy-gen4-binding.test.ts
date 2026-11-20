@@ -750,6 +750,37 @@ posix(
 );
 
 posix(
+  "while Buddy GEN3 is in the home, ~/Buddy/AGENTS.md says to leave him alone; once he is gone, update asks for the refresh that drops it",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      await mkdir(join(parent, ".t3-buddy"));
+      expect(
+        (await initializeMachineFolder(folder, convertedAt(parent), noChoices))
+          .code,
+      ).toBe(0);
+      const agents = () => readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
+      expect(await agents()).toContain("~/.t3-buddy");
+      expect(
+        await neededRefresh(folder, instructionTemplateRevision, folder),
+      ).toBeNull();
+      // R9 removed Buddy GEN3: the text is behind, and the refresh drops it.
+      await rm(join(parent, ".t3-buddy"), { recursive: true });
+      expect(
+        (await neededRefresh(folder, instructionTemplateRevision, folder))
+          ?.command,
+      ).toEqual(["machine", "folder-refresh"]);
+      expect(
+        (await refreshMachineFolder(folder, convertedAt(parent))).code,
+      ).toBe(0);
+      expect(await agents()).not.toContain("~/.t3-buddy");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
   "lazurio update asks for a refresh while ~/Buddy lacks what the product renders, and reports a refresh that could not write it as a failure",
   async () => {
     const { parent, folder } = await home();

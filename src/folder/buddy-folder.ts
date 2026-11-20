@@ -99,6 +99,21 @@ export async function writeBuddyLocked(
   }
 }
 
+/** Whether Buddy GEN3 is still in `home`: his own T3 Code (`~/.t3-buddy`)
+ * or Hermes (`~/.hermes`) exists in any form. Anything that cannot be read
+ * counts as present, so that the warning stays rather than goes too early
+ * (plan LZD-0033 R2; R9 removes both after the archive of R6a). */
+export async function buddyGen3Present(home: string): Promise<boolean> {
+  for (const name of [".t3-buddy", ".hermes"]) {
+    const present = await lstat(join(home, name)).then(
+      () => true,
+      (error: NodeJS.ErrnoException) => error.code !== "ENOENT",
+    );
+    if (present) return true;
+  }
+  return false;
+}
+
 /** Whether a converted person's `~/Buddy` lacks what this product renders
  * for the Folder's preferences and persona: a file absent, other or unsafe.
  * Reading only, no lock; anything unreadable counts as behind, so that the
@@ -118,6 +133,7 @@ export async function buddyFolderBehind(
       instructionSource(preferences),
       entry.buddyProfile,
       persona.state === "valid" ? persona.persona : undefined,
+      { gen3: await buddyGen3Present(home) },
     );
     for (const [path, content] of Object.entries(files) as [
       BuddyFolderPath,
@@ -225,6 +241,7 @@ export async function writeBuddyGen4Locked(
       source,
       profile,
       persona.state === "valid" ? persona.persona : undefined,
+      { gen3: await buddyGen3Present(home) },
     ),
     assertHeld,
   );
