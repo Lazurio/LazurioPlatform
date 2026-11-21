@@ -15,7 +15,10 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Process ids of this user's gbrain commands of Lazurio's releases, other
  * than `serve`, as their command line names them
- * (`bun <releases>/<commit>/bin/gbrain <verb> …`). */
+ * (`bun <releases>/<commit>/bin/gbrain <verb> …`), and of a copy of the
+ * brain a stop of search by meaning began (`cp -a -- <brain> <copy>`,
+ * `./meaning.ts`): its limit lived in the setup that died, so it is ended
+ * before the next run removes or reuses what it writes. */
 export async function strayWriters(
   paths: BrainPaths,
   proc = "/proc",
@@ -43,6 +46,15 @@ export async function strayWriters(
         (part) => part.startsWith(prefix) && part.endsWith("/bin/gbrain"),
       );
       if (at >= 0 && argv[at + 1] !== "serve") found.push(pid);
+      else if (argv[0] === "cp" || argv[0]?.endsWith("/cp") === true) {
+        const flag = argv.indexOf("-a");
+        if (
+          flag > 0 &&
+          argv[flag + 1] === "--" &&
+          argv[flag + 2] === paths.brain
+        )
+          found.push(pid);
+      }
     } catch {
       // A process that ended while it was read.
     }

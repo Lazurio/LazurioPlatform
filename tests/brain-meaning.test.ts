@@ -7,6 +7,7 @@ import {
   mkdtemp,
   readdir,
   readFile,
+  rename,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -22,6 +23,7 @@ import {
   convergeMeaning,
   downloadVerified,
   embedPlan,
+  failedWindowName,
   type MeaningHost,
   meaningBatchLimitMs,
   meaningDayStopMs,
@@ -147,8 +149,10 @@ async function stand(
   const step = { ms: options.stepMs ?? 0 };
   /** Each copy of the brain: when it began and its limit. */
   const copies: Array<Readonly<{ at: number; limit: number }>> = [];
-  /** When the server was started, on the stand's clock. */
+  /** When the server was started, on the stand's clock, and what the home
+   * held then. */
   const startTimes: number[] = [];
+  const homeAtStart: string[][] = [];
   /** Each gbrain step's limit, and when it started, on the stand's clock. */
   const limits: Array<Readonly<{ step: string; at: number; limit: number }>> =
     [];
@@ -223,6 +227,7 @@ async function stand(
       if (name === brainUnit && verb === "start") {
         startedAt = clock;
         startTimes.push(clock);
+        homeAtStart.push(await readdir(paths.home));
         atStart.push((await readBrainState(paths)).meaningAttempt);
         world.server = true;
         starts += 1;
@@ -424,6 +429,7 @@ async function stand(
     time,
     copies,
     startTimes,
+    homeAtStart,
   };
 }
 
@@ -1464,5 +1470,143 @@ describe("a stop is bounded as a whole: its steps, its embedding and the start a
     expect(labels).toEqual({ server: "running", meaning: "on" });
     // It waited until the window's start, 10 minutes after the clock.
     expect(time.now()).toBe(t0 + 10 * minute);
+  });
+});
+
+describe("a way back a run that died left is finished, never brought back over later writes", () => {
+  const at = "2026-11-19T00:00:00.000Z";
+  const backup = ".gbrain.bak-meaning-20261119T000000Z";
+  const failed = ".gbrain.failed-meaning-20261119T000000Z";
+  const config = (dir: string) =>
+    readFile(join(dir, "config.json"), "utf8").catch(() => null);
+  /** The first window's way back, journaled, and the home as a run that
+   * died at `where` left it. */
+  const left = async (
+    where: "before-renames" | "between-renames" | "after-renames",
+    result: "restoring" | "started" = "restoring",
+  ) => {
+    const s = await stand();
+    const { paths, world } = s;
+    const home = (name: string) => join(paths.home, name);
+    // The copy is the brain from before; the brain is what the window left.
+    await mkdir(home(backup), { recursive: true });
+    await writeFile(join(home(backup), "config.json"), '{"brain":"before"}');
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"torn"}');
+    if (where !== "before-renames") await rename(paths.brain, home(failed));
+    if (where === "after-renames") await rename(home(backup), paths.brain);
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result,
+        at,
+        backup,
+        reason: "embed",
+      },
+    });
+    world.server = false;
+    world.timer = false;
+    return s;
+  };
+
+  for (const where of [
+    "before-renames",
+    "between-renames",
+    "after-renames",
+  ] as const) {
+    test(`a first window's way back that died ${where.replace("-", " the ")} ends with the brain from before, and the server up`, async () => {
+      const { host, paths, world } = await left(where);
+      expect(await convergeMeaning(host)).toBe("restored:embed");
+      expect(await config(paths.brain)).toBe('{"brain":"before"}');
+      expect(await config(join(paths.home, failed))).toBe('{"brain":"torn"}');
+      expect(world.server && world.timer).toBe(true);
+      expect(await convergeMeaning(host)).toBe("held");
+    });
+  }
+
+  test("a copy missing where no way back was journaled is never taken as done: kept down for a person", async () => {
+    const { host, paths } = await left("after-renames", "started");
+    expect(await convergeMeaning(host)).toBe("stopped:copy-not-restored");
+    expect(await config(paths.brain)).toBe('{"brain":"before"}');
+  });
+
+  test("a way back committed before the server started is not done again over a later write", async () => {
+    const { host, paths, world } = await left("after-renames");
+    expect(await convergeMeaning(host)).toBe("restored:embed");
+    // The server took a write after the way back.
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"later"}');
+    world.server = false;
+    expect(await convergeMeaning(host)).toBe("held");
+    expect(await config(paths.brain)).toBe('{"brain":"later"}');
+  });
+
+  test("a later window's way back that died after both renames goes on with the window's brain", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+      ],
+      busyFrom: 2,
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    // The window's copy renamed into place, the torn brain aside, and the
+    // journal still says the way back began.
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"window"}');
+    await mkdir(join(paths.home, failedWindowName), { recursive: true });
+    const state = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...state,
+      meaningAttempt: {
+        ...(state.meaningAttempt as NonNullable<typeof state.meaningAttempt>),
+        result: "restoring",
+        reason: "embed-failures",
+        phase: "filling",
+        windowBackup: ".gbrain.bak-meaning-window",
+      },
+    });
+    world.server = false;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(await config(paths.brain)).toBe('{"brain":"window"}');
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+      "filling",
+    );
+  });
+
+  test("what a stop leaves is removed only once the server runs again: a copy ended at its limit, a failed brain before", async () => {
+    // A copy that never ends: its half copy is still there when the
+    // server starts, and gone after.
+    const ended = await stand({ copyMs: Number.POSITIVE_INFINITY });
+    expect(await convergeMeaning(ended.host)).toBe("waits:no-time");
+    expect(
+      ended.homeAtStart
+        .at(-1)
+        ?.some((n) => n.startsWith(".gbrain.bak-meaning-")),
+    ).toBe(true);
+    expect(
+      (await readdir(ended.paths.home)).some((n) =>
+        n.startsWith(".gbrain.bak-meaning-"),
+      ),
+    ).toBe(false);
+    // A window that fails while the failed brain of an earlier one is kept:
+    // that one is set aside in the stop and removed after the start.
+    const failing = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 300, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 3 },
+      ],
+    });
+    expect(await convergeMeaning(failing.host)).toBe("waits:filling");
+    const earlier = join(failing.paths.home, failedWindowName);
+    await mkdir(earlier, { recursive: true });
+    await writeFile(join(earlier, "config.json"), '{"brain":"earlier"}');
+    expect(await convergeMeaning(failing.host)).toBe("waits:embed-failures");
+    expect(
+      failing.homeAtStart
+        .at(-1)
+        ?.some((n) => n.startsWith(`${failedWindowName}.aside-`)),
+    ).toBe(true);
+    const after = await readdir(failing.paths.home);
+    expect(after.some((n) => n.includes(".aside-"))).toBe(false);
+    expect(await config(earlier)).not.toBe('{"brain":"earlier"}');
   });
 });

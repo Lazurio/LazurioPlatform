@@ -120,7 +120,11 @@ function unfinished(state: BrainState): TakeoverBlocker[] {
   // Only an attempt for this model counts: setup recovers or keeps no other.
   const attempt = state.meaningAttempt;
   if (attempt?.provider === meaningPin.provider) {
-    if (attempt.result === "stopping" || attempt.result === "started")
+    if (
+      attempt.result === "stopping" ||
+      attempt.result === "started" ||
+      attempt.result === "restoring"
+    )
       found.push("meaning-unfinished");
     if (attempt.result === "restored" || attempt.result === "stopped")
       found.push("meaning-held");

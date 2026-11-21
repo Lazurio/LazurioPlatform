@@ -15964,6 +15964,16 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
           system, so it takes no time. The copy is the brain from before,
           so nothing is lost by its being used. The failed brain is renamed
           aside and kept once.
+        - The way back is journaled (`restoring`) before its renames, so a
+          run that dies between them is finished by the next one: a copy
+          still there is renamed into place, and a copy gone with a brain in
+          place was renamed already. Without that journal, a missing copy is
+          never taken as done.
+        - What a stop leaves (a copy ended at its limit, an earlier failed
+          brain set aside) is removed only once the server runs again, so
+          its removal never lengthens a stop. A copy a dead setup left
+          running is ended with the other stray writers before anything
+          else (`./writers.ts`).
         - The computation's budget is what is left of the stop after the
           copy and the steps, less one batch to the model (10 minutes),
           gbrain's own start (2 minutes) and the server's start (3 minutes).

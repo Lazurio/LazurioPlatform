@@ -94,7 +94,15 @@ export type BrainState = Readonly<{
    * `stopping` and `started`, whose copy is `windowBackup`). */
   meaningAttempt?: Readonly<{
     provider: string;
-    result: "stopping" | "started" | "filling" | "restored" | "stopped";
+    /** `restoring`: a way back began (its renames may be half done); a run
+     * that finds it finishes them (`./meaning.ts`, `restoreCopy`). */
+    result:
+      | "stopping"
+      | "started"
+      | "restoring"
+      | "filling"
+      | "restored"
+      | "stopped";
     at: string;
     backup?: string;
     reason?: string;

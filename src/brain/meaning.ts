@@ -9,7 +9,7 @@ import {
   rename,
   rm,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { systemctl, unitMarker } from "../update/service-control";
 import { healthVersion } from "./admin";
@@ -776,6 +776,10 @@ async function restoreCopy(
     /** The window's own name for the brain it puts aside. */
     failedName: string;
   }>,
+  /** A way back a run that died began (`restoring`): a copy gone with a
+   * brain in place was renamed into place already. Without it, a missing
+   * copy is never taken as done. */
+  resumed = false,
 ): Promise<MeaningResult> {
   const record = recorder(host, now);
   // The way back takes no time: the copy is renamed into place (one file
@@ -793,14 +797,31 @@ async function restoreCopy(
     host.paths.home,
     filling?.failedName ?? `.gbrain.failed-meaning-${stampOf(now)}`,
   );
+  // The way back is journaled before its renames, so a run that dies
+  // between them is finished by the next one (`recoverAttempt`): the copy
+  // still there is renamed into place; a copy gone with a brain in place
+  // was renamed already (nothing else takes the copy while this lasts).
+  await record(
+    "restoring",
+    reason,
+    filling === undefined
+      ? {}
+      : { phase: "filling", windowBackup: basename(backup) },
+  );
   try {
-    if (!(await present(backup))) throw new Error("no copy");
-    // A window's failed brain is kept once: the previous one goes, so
-    // failures over many windows never fill the disk (`./room.ts`).
-    if (filling !== undefined)
-      await rm(failed, { recursive: true, force: true });
-    if (await present(host.paths.brain)) await rename(host.paths.brain, failed);
-    await rename(backup, host.paths.brain);
+    const copyThere = await present(backup);
+    const brainThere = await present(host.paths.brain);
+    if (copyThere) {
+      if (brainThere) {
+        // A window's failed brain is kept once: the one before it is
+        // renamed aside now and removed once the server runs again, so
+        // failures over many windows never fill the disk (`./room.ts`).
+        if (await present(failed))
+          await rename(failed, `${failed}${asideMark}${stampOf(now)}`);
+        await rename(host.paths.brain, failed);
+      }
+      await rename(backup, host.paths.brain);
+    } else if (!brainThere || !resumed) throw new Error("no copy");
     await chmod(host.paths.brain, 0o700);
     await writeBrainUnits(host.paths, release.command, filling !== undefined);
   } catch {
@@ -829,7 +850,31 @@ async function restoreCopy(
     return "stopped:no-answer";
   }
   await service(host, "start", brainRefreshTimer);
+  // What was set aside goes once the server runs, outside the stop.
+  await removeAside(host.paths.home, basename(failed));
   return result;
+}
+
+/** The infix of a failed brain set aside for removal after the start. */
+const asideMark = ".aside-";
+
+/** Removes the brains a way back set aside (`<name>.aside-<stamp>`), once
+ * the server runs: their removal never lengthens a stop. */
+async function removeAside(home: string, name: string): Promise<void> {
+  const entries = await readdir(home).catch(() => [] as string[]);
+  for (const entry of entries)
+    if (entry.startsWith(`${name}${asideMark}`))
+      await rm(join(home, entry), { recursive: true, force: true }).catch(
+        () => undefined,
+      );
+}
+
+/** The server and its timer started again with the brain as it was, then
+ * what the stop left (a partial or unused copy) removed, outside the stop. */
+async function startThenRemove(host: MoveHost, leftover: string) {
+  await service(host, "start", brainUnit);
+  await service(host, "start", brainRefreshTimer);
+  await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
 }
 
 /** An attempt a run left half way. `stopping`: the brain was not touched
@@ -846,10 +891,17 @@ export async function recoverAttempt(
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider !== meaningPin.provider ||
-    (attempt.result !== "stopping" && attempt.result !== "started")
+    (attempt.result !== "stopping" &&
+      attempt.result !== "started" &&
+      attempt.result !== "restoring")
   )
     return null;
   const at = new Date(attempt.at);
+  // A way back a run began is finished for the reason it began with.
+  const reason =
+    attempt.result === "restoring"
+      ? (attempt.reason ?? "interrupted")
+      : "interrupted";
   if (attempt.phase === "filling") {
     // A window a run left: its own copy, the brain with the model before it.
     const window =
@@ -858,13 +910,13 @@ export async function recoverAttempt(
         : join(host.paths.home, attempt.windowBackup);
     const record = recorder(host, at);
     if (attempt.result === "stopping") {
-      if (window !== undefined)
-        await rm(window, { recursive: true, force: true }).catch(
-          () => undefined,
-        );
-      await service(host, "start", brainUnit);
-      await service(host, "start", brainRefreshTimer);
+      // The brain was not touched: the server first, then the copy it left.
       await record("filling");
+      if (window !== undefined) await startThenRemove(host, window);
+      else {
+        await service(host, "start", brainUnit);
+        await service(host, "start", brainRefreshTimer);
+      }
       return "waits:interrupted";
     }
     if (state.release === undefined || window === undefined) {
@@ -872,24 +924,34 @@ export async function recoverAttempt(
       await keepDown(host);
       return "stopped:interrupted-unknown";
     }
-    return restoreCopy(host, state.release, window, at, "interrupted", {
-      failedName: failedWindowName,
-      next: async () => {
-        await record("filling", "interrupted");
-        return "waits:interrupted";
+    return restoreCopy(
+      host,
+      state.release,
+      window,
+      at,
+      reason,
+      {
+        failedName: failedWindowName,
+        next: async () => {
+          await record("filling", "interrupted");
+          return "waits:interrupted";
+        },
       },
-    });
+      attempt.result === "restoring",
+    );
   }
   const backup =
     attempt.backup === undefined
       ? undefined
       : join(host.paths.home, attempt.backup);
   if (attempt.result === "stopping") {
-    if (backup !== undefined)
-      await rm(backup, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
+    // The brain was not touched: the server first, then the copy it left.
     await clearAttempt(host);
+    if (backup !== undefined) await startThenRemove(host, backup);
+    else {
+      await service(host, "start", brainUnit);
+      await service(host, "start", brainRefreshTimer);
+    }
     return "waits:interrupted";
   }
   if (state.release === undefined || backup === undefined) {
@@ -897,7 +959,15 @@ export async function recoverAttempt(
     await keepDown(host);
     return "stopped:interrupted-unknown";
   }
-  return restoreCopy(host, state.release, backup, at, "interrupted");
+  return restoreCopy(
+    host,
+    state.release,
+    backup,
+    at,
+    reason,
+    undefined,
+    attempt.result === "restoring",
+  );
 }
 
 /** The model server, and the brain switched on once. */
@@ -1000,10 +1070,8 @@ export async function convergeMeaning(
   // server comes back as it was, and the next run tries again.
   const copied = await copyStep(host, deadline, host.paths.brain, backup);
   if (copied !== "copied") {
-    await rm(backup, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
     await clearAttempt(host);
+    await startThenRemove(host, backup);
     return `waits:${copied}`;
   }
   await record("started");
@@ -1144,10 +1212,8 @@ async function fill(
   // comes back as it was, and the next run goes on.
   const copied = await copyStep(host, deadline, host.paths.brain, window);
   if (copied !== "copied") {
-    await rm(window, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
     await record("filling", copied);
+    await startThenRemove(host, window);
     return `waits:${copied}`;
   }
   await record("started", undefined, inWindow);

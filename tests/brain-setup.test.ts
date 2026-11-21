@@ -558,6 +558,46 @@ describe("what a dead run left, before the brain starts", () => {
     20_000,
   );
 
+  test("a copy of the brain a dead stop left is ended before anything removes or reuses it", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    // A stop's copy (`cp -a -- <brain> <copy>`) in its own process group,
+    // as a killed setup leaves it: a process named cp that never ends.
+    const copy = join(paths.home, ".gbrain.bak-meaning-20261119T000000Z");
+    const hold = join(paths.home, "hold.js");
+    await writeFile(hold, "setInterval(() => {}, 1000);\n");
+    const cpLeft = spawn(
+      process.execPath,
+      [hold, "-a", "--", paths.brain, copy],
+      { argv0: "cp", detached: true, stdio: "ignore" },
+    );
+    const ended = new Promise((resolve) => cpLeft.once("exit", resolve));
+    const gone = () => cpLeft.exitCode !== null || cpLeft.signalCode !== null;
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      expect(await strayWriters(paths)).toContain(cpLeft.pid as number);
+      // Another user's copy of another brain is not this one.
+      expect(
+        await strayWriters({ ...paths, brain: join(paths.home, "other") }),
+      ).not.toContain(cpLeft.pid as number);
+      const result = await brainSetup(setupHost);
+      expect(result.server).toBe("running");
+      await Promise.race([
+        ended,
+        new Promise((resolve) => setTimeout(resolve, 3_000)),
+      ]);
+      expect(gone()).toBe(true);
+    } finally {
+      if (!gone()) {
+        try {
+          process.kill(-(cpLeft.pid as number), "SIGKILL");
+        } catch {
+          cpLeft.kill("SIGKILL");
+        }
+      }
+    }
+  }, 20_000);
+
   test("where there is no /proc to read, no writer is found and nothing waits", async () => {
     const paths = brainPaths(await mkdtemp(join(tmpdir(), "brain-writers-")));
     const proc = join(paths.home, "no-proc");
