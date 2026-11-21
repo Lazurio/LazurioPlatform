@@ -26,7 +26,9 @@
 // sign-in finishes by itself after a few seconds and a Composio link at once
 // (the window they open shows nothing real). Vlastní lists one server that
 // Executor cannot reach, as 1.6.10 reads it (`degraded`, #322), so it says
-// it could not start. Locally that fake
+// it could not start, and two fictional Organization's Applications: one
+// signed in without a lasting sign-in, one expired, each with "Připojit
+// znovu" (#1076). Locally that fake
 // stands in for a Remote Environment's Executor, so the page shows the
 // direct paths (decision F44 installs none on a computer); in a Remote
 // Environment the page follows Settings → Tools → executor, as in
@@ -976,6 +978,26 @@ const executorApi = await startFakeExecutor(
         tools: 0,
         broken: true,
       },
+      // Two fictional Organization's Applications (Lazurio/LazurioPlatform#1076):
+      // one signed in before it offered a lasting sign-in, one expired.
+      {
+        slug: "evidence_reviz",
+        name: "Evidence revizí a kontrol elektrických zařízení",
+        kind: "mcp",
+        transport: "remote",
+        endpoint: "https://evidence-reviz.example-company.lazurio.app/mcp",
+        auth: "oauth2",
+        tools: 7,
+      },
+      {
+        slug: "dochazka",
+        name: "Docházka",
+        kind: "mcp",
+        transport: "remote",
+        endpoint: "https://dochazka.example-company.lazurio.app/mcp",
+        auth: "oauth2",
+        tools: 3,
+      },
     ],
     connections: [
       {
@@ -1011,6 +1033,24 @@ const executorApi = await startFakeExecutor(
         health: "degraded",
         reason: "tool_sync_failed",
       },
+      {
+        owner: "org",
+        name: "default",
+        integration: "evidence_reviz",
+        template: "oauth2",
+        identityLabel: "jana@example.com",
+        health: "healthy",
+        scope: "example-company--apps-01-applications-mcp",
+      },
+      {
+        owner: "org",
+        name: "default",
+        integration: "dochazka",
+        template: "oauth2",
+        identityLabel: "jana@example.com",
+        health: "expired",
+        scope: "example-company--applications offline_access",
+      },
     ],
   },
   // With the company app, a sign-in finishes only when it returns.
@@ -1039,7 +1079,12 @@ if (microsoft365) {
     ],
   });
 }
+// A sign-in now gets what the Applications offer: a lasting connection.
+executorApi.authorizationServer.grantedScope =
+  "example-company--applications offline_access";
 for (const endpoint of [
+  "https://evidence-reviz.example-company.lazurio.app/mcp",
+  "https://dochazka.example-company.lazurio.app/mcp",
   "https://mcp.linear.app/mcp",
   "https://mcp.clickup.com/mcp",
   "https://mcp.figma.com/mcp",
