@@ -203,6 +203,23 @@ test("frame-ancestors of /new-tab: the entry's app origins as present, each once
   ).toBe(
     "frame-ancestors 'self' https://launchpad.workspace.example.lazurio.io https://t3code.workspace.example.lazurio.io https://mausbot.workspace.example.lazurio.io",
   );
+  // Buddy GEN4's window frames it in his T3 Code's right panel (#1128);
+  // Buddy GEN3, whose surface has no right panel, does not.
+  const personal = {
+    externalOrigin: "https://launchpad.example.lazurio.io",
+    t3codeOrigin: "https://t3code.example.lazurio.io",
+    buddyOrigin: "https://buddy.example.lazurio.io",
+  };
+  expect(
+    newTabPageHeaders({ ...personal, buddyFolder: "/home/example/Buddy" })[
+      "Content-Security-Policy"
+    ],
+  ).toBe(
+    "frame-ancestors 'self' https://launchpad.example.lazurio.io https://t3code.example.lazurio.io https://buddy.example.lazurio.io",
+  );
+  expect(newTabPageHeaders(personal)["Content-Security-Policy"]).toBe(
+    "frame-ancestors 'self' https://launchpad.example.lazurio.io https://t3code.example.lazurio.io",
+  );
 });
 
 test.skipIf(process.platform === "win32")(

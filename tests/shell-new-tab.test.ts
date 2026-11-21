@@ -443,6 +443,43 @@ describe("where the page is and who may host it", () => {
       "https://t3code.vm-01.example.lazurio.io",
       "https://mausbot.vm-01.example.lazurio.io",
     ]);
+    // Buddy GEN4's window of this Environment hosts it too: his shared T3
+    // Code places Nová karta in its right panel there (#1128). Not Buddy
+    // GEN3 (no sign, no right panel), nor another Environment's Buddy.
+    const quiet = {
+      state: "quiet",
+      since: null,
+      request: null,
+      startedBy: null,
+    } as const;
+    const withBuddy = (buddy: NonNullable<Shell["buddy"]>): Shell => ({
+      ...hosted,
+      buddy,
+    });
+    expect(
+      newTabHostOrigins(
+        withBuddy({
+          origin: "https://buddy.vm-01.example.lazurio.io",
+          signal: quiet,
+        }),
+        "https://launchpad.vm-01.example.lazurio.io",
+      ),
+    ).toEqual([
+      "https://launchpad.vm-01.example.lazurio.io",
+      "https://t3code.vm-01.example.lazurio.io",
+      "https://mausbot.vm-01.example.lazurio.io",
+      "https://buddy.vm-01.example.lazurio.io",
+    ]);
+    for (const buddy of [
+      { origin: "https://buddy.vm-01.example.lazurio.io" },
+      { origin: "https://buddy.someone.lazurio.io", signal: quiet },
+    ])
+      expect(
+        newTabHostOrigins(
+          withBuddy(buddy),
+          "https://launchpad.vm-01.example.lazurio.io",
+        ),
+      ).toHaveLength(3);
     expect(
       newTabHostOrigins(
         shellOf({ apps: "/", chat: null, automate: null }),

@@ -6,7 +6,7 @@ import {
   parseNewTabTools,
   surfaceLanguageOf,
 } from "../browser/contract/pure";
-import { currentEnvironment, type Shell } from "./contract";
+import { currentEnvironment, environmentIdOf, type Shell } from "./contract";
 import { shellElementInterface } from "./interface";
 
 // Nová karta's protocol (decision F47 points 1 and 2): the messages between
@@ -191,9 +191,11 @@ export function acceptNewTabHostMessage(
 }
 
 /** The origins that may host Nová karta: the current Environment's own apps
- * in its shell document (`apps`, `chat`, `automate`), the same ones the
- * page's `frame-ancestors` names. Apps as a path is the page's own origin (a
- * workstation). None on a page that belongs to no Environment. */
+ * in its shell document (`apps`, `chat`, `automate`) and the window of its
+ * own Buddy GEN4 (the document's `buddy` with a sign, on this Environment),
+ * the same ones the page's `frame-ancestors` names. Apps as a path is the
+ * page's own origin (a workstation). None on a page that belongs to no
+ * Environment. */
 export function newTabHostOrigins(
   shell: Shell,
   pageOrigin: string,
@@ -211,6 +213,12 @@ export function newTabHostOrigins(
       origins.add(new URL(address, pageOrigin).origin);
     } catch {}
   }
+  const buddy = shell.buddy;
+  if (
+    buddy?.signal !== undefined &&
+    environmentIdOf(buddy.origin) === environment.id
+  )
+    origins.add(buddy.origin);
   return Object.freeze([...origins]);
 }
 
