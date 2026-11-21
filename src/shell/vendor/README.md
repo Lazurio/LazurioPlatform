@@ -27,6 +27,7 @@ these brand assets in this public repository (2026-10-03).
 | File | Source path | SHA-256 |
 | --- | --- | --- |
 | `lazurio/tokens.css` | `tokens.css` | `4137293738cc818ff6fea6b8ccb6682fcae527507093b3ffe1e05398f7c32c52` |
+| `lazurio/tokens-dark.css` | `tokens-dark.css` | `a0725ab973622d6166213c8ed9fd253b5c192a0fda906186a962e379243cad98` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
 | `lazurio/lockup-color.svg` | `content/brand/logo/lockup-color.svg` | `56148f482211a3bdb62311ccabb9f943f61440c7b2c23101f120fb1e0f02aefe` |
 
@@ -59,7 +60,11 @@ promised needs no other edit. Since F36's addendum of 2026-10-18 (root decision
 --lazurio-color-scheme: light; }`, the scheme of the values, and the
 Environment's theme gives the promised colour names other values over them; the
 theme Lazurio is this file's own values (`src/theme/palettes.ts`), so a new copy
-reaches it too.
+reaches it too. Since F36's addendum of 2026-11-17 (2) its dark appearance is the
+design system's dark scheme Grafit, `lazurio/tokens-dark.css` (one
+`[data-scheme="dark"]` rule over the same names), resolved over this file
+(`src/theme/design-tokens-dark.ts`); the shell never puts that file into a
+document.
 
 ## Module stones
 
@@ -175,5 +180,6 @@ arrives through the values alone. New names nobody is promised: the deep band
 (`--lz-deep-*`), `--lz-radius-lg`, the web's `--lz-size-section` and
 `--lz-leading-section`, `--lz-weight-medium` and the steps of the dark scheme
 Grafit (`--lz-grafit-*`, 2026-11-08). The file is one `:root` rule as before:
-the design system keeps Grafit's roles in its own `tokens-dark.css`, which this
-copy does not include.
+the design system keeps Grafit's roles in its own `tokens-dark.css`, copied
+from the same commit for the theme Lazurio's dark appearance (F36's addendum of
+2026-11-17 (2)).

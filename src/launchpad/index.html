@@ -51,7 +51,8 @@
    rows) in the Lazurio design-system look: every colour, type and radius
    below comes from its vendored tokens (src/shell/vendor/lazurio/tokens.css);
    the aliases keep the names the panels use. Plain CSS, no framework. Light
-   only: the design system has no dark mode yet.
+   only: only part of this CSS draws from the names a theme gives values, so
+   a dark device would get a half-dark page (root decision 0208 point 5).
    The Environment's theme (root decision 0208, F36's addendum of
    2026-10-18) gives the colour names interface v1 promises other values:
    the shell writes them into `style[data-lazurio-environment-theme]`, which
@@ -354,9 +355,10 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
    per theme the Environment may take, on the design system's tile (a
    hairline, radius-md, the ink's edge once chosen, never a shadow). Each
    shows its light and its dark look as two small windows of the app in its
-   own colours (theme-view.ts, `previewColours`), Lazurio its light one
-   alone; below, the name and the check of the chosen one. A native radio
-   group: the arrows move between the cards, a choice applies at once. */
+   own colours (theme-view.ts, `previewColours`), Lazurio since F36's
+   addendum of 2026-11-17 (2) too; below, the name and the check of the
+   chosen one. A native radio group: the arrows move between the cards, a
+   choice applies at once. */
 .theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 12px; margin: 0; padding: 0; border: 0; }
 .theme-card { position: relative; display: grid; gap: 10px; padding: 10px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); cursor: pointer; }
 .theme-card:hover { border-color: var(--line-strong); }

@@ -9,6 +9,7 @@ import {
   shellThemeColors,
 } from "../src/shell/contract";
 import { designTokens } from "../src/shell/design-tokens";
+import { designTokensDark } from "../src/theme/design-tokens-dark";
 import {
   designSystemSuccess,
   designSystemValues,
@@ -35,8 +36,9 @@ const value = (design: Readonly<Record<string, string>>, name: string) => {
 };
 
 // Root decision 0208 point 2 (F36's addendum of 2026-10-18): the themes an
-// Environment may take are Lazurio, exactly the design system's tokens and
-// light only, and T3 Code's four built-ins, vendored byte for byte and
+// Environment may take are Lazurio, exactly the design system's tokens (dark
+// from its scheme Grafit since F36's addendum of 2026-11-17 (2)), and T3
+// Code's four built-ins, vendored byte for byte and
 // projected onto the promised colour names; T3 Chat is not offered. Each
 // theme holds the contrast its names are used for, in every appearance it
 // has.
@@ -91,12 +93,20 @@ test("the themes: Lazurio first and by default, then Grove, Ocean, Ember and Iri
   }
 });
 
-test("Lazurio is exactly the vendored tokens' values, light only", () => {
+test("Lazurio is exactly the vendored tokens' values, dark from Grafit", () => {
   const lazurio = environmentThemeChoice("lazurio");
-  expect(lazurio.dark).toBeUndefined();
   const design = designSystemValues();
   for (const name of shellThemeColors)
     expect([name, lazurio.light[name]]).toEqual([name, value(design, name)]);
+  // Dark: the dark scheme's rule over the same file, each var() resolved
+  // against the dark values first, as a browser does inside the rule.
+  const grafit = designSystemValues(`${designTokens}\n${designTokensDark}`);
+  for (const name of shellThemeColors)
+    expect([name, lazurio.dark?.[name]]).toEqual([name, value(grafit, name)]);
+  expect(designTokensDark).toContain('[data-scheme="dark"]');
+  expect(lazurio.dark?.["--lz-paper"]).toBe(value(design, "--lz-grafit-205"));
+  expect(lazurio.dark?.["--lz-surface"]).toBe(value(design, "--lz-grafit-235"));
+  expect(lazurio.dark?.["--lz-accent"]).toBe(value(design, "--lz-blue-300"));
   // Resolved from the file itself, so a new copy of the design system needs
   // no edit here: `--lz-surface` is `var(--lz-white)` there.
   expect(designTokens).toContain("--lz-surface: var(--lz-white);");
@@ -231,6 +241,6 @@ test("the shell document's theme of a record: its choice at its revision", () =>
     revision: 4,
   });
   const lazurio = shellThemeOf({ theme: "lazurio", revision: 0 });
-  expect(Object.hasOwn(lazurio, "dark")).toBe(false);
+  expect(lazurio.dark).toEqual(environmentThemeChoice("lazurio").dark);
   expect(parseShellTheme(lazurio)).toEqual(lazurio);
 });
