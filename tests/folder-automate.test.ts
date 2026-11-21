@@ -79,6 +79,43 @@ test("automate waits for consent before a trial run and keeps a webhook's secret
         ? "**Jinak webhook nezakládej.**"
         : "**Otherwise create no webhook.**",
     );
+    // A calendar schedule names its IANA zone: `--daily` runs in the
+    // service's local time and takes no `--tz`, so the skill never offers it
+    // as a schedule.
+    expect(text).toContain('--cron "0 9 * * 5" --tz Europe/Prague');
+    expect(text).not.toMatch(/`--daily HH:MM/);
+    expect(text).toContain(
+      locale === "cs"
+        ? "`--daily` nepoužívej: běží v místním čase počítače služby a `--tz` nepřijme."
+        : "Never use `--daily`: it runs in the local time of the service's computer and takes no `--tz`.",
+    );
+    expect(text).toContain("omb routine update NAME --pause");
+    // When storing the secret fails or the procedure stops after the
+    // creation, the file, the webhook and any vault item go at once.
+    expect(text).toContain(
+      locale === "cs"
+        ? "**Když uložení do Trezoru selže, nebo se postup po založení kdekoli přeruší**"
+        : "**When storing it in the vault fails, or the procedure stops anywhere after the creation**",
+    );
+    for (const phrase of [
+      locale === "cs" ? "rm -f <soubor>" : "rm -f <file>",
+      "omb webhook delete NAME",
+    ])
+      expect([phrase, text.includes(phrase)]).toEqual([phrase, true]);
+    // The safe check picks an event outside the webhook's real filter; no
+    // fixed event name that the filter might accept, and without a filter
+    // an authorized call is a trial run under step 4.
+    expect(text).not.toContain("lazurio_check");
+    expect(text).toContain(
+      locale === "cs"
+        ? "X-GitHub-Event: <událost mimo eventTypes>"
+        : "X-GitHub-Event: <event outside eventTypes>",
+    );
+    expect(text).toContain(
+      locale === "cs"
+        ? "je to zkušební běh a platí pro něj krok 4."
+        : "it is a trial run and step 4 applies.",
+    );
   }
 });
 
