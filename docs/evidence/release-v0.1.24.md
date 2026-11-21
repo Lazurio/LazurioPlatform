@@ -63,7 +63,13 @@ By one thread, read-only except the smoke tests and the real work on a Machine. 
      Codex", because the Codex app-server daemon was not running there (`lazurio doctor`: `codex-app-server` `warn`,
      `daemon-state-unknown`). That is the designed answer to that state (`src/connections/pairing.ts`,
      `src/launchpad/connections-view.ts`). Neither file nor the rest of `src/connections` changed between `rc.6`,
-     where the same step read `ready`, and `rc.10`. The thread did not restart Codex on that Environment;
+     where the same step read `ready`, and `rc.10`. The thread did not restart Codex on that Environment.
+     **Cause, not in the candidate:** the Buddy GEN4 coordinator had stopped the `codex` processes on that Environment
+     repeatedly during the morning's failure-state test (09:16Z) and so also the app-server daemon. The coordinator
+     restarted `lazurio-codex-app-server.service` over the operator path at 15:29Z; `lazurio doctor` then reported
+     `codex-app-server` only as `warn` `app-server-outdated` (app-server 0.171.0, CLI 0.169.0). **Repeated at 15:31:20Z**
+     as the Owner (the main path as the Owner, 10 of 10 required and 7 of 7 optional passed): Připojení on that
+     Environment answered `ready` and offered pairing, without a Codex restart offered;
    - Apps on every Environment each account lists.
 4. **R2, 15:16:43–15:17:23Z.** The same readings.
 5. **Recovery issues:** none open with the label `recovery` (15:17Z).
