@@ -15970,10 +15970,15 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
           place was renamed already. Without that journal, a missing copy is
           never taken as done.
         - What a stop leaves (a copy ended at its limit, an earlier failed
-          brain set aside) is removed only once the server runs again, so
-          its removal never lengthens a stop. A copy a dead setup left
-          running is ended with the other stray writers before anything
-          else (`./writers.ts`).
+          brain set aside) is removed only once systemd started the server
+          again, so its removal never lengthens a stop. The journal is
+          settled only then too. Where the start fails, the journal stays
+          `stopping` and nothing is removed: the next run starts the server
+          first, then settles and removes.
+        - A copy a dead setup left running is ended with the other stray
+          writers before anything else (`./writers.ts`). Only the copy the
+          journal names while it says `stopping` counts, so a person's own
+          copy of the brain is never ended.
         - The computation's budget is what is left of the stop after the
           copy and the steps, less one batch to the model (10 minutes),
           gbrain's own start (2 minutes) and the server's start (3 minutes).

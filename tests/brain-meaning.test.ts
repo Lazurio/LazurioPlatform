@@ -154,6 +154,7 @@ async function stand(
    * held then. */
   const startTimes: number[] = [];
   const homeAtStart: string[][] = [];
+  const refuse = { start: false };
   /** Each gbrain step's limit, and when it started, on the stand's clock. */
   const limits: Array<Readonly<{ step: string; at: number; limit: number }>> =
     [];
@@ -225,6 +226,9 @@ async function stand(
         if (world.server) clock += options.stopMs ?? 0;
         world.server = false;
       }
+      // systemd does not start the server at all (changeable between runs).
+      if (name === brainUnit && verb === "start" && refuse.start)
+        return done(1);
       if (name === brainUnit && verb === "start") {
         startedAt = clock;
         startTimes.push(clock);
@@ -431,6 +435,7 @@ async function stand(
     copies,
     startTimes,
     homeAtStart,
+    refuse,
   };
 }
 
@@ -1632,5 +1637,57 @@ describe("a way back a run that died left is finished, never brought back over l
     const after = await readdir(failing.paths.home);
     expect(after.some((n) => n.includes(".aside-"))).toBe(false);
     expect(await config(earlier)).not.toBe('{"brain":"earlier"}');
+  });
+
+  test("a server that does not start after a copy ended at its limit keeps the journal and the copy; the next run starts it, then removes the copy", async () => {
+    const { host, paths, world, refuse } = await stand({
+      copyMs: Number.POSITIVE_INFINITY,
+    });
+    refuse.start = true;
+    expect(await convergeMeaning(host)).toBe("waits:start");
+    // Down, and recoverable: the journal still says `stopping`, and nothing
+    // was removed while the server was down.
+    expect(world.server).toBe(false);
+    expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+      "stopping",
+    );
+    const left = (await readdir(paths.home)).filter((n) =>
+      n.startsWith(".gbrain.bak-meaning-"),
+    );
+    expect(left).toHaveLength(1);
+    // systemd starts it again: the next run recovers, the server first.
+    refuse.start = false;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(
+      (await readdir(paths.home)).some((n) =>
+        n.startsWith(".gbrain.bak-meaning-"),
+      ),
+    ).toBe(false);
+  });
+
+  test("a run that died after the server started but before the journal was settled: the next run settles it and removes the copy", async () => {
+    const { host, paths, world } = await stand();
+    // The server runs again; the journal still says `stopping`, with the
+    // stop's copy left.
+    const name = ".gbrain.bak-meaning-20261119T000000Z";
+    await mkdir(join(paths.home, name), { recursive: true });
+    await writeFile(join(paths.home, name, "partial"), "x");
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result: "stopping",
+        at,
+        backup: name,
+      },
+    });
+    world.server = true;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(await readdir(paths.home)).not.toContain(name);
+    expect(await config(paths.brain)).toBe('{"brain":"before"}');
   });
 });

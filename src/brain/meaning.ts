@@ -869,13 +869,28 @@ async function removeAside(home: string, name: string): Promise<void> {
       );
 }
 
-/** The server and its timer started again with the brain as it was, then
- * what the stop left (a partial or unused copy) removed, outside the stop. */
-async function startThenRemove(host: MoveHost, leftover: string) {
-  await service(host, "start", brainUnit);
+/** The server and its timer started again with the brain as it was; only
+ * once systemd started it, the journal is settled (`settle`) and what the
+ * stop left (a partial or unused copy) removed, outside the stop. Where the
+ * start fails, the journal stays `stopping` and nothing is removed: the
+ * next run recovers it, starting the server first (`recoverAttempt`). */
+async function startThenRemove(
+  host: MoveHost,
+  leftover: string | undefined,
+  settle: () => Promise<void>,
+): Promise<boolean> {
+  const started = await service(host, "start", brainUnit);
   await service(host, "start", brainRefreshTimer);
-  await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
+  if (!started) return false;
+  await settle();
+  if (leftover !== undefined)
+    await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
+  return true;
 }
+
+/** What a stop answers where its server did not start again: the journal
+ * is kept, and the next run recovers it. */
+const notStarted = "waits:start";
 
 /** An attempt a run left half way. `stopping`: the brain was not touched
  * (gbrain's steps begin only after `started`), so a partial copy goes, the
@@ -911,13 +926,9 @@ export async function recoverAttempt(
     const record = recorder(host, at);
     if (attempt.result === "stopping") {
       // The brain was not touched: the server first, then the copy it left.
-      await record("filling");
-      if (window !== undefined) await startThenRemove(host, window);
-      else {
-        await service(host, "start", brainUnit);
-        await service(host, "start", brainRefreshTimer);
-      }
-      return "waits:interrupted";
+      return (await startThenRemove(host, window, () => record("filling")))
+        ? "waits:interrupted"
+        : notStarted;
     }
     if (state.release === undefined || window === undefined) {
       await record("stopped", "interrupted-unknown");
@@ -946,13 +957,9 @@ export async function recoverAttempt(
       : join(host.paths.home, attempt.backup);
   if (attempt.result === "stopping") {
     // The brain was not touched: the server first, then the copy it left.
-    await clearAttempt(host);
-    if (backup !== undefined) await startThenRemove(host, backup);
-    else {
-      await service(host, "start", brainUnit);
-      await service(host, "start", brainRefreshTimer);
-    }
-    return "waits:interrupted";
+    return (await startThenRemove(host, backup, () => clearAttempt(host)))
+      ? "waits:interrupted"
+      : notStarted;
   }
   if (state.release === undefined || backup === undefined) {
     await recorder(host, at)("stopped", "interrupted-unknown");
@@ -1069,11 +1076,10 @@ export async function convergeMeaning(
   // leaves nothing to compute in: nothing of the brain changed yet, so the
   // server comes back as it was, and the next run tries again.
   const copied = await copyStep(host, deadline, host.paths.brain, backup);
-  if (copied !== "copied") {
-    await clearAttempt(host);
-    await startThenRemove(host, backup);
-    return `waits:${copied}`;
-  }
+  if (copied !== "copied")
+    return (await startThenRemove(host, backup, () => clearAttempt(host)))
+      ? `waits:${copied}`
+      : notStarted;
   await record("started");
   const fallBack = async (reason: string) => {
     const back = await restoreCopy(host, release, backup, now, reason);
@@ -1211,11 +1217,12 @@ async function fill(
   // or leaves no time for a window, the brain did not change, so the server
   // comes back as it was, and the next run goes on.
   const copied = await copyStep(host, deadline, host.paths.brain, window);
-  if (copied !== "copied") {
-    await record("filling", copied);
-    await startThenRemove(host, window);
-    return `waits:${copied}`;
-  }
+  if (copied !== "copied")
+    return (await startThenRemove(host, window, () =>
+      record("filling", copied),
+    ))
+      ? `waits:${copied}`
+      : notStarted;
   await record("started", undefined, inWindow);
   // The pages as stored, with the server stopped (and so no writes).
   const before = await storedPages(

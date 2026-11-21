@@ -847,43 +847,60 @@ describe("what a dead run left, before the brain starts", () => {
     20_000,
   );
 
-  test("a copy of the brain a dead stop left is ended before anything removes or reuses it", async () => {
+  test("the copy a dead stop was making is ended before anything removes or reuses it; a person's own copy is left alone", async () => {
     const { setupHost, paths } = await host();
     await brainSetup(setupHost);
-    // A stop's copy (`cp -a -- <brain> <copy>`) in its own process group,
-    // as a killed setup leaves it: a process named cp that never ends.
-    const copy = join(paths.home, ".gbrain.bak-meaning-20261119T000000Z");
+    // The stop's journal names its copy while it says `stopping`.
+    const name = ".gbrain.bak-meaning-20261119T000000Z";
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: meaningPin.provider,
+        result: "stopping",
+        at: "2026-11-19T00:00:00.000Z",
+        backup: name,
+      },
+    });
+    // Two copies of the brain in their own groups, processes named cp that
+    // never end: the stop's, and one the person makes elsewhere.
     const hold = join(paths.home, "hold.js");
     await writeFile(hold, "setInterval(() => {}, 1000);\n");
-    const cpLeft = spawn(
-      process.execPath,
-      [hold, "-a", "--", paths.brain, copy],
-      { argv0: "cp", detached: true, stdio: "ignore" },
-    );
-    const ended = new Promise((resolve) => cpLeft.once("exit", resolve));
-    const gone = () => cpLeft.exitCode !== null || cpLeft.signalCode !== null;
+    const copying = (to: string) =>
+      spawn(process.execPath, [hold, "-a", "--", paths.brain, to], {
+        argv0: "cp",
+        detached: true,
+        stdio: "ignore",
+      });
+    const stops = copying(join(paths.home, name));
+    const own = copying(join(paths.home, "my-backup-of-the-brain"));
+    const gone = (p: ReturnType<typeof spawn>) =>
+      p.exitCode !== null || p.signalCode !== null;
+    const ended = new Promise((resolve) => stops.once("exit", resolve));
     try {
       await new Promise((resolve) => setTimeout(resolve, 200));
-      expect(await strayWriters(paths)).toContain(cpLeft.pid as number);
-      // Another user's copy of another brain is not this one.
-      expect(
-        await strayWriters({ ...paths, brain: join(paths.home, "other") }),
-      ).not.toContain(cpLeft.pid as number);
+      const copies = [join(paths.home, name)];
+      const found = await strayWriters(paths, "/proc", copies);
+      expect(found).toContain(stops.pid as number);
+      expect(found).not.toContain(own.pid as number);
+      // Without a journaled copy, no cp is a stray writer at all.
+      expect(await strayWriters(paths)).not.toContain(stops.pid as number);
       const result = await brainSetup(setupHost);
       expect(result.server).toBe("running");
       await Promise.race([
         ended,
         new Promise((resolve) => setTimeout(resolve, 3_000)),
       ]);
-      expect(gone()).toBe(true);
+      expect(gone(stops)).toBe(true);
+      expect(gone(own)).toBe(false);
     } finally {
-      if (!gone()) {
-        try {
-          process.kill(-(cpLeft.pid as number), "SIGKILL");
-        } catch {
-          cpLeft.kill("SIGKILL");
+      for (const p of [stops, own])
+        if (!gone(p)) {
+          try {
+            process.kill(-(p.pid as number), "SIGKILL");
+          } catch {
+            p.kill("SIGKILL");
+          }
         }
-      }
     }
   }, 20_000);
 
