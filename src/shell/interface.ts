@@ -121,8 +121,8 @@ export const shellElementInterface = Object.freeze({
   /** What the script declares in the document it is loaded into, once, and
    * not at all where the document has it already (F36's addendum of
    * 2026-10-13): the faces of the font families `fonts`, served at
-   * `/.lazurio/fonts/` (the families `--lz-font-sans` and `--lz-font-mono`
-   * name first); on the root, the vendored `tokens.css`, of which only the
+   * `/.lazurio/fonts/` (the families `--lz-font-sans`, `--lz-font-heading`
+   * and `--lz-font-mono` name first); on the root, the vendored `tokens.css`, of which only the
    * custom properties `tokens` are promised, never their values (the design
    * system may change or drop any other `--lz-*` name); and, where those
    * hold, the attribute of `theme` on `<html>` with its value. The names
@@ -130,7 +130,11 @@ export const shellElementInterface = Object.freeze({
    * black buttons, the grey steps it uses, the signal colours with the
    * surfaces it shows, the type and the controls' radius. */
   declares: Object.freeze({
-    fonts: Object.freeze(["Inter Tight Variable", "Geist Mono"]),
+    fonts: Object.freeze([
+      "Inter Variable",
+      "Inter Tight Variable",
+      "Geist Mono",
+    ]),
     tokens: Object.freeze([
       "--lz-surface",
       "--lz-paper",

@@ -10870,6 +10870,55 @@ Verified by unit tests: `tests/shell-account.test.ts` (the account's last visit 
 opens Chat from Chat and Apps from a page that is no Environment's), `tests/shell.test.ts` (Chat
 and Automate keep their app).
 
+### F36 addendum of 2026-11-17: the design system's clean type
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+merge of its pull request and of the dark appearance Grafit that stands on it.** The design system's
+clean look of 2026-10-21, which its owner decided for the product too, sets text in Inter and
+headings in Inter Tight at weight 600. The shell's copy of `tokens.css` is from 2026-10-19
+and predates it, and every newer copy brings it: the dark scheme Grafit (2026-11-08) cannot
+reach the Environment theme without a newer copy, and the type comes with it. This addendum
+takes the copy and serves the font it names.
+
+1. **The copy.** `tokens.css` byte for byte from the design system at the commit the vendor
+   README records. Only values change in promised names: `--lz-font-sans` names Inter
+   Variable first, the title and hero weights are 600 instead of 700, and the tracking
+   follows. New names nobody is promised: `--lz-font-heading` (Inter Tight Variable), the
+   deep band, `--lz-radius-lg`, the web's section size, `--lz-weight-medium` and the
+   Grafit steps. No promised name is dropped or renamed.
+2. **The faces.** The shell declares Inter Variable (weights 100 to 900, Latin and Latin
+   Extended, `@fontsource-variable/inter` 5.3.0, SIL OFL 1.1) before Inter Tight Variable
+   and Geist Mono, from `/.lazurio/fonts/`. `declares.fonts` grows by "Inter Variable", an
+   addition to v1 as point 8 of the addendum of 2026-10-13 allows; the version stays 1. A
+   fork that maps `--lz-font-sans` sets its text in Inter with no release of its own.
+3. **The Launchpad.** Its page and its new tab declare the same faces. Its titles (the
+   column's, a page's, a dialog's and the MCP page's) take `--lz-font-heading`; everything
+   else follows the values.
+4. **The elements' scope.** The shell scopes the file to its elements by replacing the
+   selector of its one rule with `:host`, now only at the start of a line, so a comment
+   naming the root never takes the replacement. The design system's first copy of this
+   header did exactly that; the design system now keeps the selector out of its comments
+   and tests it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the copy of 2026-10-19 | Grafit and every later design system change never arrive; rejected |
+| Take the new copy but keep Inter Tight for text | Not a byte-for-byte copy, against F36's vendoring rule; rejected |
+| Promise `--lz-font-heading` to the forks now | No fork maps headings yet; left until one needs it |
+| Copy the new file and the font (selected) | One copy of the design system, an addition to v1, and the type the product was decided to have |
+
+**Honest limits.** With this release the text of Chat, Automate and Apps changes from Inter
+Tight to Inter on every Environment, and the titles get lighter. Inter adds about 130 KB of
+font files, fetched only where a page uses the characters of a subset. Ring 0 with a browser
+check (root decision 0178) shows it before the waves.
+
+Verified by unit tests: `tests/shell-tokens.test.ts` (the vendored file's shape, the faces
+are the families `--lz-font-sans`, `--lz-font-heading` and `--lz-font-mono` name first, the
+elements' `:host`), `tests/shell-interface.test.ts` (interface v1 grows by the family and
+loses nothing), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
+shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded hash).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
