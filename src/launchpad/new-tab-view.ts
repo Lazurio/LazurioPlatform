@@ -225,6 +225,8 @@ const en = {
   updateToolToolchain: "the selected toolchain could not be read",
   updateToolHome: "the home directory is not known",
   updateToolOther: "reason {reason}",
+  updateToolOccupied:
+    "~/.local/bin/{tool} is already there and does not run it; Lazurio leaves it as it is. Remove it, and the next update links the tool",
   updateToolSource: "Official installation",
   updateToolsNotPublished:
     "Not checked: the Organization's root is not on the version it published, and only a published declaration is installed",
@@ -425,6 +427,8 @@ const cs: Words = {
   updateToolToolchain: "nepodařilo se zjistit zvolený toolchain",
   updateToolHome: "není známá domovská složka",
   updateToolOther: "důvod {reason}",
+  updateToolOccupied:
+    "~/.local/bin/{tool} už existuje a nástroj nespouští; Lazurio ho nechává, jak je. Odstraňte ho a příští aktualizace nástroj propojí",
   updateToolSource: "Oficiální instalace",
   updateToolsNotPublished:
     "Nezkontrolovány: kořen Organizace není na verzi, kterou publikovala, a instaluje se jen publikovaná deklarace",
@@ -1788,6 +1792,8 @@ function toolReason(
       return copy.updateToolToolchain;
     case "home-unknown":
       return copy.updateToolHome;
+    case "link-occupied":
+      return fill(copy.updateToolOccupied, { tool: line.tool ?? "" });
     default:
       return fill(copy.updateToolOther, { reason });
   }

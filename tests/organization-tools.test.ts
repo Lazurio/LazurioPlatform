@@ -529,6 +529,46 @@ test.skipIf(windows)(
 );
 
 test.skipIf(windows)(
+  "an entry in ~/.local/bin that does not run (a dangling link, a file that is not executable) is left and named, never reported as a PATH without ~/.local/bin",
+  async () => {
+    for (const blocker of ["dangling", "not-executable"] as const) {
+      const user = await home();
+      await rustupAt(user, {
+        default: "stable",
+        toolchains: { stable: "1.99.1" },
+        channels: { stable: "1.99.1" },
+      });
+      const entry = join(user, ".local", "bin");
+      await mkdir(entry, { recursive: true });
+      const occupied = join(entry, "cargo");
+      if (blocker === "dangling")
+        await symlink(join(user, "nowhere", "cargo"), occupied);
+      else await writeFile(occupied, "not a program\n", { mode: 0o644 });
+      const calls: string[] = [];
+      const [item] = await provisionOrganizationTools({
+        tools: [cargo("1.89.0")],
+        path: `${entry}:${join(user, "empty")}`,
+        home: user,
+        platform: process.platform,
+        run: runner(async () => 0, calls),
+      });
+      expect(item).toMatchObject({
+        tool: "cargo",
+        result: "failed",
+        stage: "link",
+        reason: "link-occupied",
+        detail: occupied,
+      });
+      expect(calls).toEqual([]);
+      // Left as it was.
+      if (blocker === "dangling")
+        expect(await readlink(occupied)).toBe(join(user, "nowhere", "cargo"));
+      else expect(await readFile(occupied, "utf8")).toBe("not a program\n");
+    }
+  },
+);
+
+test.skipIf(windows)(
   "below the minimum but installed another way (a system package): reported, never replaced or shadowed",
   async () => {
     const user = await home();

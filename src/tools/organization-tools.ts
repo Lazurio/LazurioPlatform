@@ -365,6 +365,29 @@ async function executable(file: string): Promise<boolean> {
   }
 }
 
+/** What keeps a tool linked into ~/.local/bin from running where the PATH
+ * looks there: an entry of that name which does not run (a dangling link,
+ * a file that is not executable). Lazurio leaves it and says so, never that
+ * the PATH lacks ~/.local/bin. */
+async function occupiedEntry(
+  command: string,
+  path: string | undefined,
+  home: string,
+): Promise<string | undefined> {
+  const entry = join(home, ".local", "bin");
+  const onPath = (path ?? "")
+    .split(":")
+    .some((part) => part.replace(/\/+$/, "") === entry);
+  if (!onPath) return undefined;
+  const file = join(entry, command);
+  try {
+    await lstat(file);
+  } catch {
+    return undefined;
+  }
+  return (await executable(file)) ? undefined : file;
+}
+
 async function oneTool(
   declared: OrganizationTool,
   input: OrganizationToolsInput,
@@ -426,8 +449,11 @@ async function oneTool(
       input.path,
       input.platform,
     );
-    return reached !== undefined
-      ? Object.freeze({ ...base, result: "current", version: before })
+    if (reached !== undefined)
+      return Object.freeze({ ...base, result: "current", version: before });
+    const occupied = await occupiedEntry(recipe.command, input.path, home);
+    return occupied !== undefined
+      ? failed("link", "link-occupied", occupied)
       : Object.freeze({
           ...base,
           result: "current",
@@ -534,6 +560,11 @@ async function oneTool(
   if (compareVersions(after, declared.minimum) < 0)
     return failed("verify", `below-minimum-after:${after}`);
   const onPath = located !== undefined;
+  if (!onPath) {
+    const occupied = await occupiedEntry(recipe.command, input.path, home);
+    if (occupied !== undefined)
+      return failed("link", "link-occupied", occupied);
+  }
   return result === "installed"
     ? Object.freeze({ ...base, result, version: after, onPath })
     : Object.freeze({
