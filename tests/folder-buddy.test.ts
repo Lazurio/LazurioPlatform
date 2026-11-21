@@ -1142,6 +1142,12 @@ async function setup() {
   return { parent, folder };
 }
 
+async function expectLayer(folder: string) {
+  const layer = scriptLayer("cs");
+  for (const path of buddyLayerPaths)
+    expect(await readFile(join(folder, path), "utf8")).toBe(layer[path]);
+}
+
 // The Folder as the release before this one left it: its outputs with that
 // release's revision and text this product cannot render, their digests
 // recorded, so the next refresh runs the change transaction (decision F14).
@@ -1176,16 +1182,21 @@ const inodes = (folder: string) =>
 
 const posix = test.skipIf(process.platform === "win32");
 
-// Every person moves to Buddy GEN4 (plan LZD-0033): no Folder gets Buddy
-// GEN3's layer any more, a Work Environment's neither. Its files were never
-// digest-owned outputs, so a copy an earlier release left is neither
-// rewritten nor removed here; its removal belongs to the conversion.
 posix(
-  "a new Folder gets no Buddy GEN3 layer: initialization writes nothing into .agents/buddy/, and the top level stays within the claimed boundary",
+  "a new Folder has the layer from its initialization: owner-only directories and files, and the top level stays within the claimed boundary",
   async () => {
     const { parent, folder } = await setup();
     try {
-      await expect(lstat(join(folder, ".agents", "buddy"))).rejects.toThrow();
+      await expectLayer(folder);
+      for (const relative of [
+        ".agents/buddy",
+        ".agents/buddy/skills",
+        ".agents/buddy/skills/lazurio",
+        ".agents/buddy/skills/lazurio/lazurio-mausbot",
+      ])
+        expect((await lstat(join(folder, relative))).mode & 0o777).toBe(0o700);
+      for (const path of buddyLayerPaths)
+        expect((await lstat(join(folder, path))).mode & 0o777).toBe(0o600);
       await requireFolderBoundary(folder, true);
     } finally {
       await rm(parent, { recursive: true, force: true });
@@ -1194,37 +1205,26 @@ posix(
 );
 
 posix(
-  "a layer an earlier release left stays byte for byte, the very same files, through a re-rendering refresh and an unchanged one, an edited file and Buddy's own files beside it too",
+  "an interim install's identical files are adopted: the refresh succeeds and keeps the very same files",
   async () => {
     const { parent, folder } = await setup();
     try {
+      // As an install before this release placed them: the Folder records
+      // nothing about them, the bytes are the rendered ones.
+      await rm(join(folder, ".agents", "buddy"), { recursive: true });
       const layer = scriptLayer("cs");
       for (const path of buddyLayerPaths) {
-        await mkdir(join(folder, path, ".."), { recursive: true, mode: 0o700 });
-        await writeFile(join(folder, path), layer[path], { mode: 0o600 });
+        await mkdir(join(folder, path, ".."), { recursive: true });
+        await writeFile(join(folder, path), layer[path], { mode: 0o644 });
       }
-      await writeFile(join(folder, buddyRulesPath), "An older release\n");
-      const own = join(folder, ".agents", "buddy", "notes.md");
-      await writeFile(own, "Buddy's own file\n");
       const before = await inodes(folder);
       await previousRelease(folder);
       expect(await refreshMachineFolder(folder, machine)).toEqual({
         code: 0,
         result: { kind: "refreshed", revision: 2 },
       });
-      expect(await refreshMachineFolder(folder, machine)).toEqual({
-        code: 0,
-        result: { kind: "unchanged" },
-      });
+      await expectLayer(folder);
       expect(await inodes(folder)).toEqual(before);
-      expect(await readFile(join(folder, buddyRulesPath), "utf8")).toBe(
-        "An older release\n",
-      );
-      for (const path of buddyLayerPaths)
-        if (path !== buddyRulesPath)
-          expect(await readFile(join(folder, path), "utf8")).toBe(layer[path]);
-      expect(await readFile(own, "utf8")).toBe("Buddy's own file\n");
-      await requireFolderBoundary(folder, true);
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
@@ -1232,15 +1232,76 @@ posix(
 );
 
 posix(
-  "a symlink at a former layer path is never followed: the refresh succeeds and its target stays as it was",
+  "an edited or outdated layer file is overwritten by the next refresh, never refused as drift; an unknown file Buddy keeps in his working directory survives",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await writeFile(
+        join(folder, buddySkillPath("lazurio-mausbot")),
+        "Edited by hand\n",
+      );
+      await writeFile(join(folder, buddyRulesPath), "An older release\n");
+      const own = join(folder, ".agents", "buddy", "notes.md");
+      await writeFile(own, "Buddy's own file\n");
+      const beside = join(
+        folder,
+        ".agents",
+        "buddy",
+        "skills",
+        "mine",
+        "SKILL.md",
+      );
+      await mkdir(join(beside, ".."), { recursive: true });
+      await writeFile(beside, "Kept beside the Lazurio skills\n");
+      await previousRelease(folder);
+      expect(await refreshMachineFolder(folder, machine)).toEqual({
+        code: 0,
+        result: { kind: "refreshed", revision: 2 },
+      });
+      await expectLayer(folder);
+      expect(await readFile(own, "utf8")).toBe("Buddy's own file\n");
+      expect(await readFile(beside, "utf8")).toBe(
+        "Kept beside the Lazurio skills\n",
+      );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a refresh that changes nothing else still writes a missing or edited layer file, and reports unchanged",
+  async () => {
+    const { parent, folder } = await setup();
+    try {
+      await rm(join(folder, buddySkillPath("lazurio-buddy-pomocnici")));
+      await writeFile(join(folder, buddyRulesPath), "Edited by hand\n");
+      const own = join(folder, ".agents", "buddy", "notes.md");
+      await writeFile(own, "Mine\n");
+      expect(await refreshMachineFolder(folder, machine)).toEqual({
+        code: 0,
+        result: { kind: "unchanged" },
+      });
+      await expectLayer(folder);
+      expect(await readFile(own, "utf8")).toBe("Mine\n");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+posix(
+  "a symlink at a layer path is refused and its target is never written",
   async () => {
     const { parent, folder } = await setup();
     try {
       const target = join(parent, "outside.md");
       await writeFile(target, "Outside the Folder\n");
-      await mkdir(join(folder, ".agents", "buddy"), { mode: 0o700 });
+      await rm(join(folder, buddyRulesPath));
       await symlink(target, join(folder, buddyRulesPath));
-      expect((await refreshMachineFolder(folder, machine)).code).toBe(0);
+      await expect(refreshMachineFolder(folder, machine)).rejects.toThrow(
+        "Unsafe Buddy layer file: .agents/buddy/.hermes.md",
+      );
       expect(await readFile(target, "utf8")).toBe("Outside the Folder\n");
       expect((await lstat(join(folder, buddyRulesPath))).isSymbolicLink()).toBe(
         true,

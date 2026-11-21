@@ -30,7 +30,6 @@ import type { AuthFetcher } from "../src/launchpad/hosted-trust";
 import { startLaunchpad } from "../src/launchpad/server";
 import { codexDevicePage } from "../src/tools/ai";
 import type { ToolRunner } from "../src/tools/status";
-import { writeEarlierBuddyLayer } from "./fixtures/buddy-gen3-layer";
 import {
   type FakeHermesGateway,
   fakeHermesGateway,
@@ -98,9 +97,8 @@ async function hosted(
       locale: "cs",
     }),
   });
-  // Buddy GEN3's layer as an earlier release left it; his prompts were last
-  // refreshed from it (F64's addendum of 2026-10-25), as an installed Buddy's.
-  await writeEarlierBuddyLayer(folder);
+  // Buddy's prompts were last refreshed from the Folder's Lazurio layer
+  // (F64's addendum of 2026-10-25), as an installed Buddy's.
   await recordPromptInputs(fake.userHome, await readPromptInputs(folder));
   await before?.(fake.userHome, folder);
   const fetcher: AuthFetcher = async (_url, init) =>

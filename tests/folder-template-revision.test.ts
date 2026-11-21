@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { outputPaths } from "../src/folder/outputs";
+import { renderBuddyLayer } from "../src/folder/buddy";
+import { buddyLayerPaths, outputPaths } from "../src/folder/outputs";
 import {
   maxOwnInstructionsBytes,
   ownInstructionsAllowed,
@@ -28,7 +29,7 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // compositions too.
 const pinned = {
   revision: "base-instructions-148",
-  digest: "bd94eac5b9adb23e33880975b6c539b17853479e84eccba5013e148d6debac3c",
+  digest: "e940154482fa8aaeab568e924434aeb29e921b41e506c8b0c1e1c3dc411427f8",
 } as const;
 
 function renderedDigest(): string {
@@ -37,6 +38,11 @@ function renderedDigest(): string {
     const outputs = renderOutputs(composition);
     hash.update(`${index}\0`);
     for (const path of outputPaths) hash.update(`${path}\0${outputs[path]}\0`);
+    // Buddy's Lazurio layer carries the same revision (decision F14's
+    // addendum of 2026-10-21).
+    const layer = renderBuddyLayer(composition);
+    for (const path of buddyLayerPaths)
+      hash.update(`${path}\0${layer[path]}\0`);
   }
   return hash.digest("hex");
 }

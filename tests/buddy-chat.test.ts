@@ -24,7 +24,6 @@ import { initializeMachineFolder } from "../src/machine/cli";
 import type { ToolsEnvironment } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
-import { writeEarlierBuddyLayer } from "./fixtures/buddy-gen3-layer";
 import { bindings } from "./fixtures/machine-bindings";
 
 // Buddy's chat in Lazurio (decision F61): the settings of his own T3 Code in
@@ -191,8 +190,6 @@ async function environment(machine = bindings.personal) {
         : "hosted-organization-personal",
   });
   expect(initialized.code).toBe(0);
-  // Buddy GEN3's layer as an earlier release left it.
-  await writeEarlierBuddyLayer(folder);
   const bin = join(home, ".local", "bin");
   await mkdir(bin, { recursive: true });
   const hermes = join(bin, "hermes");

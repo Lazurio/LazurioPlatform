@@ -110,18 +110,21 @@ export const skillPaths: readonly SkillPath[] = Object.freeze(
   ),
 );
 
-// Buddy GEN3's Lazurio layer (root decision 0210 with its addenda of
-// 2026-10-20 evening, point 1, and night; decision F14's addendum of
-// 2026-10-21): the role and rules and the Lazurio skills earlier releases
-// delivered to every Buddy in `.agents/buddy/`, the working directory of
-// Hermes, which loaded `.hermes.md` from there and the skills through
-// `skills.external_dirs`. Every person moves to Buddy GEN4 (plan LZD-0033),
-// so the Folder writes none of these files any more (`writeBuddyLocked`).
-// They were never outputs of the digest manifest, so no manifest proves
-// which bytes are Lazurio's and nothing here removes a copy an earlier
-// release left; that removal belongs to the conversion with the rest of
-// Buddy GEN3. The paths stay only for Buddy GEN3's own code in `src/buddy/`,
-// which reads such a copy until it is removed.
+// Buddy's Lazurio layer (root decision 0210 with its addenda of 2026-10-20
+// evening, point 1, and night; decision F14's addendum of 2026-10-21): the
+// role and rules and the Lazurio skills Lazurio delivers to every Buddy, all
+// in `.agents/buddy/`, Buddy's working directory (`terminal.cwd`). Hermes
+// loads `.hermes.md` from its working directory instead of AGENTS.md and the
+// skills through `skills.external_dirs: [<Folder>/.agents/buddy/skills]`,
+// its lowest tier, so a variant Buddy keeps in `~/.hermes/skills` shadows
+// the Lazurio skill of the same name (Lazurio/hermes-agent d923a5eb,
+// agent/prompt_builder.py and agent/skill_utils.py). No harness discovers
+// this directory (Codex reads `.agents/skills/`), and it stays inside the
+// owned `.agents/`, so the Folder's top level is unchanged. Nobody but
+// Lazurio owns these files: they are no output of the digest manifest, and
+// every change of the Folder writes them over whatever is there
+// (`buddy-layer.ts`). A name never leaves this list without a removal step:
+// a dropped file would stay and Hermes would keep loading it.
 export const buddyDirectory = ".agents/buddy" as const;
 export const buddySkillNames = Object.freeze([
   "lazurio-t3-orchestration",
@@ -140,8 +143,8 @@ export const buddyLayerPaths: readonly BuddyLayerPath[] = Object.freeze([
   ...buddySkillNames.map(buddySkillPath),
 ]);
 
-// A file the product writes or once wrote: a digest-owned output, a file of
-// Buddy GEN3's former layer or a file of Buddy GEN4's folder.
+// A file the product writes in the Folder: a digest-owned output or a file of
+// Buddy's Lazurio layer.
 export type FolderFilePath = OutputPath | BuddyLayerPath | BuddyFolderPath;
 
 export const outputPaths = Object.freeze([

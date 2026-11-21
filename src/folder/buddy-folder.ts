@@ -9,6 +9,7 @@ import {
   buddyFolderPaths,
   renderBuddyFolder,
 } from "./buddy-gen4";
+import { writeBuddyLayerLocked } from "./buddy-layer";
 import { inspectOutput } from "./inventory";
 import type { MachineBinding } from "./machine-binding";
 import {
@@ -51,13 +52,10 @@ export type BuddyFolderWriteFailure = Readonly<{
 // Buddy's instructions after every change of the Folder (plan LZD-0033, R2):
 // a person the handover names converted (`entry.buddy.generation: 4`, the
 // binding's `buddyFolder`) gets Buddy GEN4's folder with the persona of
-// Nastavení → Buddy. Every person moves to Buddy GEN4, so no Folder gets
-// Buddy GEN3's layer in `.agents/buddy/` any more, a Work Environment's
-// neither. A copy an earlier release wrote is neither rewritten nor removed:
-// those files are no digest-owned outputs, so no manifest proves which bytes
-// are Lazurio's, and their removal is the conversion's (R9) with the rest
-// of Buddy GEN3. An absent or unreadable persona renders the generic,
-// formal text.
+// Nastavení → Buddy, and Buddy GEN3's layer in `.agents/buddy/` is no longer
+// written, nor removed (its removal is the conversion's, R9). Everyone else
+// keeps Buddy GEN3's layer exactly as before. An absent or unreadable persona
+// renders the generic, formal text.
 //
 // The home is the Folder's parent: a hosted Folder is `<home>/Lazurio` of
 // its operator, whose home the binding checked against the account's own
@@ -71,8 +69,10 @@ export async function writeBuddyLocked(
 ): Promise<BuddyFolderWriteFailure | undefined> {
   const { preferences } = await readFolderState(join(folder, ".lazurio"));
   const entry = preferences.machine?.entry;
-  if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined)
+  if (entry?.buddyFolder === undefined || entry.buddyProfile === undefined) {
+    await writeBuddyLayerLocked(folder, assertHeld);
     return undefined;
+  }
   // After the change everything about Buddy's folder is reported, never
   // thrown: the same check as before it (a CLAUDE.md that appeared since, a
   // caller outside a change such as the persona's), then the write.
@@ -99,6 +99,21 @@ export async function writeBuddyLocked(
   }
 }
 
+/** Whether Buddy GEN3 is still in `home`: his own T3 Code (`~/.t3-buddy`)
+ * or Hermes (`~/.hermes`) exists in any form. Anything that cannot be read
+ * counts as present, so that the warning stays rather than goes too early
+ * (plan LZD-0033 R2; R9 removes both after the archive of R6a). */
+export async function buddyGen3Present(home: string): Promise<boolean> {
+  for (const name of [".t3-buddy", ".hermes"]) {
+    const present = await lstat(join(home, name)).then(
+      () => true,
+      (error: NodeJS.ErrnoException) => error.code !== "ENOENT",
+    );
+    if (present) return true;
+  }
+  return false;
+}
+
 /** Whether a converted person's `~/Buddy` lacks what this product renders
  * for the Folder's preferences and persona: a file absent, other or unsafe.
  * Reading only, no lock; anything unreadable counts as behind, so that the
@@ -118,6 +133,7 @@ export async function buddyFolderBehind(
       instructionSource(preferences),
       entry.buddyProfile,
       persona.state === "valid" ? persona.persona : undefined,
+      { gen3: await buddyGen3Present(home) },
     );
     for (const [path, content] of Object.entries(files) as [
       BuddyFolderPath,
@@ -225,6 +241,7 @@ export async function writeBuddyGen4Locked(
       source,
       profile,
       persona.state === "valid" ? persona.persona : undefined,
+      { gen3: await buddyGen3Present(home) },
     ),
     assertHeld,
   );
@@ -235,7 +252,7 @@ export async function writeBuddyGen4Locked(
 // (Lazurio/t3code#214). Lazurio owns exactly the files of
 // `buddyFolderPaths` there and nothing else: Buddy's own notes, the pilot's
 // files and anything the person keeps beside them are never listed, read,
-// moved or removed. No digest proves ownership:
+// moved or removed. As for Buddy GEN3's layer, no digest proves ownership:
 // a refresh writes each file over whatever bytes are there and keeps a file
 // whose bytes are the rendered ones. The folder is created owner-only when
 // absent, in an existing home; an existing one is accepted only as a real

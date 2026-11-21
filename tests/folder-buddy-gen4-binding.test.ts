@@ -11,7 +11,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { writePersona } from "../src/buddy/persona";
 import {
   BuddyFolderRefused,
@@ -284,7 +284,7 @@ posix(
 );
 
 posix(
-  "a conversion by refresh writes ~/Buddy for the profile; no Folder writes Buddy GEN3's layer, and a copy an earlier release left stays byte for byte",
+  "a conversion by refresh writes ~/Buddy for the profile and keeps Buddy GEN3's layer byte for byte",
   async () => {
     const { parent, folder } = await home();
     try {
@@ -293,19 +293,9 @@ posix(
         (await initializeMachineFolder(folder, plain, noChoices)).code,
       ).toBe(0);
       expect(await exists(join(parent, "Buddy"))).toBe(false);
-      for (const path of buddyLayerPaths)
-        expect(await exists(join(folder, path))).toBe(false);
-      // What an earlier release wrote there.
-      for (const path of buddyLayerPaths) {
-        await mkdir(dirname(join(folder, path)), {
-          recursive: true,
-          mode: 0o700,
-        });
-        await writeFile(join(folder, path), `An earlier ${path}\n`, {
-          mode: 0o600,
-        });
-      }
-      expect((await refreshMachineFolder(folder, plain)).code).toBe(0);
+      const layer = await Promise.all(
+        buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
+      );
       expect(
         (await refreshMachineFolder(folder, convertedAt(parent, "employee")))
           .code,
@@ -314,7 +304,7 @@ posix(
         await Promise.all(
           buddyLayerPaths.map((path) => readFile(join(folder, path), "utf8")),
         ),
-      ).toEqual(buddyLayerPaths.map((path) => `An earlier ${path}\n`));
+      ).toEqual(layer);
       const agents = await readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
       expect(agents).toContain("0220");
       expect(agents).not.toMatch(/## (Převzetí|Taking over)/);
@@ -760,29 +750,30 @@ posix(
 );
 
 posix(
-  "~/Buddy/AGENTS.md does not depend on Buddy GEN3's folders in the home: it never names them, and their removal asks for no refresh",
+  "while Buddy GEN3 is in the home, ~/Buddy/AGENTS.md says to leave him alone; once he is gone, update asks for the refresh that drops it",
   async () => {
     const { parent, folder } = await home();
     try {
       await mkdir(join(parent, ".t3-buddy"));
-      await mkdir(join(parent, ".hermes"));
       expect(
         (await initializeMachineFolder(folder, convertedAt(parent), noChoices))
           .code,
       ).toBe(0);
       const agents = () => readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
-      const before = await agents();
-      expect(before).not.toContain("~/.t3-buddy");
-      expect(before).not.toContain("~/.hermes");
+      expect(await agents()).toContain("~/.t3-buddy");
       expect(
         await neededRefresh(folder, instructionTemplateRevision, folder),
       ).toBeNull();
+      // R9 removed Buddy GEN3: the text is behind, and the refresh drops it.
       await rm(join(parent, ".t3-buddy"), { recursive: true });
-      await rm(join(parent, ".hermes"), { recursive: true });
       expect(
-        await neededRefresh(folder, instructionTemplateRevision, folder),
-      ).toBeNull();
-      expect(await agents()).toBe(before);
+        (await neededRefresh(folder, instructionTemplateRevision, folder))
+          ?.command,
+      ).toEqual(["machine", "folder-refresh"]);
+      expect(
+        (await refreshMachineFolder(folder, convertedAt(parent))).code,
+      ).toBe(0);
+      expect(await agents()).not.toContain("~/.t3-buddy");
     } finally {
       await rm(parent, { recursive: true, force: true });
     }
