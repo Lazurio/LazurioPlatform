@@ -43,6 +43,8 @@ import {
   type BuddyStepFacts,
   buddyFact,
   buddyIntroductionDue,
+  introducedIn,
+  keepIntroduced,
   meetStart,
 } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
@@ -1086,24 +1088,32 @@ const buddyPanel = createBuddyPanel({
 // in this browser for each Environment, as the tour of Lazurio keeps its
 // progress (`tourStorageKey`); a person who meets him now sees his beats in
 // the meeting itself.
-const buddyIntroducedKey = (environment: string) =>
-  `lazurio.buddy-introduced:${environment}`;
+//
+// It opens by itself only once its mark is kept: a storage that refuses the
+// write (full, blocked) gets no introduction by itself rather than one at
+// every visit, and within this page it never comes twice.
+let buddyIntroducedHere = false;
 function buddyIntroduced(): boolean | null {
+  if (buddyIntroducedHere) return true;
   const environment = environmentKey();
   if (environment === null) return null;
   try {
-    return localStorage.getItem(buddyIntroducedKey(environment)) !== null;
+    return introducedIn(localStorage, environment);
   } catch {
     // Without storage the introduction is not offered by itself.
     return null;
   }
 }
-function keepBuddyIntroduced() {
+/** Keeps that it was seen; true once the mark reads back. */
+function keepBuddyIntroduced(): boolean {
+  buddyIntroducedHere = true;
   const environment = environmentKey();
-  if (environment === null) return;
+  if (environment === null) return false;
   try {
-    localStorage.setItem(buddyIntroducedKey(environment), "1");
-  } catch {}
+    return keepIntroduced(localStorage, environment);
+  } catch {
+    return false;
+  }
 }
 /** Opens Buddy GEN4's introduction once for a person who already met him:
  * only on this page's own view, never over the tour of Lazurio, another
@@ -1119,6 +1129,8 @@ function offerBuddyIntroduction() {
     })
   )
     return;
+  // Its mark first: where it cannot be kept, it does not open by itself.
+  if (!keepBuddyIntroduced()) return;
   buddyDialog.open("introduce", "tour");
 }
 // Another dialog closing (a sign-in, a prompt) lets it come: looked at again

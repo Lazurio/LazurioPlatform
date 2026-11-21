@@ -22,8 +22,10 @@ import {
   draftOf,
   draftReady,
   helloLine,
+  introducedIn,
   introduceNav,
   introduceScreen,
+  keepIntroduced,
   keepTogether,
   looksLikeBotToken,
   meetBeats,
@@ -1472,4 +1474,39 @@ test("Buddy GEN4's introduction opens by itself once, after the tour of Lazurio,
       } as BuddyReading,
     }),
   ).toBe(false);
+});
+
+test("the introduction's mark: kept only when it reads back, so a full or refused storage offers it by itself never, not at every visit", () => {
+  const map = new Map<string, string>();
+  const working = {
+    getItem: (key: string) => map.get(key) ?? null,
+    setItem: (key: string, value: string) => void map.set(key, value),
+  };
+  expect(introducedIn(working, "env")).toBe(false);
+  expect(keepIntroduced(working, "env")).toBe(true);
+  expect(introducedIn(working, "env")).toBe(true);
+  expect(introducedIn(working, "other")).toBe(false);
+  // Reads, but the write fails (a full storage): nothing kept, and it says so.
+  const full = {
+    getItem: () => null,
+    setItem: () => {
+      throw new DOMException("full", "QuotaExceededError");
+    },
+  };
+  expect(introducedIn(full, "env")).toBe(false);
+  expect(keepIntroduced(full, "env")).toBe(false);
+  // A write that is silently dropped is no mark either.
+  const dropping = { getItem: () => null, setItem: () => undefined };
+  expect(keepIntroduced(dropping, "env")).toBe(false);
+  // No storage at all: unknown, so nothing is offered by itself.
+  const blocked = {
+    getItem: () => {
+      throw new DOMException("blocked", "SecurityError");
+    },
+    setItem: () => {
+      throw new DOMException("blocked", "SecurityError");
+    },
+  };
+  expect(introducedIn(blocked, "env")).toBeNull();
+  expect(keepIntroduced(blocked, "env")).toBe(false);
 });

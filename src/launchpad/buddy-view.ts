@@ -945,6 +945,40 @@ export function buddyIntroductionDue(
   );
 }
 
+/** Where this browser keeps that Buddy GEN4's introduction was seen, for
+ * one Environment (as the tour of Lazurio keeps its progress). */
+export const buddyIntroducedKey = (environment: string): string =>
+  `lazurio.buddy-introduced:${environment}`;
+
+/** The part of the browser's storage the introduction's mark uses. */
+export type IntroducedStorage = Pick<Storage, "getItem" | "setItem">;
+
+/** Whether the introduction was seen here: null without storage to say. */
+export function introducedIn(
+  storage: IntroducedStorage,
+  environment: string,
+): boolean | null {
+  try {
+    return storage.getItem(buddyIntroducedKey(environment)) !== null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps that the introduction was seen; true only once the mark reads back
+ * (a full or refused storage keeps nothing, and says so). */
+export function keepIntroduced(
+  storage: IntroducedStorage,
+  environment: string,
+): boolean {
+  try {
+    storage.setItem(buddyIntroducedKey(environment), "1");
+    return storage.getItem(buddyIntroducedKey(environment)) !== null;
+  } catch {
+    return false;
+  }
+}
+
 /** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
 export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
   gen4 ? gen4Beats : meetBeats;
