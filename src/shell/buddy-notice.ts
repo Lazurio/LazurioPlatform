@@ -91,3 +91,77 @@ export function createBuddyNoticeClaims(
     },
   });
 }
+
+/** The person's choice of notices, one for the Environment and held by the
+ * Launchpad (`/.lazurio/buddy/notice`): on unless they turned it off. */
+export type BuddyNoticesChoice = "on" | "off";
+
+/** Where a tab remembers that it asked the browser for notices once: the
+ * browser's permission is per origin, so is the asking. */
+export const buddyNoticesAskedKey = "lazurio.buddy.notices.asked";
+
+/** Whether to ask the browser for notices on the person's click that opens
+ * Buddy's window: once per origin, only after the meeting, where the choice
+ * is on and the browser has not answered yet. */
+export const shouldAskBuddyNotices = (
+  facts: Readonly<{
+    permission: NotificationPermission | null;
+    choice: BuddyNoticesChoice;
+    asked: boolean;
+    met: boolean;
+  }>,
+): boolean =>
+  facts.met &&
+  !facts.asked &&
+  facts.choice === "on" &&
+  facts.permission === "default";
+
+export type BuddyNoticesSeams = Readonly<{
+  /** The browser's permission now; null where it has no notices. */
+  permission: () => NotificationPermission | null;
+  /** The browser's question; called first, still inside the person's click. */
+  request: () => Promise<NotificationPermission>;
+  /** Sets the choice for the Environment. */
+  choose: (choice: BuddyNoticesChoice) => Promise<void>;
+  /** Remembers that this origin asked. */
+  asked: () => void;
+}>;
+
+/** Turns Buddy's notices on, on the person's click: the guide's button, the
+ * launcher's menu and the one question when his window first opens call
+ * this one function. True when the browser allows them now. */
+export async function enableBuddyNotices(
+  seams: BuddyNoticesSeams,
+): Promise<boolean> {
+  const permission = seams.permission();
+  if (permission === null) return false;
+  // The browser asks only inside the click: nothing awaits before it.
+  const answer =
+    permission === "default" ? seams.request() : Promise.resolve(permission);
+  seams.asked();
+  const granted = (await answer.catch(() => "denied")) === "granted";
+  await seams.choose("on").catch(() => undefined);
+  return granted;
+}
+
+/** The seams of this page's browser and Launchpad. */
+export const browserNoticesSeams = (
+  store: Pick<Storage, "setItem"> | null,
+): BuddyNoticesSeams => ({
+  permission: () =>
+    typeof Notification === "undefined" ? null : Notification.permission,
+  request: () => Notification.requestPermission(),
+  choose: async (choice) => {
+    await fetch(buddyNoticePath, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ choice }),
+    });
+  },
+  asked: () => {
+    try {
+      store?.setItem(buddyNoticesAskedKey, new Date().toISOString());
+    } catch {}
+  },
+});

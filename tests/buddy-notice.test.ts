@@ -4,6 +4,8 @@ import {
   buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
+  enableBuddyNotices,
+  shouldAskBuddyNotices,
 } from "../src/shell/buddy-notice";
 import type { ShellBuddySignal } from "../src/shell/contract";
 
@@ -112,4 +114,66 @@ test("while a tab on any origin has Buddy's window in view, no other tab tells a
   at += 1;
   expect(claims.claim(key)).toBe(true);
   expect(claims.claim(key)).toBe(false);
+});
+
+test("the click that opens Buddy's window asks once, after the meeting, where the choice is on and the browser has not answered (Matěj 2026-11-21)", () => {
+  const facts = {
+    permission: "default" as NotificationPermission,
+    choice: "on" as const,
+    asked: false,
+    met: true,
+  };
+  expect(shouldAskBuddyNotices(facts)).toBe(true);
+  // Not before the meeting, not twice, not where the person turned them off,
+  // and not where the browser already answered or has no notices.
+  expect(shouldAskBuddyNotices({ ...facts, met: false })).toBe(false);
+  expect(shouldAskBuddyNotices({ ...facts, asked: true })).toBe(false);
+  expect(shouldAskBuddyNotices({ ...facts, choice: "off" })).toBe(false);
+  expect(shouldAskBuddyNotices({ ...facts, permission: "granted" })).toBe(
+    false,
+  );
+  expect(shouldAskBuddyNotices({ ...facts, permission: "denied" })).toBe(false);
+  expect(shouldAskBuddyNotices({ ...facts, permission: null })).toBe(false);
+});
+
+function noticesSeams(
+  permission: NotificationPermission | null,
+  answer: NotificationPermission = "granted",
+) {
+  const calls: string[] = [];
+  return {
+    calls,
+    seams: {
+      permission: () => permission,
+      request: async () => {
+        calls.push("request");
+        return answer;
+      },
+      choose: async (choice: "on" | "off") => {
+        calls.push(`choose:${choice}`);
+      },
+      asked: () => {
+        calls.push("asked");
+      },
+    },
+  };
+}
+
+test("one function turns the notices on: the browser asks first, inside the click, then the choice is on for the Environment", async () => {
+  const fresh = noticesSeams("default");
+  expect(await enableBuddyNotices(fresh.seams)).toBe(true);
+  expect(fresh.calls).toEqual(["request", "asked", "choose:on"]);
+  // A refusal still records that this origin asked, and keeps the choice on
+  // for the Environment: another origin may allow them.
+  const refused = noticesSeams("default", "denied");
+  expect(await enableBuddyNotices(refused.seams)).toBe(false);
+  expect(refused.calls).toEqual(["request", "asked", "choose:on"]);
+  // Where the browser already allows them, it is not asked again.
+  const granted = noticesSeams("granted");
+  expect(await enableBuddyNotices(granted.seams)).toBe(true);
+  expect(granted.calls).toEqual(["asked", "choose:on"]);
+  // Where the browser has no notices, nothing happens.
+  const none = noticesSeams(null);
+  expect(await enableBuddyNotices(none.seams)).toBe(false);
+  expect(none.calls).toEqual([]);
 });

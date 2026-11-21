@@ -32,6 +32,11 @@ import { createFirstMeeting } from "../buddy/first-meeting";
 import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { namesConfirmed } from "../buddy/names-confirmed";
+import {
+  isBuddyNoticesChoice,
+  readNoticesChoice,
+  writeNoticesChoice,
+} from "../buddy/notices-choice";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { buddyFolderOwed } from "../buddy/persona-folder";
@@ -2370,11 +2375,21 @@ export async function startLaunchpad(
         // A tab that would tell a change of Buddy GEN4's sign in a browser
         // notice claims it first (buddy-notice.ts): the first claim of the
         // current change wins, on whichever origin of the shell it comes.
-        if (request.method !== "POST")
+        // The person's choice of notices is one for the Environment
+        // (notices-choice.ts): read with GET, set with `{choice}`.
+        if (request.method !== "POST" && request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
         if (buddyNoticeClaims === null)
           return response({ error: "not-found" }, 404);
+        const noticesHome = toolsEnvironment.home;
+        if (request.method === "GET")
+          return response({
+            choice:
+              noticesHome === undefined
+                ? "on"
+                : await readNoticesChoice(noticesHome),
+          });
         const text = await request.text().catch(() => "");
         let value: unknown = null;
         try {
@@ -2384,6 +2399,13 @@ export async function startLaunchpad(
           typeof value === "object" && value !== null
             ? (value as Record<string, unknown>)
             : {};
+        const choice = body.choice;
+        if (isBuddyNoticesChoice(choice)) {
+          if (noticesHome === undefined)
+            return response({ error: "no-home" }, 503);
+          await writeNoticesChoice(noticesHome, choice);
+          return response({ choice });
+        }
         // A tab with Buddy's window in view holds every notice back.
         if (body.viewing === true) {
           buddyNoticeClaims.viewing();

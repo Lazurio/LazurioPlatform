@@ -115,6 +115,7 @@ export type ShellCopy = Readonly<{
    * browser's notices of Buddy GEN4's sign. */
   buddyNotices: string;
   buddyNoticesBlocked: string;
+  buddyNoticesAllow: string;
   buddyNoticeQuestion: string;
   buddyNoticeApproval: string;
   buddyNoticeFailed: string;
@@ -196,6 +197,7 @@ const en: ShellCopy = {
   buddyUnavailable: "Buddy cannot be reached right now",
   buddyNotices: "Show notifications",
   buddyNoticesBlocked: "The browser blocks notifications",
+  buddyNoticesAllow: "Allow notifications in the browser",
   buddyNoticeQuestion: "Buddy has a question for you.",
   buddyNoticeApproval: "Buddy is waiting for your approval.",
   buddyNoticeFailed: "Something went wrong. Have a look at Buddy.",
@@ -269,6 +271,7 @@ const cs: ShellCopy = {
   buddyUnavailable: "Buddy teď není dostupný",
   buddyNotices: "Zobrazovat oznámení",
   buddyNoticesBlocked: "Oznámení prohlížeč blokuje",
+  buddyNoticesAllow: "Povolit oznámení v prohlížeči",
   buddyNoticeQuestion: "Buddy se vás na něco ptá.",
   buddyNoticeApproval: "Buddy čeká na vaše svolení.",
   buddyNoticeFailed: "Něco se nepovedlo. Podívejte se k Buddymu.",
