@@ -207,6 +207,39 @@ export function createBuddyNoticeClaims(
   });
 }
 
+type BuddyNoticeClaims = ReturnType<typeof createBuddyNoticeClaims>;
+
+/** What a tab tells the Launchpad besides a claim: its view (`viewing:
+ * true`), the person leaving it (`viewing: false`), and the change it saw
+ * (`seen`), which also rides on every view and release, so a release never
+ * overtakes the tab's own word that it saw a change. Null for a claim. */
+export function buddyNoticeTold(
+  claims: BuddyNoticeClaims,
+  body: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, boolean>> | null {
+  if (typeof body.seen === "string") claims.seen(body.seen);
+  if (body.viewing === true) {
+    claims.viewing(body.tab, body.seq);
+    return { viewing: true };
+  }
+  if (body.viewing === false) {
+    claims.release(body.tab, body.seq);
+    return { viewing: false };
+  }
+  return typeof body.seen === "string" ? { seen: true } : null;
+}
+
+/** The Launchpad's answer to a claim of `key`: told, or not, and when to
+ * claim again where only a view held it back. */
+export function buddyNoticeAnswer(
+  claims: BuddyNoticeClaims,
+  key: unknown,
+): Readonly<{ notify: boolean; retryInMs?: number }> {
+  if (claims.claim(key)) return { notify: true };
+  const retryInMs = claims.retryIn(key);
+  return retryInMs === null ? { notify: false } : { notify: false, retryInMs };
+}
+
 /** The person's choice of notices, one for the Environment and held by the
  * Launchpad (`/.lazurio/buddy/notice`): on unless they turned it off. */
 export type BuddyNoticesChoice = "on" | "off";
@@ -386,7 +419,10 @@ export function createNoticesChoiceCache(
   let version: number | null = null;
   let edits = 0;
   let queue: Promise<unknown> = Promise.resolve();
+  // An answer older than the version this page knows changes nothing: reads
+  // and changes may come back in any order.
   const adopt = (record: LaunchpadNoticesChoice) => {
+    if (version !== null && record.version < version) return;
     version = record.version;
     if (record.choice !== choice) {
       choice = record.choice;

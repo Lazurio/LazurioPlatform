@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
 import {
+  buddyNoticeAnswer,
   buddyNoticeKey,
   buddyNoticesState,
+  buddyNoticeTold,
   buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
@@ -273,6 +275,75 @@ test("a tab that starts or reconnects with Buddy's window in view says the sign 
   });
   expect(await background.observe(sign("failed", 2))).toBe(false);
   expect(seen).toEqual([]);
+});
+
+test('a tab\'s word that it saw a change rides on its release: a release that overtakes the lone "seen" still tells no other tab, and a heartbeat repeats it where the lone one is lost', () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current) ?? "";
+  // Lazurio views Buddy's window; Chat, in the background, is held.
+  buddyNoticeTold(claims, { viewing: true, tab: "lazurio", seq: 1 });
+  expect(buddyNoticeAnswer(claims, key)).toMatchObject({ notify: false });
+  // Lazurio saw the change, then the person left; the release, carrying
+  // what Lazurio saw, arrives before the lone "seen".
+  buddyNoticeTold(claims, {
+    viewing: false,
+    tab: "lazurio",
+    seq: 2,
+    seen: key,
+  });
+  expect(buddyNoticeAnswer(claims, key)).toEqual({ notify: false });
+  expect(buddyNoticeTold(claims, { seen: key })).toEqual({ seen: true });
+  expect(buddyNoticeAnswer(claims, key)).toEqual({ notify: false });
+
+  // The lone "seen" and the release are both lost: the next heartbeat
+  // carries it before the hold ends.
+  const later = sign("failed", 2);
+  const lost = createBuddyNoticeClaims(
+    () => later,
+    () => at,
+  );
+  const failed = buddyNoticeKey(later) ?? "";
+  buddyNoticeTold(lost, { viewing: true, tab: "lazurio", seq: 1 });
+  at += 10_000;
+  buddyNoticeTold(lost, {
+    viewing: true,
+    tab: "lazurio",
+    seq: 3,
+    seen: failed,
+  });
+  at += buddyViewingHoldMs;
+  expect(buddyNoticeAnswer(lost, failed)).toEqual({ notify: false });
+  // A plain claim with no view is told.
+  const fresh = createBuddyNoticeClaims(
+    () => later,
+    () => at,
+  );
+  expect(buddyNoticeTold(fresh, { key: failed })).toBeNull();
+  expect(buddyNoticeAnswer(fresh, failed)).toEqual({ notify: true });
+});
+
+test("a page's copy ignores an answer older than the version it knows: refreshes on focus and on the tab shown may come back in any order", async () => {
+  const answers: ((record: {
+    choice: "on" | "off";
+    version: number;
+  }) => void)[] = [];
+  const cache = createNoticesChoiceCache(
+    () => new Promise((resolve) => answers.push(resolve)),
+    async () => ({ choice: "off", version: 1, saved: true }),
+  );
+  const focus = cache.refresh();
+  const shown = cache.refresh();
+  // The newer read (version 1, "off") answers first, the older one after.
+  answers[1]?.({ choice: "off", version: 1 });
+  await shown;
+  answers[0]?.({ choice: "on", version: 0 });
+  await focus;
+  expect(cache.current()).toBe("off");
 });
 
 test("a tab claims a held change again while it is still the sign, and stops when it changes or the Launchpad says no", async () => {

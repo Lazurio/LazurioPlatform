@@ -145,7 +145,9 @@ import { withGuestAccess } from "../organizations/guest-access";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import {
+  buddyNoticeAnswer,
   buddyNoticePath,
+  buddyNoticeTold,
   createBuddyNoticeClaims,
 } from "../shell/buddy-notice";
 import type { ShellSetup } from "../shell/contract";
@@ -2417,30 +2419,12 @@ export async function startLaunchpad(
             return response({ error: "not-saved" }, 500);
           }
         }
-        // A tab with Buddy's window in view holds every notice back, until
-        // it says the person left it.
-        // Each in the tab's own order (`seq`): one overtaken is dropped.
-        if (body.viewing === true) {
-          buddyNoticeClaims.viewing(body.tab, body.seq);
-          return response({ viewing: true });
-        }
-        if (body.viewing === false) {
-          buddyNoticeClaims.release(body.tab, body.seq);
-          return response({ viewing: false });
-        }
-        // The tab that had Buddy's window in view as the change came saw it.
-        if (typeof body.seen === "string") {
-          buddyNoticeClaims.seen(body.seen);
-          return response({ seen: true });
-        }
+        // A tab's view, its release, what it saw, and a claim
+        // (buddy-notice.ts); a claim once the choice is read.
+        const told = buddyNoticeTold(buddyNoticeClaims, body);
+        if (told !== null) return response(told);
         await buddyNoticesChoice.read();
-        if (buddyNoticeClaims.claim(body.key))
-          return response({ notify: true });
-        // Held back only by a view said before the change: claim again.
-        const retryInMs = buddyNoticeClaims.retryIn(body.key);
-        return response(
-          retryInMs === null ? { notify: false } : { notify: false, retryInMs },
-        );
+        return response(buddyNoticeAnswer(buddyNoticeClaims, body.key));
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the

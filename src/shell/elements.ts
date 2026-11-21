@@ -1392,6 +1392,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private viewingTimer: ReturnType<typeof setInterval> | null = null;
   private readonly tab = pageTabName();
   private viewingSeq = 0;
+  // The last change the person saw in Buddy's window here.
+  private seenKey: string | null = null;
   // Read once the browser settled the focus: a blur while the focus moves
   // into Buddy's frame still leaves this page focused.
   private readonly viewingChanged = () => {
@@ -1609,13 +1611,16 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         );
       },
       show: (signal) => this.notice(signal),
-      seen: (key) =>
+      // Said at once, and again with every view and its release.
+      seen: (key) => {
+        this.seenKey = key;
         void fetch(buddyNoticePath, {
           method: "POST",
           credentials: "same-origin",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ seen: key }),
-        }).catch(() => undefined),
+        }).catch(() => undefined);
+      },
     });
     // The stream's own events, never the window's messages.
     source.onmessage = (event) => {
@@ -1669,7 +1674,12 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ viewing, tab: this.tab, seq: this.viewingSeq }),
+        body: JSON.stringify({
+          viewing,
+          tab: this.tab,
+          seq: this.viewingSeq,
+          ...(this.seenKey === null ? {} : { seen: this.seenKey }),
+        }),
         keepalive: !viewing,
       }).catch(() => undefined);
     };
