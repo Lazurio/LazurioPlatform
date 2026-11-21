@@ -1,10 +1,12 @@
 import { expect, test } from "bun:test";
 import {
   buddyNoticeKey,
+  buddyNoticesState,
   buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
   enableBuddyNotices,
+  readBuddyNoticesState,
   shouldAskBuddyNotices,
 } from "../src/shell/buddy-notice";
 import type { ShellBuddySignal } from "../src/shell/contract";
@@ -176,4 +178,28 @@ test("one function turns the notices on: the browser asks first, inside the clic
   const none = noticesSeams(null);
   expect(await enableBuddyNotices(none.seams)).toBe(false);
   expect(none.calls).toEqual([]);
+});
+
+test("the state of notices on an origin, for the guide: on only where the browser allows them and the choice is on", async () => {
+  expect(buddyNoticesState("granted", "on")).toBe("on");
+  expect(buddyNoticesState("granted", "off")).toBe("off");
+  // On by default, but not asked here yet: off until the person's click.
+  expect(buddyNoticesState("default", "on")).toBe("off");
+  expect(buddyNoticesState("denied", "on")).toBe("blocked");
+  expect(buddyNoticesState(null, "on")).toBe("unsupported");
+  expect(
+    await readBuddyNoticesState(
+      () => "granted",
+      async () => "off",
+    ),
+  ).toBe("off");
+  // A Launchpad that does not answer reads as the default choice, on.
+  expect(
+    await readBuddyNoticesState(
+      () => "granted",
+      async () => {
+        throw new Error("unreachable");
+      },
+    ),
+  ).toBe("on");
 });

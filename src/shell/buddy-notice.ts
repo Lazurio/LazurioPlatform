@@ -165,3 +165,40 @@ export const browserNoticesSeams = (
     } catch {}
   },
 });
+
+/** What the person sees of Buddy's notices on this origin: `on` (they come),
+ * `off` (not yet: the choice is off, or the browser has not been asked here),
+ * `blocked` (the browser refuses them here) or `unsupported` (no notices). */
+export type BuddyNoticesState = "on" | "off" | "blocked" | "unsupported";
+
+/** The state from the browser's permission and the Environment's choice. */
+export const buddyNoticesState = (
+  permission: NotificationPermission | null,
+  choice: BuddyNoticesChoice,
+): BuddyNoticesState =>
+  permission === null
+    ? "unsupported"
+    : permission === "denied"
+      ? "blocked"
+      : permission === "granted" && choice === "on"
+        ? "on"
+        : "off";
+
+/** The state now, without asking: the choice read from the Launchpad (on
+ * where it does not answer). For the guide and anything outside the
+ * launcher's menu. */
+export async function readBuddyNoticesState(
+  permission: () => NotificationPermission | null = browserNoticesSeams(
+    null,
+  ).permission,
+  read: () => Promise<BuddyNoticesChoice> = async () => {
+    const answer = await fetch(buddyNoticePath, { credentials: "same-origin" });
+    const value: unknown = answer.ok ? await answer.json() : null;
+    return (value as { choice?: unknown } | null)?.choice === "off"
+      ? "off"
+      : "on";
+  },
+): Promise<BuddyNoticesState> {
+  const choice = await read().catch((): BuddyNoticesChoice => "on");
+  return buddyNoticesState(permission(), choice);
+}
