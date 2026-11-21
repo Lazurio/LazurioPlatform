@@ -15956,24 +15956,33 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         is the whole stop as Lazurio runs it: stopping, the copy, the steps,
         the computation, a way back where one is needed, and the start
         after it.
-        - The computation's budget is what is left of the stop less one
-          batch to the model (10 minutes), gbrain's own start (2 minutes)
-          and what the stop keeps after it: the copy brought back, which
-          takes about as long as the stop's own copy did, and the server's
-          start, 3 minutes at least. An hour's stop thus computes for about
-          45 minutes.
+        - The copy runs in its own process with a limit: what leaves a
+          window its least and the server's start. A copy that does not
+          finish by then is ended and removed, the brain is as it was, and
+          the server starts again.
+        - A way back is a rename of the copy into place, on the same file
+          system, so it takes no time. The copy is the brain from before,
+          so nothing is lost by its being used. The failed brain is renamed
+          aside and kept once.
+        - The computation's budget is what is left of the stop after the
+          copy and the steps, less one batch to the model (10 minutes),
+          gbrain's own start (2 minutes) and the server's start (3 minutes).
+          An hour's stop thus computes for about 45 minutes.
         - No stop starts with less than 20 minutes of the window left.
-          Where stopping and the copy took that time, the server comes back
-          as it was; where the steps after took it, the copy comes back.
-          Either way the window is tried again, in the same start of the
-          Launchpad, and it is no failure of the model.
+          Where stopping or the copy took the time a window needs, the
+          server comes back as it was; where the steps after took it, the
+          copy comes back. Either way the window is tried again, in the
+          same start of the Launchpad, and it is no failure of the model.
         - After a committed window, the server's answer is awaited until
           the stop's end at most; a server that has not answered by then
           was started all the same, and the next run starts one that does
-          not answer. After a copy brought back the answer is awaited as
-          before, because cutting it short would keep the memory down for a
-          person; the boot of gbrain itself (seconds, measured) is not in
-          Lazurio's hands.
+          not answer.
+        - **Not bounded by Lazurio:** how long systemd takes to stop or start
+          the server, and gbrain's own boot (seconds, measured). After a way
+          back the server's answer is awaited as before (#1134). It decides
+          whether the brain brought back runs: a brain that does not answer
+          is kept down for a person. Cutting that wait short would keep a
+          brain down that only boots slowly.
         - Between stops the server runs for the pause as before. A
           computation the night does not finish goes on the next night.
       - **By day** nothing stops the memory for search by meaning. The one

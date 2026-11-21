@@ -145,6 +145,10 @@ async function stand(
   let clock = Date.parse("2026-11-19T00:10:00Z");
   let startedAt = clock;
   const step = { ms: options.stepMs ?? 0 };
+  /** Each copy of the brain: when it began and its limit. */
+  const copies: Array<Readonly<{ at: number; limit: number }>> = [];
+  /** When the server was started, on the stand's clock. */
+  const startTimes: number[] = [];
   /** Each gbrain step's limit, and when it started, on the stand's clock. */
   const limits: Array<Readonly<{ step: string; at: number; limit: number }>> =
     [];
@@ -218,6 +222,7 @@ async function stand(
       }
       if (name === brainUnit && verb === "start") {
         startedAt = clock;
+        startTimes.push(clock);
         atStart.push((await readBrainState(paths)).meaningAttempt);
         world.server = true;
         starts += 1;
@@ -381,14 +386,21 @@ async function stand(
       return options.idle ?? true;
     },
     now: () => new Date(clock),
-    ...(options.copyMs === undefined
-      ? {}
-      : {
-          copyBrain: async (from: string, to: string) => {
-            clock += options.copyMs ?? 0;
-            await cp(from, to, { recursive: true, errorOnExist: true });
-          },
-        }),
+    // The copy takes `copyMs` on the stand's clock (none by default); one
+    // longer than its limit is ended there, half made.
+    copyBrain: async (from: string, to: string, limitMs: number) => {
+      copies.push({ at: clock, limit: limitMs });
+      const takes = options.copyMs ?? 0;
+      if (takes > limitMs) {
+        clock += limitMs;
+        await mkdir(to, { recursive: true });
+        await writeFile(join(to, "partial"), "x");
+        return false;
+      }
+      clock += takes;
+      await cp(from, to, { recursive: true, errorOnExist: true });
+      return true;
+    },
     tries: options.bootMs === undefined ? 2 : 1000,
     waitMs: 1,
     fetch: async () => new Response("never asked", { status: 500 }),
@@ -410,6 +422,8 @@ async function stand(
     limits,
     step,
     time,
+    copies,
+    startTimes,
   };
 }
 
@@ -1321,16 +1335,78 @@ describe("a stop is bounded as a whole: its steps, its embedding and the start a
     expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
   });
 
-  test("a slow copy keeps as long for the copy brought back: the embedding's limit leaves it and the start", async () => {
+  test("a slow copy comes off the embedding's time; the way back needs none, it is a rename", async () => {
     const { host, limits } = await stand({ copyMs: 5 * minute });
     expect(await convergeMeaning(host)).toBe("on");
     const embed = limits.find((l) => l.step === "embed");
-    // The stop ends an hour after it began; the copy took 5 minutes, so the
-    // way back keeps 5 and the start 2.
     expect(embed?.at).toBe(t0 + 5 * minute);
-    expect((embed?.at ?? 0) + (embed?.limit ?? 0) + 7 * minute).toBe(
-      t0 + meaningNightStopMs,
+    expect(
+      (embed?.at ?? 0) + (embed?.limit ?? 0) + meaningRestartReserveMs,
+    ).toBe(t0 + meaningNightStopMs);
+  });
+
+  for (const [what, copyMs] of [
+    ["longer than the whole stop (61 minutes)", 61 * minute],
+    ["that never finishes", Number.POSITIVE_INFINITY],
+  ] as const) {
+    test(`a copy ${what} is ended in time: the server is back before the stop's end, the brain as it was`, async () => {
+      const { host, paths, world, copies, startTimes, limits } = await stand({
+        copyMs,
+      });
+      expect(await convergeMeaning(host)).toBe("waits:no-time");
+      // The copy's limit leaves a window's least and the start; it was ended
+      // there, its half copy removed, nothing of gbrain run.
+      expect(copies).toHaveLength(1);
+      expect((copies[0]?.at ?? 0) + (copies[0]?.limit ?? 0)).toBe(
+        t0 +
+          meaningNightStopMs -
+          meaningRestartReserveMs -
+          meaningBatchLimitMs -
+          meaningEmbedGraceMs -
+          minute,
+      );
+      expect(
+        (await readdir(paths.home)).filter((n) =>
+          n.startsWith(".gbrain.bak-meaning-"),
+        ),
+      ).toEqual([]);
+      expect(limits).toEqual([]);
+      expect(world.server).toBe(true);
+      expect(startTimes.at(-1) ?? 0).toBeLessThanOrEqual(
+        t0 + meaningNightStopMs,
+      );
+      expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+        '{"brain":"before"}',
+      );
+    });
+  }
+
+  test("a window that fails at its limit comes back by a rename and starts before the stop's end", async () => {
+    // The copy takes 5 minutes; the embedding runs to its very limit.
+    const { host, paths, copies, startTimes, time } = await stand({
+      copyMs: 5 * minute,
+    });
+    const run = host.run;
+    const slow = {
+      ...host,
+      run: async (
+        argv: readonly string[],
+        timeout: number,
+        env: Readonly<Record<string, string>>,
+      ) => {
+        if (argv[1] !== "embed") return run(argv, timeout, env);
+        await writeFile(join(paths.brain, "config.json"), '{"brain":"half"}');
+        time.advance(timeout);
+        return "timeout" as const;
+      },
+    } as typeof host;
+    expect(await convergeMeaning(slow)).toBe("restored:embed-limit");
+    // One copy only: the way back renamed it into place.
+    expect(copies).toHaveLength(1);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
     );
+    expect(startTimes.at(-1) ?? 0).toBeLessThanOrEqual(t0 + meaningNightStopMs);
   });
 
   test("a server slow to answer after a committed window: the wait ends with the stop, the server is not kept down, the next run goes on", async () => {
