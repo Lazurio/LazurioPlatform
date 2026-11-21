@@ -17148,10 +17148,19 @@ He allowed it with one condition about the window's size:
 - in the small window the person moves about the screen, offer neither, because a panel there
   has too little room to show well.
 
+On 2026-11-21 he added how the right panel opens there, on a phone and a computer alike. In
+the full-screen window, clicking the right panel stretches it over the whole window, where the
+person works with the browser or whatever else the panel holds. The coordinating thread passed
+it on at 07:37 and 07:44 UTC.
+
 Framing cannot tell the window's size: `frame-ancestors` admits Buddy's origin as a whole. So
-the condition belongs to the window's interface, in T3 Code, which offers the two panels only
-where its window has the room. Until a T3 Code release does that, the small window shows the
-same right panel as the full-screen one.
+the condition belongs to the window's interface:
+- the host tells the frame the size its window shows (F60's addendum of 2026-11-21);
+- T3 Code offers the two panels only in the full-screen window, the right panel over the whole
+  window, with a way back to the conversation (Lazurio/t3code#245).
+
+Until a T3 Code release does that, the small window shows the same right panel as the
+full-screen one.
 
 - **Why.** Buddy GEN4's window is the shared T3 Code of the person's Osobní Prostředí, framed
   at Buddy's own origin `https://buddy.<base>.lazurio.io` (F60 and its addendum of
