@@ -70,6 +70,7 @@ import { acquireFileLock } from "../src/platform/flock";
 import type { ToolsEnvironment } from "../src/tools/overview";
 import type { ToolRunner } from "../src/tools/status";
 import type { CliContext } from "../src/update/cli";
+import { writeEarlierBuddyLayer } from "./fixtures/buddy-gen3-layer";
 import goldens from "./fixtures/buddy-persona/goldens.json";
 import { bindings } from "./fixtures/machine-bindings";
 
@@ -804,6 +805,8 @@ async function osobniProstredi(locale: PersonaLocale = "cs") {
     locale,
   });
   expect(initialized.code).toBe(0);
+  // Buddy GEN3's layer as an earlier release left it.
+  await writeEarlierBuddyLayer(folder);
   // His prompts were last refreshed from the Lazurio layer the Folder holds
   // (F64's addendum of 2026-10-25), as an installed Buddy's.
   await recordPromptInputs(home, await readPromptInputs(folder));
@@ -1697,24 +1700,26 @@ const bothRepaired = [
 ];
 
 posix(
-  "a Folder refresh that rewrites Buddy's rules owes a refresh of his stored prompts: the read reports it and writes nothing, an apply while he is busy records it and waits, the idle one clears the prompts, restarts once and records the layer, and the next apply does nothing; a Folder refresh that changes nothing owes none",
+  "rules rewritten since his prompts were built (as an earlier release's update did) owe a refresh of his stored prompts: the read reports it and writes nothing, an apply while he is busy records it and waits, the idle one clears the prompts, restarts once and records the layer, and the next apply does nothing; a Folder refresh, which no longer writes the layer, owes none",
   () =>
     within(async (env) => {
       const rules = join(env.folder, buddyRulesPath);
       expect(await apply(env)).toMatchObject({ state: "applied" });
       turns(env);
-      // The same release's Folder refresh renders the same rules.
+      // A Folder refresh no longer writes Buddy GEN3's layer.
       expect(
         await refreshMachineFolder(env.folder, bindings.personal),
       ).toMatchObject({ code: 0 });
       expect(await env.owed()).toBe(false);
-      // His prompts were built from the previous release's rules, and the
-      // update's Folder refresh writes this release's.
+      // His prompts were built from the previous release's rules, and an
+      // earlier release's update wrote the next ones.
       await writeFile(rules, "Buddy's rules of the previous release\n");
       await recordPromptInputs(env.home, await readPromptInputs(env.folder));
       expect(
         await refreshMachineFolder(env.folder, bindings.personal),
       ).toMatchObject({ code: 0 });
+      expect(await readFile(rules, "utf8")).toContain("previous release");
+      await writeEarlierBuddyLayer(env.folder);
       expect(await readFile(rules, "utf8")).not.toContain("previous release");
       const recorded = await readFile(promptInputsPath(env.home), "utf8");
       env.world.calls.length = 0;

@@ -222,12 +222,13 @@ export function organizationWithRelay(
 }
 // A personal VM of `example` with its entry on `port`, with `browser` the
 // Environment browser's view, with `signOut` the person's sign-out and with
-// `buddy` Buddy's own T3 Code (root decision 0210).
+// `buddy` Buddy GEN3's own T3 Code (root decision 0210), or with `"gen4"`
+// the person moved to Buddy GEN4 (plan LZD-0033, `entry.buddy.generation`).
 export function personalWithEntry(
   listenPort = 20000,
   browser = false,
   signOut = false,
-  buddy = false,
+  buddy: boolean | "gen4" = false,
 ) {
   const host = "example.lazurio.io";
   const entry = handoverEntry(host, listenPort);
@@ -235,7 +236,19 @@ export function personalWithEntry(
   const signed = signOut ? withSignOut(routed) : routed;
   return binding({
     ...personal,
-    entry: buddy ? withBuddy(signed, host) : signed,
+    entry:
+      buddy === "gen4"
+        ? {
+            ...signed,
+            buddy: {
+              generation: 4,
+              folder: "/home/operator/Buddy",
+              profile: "buddy",
+            },
+          }
+        : buddy
+          ? withBuddy(signed, host)
+          : signed,
   });
 }
 // The Automated Environment of decision 0169 as the binding records it: a work

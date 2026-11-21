@@ -75,12 +75,17 @@ export const environments = [
     os: "linux",
   },
   { preset: "hosted-personal", machine: bindings.personalBrowser, os: "linux" },
-  // With Buddy's origin (decision F60), which only the person's own Osobní
-  // Prostředí records: the line that opens his chat for the user renders only
-  // there (decision F14's addendum of 2026-10-26).
+  // With Buddy GEN3's origin (decision F60): no line names it any more.
   {
     preset: "hosted-personal",
     machine: personalWithEntry(20000, true, true, true),
+    os: "linux",
+  },
+  // Moved to Buddy GEN4 (plan LZD-0033): the lines on his window and on
+  // `~/Buddy` render only there.
+  {
+    preset: "hosted-personal",
+    machine: personalWithEntry(20000, true, true, "gen4"),
     os: "linux",
   },
   // A public Environment (root decision 0204, F55's addendum of 2026-10-17):

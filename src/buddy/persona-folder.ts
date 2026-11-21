@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { dirname, join } from "node:path";
 import {
   type BuddyFolderWriteFailure,
-  buddyGen3Present,
   writeBuddyLocked,
 } from "../folder/buddy-folder";
 import { type BuddyFolderPath, renderBuddyFolder } from "../folder/buddy-gen4";
@@ -31,7 +30,6 @@ export async function buddyFolderInPlace(folder: string): Promise<boolean> {
     instructionSource(preferences),
     profile,
     persona.state === "valid" ? persona.persona : undefined,
-    { gen3: await buddyGen3Present(home) },
   );
   for (const [path, content] of Object.entries(files) as [
     BuddyFolderPath,
