@@ -15911,8 +15911,14 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       `embed --stale --catch-up` above and its failure rule.
       - **Windows.** The vectors are computed in windows of gbrain's own budget
         (`GBRAIN_EMBED_TIME_BUDGET_MS`, 3 minutes), each with the server
-        stopped as before and only while Buddy is idle. A batch to the local
-        model may take 10 minutes. One window per setup run; the Launchpad
+        stopped as before and only while Buddy is idle. gbrain stops at the
+        budget between batches, and a batch to the local model may take 10
+        minutes. One stop therefore usually lasts under 4 minutes (a batch
+        takes under a minute on a quiet Environment), and on a heavily loaded
+        one up to about 18 minutes (the window's process limit,
+        `meaningEmbedLimitMs`); Matěj accepted that bound for this step on
+        2026-11-21, with a nightly computation to follow as the next step.
+        One window per setup run; the Launchpad
         runs setup again after 5 minutes while search by meaning waits, for
         at most a day a start, and hands the brain to Executor after each.
       - **Between windows** the server runs with the model: search by meaning
