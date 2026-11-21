@@ -1337,6 +1337,8 @@ describe("lazurio brain take-over", () => {
       "key probe kept",
       "takeover taken-over",
       "move moved",
+      // The brain taken over keeps the agents' conversations out from now.
+      "archive off",
     ]);
     const json = await runBrainCommand(["setup", "--json"], context);
     expect(JSON.parse(json.stdout as string)).toMatchObject({

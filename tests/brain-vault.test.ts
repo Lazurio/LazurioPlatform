@@ -5,11 +5,13 @@ import {
   readdir,
   readFile,
   rename,
+  stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
+import { archiveOffMark } from "../src/brain/archive";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import { brainPaths, brainRefreshTimer, brainUnit } from "../src/brain/pin";
 import {
@@ -200,8 +202,12 @@ async function stand(
     idle?: boolean;
     /** The server ignores a stop (systemd says it still runs). */
     neverStops?: boolean;
+    /** gbrain refuses to switch its conversation archive off. */
+    archiveRefused?: boolean;
   }> = {},
 ) {
+  /** The brain's config at each start of the server: which brain ran. */
+  const startedWith: string[] = [];
   const root = await mkdtemp(join(tmpdir(), "brain-vault-"));
   const paths = brainPaths(join(root, "home"));
   const folder = join(paths.home, "Lazurio");
@@ -259,6 +265,8 @@ async function stand(
       return ok;
     }
     // gbrain
+    if (args[0] === "transcripts")
+      return options.archiveRefused ? { ...ok, exitCode: 1 } : ok;
     if (args[0] === "init") {
       await mkdir(join(paths.brain, "serve"), { recursive: true });
       await writeFile(join(paths.brain, "config.json"), '{"vault":true}');
@@ -287,7 +295,14 @@ async function stand(
     }
     if (verb === "start") {
       if (isTimer) brain.timer = true;
-      else brain.up = true;
+      else {
+        brain.up = true;
+        startedWith.push(
+          await readFile(join(paths.brain, "config.json"), "utf8").catch(
+            () => "",
+          ),
+        );
+      }
     }
     if (verb === "enable") brain.timer = true;
     if (verb === "is-active") {
@@ -359,7 +374,7 @@ async function stand(
     tries: 2,
     waitMs: 1,
   };
-  return { host, paths, calls, brain, vault: join(ps, "gbrain") };
+  return { host, paths, calls, brain, vault: join(ps, "gbrain"), startedWith };
 }
 
 describe("the vault's connection", () => {
@@ -426,6 +441,45 @@ describe("the vault's connection", () => {
       repo,
       rebuild: { state: "done", backup: ".gbrain.bak-20261118T233000Z" },
     });
+  });
+
+  test("the brain made anew has gbrain's conversation archive off before its first start", async () => {
+    const { host, paths, calls, startedWith } = await stand();
+    expect(await convergeVault(host)).toBe("rebuilt");
+    const switched = calls.findIndex(
+      (c) =>
+        c[0] === "/fake/gbrain" &&
+        c.slice(1).join(" ") === "transcripts archive off --json",
+    );
+    const init = calls.findIndex(
+      (c) => c[0] === "/fake/gbrain" && c[1] === "init",
+    );
+    const firstStart = calls.findIndex(
+      (c, i) =>
+        i > init &&
+        c[0] === "systemctl" &&
+        c[2] === "start" &&
+        c[3] === brainUnit,
+    );
+    expect(switched).toBeGreaterThan(init);
+    expect(switched).toBeLessThan(firstStart);
+    expect(startedWith).toEqual(['{"vault":true}']);
+    expect(
+      await stat(join(paths.brain, archiveOffMark)).then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(true);
+  });
+
+  test("a switch gbrain refuses keeps the brain made anew down: the brain before comes back", async () => {
+    const { host, paths, startedWith } = await stand({ archiveRefused: true });
+    expect(await convergeVault(host)).toBe("stop:rebuild-archive");
+    // The new brain never ran; the brain before is back and runs.
+    expect(startedWith).toEqual(['{"before":true}']);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"before":true}',
+    );
   });
 
   test("a failed fetch brings the brain before back whole and keeps the attempt aside", async () => {
