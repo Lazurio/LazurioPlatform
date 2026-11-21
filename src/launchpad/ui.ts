@@ -37,16 +37,10 @@ import { createBrowserPanel } from "./browser-panel";
 import { browserPanelOrigin } from "./browser-panel-view";
 import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
+import { createBuddyIntroduction } from "./buddy-introduction";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
-import {
-  type BuddyStepFacts,
-  buddyFact,
-  buddyIntroductionDue,
-  introducedIn,
-  keepIntroduced,
-  meetStart,
-} from "./buddy-view";
+import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -740,6 +734,23 @@ const contentTransport: ContentTransport = async (method, path, body) => {
   if (mode !== null) enterRecovery(mode);
   return { status: response.status, value };
 };
+// Buddy GEN4's introduction for a person who met him before
+// (buddy-introduction.ts): made before anything that redraws the page.
+const buddyIntroduction = createBuddyIntroduction({
+  here: () => framed && buddyHere(),
+  reading: () => buddyClient.reading(),
+  toured: () => tour.toured(),
+  dialogOpen: () => document.querySelector("dialog[open]") !== null,
+  environment: () => environmentKey(),
+  storage: () => {
+    try {
+      return localStorage;
+    } catch {
+      return null;
+    }
+  },
+  open: () => buddyDialog.open("introduce", "tour"),
+});
 const content = createContentPanel({
   client: createContentClient(contentTransport),
   copy: () => copy,
@@ -1088,50 +1099,11 @@ const buddyPanel = createBuddyPanel({
 // in this browser for each Environment, as the tour of Lazurio keeps its
 // progress (`tourStorageKey`); a person who meets him now sees his beats in
 // the meeting itself.
-//
-// It opens by itself only once its mark is kept: a storage that refuses the
-// write (full, blocked) gets no introduction by itself rather than one at
-// every visit, and within this page it never comes twice.
-let buddyIntroducedHere = false;
-function buddyIntroduced(): boolean | null {
-  if (buddyIntroducedHere) return true;
-  const environment = environmentKey();
-  if (environment === null) return null;
-  try {
-    return introducedIn(localStorage, environment);
-  } catch {
-    // Without storage the introduction is not offered by itself.
-    return null;
-  }
+function keepBuddyIntroduced() {
+  buddyIntroduction.keep();
 }
-/** Keeps that it was seen; true once the mark reads back. */
-function keepBuddyIntroduced(): boolean {
-  buddyIntroducedHere = true;
-  const environment = environmentKey();
-  if (environment === null) return false;
-  try {
-    return keepIntroduced(localStorage, environment);
-  } catch {
-    return false;
-  }
-}
-/** Opens Buddy GEN4's introduction once for a person who already met him:
- * only on this page's own view, never over the tour of Lazurio, another
- * dialog or the meeting. */
 function offerBuddyIntroduction() {
-  if (!framed || !buddyHere()) return;
-  if (
-    !buddyIntroductionDue({
-      reading: buddyClient.reading(),
-      toured: tour.toured(),
-      dialogOpen: document.querySelector("dialog[open]") !== null,
-      introduced: buddyIntroduced(),
-    })
-  )
-    return;
-  // Its mark first: where it cannot be kept, it does not open by itself.
-  if (!keepBuddyIntroduced()) return;
-  buddyDialog.open("introduce", "tour");
+  buddyIntroduction.offer();
 }
 // Another dialog closing (a sign-in, a prompt) lets it come: looked at again
 // once the page has settled, as the tour comes back after a dialog.
