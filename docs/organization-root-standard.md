@@ -12,8 +12,8 @@ The three documents divide the work:
 
 - the **organization contract** defines the manifests `lazurio.organization.json`
   and `modules.manifest.json`, their schema and their readers;
-- the **Module Standard** defines a Module, its Apps, and the tools and CI every
-  TypeScript repository of Lazurio is checked with;
+- the **Module Standard** defines a Module, its Apps, and the tools and CI a
+  Module is checked with; a root borrows those tools and that CI;
 - **this standard** defines the root repository around the manifests: what lies
   in it, what Lazurio writes into it and how it proves that it is a root.
 
@@ -100,9 +100,10 @@ tools as a Module: the exact Bun of its stack profile in `packageManager`, a
 committed `bun.lock`, TypeScript strict with `noUncheckedIndexedAccess`, Biome
 with `--error-on-warnings` and `bun test`, all behind one gate `bun run check`.
 The rules are those of [Stacks and quality](module-standard.md#stacks-and-quality)
-and `MS-02`, `MS-08`, `MS-10`, `MS-11` and `MS-13` of the
-[Module Standard](module-standard.md#requirements-ms-01-to-ms-19); this standard
-does not repeat them. A root has no `.js`, `.mjs` or `.cjs` file.
+and `MS-02`, `MS-08` and `MS-13` of the [Module Standard](module-standard.md);
+this standard does not repeat them. Of `MS-11` only the first part applies: no
+absolute path of a computer. A dependency of the root's checks is pinned to an
+exact released version. A root has no `.js`, `.mjs` or `.cjs` file.
 
 A root carries as little code as possible. Its scripts are only:
 
@@ -143,7 +144,7 @@ Environment.
 | `OR-05` | No integration catalogue in the root; integrations are `settings.integrations` and the Executor | Rule only; the root's contract check |
 | `OR-06` | `.agents/skills/` is the only source of skills; `.claude/skills` is ignored and never committed; `CLAUDE.md` is `@AGENTS.md` | Rule only; the root's contract check |
 | `OR-07` | `lazurio.template.json` names the template release and every managed file; managed files match that release; managed blocks of `AGENTS.md` are marked | Rule only; the root's contract check |
-| `OR-08` | Strict TypeScript on Bun with one gate `bun run check` (the rules of `MS-02`, `MS-08`, `MS-10`, `MS-11`, `MS-13`); no `.js`, `.mjs` or `.cjs` | Rule only; the root's CI |
+| `OR-08` | Strict TypeScript on Bun with one gate `bun run check` (the rules of `MS-02`, `MS-08` and `MS-13`); dependencies pinned to exact released versions; no absolute path of a computer (the first part of `MS-11`); no `.js`, `.mjs` or `.cjs` | Rule only; the root's CI |
 | `OR-09` | The root's contract check exists, comes from the template and runs in `bun run check` | Rule only |
 | `OR-10` | CI as in [CI](#ci): Linux, frozen install, `bun run check`, the pinned Lazurio CLI and `lazurio organization check`, the declaration against `GITHUB_REPOSITORY`; `MS-14` | Rule only |
 | `OR-11` | No code, test or text that exists only for GEN2 or GEN3: `git grep -n -i -E 'gen2\|gen3'` on `HEAD` finds nothing but the name of a predecessor repository during a transition | Rule only; the root's contract check |
