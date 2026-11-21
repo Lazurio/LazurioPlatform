@@ -25950,6 +25950,35 @@ and its data repository is a row named "db"; a later step of plan LZD-0046 chang
 folder of a shared Module's slot keeps its name until Lazurio/LazurioPlatform#1149 decides
 it.
 
+**Implemented on 2026-11-21 for plan LZD-0046 (step D2): the update view follows point 2.**
+
+- **What the synchronization says.** Each content item and each step of `lazurio update
+  --json` (and of Aktualizovat's job) names where its repository belongs, from the slots
+  alone: a data repository its Module's path in `parent` (as `dataMountOf` reads it), a
+  shared Module and its data their home Organization in `home` and the slot slug in
+  `module`. The record of the synchronization keeps them. They are additive; nothing
+  reads the shared Module's manifest (point 3).
+- **How the view keys and names rows.** An own Module's row stays keyed by its Organization
+  and id, which its builds share, and named as Apps names it. A data line goes into the
+  row of its `parent`, never into one found by its path's last segment. A shared Module's
+  row is keyed by its Organization, home and slug apart from every own Module, named
+  `<home> / <slug>` with the stone Apps gives its tile and the badge "nasdílený" /
+  "shared" with Apps' explanation; a line of an older run without `home` is still known as
+  shared by the catalog's guests. A repository of no Module of the catalog and no shared
+  Module is shown by its path relative to the root; this replaces F47's "no path is ever
+  shown" for that case only. An absent shared Module, like an absent Module, has no row.
+- **A data finding.** Where the Module has no finding of its own and its data has one
+  (blocked, denied, unreachable, failed), the row says „<Modul> · data: …“ /
+  "<Module> · data: …" with the finding in words; the Module's own finding stays the
+  row's, without the data's name. Progress (checking, fetching, done with its commit) is
+  the row's as before.
+
+Tests: `tests/new-tab-view.test.ts` (three data repositories and no "db" row; an own and a
+shared Mission Control as two rows; the data finding; an absent shared Module left out;
+a repository of no Module by its path), `tests/guest-modules.test.ts` and
+`tests/content-sync.test.ts` (`parent`, `home` and `module` on the answers, the steps and
+the record).
+
 ## F68 — Only the installed product acts on the declared operator's Folder
 
 **Proposed 2026-11-01 for #782 and accepted by the Organization Admin the same day; not implemented yet: the implementation follows in its own pull request.**

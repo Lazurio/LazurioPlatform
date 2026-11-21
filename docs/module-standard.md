@@ -94,8 +94,11 @@ repository and its root slots without `lazurio.module.json`, such as `infra`, ar
 of these kinds and never a Module (F24, point 1).
 
 Every place that shows repositories (Apps, the update view, `lazurio module list`,
-`lazurio doctor`, the Folder manual) names them by this section; the update view
-follows in a later step (F67's addendum of 2026-11-21). Identifiers in code, schemas
+`lazurio doctor`, the Folder manual) names them by this section; the update view does
+since plan LZD-0046's step D2, from what each content item of `lazurio update --json`
+says of where it belongs (`parent`, `home`, `module`, [the answer](update.md)), and shows
+a repository of no Module of the catalog by its path relative to the root, never by its
+last segment. Identifiers in code, schemas
 and manifests (`guests`, `home_organization`, `repository_db_mount`) keep their names.
 
 ## Repository layout

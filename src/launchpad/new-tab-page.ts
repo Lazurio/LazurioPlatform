@@ -415,7 +415,17 @@ function updateItem(row: UpdateRow): HTMLLIElement {
     }`,
     row.text,
   );
-  text.append(element("span", "nto-name", row.name), state);
+  // A shared Module's name with its badge beside it, as Apps shows it.
+  const name =
+    row.badge === undefined
+      ? element("span", "nto-name", row.name)
+      : element("span", "nto-update-name");
+  if (row.badge !== undefined) {
+    const badge = element("span", "nto-badge", row.badge.text);
+    badge.title = row.badge.hint;
+    name.append(element("span", "nto-name", row.name), badge);
+  }
+  text.append(name, state);
   if (row.link !== undefined) {
     const link = element("a", "nto-update-link", row.link.text);
     link.href = row.link.href;

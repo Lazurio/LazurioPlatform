@@ -333,10 +333,25 @@ posixTest(
     expect(await ok(fixture.at("workspace/web"), "status", "--porcelain")).toBe(
       "",
     );
-    // The data mount stays on its branch, at its remote's commit.
+    // The data mount stays on its branch, at its remote's commit, and names
+    // its Module (F67's addendum of 2026-11-21); no repository of the
+    // Organization's own names a home.
     expect(
       run.entries.find((e) => e.path === "mission-control/db"),
-    ).toMatchObject({ kind: "data", branch: "v3", to: data });
+    ).toMatchObject({
+      kind: "data",
+      branch: "v3",
+      to: data,
+      parent: "mission-control",
+    });
+    expect(
+      run.entries.filter(
+        (e) =>
+          e.home !== undefined ||
+          e.module !== undefined ||
+          (e.kind !== "data") !== (e.parent === undefined),
+      ),
+    ).toEqual([]);
     expect(
       await ok(
         fixture.at("mission-control/db"),

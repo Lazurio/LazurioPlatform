@@ -284,7 +284,12 @@ it the sweep's round is `busy` and changes nothing, and the next sweep tries aga
 
 **The record.** The last answer per repository (with `since` for a lasting non-current
 answer) is written whole, by a rename, beside the content lock in the install base:
-`<base>/content/sync-<digest of the Folder>.json`. A run for one Organization replaces
+`<base>/content/sync-<digest of the Folder>.json`. An answer and each step of its
+repository name where it belongs, from the slots: a data mount its Module (`parent`), a
+shared Module and its data mount their home Organization (`home`) and slot slug
+(`module`), as `lazurio update --json` carries them
+([update](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself), F67's
+addendum of 2026-11-21). A run for one Organization replaces
 only that Organization's entries. The doctor's `content-sync` check reads it: a warning
 per blocked checkout (`sync-dirty`, `sync-wrong-branch`, …) and per one denied,
 unavailable or failed for a day (`sync-denied`, `sync-unavailable`, `sync-failed`),

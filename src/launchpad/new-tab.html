@@ -131,6 +131,11 @@ button { cursor: pointer; }
 .nto-update-state.is-working { color: var(--lz-blue-500); }
 .nto-update-state.is-finding { color: var(--lz-warning); }
 .nto-update-state { overflow-wrap: anywhere; }
+/* A shared Module's row (decision F67's addendum of 2026-11-21): its name
+   and the quiet badge Apps gives it, its explanation in the tooltip. */
+.nto-update-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nto-update-name .nto-name { min-width: 0; }
+.nto-badge { flex: none; padding: 1px 7px; border-radius: 999px; background: var(--nt-hover); color: var(--nt-muted); font-size: 11px; font-weight: 600; cursor: help; }
 .nto-update-link { justify-self: start; color: var(--nt-muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; touch-action: manipulation; }
 .nto-update-link:focus-visible { outline: 2px solid var(--lz-blue-500); outline-offset: 2px; border-radius: 2px; }
 @media (hover: hover) and (pointer: fine) { .nto-update-link:hover { color: var(--nt-ink); } }
