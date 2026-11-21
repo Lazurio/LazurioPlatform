@@ -1539,3 +1539,49 @@ test("his notices under his signs: one click where the browser is still to ask, 
   });
   expect(buddyNoticesView("off", en).button).toBe("Turn on notifications");
 });
+
+test("Buddy GEN4's phone beat: after his signs, only where the page knows his address, which it shows as it is (the product owner, 2026-11-21)", () => {
+  const input = {
+    buddyName: "Buddy",
+    address: null,
+    apps: ["Chat"],
+    automate: "Automatizace",
+    telegram: false,
+    buddyHost: "buddy.example.lazurio.io",
+  } as const;
+  expect(beatsOf(true, true)).toEqual([
+    "hello",
+    "chats",
+    "does",
+    "place",
+    "memory",
+    "signs",
+    "phone",
+  ]);
+  expect(beatsOf(true)).not.toContain("phone");
+  const phone = beatView(6, input, cs);
+  expect(phone).toMatchObject({
+    beat: "phone",
+    progress: "7 z 7",
+    lines: ["Najdete mě i v telefonu, na této adrese."],
+    drawing: { kind: "phone", host: "buddy.example.lazurio.io" },
+  });
+  expect(beatView(6, { ...input, address: "ty" }, cs).lines).toEqual([
+    "Najdeš mě i v telefonu, na této adrese.",
+  ]);
+  // Without his address: six beats, the last is his signs.
+  expect(beatView(6, { ...input, buddyHost: null }, cs).beat).toBe("signs");
+  expect(beatView(6, { ...input, buddyHost: null }, cs).progress).toBe("6 z 6");
+  const draft = { ...draftOf(null, "cs"), address: "vy" as const };
+  // A tour ends on the phone; his launcher still rises on his signs.
+  expect(
+    introduceNav(6, draft, "cs", { gen4: true, tour: true, phone: true }),
+  ).toMatchObject({ next: "finish", spotlight: false });
+  expect(
+    introduceNav(5, draft, "cs", { gen4: true, tour: true, phone: true }),
+  ).toMatchObject({ next: "beat", spotlight: true });
+  // The meeting asks his questions after seven beats.
+  expect(introduceNav(7, draft, "cs", { gen4: true, phone: true }).next).toBe(
+    "confirm",
+  );
+});

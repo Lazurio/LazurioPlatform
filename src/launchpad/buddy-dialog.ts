@@ -273,6 +273,9 @@ export function createBuddyDialog(
      * `enableBuddyNotices`); without it his signs beat says nothing of
      * them. `enable` is called right in the click, as the browser asks, and
      * gives the state after it. */
+    /** His own address on the web (`buddy.<slug>.lazurio.io`), shown on
+     * his phone beat; null where the page has none (no phone beat). */
+    buddyHost?: () => string | null;
     notices?: Readonly<{
       state: () => Promise<BuddyNoticesState>;
       enable: () => Promise<BuddyNoticesState>;
@@ -304,7 +307,8 @@ export function createBuddyDialog(
   /** Buddy GEN4: his own beats; the older Buddy's while not read. */
   const gen4 = () => !buddyOwnSignIn(options.facts().reading);
   /** Where his questions stand: after the beats; a tour has none. */
-  const questionsAt = () => beatsOf(gen4()).length;
+  const host = () => options.buddyHost?.() ?? null;
+  const questionsAt = () => beatsOf(gen4(), host() !== null).length;
   // Where the introduction stands: a beat, then his questions.
   let beat = 0;
   let draft: PersonaDraft = draftOf(null, "cs");
@@ -481,6 +485,7 @@ export function createBuddyDialog(
         ...options.apps(),
         // Buddy GEN4 has no sign-in and no Telegram of his own (#1137).
         telegram: buddyOwnSignIn(options.facts().reading),
+        buddyHost: host(),
       },
       copy,
     );
@@ -506,7 +511,7 @@ export function createBuddyDialog(
     const progress = element("span", "buddy-beat-progress");
     progress.setAttribute("role", "img");
     progress.setAttribute("aria-label", view.progress);
-    beatsOf(gen4()).forEach((_, n) => {
+    beatsOf(gen4(), host() !== null).forEach((_, n) => {
       const bar = element("i");
       if (n === view.index) bar.dataset.state = "on";
       else if (n < view.index) bar.dataset.state = "done";
@@ -695,6 +700,39 @@ export function createBuddyDialog(
         const box = element("div", "buddy-beat-signs-box");
         box.append(list, notices);
         return box;
+      }
+      case "phone": {
+        // His window on a phone: his address at the top, as the phone's
+        // browser shows it, then his chat.
+        const phone = element("div", "buddy-beat-handset");
+        const bar = element("span", "buddy-beat-handset-address");
+        // A long address breaks after its dots, never inside a word.
+        const words = element("span", "buddy-beat-handset-host");
+        drawing.host.split(".").forEach((part, n) => {
+          if (n > 0) words.append(".", element("wbr"));
+          words.append(part);
+        });
+        bar.append(icon("lock"), words);
+        const head = element("span", "buddy-beat-handset-head");
+        const avatar = options.avatar();
+        if (avatar !== null) {
+          const picture = element("img");
+          picture.alt = "";
+          picture.decoding = "async";
+          picture.addEventListener("error", () => picture.remove(), {
+            once: true,
+          });
+          picture.src = avatar;
+          head.append(picture);
+        }
+        const chat = element("span", "buddy-beat-handset-chat");
+        chat.append(
+          element("span", "buddy-beat-msg buddy-beat-msg-mine"),
+          element("span", "buddy-beat-msg"),
+          element("span", "buddy-beat-msg buddy-beat-msg-short"),
+        );
+        phone.append(bar, head, chat);
+        return phone;
       }
       case "where": {
         const tiles = element("ul", "buddy-beat-where");
@@ -992,7 +1030,11 @@ export function createBuddyDialog(
     // Pokračovat, which waits for the names and for ty or vy.
     const way =
       screen === "introduce"
-        ? introduceNav(beat, draft, options.locale(), { gen4: gen4(), tour })
+        ? introduceNav(beat, draft, options.locale(), {
+            gen4: gen4(),
+            tour,
+            phone: host() !== null,
+          })
         : null;
     if (way !== null) {
       if (way.back)

@@ -867,6 +867,7 @@ export function said(
     | "buddyChats"
     | "buddyPlace"
     | "buddySigns"
+    | "buddyOnPhone"
     | "buddyWhere"
     | "buddyWhereTelegram"
     | "buddyAskName"
@@ -918,7 +919,14 @@ export const gen4Beats = Object.freeze([
   "memory",
   "signs",
 ] as const);
-export type MeetBeat = (typeof meetBeats)[number] | (typeof gen4Beats)[number];
+/** His beat on the person's phone (the product owner confirmed it works
+ * there, 2026-11-21): after his signs, only where the page knows his own
+ * address. */
+export const phoneBeat = "phone";
+export type MeetBeat =
+  | (typeof meetBeats)[number]
+  | (typeof gen4Beats)[number]
+  | typeof phoneBeat;
 
 /** Whether Buddy GEN4's introduction opens by itself now, as a tour, for a
  * person who met him before it existed (moved over from the older Buddy):
@@ -1013,8 +1021,8 @@ export function buddyNoticesView(
 }
 
 /** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
-export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
-  gen4 ? gen4Beats : meetBeats;
+export const beatsOf = (gen4: boolean, phone = false): readonly MeetBeat[] =>
+  gen4 ? (phone ? [...gen4Beats, phoneBeat] : gen4Beats) : meetBeats;
 
 /** On the introduction screen of the older Buddy: a beat (`0` to `4`), then
  * his questions. Buddy GEN4's questions come at `beatsOf(true).length`. */
@@ -1070,6 +1078,11 @@ export type BeatDrawing =
       apps: readonly string[];
     }>
   | Readonly<{
+      /** He is on the person's phone too, at his own address. */
+      kind: "phone";
+      host: string;
+    }>
+  | Readonly<{
       /** His signs at his figure, with the words his figure says. */
       kind: "signs";
       signs: readonly Readonly<{
@@ -1114,7 +1127,9 @@ export function helloLine(
 /** One beat of his introduction, in his address (vy before the person
  * chose). `apps` names the Environment's apps as its switch does, the ones
  * it has; `automate` is the switch's name of the app where his bots work;
- * `telegram` is false for Buddy GEN4, who has no Telegram of his own. */
+ * `telegram` is false for Buddy GEN4, who has no Telegram of his own;
+ * `buddyHost` is his own address on the web (`buddy.<slug>.lazurio.io`),
+ * which brings his phone beat, null or absent where the page has none. */
 export function beatView(
   index: number,
   input: Readonly<{
@@ -1123,11 +1138,13 @@ export function beatView(
     apps: readonly string[];
     automate: string;
     telegram?: boolean;
+    buddyHost?: string | null;
   }>,
   copy: Copy,
 ): BeatView {
   // Buddy GEN4 is the one without a Telegram of his own.
-  const beats = beatsOf(input.telegram === false);
+  const host = input.buddyHost ?? null;
+  const beats = beatsOf(input.telegram === false, host !== null);
   const at = Math.max(0, Math.min(beats.length - 1, Math.floor(index)));
   const beat = beats[at] as MeetBeat;
   const { address } = input;
@@ -1187,6 +1204,12 @@ export function beatView(
         ...base,
         lines: [said(copy, "buddyPlace", address)],
         drawing: { kind: "place", apps: input.apps },
+      };
+    case "phone":
+      return {
+        ...base,
+        lines: [said(copy, "buddyOnPhone", address)],
+        drawing: { kind: "phone", host: host ?? "" },
       };
     case "signs":
       return {
@@ -1302,9 +1325,9 @@ export function introduceNav(
   at: number,
   draft: PersonaDraft,
   locale: "cs" | "en",
-  how: Readonly<{ gen4?: boolean; tour?: boolean }> = {},
+  how: Readonly<{ gen4?: boolean; tour?: boolean; phone?: boolean }> = {},
 ): IntroduceNav {
-  const beats = beatsOf(how.gen4 === true);
+  const beats = beatsOf(how.gen4 === true, how.phone === true);
   const last = beats.length - 1;
   if (how.tour === true)
     return {

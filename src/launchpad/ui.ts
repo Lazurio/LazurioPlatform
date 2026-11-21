@@ -961,6 +961,17 @@ const startPanel = createStartPanel({
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
 const buddyAvatar = () => buddyAvatarSource(entry?.buddyOrigin);
+/** His own address on the web, as the person types it on a phone
+ * (`buddy.<slug>.lazurio.io`); null without one. */
+const buddyHost = (): string | null => {
+  const origin = entry?.buddyOrigin;
+  if (origin === undefined) return null;
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
+};
 // "Připojit Telegram" (decision F66): his own bot from BotFather, from
 // Nastavení → Buddy → Kanály and the last screen of "Seznamte se s Buddym".
 const telegramDialog = createTelegramDialog({
@@ -999,6 +1010,7 @@ const buddyDialog = createBuddyDialog({
   finished: () => meetingFinished(),
   closed: () => firstRun(),
   introduced: () => keepBuddyIntroduced(),
+  buddyHost,
   telegram: () => telegramDialog.open(undefined, "meeting"),
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog

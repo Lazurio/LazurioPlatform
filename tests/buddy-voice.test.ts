@@ -42,6 +42,7 @@ const buddyLines = [
   "buddyChats",
   "buddyPlace",
   "buddySigns",
+  "buddyOnPhone",
   "buddyWhere",
   "buddyWhereTelegram",
   "buddyAskName",
