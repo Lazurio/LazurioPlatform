@@ -37,6 +37,7 @@ import {
   aiSignInRouting,
   buddyChatRouting,
   buddyPublicationRules,
+  buddyWindowRouting,
   launchpadRouting,
   networkLine,
   ownSignInIdentity,
@@ -1008,18 +1009,76 @@ test("with a hosted entry agents send the Operator to the Launchpad for sign-ins
     }
 });
 
-// Decision F14's addendum of 2026-10-26 (Matěj: "otevři mi chat s Buddym"
-// opens Buddy's chat in ChatGPT Desktop's panel beside the chat, as "otevři
-// Lazurio" opens the Launchpad there; root decision 0210). Where the recorded
-// entry names Buddy's origin (decision F60), which only the person's own
-// Osobní Prostředí carries, AGENTS.md and the manual name his chat at exactly
-// that address, right after the Launchpad's lines: what the user calls it,
-// opened beside the chat in ChatGPT Desktop and linked in another client,
-// never in the Environment browser, and never a channel to Buddy. Without his
-// origin nothing names it.
-test("where the entry names Buddy's origin, agents open his chat for the user beside the chat in ChatGPT Desktop and never write to him", () => {
-  const origin = "https://buddy.example.lazurio.io";
-  const withOrigin = [
+// Where the user finds Buddy GEN4 (plan LZD-0033): where the binding says
+// this Osobní Prostředí has moved to him (`buddyFolder`), AGENTS.md and the
+// manual say, right after the Launchpad's lines, that he is in a window in
+// this Environment's Lazurio opened from the figure, with no address of his
+// own, and agents never write to him (root decision 0210). Buddy GEN3's
+// address (`buddyOrigin`, decision F60) is no longer named anywhere, and an
+// Environment not moved yet gets no line about the window.
+test("where the binding names Buddy GEN4, agents point the user to his window in Lazurio and never write to him; no file names Buddy GEN3's address", () => {
+  const gen4 = binding({
+    ...personal,
+    relationships: personalRelationships,
+    entry: {
+      ...entries.personal,
+      buddy: {
+        generation: 4,
+        folder: "/home/operator/Buddy",
+        profile: "buddy",
+      },
+    },
+  });
+  expect(gen4.entry?.buddyFolder).toBe("/home/operator/Buddy");
+  const window = {
+    cs: "- Buddy je v okně v Lazuriu tohoto Prostředí",
+    en: "- Buddy is in a window in this Environment's Lazurio",
+  } as const;
+  // The rule that agents never message Buddy stays beside it (root decision
+  // 0210, its night addendum of 2026-10-20, point 4).
+  const noChannel = {
+    cs: "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
+    en: "do not look for a way to send Buddy a message or notify Buddy",
+  } as const;
+  for (const locale of ["cs", "en"] as const) {
+    const outputs = renderOutputs({
+      preset: "hosted-personal",
+      machine: gen4,
+      profile: presetProfile("hosted-personal", "linux", { locale }),
+    });
+    for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
+      const lines = outputs[path].split("\n");
+      const naming = lines.filter((line) => line.startsWith(window[locale]));
+      expect(naming).toEqual([buddyWindowRouting[locale]]);
+      const [line = ""] = naming;
+      expect(line).toContain(
+        locale === "cs"
+          ? "postavička vpravo dole"
+          : "the figure at the bottom right",
+      );
+      expect(line).toContain(
+        locale === "cs" ? "Vlastní adresu nemá" : "no address of its own",
+      );
+      // Right after the Launchpad's lines: the Launchpad, its GitHub line on
+      // the person's own sign-in and, in the manual, where AI signs in.
+      const at = lines.indexOf(line);
+      const ai = path === "manual/this-machine.md" ? 1 : 0;
+      expect(lines[at - 2 - ai]).toStartWith(
+        locale === "cs"
+          ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
+          : "- This Environment's Launchpad (call it Lazurio towards users;",
+      );
+      expect(lines[at - 1 - ai]).toStartWith("- GitHub: ");
+      if (ai === 1) expect(lines[at - 1]).toStartWith("- AI (");
+    }
+    expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
+    expect(outputs["AGENTS.md"]).toContain("`~/Buddy`");
+  }
+  // An Environment not moved to Buddy GEN4 keeps Buddy GEN3's chat routing
+  // (decision F14's addendum of 2026-10-26) until its move (plan LZD-0033
+  // R9): one line with his recorded address in AGENTS.md and the manual, and
+  // no line about the window.
+  const gen3 = [
     personalWithEntry(20000, false, false, true),
     personalWithEntry(20000, true, true, true),
     binding({
@@ -1028,125 +1087,54 @@ test("where the entry names Buddy's origin, agents open his chat for the user be
       entry: withBuddy(entries.personal),
     }),
   ];
-  const contract = {
-    cs: [
-      `- Chat s Buddym, jeho konverzace s uživatelem, je na \`${origin}\`.`,
-      "Tato adresa pochází z handoveru tohoto Environmentu: jinou neskládej a nikdy místo ní nedávej `localhost` ani `127.0.0.1`.",
-      "Otevřená přímo vede rovnou do jeho konverzace.",
-      "Když uživatel řekne „chat s Buddym“, „Buddy“ nebo Buddyho jméno (`persona.buddyName` z `lazurio buddy persona --json`), myslí tím tento chat.",
-      "Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz.",
-      "Přihlašuje se do něj uživatel sám.",
-      "V prohlížeči Environmentu ho nikdy neotevírej, ani přes `preview_open`.",
-      "Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (decision 0210).",
-      "Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.",
-    ],
-    en: [
-      `- Buddy's chat, his conversation with the user, is at \`${origin}\`.`,
-      "This address comes from this Environment's handover: never compose another one and never give `localhost` or `127.0.0.1` instead.",
-      "Opened directly, it goes straight to his conversation.",
-      "When the user says “chat with Buddy”, “Buddy” or Buddy's name (`persona.buddyName` from `lazurio buddy persona --json`), they mean this chat.",
-      "When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link.",
-      "The user signs in to it themselves.",
-      "Never open it in the Environment browser, not even with `preview_open`.",
-      "You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (decision 0210).",
-      "When the user wants to tell Buddy something, open the chat for them and they write to him themselves.",
-    ],
-  } as const;
-  const opening = {
-    cs: "- Chat s Buddym, jeho konverzace s uživatelem, je na",
-    en: "- Buddy's chat, his conversation with the user, is at",
-  } as const;
-  // The rule that agents never message Buddy stays beside it (root decision
-  // 0210, its night addendum of 2026-10-20, point 4).
-  const noChannel = {
-    cs: "nehledáš cestu, jak mu poslat zprávu nebo ho upozornit",
-    en: "do not look for a way to send Buddy a message or notify Buddy",
-  } as const;
-  for (const machine of withOrigin) {
-    expect(machine?.entry?.buddyOrigin).toBe(origin);
-    // Every preset where Buddy can exist: a personal VM takes this one only.
-    expect(allowedPresets(machine)).toEqual(["hosted-personal"]);
-    for (const preset of allowedPresets(machine))
-      for (const locale of ["cs", "en"] as const) {
-        const outputs = renderOutputs({
-          preset,
-          machine,
-          profile: presetProfile(preset, "linux", { locale }),
-        });
-        for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
-          const lines = outputs[path].split("\n");
-          const naming = lines.filter((line) => line.includes(origin));
-          expect(naming).toEqual([buddyChatRouting(origin)[locale]]);
-          const [line = ""] = naming;
-          for (const sentence of contract[locale])
-            expect(line).toContain(sentence);
-          // Right after the Launchpad's lines: the Launchpad, its GitHub
-          // line on the person's own sign-in and, in the manual, where AI
-          // signs in (AGENTS.md, at its byte budget, names Začínáme in the
-          // Launchpad's line instead).
-          const at = lines.indexOf(line);
-          const ai = path === "manual/this-machine.md" ? 1 : 0;
-          expect(lines[at - 2 - ai]).toStartWith(
-            locale === "cs"
-              ? "- Launchpad tohohle Environmentu (uživatelům mu říkej Lazurio;"
-              : "- This Environment's Launchpad (call it Lazurio towards users;",
-          );
-          expect(lines[at - 1 - ai]).toStartWith("- GitHub: ");
-          if (ai === 1) expect(lines[at - 1]).toStartWith("- AI (");
-        }
-        expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
-        // His origin names his chat and nothing else: no other file of the
-        // Folder carries it.
-        for (const [path, text] of Object.entries(outputs))
-          if (path !== "AGENTS.md" && path !== "manual/this-machine.md")
-            expect(text).not.toContain(origin);
-      }
-  }
-  // Without Buddy's origin nothing names his chat: every preset with a hosted
-  // entry, with the Environment browser, public and try-01, and every
-  // journey without an entry.
-  const withoutOrigin = (
-    [
-      { preset: "hosted-personal", machine: bindings.personalEntry },
-      { preset: "hosted-personal", machine: bindings.personalBrowser },
-      {
-        preset: "hosted-organization-personal",
-        machine: bindings.organizationEntry,
-      },
-      {
-        preset: "hosted-organization-personal",
-        machine: bindings.organizationBrowser,
-      },
-      {
-        preset: "hosted-organization-personal",
-        machine: bindings.organizationPublic,
-      },
-      { preset: "hosted-organization-personal", machine: tryBinding() },
-      { preset: "hosted-organization-team", machine: bindings.teamEntry },
-      { preset: "hosted-organization-team", machine: bindings.teamBrowser },
-      { preset: "hosted-organization-team", machine: bindings.teamPublic },
-      { preset: "hosted-organization-team", machine: tryBinding() },
-      {
-        preset: "hosted-organization-steward",
-        machine: bindings.automatedEntry,
-      },
-    ] as const
-  ).map((environment) => ({ ...environment, os: "linux" as const }));
-  for (const { preset, machine, os } of [...withoutOrigin, ...journeys]) {
-    expect(machine?.entry?.buddyOrigin).toBeUndefined();
+  const origin = "https://buddy.example.lazurio.io";
+  for (const machine of gen3) {
+    expect(machine.entry?.buddyOrigin).toBe(origin);
     for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: "hosted-personal",
+        machine,
+        profile: presetProfile("hosted-personal", "linux", { locale }),
+      });
+      for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
+        const lines = outputs[path].split("\n");
+        expect(lines.filter((line) => line.includes(origin))).toEqual([
+          buddyChatRouting(origin)[locale],
+        ]);
+      }
+      for (const text of Object.values(outputs))
+        expect(text).not.toContain(window[locale]);
+    }
+  }
+  // Buddy GEN4 and every Environment without Buddy name no Buddy GEN3 address.
+  const without = [
+    { preset: "hosted-personal" as const, machine: gen4, os: "linux" as const },
+    ...allowedPresets(tryBinding()).map((preset) => ({
+      preset,
+      machine: tryBinding(),
+      os: "linux" as const,
+    })),
+    ...journeys,
+  ];
+  for (const { preset, machine, os } of without)
+    for (const locale of ["cs", "en"] as const) {
+      if (
+        machine?.entry?.buddyOrigin !== undefined &&
+        machine.entry.buddyFolder === undefined
+      )
+        continue;
       const outputs = renderOutputs({
         preset,
         machine,
         profile: presetProfile(preset, os, { locale }),
       });
       for (const text of Object.values(outputs)) {
-        expect(text).not.toContain("https://buddy.");
-        expect(text).not.toContain("lazurio buddy persona");
-        expect(text).not.toContain(opening[locale]);
+        expect(text).not.toContain("- Chat s Buddym, jeho konverzace");
+        expect(text).not.toContain("- Buddy's chat, his conversation");
+        if (machine?.entry?.buddyFolder === undefined)
+          expect(text).not.toContain(window[locale]);
       }
     }
-  }
 });
 
 // Decision F19 addendum 2026-10-04: the agent clones a missing module of the
@@ -1500,7 +1488,7 @@ test("agents ask people through the harness's question tool, and the handoff's c
       // are in the manual's safe habits.
       for (const part of cs
         ? [
-            "si vyžádej nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), nikdy jen textem ve zprávě",
+            "si vyžádej nástrojem svého harnessu na otázky (Claude Code `AskUserQuestion`, Codex `request_user_input`), nikdy jen textem ve zprávě",
             "(ověřovací kód, přihlášení, potvrzení)",
             "2–4 volby, doporučenou první s označením „(Doporučeno)“, kontext ve zprávě nad otázkou.",
             "Nejdřív udělej, co na odpovědi nezávisí",
@@ -1510,7 +1498,7 @@ test("agents ask people through the harness's question tool, and the handoff's c
             "Otázky v `manual/working-here.md`",
           ]
         : [
-            "through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`, Hermes `clarify`), never only in a message",
+            "through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`), never only in a message",
             "(a verification code, a sign-in, a confirmation)",
             "2–4 options, the recommended one first marked “(Recommended)”, the context in the message above.",
             "First do what does not depend on the answer",
