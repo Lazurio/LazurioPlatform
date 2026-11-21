@@ -920,6 +920,31 @@ export const gen4Beats = Object.freeze([
 ] as const);
 export type MeetBeat = (typeof meetBeats)[number] | (typeof gen4Beats)[number];
 
+/** Whether Buddy GEN4's introduction opens by itself now, as a tour, for a
+ * person who met him before it existed (moved over from the older Buddy):
+ * Buddy GEN4 read with his names confirmed, the tour of Lazurio seen to its
+ * end, no dialog open, and not seen here yet (`introduced` false; null,
+ * unknown or without storage, offers nothing). */
+export function buddyIntroductionDue(
+  input: Readonly<{
+    reading: BuddyReading | null;
+    toured: boolean | null;
+    dialogOpen: boolean;
+    introduced: boolean | null;
+  }>,
+): boolean {
+  const { reading } = input;
+  if (reading === null || buddyOwnSignIn(reading)) return false;
+  const fact = buddyFact(reading);
+  return (
+    fact !== "loading" &&
+    fact.confirmed === true &&
+    input.toured === true &&
+    !input.dialogOpen &&
+    input.introduced === false
+  );
+}
+
 /** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
 export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
   gen4 ? gen4Beats : meetBeats;

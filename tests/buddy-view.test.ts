@@ -12,6 +12,7 @@ import {
   beatsOf,
   beatView,
   buddyFact,
+  buddyIntroductionDue,
   buddySignInRow,
   buddySignInStep,
   buddyStateView,
@@ -1423,4 +1424,52 @@ test("Buddy GEN4's way through: his questions after six beats in the meeting; a 
   // The older Buddy's way is unchanged.
   expect(introduceNav(4, draft, "cs").spotlight).toBe(true);
   expect(introduceNav(5, draft, "cs").next).toBe("confirm");
+});
+
+test("Buddy GEN4's introduction opens by itself once, after the tour of Lazurio, with no dialog open, for a person who met him before", () => {
+  const met = {
+    state: "works",
+    signIn: "not-needed",
+    persona: {
+      buddyName: "Buddy",
+      address: "vy",
+      user: { nominative: "Bob", accusative: "Boba", dative: "Bobovi" },
+      confirmed: true,
+      revision: "a".repeat(64),
+      pending: false,
+    },
+  } as unknown as BuddyReading;
+  const due = {
+    reading: met,
+    toured: true,
+    dialogOpen: false,
+    introduced: false,
+  } as const;
+  expect(buddyIntroductionDue(due)).toBe(true);
+  // The tour of Lazurio first; then once its last step is done it is due.
+  expect(buddyIntroductionDue({ ...due, toured: false })).toBe(false);
+  expect(buddyIntroductionDue({ ...due, toured: null })).toBe(false);
+  // Another dialog first; once it closes it is due.
+  expect(buddyIntroductionDue({ ...due, dialogOpen: true })).toBe(false);
+  // Seen here, or no storage to say: nothing by itself.
+  expect(buddyIntroductionDue({ ...due, introduced: true })).toBe(false);
+  expect(buddyIntroductionDue({ ...due, introduced: null })).toBe(false);
+  // Not read, the older Buddy, or a person who has not met him yet (the
+  // meeting itself shows his beats).
+  expect(buddyIntroductionDue({ ...due, reading: null })).toBe(false);
+  expect(
+    buddyIntroductionDue({
+      ...due,
+      reading: { ...met, signIn: "connected" } as BuddyReading,
+    }),
+  ).toBe(false);
+  expect(
+    buddyIntroductionDue({
+      ...due,
+      reading: {
+        ...met,
+        persona: { ...met.persona, confirmed: false },
+      } as BuddyReading,
+    }),
+  ).toBe(false);
 });

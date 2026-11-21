@@ -42,7 +42,7 @@ import { createTelegramDialog } from "./buddy-telegram-dialog";
 import {
   type BuddyStepFacts,
   buddyFact,
-  buddyOwnSignIn,
+  buddyIntroductionDue,
   meetStart,
 } from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
@@ -811,6 +811,8 @@ const tour = createTour({
   // Never two tours at once (decision F56): the guide hears whether the
   // tour wants attention, and the tour waits while the guide is out.
   attention: guideAttention,
+  // Buddy GEN4's introduction waits for the end of this tour.
+  advanced: () => offerBuddyIntroduction(),
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
 // the vault's state as Apps → Trezor reads it, the optional steps and the
@@ -1107,16 +1109,24 @@ function keepBuddyIntroduced() {
  * only on this page's own view, never over the tour of Lazurio, another
  * dialog or the meeting. */
 function offerBuddyIntroduction() {
-  if (!framed || !buddyHere() || buddyDialog.isOpen()) return;
-  const reading = buddyClient.reading();
-  if (reading === null || buddyOwnSignIn(reading)) return;
-  const fact = buddyFact(reading);
-  if (fact === "loading" || fact.confirmed !== true) return;
-  if (tour.toured() !== true) return;
-  if (document.querySelector("dialog[open]") !== null) return;
-  if (buddyIntroduced() !== false) return;
+  if (!framed || !buddyHere()) return;
+  if (
+    !buddyIntroductionDue({
+      reading: buddyClient.reading(),
+      toured: tour.toured(),
+      dialogOpen: document.querySelector("dialog[open]") !== null,
+      introduced: buddyIntroduced(),
+    })
+  )
+    return;
   buddyDialog.open("introduce", "tour");
 }
+// Another dialog closing (a sign-in, a prompt) lets it come: looked at again
+// once the page has settled, as the tour comes back after a dialog.
+new MutationObserver(() => queueMicrotask(offerBuddyIntroduction)).observe(
+  document.body,
+  { attributes: true, attributeFilter: ["open"], subtree: true },
+);
 const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
 // The codes' countdowns, filled in place each second while one waits.
 let buddyTicker: ReturnType<typeof setInterval> | undefined;
