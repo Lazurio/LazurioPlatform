@@ -30,6 +30,8 @@ import { environmentName, hereOf, organizationOf } from "./view";
 //                  organization: {slug, name} | null,
 //                  app, page: {path}, guide: {explainer, step} | null}
 //                 {type: "lazurio.buddy.shown", v: 1, shown: boolean}
+//                 {type: "lazurio.buddy.layout", v: 1,
+//                  mode: "panel" | "fullscreen" | "closed"}
 //
 // `shown` says whether the person's window shows the frame (F60's addendum
 // of 2026-11-20): T3 Code counts a mounted view of a thread as the person
@@ -39,6 +41,13 @@ import { environmentName, hereOf, organizationOf } from "./view";
 // before a context (`createBuddyShownSender`). A frame counts a visit only once it hears
 // `shown: true`; a frame that hears a context without `shown` first (an
 // older host) behaves as before.
+//
+// `layout` from the host says the size the person's window shows (F60's
+// addendum of 2026-11-21), on `shown`'s rules (`createBuddyLayoutSender`):
+// the host also changes the size by itself (the launcher's remembered size,
+// Escape, an explanation of the guide), so the frame cannot know it. T3 Code
+// offers its panels in the full-screen window only, the right panel over the
+// whole window; the small window offers none.
 //
 // The host sends the context after `ready` (again after every `ready`: the
 // frame loaded anew) and after every change, never the same twice
@@ -509,6 +518,11 @@ export function buddyContext(facts: BuddyContextFacts): BuddyContext | null {
 export const buddyShownMessage = (shown: boolean) =>
   Object.freeze({ type: buddyMessage.shown, v: buddyMajor, shown });
 
+/** The message that tells the frame the size the window shows (F60's
+ * addendum of 2026-11-21): the frame's own `layout`, from the host. */
+export const buddyLayoutMessage = (mode: BuddyLayout) =>
+  Object.freeze({ type: buddyMessage.layout, v: buddyMajor, mode });
+
 /** A frame's window, as the host posts to it. */
 export type BuddyFrameWindow = Readonly<{
   postMessage(message: unknown, targetOrigin: string): void;
@@ -568,34 +582,34 @@ export function createBuddyContextSender(
   });
 }
 
-/** The host's sends of `shown` (the impure side wires it): after the
- * frame's `ready` always, then only when it changed; nothing before `ready`,
- * without a frame, and nowhere but the frame's window on exactly Buddy's
- * `origin`. */
-export function createBuddyShownSender(
+/** The host's sends of a fact of the window (the impure side wires it):
+ * after the frame's `ready` always, then only when it changed; nothing before
+ * `ready`, without a frame, and nowhere but the frame's window on exactly
+ * Buddy's `origin`. */
+function createBuddyWindowSender<T>(
   seams: Readonly<{
     origin: string;
     frame: () => BuddyFrameWindow | null;
-    /** Whether the window shows the frame now. */
-    shown: () => boolean;
+    value: () => T;
+    message: (value: T) => unknown;
   }>,
 ) {
   let ready = false;
-  let sent: boolean | null = null;
-  // Whether `shown` just went with a `ready`, right before its context.
+  let sent: T | null = null;
+  // Whether the fact just went with a `ready`, right before its context.
   let fresh = false;
   const send = (force: boolean): boolean => {
     if (!ready || !isShellBuddyOrigin(seams.origin)) return false;
     const frame = seams.frame();
     if (frame === null) return false;
-    const shown = seams.shown();
-    if (!force && shown === sent) return false;
+    const value = seams.value();
+    if (!force && value === sent) return false;
     try {
-      frame.postMessage(buddyShownMessage(shown), seams.origin);
+      frame.postMessage(seams.message(value), seams.origin);
     } catch {
       return false;
     }
-    sent = shown;
+    sent = value;
     return true;
   };
   return Object.freeze({
@@ -605,11 +619,11 @@ export function createBuddyShownSender(
       fresh = send(true);
       return fresh;
     },
-    /** The window may have opened or closed. */
+    /** The window may have changed. */
     changed(): boolean {
       return send(false);
     },
-    /** A context is about to go: `shown` goes first, unless it just went
+    /** A context is about to go: the fact goes first, unless it just went
      * with the `ready` this context answers. A frame loaded anew takes a
      * context without it for an older host's, also before the host saw its
      * new `ready`. */
@@ -617,9 +631,41 @@ export function createBuddyShownSender(
       if (!fresh) send(true);
       fresh = false;
     },
-    /** The `ready` is answered: the next context gets its own `shown`. */
+    /** The `ready` is answered: the next context gets its own. */
     answered(): void {
       fresh = false;
     },
   });
 }
+
+/** The host's sends of `shown` (F60's addendum of 2026-11-20). */
+export const createBuddyShownSender = (
+  seams: Readonly<{
+    origin: string;
+    frame: () => BuddyFrameWindow | null;
+    /** Whether the window shows the frame now. */
+    shown: () => boolean;
+  }>,
+) =>
+  createBuddyWindowSender({
+    origin: seams.origin,
+    frame: seams.frame,
+    value: seams.shown,
+    message: buddyShownMessage,
+  });
+
+/** The host's sends of the window's size (F60's addendum of 2026-11-21). */
+export const createBuddyLayoutSender = (
+  seams: Readonly<{
+    origin: string;
+    frame: () => BuddyFrameWindow | null;
+    /** The size the window shows now. */
+    layout: () => BuddyLayout;
+  }>,
+) =>
+  createBuddyWindowSender({
+    origin: seams.origin,
+    frame: seams.frame,
+    value: seams.layout,
+    message: buddyLayoutMessage,
+  });

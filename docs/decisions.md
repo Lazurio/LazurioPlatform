@@ -23440,6 +23440,60 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
 T3 Code's own chat does. Live acceptance as Bob comes with the T3 Code release that carries
 Lazurio/t3code#240.
 
+### F60 addendum of 2026-11-21: the frame hears the size his window shows
+
+**Decided by Matěj (Organization Admin) on 2026-11-21**. He consented to this message in his
+Buddy's thread at 09:52:21Z, and the coordinating thread BUDDY GEN4 passed it on at 09:55 UTC
+(Lazurio/LazurioPlatform#1139). Earlier he had been told that only the window's size is sent, and
+only to Buddy's window of his own Environment. The protocol `lazurio.buddy.*` v1 gains one more
+message from the host to the frame.
+
+- **The message.** `{type: "lazurio.buddy.layout", v: 1, mode: "panel" | "fullscreen" |
+  "closed"}` says the size the person's window shows. It is the same type and values the frame
+  already sends when it asks for a size, now also from the host. The host sends it on `shown`'s
+  rules (`createBuddyLayoutSender`):
+  - after the frame's `ready`, also after every later `ready`;
+  - right before every context;
+  - whenever the size changes, also when the host changes it by itself.
+
+  It goes only to the frame's window on exactly Buddy's origin. The frame takes it only from its
+  parent on exactly the host's origin, with exactly these members.
+- **Why.** The host changes the size by itself: the launcher opens the remembered size, Escape
+  on the page goes from full screen to the panel, and an explanation of the guide closes the
+  window and brings it back. So the frame could not know the size the person sees.
+  Matěj decided on 2026-11-21 how Buddy GEN4's window offers T3 Code's panels (the F47 addendum
+  of 2026-11-20 gives the right panel Nová karta there):
+  - the small window, which the person moves about the screen, offers neither panel;
+  - the full-screen window offers both, on a phone and a computer alike;
+  - clicking the right panel there stretches it over the whole window, where the person works
+    with the browser or whatever else the panel holds.
+
+  Width alone cannot tell a phone's full screen from the small window, so this needs the size
+  from the host. T3 Code's side is Lazurio/t3code#245.
+- **Compatibility.** Exact keys stay, and so does `v: 1`, because no member is added to an
+  existing message. An older T3 Code drops the host's `layout` as a type it does not take. A
+  newer T3 Code with an older Lazurio never hears it, and keeps the width rule of the small window.
+
+**Considered and set aside:**
+
+| Option | Why not |
+| --- | --- |
+| Decide by the frame's width alone (Lazurio/t3code#243) | A full-screen window on a phone is as narrow as the small window, and the decision offers the panels there; #243 was closed for #245 |
+| A `mode` member in `lazurio.buddy.shown` | Exact keys make any new member v2: an older frame would refuse every `shown` |
+| The frame keeps the size it last asked for | The host changes the size by itself, so after an Escape the frame would think it is full screen |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`:
+  - the frame hears the size after its `ready`, the one the host took for the frame's own request, the panel after an Escape on the page, the size again before a context, and `closed` and the panel again on a close and an open;
+  - it is never sent to `*`;
+  - `shown` and `layout` both precede the context.
+- The vectors carry `buddyLayoutMessage`.
+- `tests/shell-buddy-frame-browser.test.ts` still passes in headless Chrome with the real bubble and element.
+
+**Honest limits.** The panels in Buddy's window work only with a T3 Code release that carries
+Lazurio/t3code#245. Live acceptance as Bob comes with that release and a Lazurio candidate with
+this addendum.
+
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 
 *Buddy GEN3 (note of 2026-11-16).* This decision describes Buddy GEN3. Under decision 0210's addendum of 2026-11-16 (Buddy GEN4, decided, not yet deployed) Buddy is a standard T3 Code thread whose harness and model the person chooses, and the Hermes Agent leaves Lazurio. The text below stays in force for each person until their conversion and is then retired.
