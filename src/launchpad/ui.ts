@@ -39,7 +39,12 @@ import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
-import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
+import {
+  type BuddyStepFacts,
+  buddyFact,
+  buddyOwnSignIn,
+  meetStart,
+} from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -978,6 +983,7 @@ const buddyDialog = createBuddyDialog({
   spotlight: (on) => buddyElement()?.spotlight(on),
   finished: () => meetingFinished(),
   closed: () => firstRun(),
+  introduced: () => keepBuddyIntroduced(),
   telegram: () => telegramDialog.open(undefined, "meeting"),
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
@@ -1070,7 +1076,47 @@ const buddyPanel = createBuddyPanel({
     resume: () => telegramDialog.open("start", "channels"),
     disconnect: () => buddyClient.disconnectTelegram(),
   },
+  introduce: () => buddyDialog.open("introduce", "tour"),
 });
+// Buddy GEN4's introduction (the guide to Buddy, 2026-11-21): a person who
+// met him before it existed, moved over from the older Buddy, sees it once,
+// as a tour of his beats that ends in his window. Whether it was seen is kept
+// in this browser for each Environment, as the tour of Lazurio keeps its
+// progress (`tourStorageKey`); a person who meets him now sees his beats in
+// the meeting itself.
+const buddyIntroducedKey = (environment: string) =>
+  `lazurio.buddy-introduced:${environment}`;
+function buddyIntroduced(): boolean | null {
+  const environment = environmentKey();
+  if (environment === null) return null;
+  try {
+    return localStorage.getItem(buddyIntroducedKey(environment)) !== null;
+  } catch {
+    // Without storage the introduction is not offered by itself.
+    return null;
+  }
+}
+function keepBuddyIntroduced() {
+  const environment = environmentKey();
+  if (environment === null) return;
+  try {
+    localStorage.setItem(buddyIntroducedKey(environment), "1");
+  } catch {}
+}
+/** Opens Buddy GEN4's introduction once for a person who already met him:
+ * only on this page's own view, never over the tour of Lazurio, another
+ * dialog or the meeting. */
+function offerBuddyIntroduction() {
+  if (!framed || !buddyHere() || buddyDialog.isOpen()) return;
+  const reading = buddyClient.reading();
+  if (reading === null || buddyOwnSignIn(reading)) return;
+  const fact = buddyFact(reading);
+  if (fact === "loading" || fact.confirmed !== true) return;
+  if (tour.toured() !== true) return;
+  if (document.querySelector("dialog[open]") !== null) return;
+  if (buddyIntroduced() !== false) return;
+  buddyDialog.open("introduce", "tour");
+}
 const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
 // The codes' countdowns, filled in place each second while one waits.
 let buddyTicker: ReturnType<typeof setInterval> | undefined;
@@ -1242,6 +1288,7 @@ function firstRun() {
   drawGuide(shell.route());
   tour.update();
   takeStart();
+  offerBuddyIntroduction();
 }
 /** The column head of this page counts the basics from what the page
  * itself read, which is newer than the shell document's last reading: the

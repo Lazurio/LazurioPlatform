@@ -2,6 +2,7 @@ import {
   type BeatDrawing,
   type BuddyPart,
   type BuddyStepFacts,
+  beatsOf,
   beatView,
   buddyOwnSignIn,
   type Countdown,
@@ -12,8 +13,6 @@ import {
   introduceScreen,
   keepTogether,
   type MeetScreen,
-  meetBeats,
-  meetQuestionsAt,
   meetScreens,
   type PersonaDraft,
   type PersonaSaveResult,
@@ -265,6 +264,9 @@ export function createBuddyDialog(
     finished: () => void;
     /** The dialog closed: the page draws again (its tour comes back). */
     closed: () => void;
+    /** Buddy GEN4's introduction was shown to the end of its first beat:
+     * the page keeps that the person has seen it. */
+    introduced: () => void;
     /** "Připojit Telegram": this dialog closes and that one opens; its
      * close ends the meeting. */
     telegram: () => void;
@@ -285,6 +287,14 @@ export function createBuddyDialog(
   let screen: MeetScreen = "sign-in";
   // `sign-in`: Nastavení → Buddy's "Přihlásit", the first screen alone.
   let only = false;
+  // `tour`: Buddy GEN4's beats alone, for a person who already met him
+  // (moved over from the older Buddy, or Nastavení → Buddy), ending in his
+  // window.
+  let tour = false;
+  /** Buddy GEN4: his own beats; the older Buddy's while not read. */
+  const gen4 = () => !buddyOwnSignIn(options.facts().reading);
+  /** Where his questions stand: after the beats; a tour has none. */
+  const questionsAt = () => beatsOf(gen4()).length;
   // Where the introduction stands: a beat, then his questions.
   let beat = 0;
   let draft: PersonaDraft = draftOf(null, "cs");
@@ -323,11 +333,12 @@ export function createBuddyDialog(
   /** Another beat of his introduction, or his questions: drawn anew, the
    * focus on what goes on (his questions' first field, else Další). */
   function toBeat(next: number) {
-    beat = Math.max(0, Math.min(meetQuestionsAt, next));
+    const end = tour ? questionsAt() - 1 : questionsAt();
+    beat = Math.max(0, Math.min(end, next));
     drawn = null;
     render();
     const target =
-      beat === meetQuestionsAt
+      beat === questionsAt()
         ? body.querySelector<HTMLElement>("#buddy-meet-name")
         : nav.querySelector<HTMLElement>("button.primary");
     target?.focus({ preventScroll: true });
@@ -485,7 +496,7 @@ export function createBuddyDialog(
     const progress = element("span", "buddy-beat-progress");
     progress.setAttribute("role", "img");
     progress.setAttribute("aria-label", view.progress);
-    meetBeats.forEach((_, n) => {
+    beatsOf(gen4()).forEach((_, n) => {
       const bar = element("i");
       if (n === view.index) bar.dataset.state = "on";
       else if (n < view.index) bar.dataset.state = "done";
@@ -550,6 +561,125 @@ export function createBuddyDialog(
         });
         panel.append(head, chips);
         return panel;
+      }
+      case "chats": {
+        const panel = element("div", "buddy-beat-panel");
+        const head = element("span", "buddy-beat-panel-title");
+        head.append(icon("chat"), drawing.title);
+        const rows = element("ul", "buddy-beat-bots");
+        drawing.rows.forEach((row, n) => {
+          const item = delayed(element("li", "buddy-beat-bot"), n);
+          item.dataset.state = row.state;
+          const state = element("span", "buddy-beat-bot-state");
+          if (row.state === "asks") {
+            state.dataset.asks = "";
+            state.append(element("span", "buddy-beat-sign", "?"), row.status);
+          } else if (row.state === "done") {
+            state.dataset.done = "";
+            state.append(icon("check"), row.status);
+          } else if (row.state === "finish" && row.finished !== undefined) {
+            // At work, then done: both words stand in one place, the second
+            // takes over (without motion it is done at once).
+            const working = element("span", "buddy-beat-then-from");
+            working.append(spinner(), row.status);
+            const done = element("span", "buddy-beat-then-to");
+            done.append(icon("check"), row.finished);
+            state.classList.add("buddy-beat-then");
+            state.append(working, done);
+          } else state.append(spinner(), row.status);
+          item.append(
+            element("span", "buddy-beat-bot-task", keepTogether(row.task)),
+            state,
+          );
+          rows.append(item);
+        });
+        panel.append(head, rows);
+        return panel;
+      }
+      case "handoff": {
+        const box = element("div", "buddy-beat-handoff");
+        const mine = element(
+          "p",
+          "buddy-bubble buddy-beat-mine",
+          keepTogether(drawing.ask),
+        );
+        const panel = element("div", "buddy-beat-panel");
+        const head = element("span", "buddy-beat-panel-title");
+        head.append(icon("chat"), drawing.title);
+        const rows = element("ul", "buddy-beat-bots");
+        const item = delayed(element("li", "buddy-beat-bot"), 0);
+        const state = element("span", "buddy-beat-bot-state buddy-beat-then");
+        const working = element("span", "buddy-beat-then-from");
+        working.append(spinner(), drawing.working);
+        const done = element("span", "buddy-beat-then-to");
+        done.append(icon("check"), drawing.done);
+        state.append(working, done);
+        item.append(
+          element("span", "buddy-beat-bot-task", keepTogether(drawing.task)),
+          state,
+        );
+        rows.append(item);
+        panel.append(head, rows);
+        box.append(mine, panel);
+        return box;
+      }
+      case "place": {
+        const tiles = element("ul", "buddy-beat-where buddy-beat-place");
+        const avatar = options.avatar();
+        drawing.apps.forEach((app, n) => {
+          const tile = delayed(element("li", "buddy-beat-tile"), n);
+          const screen = element("span", "buddy-beat-tile-screen");
+          const corner = element("span", "buddy-beat-tile-bubble");
+          if (avatar !== null) {
+            const picture = element("img");
+            picture.alt = "";
+            picture.decoding = "async";
+            picture.addEventListener("error", () => picture.remove(), {
+              once: true,
+            });
+            picture.src = avatar;
+            corner.append(picture);
+          }
+          // The mark of the page his window carries: the pin and the app.
+          const mark = element("span", "buddy-beat-pin");
+          mark.append(icon("map-pin"), app);
+          screen.append(
+            element("span", "buddy-beat-tile-rail"),
+            element("span", "buddy-beat-tile-line"),
+            element("span", "buddy-beat-tile-line buddy-beat-tile-short"),
+            mark,
+            corner,
+          );
+          tile.append(screen, element("span", "buddy-beat-tile-name", app));
+          tiles.append(tile);
+        });
+        return tiles;
+      }
+      case "signs": {
+        const list = element("ul", "buddy-beat-signs");
+        const avatar = options.avatar();
+        drawing.signs.forEach((sign, n) => {
+          const item = delayed(element("li", "buddy-beat-signs-item"), n);
+          item.dataset.sign = sign.sign;
+          const face = element("span", "buddy-beat-signs-face");
+          if (avatar !== null) {
+            const picture = element("img");
+            picture.alt = "";
+            picture.decoding = "async";
+            picture.addEventListener("error", () => picture.remove(), {
+              once: true,
+            });
+            picture.src = avatar;
+            face.append(picture);
+          }
+          face.append(element("span", "buddy-beat-sign", sign.mark));
+          item.append(
+            face,
+            element("span", "buddy-beat-signs-label", keepTogether(sign.label)),
+          );
+          list.append(item);
+        });
+        return list;
       }
       case "where": {
         const tiles = element("ul", "buddy-beat-where");
@@ -756,6 +886,8 @@ export function createBuddyDialog(
     // Names saved but not brought to Buddy (`unapplied`): the meeting stays,
     // with the line that says so, rather than greeting as if he had them.
     if (result.kind === "saved" && result.unapplied !== true) {
+      // He has introduced himself: a later visit does not play it again.
+      if (gen4()) options.introduced();
       // Buddy GEN4 has no Telegram of his own: the meeting ends here.
       if (buddyOwnSignIn(options.facts().reading)) move("telegram");
       else finish();
@@ -813,13 +945,15 @@ export function createBuddyDialog(
     // Pokračovat, which waits for the names and for ty or vy.
     const way =
       screen === "introduce"
-        ? introduceNav(beat, draft, options.locale())
+        ? introduceNav(beat, draft, options.locale(), { gen4: gen4(), tour })
         : null;
     if (way !== null) {
       if (way.back)
         items.push(button(copy.buddyBeatBack, () => toBeat(beat - 1)));
       if (way.next === "beat")
         items.push(button(copy.buddyBeatNext, () => toBeat(beat + 1), true));
+      else if (way.next === "finish")
+        items.push(button(copy.buddyTourOpen, () => finish(), true));
       else {
         const next = button(copy.buddyContinue, () => void confirm(), true);
         next.disabled = saving || !way.ready;
@@ -890,7 +1024,7 @@ export function createBuddyDialog(
       body.replaceChildren(
         ...(screen === "telegram"
           ? telegramBody(copy)
-          : beat < meetQuestionsAt
+          : tour || beat < questionsAt()
             ? beatBody(copy)
             : questionsBody(copy)),
       );
@@ -918,10 +1052,13 @@ export function createBuddyDialog(
 
   return Object.freeze({
     /** Opens at `start`; `sign-in` only (Nastavení → Buddy) keeps it to
-     * the first screen. */
-    open(start: MeetScreen, mode: "meet" | "sign-in" = "meet") {
+     * the first screen; `tour` plays Buddy GEN4's beats alone and ends in
+     * his window. */
+    open(start: MeetScreen, mode: "meet" | "sign-in" | "tour" = "meet") {
       only = mode === "sign-in";
-      screen = only ? "sign-in" : start;
+      tour = mode === "tour";
+      screen = only ? "sign-in" : tour ? "introduce" : start;
+      if (tour) options.introduced();
       line = null;
       fixing = false;
       beat = 0;

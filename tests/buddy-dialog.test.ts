@@ -76,6 +76,7 @@ function page(
     spotlight: () => undefined,
     finished: () => undefined,
     closed: () => undefined,
+    introduced: () => undefined,
     telegram: () => undefined,
   });
   dialog.open("sign-in", mode);
@@ -356,6 +357,7 @@ test("Buddy GEN4's meeting whose names did not reach him stays open and says so,
     spotlight: () => undefined,
     finished: () => finished.push("finished"),
     closed: () => undefined,
+    introduced: () => undefined,
     telegram: () => undefined,
   });
   dialog.open("introduce");
@@ -382,4 +384,76 @@ test("Buddy GEN4's meeting whose names did not reach him stays open and says so,
     (child) => child.textContent,
   );
   expect(texts).toContain(en.buddyNotApplied);
+});
+
+test("Buddy GEN4's introduction as a tour plays his six beats alone, keeps that it was seen and ends in his window", () => {
+  const byId = new Map<string, FakeNode>();
+  const node = (selector: string) => {
+    let found = byId.get(selector);
+    if (found === undefined) {
+      found = new FakeNode(selector === "#buddy-meet" ? "dialog" : "div");
+      byId.set(selector, found);
+    }
+    return found;
+  };
+  globalThis.document = {
+    querySelector: (selector: string) =>
+      selector.startsWith("#buddy-wave-pictures") ? null : node(selector),
+    createElement: (tag: string) => new FakeNode(tag),
+    createElementNS: (_space: string, tag: string) => new FakeNode(tag),
+  } as unknown as Document;
+  const events: string[] = [];
+  const spotlights: boolean[] = [];
+  const dialog = createBuddyDialog({
+    copy: () => cs,
+    locale: () => "cs",
+    facts: () => ({
+      reading: {
+        state: "works",
+        signIn: "not-needed",
+        persona: {
+          buddyName: "Buddy",
+          address: "ty",
+          user: { nominative: "Alena", accusative: "Alenu", dative: "Aleně" },
+          confirmed: true,
+          revision: "a".repeat(64),
+          pending: false,
+        },
+      } as BuddyReading,
+      signIn: { kind: "idle" } as BuddySignInState,
+      now: Date.now(),
+    }),
+    avatar: () => null,
+    signIn: () => undefined,
+    save: async () => ({ kind: "saved" }) as unknown as PersonaSaveResult,
+    apps: () => ({ apps: ["Chat", "Aplikace"], automate: "Automatizace" }),
+    spotlight: (on) => spotlights.push(on),
+    finished: () => events.push("finished"),
+    closed: () => undefined,
+    introduced: () => events.push("introduced"),
+    telegram: () => undefined,
+  });
+  dialog.open("introduce", "tour");
+  expect(events).toEqual(["introduced"]);
+  const navButton = (label: string) =>
+    [...node("#buddy-meet-nav").walk()].find(
+      (child) => child.tagName === "button" && child.textContent === label,
+    );
+  const beats: string[] = [];
+  for (let n = 0; n < 10; n += 1) {
+    const stage = [...node("#buddy-meet-body").walk()].find(
+      (child) => child.dataset?.beat !== undefined,
+    );
+    beats.push(String(stage?.dataset.beat));
+    const next = navButton(cs.buddyBeatNext);
+    if (next === undefined) break;
+    next.click();
+  }
+  expect(beats).toEqual(["hello", "chats", "does", "place", "memory", "signs"]);
+  // No questions in a tour: the last beat opens his window.
+  expect(navButton(cs.buddyContinue)).toBeUndefined();
+  // His launcher rises while his signs show.
+  expect(spotlights.at(-1)).toBe(true);
+  navButton(cs.buddyTourOpen)?.click();
+  expect(events).toEqual(["introduced", "finished"]);
 });

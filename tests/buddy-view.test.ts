@@ -9,6 +9,7 @@ import {
   type BuddyReading,
   type BuddySignInState,
   type BuddyStepFacts,
+  beatsOf,
   beatView,
   buddyFact,
   buddySignInRow,
@@ -47,6 +48,7 @@ import {
   withYourName,
 } from "../src/launchpad/buddy-view";
 import { messages } from "../src/launchpad/messages";
+import { shellMessages } from "../src/shell/messages";
 import { codexDevicePage } from "../src/tools/ai";
 
 // Decision F65 in the page (buddy-view.ts): Začínáme's step "Seznamte se s
@@ -787,16 +789,14 @@ test("his five beats in order, each one idea in his words with its drawing, vy b
   expect(beatView(4, { ...input, apps: ["Apps"] }, cs).drawing).toMatchObject({
     apps: ["Apps"],
   });
-  // Buddy GEN4 has no Telegram of his own: no phone, no word of it (#1137).
-  const gen4 = beatView(4, { ...input, telegram: false }, cs);
-  expect(gen4.drawing).toEqual({
-    kind: "where",
-    apps: ["Chat", "Apps", "Automate"],
-    phone: null,
-  });
-  expect(gen4.lines).toEqual([
-    "Najdete mě tady vpravo dole, v každé aplikaci.",
-  ]);
+  // Buddy GEN4 has no Telegram of his own and no bots: his beats are his
+  // own (#1137, the guide to Buddy), with no word of either.
+  const gen4 = beatsOf(true).map((_, n) =>
+    beatView(n, { ...input, telegram: false }, cs),
+  );
+  expect(gen4.map((view) => view.beat)).not.toContain("where");
+  expect(gen4.map((view) => view.beat)).not.toContain("bots");
+  expect(JSON.stringify(gen4)).not.toContain("Telegram");
   expect(views[4]?.lines).toHaveLength(2);
   // Once the person chose ty, every line of his says ty.
   const ty = meetBeats.map(
@@ -1307,4 +1307,120 @@ test("his waving figure is the design system's own three frames, pinned by diges
   expect(page).toMatch(
     /@media \(prefers-reduced-motion: reduce\) \{[^}]*\.buddy-wave img[^}]*animation: none;/,
   );
+});
+
+test("Buddy GEN4's six beats: his chats, a thing he hands on, the page he knows, his memory and his signs, in his address (the guide to Buddy)", () => {
+  const input = {
+    buddyName: "Buddy",
+    address: null,
+    apps: ["Chat", "Aplikace", "Automatizace"],
+    automate: "Automatizace",
+    telegram: false,
+  } as const;
+  expect(beatsOf(true)).toEqual([
+    "hello",
+    "chats",
+    "does",
+    "place",
+    "memory",
+    "signs",
+  ]);
+  expect(beatsOf(false)).toEqual(meetBeats);
+  const views = beatsOf(true).map((_, n) => beatView(n, input, cs));
+  expect(views.map((view) => [view.beat, view.progress, view.lines])).toEqual([
+    ["hello", "1 z 6", ["Ahoj, já jsem váš Buddy.", "Jsem tu pro vás."]],
+    ["chats", "2 z 6", ["Hlídám všechny vaše rozhovory v Chatu."]],
+    ["does", "3 z 6", ["Zařídím, co potřebujete."]],
+    ["place", "4 z 6", ["Jsem na každé stránce a vím, kde jste."]],
+    [
+      "memory",
+      "5 z 6",
+      ["Pamatuju si, na čem jsme se domluvili a co vám vyhovuje."],
+    ],
+    ["signs", "6 z 6", ["Když vás potřebuji, uvidíte to tady."]],
+  ]);
+  expect(views[1]?.drawing).toEqual({
+    kind: "chats",
+    title: "Chat",
+    rows: [
+      {
+        task: "Letenky do Lisabonu",
+        state: "finish",
+        status: "Pracuje…",
+        finished: "Hotovo",
+      },
+      { task: "Web pro kavárnu", state: "asks", status: "Má otázku" },
+      { task: "Faktury za listopad", state: "work", status: "Pracuje…" },
+      { task: "Shrnutí smlouvy", state: "done", status: "Hotovo" },
+    ],
+  });
+  expect(views[2]?.drawing).toEqual({
+    kind: "handoff",
+    ask: "Shrň mi tu smlouvu",
+    title: "Chat",
+    task: "Shrnutí smlouvy",
+    working: "Pracuje…",
+    done: "Hotovo",
+  });
+  expect(views[3]?.drawing).toEqual({
+    kind: "place",
+    apps: ["Chat", "Aplikace", "Automatizace"],
+  });
+  // His signs say what his figure says (the shell's own words).
+  expect(views[5]?.drawing).toEqual({
+    kind: "signs",
+    signs: [
+      { sign: "waiting", mark: "?", label: "Buddy na vás čeká" },
+      { sign: "answered", mark: "", label: "Buddy odpověděl" },
+      { sign: "failed", mark: "!", label: "Buddy: něco se nepovedlo" },
+    ],
+  });
+  // Ty once chosen; English has one address.
+  expect(
+    beatsOf(true).map(
+      (_, n) => beatView(n, { ...input, address: "ty" }, cs).lines,
+    ),
+  ).toEqual([
+    ["Ahoj, já jsem tvůj Buddy.", "Jsem tu pro tebe."],
+    ["Hlídám všechny tvoje rozhovory v Chatu."],
+    ["Zařídím, co potřebuješ."],
+    ["Jsem na každé stránce a vím, kde jsi."],
+    ["Pamatuju si, na čem jsme se domluvili a co ti vyhovuje."],
+    ["Když tě potřebuju, uvidíš to tady."],
+  ]);
+  expect(beatView(1, input, en).lines).toEqual([
+    "I watch over all your chats.",
+  ]);
+  // His signs in the shell's words, so the guide and his figure agree.
+  expect(cs.buddySignWaiting).toBe(shellMessages("cs").buddyWaiting);
+  expect(cs.buddySignAnswered).toBe(shellMessages("cs").buddyAnswered);
+  expect(cs.buddySignFailed).toBe(shellMessages("cs").buddyFailed);
+  expect(en.buddySignWaiting).toBe(shellMessages("en").buddyWaiting);
+  expect(en.buddySignAnswered).toBe(shellMessages("en").buddyAnswered);
+  expect(en.buddySignFailed).toBe(shellMessages("en").buddyFailed);
+});
+
+test("Buddy GEN4's way through: his questions after six beats in the meeting; a tour ends in his window; his launcher rises while his signs show", () => {
+  const draft = { ...draftOf(null, "cs"), address: "vy" as const };
+  const gen4 = { gen4: true };
+  expect(introduceNav(5, draft, "cs", gen4)).toMatchObject({
+    next: "beat",
+    spotlight: true,
+  });
+  expect(introduceNav(6, draft, "cs", gen4).next).toBe("confirm");
+  expect(introduceNav(3, draft, "cs", gen4).spotlight).toBe(false);
+  const tour = { gen4: true, tour: true };
+  expect(introduceNav(0, draft, "cs", tour)).toMatchObject({
+    back: false,
+    next: "beat",
+  });
+  expect(introduceNav(5, draft, "cs", tour)).toEqual({
+    back: true,
+    next: "finish",
+    ready: true,
+    spotlight: true,
+  });
+  // The older Buddy's way is unchanged.
+  expect(introduceNav(4, draft, "cs").spotlight).toBe(true);
+  expect(introduceNav(5, draft, "cs").next).toBe("confirm");
 });
