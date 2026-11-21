@@ -33,9 +33,8 @@ import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { namesConfirmed } from "../buddy/names-confirmed";
 import {
+  createNoticesChoiceHolder,
   isBuddyNoticesChoice,
-  readNoticesChoice,
-  writeNoticesChoice,
 } from "../buddy/notices-choice";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
@@ -1630,8 +1629,17 @@ export async function startLaunchpad(
   );
   const buddySignalStreams = new Set<() => void>();
   // Which one tab, on any origin of the shell, tells a change of the sign.
+  // The person's choice of notices, one for the Environment: a claim while
+  // it is off loses, whichever page made it.
+  const buddyNoticesChoice = createNoticesChoiceHolder(toolsEnvironment.home);
   const buddyNoticeClaims =
-    buddySignal === null ? null : createBuddyNoticeClaims(buddySignal.current);
+    buddySignal === null
+      ? null
+      : createBuddyNoticeClaims(
+          buddySignal.current,
+          Date.now,
+          () => buddyNoticesChoice.current() === "on",
+        );
   // His Telegram (decision F66): his own bot from BotFather, connected
   // through Hermes's own writers and read live from Hermes; the restart that
   // brings a change in is F64's, made once he is idle, at most once in two
@@ -2382,14 +2390,8 @@ export async function startLaunchpad(
         if (closing) return response({ error: "closing" }, 503);
         if (buddyNoticeClaims === null)
           return response({ error: "not-found" }, 404);
-        const noticesHome = toolsEnvironment.home;
         if (request.method === "GET")
-          return response({
-            choice:
-              noticesHome === undefined
-                ? "on"
-                : await readNoticesChoice(noticesHome),
-          });
+          return response({ choice: await buddyNoticesChoice.read() });
         const text = await request.text().catch(() => "");
         let value: unknown = null;
         try {
@@ -2401,16 +2403,25 @@ export async function startLaunchpad(
             : {};
         const choice = body.choice;
         if (isBuddyNoticesChoice(choice)) {
-          if (noticesHome === undefined)
+          if (toolsEnvironment.home === undefined)
             return response({ error: "no-home" }, 503);
-          await writeNoticesChoice(noticesHome, choice);
-          return response({ choice });
+          try {
+            return response({ choice: await buddyNoticesChoice.write(choice) });
+          } catch {
+            return response({ error: "not-saved" }, 500);
+          }
         }
-        // A tab with Buddy's window in view holds every notice back.
+        // A tab with Buddy's window in view holds every notice back, until
+        // it says the person left it.
         if (body.viewing === true) {
-          buddyNoticeClaims.viewing();
+          buddyNoticeClaims.viewing(body.tab);
           return response({ viewing: true });
         }
+        if (body.viewing === false) {
+          buddyNoticeClaims.release(body.tab);
+          return response({ viewing: false });
+        }
+        await buddyNoticesChoice.read();
         return response({ notify: buddyNoticeClaims.claim(body.key) });
       }
       if (url.pathname === buddyGatePath) {

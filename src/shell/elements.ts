@@ -8,14 +8,16 @@ import {
 import type { BuddyMenuItem } from "./buddy-element";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
 import {
-  type BuddyNoticesChoice,
   browserNoticesSeams,
   buddyNoticePath,
   buddyNoticesAskedKey,
   buddyViewingEveryMs,
   createBuddyNotifier,
+  createNoticesChoiceCache,
   enableBuddyNotices,
+  readLaunchpadNoticesChoice,
   shouldAskBuddyNotices,
+  writeLaunchpadNoticesChoice,
 } from "./buddy-notice";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
@@ -1352,6 +1354,14 @@ const noticesAsked = (): boolean => {
     return true;
   }
 };
+/** A name for this page among the tabs that say they view Buddy's window. */
+const pageTabName = (): string => {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random()}`.slice(0, 64);
+  }
+};
 /** The browser's permission for notices; null where it has none. */
 const notificationPermission = (): NotificationPermission | null =>
   typeof Notification === "undefined" ? null : Notification.permission;
@@ -1369,13 +1379,27 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private signalSource: EventSource | null = null;
   private liveSignal: ShellBuddySignal | null = null;
   private notifier: ReturnType<typeof createBuddyNotifier> | null = null;
-  // The person's choice for the Environment, as the Launchpad last said;
-  // on until it says otherwise (notices-choice.ts).
-  private noticesChoice: BuddyNoticesChoice = "on";
+  // The person's choice for the Environment, as the Launchpad last said:
+  // read again whenever this page comes to the front (notices-choice.ts).
+  private readonly noticesChoice = createNoticesChoiceCache(
+    readLaunchpadNoticesChoice,
+    writeLaunchpadNoticesChoice,
+  );
   // While Buddy's window is in view here, the Launchpad hears so every
-  // `buddyViewingEveryMs`, and no tab on any origin tells a notice.
+  // `buddyViewingEveryMs`, and no tab on any origin tells a notice; this
+  // page's own name for it, so that leaving lets go of this view only.
   private viewingTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly viewingChanged = () => this.followViewing();
+  private readonly tab = pageTabName();
+  // Read once the browser settled the focus: a blur while the focus moves
+  // into Buddy's frame still leaves this page focused.
+  private readonly viewingChanged = () => {
+    setTimeout(() => {
+      if (document.visibilityState === "visible")
+        void this.noticesChoice.refresh();
+      this.followViewing();
+      this.bubble?.viewingChanged();
+    }, 0);
+  };
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1530,6 +1554,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         }
       },
       focus: (target) => this.view?.focus(target),
+      viewing: () =>
+        document.visibilityState === "visible" && document.hasFocus(),
       guide: {
         known: guide.known,
         playing: guide.attention.playing,
@@ -1565,8 +1591,11 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       this.bubble?.update();
     };
     this.notifier ??= createBuddyNotifier({
+      // The Launchpad refuses the claim too where the choice is off, which
+      // another page may have just made.
       enabled: () =>
-        this.noticesChoice === "on" && notificationPermission() === "granted",
+        this.noticesChoice.current() === "on" &&
+        notificationPermission() === "granted",
       inView: () => this.windowInView(),
       claim: async (key) => {
         const answer = await fetch(buddyNoticePath, {
@@ -1601,13 +1630,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     document.addEventListener("visibilitychange", this.viewingChanged);
     window.addEventListener("focus", this.viewingChanged);
     window.addEventListener("blur", this.viewingChanged);
-    void fetch(buddyNoticePath, { credentials: "same-origin" })
-      .then((answer) => (answer.ok ? answer.json() : null))
-      .then((value: unknown) => {
-        const choice = (value as { choice?: unknown } | null)?.choice;
-        if (choice === "on" || choice === "off") this.noticesChoice = choice;
-      })
-      .catch(() => undefined);
+    void this.noticesChoice.refresh();
   }
 
   private stopSignal(): void {
@@ -1634,70 +1657,80 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   }
 
   /** Says to the Launchpad that Buddy's window is in view here, at once and
-   * then on a beat, while it is and a sign is followed. */
+   * then on a beat, while it is and a sign is followed, and that it no
+   * longer is the moment the person leaves it. */
   private followViewing(): void {
     const inView = this.signalSource !== null && this.windowInView();
+    const say = (viewing: boolean) =>
+      void fetch(buddyNoticePath, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ viewing, tab: this.tab }),
+        keepalive: !viewing,
+      }).catch(() => undefined);
     if (inView && this.viewingTimer === null) {
-      const say = () =>
-        void fetch(buddyNoticePath, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ viewing: true }),
-        }).catch(() => undefined);
-      say();
-      this.viewingTimer = setInterval(say, buddyViewingEveryMs);
+      say(true);
+      this.viewingTimer = setInterval(() => say(true), buddyViewingEveryMs);
     } else if (!inView && this.viewingTimer !== null) {
       clearInterval(this.viewingTimer);
       this.viewingTimer = null;
+      say(false);
     }
   }
 
   /** The launcher's menu where Buddy GEN4's sign is followed and the
-   * browser has notices: the person's choice on this origin. */
-  private noticeMenu(): BuddyMenuItem | null {
-    if (this.signalSource === null) return null;
+   * browser has notices: the Environment's choice, which the person can
+   * always turn off and on here, and this origin's permission beside it. */
+  private noticeMenu(): readonly BuddyMenuItem[] {
+    if (this.signalSource === null) return [];
     const permission = notificationPermission();
-    if (permission === null) return null;
+    if (permission === null) return [];
     const copy = shellMessages(this.pageLang());
-    if (permission === "denied")
-      return Object.freeze({
-        label: copy.buddyNoticesBlocked,
-        checked: false,
-        disabled: true,
-        select: () => {},
-      });
-    const on = this.noticesChoice === "on";
-    // On by default, but the browser has not been asked on this origin yet.
-    if (on && permission === "default")
-      return Object.freeze({
-        label: copy.buddyNoticesAllow,
-        checked: false,
+    const on = this.noticesChoice.current() === "on";
+    const items: BuddyMenuItem[] = [
+      Object.freeze({
+        label: copy.buddyNotices,
+        checked: on,
         disabled: false,
-        select: () => void this.enableNotices(),
-      });
-    return Object.freeze({
-      label: copy.buddyNotices,
-      checked: on,
-      disabled: false,
-      select: () => {
-        if (!on) {
-          void this.enableNotices();
-          return;
-        }
-        this.noticesChoice = "off";
-        void browserNoticesSeams(browserStore())
-          .choose("off")
-          .catch(() => undefined);
-      },
-    });
+        select: () => {
+          if (on) void this.noticesChoice.set("off");
+          else void this.enableNotices();
+        },
+      }),
+    ];
+    // On, but the browser has not been asked on this origin yet.
+    if (on && permission === "default")
+      items.push(
+        Object.freeze({
+          label: copy.buddyNoticesAllow,
+          checked: null,
+          disabled: false,
+          select: () => void this.enableNotices(),
+        }),
+      );
+    if (permission === "denied")
+      items.push(
+        Object.freeze({
+          label: copy.buddyNoticesBlocked,
+          checked: null,
+          disabled: true,
+          select: () => {},
+        }),
+      );
+    return items;
   }
 
   /** The person's click turns the notices on: the browser asks on this
    * origin where it has not, and the choice is on for the Environment. */
   private enableNotices(): Promise<boolean> {
-    this.noticesChoice = "on";
-    return enableBuddyNotices(browserNoticesSeams(browserStore()));
+    return enableBuddyNotices({
+      ...browserNoticesSeams(browserStore()),
+      choose: async (choice) => {
+        if (!(await this.noticesChoice.set(choice)))
+          throw new Error("The choice was not saved");
+      },
+    });
   }
 
   /** The launcher's click that opens Buddy's window asks the browser for
@@ -1709,7 +1742,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (
       !shouldAskBuddyNotices({
         permission: notificationPermission(),
-        choice: this.noticesChoice,
+        choice: this.noticesChoice.current(),
         asked: noticesAsked(),
         met:
           buddyMeeting(

@@ -102,11 +102,12 @@ export type BuddyBubbleView = Readonly<{
   home(): Readonly<{ x: number; y: number }> | null;
 }>;
 
-/** The one choice of the launcher's menu: its words, whether it is on,
- * whether it can be chosen, and what choosing it does. */
+/** A choice of the launcher's menu: its words, whether it is on (null for
+ * an action that is neither on nor off), whether it can be chosen, and what
+ * choosing it does. */
 export type BuddyMenuItem = Readonly<{
   label: string;
-  checked: boolean;
+  checked: boolean | null;
   disabled: boolean;
   select: () => void;
 }>;
@@ -178,9 +179,9 @@ export function createBuddyBubbleView(
     /** This app's memory (`localStorage`), where his place is kept; null
      * keeps it for this page only. */
     store: Store | null;
-    /** The launcher's menu (right click, long press, the menu key): its one
-     * choice now, or null for no menu. */
-    menu?: () => BuddyMenuItem | null;
+    /** The launcher's menu (right click, long press, the menu key): its
+     * choices now; none for no menu. */
+    menu?: () => readonly BuddyMenuItem[];
   }>,
 ): BuddyBubbleView {
   const logoUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(options.logo)}`;
@@ -442,34 +443,45 @@ export function createBuddyBubbleView(
       if (performance.now() < swallowUntil) return;
       options.toggle();
     });
-    // The launcher's menu: one choice, above him, gone on a choice, on
+    // The launcher's menu: its choices, above him, gone on a choice, on
     // Escape and on a press anywhere else.
     const menu = document.createElement("div");
     menu.className = "menu";
     menu.setAttribute("role", "menu");
     menu.hidden = true;
-    const choice = document.createElement("button");
-    choice.type = "button";
-    choice.setAttribute("role", "menuitemcheckbox");
-    menu.append(choice);
-    let chosen: (() => void) | null = null;
+    let chosen: readonly (() => void)[] = [];
     const closeMenu = () => {
       if (menu.hidden) return;
       menu.hidden = true;
-      chosen = null;
+      chosen = [];
       document.removeEventListener("pointerdown", outside, true);
     };
     const outside = (event: PointerEvent) => {
       if (!event.composedPath().includes(menu)) closeMenu();
     };
+    const choices = (): HTMLButtonElement[] => [
+      ...menu.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
+    ];
     launcher.addEventListener("contextmenu", (event) => {
-      const item = options.menu?.() ?? null;
-      if (item === null) return;
+      const items = options.menu?.() ?? [];
+      if (items.length === 0) return;
       event.preventDefault();
-      choice.textContent = item.label;
-      choice.setAttribute("aria-checked", String(item.checked));
-      choice.disabled = item.disabled;
-      chosen = item.select;
+      menu.replaceChildren(
+        ...items.map((item, index) => {
+          const choice = document.createElement("button");
+          choice.type = "button";
+          if (item.checked === null) choice.setAttribute("role", "menuitem");
+          else {
+            choice.setAttribute("role", "menuitemcheckbox");
+            choice.setAttribute("aria-checked", String(item.checked));
+          }
+          choice.textContent = item.label;
+          choice.disabled = item.disabled;
+          choice.dataset.index = String(index);
+          return choice;
+        }),
+      );
+      chosen = items.map((item) => item.select);
       menu.hidden = false;
       // Beside the launcher where it stands now, moved or not.
       const at = buddyMenuPlace(
@@ -480,13 +492,24 @@ export function createBuddyBubbleView(
       menu.style.left = `${at.left}px`;
       menu.style.top = `${at.top}px`;
       document.addEventListener("pointerdown", outside, true);
-      choice.focus();
+      (choices()[0] ?? launcher).focus();
     });
-    choice.addEventListener("click", () => {
-      const select = chosen;
+    menu.addEventListener("click", (event) => {
+      const choice = (event.target as Element | null)?.closest("button");
+      if (choice === null || choice === undefined || choice.disabled) return;
+      const select = chosen[Number(choice.dataset.index)];
       closeMenu();
       launcher.focus();
       select?.();
+    });
+    menu.addEventListener("keydown", (event) => {
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+      event.preventDefault();
+      const all = choices();
+      // In the shadow root the document's active element is the host.
+      const from = all.findIndex((choice) => choice.matches(":focus"));
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      all[(from + step + all.length) % all.length]?.focus();
     });
     menu.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;

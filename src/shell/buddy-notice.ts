@@ -66,23 +66,37 @@ export const buddyViewingEveryMs = 10_000;
 export const buddyViewingHoldMs = 20_000;
 
 /** The Launchpad's claims: the first claim of the current change wins; a
- * claim of anything but the current change, a second one, and every claim
- * while a tab on any origin has Buddy's window in view (`viewing`, said
- * every `buddyViewingEveryMs`) loses. Keeps the last few changes only. */
+ * claim of anything but the current change, a second one, every claim while
+ * the person's choice is off, and every claim while a tab on any origin has
+ * Buddy's window in view (`viewing`, said every `buddyViewingEveryMs`) loses.
+ * Each tab holds its own view, and lets it go when the person leaves it
+ * (`release`), so a window out of focus holds nothing back (#1151). Keeps
+ * the last few changes only. */
 export function createBuddyNoticeClaims(
   current: () => ShellBuddySignal,
   now: () => number = Date.now,
+  allowed: () => boolean = () => true,
 ) {
   const claimed: string[] = [];
-  let viewedUntil = Number.NEGATIVE_INFINITY;
+  const views = new Map<string, number>();
+  const tabOf = (tab: unknown) =>
+    typeof tab === "string" && tab.length > 0 && tab.length <= 64 ? tab : "";
   return Object.freeze({
     /** A tab has Buddy's window in view now. */
-    viewing(): void {
-      viewedUntil = now() + buddyViewingHoldMs;
+    viewing(tab?: unknown): void {
+      views.set(tabOf(tab), now() + buddyViewingHoldMs);
+      if (views.size > 64) views.delete(views.keys().next().value ?? "");
+    },
+    /** That tab no longer has it in view: its hold ends now. */
+    release(tab?: unknown): void {
+      views.delete(tabOf(tab));
     },
     claim(key: unknown): boolean {
       if (typeof key !== "string") return false;
-      if (now() < viewedUntil) return false;
+      if (!allowed()) return false;
+      const at = now();
+      for (const [tab, until] of views) if (until <= at) views.delete(tab);
+      if (views.size > 0) return false;
       if (buddyNoticeKey(current()) !== key) return false;
       if (claimed.includes(key)) return false;
       claimed.push(key);
@@ -144,6 +158,30 @@ export async function enableBuddyNotices(
   return granted;
 }
 
+/** The Environment's choice, as the Launchpad holds it. */
+export async function readLaunchpadNoticesChoice(): Promise<BuddyNoticesChoice> {
+  const answer = await fetch(buddyNoticePath, { credentials: "same-origin" });
+  if (!answer.ok) throw new Error("The choice was not read");
+  const value: unknown = await answer.json();
+  return (value as { choice?: unknown } | null)?.choice === "off"
+    ? "off"
+    : "on";
+}
+
+/** Saves the Environment's choice with the Launchpad; throws where it did
+ * not save it. */
+export async function writeLaunchpadNoticesChoice(
+  choice: BuddyNoticesChoice,
+): Promise<void> {
+  const answer = await fetch(buddyNoticePath, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ choice }),
+  });
+  if (!answer.ok) throw new Error("The choice was not saved");
+}
+
 /** The seams of this page's browser and Launchpad. */
 export const browserNoticesSeams = (
   store: Pick<Storage, "setItem"> | null,
@@ -151,14 +189,7 @@ export const browserNoticesSeams = (
   permission: () =>
     typeof Notification === "undefined" ? null : Notification.permission,
   request: () => Notification.requestPermission(),
-  choose: async (choice) => {
-    await fetch(buddyNoticePath, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ choice }),
-    });
-  },
+  choose: writeLaunchpadNoticesChoice,
   asked: () => {
     try {
       store?.setItem(buddyNoticesAskedKey, new Date().toISOString());
@@ -191,14 +222,52 @@ export async function readBuddyNoticesState(
   permission: () => NotificationPermission | null = browserNoticesSeams(
     null,
   ).permission,
-  read: () => Promise<BuddyNoticesChoice> = async () => {
-    const answer = await fetch(buddyNoticePath, { credentials: "same-origin" });
-    const value: unknown = answer.ok ? await answer.json() : null;
-    return (value as { choice?: unknown } | null)?.choice === "off"
-      ? "off"
-      : "on";
-  },
+  read: () => Promise<BuddyNoticesChoice> = readLaunchpadNoticesChoice,
 ): Promise<BuddyNoticesState> {
   const choice = await read().catch((): BuddyNoticesChoice => "on");
   return buddyNoticesState(permission(), choice);
+}
+
+/** A page's copy of the Environment's choice: read from the Launchpad, set
+ * by the person, and read again when the page comes back to the front. A
+ * read that started before the person's newer choice never overwrites it,
+ * and a choice the Launchpad failed to save goes back to what it holds. */
+export function createNoticesChoiceCache(
+  read: () => Promise<BuddyNoticesChoice>,
+  write: (choice: BuddyNoticesChoice) => Promise<void>,
+  changed: () => void = () => {},
+) {
+  let choice: BuddyNoticesChoice = "on";
+  let version = 0;
+  const refresh = async (): Promise<void> => {
+    const at = version;
+    const value = await read().catch(() => null);
+    if (value === null || at !== version) return;
+    if (value !== choice) {
+      choice = value;
+      changed();
+    }
+  };
+  return Object.freeze({
+    current: (): BuddyNoticesChoice => choice,
+    refresh,
+    /** The person's choice: shown at once, saved, and undone if the save
+     * fails. True when the Launchpad saved it. */
+    async set(next: BuddyNoticesChoice): Promise<boolean> {
+      version += 1;
+      const mine = version;
+      if (next !== choice) {
+        choice = next;
+        changed();
+      }
+      try {
+        await write(next);
+        return true;
+      } catch {
+        // A newer choice of the person's own stays; else the held one.
+        if (mine === version) await refresh();
+        return false;
+      }
+    },
+  });
 }

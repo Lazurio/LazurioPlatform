@@ -5,6 +5,7 @@ import {
   buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
+  createNoticesChoiceCache,
   enableBuddyNotices,
   readBuddyNoticesState,
   shouldAskBuddyNotices,
@@ -116,6 +117,74 @@ test("while a tab on any origin has Buddy's window in view, no other tab tells a
   at += 1;
   expect(claims.claim(key)).toBe(true);
   expect(claims.claim(key)).toBe(false);
+});
+
+test("each tab holds its own view and lets it go when the person leaves it, without letting go of another tab's (#1151)", () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  claims.viewing("chat");
+  claims.viewing("lazurio");
+  // The person leaves Chat's window: Lazurio's still holds the notice back.
+  claims.release("chat");
+  expect(claims.claim(key)).toBe(false);
+  // And leaves Lazurio's too: told at once, not after the hold.
+  at += 1;
+  claims.release("lazurio");
+  expect(claims.claim(key)).toBe(true);
+});
+
+test("the Launchpad refuses every claim while the Environment's choice is off, whichever page claims", () => {
+  let choice: "on" | "off" = "off";
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => 0,
+    () => choice === "on",
+  );
+  const key = buddyNoticeKey(current);
+  expect(claims.claim(key)).toBe(false);
+  choice = "on";
+  expect(claims.claim(key)).toBe(true);
+});
+
+test("a page's copy of the choice follows the other pages, and a late first read never undoes the person's newer choice", async () => {
+  let held = "on" as "on" | "off";
+  const reads: ((choice: "on" | "off") => void)[] = [];
+  let fail = false;
+  let waits = true;
+  const cache = createNoticesChoiceCache(
+    () =>
+      waits
+        ? new Promise((resolve) => reads.push(resolve))
+        : Promise.resolve(held),
+    async (choice) => {
+      if (fail) throw new Error("not saved");
+      held = choice;
+    },
+  );
+  // The first read is still on its way when the person turns them off.
+  const first = cache.refresh();
+  expect(await cache.set("off")).toBe(true);
+  reads[0]?.("on");
+  await first;
+  expect(cache.current()).toBe("off");
+  expect(held).toBe("off");
+  // Another page turned them on: this page reads it when it comes forward.
+  held = "on";
+  const again = cache.refresh();
+  reads[1]?.(held);
+  await again;
+  expect(cache.current()).toBe("on");
+  // A save that fails goes back to what the Launchpad holds.
+  fail = true;
+  waits = false;
+  expect(await cache.set("off")).toBe(false);
+  expect(cache.current()).toBe("on");
 });
 
 test("the click that opens Buddy's window asks once, after the meeting, where the choice is on and the browser has not answered (Matěj 2026-11-21)", () => {
