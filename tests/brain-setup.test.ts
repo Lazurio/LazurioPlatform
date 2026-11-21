@@ -5,6 +5,7 @@ import {
   cp,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rename,
   rm,
@@ -775,6 +776,46 @@ describe("what a dead run left, before the brain starts", () => {
       result: "restored",
       reason: "interrupted",
     });
+  });
+
+  test("a stop whose server systemd keeps refusing to start: setup ends with the journal kept, and a later run recovers it", async () => {
+    const { setupHost, paths, failing } = await host();
+    await brainSetup(setupHost);
+    // A stop that died while copying: the journal says `stopping`, its
+    // copy is half made, and the server is down.
+    const backup = ".gbrain.bak-meaning-20261119T000000Z";
+    await mkdir(join(paths.home, backup), { recursive: true });
+    await writeFile(join(paths.home, backup, "partial"), "x");
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: meaningPin.provider,
+        result: "stopping",
+        at,
+        backup,
+      },
+    });
+    brain.up = false;
+    failing.add("start");
+    // Each run ends (no loop, the lock released), not finished, retryable.
+    for (let run = 0; run < 2; run++) {
+      const result = await brainSetup(setupHost);
+      expect(result).toMatchObject({
+        server: "failed",
+        step: "start",
+        meaning: "waits:start",
+      });
+      expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+        "stopping",
+      );
+      expect(await readdir(paths.home)).toContain(backup);
+    }
+    // systemd starts it again: the next run recovers, the server first.
+    failing.delete("start");
+    const recovered = await brainSetup(setupHost);
+    expect(recovered.server).toBe("running");
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(await readdir(paths.home)).not.toContain(backup);
   });
 
   test("a takeover whose way back failed waits for a person, even where Lazurio's unit is in place", async () => {
