@@ -608,6 +608,7 @@ export function createBuddyDialog(
         head.append(icon("chat"), drawing.title);
         const rows = element("ul", "buddy-beat-bots");
         const item = delayed(element("li", "buddy-beat-bot"), 0);
+        item.dataset.state = "finish";
         const state = element("span", "buddy-beat-bot-state buddy-beat-then");
         const working = element("span", "buddy-beat-then-from");
         working.append(spinner(), drawing.working);
