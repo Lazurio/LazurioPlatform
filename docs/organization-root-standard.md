@@ -92,13 +92,15 @@ overwritten.
 Managed files reach a root as a pull request:
 
 - a new root receives them when it is created (`lazurio organization create`);
-- an existing root receives a new template release as a template
-  synchronization. Until a decision replaces it, decision
+- an existing root receives a new template release as an ordinary reviewed
+  pull request that rewrites only the managed files and the managed blocks of
+  `AGENTS.md` and updates `lazurio.template.json` (decision
+  [0251](decision-register.md#0251--organization-roots-move-to-new-organization_gen4-repositories-without-backward-compatibility),
+  which replaces
   [0174](decision-register.md#0174--a-repository-created-from-a-template-keeps-its-lineage-through-merge-commits)
-  governs it: the head of the pull request contains the exact template release
-  commit as an ancestor (a repository without shared history imports it with
-  `--allow-unrelated-histories`), and the pull request is merged with a merge
-  commit. The checkout's `template` remote points to the template, fetch only.
+  for Organization roots). The pull request carries no merge commit of the
+  template and the root has no `template` remote; the release is a published
+  GitHub Release of the template, and its commit is named in the pull request.
 
 ## Stacks and quality
 
@@ -157,7 +159,7 @@ a workflow (`pull_request.paths`), and on request (`workflow_dispatch`).
 | `OR-09` | The root's contract check exists, comes from the template and runs in `bun run check` | Rule only |
 | `OR-10` | CI as in [CI](#ci): Linux, frozen install, `bun run check`, the pinned Lazurio CLI and `lazurio organization check`, the declaration against `GITHUB_REPOSITORY`; Windows and macOS for changes of code, toolchain or workflows and on request (0171, `MS-14`) | Rule only |
 | `OR-11` | No code, test or text that exists only for GEN2 or GEN3: `git grep -n -i -E 'gen2\|gen3'` on `HEAD` finds nothing but deliberate exceptions: the guest Module folder that the slot contract names (`src/organizations/repository-slots.ts`), the name of a predecessor repository during a move, and quotations in historical records | Rule only; the root's contract check reports it, as an error in managed files and in its strict mode |
-| `OR-12` | A template synchronization follows decision 0174 until a decision replaces it | Rule only |
+| `OR-12` | A template release reaches the root only as a reviewed pull request of its managed files and blocks, from a published release, without a merge commit of the template or a `template` remote (0251) | Rule only |
 
 ## The template
 
