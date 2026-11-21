@@ -1485,7 +1485,7 @@ describe("Aktualizovat: the run's rows per module", () => {
     ]);
   });
 
-  test("a data repository whose state differs from its Module's says so: \"<Module> · data: …\"; the Module's own finding stays its own", () => {
+  test("a data repository whose state differs from its Module's says so on its Module's row as \"Data: …\"; the Module's own finding stays its own", () => {
     const dirty = { result: "blocked", reason: "dirty" };
     expect(
       shown(
@@ -1506,13 +1506,13 @@ describe("Aktualizovat: the run's rows per module", () => {
       [
         "Mission Control",
         "finding",
-        "Mission Control · data: Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+        "Data: Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
         null,
       ],
       [
         `${home} / clients`,
         "finding",
-        `${home} / clients · data: GitHub k němu toto Prostředí nepustil`,
+        "Data: GitHub k němu toto Prostředí nepustil",
         "nasdílený",
       ],
     ]);
@@ -1534,7 +1534,7 @@ describe("Aktualizovat: the run's rows per module", () => {
       [
         "Mission Control",
         "finding",
-        "Mission Control · data: GitHub is not answering; try again in a moment",
+        "Data: GitHub is not answering; try again in a moment",
         null,
       ],
     ]);

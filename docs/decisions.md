@@ -25924,8 +25924,8 @@ Organization's Module „„Organizace / Modul“ + štítek (Doporučeno)“.
 2. **How the update view shows them.** This extends [F47's addendum of
    2026-10-24](#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
    (its point 3, one row per module): a Module's data repository stays in its Module's row
-   and is named `<Module> · data` (Czech `<Modul> · data`) only where its state differs
-   from the Module's; a shared Module has a row of its own named
+   and only where its state differs from the Module's does that row say so, as `Data: …`
+   under the Module's name (it reads `<Module> · data`, Czech `<Modul> · data`); a shared Module has a row of its own named
    `<home Organization> / <slot slug>` with the badge, its data repository under it like
    any Module's, and it is never merged with the Organization's own Module of the same
    slug.
@@ -25968,9 +25968,10 @@ it.
   Module is shown by its path relative to the root; this replaces F47's "no path is ever
   shown" for that case only. An absent shared Module, like an absent Module, has no row.
 - **A data finding.** Where the Module has no finding of its own and its data has one
-  (blocked, denied, unreachable, failed), the row says „<Modul> · data: …“ /
-  "<Module> · data: …" with the finding in words; the Module's own finding stays the
-  row's, without the data's name. Progress (checking, fetching, done with its commit) is
+  (blocked, denied, unreachable, failed), the row's line under the Module's name says
+  „Data: …“ / "Data: …" with the finding in words, so the row reads as „<Modul> · data“
+  without repeating the name; the Module's own finding stays the row's, without the
+  data's name. Progress (checking, fetching, done with its commit) is
   the row's as before.
 
 Tests: `tests/new-tab-view.test.ts` (three data repositories and no "db" row; an own and a

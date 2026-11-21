@@ -178,7 +178,7 @@ const en = {
   updateDenied: "GitHub did not let this Environment reach it",
   updateUnreachable: "GitHub is not answering; try again in a moment",
   updateFailed: "It could not be updated",
-  updateDataFinding: "{name} · data: {state}",
+  updateDataFinding: "Data: {state}",
   updateShared: "shared",
   updateSharedHint:
     "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
@@ -384,7 +384,7 @@ const cs: Words = {
   updateDenied: "GitHub k němu toto Prostředí nepustil",
   updateUnreachable: "GitHub teď neodpovídá; zkuste to za chvíli znovu",
   updateFailed: "Nepodařilo se aktualizovat",
-  updateDataFinding: "{name} · data: {state}",
+  updateDataFinding: "Data: {state}",
   updateShared: "nasdílený",
   updateSharedHint:
     "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
@@ -2100,7 +2100,6 @@ export function updateView(
       row(
         "finding",
         fill(copy.updateDataFinding, {
-          name: module.name,
           state: contentFinding(dataFinding, copy),
         }),
       );
