@@ -1,9 +1,11 @@
 import {
   type BeatDrawing,
+  type BuddyNoticesState,
   type BuddyPart,
   type BuddyStepFacts,
   beatsOf,
   beatView,
+  buddyNoticesView,
   buddyOwnSignIn,
   type Countdown,
   countdownText,
@@ -267,6 +269,13 @@ export function createBuddyDialog(
     /** Buddy GEN4's introduction was shown to the end of its first beat:
      * the page keeps that the person has seen it. */
     introduced: () => void;
+    /** His notices on this origin (the shell's `buddyNoticesState` and
+     * `enableBuddyNotices`); without it his signs beat says nothing of
+     * them. `enable` is called right in the click, as the browser asks. */
+    notices?: Readonly<{
+      state: () => BuddyNoticesState;
+      enable: () => Promise<BuddyNoticesState>;
+    }>;
     /** "Připojit Telegram": this dialog closes and that one opens; its
      * close ends the meeting. */
     telegram: () => void;
@@ -680,7 +689,11 @@ export function createBuddyDialog(
           );
           list.append(item);
         });
-        return list;
+        const notices = noticesNode();
+        if (notices === null) return list;
+        const box = element("div", "buddy-beat-signs-box");
+        box.append(list, notices);
+        return box;
       }
       case "where": {
         const tiles = element("ul", "buddy-beat-where");
@@ -726,6 +739,33 @@ export function createBuddyDialog(
         return tiles;
       }
     }
+  }
+
+  /** The notices' row under his signs: Zapnout oznámení where the browser
+   * is still to ask, and how to turn them off; drawn again in place after
+   * the click. */
+  function noticesNode(): HTMLElement | null {
+    const notices = options.notices;
+    if (notices === undefined) return null;
+    const row = element("div", "buddy-beat-notices");
+    const draw = (state: BuddyNoticesState) => {
+      const view = buddyNoticesView(state, options.copy());
+      const nodes: HTMLElement[] = [];
+      if (view.button !== null) {
+        const turnOn = button(view.button, () => {
+          turnOn.disabled = true;
+          void notices.enable().then(draw, () => draw(notices.state()));
+        });
+        nodes.push(turnOn);
+      }
+      if (view.line !== null)
+        nodes.push(element("p", "buddy-beat-notices-line", view.line));
+      row.replaceChildren(...nodes);
+      row.hidden = nodes.length === 0;
+    };
+    row.setAttribute("aria-live", "polite");
+    draw(notices.state());
+    return row;
   }
 
   /** His questions after the beats, built once per visit: typing changes

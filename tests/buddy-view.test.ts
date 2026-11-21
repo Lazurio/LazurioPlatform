@@ -13,6 +13,7 @@ import {
   beatView,
   buddyFact,
   buddyIntroductionDue,
+  buddyNoticesView,
   buddySignInRow,
   buddySignInStep,
   buddyStateView,
@@ -1509,4 +1510,27 @@ test("the introduction's mark: kept only when it reads back, so a full or refuse
   };
   expect(introducedIn(blocked, "env")).toBeNull();
   expect(keepIntroduced(blocked, "env")).toBe(false);
+});
+
+test("his notices under his signs: one click where the browser is still to ask, and how to turn them off, in Lazurio's vy (Matěj, 2026-11-21)", () => {
+  expect(buddyNoticesView("off", cs)).toEqual({
+    button: "Zapnout oznámení",
+    line: "Vypnout je můžete kdykoli v nabídce u postavičky.",
+  });
+  expect(buddyNoticesView("on", cs)).toEqual({
+    button: null,
+    line: "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky.",
+  });
+  // Blocked: the shell's own words, which its menu says too.
+  expect(buddyNoticesView("blocked", cs).line).toBe(
+    shellMessages("cs").buddyNoticesBlocked,
+  );
+  expect(buddyNoticesView("blocked", en).line).toBe(
+    shellMessages("en").buddyNoticesBlocked,
+  );
+  expect(buddyNoticesView("unsupported", cs)).toEqual({
+    button: null,
+    line: null,
+  });
+  expect(buddyNoticesView("off", en).button).toBe("Turn on notifications");
 });

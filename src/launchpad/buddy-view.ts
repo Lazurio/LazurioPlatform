@@ -979,6 +979,37 @@ export function keepIntroduced(
   }
 }
 
+/** Buddy's notices on this page's origin, as the shell says them: on,
+ * off (the browser's permission still to ask), blocked by the browser, or
+ * a browser without notices. */
+export type BuddyNoticesState = "on" | "off" | "blocked" | "unsupported";
+
+/** The notices' row under his signs (Matěj, 2026-11-21: notices on from
+ * the start, and in the guide how to turn them off): one click asks the
+ * browser where it is still to ask; how to turn them off is said whether
+ * they are on or about to be. Lazurio's words, in vy. Nothing where the
+ * browser has no notices. */
+export type BuddyNoticesView = Readonly<{
+  button: string | null;
+  line: string | null;
+}>;
+
+export function buddyNoticesView(
+  state: BuddyNoticesState,
+  copy: Copy,
+): BuddyNoticesView {
+  switch (state) {
+    case "off":
+      return { button: copy.buddyNoticesTurnOn, line: copy.buddyNoticesHowOff };
+    case "on":
+      return { button: null, line: copy.buddyNoticesAreOn };
+    case "blocked":
+      return { button: null, line: copy.buddyNoticesBlockedHere };
+    case "unsupported":
+      return { button: null, line: null };
+  }
+}
+
 /** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
 export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
   gen4 ? gen4Beats : meetBeats;

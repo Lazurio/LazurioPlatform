@@ -457,3 +457,87 @@ test("Buddy GEN4's introduction as a tour plays his six beats alone, keeps that 
   navButton(cs.buddyTourOpen)?.click();
   expect(events).toEqual(["introduced", "finished"]);
 });
+
+test("his signs beat: Zapnout oznámení asks right in the click and the row then says they are on and how to turn them off", async () => {
+  const byId = new Map<string, FakeNode>();
+  const node = (selector: string) => {
+    let found = byId.get(selector);
+    if (found === undefined) {
+      found = new FakeNode(selector === "#buddy-meet" ? "dialog" : "div");
+      byId.set(selector, found);
+    }
+    return found;
+  };
+  globalThis.document = {
+    querySelector: (selector: string) =>
+      selector.startsWith("#buddy-wave-pictures") ? null : node(selector),
+    createElement: (tag: string) => new FakeNode(tag),
+    createElementNS: (_space: string, tag: string) => new FakeNode(tag),
+  } as unknown as Document;
+  let state: "on" | "off" = "off";
+  const asked: string[] = [];
+  const dialog = createBuddyDialog({
+    copy: () => cs,
+    locale: () => "cs",
+    facts: () => ({
+      reading: {
+        state: "works",
+        signIn: "not-needed",
+        persona: {
+          buddyName: "Buddy",
+          address: "vy",
+          user: { nominative: "Bob", accusative: "Boba", dative: "Bobovi" },
+          confirmed: true,
+          revision: "a".repeat(64),
+          pending: false,
+        },
+      } as BuddyReading,
+      signIn: { kind: "idle" } as BuddySignInState,
+      now: Date.now(),
+    }),
+    avatar: () => null,
+    signIn: () => undefined,
+    save: async () => ({ kind: "saved" }) as unknown as PersonaSaveResult,
+    apps: () => ({ apps: ["Chat"], automate: "Automatizace" }),
+    spotlight: () => undefined,
+    finished: () => undefined,
+    closed: () => undefined,
+    introduced: () => undefined,
+    telegram: () => undefined,
+    notices: {
+      state: () => state,
+      enable: async () => {
+        asked.push("asked");
+        state = "on";
+        return state;
+      },
+    },
+  });
+  dialog.open("introduce", "tour");
+  const navButton = (label: string) =>
+    [...node("#buddy-meet-nav").walk()].find(
+      (child) => child.tagName === "button" && child.textContent === label,
+    );
+  for (let n = 0; n < 5; n += 1) navButton(cs.buddyBeatNext)?.click();
+  const body = () => [...node("#buddy-meet-body").walk()];
+  const turnOn = body().find(
+    (child) =>
+      child.tagName === "button" && child.textContent === cs.buddyNoticesTurnOn,
+  );
+  expect(turnOn).toBeDefined();
+  expect(body().map((child) => child.textContent)).toContain(
+    cs.buddyNoticesHowOff,
+  );
+  turnOn?.click();
+  expect(asked).toEqual(["asked"]);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  const texts = body().map((child) => child.textContent);
+  expect(texts).toContain(cs.buddyNoticesAreOn);
+  expect(
+    body().some(
+      (child) =>
+        child.tagName === "button" &&
+        child.textContent === cs.buddyNoticesTurnOn,
+    ),
+  ).toBe(false);
+});

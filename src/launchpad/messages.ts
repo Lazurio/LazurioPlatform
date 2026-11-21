@@ -1536,6 +1536,14 @@ const en = {
   buddySignAnswered: "Buddy has answered",
   buddySignFailed: "Buddy: something went wrong",
   buddyTourOpen: "Open Buddy",
+  // His notices under his signs (Matěj, 2026-11-21): on from the start, and
+  // how to turn them off. The blocked line is the shell's buddyNoticesBlocked.
+  buddyNoticesTurnOn: "Turn on notifications",
+  buddyNoticesHowOff:
+    "You can turn them off at any time in the menu at his figure.",
+  buddyNoticesAreOn:
+    "Notifications are on. You can turn them off in the menu at his figure.",
+  buddyNoticesBlockedHere: "The browser blocks notifications",
   buddyTourAgain: "Watch the introduction",
   buddyWhereVy: "You'll find me here, bottom right, in every app.",
   buddyWhereTy: "You'll find me here, bottom right, in every app.",
@@ -3958,6 +3966,11 @@ const cs: Record<MessageKey, string> = {
   buddySignAnswered: "Buddy odpověděl",
   buddySignFailed: "Buddy: něco se nepovedlo",
   buddyTourOpen: "Otevřít Buddyho",
+  buddyNoticesTurnOn: "Zapnout oznámení",
+  buddyNoticesHowOff: "Vypnout je můžete kdykoli v nabídce u postavičky.",
+  buddyNoticesAreOn:
+    "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky.",
+  buddyNoticesBlockedHere: "Oznámení prohlížeč blokuje",
   buddyTourAgain: "Přehrát představení",
   buddyWhereVy: "Najdete mě tady vpravo dole, v každé aplikaci.",
   buddyWhereTy: "Najdeš mě tady vpravo dole, v každé aplikaci.",
