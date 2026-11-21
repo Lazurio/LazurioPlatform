@@ -1484,6 +1484,60 @@ export function createConnectSessions(host: () => ConnectHost) {
       }
     },
 
+    /** Signs a custom remote server's account in again (Vlastní): one that
+     * expired, or an Organization's Application's that was signed in before
+     * it offered a lasting sign-in (Lazurio/LazurioPlatform#1076). The same
+     * account (`default`) is signed in anew, so its tools stay where agents
+     * find them; the new sign-in asks for what the server now offers. */
+    async reconnectCustom(id: string): Promise<ConnectStart> {
+      const executor = host().executor;
+      if (executor === null)
+        return { kind: "blocked", reason: "executor-unavailable" };
+      try {
+        const found = await customServerOf(executor, id);
+        if ("reason" in found)
+          return {
+            kind: "blocked",
+            reason:
+              found.reason === "account-unknown"
+                ? "account-unknown"
+                : found.reason === "executor-unavailable"
+                  ? "executor-unavailable"
+                  : "connect-failed",
+          };
+        const { config, template } = found;
+        // Only an account that signs in: a command server or one with keys
+        // has nothing to sign in again.
+        if (
+          config.transport !== "remote" ||
+          typeof config.endpoint !== "string" ||
+          template !== "oauth2"
+        )
+          return { kind: "blocked", reason: "account-unknown" };
+        const { url, oauth } = await startOAuth(
+          executor,
+          id,
+          config.endpoint,
+          null,
+          connectionName(null),
+        );
+        const session = open(id, { oauth });
+        awaitOAuth(executor, session, oauth.state);
+        journal({ event: "custom-reconnect", app: id, outcome: "pending" });
+        return authorize(session, url);
+      } catch (error) {
+        const reason =
+          error instanceof ConnectBlocked ? error.reason : "connect-failed";
+        journal({
+          event: "custom-reconnect",
+          app: id,
+          outcome: "blocked",
+          reason,
+        });
+        return { kind: "blocked", reason };
+      }
+    },
+
     /** A custom server as its edit form opens: its configuration and the
      * names of its keys; never a value, never a catalog app's server. */
     async customSettings(

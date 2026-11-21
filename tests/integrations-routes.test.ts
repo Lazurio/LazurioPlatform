@@ -227,6 +227,7 @@ test("one reading: the catalog with one path per app, tool and Executor and Comp
         target: "https://invoices.example.test/mcp",
         state: "connected",
         tools: 6,
+        lasting: null,
       },
     ]);
     expect(value.page).toBeNull();
@@ -2067,6 +2068,102 @@ test("Vlastní: a server at a URL without keys that needs a sign-in starts it", 
   expect(bodiesOf(world, "POST", "/api/oauth/start")).toMatchObject([
     { integration: "sign_in", name: "default", newConnection: true },
   ]);
+});
+
+test("Vlastní: an Application's connection signed in without offline_access is told and connects again on the same account (#1076)", async () => {
+  const { world, app } = await setup({ composio: false });
+  const endpoint = "https://records.example-org.lazurio.app/mcp";
+  world.executor.probes.set(endpoint, { requiresOAuth: true });
+  // Signed in before the Application offered a lasting sign-in.
+  world.executor.authorizationServer.grantedScope =
+    "example-org--apps-01-applications-mcp";
+  const added = (await (
+    await app.post("/api/integrations/custom/add", {
+      type: "http",
+      name: "Records",
+      url: endpoint,
+      headers: [],
+    })
+  ).json()) as { kind: string; session: string };
+  expect(added.kind).toBe("authorize");
+  world.executor.finish("state1", true);
+  expect(await settled(app, added.session)).toMatchObject({
+    kind: "connected",
+  });
+  let reading = (await overview(app)).value;
+  expect(reading.custom).toMatchObject([
+    { id: "records", state: "connected", lasting: false },
+  ]);
+
+  // "Připojit znovu": the same account, signed in anew, asks for what the
+  // Application offers now.
+  world.executor.authorizationServer.grantedScope =
+    "example-org--applications offline_access";
+  const again = await app.post("/api/integrations/custom/reconnect", {
+    id: "records",
+  });
+  expect(again.status).toBe(200);
+  const started = (await again.json()) as { kind: string; session: string };
+  expect(started.kind).toBe("authorize");
+  const starts = bodiesOf(world, "POST", "/api/oauth/start");
+  expect(starts).toHaveLength(2);
+  expect(starts[1]).toMatchObject({ integration: "records", name: "default" });
+  expect(starts[1]).not.toHaveProperty("newConnection");
+  world.executor.finish("state2", true);
+  expect(await settled(app, started.session)).toMatchObject({
+    kind: "connected",
+  });
+  reading = (await overview(app)).value;
+  expect(reading.custom).toMatchObject([
+    { id: "records", state: "connected", lasting: true },
+  ]);
+  expect(
+    world.executor.connections.filter((item) => item.integration === "records"),
+  ).toHaveLength(1);
+});
+
+test("Vlastní: another server's connection is never told to last, and one without a sign-in is not connected again", async () => {
+  const { world, app } = await setup({ composio: false });
+  const endpoint = "https://mcp.signin.example.test/mcp";
+  world.executor.probes.set(endpoint, { requiresOAuth: true });
+  world.executor.authorizationServer.grantedScope = "read";
+  const added = (await (
+    await app.post("/api/integrations/custom/add", {
+      type: "http",
+      name: "Sign In",
+      url: endpoint,
+      headers: [],
+    })
+  ).json()) as { session: string };
+  world.executor.finish("state1", true);
+  await settled(app, added.session);
+  expect((await overview(app)).value.custom).toMatchObject([
+    { id: "sign_in", state: "connected", lasting: null },
+  ]);
+  // A server with keys has nothing to sign in again.
+  world.executor.probes.set("https://keys.example.test/mcp", {
+    requiresOAuth: false,
+  });
+  await app.post("/api/integrations/custom/add", {
+    type: "http",
+    name: "Keys",
+    url: "https://keys.example.test/mcp",
+    bearer: "tokenCanary00000000",
+    headers: [],
+  });
+  const refused = await app.post("/api/integrations/custom/reconnect", {
+    id: "keys",
+  });
+  expect(refused.status).toBe(409);
+  expect(await refused.json()).toEqual({
+    kind: "blocked",
+    reason: "account-unknown",
+  });
+  expect(bodiesOf(world, "POST", "/api/oauth/start")).toHaveLength(1);
+  const invalid = await app.post("/api/integrations/custom/reconnect", {
+    id: "../x",
+  });
+  expect(invalid.status).toBe(400);
 });
 
 test("Vlastní: an edit keeps what it does not change; changing a key sends every key again", async () => {

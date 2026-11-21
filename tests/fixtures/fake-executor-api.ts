@@ -47,6 +47,8 @@ export type FakeConnection = {
   secret?: string;
   /** Its values by input (`values` of `POST /api/connections`). */
   values?: Record<string, string>;
+  /** The scopes its sign-in was granted (`oauthScope`, space-separated). */
+  scope?: string | null;
 };
 
 /** A manual OAuth client (`POST /api/oauth/clients`), as Executor keeps it;
@@ -91,6 +93,9 @@ export type FakeExecutor = Readonly<{
     registration: boolean;
     metadataDocument: boolean;
     loopbackOnly: boolean;
+    /** The scopes a finished sign-in is granted (`oauthScope`); none told
+     * where absent. */
+    grantedScope?: string;
   };
   /** The person signs in (or not) at the authorization URL of `state`;
    * `identity` is the account the ID token names (by default
@@ -131,7 +136,7 @@ const shapeOf = (item: FakeConnection) => ({
   expiresAt: null,
   oauthClient: null,
   oauthClientOwner: null,
-  oauthScope: null,
+  oauthScope: item.scope ?? null,
   missingOAuthScopes: [],
   lastHealth:
     item.health === null
@@ -812,6 +817,9 @@ export async function startFakeExecutor(
         template: "oauth2",
         identityLabel: flow.label ?? identity ?? "person@example.test",
         health: "healthy",
+        ...(authorizationServer.grantedScope === undefined
+          ? {}
+          : { scope: authorizationServer.grantedScope }),
       });
     }
     results.set(

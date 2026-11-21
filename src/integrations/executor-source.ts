@@ -19,9 +19,10 @@ import {
 //   the owning plugin (`mcp`, `openapi`, `graphql`; static namespaces such as
 //   Executor's own tools are left out);
 // - `GET /api/connections`: `[{owner, name, integration, identityLabel,
-//   lastHealth: null | {status, identity?}}]`, keyed by owner, integration
-//   and name; `lastHealth.status` is `healthy`, `expired`, `misconfigured`,
-//   `degraded` or `unknown`;
+//   oauthScope, lastHealth: null | {status, identity?}}]`, keyed by owner,
+//   integration and name; `oauthScope` the scopes its sign-in was granted
+//   (space-separated, or null); `lastHealth.status` is `healthy`, `expired`,
+//   `misconfigured`, `degraded` or `unknown`;
 // - `GET /api/mcp/servers/<slug>`: a custom server's transport, endpoint or
 //   command; `GET /api/tools?integration=<slug>`: its tools.
 // Only the fields named here are read; an answer of another shape makes the
@@ -96,8 +97,18 @@ export function parseConnections(values: unknown[]): ExecutorConnection[] {
         identity ??
         (name === "default" ? null : name),
       state: healthState(health),
+      lasting: lastingOf(connection.oauthScope),
     });
   });
+}
+
+/** Whether a connection's recorded scopes (`oauthScope`, space-separated)
+ * hold `offline_access`; null where Executor recorded none. */
+export function lastingOf(scope: unknown): boolean | null {
+  if (scope === null || scope === undefined) return null;
+  if (typeof scope !== "string") throw new Unreadable();
+  const scopes = scope.split(/\s+/).filter(Boolean);
+  return scopes.length === 0 ? null : scopes.includes("offline_access");
 }
 
 type Listed = Readonly<{

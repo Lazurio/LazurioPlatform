@@ -147,7 +147,9 @@ function isServer(value: unknown): value is CustomServer {
     (server.target === null || typeof server.target === "string") &&
     (server.state === "ready" || states.has(server.state as string)) &&
     (server.tools === null ||
-      (typeof server.tools === "number" && Number.isSafeInteger(server.tools)))
+      (typeof server.tools === "number" &&
+        Number.isSafeInteger(server.tools))) &&
+    (server.lasting === null || typeof server.lasting === "boolean")
   );
 }
 
@@ -1102,6 +1104,10 @@ export function refusalNote(
 
 /** "Připojeno · 5 nástrojů", "Nepodařilo se spustit", "Spouštím…". */
 export function serverLine(server: CustomServer, copy: Copy): string {
+  // An Application's sign-in that expired says so; another server's
+  // expired account (a key refused, too) stays "could not start".
+  if (server.state === "expired" && server.lasting !== null)
+    return copy.integrationsMcpExpired;
   if (server.state === "failed" || server.state === "expired")
     return copy.integrationsMcpFailed;
   if (server.state === "pending") return copy.integrationsMcpPending;
@@ -1118,6 +1124,17 @@ export function serverLine(server: CustomServer, copy: Copy): string {
       { count: String(server.tools) },
     ),
   });
+}
+
+/** Whether a custom server offers "Připojit znovu": an Organization's
+ * Application's connection (its sign-in is known, `lasting` not null) whose
+ * sign-in expired, or that does not last (Lazurio/LazurioPlatform#1076). */
+export function serverReconnects(server: CustomServer): boolean {
+  return (
+    server.lasting !== null &&
+    (server.state === "expired" ||
+      (server.state === "connected" && server.lasting === false))
+  );
 }
 
 /** The monogram of an app without a bundled icon: its first letter. */
