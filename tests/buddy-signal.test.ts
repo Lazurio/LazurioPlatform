@@ -33,7 +33,7 @@ const quietLine = line({
   startedBy: null,
 });
 
-test("a line of T3 Code's follower is the sign; anything else is unavailable, never quiet", () => {
+test("a line of T3 Code's follower is the sign; its no_thread is quiet; anything else is unavailable, never quiet", () => {
   expect(parseBuddySignalLine(line(waiting))).toEqual({
     state: "waiting",
     since: "2026-11-19T16:00:00.000Z",
@@ -73,6 +73,23 @@ test("a line of T3 Code's follower is the sign; anything else is unavailable, ne
       line({ ...waiting, state: "failed", request: null, startedBy: null }),
     ).state,
   ).toBe("failed");
+  // Before the first conversation Buddy has no thread: T3 Code's confirmed
+  // absence is quiet, not unavailable (#1136). Any other reason is not.
+  expect(
+    parseBuddySignalLine(
+      line({
+        version: 1,
+        state: "unavailable",
+        reason: "no_thread",
+        message: "Buddy has no thread yet.",
+      }),
+    ),
+  ).toEqual({ state: "quiet", since: null, request: null, startedBy: null });
+  expect(
+    parseBuddySignalLine(
+      line({ version: 2, state: "unavailable", reason: "no_thread" }),
+    ),
+  ).toBe(unavailableSignal);
   for (const unreadable of [
     "",
     "not json",

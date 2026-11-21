@@ -787,6 +787,17 @@ test("his five beats in order, each one idea in his words with its drawing, vy b
   expect(beatView(4, { ...input, apps: ["Apps"] }, cs).drawing).toMatchObject({
     apps: ["Apps"],
   });
+  // Buddy GEN4 has no Telegram of his own: no phone, no word of it (#1137).
+  const gen4 = beatView(4, { ...input, telegram: false }, cs);
+  expect(gen4.drawing).toEqual({
+    kind: "where",
+    apps: ["Chat", "Apps", "Automate"],
+    phone: null,
+  });
+  expect(gen4.lines).toEqual([
+    "Najdete mě tady vpravo dole, v každé aplikaci.",
+  ]);
+  expect(views[4]?.lines).toHaveLength(2);
   // Once the person chose ty, every line of his says ty.
   const ty = meetBeats.map(
     (_, n) => beatView(n, { ...input, address: "ty" }, cs).lines,

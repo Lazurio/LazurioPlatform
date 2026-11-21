@@ -923,9 +923,10 @@ export type BeatDrawing =
   | Readonly<{ kind: "memory"; title: string; items: readonly string[] }>
   | Readonly<{
       kind: "where";
-      /** The Environment's apps as its switch names them, and the phone. */
+      /** The Environment's apps as its switch names them, and the phone
+       * (Telegram), none for Buddy GEN4. */
       apps: readonly string[];
-      phone: string;
+      phone: string | null;
     }>;
 
 export type BeatView = Readonly<{
@@ -955,7 +956,8 @@ export function helloLine(
 
 /** One beat of his introduction, in his address (vy before the person
  * chose). `apps` names the Environment's apps as its switch does, the ones
- * it has; `automate` is the switch's name of the app where his bots work. */
+ * it has; `automate` is the switch's name of the app where his bots work;
+ * `telegram` is false for Buddy GEN4, who has no Telegram of his own. */
 export function beatView(
   index: number,
   input: Readonly<{
@@ -963,6 +965,7 @@ export function beatView(
     address: "ty" | "vy" | null;
     apps: readonly string[];
     automate: string;
+    telegram?: boolean;
   }>,
   copy: Copy,
 ): BeatView {
@@ -1043,9 +1046,15 @@ export function beatView(
         ...base,
         lines: [
           said(copy, "buddyWhere", address),
-          said(copy, "buddyWhereTelegram", address),
+          ...(input.telegram === false
+            ? []
+            : [said(copy, "buddyWhereTelegram", address)]),
         ],
-        drawing: { kind: "where", apps: input.apps, phone: copy.buddyPhone },
+        drawing: {
+          kind: "where",
+          apps: input.apps,
+          phone: input.telegram === false ? null : copy.buddyPhone,
+        },
       };
   }
 }
