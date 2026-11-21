@@ -15959,13 +15959,24 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
     - **How.** Lazurio switches the archive off with gbrain's own switch
       (`gbrain transcripts archive off`, the setting
       `transcripts.archive.enabled` in its database). The running server
-      holds the database, so the switch is made with the server stopped:
-      for a new brain before its first start, with no stop at all; for a
-      brain that runs already, in one short stop while Buddy is idle.
+      holds the database, so the switch is made with the server stopped.
+      - **A new database is never started with the archive on.** A new
+        brain is switched before its first start, with no stop at all;
+        where the switch fails, it is not started and the install is
+        resumed by the next run. A brain the vault makes anew is switched
+        before its first start too; where that fails, the rebuild goes back
+        to its copy (`stop:rebuild-archive`).
+      - **A brain that runs already** is switched in one short stop while
+        Buddy is idle.
     - **Once per brain, carried with it.** A mark in the brain's directory
       (`lazurio-archive-off.json`) records the switch. Every copy and way
       back of the brain carries it with the database it belongs to, and a
       brain made anew from its vault has none, so it is switched off again.
+    - **Seen and retried.** `lazurio brain setup` prints the outcome
+      (`archive`) and is not finished (exit 1) while the switch fails. The
+      Launchpad runs setup again after a pause while the archive is not off
+      (Buddy working, a switch that failed), also where search by meaning
+      has nothing left to do, at most a day of runs a start.
     - **Not changed.** Deliberate notes (pages written over MCP, through
       Executor or the memory's skill) and every key that writes. Pages the
       archive wrote before stay until the person decides; removing them is

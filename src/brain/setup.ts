@@ -116,6 +116,9 @@ export type SetupResult = Readonly<{
     | "init"
     | "credential"
     | "units"
+    /** gbrain's conversation archive could not be switched off before the
+     * new brain's first start (`./archive.ts`). */
+    | "archive"
     | "reload"
     | "enable"
     | "start"
@@ -444,9 +447,10 @@ async function install(
     return failed("units", status);
   }
   // The agents' conversations stay out of the memory from its first start
-  // (`./archive.ts`); where this fails, the run after the start tries again
-  // with a short stop.
-  await archiveOffBeforeStart(moveHost(host), release);
+  // (`./archive.ts`): a brain whose archive could not be switched off is not
+  // started; the install stays pending and the next run tries again.
+  if ((await archiveOffBeforeStart(moveHost(host), release)) !== "off")
+    return failed("archive", status);
   if (!(await systemctl(command, "daemon-reload")))
     return failed("reload", status);
   if (!(await systemctl(command, "enable", brainUnit)))

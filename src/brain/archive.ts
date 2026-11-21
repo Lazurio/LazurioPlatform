@@ -50,7 +50,7 @@ async function switchOff(
   command: string,
 ): Promise<ArchiveResult> {
   const ran = await host
-    .run([command, "transcripts", "archive", "off", "--json"], 60_000, {
+    .run([command, ...archiveOffArgs], 60_000, {
       HOME: host.paths.home,
       GBRAIN_HOME: host.paths.home,
       PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
@@ -58,18 +58,36 @@ async function switchOff(
     .catch(() => "timeout" as const);
   if (ran === "timeout") return "failed:timeout";
   if (ran.exitCode !== 0) return "failed:refused";
+  return (await markArchiveOff(host.paths, host.now)) ? "off" : "failed:mark";
+}
+
+/** The mark that this brain's archive is off, written after gbrain's own
+ * switch succeeded (also by the vault's rebuild, `./vault.ts`). */
+export async function markArchiveOff(
+  paths: MoveHost["paths"],
+  now?: () => Date,
+): Promise<boolean> {
   try {
-    const at = (host.now ?? (() => new Date()))().toISOString();
-    const mark = join(host.paths.brain, archiveOffMark);
+    const at = (now ?? (() => new Date()))().toISOString();
+    const mark = join(paths.brain, archiveOffMark);
     await writeFile(`${mark}.tmp`, `${JSON.stringify({ at })}\n`, {
       mode: 0o600,
     });
     await rename(`${mark}.tmp`, mark);
+    return true;
   } catch {
-    return "failed:mark";
+    return false;
   }
-  return "off";
 }
+
+/** gbrain's switch, as the steps that make a brain anew run it before its
+ * first start. */
+export const archiveOffArgs = Object.freeze([
+  "transcripts",
+  "archive",
+  "off",
+  "--json",
+]);
 
 /** The archive off for a brain whose server is not started yet (a new
  * brain, before its first start). */

@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+  archiveWaits,
   type BrainServerSessions,
   type BrainSetupLabels,
   brainAnswers,
@@ -224,6 +225,24 @@ describe("lazurio brain setup as the Launchpad's child", () => {
     expect(calls).toEqual([["/opt/lazurio", "brain", "setup", "--json"]]);
     expect(labels).toEqual({ server: "moved", move: "moved" });
     expect(brainAnswers(labels)).toBe(true);
+  });
+
+  test("the archive's outcome is read, and one not off yet keeps the Launchpad running setup again", async () => {
+    for (const [archive, waits] of [
+      ["off", false],
+      ["waits-idle", true],
+      ["failed:refused", true],
+    ] as const) {
+      // Setup exits 1 for a failed switch; its labels are still read.
+      const run: ToolRunner = async () => ({
+        exitCode: archive.startsWith("failed:") ? 1 : 0,
+        stdout: JSON.stringify({ server: "running", archive, meaning: "on" }),
+        stderr: "",
+      });
+      const labels = await runBrainSetup({ executable: "x", run, env: {} });
+      expect(labels).toEqual({ server: "running", archive, meaning: "on" });
+      expect(archiveWaits(labels)).toBe(waits);
+    }
   });
 
   test("no answer, no labels, and nothing for Executor", async () => {
