@@ -83,6 +83,9 @@ export type BrainState = Readonly<{
   /** The SHA-256 of the model's unit as Lazurio last wrote it: a unit of
    * that name is Lazurio's only if it is that or what it writes now. */
   meaningUnit?: string;
+  /** The night window the person chose for search by meaning to compute in
+   * (`lazurio brain night`, `./night.ts`); the default where absent. */
+  night?: Readonly<{ start: string; end: string; timeZone: string }>;
   /** The last attempt to switch it on, while it is not on: `stopping` is
    * written before the server stops and `started` once the copy is whole;
    * a run that finds either recovers it first. `filling`: the model is on

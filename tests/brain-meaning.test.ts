@@ -16,11 +16,14 @@ import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   convergeMeaning,
   downloadVerified,
+  embedLimitFor,
   type MeaningHost,
   meaningBatchLimitMs,
   meaningEmbedLimitMs,
   meaningMaxStalled,
   meaningMaxWindows,
+  meaningNightStopMs,
+  meaningSmallChunks,
   meaningStepLimitMs,
   meaningWindowMs,
 } from "../src/brain/meaning";
@@ -114,6 +117,10 @@ async function stand(
     startFailsAt?: number;
     /** Buddy works for the first questions, up to this one. */
     busyUntil?: number;
+    /** The night window the person chose. */
+    night?: Readonly<{ start: string; end: string; timeZone: string }>;
+    /** The pages the running server counts at the start (46 by default). */
+    served?: number;
   }> = {},
 ) {
   let starts = 0;
@@ -150,6 +157,9 @@ async function stand(
       command,
       source: "lazurio",
     },
+    // The stand's clock (00:10 UTC) inside the night window unless a test
+    // gives another, so its windows run; the day is tested on its own.
+    night: options.night ?? { start: "00:00", end: "23:00", timeZone: "UTC" },
   });
   // `stored`: the pages as stored; `served`: what the running server
   // counts, where pages written while it runs count too.
@@ -157,8 +167,8 @@ async function stand(
     server: true,
     timer: true,
     model: false,
-    stored: 46,
-    served: 46,
+    stored: options.served ?? 46,
+    served: options.served ?? 46,
   };
   const calls: string[][] = [];
   const service: ProcessRunner = async (argv) => {
@@ -483,7 +493,8 @@ describe("switching search by meaning on", () => {
       },
     } as typeof host;
     expect(await convergeMeaning(slow)).toBe("restored:embed-limit");
-    expect(limit).toBe(meaningEmbedLimitMs);
+    // In the night window: its stop, up to an hour, and one batch more.
+    expect(limit).toBe(embedLimitFor(meaningNightStopMs));
     expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
       '{"brain":"before"}',
     );
@@ -491,7 +502,7 @@ describe("switching search by meaning on", () => {
     // Setup as the Launchpad's child outlasts the one window a run takes, at
     // its process limit, and a migration, the counts and the start around it.
     expect(setupTimeoutMs).toBeGreaterThan(
-      meaningEmbedLimitMs + 6 * meaningStepLimitMs,
+      embedLimitFor(meaningNightStopMs) + 6 * meaningStepLimitMs,
     );
   });
 
@@ -662,7 +673,8 @@ describe("the vectors in short windows, the server running with the model betwee
     // Each window is bounded by gbrain's budget, and a batch to the local
     // model has longer than gbrain's 60 s.
     for (const env of envs) {
-      expect(env.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningWindowMs));
+      // In the night window, an hour (the window ends far later).
+      expect(env.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningNightStopMs));
       expect(env.GBRAIN_AI_EMBED_TIMEOUT_MS).toBe(String(meaningBatchLimitMs));
     }
     expect(meaningEmbedLimitMs).toBeGreaterThan(
@@ -1018,5 +1030,96 @@ describe("the Launchpad goes on by itself while search by meaning waits", () => 
     });
     // The first window, then two that failed; then nothing more.
     expect(start.runs()).toBe(3);
+  });
+});
+
+describe("by day the memory is not stopped for search by meaning, except a small backlog", () => {
+  /** A night window the stand's clock (00:10 UTC) is outside of. */
+  const night = { start: "02:00", end: "05:00", timeZone: "UTC" };
+  const stops = (calls: string[][]) =>
+    calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
+
+  test("a brain larger than a small backlog waits for the night: nothing stops, nothing is copied", async () => {
+    const { host, paths, calls, world } = await stand({ night });
+    expect(await convergeMeaning(host)).toBe("waits:night");
+    expect(stops(calls)).toBe(0);
+    expect(calls.some((c) => c[1] === "embed" || c[1] === "embeddings")).toBe(
+      false,
+    );
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+  });
+
+  test("a small brain (a new Environment's) is switched on at once, in one short window", async () => {
+    const { host, calls, envs } = await stand({ night, served: 3 });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(stops(calls)).toBe(1);
+    expect(envs[0]?.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningWindowMs));
+  });
+
+  test("what is left after the night: a small rest is computed by day, a larger one waits for the next night", async () => {
+    // The first window in the night: a large rest left.
+    const large = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 300, reason: "time_budget" },
+        { exit: 0, embedded: 300 },
+      ],
+    });
+    expect(await convergeMeaning(large.host)).toBe("waits:filling");
+    // Then the day comes.
+    await writeBrainState(large.paths, {
+      ...(await readBrainState(large.paths)),
+      night,
+    });
+    expect(await convergeMeaning(large.host)).toBe("waits:night");
+    expect(stops(large.calls)).toBe(1);
+    // A rest one short window computes, by day.
+    const small = await stand({
+      windows: [
+        {
+          exit: 11,
+          embedded: 10,
+          remaining: meaningSmallChunks,
+          reason: "time_budget",
+        },
+        { exit: 0, embedded: meaningSmallChunks },
+      ],
+    });
+    expect(await convergeMeaning(small.host)).toBe("waits:filling");
+    await writeBrainState(small.paths, {
+      ...(await readBrainState(small.paths)),
+      night,
+    });
+    expect(await convergeMeaning(small.host)).toBe("on");
+    expect(small.envs.at(-1)?.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(
+      String(meaningWindowMs),
+    );
+  });
+
+  test("the Launchpad waits for the night window, not every pause, and computes then", async () => {
+    const { host } = await stand({ night });
+    const pauses: number[] = [];
+    let runs = 0;
+    const labels = await brainSetupAtStart({
+      run: async () => {
+        runs += 1;
+        // The night came after the first run's wait.
+        if (runs === 2)
+          await writeBrainState(host.paths, {
+            ...(await readBrainState(host.paths)),
+            night: { start: "00:00", end: "23:00", timeZone: "UTC" },
+          });
+        return { server: "running", meaning: await convergeMeaning(host) };
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      nightInMs: async () => 110 * 60_000,
+      sleep: async (ms) => {
+        pauses.push(ms);
+      },
+    });
+    expect(labels).toEqual({ server: "running", meaning: "on" });
+    // One wait, until the window's start, then the run that switched it on.
+    expect(pauses).toEqual([110 * 60_000]);
   });
 });

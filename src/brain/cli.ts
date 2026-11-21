@@ -1,9 +1,14 @@
+import { mkdir } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
+import { acquireFileLock, type FileLock } from "../platform/flock";
 import { runTool } from "../tools/status";
 import type { CliContext, CommandOutput } from "../update/cli";
 import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
+import { readBrainState, writeBrainState } from "./keys";
+import { type NightWindow, nightOf, parseNight } from "./night";
 import { brainPin } from "./pin";
 import {
   earlierStepBlockers,
@@ -48,7 +53,14 @@ brain take-over [--json]
   this run: where the takeover does not run (Machines not ready, a unit not
   the installer's, its release not known for sure, the server not answering
   its version), nothing takes the brain over later until its owner runs
-  take-over again. A consent an earlier release recorded counts for nothing.`;
+  take-over again. A consent an earlier release recorded counts for nothing.
+brain night [HH:MM-HH:MM [--time-zone Zone]] [--json]
+  The night window in which search by meaning computes its vectors, the
+  memory stopped for it (up to an hour at a stretch, only while Buddy is
+  idle); by day nothing stops the memory for it, except a small backlog one
+  short window computes. Without a window, shows the one in force: the
+  person's, or 02:00-05:00 Europe/Prague. With one, chooses it under setup's
+  lock (busy while another run holds it).`;
 
 export type BrainCliContext = CliContext &
   Readonly<{ host?: SetupHost | undefined }>;
@@ -149,8 +161,8 @@ export function brainStatusText(status: BrainStatus): string {
     status.meaning === "on"
       ? "Search by meaning is on."
       : status.meaning === "filling"
-        ? "Search by meaning is being switched on: it covers the pages done, and the rest is computed in short windows while Buddy is idle."
-        : "Search by meaning is off: the memory finds pages by their words only.";
+        ? `Search by meaning is being switched on: it covers the pages done, and the rest is computed at night (${status.night.start}–${status.night.end}, ${status.night.timeZone}; lazurio brain night changes it).`
+        : `Search by meaning is off: the memory finds pages by their words only. It is computed at night (${status.night.start}–${status.night.end}, ${status.night.timeZone}; lazurio brain night changes it).`;
   return `${head}\nKeys: ${keys}.\n${meaning}${waits}`;
 }
 
@@ -167,30 +179,94 @@ const labelOf = (result: SetupResult) =>
     ...(result.timer === undefined ? [] : [`timer ${result.timer}`]),
   ].join("\n");
 
+/** `lazurio brain night [HH:MM-HH:MM] [--time-zone Zone]`: the night window
+ * search by meaning computes in, shown, or chosen under setup's lock (while
+ * another run holds it, nothing is written: busy). */
+async function nightCommand(
+  host: SetupHost,
+  range: string | undefined,
+  timeZone: string | undefined,
+  json: boolean,
+): Promise<CommandOutput> {
+  const status = await brainStatus(host);
+  if (status.state === "unsupported")
+    return { code: exitUsage, stdout: brainStatusText(status) };
+  const show = (night: NightWindow, code: number, changed: boolean) => ({
+    code,
+    stdout: json
+      ? JSON.stringify({ night, changed })
+      : `Search by meaning computes at night, ${night.start}–${night.end} (${night.timeZone}); by day nothing stops the memory for it, except a small backlog.`,
+  });
+  if (range === undefined)
+    return show(
+      nightOf((await readBrainState(host.paths)).night),
+      exitOk,
+      false,
+    );
+  const chosen = parseNight(range, timeZone);
+  if (typeof chosen === "string")
+    return {
+      code: exitUsage,
+      stderr:
+        chosen === "invalid-range"
+          ? "A night window is HH:MM-HH:MM, start and end apart, e.g. 02:00-05:00."
+          : "That time zone is not known; give an IANA name, e.g. Europe/Prague.",
+    };
+  let lock: FileLock;
+  try {
+    await mkdir(dirname(host.paths.state), { recursive: true, mode: 0o700 });
+    lock = await acquireFileLock(
+      join(dirname(host.paths.state), "setup.lock"),
+      {
+        timeoutMs: 0,
+      },
+    );
+  } catch {
+    return { code: exitUsage, stdout: json ? '{"night":"busy"}' : "busy" };
+  }
+  try {
+    const current = await readBrainState(host.paths);
+    await writeBrainState(host.paths, { ...current, night: chosen });
+  } finally {
+    await lock.release();
+  }
+  return show(chosen, exitOk, true);
+}
+
 export async function runBrainCommand(
   args: readonly string[],
   context: BrainCliContext,
 ): Promise<CommandOutput> {
   const usage = Object.freeze({
     code: exitUsage,
-    stderr: `Usage: brain status|setup|take-over [--json]\n${brainHelp}`,
+    stderr: `Usage: brain status|setup|take-over|night [--json]\n${brainHelp}`,
   });
   let command: string;
   let json = false;
+  let range: string | undefined;
+  let timeZone: string | undefined;
   try {
     const parsed = parseArgs({
       args: [...args],
       strict: true,
       allowPositionals: true,
-      options: { json: { type: "boolean" } },
+      options: {
+        json: { type: "boolean" },
+        "time-zone": { type: "string" },
+      },
     });
-    if (parsed.positionals.length !== 1) return usage;
     command = parsed.positionals[0] as string;
+    const extra = parsed.positionals.length - 1;
+    if (command === "night" ? extra > 1 : extra !== 0) return usage;
+    range = command === "night" ? parsed.positionals[1] : undefined;
+    timeZone = parsed.values["time-zone"];
+    if (timeZone !== undefined && range === undefined) return usage;
     json = parsed.values.json === true;
   } catch {
     return usage;
   }
-  if (!["status", "setup", "take-over"].includes(command)) return usage;
+  if (!["status", "setup", "take-over", "night"].includes(command))
+    return usage;
   const host =
     context.host ??
     processBrainHost({
@@ -208,6 +284,8 @@ export async function runBrainCommand(
         stdout: json ? JSON.stringify(status) : brainStatusText(status),
       };
     }
+    if (command === "night")
+      return await nightCommand(host, range, timeZone, json);
     if (command === "take-over") {
       const status = await brainStatus(host);
       if (status.state === "unsupported")

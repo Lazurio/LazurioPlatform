@@ -1,6 +1,7 @@
 import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { readBrainState } from "./keys";
+import { type NightWindow, nightOf } from "./night";
 import {
   type BrainPaths,
   type brainKeyNames,
@@ -80,6 +81,9 @@ export type BrainStatus =
        * windows (search by meaning over those done), otherwise
        * `keyword-only` (gbrain falls back to words). */
       meaning: "on" | "filling" | "keyword-only";
+      /** The night window search by meaning computes in (`lazurio brain
+       * night`), the person's or the default. */
+      night: NightWindow;
       /** Where the interim installer runs the brain: the release a takeover
        * would record (its commit and version), or null where it is not known
        * for sure and a takeover would be refused (`release-unknown`). Read
@@ -227,6 +231,7 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
     keys,
     handover,
     meaning,
+    night: nightOf(recorded.night),
     ...(owner === "interim" ? await interimCheck() : {}),
   };
   const state = (() => {

@@ -22,7 +22,14 @@ import {
   meaningUnit,
   meaningUrl,
 } from "./meaning-pin";
-import { answers, keepDown, type MoveHost, stoppedForSure } from "./move";
+import {
+  answers,
+  keepDown,
+  type MoveHost,
+  pages,
+  stoppedForSure,
+} from "./move";
+import { nightAt, nightOf } from "./night";
 import { brainRefreshTimer, brainUnit } from "./pin";
 import { writeBrainUnits } from "./units";
 
@@ -48,7 +55,10 @@ import { writeBrainUnits } from "./units";
 // amendment of 2026-11-20 to decision F44 point 10, they are computed in
 // windows (`gbrain embed --stale` with its time budget), one per setup run,
 // the server running with the model between them; the Launchpad runs setup
-// again while windows are left (`./at-start.ts`). Every window, and every
+// again while windows are left (`./at-start.ts`). Since the amendment of
+// 2026-11-21 the windows run in the person's night window (`./night.ts`), up
+// to an hour each; by day only a small backlog gets one short window, and
+// anything larger waits for the night (`waits:night`). Every window, and every
 // way back, is committed before the server starts, so no copy ever comes
 // back over a write. The first window that fails brings the copy before
 // back without the model and is not tried again for this pin (`held`); a
@@ -61,6 +71,21 @@ export type MeaningFetch = (
 ) => Promise<Response>;
 
 export type MeaningHost = MoveHost & Readonly<{ fetch: MeaningFetch }>;
+
+/** How long the next stop may keep the memory down, or null where it waits
+ * for the night: in the person's night window up to `meaningNightStopMs`
+ * (never past its end); by day one short window only for a small backlog
+ * (`meaningWindowMs`); else nothing stops by day. */
+async function stopBudget(
+  host: MoveHost,
+  small: boolean,
+): Promise<number | null> {
+  const night = nightOf((await readBrainState(host.paths)).night);
+  const at = nightAt((host.now ?? (() => new Date()))(), night);
+  if (at.inside && at.endsInMs >= meaningNightLeastMs)
+    return Math.min(at.endsInMs, meaningNightStopMs);
+  return small ? meaningWindowMs : null;
+}
 
 export type MeaningResult =
   | "on"
@@ -322,8 +347,19 @@ export const meaningWindowMs = 3 * 60_000;
 export const meaningBatchLimitMs = 10 * 60_000;
 /** The limit of one window's process: its budget, a batch begun just before
  * it, and the rest; a run that reaches it ends gbrain's process group. */
-export const meaningEmbedLimitMs =
-  meaningWindowMs + meaningBatchLimitMs + 5 * 60_000;
+export const embedLimitFor = (budgetMs: number) =>
+  budgetMs + meaningBatchLimitMs + 5 * 60_000;
+export const meaningEmbedLimitMs = embedLimitFor(meaningWindowMs);
+/** The longest stop in the night window (Matěj: an hour at a stretch is
+ * fine); a window that ends sooner bounds it, and a night window shorter
+ * than `meaningNightLeastMs` left starts no stop. */
+export const meaningNightStopMs = 60 * 60_000;
+export const meaningNightLeastMs = 2 * 60_000;
+/** A backlog small enough for one short window by day: a brain of at most
+ * this many pages before the first window, or this many chunks left after
+ * one (gbrain's count; at about 1.4 s a chunk on 4 vCPU, a short window). */
+export const meaningSmallPages = 25;
+export const meaningSmallChunks = 100;
 /** How long the server runs between two windows, so Buddy and the agents
  * reach the memory: longer than a window, so the memory answers most of
  * the time even where the filling takes many windows (on a fully loaded
@@ -344,23 +380,27 @@ export const meaningStepLimitMs = 15 * 60_000;
  * left (`BUDGET_STOP_EXIT_CODE`, src/core/exit-codes.ts of the pin). */
 const budgetStopExit = 11;
 
-const gbrainEnv = (host: MeaningHost): Record<string, string> => ({
+const gbrainEnv = (
+  host: MeaningHost,
+  budgetMs: number,
+): Record<string, string> => ({
   HOME: host.paths.home,
   GBRAIN_HOME: host.paths.home,
   PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
   LLAMA_SERVER_BASE_URL: `${meaningUrl}/v1`,
   GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
   GBRAIN_AI_EMBED_TIMEOUT_MS: String(meaningBatchLimitMs),
-  GBRAIN_EMBED_TIME_BUDGET_MS: String(meaningWindowMs),
+  GBRAIN_EMBED_TIME_BUDGET_MS: String(budgetMs),
 });
 
 const gbrainOf =
-  (host: MeaningHost, command: string) => async (args: readonly string[]) => {
+  (host: MeaningHost, command: string, budgetMs = meaningWindowMs) =>
+  async (args: readonly string[]) => {
     const result = await host
       .run(
         [command, ...args],
-        args[0] === "embed" ? meaningEmbedLimitMs : meaningStepLimitMs,
-        gbrainEnv(host),
+        args[0] === "embed" ? embedLimitFor(budgetMs) : meaningStepLimitMs,
+        gbrainEnv(host, budgetMs),
       )
       .catch(() => "timeout" as const);
     return result === "timeout"
@@ -384,8 +424,13 @@ export type EmbedWindow =
 export async function embedWindow(
   host: MeaningHost,
   command: string,
+  budgetMs: number = meaningWindowMs,
 ): Promise<EmbedWindow> {
-  const ran = await gbrainOf(host, command)(["embed", "--stale", "--json"]);
+  const ran = await gbrainOf(
+    host,
+    command,
+    budgetMs,
+  )(["embed", "--stale", "--json"]);
   if (ran.exit === null) return { result: "failed", reason: "embed-limit" };
   const count = (key: string) => {
     const value = ran.out?.[key];
@@ -762,6 +807,14 @@ export async function convergeMeaning(
       : `stopped:${attempt.reason ?? "unknown"}`;
   if (attempt?.provider === meaningPin.provider && attempt.result === "filling")
     return fill(host, state.release, attempt);
+  // A small brain (a new Environment's) is switched on at once; a larger one
+  // waits for the person's night window.
+  const served = await pages(host);
+  const budget = await stopBudget(
+    host,
+    served !== null && served <= meaningSmallPages,
+  );
+  if (budget === null) return "waits:night";
   if (!(await host.idle())) return "waits-idle";
   const release = state.release;
   if (release === undefined) return "waits:release-unknown";
@@ -803,7 +856,7 @@ export async function convergeMeaning(
   if (refused !== null) return fallBack(refused);
   // The first window: until it is committed, the copy before is the way
   // back, and the server is stopped, so no page is written meanwhile.
-  const window = await embedWindow(host, release.command);
+  const window = await embedWindow(host, release.command, budget);
   if (window.result === "failed") return fallBack(window.reason);
   if ((await storedPages(host, release.command)) !== stored)
     return fallBack("page-count");
@@ -896,6 +949,12 @@ async function fill(
     await record("restored", "embed-windows");
     return "restored:embed-windows";
   }
+  // What is left waits for the night, unless one short window computes it.
+  const budget = await stopBudget(
+    host,
+    attempt.remaining !== undefined && attempt.remaining <= meaningSmallChunks,
+  );
+  if (budget === null) return "waits:night";
   if (!(await host.idle())) return "waits:filling";
   // A copy a run left after its window was committed is not the way back.
   await rm(window, { recursive: true, force: true }).catch(() => undefined);
@@ -929,7 +988,7 @@ async function fill(
   const result =
     before === null
       ? ({ result: "failed", reason: "page-count" } as const)
-      : await embedWindow(host, release.command);
+      : await embedWindow(host, release.command, budget);
   const counted = (await readBrainState(host.paths)).meaningAttempt;
   const windows = (counted?.windows ?? 0) + 1;
   const progressed =

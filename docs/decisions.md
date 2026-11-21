@@ -15937,6 +15937,27 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       - **Not changed:** the model, its pin and priority, the copy before the
         first window, and that gbrain's trust claim of pages from before
         trust tracking stays the owner's own step.
+    - **Amendment 2026-11-21: at night.** It follows the intermediate step
+      above, as Matěj decided on 2026-11-21.
+      - **When.** The windows run only in a night window the person chooses,
+        by default 02:00–05:00 in Prague's time. An Environment does not
+        know the person's time zone, so the choice carries it:
+        `lazurio brain night 01:00-04:30 --time-zone Europe/Prague`, shown
+        by `lazurio brain status`. A row in Settings comes later.
+      - **How long.** In the night window one stop may last up to an hour,
+        never past the window's end, and only while Buddy is idle. Between
+        stops the server runs for the pause as before. A computation the
+        night does not finish goes on the next night.
+      - **By day** nothing stops the memory for search by meaning. The one
+        exception is a small backlog that one short window (3 minutes)
+        computes: a brain of at most 25 pages before the first window (a
+        new or small Environment), or at most 100 chunks left after one.
+      - **What a person notices.** Search by words works at all times. A
+        page written while search by meaning is on is found by meaning at
+        once, because the server computes its vectors as it is written
+        (measured on 2026-11-21). The night is for the first computation and
+        for what is left. While a night stop lasts, the memory does not
+        answer, also not for agents' nightly work.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.

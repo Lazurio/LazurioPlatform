@@ -70,6 +70,9 @@ export async function brainSetupAtStart(
      * many such runs one start makes at most. */
     fillMs?: number;
     fills?: number;
+    /** Milliseconds to the start of the person's night window, where search
+     * by meaning waits for it (`waits:night`); without it the pause. */
+    nightInMs?: () => Promise<number>;
     sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   }>,
 ): Promise<BrainSetupLabels | null> {
@@ -109,7 +112,19 @@ export async function brainSetupAtStart(
     if (labels.server !== "busy") waiting = meaningWaits(labels);
     if (!waiting) break;
     input.report?.(labels);
-    await sleep(input.fillMs ?? meaningPauseMs, signal);
+    // Waiting for the night: the next run at its start (at least a minute
+    // and at most a day from now), not every pause.
+    const pause =
+      labels.meaning === "waits:night" && input.nightInMs !== undefined
+        ? Math.min(
+            Math.max(
+              await input.nightInMs().catch(() => meaningPauseMs),
+              60_000,
+            ),
+            24 * 3_600_000,
+          )
+        : (input.fillMs ?? meaningPauseMs);
+    await sleep(pause, signal);
     if (signal.aborted) break;
     labels = await run();
   }

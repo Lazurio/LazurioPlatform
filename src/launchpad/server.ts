@@ -11,6 +11,8 @@ import {
   brainSetupAtStart,
   convergeBrainServer,
 } from "../brain/at-start";
+import { readBrainState } from "../brain/keys";
+import { nightAt, nightOf } from "../brain/night";
 import { brainPaths } from "../brain/pin";
 import {
   browserViewDocumentPath,
@@ -3882,6 +3884,14 @@ export async function startLaunchpad(
         // After every run, also between windows of search by meaning: where
         // the server answers, Executor gets Brain at once, not only once the
         // last window is done.
+        // The person's night window, from the brain's record (no secret).
+        nightInMs: async () => {
+          const at = nightAt(
+            new Date(),
+            nightOf((await readBrainState(brainPaths(homedir()))).night),
+          );
+          return at.inside ? 0 : at.startsInMs;
+        },
         settled: async (run) => {
           const server =
             brainAnswers(run) && !closing
