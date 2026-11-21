@@ -505,7 +505,7 @@ test("his signs beat: Zapnout oznámení asks right in the click and the row the
     introduced: () => undefined,
     telegram: () => undefined,
     notices: {
-      state: () => state,
+      state: async () => state,
       enable: async () => {
         asked.push("asked");
         state = "on";
@@ -519,6 +519,8 @@ test("his signs beat: Zapnout oznámení asks right in the click and the row the
       (child) => child.tagName === "button" && child.textContent === label,
     );
   for (let n = 0; n < 5; n += 1) navButton(cs.buddyBeatNext)?.click();
+  // The state is read first; until then the row shows nothing.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   const body = () => [...node("#buddy-meet-body").walk()];
   const turnOn = body().find(
     (child) =>

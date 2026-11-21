@@ -979,28 +979,12 @@ export function keepIntroduced(
   }
 }
 
-/** Buddy's notices on this page's origin: `off` while the browser is still
- * to ask, `allowed` where it allowed them before (the person's choice in
- * the menu at his figure may still be off), `on` right after the click that
- * turned them on, `blocked` by the browser, `unsupported` without notices. */
-export type BuddyNoticesState =
-  | "on"
-  | "off"
-  | "allowed"
-  | "blocked"
-  | "unsupported";
-
-/** The state from the browser's permission (null: no notices). */
-export const buddyNoticesStateOf = (
-  permission: NotificationPermission | null,
-): BuddyNoticesState =>
-  permission === null
-    ? "unsupported"
-    : permission === "granted"
-      ? "allowed"
-      : permission === "denied"
-        ? "blocked"
-        : "off";
+/** Buddy's notices on this page's origin, as the shell reads them
+ * (`readBuddyNoticesState`, Lazurio/LazurioPlatform#1167): `on` only where
+ * the browser allows them and the person's choice is on; `off` where a
+ * click is still to turn them on (the browser to ask, or the choice turned
+ * off); `blocked` by the browser; `unsupported` without notices. */
+export type BuddyNoticesState = "on" | "off" | "blocked" | "unsupported";
 
 /** The notices' row under his signs (Matěj, 2026-11-21: notices on from
  * the start, and in the guide how to turn them off): one click asks the
@@ -1021,8 +1005,6 @@ export function buddyNoticesView(
       return { button: copy.buddyNoticesTurnOn, line: copy.buddyNoticesHowOff };
     case "on":
       return { button: null, line: copy.buddyNoticesAreOn };
-    case "allowed":
-      return { button: null, line: copy.buddyNoticesWhere };
     case "blocked":
       return { button: null, line: copy.buddyNoticesBlockedHere };
     case "unsupported":

@@ -269,11 +269,12 @@ export function createBuddyDialog(
     /** Buddy GEN4's introduction was shown to the end of its first beat:
      * the page keeps that the person has seen it. */
     introduced: () => void;
-    /** His notices on this origin (the shell's `buddyNoticesState` and
+    /** His notices on this origin (the shell's `readBuddyNoticesState` and
      * `enableBuddyNotices`); without it his signs beat says nothing of
-     * them. `enable` is called right in the click, as the browser asks. */
+     * them. `enable` is called right in the click, as the browser asks, and
+     * gives the state after it. */
     notices?: Readonly<{
-      state: () => BuddyNoticesState;
+      state: () => Promise<BuddyNoticesState>;
       enable: () => Promise<BuddyNoticesState>;
     }>;
     /** "Připojit Telegram": this dialog closes and that one opens; its
@@ -754,7 +755,10 @@ export function createBuddyDialog(
       if (view.button !== null) {
         const turnOn = button(view.button, () => {
           turnOn.disabled = true;
-          void notices.enable().then(draw, () => draw(notices.state()));
+          void notices
+            .enable()
+            .catch(() => notices.state())
+            .then(draw, () => draw("unsupported"));
         });
         nodes.push(turnOn);
       }
@@ -764,7 +768,9 @@ export function createBuddyDialog(
       row.hidden = nodes.length === 0;
     };
     row.setAttribute("aria-live", "polite");
-    draw(notices.state());
+    // Nothing until the state is read: no button that might be wrong.
+    row.hidden = true;
+    void notices.state().then(draw, () => draw("unsupported"));
     return row;
   }
 
