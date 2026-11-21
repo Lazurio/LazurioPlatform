@@ -148,7 +148,9 @@ export function brainStatusText(status: BrainStatus): string {
   const meaning =
     status.meaning === "on"
       ? "Search by meaning is on."
-      : "Search by meaning is off: the memory finds pages by their words only.";
+      : status.meaning === "filling"
+        ? "Search by meaning is being switched on: it covers the pages done, and the rest is computed in short windows while Buddy is idle."
+        : "Search by meaning is off: the memory finds pages by their words only.";
   return `${head}\nKeys: ${keys}.\n${meaning}${waits}`;
 }
 
@@ -161,6 +163,7 @@ const labelOf = (result: SetupResult) =>
     ...(result.takeover === undefined ? [] : [`takeover ${result.takeover}`]),
     ...(result.move === undefined ? [] : [`move ${result.move}`]),
     ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
+    ...(result.archive === undefined ? [] : [`archive ${result.archive}`]),
     ...(result.meaning === undefined ? [] : [`meaning ${result.meaning}`]),
     ...(result.timer === undefined ? [] : [`timer ${result.timer}`]),
   ].join("\n");
@@ -217,8 +220,11 @@ export async function runBrainCommand(
     );
     // A key not minted, or an earlier one not revoked, is not finished.
     // So is a refresh timer that is enabled and does not run.
+    // So is a conversation archive that could not be switched off: the
+    // person's memory keeps taking in their agents' conversations.
     const keysIncomplete =
       result.timer === "failed" ||
+      result.archive?.startsWith("failed:") === true ||
       Object.values(result.keys ?? {}).some(
         (outcome) => outcome === "failed" || outcome === "incomplete",
       );
@@ -240,6 +246,7 @@ export async function runBrainCommand(
             takeover: result.takeover,
             move: result.move,
             vault: result.vault,
+            archive: result.archive,
             meaning: result.meaning,
             timer: result.timer,
             status: result.status,

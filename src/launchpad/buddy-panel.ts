@@ -85,6 +85,9 @@ export function createBuddyPanel(
       resume: () => void;
       disconnect: () => Promise<boolean>;
     }>;
+    /** Buddy GEN4's introduction again, its beats alone (the guide to
+     * Buddy). */
+    introduce: () => void;
   }>,
 ) {
   const find = <T extends HTMLElement>(selector: string): T => {
@@ -216,6 +219,10 @@ export function createBuddyPanel(
     main.append(face, named, word);
     who.append(main);
     if (!own) {
+      // Buddy GEN4: his introduction can be played again from here.
+      const again = element("div", "row-control");
+      again.append(button(copy.buddyTourAgain, options.introduce));
+      who.append(again);
       stateCard.replaceChildren(who);
       return;
     }

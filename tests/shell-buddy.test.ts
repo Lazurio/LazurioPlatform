@@ -114,6 +114,7 @@ test("the vector files are this contract's, and every export of the protocol has
     "buddyContext",
     "buddyContextKind",
     "createBuddyContextSender",
+    "createBuddyLayoutSender",
     "createBuddyShownSender",
     "parseBuddyContext",
   ]);
@@ -828,13 +829,17 @@ test("the frame hears whether his window shows it: after its ready, on every ope
   expect(shown()).toEqual([]);
   fromFrame({ type: "lazurio.buddy.ready", v: 1 });
   expect(shown()).toEqual([true]);
-  // `shown` goes before the context: a frame takes a context without it
-  // for an older host's.
+  // `shown` and the size go before the context: a frame takes a context
+  // without `shown` for an older host's.
   expect(
     log.posted
       .map(({ message }) => (message as { type: string }).type)
       .filter((type) => type.startsWith("lazurio.buddy.")),
-  ).toEqual(["lazurio.buddy.shown", "lazurio.buddy.context"]);
+  ).toEqual([
+    "lazurio.buddy.shown",
+    "lazurio.buddy.layout",
+    "lazurio.buddy.context",
+  ]);
   // The person closes the window on the same page: the frame stays and
   // hears it, so an answer that comes now stays unread.
   bubble.toggle();
@@ -905,7 +910,12 @@ test("a frame loaded anew behind his hello hears its ready answered, that it is 
   const sent = () =>
     log.posted
       .map(({ message }) => message as { type: string; shown?: boolean })
-      .filter((message) => message.type.startsWith("lazurio.buddy."))
+      // The size has its own test below.
+      .filter(
+        (message) =>
+          message.type.startsWith("lazurio.buddy.") &&
+          message.type !== "lazurio.buddy.layout",
+      )
       .map((message) =>
         message.type === "lazurio.buddy.shown"
           ? `shown:${message.shown}`
@@ -946,7 +956,12 @@ test("every context the frame hears comes after its current shown, also to a fra
   const sent = () =>
     log.posted
       .map(({ message }) => message as { type: string; shown?: boolean })
-      .filter((message) => message.type.startsWith("lazurio.buddy."))
+      // The size has its own test below.
+      .filter(
+        (message) =>
+          message.type.startsWith("lazurio.buddy.") &&
+          message.type !== "lazurio.buddy.layout",
+      )
       .map((message) =>
         message.type === "lazurio.buddy.shown"
           ? `shown:${message.shown}`
@@ -972,6 +987,62 @@ test("every context the frame hears comes after its current shown, also to a fra
   // A change of the window alone is one shown.
   bubble.toggle();
   expect(sent().slice(7)).toEqual(["shown:true"]);
+});
+
+test("the frame hears the size his window shows: after its ready, before every context and on every change, also one the host made by itself (F60's addendum of 2026-11-21)", () => {
+  const { bubble, fromFrame, log, page } = fakeBubble();
+  const sizes = () =>
+    log.posted
+      .map(({ message, target }) => ({
+        message: message as { type: string; mode?: string },
+        target,
+      }))
+      .filter(({ message }) => message.type === "lazurio.buddy.layout")
+      .map(({ message, target }) => {
+        expect<unknown>(message).toEqual({
+          type: "lazurio.buddy.layout",
+          v: 1,
+          mode: message.mode,
+        });
+        expect(target).toBe(buddy);
+        return message.mode;
+      });
+  bubble.update();
+  bubble.toggle();
+  // Nothing before the frame says it is ready.
+  expect(sizes()).toEqual([]);
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(sizes()).toEqual(["panel"]);
+  // The frame asks for full screen and hears the size the host took.
+  fromFrame({ type: "lazurio.buddy.layout", v: 1, mode: "fullscreen" });
+  expect(sizes()).toEqual(["panel", "fullscreen"]);
+  // Escape on the page makes the window small by itself: the frame hears it.
+  expect(bubble.escape()).toBe(true);
+  expect(sizes()).toEqual(["panel", "fullscreen", "panel"]);
+  // A change of the page alone repeats the size before its context.
+  page.path = "/settings/general";
+  bubble.changed();
+  expect(sizes()).toEqual(["panel", "fullscreen", "panel", "panel"]);
+  // Closed by the person, and opened again.
+  bubble.toggle();
+  bubble.toggle();
+  expect(sizes()).toEqual([
+    "panel",
+    "fullscreen",
+    "panel",
+    "panel",
+    "closed",
+    "panel",
+  ]);
+  // Never to an origin that is no Buddy's, never `*`.
+  const none: Posted[] = [];
+  const star = protocol.createBuddyLayoutSender({
+    origin: "*",
+    frame: () => windowOf(none),
+    layout: () => "fullscreen",
+  });
+  expect(star.ready()).toBe(false);
+  expect(none).toEqual([]);
 });
 
 test("without Buddy's origin the bubble draws nothing, makes no frame and hears nothing", () => {

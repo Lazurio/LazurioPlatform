@@ -32,6 +32,7 @@ import {
   assignmentLine,
   buddyChatRouting,
   buddyPublicationRules,
+  buddyWindowRouting,
   chatgptAppsLine,
   type InstructionSource,
   instructionTemplateRevision,
@@ -96,8 +97,8 @@ const generated = t(
 const lazurio: readonly Text[] = [
   t("## Co je Lazurio", "## What Lazurio is"),
   t(
-    "Lazurio je sdílený rámec, ve kterém uživatelé a stroje společně pracují na práci firem (Organizace, Teamy a moduly) i na osobních záležitostech uživatele (Personalspace a volitelný Buddy). Lazurio je jediný aktuální název produktu; dřívější názvy zůstávají jen v historických záznamech (decision 0128).",
-    "Lazurio is the shared framework in which users and machines work together on the work of companies (Organizations, Teams and modules) and on a user's own affairs (Personalspace and the optional Buddy). Lazurio is the product's only current name; earlier names remain only in historical records (decision 0128).",
+    "Lazurio je sdílený rámec, ve kterém uživatelé a stroje společně pracují na práci firem (Organizace, Teamy a moduly) i na osobních záležitostech uživatele (Personalspace a Buddy, kterého má každý uživatel ve svém Osobním Prostředí). Lazurio je jediný aktuální název produktu; dřívější názvy zůstávají jen v historických záznamech (decision 0128).",
+    "Lazurio is the shared framework in which users and machines work together on the work of companies (Organizations, Teams and modules) and on a user's own affairs (Personalspace and the Buddy every user has in their Personal Environment). Lazurio is the product's only current name; earlier names remain only in historical records (decision 0128).",
   ),
   blank,
   t(
@@ -151,8 +152,8 @@ const lazurio: readonly Text[] = [
     "- **An Environment is a boundary, not a kind of hardware.** Technically it runs on a **Machine**: a physical device, a virtual server or a provider-isolated hosted workspace that forms one shared runtime, security and recovery boundary with a known Owner. A process, a module, a worktree, a Unix account or a container is not one by itself. A hosted Team workspace is the Team's Remote Environment on the tenant layer; the host it runs on stays a higher domain of compromise and recovery. Always name the concrete Environment, its Owner and any higher boundary of a provider or hosting operator. Towards users say Environment, and Remote Environment when it is hosted; **Machine** stays the term of the architecture, the identifiers and the commands.",
   ),
   t(
-    "- **Vlastní Environment, vlastní Personalspace.** Každý uživatel má vlastní Environment s plnými lokálními právy a privátní Personalspace: intimní prostor jen jeho a jeho volitelného Buddyho. Nikdo cizí, ani Admin Organizace nebo provozovatel hostingu, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Každý má právě jeden osobní Remote Environment; druhý trvalý patří do Organizace, kde ho koordinuje GitHub (decision 0153).",
-    "- **Own Environment, own Personalspace.** Every user has their own Environment with full local rights and a private Personalspace: the intimate space of them alone and their optional Buddy. Nobody else, neither an Organization Admin nor a hosting operator, reads it, and it is never shared or mounted elsewhere (decision 0091). Everyone has exactly one personal Remote Environment; a second permanent one belongs to an Organization, where GitHub coordinates it (decision 0153).",
+    "- **Vlastní Environment, vlastní Personalspace.** Každý uživatel má vlastní Environment s plnými lokálními právy a privátní Personalspace: intimní prostor jen jeho a jeho Buddyho. Nikdo cizí, ani Admin Organizace nebo provozovatel hostingu, ho nečte a nikdy se nesdílí ani nemountuje jinam (decision 0091). Každý má právě jeden osobní Remote Environment; druhý trvalý patří do Organizace, kde ho koordinuje GitHub (decision 0153).",
+    "- **Own Environment, own Personalspace.** Every user has their own Environment with full local rights and a private Personalspace: the intimate space of them alone and their Buddy. Nobody else, neither an Organization Admin nor a hosting operator, reads it, and it is never shared or mounted elsewhere (decision 0091). Everyone has exactly one personal Remote Environment; a second permanent one belongs to an Organization, where GitHub coordinates it (decision 0153).",
   ),
   t(
     "- **Buddy je osobní.** Intimní kontrakt mezi uživatelem a jeho Buddym. Produkt řídí životní cyklus hostu, nikdy každodenní jednání Buddyho (decision 0089).",
@@ -222,8 +223,8 @@ const lazurio: readonly Text[] = [
   ),
   same("| --- | --- |"),
   t(
-    "| Osobní konverzace s Buddym | soukromý kanál Buddyho, osobní prostředí |",
-    "| Personal conversation with a Buddy | the Buddy's private channel, the personal environment |",
+    "| Osobní konverzace s Buddym | Osobní Prostředí uživatele; v Buddy GEN4 Buddyho vlákno v jeho okně v Lazuriu |",
+    "| Personal conversation with a Buddy | the user's Personal Environment; in Buddy GEN4 Buddy's thread in his window in Lazurio |",
   ),
   t(
     "| Dlouhodobé znalosti Rezidenta | GBrain |",
@@ -552,6 +553,13 @@ const gitAndGitHub: readonly Text[] = [
 // them in one line.
 const safeHabits: readonly Text[] = [
   t("## Bezpečné návyky", "## Safe habits"),
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): agents guessed a
+  // Lazurio mechanism wrong; they read it here first. AGENTS.md has no room
+  // for the rule (its 32 KiB budget), so it lives in this manual.
+  t(
+    "- **Mechanismus z manuálu, ne odhadem.** Než řekneš, jak nějaký mechanismus Lazuria funguje, nebo podle něj navrhneš krok, přečti si ho v tomto manuálu (`manual/`); neodhaduj. Co tu není, řekni jako neznámé, ověř u zdroje a mezeru zapiš jako issue do repozitáře Lazuria.",
+    "- **A mechanism from the manual, not a guess.** Before you say how a Lazurio mechanism works, or propose a step that relies on it, read it in this manual (`manual/`); do not guess. What is not here, say is unknown, check it at the source and record the gap as an issue in Lazurio's repository.",
+  ),
   t(
     "- **Místo na disku jen s jistotou.** Smaž jen to, o čem víš jistě, že se nepoužívá a nikdo to nebude chtít zpátky, třeba výstup vlastního hotového úkolu. Mezipaměti, stav nástrojů a služeb ani nic, u čeho to dokázat nemůžeš, nemaž: vypiš to uživateli i s velikostí a nech ho rozhodnout.",
     "- **Disk space only with certainty.** Delete only what you know for certain is unused and nobody will want back, such as the output of your own finished task. Never delete caches, the state of tools and services, or anything you cannot prove unused: list it for the user with its size and let them decide.",
@@ -677,6 +685,10 @@ const brainRules: readonly Text[] = [
   t(
     "- **Co tam patří.** Co má vydržet, zapiš nástrojem `remember`: osobní poznámky a preference uživatele, dohody, rozhodnutí a co jsi slíbil. U práce Organizace jen krátký popis a odkaz na místo v Organizaci (plán, issue, pull request); její obsah, data a stav zůstávají v jejích repozitářích a aplikacích (0180, 0246).",
     "- **What belongs there.** What has to last, write with `remember`: the user's personal notes and preferences, agreements, decisions and what you promised. For an Organization's work only a short description and a link to its place in the Organization (a plan, an issue, a pull request); its content, data and state stay in its repositories and applications (0180, 0246).",
+  ),
+  t(
+    '- **Úpravy stránek.** Existující stránku měň přes `edit_page` (`expected_revision` a přesný `old_text` z `get_page` s `include_content: true`, `new_text` jako vlastní náhrada bez obalu); `put_page` jen pro novou stránku nebo přepis celé stránky vlastním textem. Text z jakéhokoli čtení může přijít obalený jako citace (`quoted: "transcript"`); obal není součást textu stránky, do zápisu ho nikdy nevkládej.',
+    '- **Editing pages.** Change an existing page with `edit_page` (`expected_revision` and the exact `old_text` from `get_page` with `include_content: true`, `new_text` as your own replacement without the wrapper); `put_page` only for a new page or a rewrite of a whole page with your own text. Text from any read may come wrapped as a quote (`quoted: "transcript"`); the wrapper is not part of the page\'s text, never put it into a write.',
   ),
   t(
     "- **Podpis.** Všichni agenti tohoto Prostředí mají do Brainu jeden společný přístup; kdo co zapsal, říká podpis. Pole `provenance` každého zápisu proto nese, odkud to víš, datum a kdo zapisuje: druh agenta a vlákno (například `Claude Code · T3 thread <UUID>`).",
@@ -1263,8 +1275,13 @@ const roles: readonly Text[] = [
   blank,
   same("## Buddy"),
   t(
-    "Důvěryhodný osobní zástupce uživatele, který jedná s jeho právy: morální kontrakt plus trvalé, scoped a odvolatelné mandáty (decision 0089). Transakčně specifické kroky (billing a vlastnictví, obnova, secrets, destruktivní operace, změny přístupů, merge, publish nebo release mimo výslovný mandát) vždy potřebují souhlas toho uživatele s přesnou operací a Buddy si mandát nikdy sám nevydává, nerozšiřuje ani neobnovuje. Buddyho má jen uživatel; žije na jeho jediném osobním Remote Environmentu (decision 0153). Buddy je Rezident: dlouhodobá identita s kontinuitou, pamětí a mandátem. Rezident a Agent jsou různé identity a nikdy se neslučují.",
-    "A user's trusted personal representative, acting with that user's rights: a moral contract plus standing, scoped and revocable mandates (decision 0089). Transaction-specific steps (billing and ownership, recovery, secrets, destructive operations, access changes, merge, publish or release outside an explicit mandate) always need that user's consent for the exact operation, and a Buddy never issues, extends or renews its own mandate. Only a user has a Buddy; it lives in their one personal Remote Environment (decision 0153). A Buddy is a Resident: a long-lived identity with continuity, memory and mandate. Resident and Agent are different identities and never merge.",
+    "Důvěryhodný osobní zástupce uživatele, který jedná s jeho právy: morální kontrakt plus trvalé, scoped a odvolatelné mandáty (decision 0089). Transakčně specifické kroky (billing a vlastnictví, obnova, secrets, destruktivní operace, změny přístupů, merge, publish nebo release mimo výslovný mandát) vždy potřebují souhlas toho uživatele s přesnou operací a Buddy si mandát nikdy sám nevydává, nerozšiřuje ani neobnovuje. Buddyho má jen uživatel, a to každý; žije na jeho jediném osobním Remote Environmentu (decision 0153). Buddy je Rezident: dlouhodobá identita s kontinuitou, pamětí a mandátem. Rezident a Agent jsou různé identity a nikdy se neslučují.",
+    "A user's trusted personal representative, acting with that user's rights: a moral contract plus standing, scoped and revocable mandates (decision 0089). Transaction-specific steps (billing and ownership, recovery, secrets, destructive operations, access changes, merge, publish or release outside an explicit mandate) always need that user's consent for the exact operation, and a Buddy never issues, extends or renews its own mandate. Only a user has a Buddy, and every user has one; it lives in their one personal Remote Environment (decision 0153). A Buddy is a Resident: a long-lived identity with continuity, memory and mandate. Resident and Agent are different identities and never merge.",
+  ),
+  blank,
+  t(
+    "V Buddy GEN4 je Buddy jedno vlákno v okně v Lazuriu Osobního Prostředí uživatele, ve stejném T3 Code jako Chat, v projektu Buddy. Okno otevře postavička vpravo dole na stránkách Lazuria tohoto Prostředí, malé nebo na celou obrazovku; na celé obrazovce nabízí i pravý panel a terminál. Znak na postavičce: bez znaku je klid, „?“ je otázka, která čeká na uživatele, tečka znamená, že Buddy odpověděl, „!“ že něco selhalo, a šedá postavička s přeškrtnutým odznakem, že Buddy teď není k zastižení. Buddy pracuje ve `~/Buddy` s vlastními `AGENTS.md` a skilly, které zapisuje Lazurio, a používá nástroje a zdroj AI svého Prostředí: vlastní přihlášení ani Telegram nemá. Jeho jméno a to, jak uživatele oslovuje, nastavuje uživatel v Nastavení → Buddy. Jeho pamětí je Brain, který instaluje a vlastní Lazurio. Lidé se do Buddy GEN4 převádějí postupně; Prostředí, které ještě převedené není, má do svého převodu předchozího Buddyho.",
+    "In Buddy GEN4, Buddy is one thread in a window inside the Lazurio of the user's Personal Environment, in the same T3 Code as Chat, in a project called Buddy. The figure at the bottom right of that Environment's Lazurio pages opens the window, small or full screen; full screen also offers the right panel and the terminal. The sign on the figure: no mark is quiet, “?” is a question waiting for the user, a dot means Buddy answered, “!” that something failed, and a grey figure with a struck-through badge that Buddy cannot be reached right now. Buddy works in `~/Buddy` with his own `AGENTS.md` and skills, which Lazurio writes, and uses his Environment's tools and AI source: he has no sign-in of his own and no Telegram. The user sets his name and how he addresses them in Settings → Buddy. His memory is the Brain, which Lazurio installs and owns. People move to Buddy GEN4 one by one; an Environment not moved yet keeps the earlier Buddy until its move.",
   ),
   blank,
   same("## Task Agent"),
@@ -1302,16 +1319,16 @@ const glossary: readonly Text[] = [
     "| Lazurio | The shared framework and product: CLI, Launchpad, Folder Factory, the hosted services around them. |",
   ),
   t(
-    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/`, své skilly v `.agents/skills/` a `.claude/skills/`, vrstvu Buddyho v `.agents/buddy/` (`.hermes.md` a `skills/lazurio/`) a `.lazurio/`, vedle `organizations/` a `personalspace/` uživatele. |",
-    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, its skills in `.agents/skills/` and `.claude/skills/`, Buddy's layer in `.agents/buddy/` (`.hermes.md` and `skills/lazurio/`), `.lazurio/`, next to the user's `organizations/` and `personalspace/`. |",
+    "| Lazurio Folder (Folder) | Složka na Environmentu, ve které Lazurio vlastní soubory `AGENTS.md`, `manual/`, své skilly v `.agents/skills/` a `.claude/skills/`, a `.lazurio/`, vedle `organizations/` a `personalspace/` uživatele. V Osobním Prostředí převedeném na Buddy GEN4 zapisuje Lazurio vedle Folderu i Buddyho složku `~/Buddy` (`AGENTS.md` a skilly). |",
+    "| Lazurio Folder (Folder) | The directory in an Environment that Lazurio owns files in: `AGENTS.md`, `manual/`, its skills in `.agents/skills/` and `.claude/skills/`, `.lazurio/`, next to the user's `organizations/` and `personalspace/`. In a Personal Environment moved to Buddy GEN4 Lazurio also writes Buddy's folder `~/Buddy` beside the Folder (`AGENTS.md` and skills). |",
   ),
   t(
-    "| GEN4 | Současná generace Lazuria: Lazurio Platform s Lazurio Folderem a Prostředími. Tento Folder je GEN4; nová pravidla a mechanismy vznikají v GEN4. Oficiální označení v textech, nic se tak nejmenuje. |",
-    "| GEN4 | The current generation of Lazurio: Lazurio Platform with the Lazurio Folder and Environments. This Folder is GEN4; new rules and mechanisms come in GEN4. An official designation in texts; nothing is named so. |",
+    "| GEN4 | Současná generace Lazuria: Lazurio Platform s Lazurio Folderem a Prostředími. Tento Folder je GEN4; nová pravidla a mechanismy vznikají v GEN4. Oficiální označení v textech, nic se tak nejmenuje. Není to Buddy GEN4. |",
+    "| GEN4 | The current generation of Lazurio: Lazurio Platform with the Lazurio Folder and Environments. This Folder is GEN4; new rules and mechanisms come in GEN4. An official designation in texts; nothing is named so. Not Buddy GEN4. |",
   ),
   t(
-    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují. Sdílené normy se z ní postupně přesouvají do GEN4; Module Standard a kontrakt Organizace už platí v `Lazurio/LazurioPlatform` (decision 0225), a co se nepřesunulo, je zatím jen v GEN3. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. |",
-    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it. Its shared norms move to GEN4 step by step; the Module Standard and the Organization contract already hold in `Lazurio/LazurioPlatform` (decision 0225), and what has not moved exists only in GEN3 for now. Organization repositories carry `_GEN3` in their names in both generations. |",
+    "| GEN3 | Předchozí generace: Lazurio Root, repozitář s CLI a Organizacemi na počítači uživatele. Zůstává udržovaná pro zákazníky, kteří na ní pracují. Sdílené normy se z ní postupně přesouvají do GEN4; Module Standard a kontrakt Organizace už platí v `Lazurio/LazurioPlatform` (decision 0225), a co se nepřesunulo, je zatím jen v GEN3. Repozitáře Organizací nesou v názvu `_GEN3` v obou generacích. Není to Buddy GEN3. |",
+    "| GEN3 | The previous generation: the Lazurio Root, a repository with the CLI and Organizations on the user's computer. It stays maintained for customers who work on it. Its shared norms move to GEN4 step by step; the Module Standard and the Organization contract already hold in `Lazurio/LazurioPlatform` (decision 0225), and what has not moved exists only in GEN3 for now. Organization repositories carry `_GEN3` in their names in both generations. Not Buddy GEN3. |",
   ),
   t(
     "| Lazurio Environment (Environment) | Prostředí, ve kterém se s Lazuriem pracuje: zvolený preset a profil, Folder a všechny nástroje a přihlášení, které jsou na něm dostupné (decision 0144). Česky ten Environment, na tomto Environmentu. |",
@@ -1324,6 +1341,10 @@ const glossary: readonly Text[] = [
   t(
     "| Místní prostředí (Local Environment) | Tento počítač: zařízení, na kterém uživatel právě sedí a které není Remote Environmentem; osobní laptop nikdy není Remote Environment (decision F16). |",
     "| Local Environment (Místní prostředí) | This computer: the device the user is sitting at, which is not a Remote Environment; a personal laptop is never a Remote Environment (decision F16). |",
+  ),
+  t(
+    "| Slot | Jednotka velikosti Prostředí. Prostředí o N slotech má 2 + 2N vCPU, 8N GiB RAM a disk 60N GiB, je-li Osobní, nebo 50N GiB, je-li Pracovní; roste vždy o jeden slot. Není to slot modulu v manifestu Organizace. |",
+    "| Slot | The unit of an Environment's size. An Environment of N slots has 2 + 2N vCPU, 8N GiB RAM and a disk of 60N GiB for a Personal Environment or 50N GiB for a Work Environment; it grows one slot at a time. Not a module slot of an Organization's manifest. |",
   ),
   t(
     "| Folder Factory | Součást produktu, která z presetu, zaznamenaného handoveru a profilu plánuje, generuje a srovnává soubory vlastněné Lazuriem. |",
@@ -1399,8 +1420,8 @@ const glossary: readonly Text[] = [
     "| Task Agent (Agent) | A tool working session preparing work for its user to Publish; no authority of its own. |",
   ),
   t(
-    "| Buddy | Osobní zástupce uživatele s trvalými, scoped a odvolatelnými mandáty (decision 0089). |",
-    "| Buddy | A user's personal representative with standing, scoped, revocable mandates (decision 0089). |",
+    "| Buddy | Osobní zástupce uživatele s trvalými, scoped a odvolatelnými mandáty (decision 0089). Má ho každý uživatel v Osobním Prostředí. V Buddy GEN4 je to vlákno v okně v Lazuriu toho Prostředí (postavička vpravo dole), v projektu Buddy téhož T3 Code jako Chat, se složkou `~/Buddy`; znak na postavičce: bez znaku klid, „?“ čekající otázka, tečka odpověděl, „!“ selhání, šedá s přeškrtnutým odznakem teď není k zastižení. Používá nástroje a zdroj AI Prostředí, bez vlastního přihlášení a Telegramu; jméno a oslovení v Nastavení → Buddy. Lidé se převádějí postupně; nepřevedené Prostředí má do převodu předchozího Buddyho. |",
+    "| Buddy | A user's personal representative with standing, scoped, revocable mandates (decision 0089). Every user has one in their Personal Environment. In Buddy GEN4 it is a thread in a window in that Environment's Lazurio (the figure at the bottom right), in the Buddy project of the same T3 Code as Chat, with the folder `~/Buddy`; the sign on the figure: no mark quiet, “?” a waiting question, a dot he answered, “!” a failure, grey with a struck-through badge he cannot be reached right now. Uses the Environment's tools and AI source, with no sign-in of his own and no Telegram; name and address in Settings → Buddy. People move one by one; an Environment not moved yet keeps the earlier Buddy until its move. |",
   ),
   t(
     "| Rezident (Resident) | Dlouhodobá identita s kontinuitou, pamětí a mandátem; Buddy je profil Rezidenta. |",
@@ -1435,8 +1456,8 @@ const glossary: readonly Text[] = [
     "| productionspace | Organization-level repositories outside workspace modules, each with its own branch and release rules (decision 0041). |",
   ),
   t(
-    "| Personalspace | Soukromý prostor právě jednoho uživatele a jeho volitelného Buddyho; nikdy se nesdílí a nikdy není na Environmentu vlastněném Organizací (decision 0091). |",
-    "| Personalspace | The private space of exactly one user and their optional Buddy; never shared, never in an Organization-owned Environment (decision 0091). |",
+    "| Personalspace | Soukromý prostor právě jednoho uživatele a jeho Buddyho; nikdy se nesdílí a nikdy není na Environmentu vlastněném Organizací (decision 0091). |",
+    "| Personalspace | The private space of exactly one user and their Buddy; never shared, never in an Organization-owned Environment (decision 0091). |",
   ),
   t(
     "| GBrain (Brain) | Paměť uživatele Osobního Prostředí, kterou instaluje, aktualizuje a hlídá Lazurio; agenti na ni dosáhnou přes Executor. Databáze je v `~/.gbrain`, vault v Personalspace (decision 0046). |",
@@ -1487,8 +1508,8 @@ const glossary: readonly Text[] = [
     "| Workspace preset | A named, versioned composition of the profile's fixed axes, defaults, Personalspace policy, identity mode and surfaces. |",
   ),
   t(
-    "| Profil (profile) | Komunikační osy generovaných instrukcí (`locale`, `detail`, `coordination`) a pevné osy, které určuje preset. |",
-    "| Profile | The communication axes of the generated instructions (`locale`, `detail`, `coordination`) plus the fixed axes the preset pins. |",
+    "| Profil (profile) | Komunikační osy generovaných instrukcí (`locale`, `detail`, `coordination`) a pevné osy, které určuje preset. Jazyk Folderu (`locale`) se volí při založení; uživatel ho mění v Nastavení → Obecné → Jazyk. |",
+    "| Profile | The communication axes of the generated instructions (`locale`, `detail`, `coordination`) plus the fixed axes the preset pins. The Folder's language (`locale`) is chosen at creation; the user changes it in Settings → General → Language. |",
   ),
   t(
     "| Revize šablon (template revision) | Verze generovaného textu, kterou nese každý generovaný soubor; novější release produktu Folder převykreslí sám při `lazurio update`, nebo při refreshi či změně profilu. |",
@@ -2477,8 +2498,8 @@ const presetMeaning: Readonly<Record<PresetName, Text>> = {
     "The user's own workstation, without a handover. The signed-in user is also its Owner. Personalspace is present, Organization repositories live under `organizations/<org>/`, and the user's own sign-ins are used. Applications started from the Launchpad live only for its session.",
   ),
   "hosted-personal": t(
-    "Jediný osobní Remote Environment uživatele (decision 0153). Personalspace je přítomný a intimní; Buddy je volitelný rezident téhož Environmentu, ne druhý host. Žádná repa Organizací tu nejsou namountovaná: práce v Organizaci probíhá na Environmentech, které Organizace vlastní. Používají se vlastní přihlášení uživatele a aplikace vlastní OS service manager.",
-    "A user's one personal Remote Environment (decision 0153). Personalspace is present and intimate; a Buddy is an optional resident of this same Environment, not a second host. No Organization repositories are mounted: Organization work happens in Environments the Organization owns. The user's own sign-ins are used, and applications are owned by the OS service manager.",
+    "Jediný osobní Remote Environment uživatele (decision 0153). Personalspace je přítomný a intimní; svého Buddyho tu má každý uživatel jako rezidenta téhož Environmentu, ne jako druhý host. Žádná repa Organizací tu nejsou namountovaná: práce v Organizaci probíhá na Environmentech, které Organizace vlastní. Používají se vlastní přihlášení uživatele a aplikace vlastní OS service manager.",
+    "A user's one personal Remote Environment (decision 0153). Personalspace is present and intimate; every user has their Buddy here as a resident of this same Environment, not as a second host. No Organization repositories are mounted: Organization work happens in Environments the Organization owns. The user's own sign-ins are used, and applications are owned by the OS service manager.",
   ),
   "hosted-organization-personal": t(
     "Pracovní Remote Environment vlastněný Organizací a přiřazený jednomu uživateli; agenti jednají za něj v jeho živých právech. Personalspace tu nikdy není. Repozitáře Organizací žijí v `organizations/<org>/`; uživatel se přihlašuje vlastní identitou. Aplikace vlastní OS service manager.",
@@ -2609,8 +2630,8 @@ function boundaries(
   return [
     personalspace === "present"
       ? t(
-          "- Personalspace: `personalspace/` je intimní prostor jednoho uživatele, Ownera tohohle Environmentu, a jeho volitelného Buddyho. Nikdo cizí ho nečte a nikdy se nesdílí.",
-          "- Personalspace: `personalspace/` is the intimate space of one user, the Owner of this Environment, and their optional Buddy. Nobody else reads it and it is never shared.",
+          "- Personalspace: `personalspace/` je intimní prostor jednoho uživatele, Ownera tohohle Environmentu, a jeho Buddyho. Nikdo cizí ho nečte a nikdy se nesdílí.",
+          "- Personalspace: `personalspace/` is the intimate space of one user, the Owner of this Environment, and their Buddy. Nobody else reads it and it is never shared.",
         )
       : t(
           "- Personalspace: na Environmentu vlastněném Organizací nikdy není. Nezakládej ho, nemountuj ho a nikdy sem nekopíruj osobní data ani přihlášení.",
@@ -3218,9 +3239,11 @@ function operatorClient(
       : [aiSignInRouting(origin, githubIdentity(preset, machine))].filter(
           (line): line is NonNullable<typeof line> => line !== null,
         )),
-    ...(machine.entry?.buddyOrigin === undefined
-      ? []
-      : [buddyChatRouting(machine.entry.buddyOrigin)]),
+    ...(machine.entry?.buddyFolder !== undefined
+      ? [buddyWindowRouting]
+      : machine.entry?.buddyOrigin !== undefined
+        ? [buddyChatRouting(machine.entry.buddyOrigin)]
+        : []),
     ...workOnly,
     chats,
   ];

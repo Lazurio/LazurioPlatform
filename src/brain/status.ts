@@ -76,8 +76,10 @@ export type BrainStatus =
       /** Whether Machines mark that they hand the brain over here. */
       handover: boolean;
       /** Search by meaning: `on` where it is switched on and the model
-       * answers, otherwise `keyword-only` (gbrain falls back to words). */
-      meaning: "on" | "keyword-only";
+       * answers, `filling` while the vectors still missing are computed in
+       * windows (search by meaning over those done), otherwise
+       * `keyword-only` (gbrain falls back to words). */
+      meaning: "on" | "filling" | "keyword-only";
       /** Where the interim installer runs the brain: the release a takeover
        * would record (its commit and version), or null where it is not known
        * for sure and a takeover would be refused (`release-unknown`). Read
@@ -194,11 +196,17 @@ export async function brainStatus(host: BrainHost): Promise<BrainStatus> {
   const brain = await exists(join(paths.brain, "config.json"));
   const keys = await brainKeys(paths);
   const handover = await exists(host.handover);
-  const switchedOn = (await readBrainState(paths)).meaning !== undefined;
-  const meaning =
-    switchedOn && (await host.meaning?.().catch(() => false)) === true
+  const recorded = await readBrainState(paths);
+  const switchedOn = recorded.meaning !== undefined;
+  const filling = recorded.meaningAttempt?.result === "filling";
+  const answers =
+    (switchedOn || filling) &&
+    (await host.meaning?.().catch(() => false)) === true;
+  const meaning = !answers
+    ? ("keyword-only" as const)
+    : switchedOn
       ? ("on" as const)
-      : ("keyword-only" as const);
+      : ("filling" as const);
   const interimCheck = async () => {
     const check = await takeoverCheck(paths, {
       handover,

@@ -13,6 +13,7 @@ import { writeDurableFile } from "../update/durable-file";
 import type { ProcessRunner } from "../update/self-check";
 import { systemctl } from "../update/service-control";
 import { type BrainHttp, healthVersion, mcpTool } from "./admin";
+import { archiveOffArgs, markArchiveOff } from "./archive";
 import {
   type BrainState,
   ownerSession,
@@ -837,6 +838,12 @@ async function rebuildCore(
     await gbrain(host, ["config", "set", "sync.on_commit", "true"], 60_000),
     "on-commit",
   );
+  // The brain made anew keeps the agents' conversations out from its first
+  // start (`./archive.ts`); where the switch fails, it is not started and the
+  // rebuild goes back to its copy.
+  need(await gbrain(host, archiveOffArgs, 60_000), "archive");
+  if (!(await markArchiveOff(host.paths, host.now)))
+    throw new VaultFailure("archive");
   if (!(await service(host, "start", brainUnit)) || !(await answers(host)))
     throw new VaultFailure("start");
 }

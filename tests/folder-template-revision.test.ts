@@ -28,8 +28,8 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // `bun test -u` does not touch it. The fixtures in `tests/fixtures` feed the
 // compositions too.
 const pinned = {
-  revision: "base-instructions-146",
-  digest: "f18c293d0a9e3d75947c2d47dbecf2aa77e2080ba825971d451344b5eb0cdf18",
+  revision: "base-instructions-149",
+  digest: "6b5cd4ccb049ffd6812c4eee34be04e6e71f9f244d41bf3b0f08f572a810f67f",
 } as const;
 
 function renderedDigest(): string {
@@ -211,4 +211,24 @@ test("a custom voice and own instructions that fill their shared budget fit the 
     }
   }
   expect(tightest).toBeGreaterThanOrEqual(0);
+});
+
+test("every agent is pointed to the manual for a Lazurio mechanism, in AGENTS.md and the manual, in both locales", () => {
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): read a mechanism
+  // in the manual, do not guess it. AGENTS.md loads, so it carries the
+  // pointer; manual/working-here.md carries the rule in full.
+  for (const composition of compositions()) {
+    const outputs = renderOutputs(composition);
+    const cs = composition.profile.locale === "cs";
+    expect(outputs["AGENTS.md"]).toContain(
+      cs
+        ? "mechanismus Lazuria čti v `manual/`"
+        : "read a Lazurio mechanism in `manual/`",
+    );
+    expect(outputs["manual/working-here.md"]).toContain(
+      cs
+        ? "**Mechanismus z manuálu, ne odhadem.**"
+        : "**A mechanism from the manual, not a guess.**",
+    );
+  }
 });

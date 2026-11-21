@@ -26,6 +26,14 @@ type Copy = Readonly<Record<MessageKey, string>>;
 // the order people introduce themselves: his name, the person's name and
 // how he writes it, then ty or vy, which nobody chooses for the person.
 // Until they choose he says vy, as Lazurio does.
+//
+// Buddy GEN4 introduces himself in six beats of his own (the guide to Buddy
+// the Admin approved on 2026-11-21): who he is, that he watches over the
+// person's chats, that he takes care of things (a short one himself, a
+// longer one handed to a chat he keeps an eye on), that he is on every page
+// and knows which, what he remembers, and the signs at his figure. A person
+// moved over from the older Buddy already met him: the same beats play once
+// as a tour (`tour`), without his questions, and end in his window.
 
 /** His default name, as the installer names a Buddy nobody named. */
 export const defaultBuddyName = "Buddy";
@@ -856,6 +864,9 @@ export function said(
     | "buddyDoes"
     | "buddyDoesFind"
     | "buddyMemory"
+    | "buddyChats"
+    | "buddyPlace"
+    | "buddySigns"
     | "buddyWhere"
     | "buddyWhereTelegram"
     | "buddyAskName"
@@ -896,9 +907,84 @@ export const meetBeats = Object.freeze([
   "memory",
   "where",
 ] as const);
-export type MeetBeat = (typeof meetBeats)[number];
 
-/** On the introduction screen: a beat (`0` to `4`), then his questions. */
+/** Buddy GEN4's beats, in their order: no bots and no Telegram, his chats,
+ * the page he is asked from and his signs instead. */
+export const gen4Beats = Object.freeze([
+  "hello",
+  "chats",
+  "does",
+  "place",
+  "memory",
+  "signs",
+] as const);
+export type MeetBeat = (typeof meetBeats)[number] | (typeof gen4Beats)[number];
+
+/** Whether Buddy GEN4's introduction opens by itself now, as a tour, for a
+ * person who met him before it existed (moved over from the older Buddy):
+ * Buddy GEN4 read with his names confirmed, the tour of Lazurio seen to its
+ * end, no dialog open, and not seen here yet (`introduced` false; null,
+ * unknown or without storage, offers nothing). */
+export function buddyIntroductionDue(
+  input: Readonly<{
+    reading: BuddyReading | null;
+    toured: boolean | null;
+    dialogOpen: boolean;
+    introduced: boolean | null;
+  }>,
+): boolean {
+  const { reading } = input;
+  if (reading === null || buddyOwnSignIn(reading)) return false;
+  const fact = buddyFact(reading);
+  return (
+    fact !== "loading" &&
+    fact.confirmed === true &&
+    input.toured === true &&
+    !input.dialogOpen &&
+    input.introduced === false
+  );
+}
+
+/** Where this browser keeps that Buddy GEN4's introduction was seen, for
+ * one Environment (as the tour of Lazurio keeps its progress). */
+export const buddyIntroducedKey = (environment: string): string =>
+  `lazurio.buddy-introduced:${environment}`;
+
+/** The part of the browser's storage the introduction's mark uses. */
+export type IntroducedStorage = Pick<Storage, "getItem" | "setItem">;
+
+/** Whether the introduction was seen here: null without storage to say. */
+export function introducedIn(
+  storage: IntroducedStorage,
+  environment: string,
+): boolean | null {
+  try {
+    return storage.getItem(buddyIntroducedKey(environment)) !== null;
+  } catch {
+    return null;
+  }
+}
+
+/** Keeps that the introduction was seen; true only once the mark reads back
+ * (a full or refused storage keeps nothing, and says so). */
+export function keepIntroduced(
+  storage: IntroducedStorage,
+  environment: string,
+): boolean {
+  try {
+    storage.setItem(buddyIntroducedKey(environment), "1");
+    return storage.getItem(buddyIntroducedKey(environment)) !== null;
+  } catch {
+    return false;
+  }
+}
+
+/** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
+export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
+  gen4 ? gen4Beats : meetBeats;
+
+/** On the introduction screen of the older Buddy: a beat (`0` to `4`), then
+ * his questions. Buddy GEN4's questions come at `beatsOf(true).length`. */
 export const meetQuestionsAt = meetBeats.length;
 
 /** The small drawing of a beat, built from the design system's parts; the
@@ -922,10 +1008,49 @@ export type BeatDrawing =
     }>
   | Readonly<{ kind: "memory"; title: string; items: readonly string[] }>
   | Readonly<{
-      kind: "where";
-      /** The Environment's apps as its switch names them, and the phone. */
+      /** The person's chats he watches over: one at work that finishes,
+       * one with a question for the person, one at work, one done. */
+      kind: "chats";
+      title: string;
+      rows: readonly Readonly<{
+        task: string;
+        state: "work" | "finish" | "asks" | "done";
+        status: string;
+        /** The status a row that finishes ends with. */
+        finished?: string;
+      }>[];
+    }>
+  | Readonly<{
+      /** A longer thing he hands to a chat: the person's message, then the
+       * chat at work until it is done. */
+      kind: "handoff";
+      ask: string;
+      title: string;
+      task: string;
+      working: string;
+      done: string;
+    }>
+  | Readonly<{
+      /** He is on every page of the Environment's apps and knows which:
+       * the page's mark (the pin of his window) in each. */
+      kind: "place";
       apps: readonly string[];
-      phone: string;
+    }>
+  | Readonly<{
+      /** His signs at his figure, with the words his figure says. */
+      kind: "signs";
+      signs: readonly Readonly<{
+        sign: "waiting" | "answered" | "failed";
+        mark: string;
+        label: string;
+      }>[];
+    }>
+  | Readonly<{
+      kind: "where";
+      /** The Environment's apps as its switch names them, and the phone
+       * (Telegram), none for Buddy GEN4. */
+      apps: readonly string[];
+      phone: string | null;
     }>;
 
 export type BeatView = Readonly<{
@@ -955,7 +1080,8 @@ export function helloLine(
 
 /** One beat of his introduction, in his address (vy before the person
  * chose). `apps` names the Environment's apps as its switch does, the ones
- * it has; `automate` is the switch's name of the app where his bots work. */
+ * it has; `automate` is the switch's name of the app where his bots work;
+ * `telegram` is false for Buddy GEN4, who has no Telegram of his own. */
 export function beatView(
   index: number,
   input: Readonly<{
@@ -963,18 +1089,21 @@ export function beatView(
     address: "ty" | "vy" | null;
     apps: readonly string[];
     automate: string;
+    telegram?: boolean;
   }>,
   copy: Copy,
 ): BeatView {
-  const at = Math.max(0, Math.min(meetBeats.length - 1, Math.floor(index)));
-  const beat = meetBeats[at] as MeetBeat;
+  // Buddy GEN4 is the one without a Telegram of his own.
+  const beats = beatsOf(input.telegram === false);
+  const at = Math.max(0, Math.min(beats.length - 1, Math.floor(index)));
+  const beat = beats[at] as MeetBeat;
   const { address } = input;
   const base = {
     beat,
     index: at,
     progress: fill(copy.buddyBeatProgress, {
       n: String(at + 1),
-      total: String(meetBeats.length),
+      total: String(beats.length),
     }),
     waves: beat === "hello",
   };
@@ -988,7 +1117,71 @@ export function beatView(
         ],
         drawing: null,
       };
+    case "chats":
+      return {
+        ...base,
+        lines: [said(copy, "buddyChats", address)],
+        drawing: {
+          kind: "chats",
+          title: copy.buddyChatsTitle,
+          rows: [
+            {
+              task: copy.buddyBotFlights,
+              state: "finish",
+              status: copy.buddyBotWorking,
+              finished: copy.buddyBotDone,
+            },
+            {
+              task: copy.buddyChatWeb,
+              state: "asks",
+              status: copy.buddyChatAsks,
+            },
+            {
+              task: copy.buddyChatInvoices,
+              state: "work",
+              status: copy.buddyBotWorking,
+            },
+            {
+              task: copy.buddyBotContract,
+              state: "done",
+              status: copy.buddyBotDone,
+            },
+          ],
+        },
+      };
+    case "place":
+      return {
+        ...base,
+        lines: [said(copy, "buddyPlace", address)],
+        drawing: { kind: "place", apps: input.apps },
+      };
+    case "signs":
+      return {
+        ...base,
+        lines: [said(copy, "buddySigns", address)],
+        drawing: {
+          kind: "signs",
+          signs: [
+            { sign: "waiting", mark: "?", label: copy.buddySignWaiting },
+            { sign: "answered", mark: "", label: copy.buddySignAnswered },
+            { sign: "failed", mark: "!", label: copy.buddySignFailed },
+          ],
+        },
+      };
     case "does":
+      if (input.telegram === false)
+        return {
+          ...base,
+          lines: [said(copy, "buddyDoes", address)],
+          drawing: {
+            kind: "handoff",
+            ask: copy.buddyHandoffAsk,
+            title: copy.buddyChatsTitle,
+            task: copy.buddyBotContract,
+            working: copy.buddyBotWorking,
+            done: copy.buddyBotDone,
+          },
+        };
       return {
         ...base,
         lines: [said(copy, "buddyDoes", address)],
@@ -1043,9 +1236,15 @@ export function beatView(
         ...base,
         lines: [
           said(copy, "buddyWhere", address),
-          said(copy, "buddyWhereTelegram", address),
+          ...(input.telegram === false
+            ? []
+            : [said(copy, "buddyWhereTelegram", address)]),
         ],
-        drawing: { kind: "where", apps: input.apps, phone: copy.buddyPhone },
+        drawing: {
+          kind: "where",
+          apps: input.apps,
+          phone: input.telegram === false ? null : copy.buddyPhone,
+        },
       };
   }
 }
@@ -1058,22 +1257,35 @@ export function beatView(
  * stands. */
 export type IntroduceNav = Readonly<{
   back: boolean;
-  next: "beat" | "confirm";
+  /** `finish`: the last beat of a tour, which opens his window. */
+  next: "beat" | "confirm" | "finish";
   ready: boolean;
   spotlight: boolean;
 }>;
 
+/** `gen4`: Buddy GEN4's beats, whose launcher rises while his signs show;
+ * `tour`: his beats alone, for a person who already met him. */
 export function introduceNav(
   at: number,
   draft: PersonaDraft,
   locale: "cs" | "en",
+  how: Readonly<{ gen4?: boolean; tour?: boolean }> = {},
 ): IntroduceNav {
-  const questions = at >= meetQuestionsAt;
+  const beats = beatsOf(how.gen4 === true);
+  const last = beats.length - 1;
+  if (how.tour === true)
+    return {
+      back: at > 0,
+      next: at >= last ? "finish" : "beat",
+      ready: true,
+      spotlight: at === beats.indexOf(how.gen4 === true ? "signs" : "where"),
+    };
+  const questions = at >= beats.length;
   return {
     back: at > 0,
     next: questions ? "confirm" : "beat",
     ready: questions ? draftReady(draft, locale) : true,
-    spotlight: at === meetBeats.length - 1,
+    spotlight: at === beats.indexOf(how.gen4 === true ? "signs" : "where"),
   };
 }
 

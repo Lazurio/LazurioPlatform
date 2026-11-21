@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+  archiveWaits,
   type BrainServerSessions,
   type BrainSetupLabels,
   brainAnswers,
@@ -39,6 +40,77 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
     };
     return { state, reported, input, close };
   };
+
+  test("search by meaning with windows left: setup runs again after the pause while this start lasts, Executor handed the brain after every run", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, reported, input, close } = world([
+      filling,
+      filling,
+      { server: "running", meaning: "on" },
+    ]);
+    const settled: (BrainSetupLabels | null)[] = [];
+    const pauses: number[] = [];
+    const run = {
+      ...input,
+      settled: async (labels: BrainSetupLabels | null) => {
+        settled.push(labels);
+      },
+      fillMs: 300_000,
+      sleep: async (ms: number) => {
+        pauses.push(ms);
+      },
+    };
+    expect(await brainSetupAtStart(run)).toEqual({
+      server: "running",
+      meaning: "on",
+    });
+    expect(state.runs).toBe(3);
+    // Each run's answer goes to Executor's Brain at once, the first window's
+    // too: agents reach the brain while the windows go on.
+    expect(settled).toEqual([
+      filling,
+      filling,
+      { server: "running", meaning: "on" },
+    ]);
+    expect(pauses).toEqual([300_000, 300_000]);
+    expect(reported).toEqual([filling, filling]);
+    // A start that closes during the pause starts no other run.
+    const stopping = world([filling, filling]);
+    const stopped = {
+      ...stopping.input,
+      sleep: async () => {
+        stopping.close.abort();
+      },
+    };
+    expect(await brainSetupAtStart(stopped)).toEqual(filling);
+    expect(stopping.state.runs).toBe(1);
+    close.abort();
+  });
+
+  test("another setup holding the lock while windows are left: the next run comes as well", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, input } = world([
+      filling,
+      { server: "busy" },
+      { server: "running", meaning: "on" },
+    ]);
+    expect(await brainSetupAtStart(input)).toEqual({
+      server: "running",
+      meaning: "on",
+    });
+    expect(state.runs).toBe(3);
+    // A busy first answer, with no meaning waiting before it, is the answer.
+    const lone = world([{ server: "busy" }, filling]);
+    expect(await brainSetupAtStart(lone.input)).toEqual({ server: "busy" });
+    expect(lone.state.runs).toBe(1);
+  });
+
+  test("the runs one start makes for windows are bounded", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    const { state, input } = world(Array(20).fill(filling));
+    expect(await brainSetupAtStart({ ...input, fills: 4 })).toEqual(filling);
+    expect(state.runs).toBe(5);
+  });
 
   test("an answer other than waits-machines is the answer: nothing waits", async () => {
     const { state, input } = world([{ server: "waits-takeover" }]);
@@ -153,6 +225,24 @@ describe("lazurio brain setup as the Launchpad's child", () => {
     expect(calls).toEqual([["/opt/lazurio", "brain", "setup", "--json"]]);
     expect(labels).toEqual({ server: "moved", move: "moved" });
     expect(brainAnswers(labels)).toBe(true);
+  });
+
+  test("the archive's outcome is read, and one not off yet keeps the Launchpad running setup again", async () => {
+    for (const [archive, waits] of [
+      ["off", false],
+      ["waits-idle", true],
+      ["failed:refused", true],
+    ] as const) {
+      // Setup exits 1 for a failed switch; its labels are still read.
+      const run: ToolRunner = async () => ({
+        exitCode: archive.startsWith("failed:") ? 1 : 0,
+        stdout: JSON.stringify({ server: "running", archive, meaning: "on" }),
+        stderr: "",
+      });
+      const labels = await runBrainSetup({ executable: "x", run, env: {} });
+      expect(labels).toEqual({ server: "running", archive, meaning: "on" });
+      expect(archiveWaits(labels)).toBe(waits);
+    }
   });
 
   test("no answer, no labels, and nothing for Executor", async () => {

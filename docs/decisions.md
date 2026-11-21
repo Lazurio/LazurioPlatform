@@ -4162,7 +4162,7 @@ What changes:
 - **Manifest schema 7** records the new skill; Folders at 2 to 6 gain it on their next change
   where nothing is at its paths.
 
-Template revision `base-instructions-146`. Verified by `tests/folder-automate.test.ts`,
+Template revision `base-instructions-149`. Verified by `tests/folder-automate.test.ts`,
 `tests/folder-skills.test.ts`, the budget tests and the pinned digest. Not proven: that agents
 in every harness pick the skill over their own scheduler.
 
@@ -15951,6 +15951,39 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         its size, measured on Bob.
     - **When it fails.** The copy comes back without the model, and the step
       is not tried again for this pin.
+    - **Amendment 2026-11-20: in short windows** (Lazurio/LazurioPlatform#1134,
+      proposed after a Personal Environment of 82 pages was down for 19
+      minutes and then fell back: gbrain abandoned batches to the local model
+      after its 60 s default, 192 times). It replaces the single stopped
+      `embed --stale --catch-up` above and its failure rule.
+      - **Windows.** The vectors are computed in windows of gbrain's own budget
+        (`GBRAIN_EMBED_TIME_BUDGET_MS`, 3 minutes), each with the server
+        stopped as before and only while Buddy is idle. gbrain stops at the
+        budget between batches, and a batch to the local model may take 10
+        minutes. One stop therefore usually lasts under 4 minutes (a batch
+        takes under a minute on a quiet Environment), and on a heavily loaded
+        one up to about 18 minutes (the window's process limit,
+        `meaningEmbedLimitMs`); Matěj accepted that bound for this step on
+        2026-11-21, with a nightly computation to follow as the next step.
+        One window per setup run; the Launchpad
+        runs setup again after 5 minutes while search by meaning waits, for
+        at most a day a start, and hands the brain to Executor after each.
+      - **Between windows** the server runs with the model: search by meaning
+        covers what is computed, new pages get their vectors as they come,
+        and search by words answers as before (`brain status` says
+        `filling`). `on` is recorded once nothing is left.
+      - **Commit and recovery.** gbrain's CLI counts the stored pages with the
+        server stopped, before and after a window. The window, or a way back,
+        is recorded before the server starts, so no later run ever brings a
+        copy back over writes the server took. The first window falls back
+        as before (the copy before, without the model). A later window that
+        fails before its commit brings its own copy back with the model; the
+        failed brain is kept once. Two windows in a row without progress, or
+        400 in all, stop the filling for this pin with the vectors computed
+        so far kept.
+      - **Not changed:** the model, its pin and priority, the copy before the
+        first window, and that gbrain's trust claim of pages from before
+        trust tracking stays the owner's own step.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.
@@ -15960,6 +15993,41 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
     - **Before the wave.** It was measured on a server processor, not an i7.
       Before the wave to people, the same is verified on one customer-class
       Environment: memory, the first embedding and queries in Czech.
+11. **The agents' conversations stay out of the memory** (amendment
+    2026-11-21). gbrain 0.60.733 keeps a conversation archive that is on by
+    default on a personal brain. While the server is quiet, its upkeep reads
+    the harnesses' sessions in the home (Claude Code, Codex and others) and
+    writes them as pages of a source `conversations` (measured on a
+    fictional brain: within a minute of quiet). Matěj decided on 2026-11-21:
+    „rozhovory do paměti vypnout - stačí, že budou v prostředí dle mého.
+    Ale, dedikované zápisky by se měly propisovat do gbrainu, to pořád
+    platí." (Switch the conversations into the memory off: it is enough that
+    they stay in the Environment. Deliberate notes still go into gbrain.)
+    - **How.** Lazurio switches the archive off with gbrain's own switch
+      (`gbrain transcripts archive off`, the setting
+      `transcripts.archive.enabled` in its database). The running server
+      holds the database, so the switch is made with the server stopped.
+      - **A new database is never started with the archive on.** A new
+        brain is switched before its first start, with no stop at all;
+        where the switch fails, it is not started and the install is
+        resumed by the next run. A brain the vault makes anew is switched
+        before its first start too; where that fails, the rebuild goes back
+        to its copy (`stop:rebuild-archive`).
+      - **A brain that runs already** is switched in one short stop while
+        Buddy is idle.
+    - **Once per brain, carried with it.** A mark in the brain's directory
+      (`lazurio-archive-off.json`) records the switch. Every copy and way
+      back of the brain carries it with the database it belongs to, and a
+      brain made anew from its vault has none, so it is switched off again.
+    - **Seen and retried.** `lazurio brain setup` prints the outcome
+      (`archive`) and is not finished (exit 1) while the switch fails. The
+      Launchpad runs setup again after a pause while the archive is not off
+      (Buddy working, a switch that failed), also where search by meaning
+      has nothing left to do, at most a day of runs a start.
+    - **Not changed.** Deliberate notes (pages written over MCP, through
+      Executor or the memory's skill) and every key that writes. Pages the
+      archive wrote before stay until the person decides; removing them is
+      a separate, irreversible step.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -15972,7 +16040,7 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
 Verified by tests:
 - the status and the owners of a unit (`tests/brain-status.test.ts`);
 - the keys against a stand-in of the admin API (`tests/brain-keys.test.ts`);
-- setup, including the handover mark (`tests/brain-setup.test.ts`);
+- setup, including the handover mark and the conversation archive switched off: before a new brain's first start, with a short stop only while Buddy is idle, refused and tried again, and carried with copies (`tests/brain-setup.test.ts`);
 - the vault's decision, rebuild and way back (`tests/brain-vault.test.ts`);
 - the takeover with and without consent, the move, a refused pin, a server that does not stop, a stopped and an interrupted move, and `take-over` printing no key or path (`tests/brain-move.test.ts`);
 - the Launchpad's child process and the server Brain (`tests/brain-at-start.test.ts`);
@@ -17149,6 +17217,62 @@ Platform marks as not verified yet (C19) does not join the strip until the mark 
 it is judged as any new binding (Lazurio/t3code#208). The marks' directory is watched with the
 others.
 
+### F47 addendum of 2026-11-20: Buddy GEN4's window of the same Environment may host Nová karta
+
+**Decided by Matěj (Organization Admin) on 2026-11-20**, whose answer the coordinating thread
+BUDDY GEN4 passed on at 21:27 UTC. This amends point 1 and C15 for one more host. Point 1
+names the Environment's own `apps`, `chat` and `automate`, and nothing else.
+
+He allowed it with one condition about the window's size:
+- in Buddy's full-screen window, offer both the right panel (Nová karta, the Environment
+  browser) and the bottom panel (the terminal), so that Buddy can also work in the browser
+  and the terminal;
+- in the small window the person moves about the screen, offer neither, because a panel there
+  has too little room to show well.
+
+On 2026-11-21 he added how the right panel opens there, on a phone and a computer alike. In
+the full-screen window, clicking the right panel stretches it over the whole window, where the
+person works with the browser or whatever else the panel holds. The coordinating thread passed
+it on at 07:37 and 07:44 UTC.
+
+Framing cannot tell the window's size: `frame-ancestors` admits Buddy's origin as a whole. So
+the condition belongs to the window's interface:
+- the host tells the frame the size its window shows (F60's addendum of 2026-11-21);
+- T3 Code offers the two panels only in the full-screen window, the right panel over the whole
+  window, with a way back to the conversation (Lazurio/t3code#245).
+
+Until a T3 Code release does that, the small window shows the same right panel as the
+full-screen one.
+
+- **Why.** Buddy GEN4's window is the shared T3 Code of the person's Osobní Prostředí, framed
+  at Buddy's own origin `https://buddy.<base>.lazurio.io` (F60 and its addendum of
+  2026-11-20). T3 Code places Nová karta in that window's right panel, as it does in Chat. The
+  page's parent is then Buddy's origin, which point 1 does not name. `frame-ancestors` checks
+  every ancestor, so Chrome refused the page on every page of the Environment. The acceptance
+  of Buddy's window on 2026-11-20 found this (Lazurio/LazurioPlatform#1128).
+- **What changes.** Where the entry names Buddy GEN4 (`buddyFolder`) and his window's origin
+  (`buddyOrigin`), `/new-tab` also names that origin in `frame-ancestors`. The page also takes
+  that origin as its host (`newTabHostOrigins`), where the shell document carries Buddy's sign
+  and the origin is this Environment's own.
+- **Why the boundary holds.** Buddy's origin belongs to the same Environment as the Launchpad.
+  It is served by the same gateway behind the same owner's session, and it runs the same
+  shared T3 Code as `chat`. The page's writes stay same-origin on the Launchpad's origin, and
+  nothing else of the Launchpad changes its headers.
+- **What does not change:**
+  - Buddy GEN3, whose surface has no right panel;
+  - another Environment's Buddy;
+  - a Work or Team Environment's page, where Buddy's window comes from the Osobní Prostředí
+    and the top page is another Environment's. That case needs a decision of its own and stays
+    open in #1128.
+
+**Considered and set aside:**
+
+| Option | Why not |
+| --- | --- |
+| No right panel in Buddy GEN4's window | The person asked for it in the full-screen window, for the browser and the terminal |
+| The panels in the small window too | The person declined them there: too little room to show well |
+| Name every sibling `https://*.<base>.lazurio.io` | Broader than needed; Nová karta writes, unlike a view, which only shows |
+
 ## F48 — One shared GitHub App sign-in in a Work Environment (pilot)
 
 **Decided by the Operator 2026-10-11, replacing the unpublished per-Organization
@@ -17542,7 +17666,7 @@ and hands control between bot and person by a lease (`server/browser-runtime.ts:
 | C12 | **The Launchpad's view routes.** `GET /.lazurio/browser.json[?session=]` → `{available, view, session}` or `{available: false, reason}`; `GET /.lazurio/browser` → 302. | P Launchpad (F38 point 5, F39 point 11) | P `src/browser/view.ts:14-66`, `src/launchpad/server.ts:272-273,964-997`, the path again in `src/launchpad/browser-panel-view.ts:40-44`, `src/browser/cli.ts:102-110`. T3 0.0.45-lazurio.7 asked `?session=`; lazurio.8 does not (`docs/operations/lazurio-fork-release.md`, "Vazba na vydání Platformy"). | Kept for lazurio.7 until lazurio.8 is everywhere. The path is defined twice. |
 | C13 | **`lazurio browser … --json`.** `window` → `{kind: "browser-window", session, targetId, created, link, command}`; `link` → `{kind: "browser-link", session, link}`, with `targetId` for `--url` (#348); `done` → `{kind: "browser-done", session, outcome}`, outcome `stopped`, `none`, `refused` or `unconfirmed` (#348). Without a browser: exit 10 and `{kind: "browser-window", available: false}`. Exits 0, 10, 2, 1; stderr's first line is the reason in the Operator's language. | P CLI | P `src/browser/cli.ts:31-48,176-188,195-203,212-223`; tests `tests/environment-browser.test.ts:975-1033` and #348's. T3 `apps/server/src/lazurio/environmentBrowser.ts:92-115,226-244,452-492`: the Environment declares its browser when `link --json` exits 0 with `kind: "browser-link"`; the window is decoded from `kind`, `targetId` and `created`; stderr's first line becomes the tool's error. | The answer without a browser names `browser-window` also for `link` and `done` (`cli.ts:176-188`). `link --json` without `--url`, the shape T3 depends on, and the JSON answers without a browser are untested. |
 | C14 | **Times and bounds.** | P hub; typed by hand elsewhere | Hub: last hold 8 s, last viewer 30 s, never viewed or held 10 min, holds read every 30 s, reconnect 2 s, changes joined in 100 ms, snapshots in 50 ms, a new tab awaited 2 s (`hub.ts:297-301,383,1585-1590,1608-1619`). Launchpad: Vrátit until 8 s after the request (`src/launchpad/new-tab-view.ts:245`, `src/launchpad/browser-panel.ts:544`), beat 30 s and 100 ms (`src/launchpad/new-tab/holder.ts:92-93`), Přehled and strip every 5 s, standalone after 1.5 s (`new-tab-view.ts:242-252`, `browser-panel-view.ts:58`). T3: Vrátit 7 s "within the hub's 8 s grace" (`apps/web/src/lazurio/threadTabs.ts:660-686`), beat 30 s and 100 ms (`apps/server/src/lazurio/threadTabs.ts:204-205`), another Environment's view must name its tab 4 s after loading or within 15 s (`apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:218-219`). View: identity asked at 0, 1 and 4 s (`client.ts:192`). agent-browser: 1 h (`src/browser/agent-browser-config.ts:33`). DevTools port 9222 and a 1280×800 page in a 1280×900 window (`src/browser/units.ts:51,62,144`, `src/browser/window.ts:203-210`). | Vrátit is 8 s in the Launchpad and 7 s in T3, each typed from the hub's 8 s. T3 repeats 9222 and 1280×900 (`apps/server/src/lazurio/environmentBrowserConnection.ts:40,43`). |
-| C15 | **Framing.** The frame: `allow="clipboard-read; clipboard-write; fullscreen"`, sandbox `allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals`, never on the page's own origin. The view: `frame-ancestors 'self' https://*.<base>.lazurio.io`, plus the `t3code.` or `launchpad.` of another Environment named by `Referer`. Nová karta's page: `frame-ancestors 'self'` and the Environment's own `apps`, `chat` and `automate` origins (F47 point 1). | P view (F39 point 8 and its addendum of 2026-10-09); P Launchpad for Nová karta | P `src/browser/people/service.ts:85-140`; the Launchpad's frame `src/launchpad/browser-panel-view.ts:50-55`; Nová karta's frame `src/shell/new-tab-element.ts:42-47,174-175` and page `src/launchpad/new-tab-routes.ts:134`. T3 `apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:525-536`. | The Launchpad frames with `referrerpolicy="no-referrer"`, T3 with `origin`. Another Environment's view admits only T3, so the Launchpad cannot show such a tab, which 0191 point 31 asks for. |
+| C15 | **Framing.** The frame: `allow="clipboard-read; clipboard-write; fullscreen"`, sandbox `allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals`, never on the page's own origin. The view: `frame-ancestors 'self' https://*.<base>.lazurio.io`, plus the `t3code.` or `launchpad.` of another Environment named by `Referer`. Nová karta's page: `frame-ancestors 'self'` and the Environment's own `apps`, `chat` and `automate` origins (F47 point 1), and its own Buddy GEN4's window (F47's addendum of 2026-11-20). | P view (F39 point 8 and its addendum of 2026-10-09); P Launchpad for Nová karta | P `src/browser/people/service.ts:85-140`; the Launchpad's frame `src/launchpad/browser-panel-view.ts:50-55`; Nová karta's frame `src/shell/new-tab-element.ts:42-47,174-175` and page `src/launchpad/new-tab-routes.ts:134`. T3 `apps/web/src/lazurio/LazurioEnvironmentBrowser.tsx:525-536`. | The Launchpad frames with `referrerpolicy="no-referrer"`, T3 with `origin`. Another Environment's view admits only T3, so the Launchpad cannot show such a tab, which 0191 point 31 asks for. |
 | C16 | **Address-bar input.** What a typed text opens in the view's bar and in Nová karta; the hub navigates only to http(s) and `about:blank`. | P | P `src/browser/people/protocol.ts:303-321` (`addressOf`), `src/launchpad/new-tab-view.ts:505-563` (`resolveAddress`), `src/browser/people/hub.ts:240-250` (`navigableAddress`), `src/browser/cli.ts:153-154` (`--url`, by a prefix check of its own). | Probed: `localhost:3000` opens `http://localhost:3000/` in the view's bar and searches in Nová karta; `192.168.1.10` searches in the view's bar and opens over https in Nová karta; `user@example.cz` opens `https://user@example.cz/` in the view's bar and searches in Nová karta; this Environment's bare view origin is a page for Nová karta, which loads the view inside the Environment browser. |
 | C17 | **Language.** 0191 point 33: the shell's language everywhere; the browser's only for a view opened on its own. | P shell | P: the view `client.ts:108` (the browser's, framed too); Nová karta, framed, the element's `lang` or the shell's language (`src/shell/new-tab-element.ts:143-144`), standalone the boot document's, else the browser's (`src/launchpad/new-tab-page.ts:87-89`). T3: the overlay's words (`apps/web/src/lazurio/threadTabs.ts:228`), also for `<lazurio-environment lang>`. | A framed view and T3's overlay speak the browser's language. T3 sets no `lang` on `<lazurio-new-tab>`, so Nová karta already follows the shell there. |
 
@@ -23418,6 +23542,60 @@ to the frame. Point 3 stays: the frame stays alive inside a closed window.
 **Honest limits.** A tab in the background with the window open still counts as looking, as
 T3 Code's own chat does. Live acceptance as Bob comes with the T3 Code release that carries
 Lazurio/t3code#240.
+
+### F60 addendum of 2026-11-21: the frame hears the size his window shows
+
+**Decided by Matěj (Organization Admin) on 2026-11-21**. He consented to this message in his
+Buddy's thread at 09:52:21Z, and the coordinating thread BUDDY GEN4 passed it on at 09:55 UTC
+(Lazurio/LazurioPlatform#1139). Earlier he had been told that only the window's size is sent, and
+only to Buddy's window of his own Environment. The protocol `lazurio.buddy.*` v1 gains one more
+message from the host to the frame.
+
+- **The message.** `{type: "lazurio.buddy.layout", v: 1, mode: "panel" | "fullscreen" |
+  "closed"}` says the size the person's window shows. It is the same type and values the frame
+  already sends when it asks for a size, now also from the host. The host sends it on `shown`'s
+  rules (`createBuddyLayoutSender`):
+  - after the frame's `ready`, also after every later `ready`;
+  - right before every context;
+  - whenever the size changes, also when the host changes it by itself.
+
+  It goes only to the frame's window on exactly Buddy's origin. The frame takes it only from its
+  parent on exactly the host's origin, with exactly these members.
+- **Why.** The host changes the size by itself: the launcher opens the remembered size, Escape
+  on the page goes from full screen to the panel, and an explanation of the guide closes the
+  window and brings it back. So the frame could not know the size the person sees.
+  Matěj decided on 2026-11-21 how Buddy GEN4's window offers T3 Code's panels (the F47 addendum
+  of 2026-11-20 gives the right panel Nová karta there):
+  - the small window, which the person moves about the screen, offers neither panel;
+  - the full-screen window offers both, on a phone and a computer alike;
+  - clicking the right panel there stretches it over the whole window, where the person works
+    with the browser or whatever else the panel holds.
+
+  Width alone cannot tell a phone's full screen from the small window, so this needs the size
+  from the host. T3 Code's side is Lazurio/t3code#245.
+- **Compatibility.** Exact keys stay, and so does `v: 1`, because no member is added to an
+  existing message. An older T3 Code drops the host's `layout` as a type it does not take. A
+  newer T3 Code with an older Lazurio never hears it, and keeps the width rule of the small window.
+
+**Considered and set aside:**
+
+| Option | Why not |
+| --- | --- |
+| Decide by the frame's width alone (Lazurio/t3code#243) | A full-screen window on a phone is as narrow as the small window, and the decision offers the panels there; #243 was closed for #245 |
+| A `mode` member in `lazurio.buddy.shown` | Exact keys make any new member v2: an older frame would refuse every `shown` |
+| The frame keeps the size it last asked for | The host changes the size by itself, so after an Escape the frame would think it is full screen |
+
+**Verified by:**
+- `tests/shell-buddy.test.ts`:
+  - the frame hears the size after its `ready`, the one the host took for the frame's own request, the panel after an Escape on the page, the size again before a context, and `closed` and the panel again on a close and an open;
+  - it is never sent to `*`;
+  - `shown` and `layout` both precede the context.
+- The vectors carry `buddyLayoutMessage`.
+- `tests/shell-buddy-frame-browser.test.ts` still passes in headless Chrome with the real bubble and element.
+
+**Honest limits.** The panels in Buddy's window work only with a T3 Code release that carries
+Lazurio/t3code#245. Live acceptance as Bob comes with that release and a Lazurio candidate with
+this addendum.
 
 ## F61 — Buddy's chat in Lazurio is T3 Code with Hermes over ACP: the Platform's side
 

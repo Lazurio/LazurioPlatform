@@ -204,6 +204,27 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   // put_page on an existing page needs the revision, and a refusal changes nothing.
   expect(cs).toContain("`revision_required` a nic nezmění");
   expect(en).toContain("ends with `revision_required` and changes nothing");
+  // A page changes through edit_page; the quote wrapper the pinned GBrain may
+  // put around any read (quoted: "transcript") is never part of a write.
+  expect(cs).toContain("**Úprava existující stránky:** vždy `edit_page`");
+  expect(en).toContain("**Changing an existing page:** always `edit_page`");
+  for (const text of [cs, en]) {
+    expect(text).toContain("`include_content: true`");
+    expect(text).toContain('`quoted: "transcript"`');
+  }
+  expect(cs).toContain("Obal není součást textu stránky");
+  expect(en).toContain("The wrapper is not part of the page's text");
+  // new_text is the wanted replacement, never taken from the read.
+  expect(cs).toContain(
+    "`new_text` napiš sám jako požadovanou náhradu, bez obalu",
+  );
+  expect(en).toContain(
+    "write `new_text` yourself as the replacement you want, without the wrapper",
+  );
+  for (const text of [cs, en])
+    expect(text).toContain("`edits: [{ old_text, new_text }]`");
+  expect(cs).not.toContain("Stránku priorit přepisuješ");
+  expect(en).not.toContain("You rewrite the priorities page");
   // The degraded signals the pinned GBrain really sends (no
   // `semantic_degraded`): empty is no proof while one of them is there.
   for (const text of [cs, en]) {
@@ -339,5 +360,18 @@ test("the threads skill answers a pending question elsewhere directly, by link o
     expect(skill).toContain(
       't3 request respond <requestId> --thread <id> --answer "<label>"',
     );
+  }
+});
+
+test("Buddy reads a Lazurio mechanism in the manual before he says how it works", () => {
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): twice Buddy guessed
+  // a mechanism wrong; he reads it in ~/Lazurio/manual/ instead of guessing.
+  for (const profile of ["buddy", "employee"] as const) {
+    const cs = renderBuddyFolder(source("cs"), profile, persona)["AGENTS.md"];
+    const en = renderBuddyFolder(source("en"), profile, persona)["AGENTS.md"];
+    expect(cs).toContain("přečti si ho v `~/Lazurio/manual/`; neodhaduj");
+    expect(en).toContain("read it in `~/Lazurio/manual/`; do not guess");
+    expect(cs).not.toContain("zbytek si přečti, když ho potřebuješ");
+    expect(en).not.toContain("read the rest when you need it");
   }
 });

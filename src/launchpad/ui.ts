@@ -37,6 +37,7 @@ import { createBrowserPanel } from "./browser-panel";
 import { browserPanelOrigin } from "./browser-panel-view";
 import { createBuddyClient } from "./buddy-client";
 import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
+import { createBuddyIntroduction } from "./buddy-introduction";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
 import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
@@ -733,6 +734,23 @@ const contentTransport: ContentTransport = async (method, path, body) => {
   if (mode !== null) enterRecovery(mode);
   return { status: response.status, value };
 };
+// Buddy GEN4's introduction for a person who met him before
+// (buddy-introduction.ts): made before anything that redraws the page.
+const buddyIntroduction = createBuddyIntroduction({
+  here: () => framed && buddyHere(),
+  reading: () => buddyClient.reading(),
+  toured: () => tour.toured(),
+  dialogOpen: () => document.querySelector("dialog[open]") !== null,
+  environment: () => environmentKey(),
+  storage: () => {
+    try {
+      return localStorage;
+    } catch {
+      return null;
+    }
+  },
+  open: () => buddyDialog.open("introduce", "tour"),
+});
 const content = createContentPanel({
   client: createContentClient(contentTransport),
   copy: () => copy,
@@ -806,6 +824,8 @@ const tour = createTour({
   // Never two tours at once (decision F56): the guide hears whether the
   // tour wants attention, and the tour waits while the guide is out.
   attention: guideAttention,
+  // Buddy GEN4's introduction waits for the end of this tour.
+  advanced: () => offerBuddyIntroduction(),
 });
 // Nastavení → Začínáme (root decision 0201): the basics from the same facts,
 // the vault's state as Apps → Trezor reads it, the optional steps and the
@@ -978,6 +998,7 @@ const buddyDialog = createBuddyDialog({
   spotlight: (on) => buddyElement()?.spotlight(on),
   finished: () => meetingFinished(),
   closed: () => firstRun(),
+  introduced: () => keepBuddyIntroduced(),
   telegram: () => telegramDialog.open(undefined, "meeting"),
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
@@ -1070,7 +1091,26 @@ const buddyPanel = createBuddyPanel({
     resume: () => telegramDialog.open("start", "channels"),
     disconnect: () => buddyClient.disconnectTelegram(),
   },
+  introduce: () => buddyDialog.open("introduce", "tour"),
 });
+// Buddy GEN4's introduction (the guide to Buddy, 2026-11-21): a person who
+// met him before it existed, moved over from the older Buddy, sees it once,
+// as a tour of his beats that ends in his window. Whether it was seen is kept
+// in this browser for each Environment, as the tour of Lazurio keeps its
+// progress (`tourStorageKey`); a person who meets him now sees his beats in
+// the meeting itself.
+function keepBuddyIntroduced() {
+  buddyIntroduction.keep();
+}
+function offerBuddyIntroduction() {
+  buddyIntroduction.offer();
+}
+// Another dialog closing (a sign-in, a prompt) lets it come: looked at again
+// once the page has settled, as the tour comes back after a dialog.
+new MutationObserver(() => queueMicrotask(offerBuddyIntroduction)).observe(
+  document.body,
+  { attributes: true, attributeFilter: ["open"], subtree: true },
+);
 const buddyNav = document.querySelector<HTMLElement>("#buddy-nav");
 // The codes' countdowns, filled in place each second while one waits.
 let buddyTicker: ReturnType<typeof setInterval> | undefined;
@@ -1242,6 +1282,7 @@ function firstRun() {
   drawGuide(shell.route());
   tour.update();
   takeStart();
+  offerBuddyIntroduction();
 }
 /** The column head of this page counts the basics from what the page
  * itself read, which is newer than the shell document's last reading: the
