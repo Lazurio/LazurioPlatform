@@ -7,6 +7,7 @@ import type {
 } from "../integrations/custom-server";
 import type { ToolRunner } from "../tools/status";
 import { writeDurableFile } from "../update/durable-file";
+import { meaningPauseMs } from "./meaning";
 import type { BrainPaths } from "./pin";
 
 // The person's brain at the Launchpad's start (plan LZD-0033 R11a, step 4),
@@ -29,10 +30,9 @@ export type BrainSetupLabels = Readonly<{
 }>;
 
 /** How long the Launchpad lets one setup run: longer than its longest
- * supported step, the first embedding of a brain switched to search by
- * meaning (gbrain's `embed`, limited to 6 hours; 86 minutes were measured for
- * ten times the largest measured brain), with the copy, a migration and the
- * start around it. A setup it ends anyway leaves its gbrain command
+ * supported step, a move or one window of search by meaning (gbrain's
+ * `embed` with its budget and one batch, `meaningEmbedLimitMs`), with the
+ * copy, a migration and the start around it. A setup it ends anyway leaves its gbrain command
  * running in its own group; the next setup ends that writer before it
  * recovers or starts anything (`./writers.ts`). */
 export const setupTimeoutMs = 8 * 3_600_000;
@@ -49,31 +49,71 @@ export const brainHandoverMark = "/etc/lazurio/brain-handover";
  * at once, its pending sleep included, and never starts another setup, not
  * even when a check of the mark it began before closing then succeeds.
  * `report` hears the first answer while it waits. */
+/** Whether a run's search by meaning waits for another run: `waits-idle`
+ * or `waits:…` (filling, a failed window, the model not ready). */
+export const meaningWaits = (labels: BrainSetupLabels | null) =>
+  labels?.meaning === "waits-idle" ||
+  labels?.meaning?.startsWith("waits:") === true;
+
 export async function brainSetupAtStart(
   input: Readonly<{
     run: () => Promise<BrainSetupLabels | null>;
     handover: () => Promise<boolean>;
     signal: AbortSignal;
     report?: (labels: BrainSetupLabels) => void;
+    /** After every run, with its labels: the Launchpad hands the brain to
+     * Executor there, so agents reach it while windows are left. */
+    settled?: (labels: BrainSetupLabels | null) => Promise<void>;
     waitMs?: number;
     waits?: number;
+    /** The pause before the next window's run (`meaningPauseMs`), and how
+     * many such runs one start makes at most. */
+    fillMs?: number;
+    fills?: number;
     sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   }>,
 ): Promise<BrainSetupLabels | null> {
   const { signal } = input;
   if (signal.aborted) return null;
-  const first = await input.run();
-  if (first?.server !== "waits-machines" || signal.aborted) return first;
-  input.report?.(first);
   const sleep = input.sleep ?? abortableSleep;
-  for (let i = 0; i < (input.waits ?? 720); i++) {
-    await sleep(input.waitMs ?? 60_000, signal);
-    if (signal.aborted) return first;
-    const marked = await input.handover().catch(() => false);
-    if (signal.aborted) return first;
-    if (marked) return input.run();
+  const run = async () => {
+    const labels = await input.run();
+    if (!signal.aborted) await input.settled?.(labels).catch(() => undefined);
+    return labels;
+  };
+  let labels = await run();
+  if (labels?.server === "waits-machines" && !signal.aborted) {
+    input.report?.(labels);
+    for (let i = 0; i < (input.waits ?? 720); i++) {
+      await sleep(input.waitMs ?? 60_000, signal);
+      if (signal.aborted) return labels;
+      const marked = await input.handover().catch(() => false);
+      if (signal.aborted) return labels;
+      if (marked) {
+        labels = await run();
+        break;
+      }
+    }
   }
-  return first;
+  // Search by meaning that waits (windows left, Buddy working before a
+  // window, a window that failed and is tried again, the model not ready
+  // yet): the next run after a pause, while this start lasts and at most
+  // `fills` runs (a day at the default pause); a later start goes on from
+  // the brain's own record. It ends at `on`, `held`, a stop for a person or
+  // any other answer.
+  // Another setup holding the lock (`busy`, no meaning in its answer) is
+  // passing: while a meaning waited before it, the next run comes as well.
+  let waiting = false;
+  for (let i = 0; i < (input.fills ?? 288); i++) {
+    if (labels === null || signal.aborted) break;
+    if (labels.server !== "busy") waiting = meaningWaits(labels);
+    if (!waiting) break;
+    input.report?.(labels);
+    await sleep(input.fillMs ?? meaningPauseMs, signal);
+    if (signal.aborted) break;
+    labels = await run();
+  }
+  return labels;
 }
 
 /** A sleep that ends early when `signal` is aborted. */

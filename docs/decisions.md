@@ -15904,6 +15904,39 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         its size, measured on Bob.
     - **When it fails.** The copy comes back without the model, and the step
       is not tried again for this pin.
+    - **Amendment 2026-11-20: in short windows** (Lazurio/LazurioPlatform#1134,
+      proposed after a Personal Environment of 82 pages was down for 19
+      minutes and then fell back: gbrain abandoned batches to the local model
+      after its 60 s default, 192 times). It replaces the single stopped
+      `embed --stale --catch-up` above and its failure rule.
+      - **Windows.** The vectors are computed in windows of gbrain's own budget
+        (`GBRAIN_EMBED_TIME_BUDGET_MS`, 3 minutes), each with the server
+        stopped as before and only while Buddy is idle. gbrain stops at the
+        budget between batches, and a batch to the local model may take 10
+        minutes. One stop therefore usually lasts under 4 minutes (a batch
+        takes under a minute on a quiet Environment), and on a heavily loaded
+        one up to about 18 minutes (the window's process limit,
+        `meaningEmbedLimitMs`); Matěj accepted that bound for this step on
+        2026-11-21, with a nightly computation to follow as the next step.
+        One window per setup run; the Launchpad
+        runs setup again after 5 minutes while search by meaning waits, for
+        at most a day a start, and hands the brain to Executor after each.
+      - **Between windows** the server runs with the model: search by meaning
+        covers what is computed, new pages get their vectors as they come,
+        and search by words answers as before (`brain status` says
+        `filling`). `on` is recorded once nothing is left.
+      - **Commit and recovery.** gbrain's CLI counts the stored pages with the
+        server stopped, before and after a window. The window, or a way back,
+        is recorded before the server starts, so no later run ever brings a
+        copy back over writes the server took. The first window falls back
+        as before (the copy before, without the model). A later window that
+        fails before its commit brings its own copy back with the model; the
+        failed brain is kept once. Two windows in a row without progress, or
+        400 in all, stop the filling for this pin with the vectors computed
+        so far kept.
+      - **Not changed:** the model, its pin and priority, the copy before the
+        first window, and that gbrain's trust claim of pages from before
+        trust tracking stays the owner's own step.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.

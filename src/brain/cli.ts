@@ -148,7 +148,9 @@ export function brainStatusText(status: BrainStatus): string {
   const meaning =
     status.meaning === "on"
       ? "Search by meaning is on."
-      : "Search by meaning is off: the memory finds pages by their words only.";
+      : status.meaning === "filling"
+        ? "Search by meaning is being switched on: it covers the pages done, and the rest is computed in short windows while Buddy is idle."
+        : "Search by meaning is off: the memory finds pages by their words only.";
   return `${head}\nKeys: ${keys}.\n${meaning}${waits}`;
 }
 

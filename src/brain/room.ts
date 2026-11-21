@@ -6,7 +6,9 @@ import { type BrainPaths, brainPin, releaseCommand } from "./pin";
 // The brain's size and the room on the disk for what a takeover and the
 // moves after it write (plan LZD-0033 R11a): a copy of the brain before the
 // move to the pin and another before search by meaning is switched on (both
-// kept), the brain growing by its vectors, the pinned release where it is
+// kept), the copy before each window of its vectors (one at a time) and the
+// brain of the last window that failed (one, replaced by the next), the
+// brain growing by its vectors, the pinned release where it is
 // not installed yet (about 500 MB measured), the model and its server where
 // they are not there yet (about 650 MB), and a reserve. Read from file
 // metadata only, never the brain's content.
@@ -76,7 +78,7 @@ export async function brainRoom(
   const needed =
     size === null
       ? null
-      : 3 * size.bytes +
+      : 5 * size.bytes +
         ((await present(releaseCommand(paths, brainPin.commit)))
           ? 0
           : pinInstallBytes) +
