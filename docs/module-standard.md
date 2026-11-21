@@ -564,7 +564,9 @@ The rules:
   whom the App does not know yet asks to be paired (their subject and
   username), and an Application Admin assigns them to the record, for example
   to an employee or a technician. The e-mail address in a token is not
-  verified and never decides who someone is.
+  verified and never decides who someone is. Neither does the provider the
+  person signed in through (Google, Microsoft or GitHub): the App knows the
+  Lazurio account by its subject only.
 - **A name comes from the App's own record.** Over MCP the token carries the
   subject only (the default scope gives no `preferred_username`), so
   `username` may be `null` there. A tool that shows or writes a person's name
