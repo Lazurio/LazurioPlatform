@@ -412,13 +412,62 @@ posixTest(
       steps.find((step) => step.key === "access" && step.state === "done")
         ?.detail,
     ).toBe(
-      "anonymously (module-reader, restricted slots excluded); root beta/beta_GEN3 (by name)",
+      "anonymously (module-reader, restricted slots excluded); root beta/beta_GEN4, then beta/beta_GEN3 (by name)",
     );
     expect(
       await exists(
         join(folder, "organizations", "beta_GEN3", "workspace", "web", ".git"),
       ),
     ).toBe(true);
+    expect(calls).toEqual([]);
+  },
+  60_000,
+);
+
+posixTest(
+  "a public Environment clones the GEN4 root first and publishes it when it declares itself the root (LZD-0041 G1)",
+  async () => {
+    world = await createWorld();
+    await lowercaseOrganization(world, "beta");
+    await remoteRepository(world, "beta/beta_GEN4", (directory) =>
+      writeOrganizationRoot(directory, {
+        slug: "beta",
+        forge: "beta",
+        root: "beta/beta_GEN4",
+        slots: [
+          {
+            path: "workspace/web",
+            slug: "web",
+            git: { url: "git@github.com:beta/web.git", branch: "main" },
+          },
+        ],
+      }),
+    );
+    const folder = await presetFolder(
+      world,
+      "hosted-organization-team",
+      publicBinding("beta"),
+    );
+    const { github, calls } = stubGitHub(world, {
+      viewer: { kind: "signed-out" },
+    });
+    const host = await anonymousHost(world, github);
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      folder,
+      {},
+      (step) => steps.push(step),
+      host,
+    );
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(await readdir(join(folder, "organizations"))).toEqual(["beta_GEN4"]);
+    expect(
+      result.kind === "content-install" && result.items[0]?.repository,
+    ).toBe("beta/beta_GEN4");
+    // One root clone (GEN4), no fallback, nothing of GitHub asked.
+    expect(
+      host.clones.filter((clone) => /_GEN[34]\.git$/.test(clone.url)).length,
+    ).toBe(1);
     expect(calls).toEqual([]);
   },
   60_000,
@@ -500,10 +549,15 @@ posixTest(
             ? "git clone failed; GitHub access or the network refused it"
             : "the root's declaration names another Organization or root repository",
       });
-      // Nothing published, no temporary sibling, nothing of GitHub asked.
+      // Nothing published, no temporary sibling, nothing of GitHub asked;
+      // the GEN4 candidate is tried first (it does not exist here), then
+      // GEN3, each anonymously (LZD-0041 G1).
       expect(await readdir(join(folder, "organizations"))).toEqual([]);
       expect(calls).toEqual([]);
-      expect(host.clones.map((clone) => clone.credentialHelper)).toEqual([""]);
+      expect(host.clones.map((clone) => clone.credentialHelper)).toEqual([
+        "",
+        "",
+      ]);
     }
   },
   60_000,
@@ -572,7 +626,7 @@ posixTest(
       steps.find((step) => step.key === "access" && step.state === "done")
         ?.detail,
     ).toBe(
-      "anonymously (module-reader, restricted slots excluded); root gamma/gamma_GEN3 (by name)",
+      "anonymously (module-reader, restricted slots excluded); root gamma/gamma_GEN4, then gamma/gamma_GEN3 (by name)",
     );
     expect(
       steps.find((step) => step.key === "root" && step.state === "done")
