@@ -158,18 +158,28 @@ export type NewTabOverview = Readonly<{
 /** The headers the page `/new-tab` adds behind the gateway (F47 point 1):
  * only the Environment's own apps may frame Nová karta, `apps` (the
  * Launchpad itself, also `'self'`), `chat` and `automate`, from the recorded
- * entry, as present; and its type is not sniffed. No other page of the
- * Launchpad changes its headers. */
+ * entry, as present, and Buddy GEN4's window, whose shared T3 Code places
+ * Nová karta in its right panel there (Lazurio/LazurioPlatform#1128); and
+ * its type is not sniffed. No other page of the Launchpad changes its
+ * headers. */
 export function newTabPageHeaders(
   entry: Pick<
     MachineEntry,
-    "externalOrigin" | "t3codeOrigin" | "mausbotOrigin"
+    | "externalOrigin"
+    | "t3codeOrigin"
+    | "mausbotOrigin"
+    | "buddyOrigin"
+    | "buddyFolder"
   >,
 ): Readonly<Record<string, string>> {
   const origins = [
     entry.externalOrigin,
     entry.t3codeOrigin,
     ...(entry.mausbotOrigin === undefined ? [] : [entry.mausbotOrigin]),
+    // Buddy GEN4 records his folder (`buddyGeneration`).
+    ...(entry.buddyFolder !== undefined && entry.buddyOrigin !== undefined
+      ? [entry.buddyOrigin]
+      : []),
   ];
   return Object.freeze({
     "Content-Security-Policy": `frame-ancestors ${newTabFrameAncestors(origins)}`,
