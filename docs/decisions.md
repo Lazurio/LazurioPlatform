@@ -4119,6 +4119,53 @@ poskytnout tuhle informaci, tak by to bylo fajn, aby přesně nedocházelo k tě
 Template revision `base-instructions-132`. Verified by `tests/folder-manual.test.ts` and the pinned
 digest. Not proven: that agents in every harness follow the text.
 
+**Addendum 2026-11-20, proposed by Anna (to be decided by Matěj): an automation is a bot in
+Automate, through the skill `automate`; manifest schema 7.** When a person asked for something
+to happen regularly, agents reached for the scheduler their harness offers (Codex automations,
+Claude Code's CronCreate and /loop) or for cron. Such an automation is visible in one client
+only, and nobody finds a cron job. The rule already stood in the manual: work on a schedule or
+on another app's call is a routine or a webhook of Lazurio MausBot, which people see in Automate,
+and an Organization's standing work belongs to its Henry (root decision 0169). But it was one
+item of a long list, `AGENTS.md` said nothing about automations, and no skill led the agent
+through the CLI.
+
+What changes:
+
+- **The skill `automate`**, in the Folder's locale, byte-identical for both harnesses: where an
+  automation belongs (a bot in Automate by default; a recurring task bound to a T3 Code chat only
+  when the person explicitly wants the result in that chat, the split of #182; the Organization's
+  standing work in its Henry Environment; nothing on the person's own computer; never a harness's
+  scheduler or cron), the conversation about its purpose and what the bot may publish on its own,
+  and the routine or webhook through the documented CLI with `--dry-run` first.
+- **A trial run waits for consent.** `routine run` and an authorized webhook call start the real
+  task with all its effects, so the agent says what a run will do now and runs it only on the
+  person's consent to run now. Otherwise it offers a preview: a separate one-off job of the bot
+  told to prepare only, which rests on that instruction, not on a lock. A task with an
+  irreversible action starts `--paused`.
+- **A webhook's secret never leaves the Environment.** It exists once, at creation or rotation:
+  it goes to a file only this account reads (`--secret-file`, never `--show-secret`), then into
+  the Environment's vault, and the file is deleted. It reaches the calling app through its
+  Integration, with consent to write there, or through a field the agent fills in the
+  Environment browser from standard input after the person signs in. People are not members of
+  the Environment's vault yet, and a downloaded copy would stay on their computer, so without
+  either path no webhook is created and the agent offers a shared vault from the Organization
+  Admin. Measured on a hosted Organization Environment: no secret or a wrong one answers 401, and
+  the right one with an event outside `--event-types` answers 202 `ignored` without starting
+  work, which checks the authorization safely. The receiver listens on loopback today (#1135),
+  so the skill tells the person that an outside app cannot reach it yet.
+- **`AGENTS.md`** gains one short line pointing to the skill on a personal work Environment of an
+  Organization and on a Henry Environment. A personal and a Team Remote Environment leave no room
+  for it within Codex's 32 KiB with the longest voice; there the skill's description, which every
+  harness lists, leads to it.
+- **`manual/lazurio.md`**: the item on work on a schedule names the skill, the T3 chat exception
+  and the harness's scheduler as something not to use.
+- **Manifest schema 7** records the new skill; Folders at 2 to 6 gain it on their next change
+  where nothing is at its paths.
+
+Template revision `base-instructions-146`. Verified by `tests/folder-automate.test.ts`,
+`tests/folder-skills.test.ts`, the budget tests and the pinned digest. Not proven: that agents
+in every harness pick the skill over their own scheduler.
+
 ## F15 — The Platform Launchpad replaces the resident Launchpad; `launchpad.gen3.json` is legacy without a successor
 
 **Matěj's decision 2026-09-23, not implemented.** On a hosted Machine delivered

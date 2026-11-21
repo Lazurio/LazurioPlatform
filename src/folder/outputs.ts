@@ -90,13 +90,14 @@ export type ManualPath = (typeof manualEntries)[number]["path"];
 // and its text in `skills.ts`. `henry-review` and `module-standard` came
 // from the Lazurio Root (decision F14, addendum of 2026-11-01), `ui-craft`
 // from the addendum of 2026-10-21, `admin-request` from the proposed addendum
-// of 2026-11-05.
+// of 2026-11-05, `automate` from the proposed addendum of 2026-11-20.
 export const skillNames = Object.freeze([
   "new-module",
   "henry-review",
   "module-standard",
   "ui-craft",
   "admin-request",
+  "automate",
 ] as const);
 export type SkillName = (typeof skillNames)[number];
 export const skillRoots = Object.freeze([
@@ -162,8 +163,10 @@ export type OutputPath = "AGENTS.md" | ManualPath | SkillPath;
 // in that Folder's upgrade, where its absence is the proof that nothing of the
 // person's is replaced. Schema 5 adds `ui-craft`. Schema 6, which adds the
 // manual's `mechanisms.md` and `admin.md` and the skill `admin-request`
-// (proposed addendum of 2026-11-05), records every output of this product,
-// so the earlier schemas name their six manual files explicitly.
+// (proposed addendum of 2026-11-05), names its outputs explicitly since
+// schema 7 adds the skill `automate` (proposed addendum of 2026-11-20) and
+// records every output of this product; the earlier schemas name their six
+// manual files explicitly.
 const manualPathsBeforeSchema6 = Object.freeze([
   "manual/lazurio.md",
   "manual/this-machine.md",
@@ -198,7 +201,18 @@ export const manifestOutputPaths = Object.freeze({
       "ui-craft",
     ]),
   ] as OutputPath[]),
-  6: outputPaths as readonly OutputPath[],
+  6: Object.freeze([
+    "AGENTS.md",
+    ...manualPaths,
+    ...skillPathsOf([
+      "new-module",
+      "henry-review",
+      "module-standard",
+      "ui-craft",
+      "admin-request",
+    ]),
+  ] as OutputPath[]),
+  7: outputPaths as readonly OutputPath[],
 } as const);
 
 export function isOutputPath(value: unknown): value is OutputPath {

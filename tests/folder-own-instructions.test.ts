@@ -337,7 +337,7 @@ async function recorded(
   return {
     preferences,
     manifest: {
-      schemaVersion: 6,
+      schemaVersion: 7,
       preferenceRevision: preferences.revision,
       templateRevision: preview.templateRevision,
       outputs,

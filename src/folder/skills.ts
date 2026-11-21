@@ -13,6 +13,7 @@ import {
   type Text,
 } from "./render";
 import { adminRequest, adminRequestDescription } from "./skill-admin-request";
+import { automate, automateDescription } from "./skill-automate";
 
 // The agent skills the Folder carries (decision F14, addendum of 2026-10-14):
 // procedures a harness offers by their description and loads when the work
@@ -1069,6 +1070,14 @@ function skillText(source: InstructionSource, name: SkillName): string {
           en: "A module to the Lazurio Module Standard",
         },
         moduleStandard,
+      );
+    case "automate":
+      return skillDocument(
+        locale,
+        name,
+        automateDescription,
+        { cs: "Automatizace v Automate", en: "An automation in Automate" },
+        automate,
       );
   }
 }
