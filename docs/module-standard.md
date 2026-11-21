@@ -1010,12 +1010,19 @@ cases when it needs them; a `vite-react` or
 
 ### Tools between versions
 
-A client may hold a snapshot of the tools it saw when it was connected. ChatGPT
-Business, for one, keeps the tool list of a published connection until the
-workspace's administrator refreshes it, and a changed tool definition then
-breaks calls without a notice
+A client may hold a snapshot of the tools it saw when it was connected.
+ChatGPT Business, for one, uses a frozen snapshot of an approved connection's
+tools and inputs and applies later changes only once the workspace's
+administrator reviews and publishes an update. If the live App no longer
+matches the snapshot, calls can fail. A backward-compatible change, such as a
+new optional parameter, may continue to work. An incompatible one needs the
+administrator to refresh the tools, and neither the person nor the
+administrator is told
 ([OpenAI: Connecting custom MCP servers in ChatGPT](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt),
-FAQ). Since a merge to `main` deploys a new version by default (decision 0249),
+FAQ). A connected client therefore sees a new tool only after such a refresh,
+and after an incompatible change its calls can fail without a notice. Since a
+merge to `main`
+deploys a new version by default (decision 0249),
 a tool's contract only grows between versions:
 
 - **Allowed:** a new tool, a new optional input field, a new output field, a
