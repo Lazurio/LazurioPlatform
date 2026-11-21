@@ -7,6 +7,9 @@ from (`OrganizationTemplate_GEN4`). This repository is its authority, as for the
 [Module Standard](module-standard.md) and the
 [organization contract](organization-contract.md) (decision
 [0225](decision-register.md#0225--gen3-and-gen4-are-official-designations-gen3-stays-maintained-and-transitional)).
+It applies the move of Organization roots to new `<Organization>_GEN4`
+repositories of decision
+[0251](decision-register.md#0251--organization-roots-move-to-new-organization_gen4-repositories-without-backward-compatibility).
 
 The three documents divide the work:
 
@@ -20,9 +23,11 @@ The three documents divide the work:
 A root has no App, no runtime, no generations and no data. Nothing from the
 Module Standard about starting, health, data or tools for agents applies to it.
 
-**How a requirement is enforced.** `lazurio organization check` resolves the
-root as every reader of this repository does and fails when the root does not
-run (`src/organizations/check-cli.ts`). A requirement marked **rule only** has no
+**How a requirement is enforced.** For an Organization root (`kind:
+"organization"`), `lazurio organization check` resolves the root as every reader
+of this repository does and fails when the root does not run
+(`src/organizations/check-cli.ts`). A template (`kind: "template"`) never runs;
+see [The template](#the-template). A requirement marked **rule only** has no
 check in this repository yet: the root's own contract check (shipped with the
 template, `OR-09`) and the root's review hold it.
 
@@ -32,9 +37,11 @@ An Organization root is the repository that declares itself the root in its
 Organization manifest: `root_repository` and `forge_binding` in
 `lazurio.organization.json` name it. The name of the repository and the name of
 the directory it is checked out in are not its identity. A root is found and
-accepted by its declaration (`declaresRoot`, `src/content/organization-root.ts`),
-so a root named `<Organization>_GEN4` and, during a transition, a checkout in a
-directory named `<Organization>_GEN3` are the same root.
+accepted by its declaration (`declaresRoot`, `src/content/organization-root.ts`,
+which accepts only `kind: "organization"`). A GEN4 root is a repository named
+`<Organization>_GEN4` (0251); until an Environment's folder is renamed during
+the move, its checkout may still sit in a directory named `<Organization>_GEN3`,
+and it is the same root.
 
 ## Repository layout
 
@@ -129,16 +136,18 @@ one Linux workflow on every pull request and every push to `main`, with
 4. the root's contract check against `GITHUB_REPOSITORY`: the repository the CI
    runs in is the one the manifest declares as the root.
 
-A root has no Windows or macOS workflow: it has no code people run on their
-computers beyond the two agent scripts, and those run on Linux in the
-Environment.
+The task doctor and the preflight also run on people's computers, so the root
+has the second workflow that [CI](module-standard.md#ci) and decision 0171
+require of a repository created from a template: Windows and macOS run the same
+gate only for pull requests that change the scripts, the tests, the toolchain or
+a workflow (`pull_request.paths`), and on request (`workflow_dispatch`).
 
 ## Requirements OR-01 to OR-12
 
 | Requirement | Text | Enforced by |
 | --- | --- | --- |
-| `OR-01` | `lazurio organization check` resolves the root as running | `src/organizations/check-cli.ts` (`tests/organization-check.test.ts`) |
-| `OR-02` | The manifest declares the root: `root_repository` and `forge_binding` name this repository; the root is never identified by the suffix of its name or by its directory | `declaresRoot`, `src/content/organization-root.ts`; in CI the root's contract check (`OR-09`) |
+| `OR-01` | An Organization root: `lazurio organization check` resolves it as running | `src/organizations/check-cli.ts` (`tests/organization-check.test.ts`) |
+| `OR-02` | An Organization root: the manifest declares it; `root_repository` and `forge_binding` name this repository; it is never identified by the suffix of its name or by its directory | `declaresRoot`, `src/content/organization-root.ts`; in CI the root's contract check (`OR-09`) |
 | `OR-03` | Only `lazurio.organization.json` and `modules.manifest.json` describe the Organization; no `company.gen3.json`, no `compatibility`, no projection digest | Rule only; the root's contract check |
 | `OR-04` | No root task ledgers, snapshots of them or generated views | Rule only; the root's contract check |
 | `OR-05` | No integration catalogue in the root; integrations are `settings.integrations` and the Executor | Rule only; the root's contract check |
@@ -146,25 +155,35 @@ Environment.
 | `OR-07` | `lazurio.template.json` names the template release and every managed file; managed files match that release; managed blocks of `AGENTS.md` are marked | Rule only; the root's contract check |
 | `OR-08` | Strict TypeScript on Bun with one gate `bun run check` (the rules of `MS-02`, `MS-08` and `MS-13`); dependencies pinned to exact released versions; no absolute path of a computer (the first part of `MS-11`); no `.js`, `.mjs` or `.cjs` | Rule only; the root's CI |
 | `OR-09` | The root's contract check exists, comes from the template and runs in `bun run check` | Rule only |
-| `OR-10` | CI as in [CI](#ci): Linux, frozen install, `bun run check`, the pinned Lazurio CLI and `lazurio organization check`, the declaration against `GITHUB_REPOSITORY`; `MS-14` | Rule only |
-| `OR-11` | No code, test or text that exists only for GEN2 or GEN3: `git grep -n -i -E 'gen2\|gen3'` on `HEAD` finds nothing but the name of a predecessor repository during a transition | Rule only; the root's contract check |
+| `OR-10` | CI as in [CI](#ci): Linux, frozen install, `bun run check`, the pinned Lazurio CLI and `lazurio organization check`, the declaration against `GITHUB_REPOSITORY`; Windows and macOS for changes of code, toolchain or workflows and on request (0171, `MS-14`) | Rule only |
+| `OR-11` | No code, test or text that exists only for GEN2 or GEN3: `git grep -n -i -E 'gen2\|gen3'` on `HEAD` finds nothing but deliberate exceptions: the guest Module folder that the slot contract names (`src/organizations/repository-slots.ts`), the name of a predecessor repository during a move, and quotations in historical records | Rule only; the root's contract check reports it, as an error in managed files and in its strict mode |
 | `OR-12` | A template synchronization follows decision 0174 until a decision replaces it | Rule only |
 
 ## The template
 
-`OrganizationTemplate_GEN4` is itself a root that satisfies this standard, with
-`kind: "template"` in its Organization manifest and the standard slots
+`OrganizationTemplate_GEN4` satisfies the requirements of this standard that
+describe the repository (`OR-03` to `OR-12`). It is a template, not a running
+root: its Organization manifest has `kind: "template"`, an unverified binding
+with placeholders, and the standard slots
 (`knowledgebase`, `mission-control`, `mission-control/db`, `design-system`,
 `infra`) as planned slots. Its releases are tagged; a root names the release it
 follows. The Modules behind the standard slots come from the released
 templates of the Marketplace, as every Module does
-([Creating a Module](module-standard.md#creating-a-module)).
+([Creating a Module](module-standard.md#creating-a-module)). `OR-01` and `OR-02`
+apply to the root created from it, once its manifest names the Organization and
+its repository.
 
 ## GEN3 roots
 
 A GEN3 root (`<Organization>_GEN3`, with `company.gen3.json` and the scripts of
 `OrganizationTemplate_GEN3`) does not satisfy this standard and is not changed to
-satisfy it. It is replaced by a new GEN4 root that carries its history and, in
-one pull request, its manifests without the compatibility block and the managed
-files of the GEN4 template. Until then the Platform keeps reading it as it does
+satisfy it. By decision 0251 it is replaced by a new GEN4 root that carries its
+history and, in one pull request, its canonical manifests without the
+compatibility block and the managed files of the GEN4 template. The move of an
+Organization begins only after the gate of 0251, which is the finalization gate
+of [0145](decision-register.md#0145--the-organization-manifest-compatibility-window-ends)
+for a root that moves: every mutation-capable reader and supported Machine that
+can reach the Organization (this Platform, the Root's Core where it still runs,
+the Dashboard, Lazurio Machines) no longer requires the projection and accepts
+the new name. Until then the Platform keeps reading the GEN3 root as it does
 today.
