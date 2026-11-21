@@ -5,6 +5,7 @@ import {
   buddyNoticeKey,
   buddyNoticesState,
   buddyNoticeTold,
+  buddyViewingEveryMs,
   buddyViewingHoldMs,
   createBuddyNoticeClaims,
   createBuddyNotifier,
@@ -376,6 +377,50 @@ test("the person leaves right after seeing a change and the word that they saw i
       async () => {},
     ),
   ).toBe(false);
+});
+
+test("a change seen just before the hold of a tab whose last beat was lost would end, and the words that it was seen and left lost once: no other tab tells it before they arrive", async () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current) ?? "";
+  // Lazurio's beat at 0 s arrives; the one at 10 s is lost. The person sees
+  // the change at 19.9 s and leaves at once.
+  buddyNoticeTold(claims, { viewing: true, tab: "lazurio", seq: 1 });
+  at = 19_900;
+  // Chat claims at once and on every retry while the words are on their way.
+  let lost = 2;
+  const send = (body: Record<string, unknown>) => async () => {
+    // Each failed send takes a second to fail, as a stalled one may.
+    at += 1_000;
+    if (lost > 0) {
+      lost -= 1;
+      return false;
+    }
+    buddyNoticeTold(claims, body);
+    return true;
+  };
+  const wait = async (ms: number) => {
+    at += ms;
+    expect(buddyNoticeAnswer(claims, key)).toMatchObject({ notify: false });
+  };
+  expect(
+    await deliverBuddyNotice(
+      send({ viewing: false, tab: "lazurio", seq: 3, seen: key }),
+      wait,
+    ),
+  ).toBe(true);
+  // Every try, each failing slowly, still ends inside the hold.
+  expect(
+    buddyViewingEveryMs +
+      buddyDeliveryPausesMs.reduce((sum, pause) => sum + pause, 0) +
+      (buddyDeliveryPausesMs.length + 1) * 1_000,
+  ).toBeLessThan(buddyViewingHoldMs);
+  at = buddyViewingHoldMs + 1;
+  expect(buddyNoticeAnswer(claims, key)).toEqual({ notify: false });
 });
 
 test("a page's copy ignores an answer older than the version it knows: refreshes on focus and on the tab shown may come back in any order", async () => {

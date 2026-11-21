@@ -123,9 +123,14 @@ export function parseBuddyClaimAnswer(value: unknown): BuddyClaimAnswer {
 }
 
 /** How often a tab with Buddy's window in view says so, and how long the
- * Launchpad holds every notice back after it last did. */
+ * Launchpad holds every notice back after it last did, where the tab never
+ * said the person left. The hold outlasts a missed beat and then every try
+ * of the tab's word that it saw a change or that the person left
+ * (`buddyDeliveryPausesMs`), so a change seen just before the hold would
+ * have ended is still said before another tab can tell it. A release ends
+ * the hold at once, so it is this long only after a tab went silent. */
 export const buddyViewingEveryMs = 10_000;
-export const buddyViewingHoldMs = 20_000;
+export const buddyViewingHoldMs = 40_000;
 
 /** The Launchpad's claims: the first claim of the current change wins; a
  * claim of anything but the current change, a second one, every claim while
