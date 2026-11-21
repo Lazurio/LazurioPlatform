@@ -126,8 +126,8 @@ function who(profile: BuddyProfile, names: Names): readonly Text[] {
 
 const loaded: readonly Text[] = [
   t(
-    "Vedle těchto pokynů se ti načítají osobní pokyny uživatele (`~/.claude/CLAUDE.md` nebo `~/.codex/AGENTS.md`); platí celé. Pokyny složky Lazurio (`~/Lazurio/AGENTS.md` a `~/Lazurio/manual/`) se ti nenačítají: co z nich potřebuješ, je níže, zbytek si přečti, když ho potřebuješ.",
-    "Beside these instructions the user's personal instructions load (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`); they apply in full. The Lazurio Folder's instructions (`~/Lazurio/AGENTS.md` and `~/Lazurio/manual/`) do not load here: what you need from them is below, read the rest when you need it.",
+    "Vedle těchto pokynů se ti načítají osobní pokyny uživatele (`~/.claude/CLAUDE.md` nebo `~/.codex/AGENTS.md`); platí celé. Pokyny složky Lazurio (`~/Lazurio/AGENTS.md` a `~/Lazurio/manual/`) se ti nenačítají: co z nich potřebuješ, je níže. Než řekneš, jak nějaký mechanismus Lazuria funguje, nebo podle něj navrhneš krok, přečti si ho v `~/Lazurio/manual/`; neodhaduj. Co tam není, řekni jako neznámé, ověř u zdroje a mezeru řekni uživateli.",
+    "Beside these instructions the user's personal instructions load (`~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md`); they apply in full. The Lazurio Folder's instructions (`~/Lazurio/AGENTS.md` and `~/Lazurio/manual/`) do not load here: what you need from them is below. Before you say how a Lazurio mechanism works, or propose a step that relies on it, read it in `~/Lazurio/manual/`; do not guess. What is not there, say is unknown, check it at the source and tell the user about the gap.",
   ),
 ];
 

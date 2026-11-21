@@ -362,3 +362,16 @@ test("the threads skill answers a pending question elsewhere directly, by link o
     );
   }
 });
+
+test("Buddy reads a Lazurio mechanism in the manual before he says how it works", () => {
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): twice Buddy guessed
+  // a mechanism wrong; he reads it in ~/Lazurio/manual/ instead of guessing.
+  for (const profile of ["buddy", "employee"] as const) {
+    const cs = renderBuddyFolder(source("cs"), profile, persona)["AGENTS.md"];
+    const en = renderBuddyFolder(source("en"), profile, persona)["AGENTS.md"];
+    expect(cs).toContain("přečti si ho v `~/Lazurio/manual/`; neodhaduj");
+    expect(en).toContain("read it in `~/Lazurio/manual/`; do not guess");
+    expect(cs).not.toContain("zbytek si přečti, když ho potřebuješ");
+    expect(en).not.toContain("read the rest when you need it");
+  }
+});
