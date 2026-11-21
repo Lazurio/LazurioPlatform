@@ -78,7 +78,13 @@ export function createBuddyNotifier(seams: BuddyNoticeSeams) {
       seen = true;
       if (key === last) return false;
       last = key;
-      if (first || key === null) return false;
+      if (key === null) return false;
+      // What a tab finds as it starts is told by none, but where Buddy's
+      // window is in view here, the person sees it now.
+      if (first) {
+        if (seams.inView()) seams.seen?.(key);
+        return false;
+      }
       // A view's hold ends by itself (`buddyViewingHoldMs`), so this ends.
       for (let attempt = 0; attempt < 64; attempt += 1) {
         if (last !== key) return false;
@@ -215,7 +221,8 @@ export const buddyNoticesAskedKey = "lazurio.buddy.notices.asked";
 export const shouldAskBuddyNotices = (
   facts: Readonly<{
     permission: NotificationPermission | null;
-    choice: BuddyNoticesChoice;
+    /** Null until the Launchpad has said it. */
+    choice: BuddyNoticesChoice | null;
     asked: boolean;
     met: boolean;
   }>,
@@ -230,7 +237,7 @@ export type BuddyNoticesSeams = Readonly<{
   permission: () => NotificationPermission | null;
   /** The browser's question; called first, still inside the person's click. */
   request: () => Promise<NotificationPermission>;
-  /** Sets the choice for the Environment, as made now. */
+  /** Sets the choice for the Environment. */
   choose: (choice: BuddyNoticesChoice) => Promise<unknown>;
   /** Remembers that this origin asked. */
   asked: () => void;
@@ -257,34 +264,57 @@ export async function enableBuddyNotices(
   return granted;
 }
 
+/** The Environment's choice as the Launchpad holds it, with its version
+ * (`notices-choice.ts`). */
+export type LaunchpadNoticesChoice = Readonly<{
+  choice: BuddyNoticesChoice;
+  version: number;
+}>;
+
+/** The answer to a change: the choice and version held after it, and
+ * whether the page's change is the one held. */
+export type LaunchpadNoticesWrite = LaunchpadNoticesChoice &
+  Readonly<{ saved: boolean }>;
+
+const parseLaunchpadChoice = (value: unknown): LaunchpadNoticesChoice => {
+  const record =
+    typeof value === "object" && value !== null
+      ? (value as { choice?: unknown; version?: unknown })
+      : {};
+  if (typeof record.version !== "number")
+    throw new Error("The Launchpad named no version");
+  return {
+    choice: record.choice === "off" ? "off" : "on",
+    version: record.version,
+  };
+};
+
 /** The Environment's choice, as the Launchpad holds it. */
-export async function readLaunchpadNoticesChoice(): Promise<BuddyNoticesChoice> {
+export async function readLaunchpadNoticesChoice(): Promise<LaunchpadNoticesChoice> {
   const answer = await fetch(buddyNoticePath, { credentials: "same-origin" });
   if (!answer.ok) throw new Error("The choice was not read");
-  const value: unknown = await answer.json();
-  return (value as { choice?: unknown } | null)?.choice === "off"
-    ? "off"
-    : "on";
+  return parseLaunchpadChoice(await answer.json());
 }
 
-/** Saves the Environment's choice with the Launchpad, saying when the
- * person made it (now, as they click: the call is the click's), and
- * answers the choice the Launchpad holds after it, a newer one where this
- * one was overtaken on its way; throws where it did not save it. */
+/** Changes the choice of version `basis` with the Launchpad; throws where
+ * it did not answer. Where another page changed it since, the Launchpad
+ * keeps the newer choice and names it. */
 export async function writeLaunchpadNoticesChoice(
   choice: BuddyNoticesChoice,
-): Promise<BuddyNoticesChoice> {
-  const at = Date.now();
+  basis: number,
+): Promise<LaunchpadNoticesWrite> {
   const answer = await fetch(buddyNoticePath, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ choice, at }),
+    body: JSON.stringify({ choice, version: basis }),
   });
   if (!answer.ok) throw new Error("The choice was not saved");
-  const value: unknown = await answer.json().catch(() => null);
-  const held = (value as { choice?: unknown } | null)?.choice;
-  return held === "on" || held === "off" ? held : choice;
+  const value: unknown = await answer.json();
+  return {
+    ...parseLaunchpadChoice(value),
+    saved: (value as { saved?: unknown }).saved === true,
+  };
 }
 
 /** The seams of this page's browser and Launchpad. */
@@ -294,7 +324,11 @@ export const browserNoticesSeams = (
   permission: () =>
     typeof Notification === "undefined" ? null : Notification.permission,
   request: () => Notification.requestPermission(),
-  choose: writeLaunchpadNoticesChoice,
+  // A page that holds no copy of the choice reads it first.
+  choose: async (choice) => {
+    const { version } = await readLaunchpadNoticesChoice();
+    return writeLaunchpadNoticesChoice(choice, version);
+  },
   asked: () => {
     try {
       store?.setItem(buddyNoticesAskedKey, new Date().toISOString());
@@ -327,57 +361,70 @@ export async function readBuddyNoticesState(
   permission: () => NotificationPermission | null = browserNoticesSeams(
     null,
   ).permission,
-  read: () => Promise<BuddyNoticesChoice> = readLaunchpadNoticesChoice,
+  read: () => Promise<BuddyNoticesChoice> = async () =>
+    (await readLaunchpadNoticesChoice()).choice,
 ): Promise<BuddyNoticesState> {
   const choice = await read().catch((): BuddyNoticesChoice => "on");
   return buddyNoticesState(permission(), choice);
 }
 
-/** A page's copy of the Environment's choice: read from the Launchpad, set
- * by the person, and read again when the page comes back to the front. A
- * read that started before the person's newer choice never overwrites it,
- * and a choice the Launchpad failed to save goes back to what it holds. */
+/** A page's copy of the Environment's choice: unknown until the Launchpad
+ * first answers, read again when the page comes to the front, and changed
+ * by the person's clicks one after another, each on the version last read.
+ * A read that started before the person's newer change never overwrites
+ * it; a change the Launchpad refused (another page changed the choice
+ * first) or failed to save shows the choice the Launchpad holds. */
 export function createNoticesChoiceCache(
-  read: () => Promise<BuddyNoticesChoice>,
-  write: (choice: BuddyNoticesChoice) => Promise<BuddyNoticesChoice>,
+  read: () => Promise<LaunchpadNoticesChoice>,
+  write: (
+    choice: BuddyNoticesChoice,
+    basis: number,
+  ) => Promise<LaunchpadNoticesWrite>,
   changed: () => void = () => {},
 ) {
   let choice: BuddyNoticesChoice = "on";
-  let version = 0;
-  const refresh = async (): Promise<void> => {
-    const at = version;
-    const value = await read().catch(() => null);
-    if (value === null || at !== version) return;
-    if (value !== choice) {
-      choice = value;
+  let version: number | null = null;
+  let edits = 0;
+  let queue: Promise<unknown> = Promise.resolve();
+  const adopt = (record: LaunchpadNoticesChoice) => {
+    version = record.version;
+    if (record.choice !== choice) {
+      choice = record.choice;
       changed();
     }
   };
+  const refresh = async (): Promise<void> => {
+    const at = edits;
+    const value = await read().catch(() => null);
+    if (value !== null && at === edits) adopt(value);
+  };
   return Object.freeze({
     current: (): BuddyNoticesChoice => choice,
+    /** Whether the Launchpad has answered once: before, `current` is only
+     * the default. */
+    known: (): boolean => version !== null,
     refresh,
-    /** The person's choice: shown at once, saved, and undone if the save
-     * fails. True when the Launchpad saved it. */
-    async set(next: BuddyNoticesChoice): Promise<boolean> {
-      version += 1;
-      const mine = version;
+    /** The person's choice: shown at once, then saved on the version last
+     * read. True when the Launchpad holds it. */
+    set(next: BuddyNoticesChoice): Promise<boolean> {
+      edits += 1;
       if (next !== choice) {
         choice = next;
         changed();
       }
-      try {
-        // A newer choice made on another page may have won on the way.
-        const held = await write(next);
-        if (mine === version && held !== choice) {
-          choice = held;
-          changed();
+      const done = queue.then(async () => {
+        if (version === null) await refresh();
+        try {
+          const answer = await write(next, version ?? 0);
+          adopt(answer);
+          return answer.saved && answer.choice === next;
+        } catch {
+          await refresh();
+          return false;
         }
-        return held === next;
-      } catch {
-        // A newer choice of the person's own stays; else the held one.
-        if (mine === version) await refresh();
-        return false;
-      }
+      });
+      queue = done.catch(() => undefined);
+      return done;
     },
   });
 }

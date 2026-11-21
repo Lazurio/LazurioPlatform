@@ -1746,7 +1746,9 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (
       !shouldAskBuddyNotices({
         permission: notificationPermission(),
-        choice: this.noticesChoice.current(),
+        choice: this.noticesChoice.known()
+          ? this.noticesChoice.current()
+          : null,
         asked: noticesAsked(),
         met:
           buddyMeeting(
@@ -1757,7 +1759,11 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       })
     )
       return;
-    void this.enableNotices();
+    // Opening Buddy is no choice: the browser is asked, the choice stays.
+    void enableBuddyNotices({
+      ...browserNoticesSeams(browserStore()),
+      choose: async () => undefined,
+    });
   }
 
   /** The browser's notice of a change of the sign; its click brings this

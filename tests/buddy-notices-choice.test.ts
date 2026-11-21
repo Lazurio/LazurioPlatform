@@ -13,8 +13,8 @@ import {
   createNoticesChoiceHolder,
   isBuddyNoticesChoice,
   noticesChoicePath,
-  noticesChoiceReorderMs,
   readNoticesChoice,
+  readNoticesRecord,
   writeNoticesChoice,
 } from "../src/buddy/notices-choice";
 
@@ -29,7 +29,10 @@ test("Buddy GEN4's notices are one choice for the Environment, on until the pers
     expect(file).toBe(
       join(home, ".config", "lazurio", "buddy", "notices.json"),
     );
-    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({ choice: "off" });
+    expect(JSON.parse(await readFile(file, "utf8"))).toEqual({
+      choice: "off",
+      version: 0,
+    });
     // Readable only by the person.
     expect((await stat(file)).mode & 0o777).toBe(0o600);
     await writeNoticesChoice(home, "on");
@@ -49,12 +52,13 @@ test("Buddy GEN4's notices are one choice for the Environment, on until the pers
   expect(isBuddyNoticesChoice(undefined)).toBe(false);
 });
 
-test("the Launchpad saves the person's choices one after another: every save succeeds and the last one stays", async () => {
+test("the Launchpad saves the person's changes one after another, each on the version it was made on; choosing what is held is no change", async () => {
   const home = await mkdtemp(join(tmpdir(), "buddy-notices-"));
   try {
-    await writeNoticesChoice(home, "off");
+    await writeNoticesChoice(home, "off", 3);
     const holder = createNoticesChoiceHolder(home);
-    expect(await holder.read()).toBe("off");
+    expect(await holder.read()).toEqual({ choice: "off", version: 3 });
+    // Eight changes at once, each made on the version before it.
     const choices = [
       "on",
       "off",
@@ -62,13 +66,26 @@ test("the Launchpad saves the person's choices one after another: every save suc
       "off",
       "on",
       "off",
-      "off",
       "on",
+      "off",
     ] as const;
-    const saved = await Promise.all(choices.map((c) => holder.write(c)));
-    expect(saved).toEqual([...choices]);
-    expect(holder.current()).toBe("on");
-    expect(await readNoticesChoice(home)).toBe("on");
+    const saved = await Promise.all(
+      choices.map((choice, index) => holder.write(choice, 3 + index)),
+    );
+    expect(saved.map((answer) => answer.saved)).toEqual(
+      choices.map(() => true),
+    );
+    expect(await holder.read()).toEqual({ choice: "off", version: 11 });
+    expect(await readNoticesRecord(home)).toEqual({
+      choice: "off",
+      version: 11,
+    });
+    // Choosing what is held, on any version, is no change.
+    expect(await holder.write("off", 0)).toEqual({
+      choice: "off",
+      version: 11,
+      saved: true,
+    });
     // Nothing is left behind beside the file.
     const { readdir } = await import("node:fs/promises");
     expect(await readdir(dirname(noticesChoicePath(home)))).toEqual([
@@ -79,49 +96,55 @@ test("the Launchpad saves the person's choices one after another: every save suc
   }
 });
 
-test("a save that fails is told to the caller and leaves the choice saved before", async () => {
+test("a change made on an older version is refused and names the newer choice, whatever the clocks and however late it arrives (Pablo's sequences)", async () => {
   const home = await mkdtemp(join(tmpdir(), "buddy-notices-"));
   try {
     const holder = createNoticesChoiceHolder(home);
-    await holder.write("off");
-    // The folder can no longer be written.
-    const { chmod } = await import("node:fs/promises");
-    await chmod(dirname(noticesChoicePath(home)), 0o500);
-    await expect(holder.write("on")).rejects.toThrow();
-    expect(holder.current()).toBe("off");
-    await chmod(dirname(noticesChoicePath(home)), 0o700);
-    // A later save goes through.
-    expect(await holder.write("on")).toBe("on");
-    await expect(
-      createNoticesChoiceHolder(undefined).write("on"),
-    ).rejects.toThrow();
+    // Version 0 is "on". A newer "off" from a browser whose clock is 10 s
+    // behind is still the newest change made on the newest version.
+    expect(await holder.write("off", 0)).toMatchObject({
+      saved: true,
+      version: 1,
+    });
+    expect(await holder.write("on", 1)).toMatchObject({
+      saved: true,
+      version: 2,
+    });
+    expect(await holder.write("off", 2)).toMatchObject({
+      choice: "off",
+      saved: true,
+    });
+    // An "on" made on version 0, 40 s ago, arrives now: refused.
+    expect(await holder.write("on", 0)).toEqual({
+      choice: "off",
+      version: 3,
+      saved: false,
+    });
+    expect(await readNoticesChoice(home)).toBe("off");
   } finally {
     await rm(home, { recursive: true, force: true });
   }
 });
 
-test("the newest choice the person made wins even where an older one arrives after it, on any page, and a browser whose clock is far off is still heard", async () => {
+test("a save that fails is told to the caller and leaves the choice saved before", async () => {
   const home = await mkdtemp(join(tmpdir(), "buddy-notices-"));
   try {
-    let now = 1_000_000;
-    const holder = createNoticesChoiceHolder(home, () => now);
-    // Lazurio's "on" (the first question's click) is made at 0 s and held up
-    // on its way; Chat's "off", made 2 s later, arrives first.
-    expect(await holder.write("off", now - 1_000)).toBe("off");
-    expect(await holder.write("on", now - 3_000)).toBe("off");
-    expect(await readNoticesChoice(home)).toBe("off");
-    // A later choice wins as usual.
-    now += 5_000;
-    expect(await holder.write("on", now)).toBe("on");
-    // A choice from a browser whose clock is far behind is still the
-    // person's latest, and one from a clock ahead counts as made now.
-    now += 60_000;
-    expect(
-      await holder.write("off", now - noticesChoiceReorderMs - 120_000),
-    ).toBe("off");
-    expect(await holder.write("on", now + 3_600_000)).toBe("on");
-    now += 1_000;
-    expect(await holder.write("off", now)).toBe("off");
+    const holder = createNoticesChoiceHolder(home);
+    await holder.write("off", 0);
+    // The folder can no longer be written.
+    const { chmod } = await import("node:fs/promises");
+    await chmod(dirname(noticesChoicePath(home)), 0o500);
+    await expect(holder.write("on", 1)).rejects.toThrow();
+    expect(holder.current()).toBe("off");
+    await chmod(dirname(noticesChoicePath(home)), 0o700);
+    // A later save goes through.
+    expect(await holder.write("on", 1)).toMatchObject({
+      choice: "on",
+      saved: true,
+    });
+    await expect(
+      createNoticesChoiceHolder(undefined).write("on", 0),
+    ).rejects.toThrow();
   } finally {
     await rm(home, { recursive: true, force: true });
   }

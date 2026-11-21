@@ -236,6 +236,45 @@ test("only the tab that had Buddy's window in view as the change came says the p
   expect(seen).toEqual([key ?? ""]);
 });
 
+test("a tab that starts or reconnects with Buddy's window in view says the sign it finds was seen, so another tab's held claim is not told after the person leaves", async () => {
+  const at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  // Chat, in the background, saw the change and claims it while Lazurio's
+  // view holds it back.
+  claims.viewing("lazurio", 1);
+  expect(claims.claim(key)).toBe(false);
+  expect(claims.retryIn(key)).not.toBeNull();
+  // Lazurio's page reconnects with his window in view: its first sign.
+  const foreground = createBuddyNotifier({
+    enabled: () => true,
+    inView: () => true,
+    claim: async () => ({ notify: true, retryInMs: null }),
+    show: () => {},
+    seen: (change) => claims.seen(change),
+  });
+  expect(await foreground.observe(current)).toBe(false);
+  expect(claims.retryIn(key)).toBeNull();
+  // The person leaves: Chat's next claim tells nothing.
+  claims.release("lazurio", 2);
+  expect(claims.claim(key)).toBe(false);
+  // A tab that starts out of view tells nothing and says nothing seen.
+  const seen: string[] = [];
+  const background = createBuddyNotifier({
+    enabled: () => true,
+    inView: () => false,
+    claim: async () => ({ notify: true, retryInMs: null }),
+    show: () => {},
+    seen: (change) => seen.push(change),
+  });
+  expect(await background.observe(sign("failed", 2))).toBe(false);
+  expect(seen).toEqual([]);
+});
+
 test("a tab claims a held change again while it is still the sign, and stops when it changes or the Launchpad says no", async () => {
   const shown: ShellBuddySignal[] = [];
   const answers: { notify: boolean; retryInMs: number | null }[] = [];
@@ -301,49 +340,87 @@ test("the Launchpad refuses every claim while the Environment's choice is off, w
   expect(claims.claim(key)).toBe(true);
 });
 
-test("a page's copy of the choice follows the other pages, and a late first read never undoes the person's newer choice", async () => {
-  let held = "on" as "on" | "off";
-  const reads: ((choice: "on" | "off") => void)[] = [];
-  let fail = false;
-  let waits = true;
+/** A Launchpad that holds one versioned choice, for pages' caches. */
+function launchpadChoice() {
+  const state = { choice: "on" as "on" | "off", version: 0, fail: false };
+  return {
+    state,
+    read: async () => ({ choice: state.choice, version: state.version }),
+    write: async (choice: "on" | "off", basis: number) => {
+      if (state.fail) throw new Error("not saved");
+      if (choice !== state.choice) {
+        if (basis !== state.version)
+          return { choice: state.choice, version: state.version, saved: false };
+        state.choice = choice;
+        state.version += 1;
+      }
+      return { choice: state.choice, version: state.version, saved: true };
+    },
+  };
+}
+
+test("a page's copy of the choice follows the other pages, a late first read never undoes the person's newer choice, and a failed save shows what the Launchpad holds", async () => {
+  const launchpad = launchpadChoice();
+  const reads: (() => void)[] = [];
   const cache = createNoticesChoiceCache(
     () =>
-      waits
-        ? new Promise((resolve) => reads.push(resolve))
-        : Promise.resolve(held),
-    async (choice) => {
-      if (fail) throw new Error("not saved");
-      held = choice;
-      return held;
-    },
+      new Promise((resolve) =>
+        reads.push(() => resolve({ ...launchpad.state })),
+      ),
+    launchpad.write,
   );
-  // The first read is still on its way when the person turns them off.
+  expect(cache.known()).toBe(false);
+  // The first read is on its way when the person turns them off; the
+  // change waits for it and is made on the version it names.
   const first = cache.refresh();
-  expect(await cache.set("off")).toBe(true);
-  reads[0]?.("on");
+  const off = cache.set("off");
+  reads[0]?.();
   await first;
+  reads[1]?.();
+  expect(await off).toBe(true);
   expect(cache.current()).toBe("off");
-  expect(held).toBe("off");
+  expect(launchpad.state).toMatchObject({ choice: "off", version: 1 });
   // Another page turned them on: this page reads it when it comes forward.
-  held = "on";
+  launchpad.state.choice = "on";
+  launchpad.state.version = 2;
   const again = cache.refresh();
-  reads[1]?.(held);
+  reads[2]?.();
   await again;
   expect(cache.current()).toBe("on");
-  // A save that fails goes back to what the Launchpad holds.
-  fail = true;
-  waits = false;
-  expect(await cache.set("off")).toBe(false);
+  // A save that fails shows what the Launchpad holds.
+  launchpad.state.fail = true;
+  const failed = cache.set("off");
+  await Promise.resolve();
+  await Promise.resolve();
+  reads[3]?.();
+  expect(await failed).toBe(false);
   expect(cache.current()).toBe("on");
 });
 
-test("a page whose choice was overtaken on its way shows the newer one the Launchpad holds", async () => {
-  const cache = createNoticesChoiceCache(
-    async () => "off",
-    async () => "off",
-  );
-  expect(await cache.set("on")).toBe(false);
-  expect(cache.current()).toBe("off");
+test("whatever the clocks and however late a request: a change made on an older view never undoes a newer choice from another page", async () => {
+  const launchpad = launchpadChoice();
+  const lazurio = createNoticesChoiceCache(launchpad.read, launchpad.write);
+  const chat = createNoticesChoiceCache(launchpad.read, launchpad.write);
+  await lazurio.refresh();
+  await chat.refresh();
+  // The choice is off, and both pages read it. Chat turns them on and off
+  // again; Lazurio's "on", made on the older view, arrives after both.
+  launchpad.state.choice = "off";
+  launchpad.state.version = 0;
+  await lazurio.refresh();
+  await chat.refresh();
+  expect(await chat.set("on")).toBe(true);
+  expect(await chat.set("off")).toBe(true);
+  // Lazurio still holds version 0: its "on" arrives last and is refused.
+  expect(await lazurio.set("on")).toBe(false);
+  expect(launchpad.state.choice).toBe("off");
+  expect(lazurio.current()).toBe("off");
+  // Two clicks on one page go one after another, each on the newest version.
+  const on = chat.set("on");
+  const offAgain = chat.set("off");
+  expect(await on).toBe(true);
+  expect(await offAgain).toBe(true);
+  expect(launchpad.state.choice).toBe("off");
 });
 
 test("the click that opens Buddy's window asks once, after the meeting, where the choice is on and the browser has not answered (Matěj 2026-11-21)", () => {
@@ -357,6 +434,9 @@ test("the click that opens Buddy's window asks once, after the meeting, where th
   // Not before the meeting, not twice, not where the person turned them off,
   // and not where the browser already answered or has no notices.
   expect(shouldAskBuddyNotices({ ...facts, met: false })).toBe(false);
+  // Nor before the Launchpad has said the choice: a saved "off" may be on
+  // its way.
+  expect(shouldAskBuddyNotices({ ...facts, choice: null })).toBe(false);
   expect(shouldAskBuddyNotices({ ...facts, asked: true })).toBe(false);
   expect(shouldAskBuddyNotices({ ...facts, choice: "off" })).toBe(false);
   expect(shouldAskBuddyNotices({ ...facts, permission: "granted" })).toBe(

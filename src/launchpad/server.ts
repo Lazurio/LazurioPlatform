@@ -2391,7 +2391,7 @@ export async function startLaunchpad(
         if (buddyNoticeClaims === null)
           return response({ error: "not-found" }, 404);
         if (request.method === "GET")
-          return response({ choice: await buddyNoticesChoice.read() });
+          return response(await buddyNoticesChoice.read());
         const text = await request.text().catch(() => "");
         let value: unknown = null;
         try {
@@ -2405,13 +2405,14 @@ export async function startLaunchpad(
         if (isBuddyNoticesChoice(choice)) {
           if (toolsEnvironment.home === undefined)
             return response({ error: "no-home" }, 503);
+          // A change of the version the page read: one made on an older
+          // view is refused, and the page hears the newer choice.
+          if (typeof body.version !== "number")
+            return response({ error: "version-required" }, 400);
           try {
-            // When the person made it, by the page's clock: an older choice
-            // overtaken on its way never undoes a newer one.
-            const at = typeof body.at === "number" ? body.at : Date.now();
-            return response({
-              choice: await buddyNoticesChoice.write(choice, at),
-            });
+            return response(
+              await buddyNoticesChoice.write(choice, body.version),
+            );
           } catch {
             return response({ error: "not-saved" }, 500);
           }
