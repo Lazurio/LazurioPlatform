@@ -107,7 +107,7 @@ tools as a Module: the exact Bun of its stack profile in `packageManager`, a
 committed `bun.lock`, TypeScript strict with `noUncheckedIndexedAccess`, Biome
 with `--error-on-warnings` and `bun test`, all behind one gate `bun run check`.
 The rules are those of [Stacks and quality](module-standard.md#stacks-and-quality)
-and `MS-02`, `MS-08` and `MS-13` of the [Module Standard](module-standard.md);
+and `MS-02`, `MS-08` and `MS-13` of the [Module Standard](module-standard.md#requirements);
 this standard does not repeat them. Of `MS-11` only the first part applies: no
 absolute path of a computer. A dependency of the root's checks is pinned to an
 exact released version. A root has no `.js`, `.mjs` or `.cjs` file.
