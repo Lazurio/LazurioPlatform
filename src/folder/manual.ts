@@ -30,6 +30,7 @@ import {
   agentTools,
   aiSignInRouting,
   assignmentLine,
+  buddyChatRouting,
   buddyPublicationRules,
   buddyWindowRouting,
   chatgptAppsLine,
@@ -3238,7 +3239,11 @@ function operatorClient(
       : [aiSignInRouting(origin, githubIdentity(preset, machine))].filter(
           (line): line is NonNullable<typeof line> => line !== null,
         )),
-    ...(machine.entry?.buddyFolder === undefined ? [] : [buddyWindowRouting]),
+    ...(machine.entry?.buddyFolder !== undefined
+      ? [buddyWindowRouting]
+      : machine.entry?.buddyOrigin !== undefined
+        ? [buddyChatRouting(machine.entry.buddyOrigin)]
+        : []),
     ...workOnly,
     chats,
   ];

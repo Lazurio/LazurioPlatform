@@ -35,6 +35,7 @@ import {
 import { renderOutputs } from "../src/folder/preview";
 import {
   aiSignInRouting,
+  buddyChatRouting,
   buddyPublicationRules,
   buddyWindowRouting,
   launchpadRouting,
@@ -1073,8 +1074,10 @@ test("where the binding names Buddy GEN4, agents point the user to his window in
     expect(outputs["AGENTS.md"]).toContain(noChannel[locale]);
     expect(outputs["AGENTS.md"]).toContain("`~/Buddy`");
   }
-  // Buddy GEN3's address is named nowhere, and an Environment not moved to
-  // Buddy GEN4 has no line about the window.
+  // An Environment not moved to Buddy GEN4 keeps Buddy GEN3's chat routing
+  // (decision F14's addendum of 2026-10-26) until its move (plan LZD-0033
+  // R9): one line with his recorded address in AGENTS.md and the manual, and
+  // no line about the window.
   const gen3 = [
     personalWithEntry(20000, false, false, true),
     personalWithEntry(20000, true, true, true),
@@ -1084,14 +1087,28 @@ test("where the binding names Buddy GEN4, agents point the user to his window in
       entry: withBuddy(entries.personal),
     }),
   ];
-  for (const machine of gen3)
-    expect(machine.entry?.buddyOrigin).toBe("https://buddy.example.lazurio.io");
-  const others = [
-    ...gen3.map((machine) => ({
-      preset: "hosted-personal" as const,
-      machine,
-      os: "linux" as const,
-    })),
+  const origin = "https://buddy.example.lazurio.io";
+  for (const machine of gen3) {
+    expect(machine.entry?.buddyOrigin).toBe(origin);
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: "hosted-personal",
+        machine,
+        profile: presetProfile("hosted-personal", "linux", { locale }),
+      });
+      for (const path of ["AGENTS.md", "manual/this-machine.md"] as const) {
+        const lines = outputs[path].split("\n");
+        expect(lines.filter((line) => line.includes(origin))).toEqual([
+          buddyChatRouting(origin)[locale],
+        ]);
+      }
+      for (const text of Object.values(outputs))
+        expect(text).not.toContain(window[locale]);
+    }
+  }
+  // Buddy GEN4 and every Environment without Buddy name no Buddy GEN3 address.
+  const without = [
+    { preset: "hosted-personal" as const, machine: gen4, os: "linux" as const },
     ...allowedPresets(tryBinding()).map((preset) => ({
       preset,
       machine: tryBinding(),
@@ -1099,32 +1116,24 @@ test("where the binding names Buddy GEN4, agents point the user to his window in
     })),
     ...journeys,
   ];
-  for (const { preset, machine, os } of [
-    { preset: "hosted-personal" as const, machine: gen4, os: "linux" as const },
-    ...others,
-  ])
+  for (const { preset, machine, os } of without)
     for (const locale of ["cs", "en"] as const) {
+      if (
+        machine?.entry?.buddyOrigin !== undefined &&
+        machine.entry.buddyFolder === undefined
+      )
+        continue;
       const outputs = renderOutputs({
         preset,
         machine,
         profile: presetProfile(preset, os, { locale }),
       });
       for (const text of Object.values(outputs)) {
-        expect(text).not.toContain("https://buddy.");
         expect(text).not.toContain("- Chat s Buddym, jeho konverzace");
         expect(text).not.toContain("- Buddy's chat, his conversation");
+        if (machine?.entry?.buddyFolder === undefined)
+          expect(text).not.toContain(window[locale]);
       }
-    }
-  for (const { preset, machine, os } of others)
-    for (const locale of ["cs", "en"] as const) {
-      if (machine?.entry?.buddyFolder !== undefined) continue;
-      const outputs = renderOutputs({
-        preset,
-        machine,
-        profile: presetProfile(preset, os, { locale }),
-      });
-      for (const text of Object.values(outputs))
-        expect(text).not.toContain(window[locale]);
     }
 });
 

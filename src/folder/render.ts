@@ -915,7 +915,25 @@ export function aiSignInRouting(
 // communicate with Buddy, so they write nothing into his thread. Shared by
 // AGENTS.md and `manual/this-machine.md`, right after the Launchpad's lines,
 // where the binding says this Environment has moved (`buddyFolder`). Buddy
-// GEN3's address (`buddyOrigin`) is no longer named.
+// GEN3's chat routing (`buddyChatRouting`) stays for an Environment that has
+// not moved yet, until its move (plan LZD-0033 R9).
+// Where the agent opens Buddy's chat for the user (Matěj, 2026-10-26: "otevři
+// mi chat s Buddym" opens it in ChatGPT Desktop's panel beside the chat, as
+// "otevři Lazurio" opens the Launchpad; decision F14's addendum of that day).
+// The address is the recorded entry's `buddyOrigin` (decision F60), which only
+// the person's own Osobní Prostředí carries; opened directly it goes to his
+// conversation (Lazurio/t3code#130, step 4). Root decision 0210 holds: agents
+// never communicate with Buddy, so they only open the chat for the user and
+// never in the Environment browser, which they drive and where no Lazurio
+// sign-in belongs. Shared by AGENTS.md and `manual/this-machine.md`, right
+// after the Launchpad's lines.
+export function buddyChatRouting(origin: string): Text {
+  return {
+    cs: `- Chat s Buddym, jeho konverzace s uživatelem, je na \`${origin}\`. Tato adresa pochází z handoveru tohoto Environmentu: jinou neskládej a nikdy místo ní nedávej \`localhost\` ani \`127.0.0.1\`. Otevřená přímo vede rovnou do jeho konverzace. Když uživatel řekne „chat s Buddym“, „Buddy“ nebo Buddyho jméno (\`persona.buddyName\` z \`lazurio buddy persona --json\`), myslí tím tento chat. Když ho chce a běžíš v ChatGPT Desktopu, otevři mu přesnou adresu v integrovaném prohlížeči ChatGPT Desktopu v panelu vedle chatu; v jiném klientovi mu pošli odkaz. Přihlašuje se do něj uživatel sám. V prohlížeči Environmentu ho nikdy neotevírej, ani přes \`preview_open\`. Chat otevíráš jen uživateli: nic do něj nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (decision 0210). Chce-li uživatel Buddymu něco říct, otevři mu chat a napíše mu sám.`,
+    en: `- Buddy's chat, his conversation with the user, is at \`${origin}\`. This address comes from this Environment's handover: never compose another one and never give \`localhost\` or \`127.0.0.1\` instead. Opened directly, it goes straight to his conversation. When the user says “chat with Buddy”, “Buddy” or Buddy's name (\`persona.buddyName\` from \`lazurio buddy persona --json\`), they mean this chat. When they want it and you run in ChatGPT Desktop, open the exact address for them in ChatGPT Desktop's built-in browser in the panel beside the chat; in another client, send them the link. The user signs in to it themselves. Never open it in the Environment browser, not even with \`preview_open\`. You open the chat only for the user: write nothing in it and do nothing in it, and you still do not communicate with Buddy (decision 0210). When the user wants to tell Buddy something, open the chat for them and they write to him themselves.`,
+  };
+}
+
 export const buddyWindowRouting: Text = {
   cs: "- Buddy je v okně v Lazuriu tohoto Prostředí: otevře ho postavička vpravo dole na stránkách Lazuria, v malém okně nebo na celou obrazovku. Vlastní adresu nemá, žádnou neskládej. Když uživatel řekne „chat s Buddym“, „Buddy“ nebo Buddyho jméno (`persona.buddyName` z `lazurio buddy persona --json`), myslí tím toto okno: otevři mu Lazurio jako výše a řekni mu o postavičce. Do Buddyho vlákna nic nepiš a nic v něm nedělej, s Buddym dál nekomunikuješ (decision 0210). Chce-li uživatel Buddymu něco říct, napíše mu sám.",
   en: "- Buddy is in a window in this Environment's Lazurio: the figure at the bottom right of the Lazurio pages opens it, as a small window or full screen. It has no address of its own; never compose one. When the user says “chat with Buddy”, “Buddy” or Buddy's name (`persona.buddyName` from `lazurio buddy persona --json`), they mean this window: open Lazurio for them as above and point them to the figure. Write nothing into Buddy's thread and do nothing in it; you still do not communicate with Buddy (decision 0210). When the user wants to tell Buddy something, they write to him themselves.",
@@ -961,9 +979,11 @@ function hostedLines(
           pick,
         )),
     // Buddy GEN4's window, where this Environment has moved to him.
-    ...(machine.entry?.buddyFolder === undefined
-      ? []
-      : [pick(buddyWindowRouting)]),
+    ...(machine.entry?.buddyFolder !== undefined
+      ? [pick(buddyWindowRouting)]
+      : machine.entry?.buddyOrigin !== undefined
+        ? [pick(buddyChatRouting(machine.entry.buddyOrigin))]
+        : []),
     // The Environment browser (root decision 0191, F38), where the gateway
     // routes its view.
     ...(machine.entry?.browserOrigin === undefined
