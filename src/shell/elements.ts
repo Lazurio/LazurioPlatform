@@ -14,6 +14,7 @@ import {
   buddyViewingEveryMs,
   createBuddyNotifier,
   createNoticesChoiceCache,
+  deliverBuddyNotice,
   enableBuddyNotices,
   parseBuddyClaimAnswer,
   readLaunchpadNoticesChoice,
@@ -1614,12 +1615,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       // Said at once, and again with every view and its release.
       seen: (key) => {
         this.seenKey = key;
-        void fetch(buddyNoticePath, {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ seen: key }),
-        }).catch(() => undefined);
+        void deliverBuddyNotice(() => this.tell({ seen: key }));
       },
     });
     // The stream's own events, never the window's messages.
@@ -1663,25 +1659,42 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     );
   }
 
+  /** Tells the Launchpad `body` on Buddy's notices; true where it answered. */
+  private async tell(
+    body: Readonly<Record<string, unknown>>,
+    keepalive = false,
+  ): Promise<boolean> {
+    try {
+      const answer = await fetch(buddyNoticePath, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        keepalive,
+      });
+      return answer.ok;
+    } catch {
+      return false;
+    }
+  }
+
   /** Says to the Launchpad that Buddy's window is in view here, at once and
    * then on a beat, while it is and a sign is followed, and that it no
    * longer is the moment the person leaves it. */
   private followViewing(): void {
     const inView = this.signalSource !== null && this.windowInView();
+    // The beat may miss one; the release is tried until it arrives, as the
+    // beat that would carry what this tab saw has stopped.
     const say = (viewing: boolean) => {
       this.viewingSeq += 1;
-      void fetch(buddyNoticePath, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          viewing,
-          tab: this.tab,
-          seq: this.viewingSeq,
-          ...(this.seenKey === null ? {} : { seen: this.seenKey }),
-        }),
-        keepalive: !viewing,
-      }).catch(() => undefined);
+      const body = {
+        viewing,
+        tab: this.tab,
+        seq: this.viewingSeq,
+        ...(this.seenKey === null ? {} : { seen: this.seenKey }),
+      };
+      if (viewing) void this.tell(body);
+      else void deliverBuddyNotice(() => this.tell(body, true));
     };
     if (inView && this.viewingTimer === null) {
       say(true);

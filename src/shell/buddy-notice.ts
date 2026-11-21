@@ -207,6 +207,27 @@ export function createBuddyNoticeClaims(
   });
 }
 
+/** The pauses between tries of a word that must reach the Launchpad (that
+ * the person saw a change, that they left the window): all of them end
+ * well before a view's hold does, so the word arrives while the view still
+ * holds every other tab's claim back. */
+export const buddyDeliveryPausesMs = [500, 1_000, 2_000, 4_000, 8_000] as const;
+
+/** Sends a word to the Launchpad until it answers, with the pauses above;
+ * true once it did. */
+export async function deliverBuddyNotice(
+  send: () => Promise<boolean>,
+  wait: (ms: number) => Promise<void> = (ms) =>
+    new Promise((done) => setTimeout(done, ms)),
+): Promise<boolean> {
+  if (await send().catch(() => false)) return true;
+  for (const pause of buddyDeliveryPausesMs) {
+    await wait(pause);
+    if (await send().catch(() => false)) return true;
+  }
+  return false;
+}
+
 type BuddyNoticeClaims = ReturnType<typeof createBuddyNoticeClaims>;
 
 /** What a tab tells the Launchpad besides a claim: its view (`viewing:

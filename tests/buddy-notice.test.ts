@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  buddyDeliveryPausesMs,
   buddyNoticeAnswer,
   buddyNoticeKey,
   buddyNoticesState,
@@ -8,6 +9,7 @@ import {
   createBuddyNoticeClaims,
   createBuddyNotifier,
   createNoticesChoiceCache,
+  deliverBuddyNotice,
   enableBuddyNotices,
   parseBuddyClaimAnswer,
   readBuddyNoticesState,
@@ -325,6 +327,55 @@ test('a tab\'s word that it saw a change rides on its release: a release that ov
   );
   expect(buddyNoticeTold(fresh, { key: failed })).toBeNull();
   expect(buddyNoticeAnswer(fresh, failed)).toEqual({ notify: true });
+});
+
+test("the person leaves right after seeing a change and the word that they saw it and left is lost twice: it is tried again and arrives before the view's hold ends, so no other tab tells the change", async () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current) ?? "";
+  // Lazurio views Buddy's window, then sees the change; no beat follows,
+  // because the person leaves before the next one.
+  buddyNoticeTold(claims, { viewing: true, tab: "lazurio", seq: 1 });
+  let lost = 2;
+  const send = (body: Record<string, unknown>) => async () => {
+    if (lost > 0) {
+      lost -= 1;
+      return false;
+    }
+    buddyNoticeTold(claims, body);
+    return true;
+  };
+  const wait = async (ms: number) => {
+    at += ms;
+  };
+  // The lone "seen" is lost and tried again; the release, carrying it, too.
+  const seenDelivered = deliverBuddyNotice(send({ seen: key }), wait);
+  const leftDelivered = deliverBuddyNotice(
+    send({ viewing: false, tab: "lazurio", seq: 2, seen: key }),
+    wait,
+  );
+  expect(await seenDelivered).toBe(true);
+  expect(await leftDelivered).toBe(true);
+  expect(at).toBeLessThan(buddyViewingHoldMs);
+  // Chat's claim, now and after the hold would have ended: not told.
+  expect(buddyNoticeAnswer(claims, key)).toEqual({ notify: false });
+  at = buddyViewingHoldMs + 1;
+  expect(buddyNoticeAnswer(claims, key)).toEqual({ notify: false });
+  // Every try ends before a view's hold does.
+  expect(
+    buddyDeliveryPausesMs.reduce((sum, pause) => sum + pause, 0),
+  ).toBeLessThan(buddyViewingHoldMs);
+  // A Launchpad that never answers: the tries end.
+  expect(
+    await deliverBuddyNotice(
+      async () => false,
+      async () => {},
+    ),
+  ).toBe(false);
 });
 
 test("a page's copy ignores an answer older than the version it knows: refreshes on focus and on the tab shown may come back in any order", async () => {
