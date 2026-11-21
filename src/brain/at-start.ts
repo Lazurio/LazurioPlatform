@@ -128,7 +128,12 @@ export async function brainSetupAtStart(
       waiting = meaningWaits(labels) || archiveWaits(labels);
     if (!waiting) break;
     input.report?.(labels);
-    if (labels.meaning === "waits:night" && input.nightInMs !== undefined) {
+    // The archive not off yet is retried after the pause, not at night.
+    if (
+      labels.meaning === "waits:night" &&
+      input.nightInMs !== undefined &&
+      !archiveWaits(labels)
+    ) {
       // Waiting for the night: the next run at its start (at least a minute
       // and at most a day from now), not every pause. The window is read
       // again at least every `nightRecheckMs`, so a window the person moves

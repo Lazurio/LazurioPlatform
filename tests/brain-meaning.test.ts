@@ -33,6 +33,7 @@ import {
   meaningMaxWindows,
   meaningNightLeastMs,
   meaningNightStopMs,
+  meaningPauseMs,
   meaningRestartReserveMs,
   meaningSmallChunks,
   meaningStepLimitMs,
@@ -1220,6 +1221,29 @@ describe("by day the memory is not stopped for search by meaning, except a small
     });
     return { labels, pauses, runs };
   };
+
+  test("an archive not off yet is retried after the pause, though search by meaning waits for the night", async () => {
+    const pauses: number[] = [];
+    const answers = [
+      { server: "running", archive: "waits-idle", meaning: "waits:night" },
+      { server: "running", archive: "off", meaning: "waits:night" },
+    ];
+    let runs = 0;
+    await brainSetupAtStart({
+      run: async () => answers[Math.min(runs++, answers.length - 1)] ?? null,
+      handover: async () => true,
+      signal: new AbortController().signal,
+      nightInMs: async () => 10 * 3_600_000,
+      fills: 1,
+      sleep: async (ms) => {
+        pauses.push(ms);
+      },
+    });
+    // The first wait is the pause (for the archive); the night's wait, read
+    // every `nightRecheckMs`, only once the archive is off.
+    expect(pauses[0]).toBe(meaningPauseMs);
+    expect(runs).toBe(2);
+  });
 
   test("the Launchpad waits for the night window, not every pause, and computes then", async () => {
     const { labels, pauses, runs } = await waitForNight(110 * 60_000);
