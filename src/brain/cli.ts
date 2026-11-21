@@ -8,7 +8,13 @@ import { exitFailure, exitOk, exitUsage } from "../update/errors";
 import { runProcess } from "../update/self-check";
 import { processBrainHost } from "./host";
 import { readBrainState, writeBrainState } from "./keys";
-import { type NightWindow, nightOf, parseNight } from "./night";
+import {
+  type NightWindow,
+  nightLeastMinutes,
+  nightOf,
+  nightShortestMinutes,
+  parseNight,
+} from "./night";
 import { brainPin } from "./pin";
 import {
   earlierStepBlockers,
@@ -210,7 +216,9 @@ async function nightCommand(
       stderr:
         chosen === "invalid-range"
           ? "A night window is HH:MM-HH:MM, start and end apart, e.g. 02:00-05:00."
-          : "That time zone is not known; give an IANA name, e.g. Europe/Prague.",
+          : chosen === "too-short"
+            ? `A night window needs at least ${nightShortestMinutes} minutes: one stop of the memory needs ${nightLeastMinutes} of them to compute anything. Choose a longer one, e.g. 02:00-05:00.`
+            : "That time zone is not known; give an IANA name, e.g. Europe/Prague.",
     };
   let lock: FileLock;
   try {

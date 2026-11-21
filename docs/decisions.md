@@ -15948,26 +15948,41 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         the night the clock skips an hour the window is that much shorter,
         on the night it repeats one the repeated hour counts again. While
         the Launchpad waits for the window it reads it again at least every
-        10 minutes, so a window the person moves counts that night.
+        10 minutes, so a window the person moves counts that night. A
+        window is at least 30 minutes long; a shorter one is refused with
+        the reason, as no stop could compute in it.
       - **How long.** In the night window one stop may last up to an hour,
         never past the window's end, and only while Buddy is idle. The hour
-        is the whole stop: stopping, the copy, the steps, the computation
-        and the start after it. The computation's budget is what is left of
-        the stop less one batch to the model (10 minutes), gbrain's own
-        start (2 minutes) and the server's start (3 minutes), so an hour's
-        stop computes for about 45 minutes. No stop starts with less than
-        20 minutes of the window left. A stop whose steps leave no minute
-        for the computation brings its copy back and is tried again; it is
-        no failure of the model. Between stops the server runs for the
-        pause as before. A computation the night does not finish goes on
-        the next night.
+        is the whole stop as Lazurio runs it: stopping, the copy, the steps,
+        the computation, a way back where one is needed, and the start
+        after it.
+        - The computation's budget is what is left of the stop less one
+          batch to the model (10 minutes), gbrain's own start (2 minutes)
+          and what the stop keeps after it: the copy brought back, which
+          takes about as long as the stop's own copy did, and the server's
+          start, 3 minutes at least. An hour's stop thus computes for about
+          45 minutes.
+        - No stop starts with less than 20 minutes of the window left.
+          Where stopping and the copy took that time, the server comes back
+          as it was; where the steps after took it, the copy comes back.
+          Either way the window is tried again, in the same start of the
+          Launchpad, and it is no failure of the model.
+        - After a committed window, the server's answer is awaited until
+          the stop's end at most; a server that has not answered by then
+          was started all the same, and the next run starts one that does
+          not answer. After a copy brought back the answer is awaited as
+          before, because cutting it short would keep the memory down for a
+          person; the boot of gbrain itself (seconds, measured) is not in
+          Lazurio's hands.
+        - Between stops the server runs for the pause as before. A
+          computation the night does not finish goes on the next night.
       - **By day** nothing stops the memory for search by meaning. The one
         exception is a small backlog that one short window (3 minutes)
         computes: a brain of at most 25 pages before the first window (a
         new or small Environment), or at most 100 chunks left after one.
-        That stop lasts 18 minutes at most as a whole, the bound accepted
-        for the short windows; it holds at any hour, also at a night
-        window's end.
+        Its stop usually lasts under 4 minutes, and up to 18 minutes as a
+        whole on a heavily loaded Environment: the bound accepted for the
+        short windows. It holds at any hour, also at a night window's end.
       - **What a person notices.** Search by words works at all times. A
         page written while search by meaning is on is found by meaning at
         once, because the server computes its vectors as it is written

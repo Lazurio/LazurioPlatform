@@ -23,6 +23,15 @@ export const defaultNight: NightWindow = Object.freeze({
 
 const clock = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
+/** The least of a window a night stop starts in (the stop needs it for a
+ * minute of computation, a batch to the model, gbrain's start and the
+ * server's, with room for the copy and the steps before). */
+export const nightLeastMinutes = 20;
+/** The shortest window a person may choose: the least a stop starts in and
+ * room for the Launchpad to reach its start (its wait wakes at the start,
+ * and setup takes a while before it stops the server). */
+export const nightShortestMinutes = 30;
+
 /** Minutes after midnight of `HH:MM`, or null. */
 export function minutesOf(text: string): number | null {
   const found = clock.exec(text);
@@ -41,11 +50,12 @@ export function knownTimeZone(zone: string): boolean {
 }
 
 /** A window as the person gives it (`02:00-05:00`, a time zone), or why
- * not: a clock time that is not `HH:MM`, an empty window, an unknown zone. */
+ * not: a clock time that is not `HH:MM` or an empty window, a window shorter
+ * than `nightShortestMinutes` (no stop could run in it), an unknown zone. */
 export function parseNight(
   range: string,
   timeZone: string = defaultNight.timeZone,
-): NightWindow | "invalid-range" | "invalid-time-zone" {
+): NightWindow | "invalid-range" | "too-short" | "invalid-time-zone" {
   const [start, end, ...rest] = range.split("-");
   if (
     rest.length > 0 ||
@@ -56,6 +66,10 @@ export function parseNight(
     start === end
   )
     return "invalid-range";
+  const day = 24 * 60;
+  const length =
+    ((minutesOf(end) as number) - (minutesOf(start) as number) + day) % day;
+  if (length < nightShortestMinutes) return "too-short";
   if (!knownTimeZone(timeZone)) return "invalid-time-zone";
   return Object.freeze({ start, end, timeZone });
 }

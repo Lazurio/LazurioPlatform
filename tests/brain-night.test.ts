@@ -138,6 +138,15 @@ describe("the night window's clock", () => {
     for (const range of ["2-5", "02:00", "02:00-02:00", "25:00-05:00", "a-b"])
       expect(parseNight(range)).toBe("invalid-range");
     expect(parseNight("02:00-05:00", "Mars/Olympus")).toBe("invalid-time-zone");
+    // A window no stop could run in is refused: under 30 minutes, also past
+    // midnight; 30 minutes are enough.
+    for (const range of ["02:00-02:10", "23:50-00:15", "02:00-02:29"])
+      expect(parseNight(range)).toBe("too-short");
+    expect(parseNight("23:50-00:20")).toEqual({
+      start: "23:50",
+      end: "00:20",
+      timeZone: "Europe/Prague",
+    });
     // A stored window that is not valid any more reads as the default.
     expect(nightOf({ start: "02:00", end: "02:00", timeZone: "UTC" })).toEqual(
       defaultNight,
@@ -212,6 +221,10 @@ describe("lazurio brain night", () => {
       const refused = await run(args, h);
       expect(refused.code).not.toBe(0);
     }
+    // A window too short for a stop: refused, and the person is told why.
+    const short = await run(["night", "02:00-02:10"], h);
+    expect(short.code).not.toBe(0);
+    expect(short.stderr).toContain("at least 30 minutes");
     expect((await readBrainState(paths)).night).toBeUndefined();
   });
 });
