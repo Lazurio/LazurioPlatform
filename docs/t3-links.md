@@ -139,9 +139,10 @@ target's `threadId`, `delegate_task` with `target.environmentId` and
 `target.projectId`), that only Lazurio pairs, renews and ends them, how often
 it tries and that a link that does not come within half an hour is reported to
 the user, since a stopped T3 Code or an unreachable Environment keeps it away.
-Buddy GEN4's own instructions are not generated yet; when they are, the same
-points belong there. Buddy GEN3's own T3 Code (`~/.t3-buddy`) is not linked:
-its guard keeps linked environments off.
+Buddy GEN4's own instructions (`~/Buddy/AGENTS.md` and its skill
+`buddy-vlakna`, rendered by `src/folder/buddy-gen4.ts`) tell him to use the
+linked Environments listed by `t3_environment_links` with their
+`environmentId`, and otherwise to go over SSH along the managed paths.
 
 ## Known limits
 
