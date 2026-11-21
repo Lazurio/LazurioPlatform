@@ -720,9 +720,14 @@ posixTest(
     );
     // Its declaration was read before anything was cloned; no scan.
     // (GitHub compares names case-insensitively; the login is as named.)
-    expect(calls.find((call) => call.kind === "declaration")?.args).toEqual([
-      "Alpha",
-      "Alpha_GEN3",
+    // GEN4 first (it does not exist here), then GEN3 (LZD-0041 G1).
+    expect(
+      calls
+        .filter((call) => call.kind === "declaration")
+        .map((call) => call.args),
+    ).toEqual([
+      ["Alpha", "Alpha_GEN4"],
+      ["Alpha", "Alpha_GEN3"],
     ]);
     expect(calls.some((call) => call.kind === "organizationRepositories")).toBe(
       false,
@@ -732,6 +737,51 @@ posixTest(
     ]);
   },
   30_000,
+);
+
+posixTest(
+  "the GEN4 name candidate comes before GEN3, each only when it declares itself the root (LZD-0041 G1)",
+  async () => {
+    for (const [label, gen4Declares, expected] of [
+      // A GEN4 root that declares itself is taken, the GEN3 root not asked.
+      ["gen4", "Alpha/alpha_GEN4", "alpha_GEN4"],
+      // A GEN4 repository whose data still name GEN3 (before its data
+      // commit) is passed over for the GEN3 root that declares itself.
+      ["gen4-not-yet", "Alpha/alpha_GEN3", "alpha_GEN3"],
+    ] as const) {
+      world = await createWorld();
+      await alphaRoot("alpha_GEN4", gen4Declares);
+      await alphaRoot("alpha_GEN3");
+      await remoteRepository(world, "Alpha/web", (directory) =>
+        writeModule(directory, "alpha", { id: "web" }),
+      );
+      const folder = await presetFolder(world, "local");
+      const { github, calls } = stubGitHub(world, {
+        repositories: {
+          "Alpha/alpha_GEN4": {},
+          "Alpha/alpha_GEN3": {},
+          "Alpha/web": {},
+        },
+      });
+      const { steps, result } = await resolveAlpha(github, folder);
+      expect([
+        label,
+        result.kind === "content-install" && result.state,
+      ]).toEqual([label, "succeeded"]);
+      expect([label, accessDetail(steps)?.detail]).toEqual([
+        label,
+        `as example (organization-admin); root Alpha/${expected} (by name)`,
+      ]);
+      expect(
+        calls.some((call) => call.kind === "organizationRepositories"),
+      ).toBe(false);
+      expect([label, await readdir(join(folder, "organizations"))]).toEqual([
+        label,
+        [expected],
+      ]);
+    }
+  },
+  60_000,
 );
 
 posixTest(

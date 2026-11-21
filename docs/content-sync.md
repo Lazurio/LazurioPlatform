@@ -559,8 +559,10 @@ differences only (`scope.github` `anonymous` in `src/content/model.ts`):
   and what is below them `excluded_by_role_scope`); only `module-reader` (or its
   deprecated alias `reader`) may be asked for, any other role fails closed
   (`role-unverified`), the CLI's bare Organization Admin form included. The root is the
-  one the Folder holds, the named `--root`, or the name candidate `<login>/<login>_GEN3`;
-  there is no scan, which would read the Organization's listing and one declaration
+  one the Folder holds, the named `--root`, or the name candidates `<login>/<login>_GEN4`
+  and then `<login>/<login>_GEN3` (LZD-0041 G1): the GEN4 candidate is cloned first, and
+  when its clone fails or does not declare itself the root, the GEN3 candidate is cloned
+  instead; there is no scan, which would read the Organization's listing and one declaration
   per repository through GitHub's unauthenticated API (60 requests an hour per
   address, shared by every visitor of that address). The candidate is verified in the
   clone, as every source is (`root-declaration-mismatch`). The handover names the
@@ -750,7 +752,7 @@ list of sources in order:
 | --- | --- | --- | --- |
 | `explicit`: the CLI's `--root <owner>/<repository>` | Named | Next source | `root-declaration-mismatch`, no other source |
 | `dashboard`: the Dashboard's Organization record (**target; not wired yet**) | Named | Next source | `root-declaration-mismatch`, no other source |
-| `name-candidate`: `<login>/<login>_GEN3`, the resident's name (interim) | Discovery | Next source | Next source |
+| `name-candidate`: `<login>/<login>_GEN4`, then `<login>/<login>_GEN3` (LZD-0041 G1; interim) | Discovery | Next candidate, then next source | Next candidate, then next source |
 | `scan`: the Organization's repositories this account can read, not archived (interim) | Discovery | `root-not-found` | Exactly one that declares itself is accepted; several are `root-ambiguous` |
 
 A named source that names a repository of another owner is `root-owner-mismatch`

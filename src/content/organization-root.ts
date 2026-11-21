@@ -20,7 +20,10 @@ import { repositoryPattern, sameRepository } from "./model";
 // - `dashboard`: the Organization record of the Dashboard, fed by the
 //   Organization's Lazurio for GitHub app installation: the TARGET source,
 //   not wired yet (`dashboard` stays undefined until it is);
-// - `name-candidate`: `<login>/<login>_GEN3`, the name the resident creates;
+// - `name-candidate`: `<login>/<login>_GEN4`, then `<login>/<login>_GEN3`
+//   (`rootNameCandidates`): the GEN4 root first, the GEN3 root it replaces
+//   after (LZD-0041 G1). Each is accepted only when it declares itself the
+//   root, so a GEN4 repository whose data still name GEN3 is passed over;
 // - `scan`: the Organization's repositories this account can read, the one
 //   that declares itself the root.
 // A named source (`explicit`, `dashboard`) is authoritative about WHICH
@@ -30,6 +33,12 @@ import { repositoryPattern, sameRepository } from "./model";
 // scan goes when the Dashboard source is wired; the verification stays. A
 // public Environment, which has no GitHub identity, asks GitHub nothing
 // before the clone (`resolveAnonymousRoot`).
+
+/** The name candidates of `login`'s root, in the order they are tried: the
+ * GEN4 root first, the GEN3 root it replaces after (LZD-0041 G1). */
+export function rootNameCandidates(login: string): readonly string[] {
+  return Object.freeze([`${login}/${login}_GEN4`, `${login}/${login}_GEN3`]);
+}
 
 export const rootSources = [
   "explicit",
@@ -55,7 +64,15 @@ export type RootResolution =
       /** `<owner>/<name>` of its `origin`, when it is a checkout of one. */
       repository: string | null;
     }>
-  | Readonly<{ kind: "resolved"; source: RootSource; repository: string }>
+  | Readonly<{
+      kind: "resolved";
+      source: RootSource;
+      repository: string;
+      /** A public Environment's further name candidates, tried in order when
+       * the clone of `repository` fails or does not declare itself the root
+       * (it cannot read a declaration before the clone). */
+      alternatives?: readonly string[];
+    }>
   | Readonly<{ kind: "ambiguous-in-folder"; directories: readonly string[] }>
   | Readonly<{
       kind: "failed";
@@ -159,8 +176,9 @@ async function heldRoot(input: RootInput): Promise<RootResolution | null> {
 /** The root of `login` on a public Environment (root decision 0204 point 5,
  * decision F55's addendum of 2026-10-17), which has no GitHub identity to
  * read a declaration with before the clone: the root the Folder holds, else
- * the operator's named root (`explicit`), else the name candidate
- * `<login>/<login>_GEN3`. Here `resolved` is only the candidate: the install
+ * the operator's named root (`explicit`), else the name candidates
+ * (`rootNameCandidates`: GEN4, then GEN3 as `alternatives`). Here `resolved`
+ * is only the candidate: the install
  * verifies the clone's own declaration before it publishes it
  * (`root-declaration-mismatch`), as it does for every source, and a
  * repository anonymous Git cannot read fails its clone. No scan and no
@@ -181,10 +199,15 @@ export async function resolveAnonymousRoot(
           repository: input.root,
         })
       : namedElsewhere(login);
+  const [first, ...alternatives] = rootNameCandidates(login) as [
+    string,
+    ...string[],
+  ];
   return Object.freeze({
     kind: "resolved",
     source: "name-candidate",
-    repository: `${login}/${login}_GEN3`,
+    repository: first,
+    alternatives: Object.freeze(alternatives),
   });
 }
 
@@ -247,16 +270,18 @@ export async function resolveOrganizationRootRepository(
     return Object.freeze({ kind: "resolved", source, repository });
   }
 
-  // The name candidate.
-  const candidate = `${login}/${login}_GEN3`;
-  const byName = await verdict(github, login, candidate);
-  if (byName === "unavailable") return unavailable();
-  if (byName === "declares")
-    return Object.freeze({
-      kind: "resolved",
-      source: "name-candidate",
-      repository: candidate,
-    });
+  // The name candidates, GEN4 before GEN3: the first that declares itself.
+  const candidates = rootNameCandidates(login);
+  for (const candidate of candidates) {
+    const byName = await verdict(github, login, candidate);
+    if (byName === "unavailable") return unavailable();
+    if (byName === "declares")
+      return Object.freeze({
+        kind: "resolved",
+        source: "name-candidate",
+        repository: candidate,
+      });
+  }
 
   // The scan of what this account can read in the Organization.
   const listed = await github.organizationRepositories(login);
@@ -265,7 +290,7 @@ export async function resolveOrganizationRootRepository(
     .filter(
       (repository) =>
         repository.split("/")[0]?.toLowerCase() === lower &&
-        !sameRepository(repository, candidate),
+        !candidates.some((candidate) => sameRepository(repository, candidate)),
     )
     .slice(0, scanLimit);
   const matches: string[] = [];
@@ -297,6 +322,6 @@ export async function resolveOrganizationRootRepository(
   if (unanswered) return unavailable();
   return failed(
     "root-not-found",
-    `no repository of ${login} this account can read declares itself the root (${candidate} included)`,
+    `no repository of ${login} this account can read declares itself the root (${candidates.join(" and ")} included)`,
   );
 }

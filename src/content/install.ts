@@ -698,9 +698,11 @@ async function anonymousAccess(
   if (resolution.kind === "ambiguous-in-folder" || resolution.kind === "failed")
     return unusableRoot(login, resolution, steps);
   const rootRepository = resolution.repository;
+  const alternatives =
+    resolution.kind === "resolved" ? (resolution.alternatives ?? []) : [];
   steps.done(
     "access",
-    `anonymously (module-reader, restricted slots excluded); root ${rootRepository ?? "present in this Folder"}${foundBy(resolution)}`,
+    `anonymously (module-reader, restricted slots excluded); root ${rootRepository === null ? "present in this Folder" : [rootRepository, ...alternatives].join(", then ")}${foundBy(resolution)}`,
   );
   return {
     resolution,
@@ -806,7 +808,8 @@ async function installOrganization(
     ? await anonymousAccess(login, context, steps)
     : await accountAccess(login, context, steps);
   if (isOutcome(access)) return access;
-  const { resolution, rootRepository, role } = access;
+  const { resolution, role } = access;
+  let rootRepository = access.rootRepository;
   // root
   steps.running("root");
   let directory: string;
@@ -823,42 +826,64 @@ async function installOrganization(
       );
     steps.done("root", `present at ${relative(folder, directory)}`);
   } else {
-    const repository = rootRepository as string;
-    const name = repository.split("/")[1] as string;
-    if (!isDestinationName(name))
-      return steps.fail(
-        "root",
-        "destination-invalid",
-        failureDetails["destination-invalid"] as string,
-      );
-    let parent: string;
-    try {
-      parent = await ensureCheckoutDirectories(folder, ["organizations"]);
-    } catch {
-      return steps.fail(
-        "root",
-        "destination-invalid",
-        "organizations/ is not a directory of this Folder",
-      );
+    // A public Environment tries its further name candidates (GEN4, then
+    // GEN3, LZD-0041 G1) when a clone fails or does not declare itself the
+    // root; every other source names exactly one repository.
+    const tried = [
+      rootRepository as string,
+      ...(context.anonymous && resolution.kind === "resolved"
+        ? (resolution.alternatives ?? [])
+        : []),
+    ];
+    let result: Awaited<ReturnType<typeof materializeRepository>> | null = null;
+    for (const [index, repository] of tried.entries()) {
+      const name = repository.split("/")[1] as string;
+      if (!isDestinationName(name))
+        return steps.fail(
+          "root",
+          "destination-invalid",
+          failureDetails["destination-invalid"] as string,
+        );
+      let parent: string;
+      try {
+        parent = await ensureCheckoutDirectories(folder, ["organizations"]);
+      } catch {
+        return steps.fail(
+          "root",
+          "destination-invalid",
+          "organizations/ is not a directory of this Folder",
+        );
+      }
+      const remote = await remoteOf(context, repository);
+      result = await materializeRepository({
+        parent,
+        name,
+        repository,
+        url: remote.url,
+        credentialHelper: remote.credentialHelper,
+        git: host.git,
+        verify: rootDeclaration(login, repository),
+        ...(context.anonymous
+          ? { finalName: declaredRootName(login, repository) }
+          : {}),
+      });
+      rootRepository = repository;
+      const next = index + 1 < tried.length;
+      if (
+        next &&
+        result.kind === "failed" &&
+        (result.code === "clone-failed" ||
+          result.code === "root-declaration-mismatch")
+      )
+        continue;
+      break;
     }
-    const remote = await remoteOf(context, repository);
-    const result = await materializeRepository({
-      parent,
-      name,
-      repository,
-      url: remote.url,
-      credentialHelper: remote.credentialHelper,
-      git: host.git,
-      verify: rootDeclaration(login, repository),
-      ...(context.anonymous
-        ? { finalName: declaredRootName(login, repository) }
-        : {}),
-    });
+    if (result === null) throw new Error("No root candidate was tried");
     if (result.kind === "occupied")
       return steps.fail(
         "root",
         "destination-occupied",
-        `organizations/${name} exists and was left untouched`,
+        `organizations/${(rootRepository as string).split("/")[1]} exists and was left untouched`,
       );
     if (result.kind === "failed")
       return steps.fail(
