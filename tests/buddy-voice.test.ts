@@ -39,6 +39,9 @@ const buddyLines = [
   "buddyDoes",
   "buddyDoesFind",
   "buddyMemory",
+  "buddyChats",
+  "buddyPlace",
+  "buddySigns",
   "buddyWhere",
   "buddyWhereTelegram",
   "buddyAskName",
@@ -68,6 +71,9 @@ const notLazurio = new Set<string>([
   "buddyMemoryShort",
   "buddyMemoryMornings",
   "buddyMemoryHoliday",
+  "buddyChatWeb",
+  "buddyChatInvoices",
+  "buddyHandoffAsk",
   "buddyAnswerVy",
   "buddyAnswerTy",
   "buddyTraceFor",
@@ -105,6 +111,7 @@ const tyWords = new Set([
   "napiš",
   "najdeš",
   "hledáš",
+  "jsi",
 ]);
 const vyWords = new Set([
   "vy",
@@ -120,6 +127,7 @@ const vyWords = new Set([
   "máte",
   "najdete",
   "hledáte",
+  "jste",
 ]);
 const has = (text: string, set: ReadonlySet<string>) =>
   words(text).some((word) => set.has(word));
