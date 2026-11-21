@@ -47,13 +47,15 @@ import { writeBrainUnits } from "./units";
 // 2026-11-19), and it computes nothing of the backlog by itself. Since the
 // amendment of 2026-11-20 to decision F44 point 10, they are computed in
 // windows (`gbrain embed --stale` with its time budget), one per setup run,
-// the server running with the model between them; the Launchpad runs setup
-// again while windows are left (`./at-start.ts`). Every window, and every
-// way back, is committed before the server starts, so no copy ever comes
-// back over a write. The first window that fails brings the copy before
-// back without the model and is not tried again for this pin (`held`); a
-// later one brings its own copy back with the model, and windows in a row
-// without progress stop the filling with the vectors kept.
+// while Buddy is idle; the Launchpad runs setup again while windows are left
+// (`./at-start.ts`). Since the amendment of 2026-11-21 (computed by the
+// running server) no window stops the server: the pinned release hands the
+// drain to it (`writer_embed_stale`), so the memory answers throughout.
+// Only the switch itself (enable or migrate) stops the server once, after a
+// copy, and is committed before the server starts again, so no copy ever
+// comes back over a write. A switch that fails brings the copy before back
+// without the model and is not tried again for this pin (`held`); windows
+// in a row without progress stop the filling with the vectors kept.
 
 export type MeaningFetch = (
   url: string,
@@ -801,10 +803,9 @@ export async function convergeMeaning(
   if (stored === null) return fallBack("page-count");
   const refused = await switchOn(host, release.command);
   if (refused !== null) return fallBack(refused);
-  // The first window: until it is committed, the copy before is the way
-  // back, and the server is stopped, so no page is written meanwhile.
-  const window = await embedWindow(host, release.command);
-  if (window.result === "failed") return fallBack(window.reason);
+  // The switch itself (enable or migrate) is the only step with the server
+  // stopped: no vector is computed in this stop. Until it is committed, the
+  // copy before is the way back, and no page is written meanwhile.
   if ((await storedPages(host, release.command)) !== stored)
     return fallBack("page-count");
   try {
@@ -816,26 +817,19 @@ export async function convergeMeaning(
   // writes, so no copy ever comes back over the brain, not even where the
   // start or its answer fails (a start that reports failure may have
   // started it, and a server that does not answer health may have taken an
-  // MCP write). The next run goes on from `filling`.
-  await record("filling", undefined, {
-    windows: 1,
-    stalled: window.result === "done" || window.embedded > 0 ? 0 : 1,
-    ...(window.result === "partial" && window.remaining !== undefined
-      ? { remaining: window.remaining }
-      : {}),
-  });
+  // MCP write). The vectors are computed after it, while the server runs
+  // (`fill`); the next run goes on from `filling`.
+  await record("filling", undefined, { windows: 0, stalled: 0 });
   const started =
     (await service(host, "daemon-reload")) &&
     (await service(host, "start", brainUnit));
   if (!started) return afterCommit(host, record, "start");
   if ((await answers(host)) !== release.version)
     return afterCommit(host, record, "no-answer");
-  if (window.result === "done") return switchedOn(host, now);
-  // Vectors are left: the server runs with the model and what is computed
-  // (search by meaning over it, every new page embedded as it comes); the
-  // next run, which the Launchpad starts after a pause, computes the rest.
   await service(host, "start", brainRefreshTimer);
-  return "waits:filling";
+  // The first window right away, with the server running.
+  const after = (await readBrainState(host.paths)).meaningAttempt;
+  return after === undefined ? "waits:filling" : fill(host, release, after);
 }
 
 /** A committed window whose server did not start or answer: the brain is
@@ -869,20 +863,22 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
   return "on";
 }
 
-/** The copy before each window (one, replaced by the next window). */
-const windowName = ".gbrain.bak-meaning-window";
 /** The brain of the last window that failed, kept for a person (one,
- * replaced by the next failure). */
+ * replaced by the next failure): from the windows that stopped the server
+ * (#1134); an attempt such a window left is still recovered with it
+ * (`recoverAttempt`). */
 export const failedWindowName = ".gbrain.failed-meaning-window";
 
-/** One window of the vectors still missing, only while Buddy is idle: the
- * server stopped for at most a window (`meaningWindowMs`) after a copy,
- * then running again with the model. A window that fails brings its copy
- * back and the server with the model; after windows in a row without
- * progress, or too many in all, the filling stops (`restored`: not tried
- * again for this pin) with the vectors computed so far kept. `waits:filling`
- * where vectors are left or Buddy works: the Launchpad runs setup again
- * after a pause (`./at-start.ts`). */
+/** One window of the vectors still missing, only while Buddy is idle, with
+ * the server running: `gbrain embed --stale` with the window's budget hands
+ * the drain to the running server (`writer_embed_stale` of the pinned
+ * release), which keeps answering meanwhile. Nothing is stopped, copied or
+ * brought back: every vector it writes is kept, and a page written
+ * meanwhile is the person's. After windows in a row without progress, or
+ * too many in all, the filling stops (`restored`: not tried again for this
+ * pin) with the vectors computed so far kept. `waits:filling` where vectors
+ * are left or Buddy works: the Launchpad runs setup again after a pause
+ * (`./at-start.ts`). */
 async function fill(
   host: MeaningHost,
   release: Release | undefined,
@@ -891,86 +887,31 @@ async function fill(
   if (release === undefined) return "waits:release-unknown";
   const at = new Date(attempt.at);
   const record = recorder(host, at);
-  const window = join(host.paths.home, windowName);
   if ((attempt.windows ?? 0) >= meaningMaxWindows) {
     await record("restored", "embed-windows");
     return "restored:embed-windows";
   }
   if (!(await host.idle())) return "waits:filling";
-  // A copy a run left after its window was committed is not the way back.
-  await rm(window, { recursive: true, force: true }).catch(() => undefined);
-  const inWindow = { phase: "filling" as const, windowBackup: windowName };
-  await record("stopping", undefined, inWindow);
-  if (!(await stoppedForSure(host))) {
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    await record("filling", "not-stopped");
-    return "waits:not-stopped";
-  }
-  try {
-    await cp(host.paths.brain, window, {
-      recursive: true,
-      verbatimSymlinks: true,
-      preserveTimestamps: true,
-      errorOnExist: true,
-      force: false,
-    });
-    await chmod(window, 0o700);
-  } catch {
-    await rm(window, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    await record("filling", "copy");
-    return "waits:copy";
-  }
-  await record("started", undefined, inWindow);
-  // The pages as stored, with the server stopped (and so no writes).
-  const before = await storedPages(host, release.command);
-  const result =
-    before === null
-      ? ({ result: "failed", reason: "page-count" } as const)
-      : await embedWindow(host, release.command);
+  const result = await embedWindow(host, release.command);
   const counted = (await readBrainState(host.paths)).meaningAttempt;
   const windows = (counted?.windows ?? 0) + 1;
   const progressed =
     result.result === "done" ||
     (result.result === "partial" && result.embedded > 0);
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
-  const back = (reason: string) =>
-    restoreCopy(host, release, window, at, reason, {
-      failedName: failedWindowName,
-      next: async () => {
-        if (stalled >= meaningMaxStalled) {
-          await record("restored", reason, { windows, stalled });
-          return `restored:${reason}`;
-        }
-        await record("filling", reason, { windows, stalled });
-        return `waits:${reason}`;
-      },
-    });
-  if (result.result === "failed") return back(result.reason);
-  if ((await storedPages(host, release.command)) !== before)
-    return back("page-count");
-  // Committed before the server starts: a run that dies from here on
-  // never brings the window's copy back over pages written since; only a
-  // server that does not answer (and so took no write) still falls back.
-  await record("filling", undefined, {
+  if (result.result === "done") return switchedOn(host, at);
+  const reason = result.result === "failed" ? result.reason : undefined;
+  if (stalled >= meaningMaxStalled) {
+    const why = reason ?? "embed-stalled";
+    await record("restored", why, { windows, stalled });
+    return `restored:${why}`;
+  }
+  await record("filling", reason, {
     windows,
     stalled,
     ...(result.result === "partial" && result.remaining !== undefined
       ? { remaining: result.remaining }
       : {}),
   });
-  if (!(await service(host, "start", brainUnit)))
-    return afterCommit(host, record, "start");
-  if ((await answers(host)) !== release.version)
-    return afterCommit(host, record, "no-answer");
-  await rm(window, { recursive: true, force: true }).catch(() => undefined);
-  if (result.result === "done") return switchedOn(host, at);
-  await service(host, "start", brainRefreshTimer);
-  if (stalled >= meaningMaxStalled) {
-    await record("restored", "embed-stalled", { windows, stalled });
-    return "restored:embed-stalled";
-  }
-  return "waits:filling";
+  return reason === undefined ? "waits:filling" : `waits:${reason}`;
 }
