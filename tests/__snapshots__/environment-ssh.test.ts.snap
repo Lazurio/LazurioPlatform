@@ -107,7 +107,7 @@ Pracovní Prostředí přidělená uživateli, kam odsud vede SSH. Přidělení 
 - Síť Environmentu nikdy nepřepínej, neodhlašuj ani nevypínej a do jiného tailnetu choď jen cestou, kterou Environment nabízí (rozhodnutí 0217). SSH do jiného Prostředí jen \`ssh <id>\` po cestě, kterou zapsalo Lazurio, bez ručního aliasu, \`-J\` a \`-A\`, do Týmového dvěma kroky přes své Pracovní, chybějící cestu nahlas (0246); na zařízení jen na tailnet hostname s pinnutým host klíčem po ověření aktivního tailnetu, nikdy na holou \`100.64.0.x\`. Než přidáš počítač do Headscale nebo připojíš laptop (přes SSH nebo promptem pro ChatGPT Desktop), přečti v \`manual/this-machine.md\` Přidání počítače do tailnetu a Připojení počítače a projektu v ChatGPT Desktopu.
 - Profil neuděluje přístup, publikační mandát ani oprávnění k práci na pozadí. Nečti cizí Personalspace a nekopíruj přihlašovací údaje.
 - Zachovej existující cesty a obsah Organizations a Personalspace. Jazyk profilu nepřejmenovává složky ani nepřekládá uživatelská data.
-- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.
+- Chybějící nástroje, neověřená práva a neznámý stav přiznej, nic nevymýšlej; mechanismus Lazuria čti v \`manual/\`.
 - Rozpracovanou aplikaci nespouštěj místo stabilní z \`main\` (její \`runtime.url\`): spusť ji z worktree na vlastním loopback portu; jak ji ukázat, říká \`manual/this-machine.md\`.
 ## Nejdřív dohledat kontext
 Když uživatel řekne forecast, sklad nebo nabídka, vychází z toho, jak funguje jeho firma. Může tím myslet aplikaci, její část nebo běžný firemní pojem. Nečekáme, že to uhodneš. Nejdřív si dohledáš kontext, i když zadání vypadá jednoduše (\`manual/working-here.md\`).
@@ -246,7 +246,7 @@ The Work Environments assigned to the user that SSH reaches from here. The hando
 - Never switch, sign out or stop the Environment's network; reach another tailnet only the way the Environment offers (decision 0217). SSH to another Environment only \`ssh <id>\` on a route Lazurio wrote, no hand alias, \`-J\` or \`-A\`, a Team one in two steps via your Work one, a missing route reported (0246); to a device by tailnet hostname, pinned key, active tailnet checked, never \`100.64.0.x\`. Before adding a computer to Headscale or connecting a laptop (SSH or a ChatGPT Desktop prompt), read Adding a computer to a tailnet and Connecting a computer and a ChatGPT Desktop project in \`manual/this-machine.md\`.
 - A profile grants no access, publication mandate or background-work authority. Do not read anyone else's Personalspace or copy credentials.
 - Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.
-- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.
+- Report missing tools, unverified rights and unknown state; invent nothing; read a Lazurio mechanism in \`manual/\`.
 - Never run an application in progress in place of the stable one from \`main\` (its \`runtime.url\`): run it from the worktree on its own loopback port; \`manual/this-machine.md\` says how to show it.
 ## Find the context first
 When a user says forecast, stock or quote, they are speaking in the context of their work. They may mean an application, a part of it or a familiar business term. You are not expected to guess. Find the context first, even when the request looks simple (\`manual/working-here.md\`).

@@ -29,7 +29,7 @@ import { compositions, environments } from "./fixtures/folder-compositions";
 // compositions too.
 const pinned = {
   revision: "base-instructions-147",
-  digest: "612e11ca5d28efe12b50f8c7815251bfe4559b298a35433a0e21402483811822",
+  digest: "8aed80c2317a4630f3f8eea2f2f7e5923e583e87c4bcd63cb184d7ff41a5b4ac",
 } as const;
 
 function renderedDigest(): string {
@@ -211,4 +211,24 @@ test("a custom voice and own instructions that fill their shared budget fit the 
     }
   }
   expect(tightest).toBeGreaterThanOrEqual(0);
+});
+
+test("every agent is pointed to the manual for a Lazurio mechanism, in AGENTS.md and the manual, in both locales", () => {
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): read a mechanism
+  // in the manual, do not guess it. AGENTS.md loads, so it carries the
+  // pointer; manual/working-here.md carries the rule in full.
+  for (const composition of compositions()) {
+    const outputs = renderOutputs(composition);
+    const cs = composition.profile.locale === "cs";
+    expect(outputs["AGENTS.md"]).toContain(
+      cs
+        ? "mechanismus Lazuria čti v `manual/`"
+        : "read a Lazurio mechanism in `manual/`",
+    );
+    expect(outputs["manual/working-here.md"]).toContain(
+      cs
+        ? "**Mechanismus z manuálu, ne odhadem.**"
+        : "**A mechanism from the manual, not a guess.**",
+    );
+  }
 });

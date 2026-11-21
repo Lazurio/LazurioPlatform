@@ -1593,8 +1593,8 @@ export const personalspaceRules: readonly Text[] = [
     en: "- Preserve existing Organizations and Personalspace paths and content. Profile language neither renames folders nor translates user data.",
   },
   {
-    cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej; nevymýšlej dostupné schopnosti ani úspěšné dokončení.",
-    en: "- Report missing tools, unverified rights and unknown state; do not invent available capabilities or successful completion.",
+    cs: "- Chybějící nástroje, neověřená práva a neznámý stav přiznej, nic nevymýšlej; mechanismus Lazuria čti v `manual/`.",
+    en: "- Report missing tools, unverified rights and unknown state; invent nothing; read a Lazurio mechanism in `manual/`.",
   },
 ];
 
