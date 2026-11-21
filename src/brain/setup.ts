@@ -5,6 +5,11 @@ import type { ToolRunner } from "../tools/status";
 import type { ProcessRunner } from "../update/self-check";
 import { systemctl } from "../update/service-control";
 import { type BrainHttp, healthVersion } from "./admin";
+import {
+  type ArchiveResult,
+  archiveOffBeforeStart,
+  convergeArchiveOff,
+} from "./archive";
 import { ensureAdminToken, installPinnedRelease } from "./install";
 import {
   type BrainKeyKind,
@@ -122,6 +127,9 @@ export type SetupResult = Readonly<{
   move?: MoveResult;
   /** The vault's connection, wherever Lazurio's server answers. */
   vault?: VaultResult;
+  /** gbrain's conversation archive, switched off where the brain runs the
+   * pin (`./archive.ts`). */
+  archive?: ArchiveResult;
   /** Search by meaning, where the brain runs the pin. */
   meaning?: MeaningResult;
   /** The refresh timer, where it is enabled and was not running: started
@@ -435,6 +443,10 @@ async function install(
   } catch {
     return failed("units", status);
   }
+  // The agents' conversations stay out of the memory from its first start
+  // (`./archive.ts`); where this fails, the run after the start tries again
+  // with a short stop.
+  await archiveOffBeforeStart(moveHost(host), release);
   if (!(await systemctl(command, "daemon-reload")))
     return failed("reload", status);
   if (!(await systemctl(command, "enable", brainUnit)))
@@ -495,6 +507,16 @@ async function finish(
     if (keysAfterVault(vault, rebuildBefore, rebuildAfter))
       keys = await convergeBrainKeys({ paths, http: host.http, base });
   }
+  // The agents' conversations stay out of the memory (`./archive.ts`): on
+  // the pin, after the vault (a brain it made anew has no mark) and before
+  // search by meaning (whose copies then carry the switch).
+  const archive =
+    server !== "held" && server !== "waits-move"
+      ? await convergeArchiveOff(
+          moveHost(host),
+          (await readBrainState(paths)).release?.command,
+        )
+      : undefined;
   // Search by meaning only on the pin: a brain held on an earlier release
   // moves first.
   const meaning =
@@ -507,6 +529,7 @@ async function finish(
     ...extra,
     keys: keys.outcomes,
     ...(vault === undefined ? {} : { vault }),
+    ...(archive === undefined ? {} : { archive }),
     ...(meaning === undefined ? {} : { meaning }),
     ...(timer === "running" ? {} : { timer }),
     status: await brainStatus(host),

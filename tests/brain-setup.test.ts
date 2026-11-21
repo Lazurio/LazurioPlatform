@@ -7,12 +7,14 @@ import {
   mkdtemp,
   readFile,
   rename,
+  rm,
   stat,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
+import { archiveOffMark } from "../src/brain/archive";
 import { runBrainCommand } from "../src/brain/cli";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import { meaningPin } from "../src/brain/meaning-pin";
@@ -131,8 +133,18 @@ async function host(
   const calls: string[][] = [];
   /** systemctl verbs that fail, changeable between runs. */
   const failing = new Set<string>();
+  /** gbrain refuses to switch its archive off, changeable between runs. */
+  const archive = { refused: false };
   const run: ToolRunner = async (command, _timeout, env) => {
     calls.push([...command]);
+    if (command[1] === "transcripts") {
+      // gbrain's switch is in its database: refused while the server holds
+      // it (pglite_busy), else stored in the brain (here a file beside it).
+      if (brain.up || archive.refused)
+        return { exitCode: 1, stdout: '{"code":"pglite_busy"}', stderr: "" };
+      await writeFile(join(paths.brain, "db-archive-off"), "off");
+      return { exitCode: 0, stdout: '{"enabled":false}', stderr: "" };
+    }
     if (command[1] === "add") {
       if (options.installFails) return { exitCode: 1, stdout: "", stderr: "" };
       const dir = env.BUN_INSTALL as string;
@@ -211,7 +223,7 @@ async function host(
     tries: 3,
     waitMs: 1,
   };
-  return { setupHost, paths, calls, failing };
+  return { setupHost, paths, calls, failing, archive };
 }
 
 describe("brain setup", () => {
@@ -407,6 +419,133 @@ describe("brain setup", () => {
     expect(result.server).toBe("foreign");
     expect(result.status).toMatchObject({ owner: "unreadable" });
     expect(hidden.calls).toEqual([]);
+  });
+});
+
+describe("the agents' conversations stay out of the memory; deliberate notes go on", () => {
+  const switches = (calls: string[][]) =>
+    calls.filter((c) => c[1] === "transcripts");
+  const stops = (calls: string[][]) =>
+    calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
+  const marked = (paths: ReturnType<typeof brainPaths>) =>
+    stat(join(paths.brain, archiveOffMark)).then(
+      () => true,
+      () => false,
+    );
+  const storedOff = (paths: ReturnType<typeof brainPaths>) =>
+    stat(join(paths.brain, "db-archive-off")).then(
+      () => true,
+      () => false,
+    );
+
+  test("a new brain has gbrain's archive off before its first start, with no stop", async () => {
+    const { setupHost, paths, calls } = await host();
+    const result = await brainSetup(setupHost);
+    expect(result.server).toBe("installed");
+    expect(result.archive).toBe("off");
+    // gbrain's own switch, by the pinned release, and nothing else of its
+    // configuration.
+    expect(switches(calls)).toEqual([
+      [
+        releaseCommand(paths, brainPin.commit),
+        "transcripts",
+        "archive",
+        "off",
+        "--json",
+      ],
+    ]);
+    const first = calls.findIndex((c) => c[1] === "transcripts");
+    const start = calls.findIndex(
+      (c) => c[2] === "start" && c[3] === brainUnit,
+    );
+    expect(first).toBeLessThan(start);
+    expect(stops(calls)).toBe(0);
+    expect(await storedOff(paths)).toBe(true);
+    expect(await marked(paths)).toBe(true);
+    // A second run neither stops the server nor switches again.
+    const again = await brainSetup(setupHost);
+    expect(again.archive).toBe("off");
+    expect(switches(calls)).toHaveLength(1);
+    expect(stops(calls)).toBe(0);
+  });
+
+  test("a brain that runs from before is switched off with a short stop, only while Buddy is idle", async () => {
+    const { setupHost, paths, calls } = await host();
+    await brainSetup(setupHost);
+    // A brain from before this change: its archive on, no mark.
+    await rm(join(paths.brain, archiveOffMark));
+    await rm(join(paths.brain, "db-archive-off"));
+    // Buddy works: nothing stops, nothing is switched.
+    const busy = await brainSetup({ ...setupHost, idle: async () => false });
+    expect(busy.archive).toBe("waits-idle");
+    expect(stops(calls)).toBe(0);
+    expect(switches(calls)).toHaveLength(1);
+    // Buddy idle: one stop, the switch, the server running again.
+    const idle = await brainSetup(setupHost);
+    expect(idle.archive).toBe("off");
+    expect(stops(calls)).toBe(1);
+    expect(await storedOff(paths)).toBe(true);
+    expect(await marked(paths)).toBe(true);
+    expect(idle.status).toMatchObject({ state: "running" });
+  });
+
+  test("a switch gbrain refuses leaves no mark and the server running; the next run tries again", async () => {
+    const { setupHost, paths, archive } = await host();
+    archive.refused = true;
+    const first = await brainSetup(setupHost);
+    expect(first.server).toBe("installed");
+    expect(first.archive).toBe("failed:refused");
+    expect(await marked(paths)).toBe(false);
+    expect(first.status).toMatchObject({ state: "running" });
+    archive.refused = false;
+    const again = await brainSetup(setupHost);
+    expect(again.archive).toBe("off");
+    expect(await marked(paths)).toBe(true);
+  });
+
+  test("the mark goes with the brain: a brain made anew is switched off again, a copy brought back keeps it", async () => {
+    const { setupHost, paths, calls } = await host();
+    await brainSetup(setupHost);
+    // A copy of the brain (as before a move or a window) carries the mark
+    // with the database it belongs to.
+    const copy = join(paths.home, ".gbrain.copy");
+    await cp(paths.brain, copy, { recursive: true });
+    // A brain made anew (its vault's rebuild): neither the switch nor the
+    // mark.
+    await rm(paths.brain, { recursive: true });
+    await mkdir(paths.brain, { recursive: true });
+    await cp(join(copy, "config.json"), join(paths.brain, "config.json"));
+    await cp(join(copy, "serve"), join(paths.brain, "serve"), {
+      recursive: true,
+    });
+    expect((await brainSetup(setupHost)).archive).toBe("off");
+    expect(switches(calls)).toHaveLength(2);
+    // The copy brought back: switched off already, nothing to do.
+    await rm(paths.brain, { recursive: true });
+    await rename(copy, paths.brain);
+    expect((await brainSetup(setupHost)).archive).toBe("off");
+    expect(switches(calls)).toHaveLength(2);
+  });
+
+  test("deliberate notes go on: the keys that write (Executor's, the Launchpad's) are kept and answer", async () => {
+    const { setupHost } = await host();
+    await brainSetup(setupHost);
+    const again = await brainSetup(setupHost);
+    expect(again.archive).toBe("off");
+    expect(again.keys).toEqual({
+      launchpad: "kept",
+      executor: "kept",
+      probe: "kept",
+    });
+    // Each key still answers on MCP (the stand's server checks the token).
+    for (const key of brain.keys) {
+      const answer = await fetch(`${base}/mcp`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${key.token}` },
+        body: "{}",
+      });
+      expect(answer.status).toBe(200);
+    }
   });
 });
 
