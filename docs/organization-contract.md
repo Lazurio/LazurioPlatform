@@ -11,6 +11,9 @@ decision [0145](decision-register.md#0145--the-organization-manifest-compatibili
 ends the compatibility window of the legacy `company.gen3.json`. This repository
 is the contract's authority (decision 0225): this document and the readers that
 apply it.
+What the root repository around the manifests holds, which files Lazurio
+manages in it and how it checks itself is the
+[Organization Root Standard](organization-root-standard.md).
 
 ## Who holds the contract
 
