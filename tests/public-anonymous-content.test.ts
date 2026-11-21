@@ -510,9 +510,7 @@ posixTest(
       host,
     );
     expect(result.kind === "content-install" && result.state).toBe("succeeded");
-    expect(await readdir(join(folder, "organizations"))).toEqual([
-      "beta_GEN3",
-    ]);
+    expect(await readdir(join(folder, "organizations"))).toEqual(["beta_GEN3"]);
     expect(
       result.kind === "content-install" && result.items[0]?.repository,
     ).toBe("beta/beta_GEN3");
