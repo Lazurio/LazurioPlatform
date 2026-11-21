@@ -23,6 +23,15 @@ request what it could not verify.
 ## Terms
 
 - **Module**: one Git repository with `lazurio.module.json` at its root.
+- **Module data repository**: a Module's repository-db data, checked out as its
+  `db/`; part of its Module, never a Module of its own
+  ([Kinds of repository](#kinds-of-repository-in-an-organization)).
+- **Productionspace repository**: a repository under an Organization's
+  `productionspace/`, never a Module
+  ([Kinds of repository](#kinds-of-repository-in-an-organization)).
+- **Shared Module**: another Organization's Module that an Organization keeps
+  current read-only and never runs
+  ([Kinds of repository](#kinds-of-repository-in-an-organization)).
 - **App**: a runnable package of a Module, declared in `apps[]` of
   `lazurio.module.json`. Exactly one App of a Module with Apps is its
   `default_app`.
@@ -52,7 +61,7 @@ request what it could not verify.
 | Organization Module | `organizations/<Organization>/workspace/<module>/` | `<GitHub Organization>/<module>` |
 | Organization-level application | `organizations/<Organization>/mission-control/`, `…/design-system/` | a repository of the Organization; a Module only when it carries `lazurio.module.json` ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog)) |
 | Personal Module | `personalspace/<login>_GEN3/workspace/<module>/` | `<login>/<module>` on the person's own GitHub account, private, without an Organization or Teams ([F52](decisions.md#f52--one-module-generator-in-the-platform-a-persons-own-modules-in-their-personalspace)) |
-| Guest Module | `organizations/<host>/workspace/<HomeOrganization>_GEN3/<repository>/` | the home Organization's; the host keeps it current and never runs it (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) |
+| Shared Module (formerly guest Module) | `organizations/<host>/workspace/<HomeOrganization>_GEN3/<repository>/` | the home Organization's; the host keeps it current and never runs it (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) |
 
 An Organization's Modules sit side by side in one flat `workspace/` (decision
 [0041](decision-register.md#0041--flat-workspace-teams-as-declarations-and-productionspace)).
@@ -64,6 +73,30 @@ carries `status: "planned_slot"`. The old `modules/` layout is retired. Who may
 start a Module follows the Organization's manifest and live GitHub grants, never a
 check inside the App against the Team an Environment runs under (decision
 [0176](decision-register.md#0176--modules-sit-side-by-side-in-workspace-an-app-reads-a-declared-sibling-only-as-slug)).
+
+## Kinds of repository in an Organization
+
+Lazurio tells four kinds of repository in an Organization apart. Each kind has one
+name, and Lazurio shows it one way
+([F67's addendum of 2026-11-21](decisions.md#addendum-of-2026-11-21-shared-module-and-how-the-kinds-of-repository-are-shown)).
+
+| Kind | What it is | How Lazurio shows it |
+| --- | --- | --- |
+| **Module** | a repository with `lazurio.module.json` at its root, in `workspace/<module>/` or at the Organization's root as `mission-control` or `design-system` ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog)) | its own row or tile, named by its own declaration (its default App's title, else its slug) |
+| **Module data repository** | the slot directly below a Module with `materialization: "repository_db_mount"`: on GitHub `<owner>/<module>-data`, checked out on its generation branch (`v3`) as `<module path>/db` ([Data](#boundaries-and-dependencies)) | it belongs to its Module and is never shown as a Module of its own: wherever Lazurio lists repositories it stands under its Module, and only where its state differs from the Module's is it named `<Module> · data` (cs `<Modul> · data`) |
+| **Productionspace repository** | any repository under `productionspace/` ([0041](decision-register.md#0041--flat-workspace-teams-as-declarations-and-productionspace)), never a Module whatever it contains ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog), point 1) | in Apps only in its Productionspace section, read-only; the general `lazurio update` leaves it alone ([content sync](content-sync.md)) |
+| **Shared Module** | another Organization's Module that the Organization keeps current read-only, in the slot that names its home Organization (`home_organization`) (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) | named by its home Organization and its slot, `<home Organization> / <slot slug>`, with the badge cs "nasdílený", en "shared"; its data repository stands under it like any Module's; never merged with the Organization's own Module of the same name |
+
+The Platform still does not read a shared Module's manifest (F67, point 5), so its name
+is its slot's slug, not the title its own declaration gives. Command output writes the
+name without the spaces, as every `<Organization>/<module>`. The Organization's root
+repository and its root slots without `lazurio.module.json`, such as `infra`, are none
+of these kinds and never a Module (F24, point 1).
+
+Every place that shows repositories (Apps, the update view, `lazurio module list`,
+`lazurio doctor`, the Folder manual) names them by this section; the update view
+follows in a later step (F67's addendum of 2026-11-21). Identifiers in code, schemas
+and manifests (`guests`, `home_organization`, `repository_db_mount`) keep their names.
 
 ## Repository layout
 
@@ -1557,7 +1590,7 @@ The Organization's manifest family is described in the
 - Organization-level applications (Mission Control, the design system) are
   repositories of their own with `lazurio.module.json`, never files of the
   Organization's root repository.
-- A guest Module carries `home_organization` in its slot; its
+- A shared Module carries `home_organization` in its slot; its
   `lazurio.module.json` belongs to the home Organization, which checks its
   conformance. The host never starts it and gives it no port, lease or secret.
 

@@ -234,7 +234,7 @@ that, its workspace modules and root-level applications (`mission-control`,
 `design-system`) on `main` and their declared data mounts on their declared branch,
 those with a GitHub remote, four at a time. A child's answer never stops its siblings.
 *Amended on 2026-10-31 ([F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)):*
-a guest Module of another Organization (`workspace/<Home>_GEN3/<module>`) and its data
+a shared Module of another Organization (`workspace/<Home>_GEN3/<module>`) and its data
 mount are workspace children like any other, through the same identity and rules.
 
 **Per repository** (`syncCheckout`), never interactive (`GIT_TERMINAL_PROMPT=0`, no
@@ -354,7 +354,7 @@ or `infra`, and never on the person's own computer (`local`).
 
 | Not removed | Why |
 | --- | --- |
-| A guest Module of another Organization (F67) | The root's answer proves nothing about another owner's repository, so a refusal cannot be told from a token that lost that Organization. It stays hidden in Apps and is never run |
+| A shared Module of another Organization (F67) | The root's answer proves nothing about another owner's repository, so a refusal cannot be told from a token that lost that Organization. It stays hidden in Apps and is never run |
 | A Team Environment | Its content is the hosting's, and its answers come from a broker, not from GitHub |
 | A Henry Environment, Server services | gh signs in as Henry's account or the Organization's app, and the handover records no id to prove it against |
 | A public Environment | It has no identity |
@@ -511,11 +511,11 @@ Steps, in this fixed order: `access`, `root`, `modules`, `preparation`, `check`.
    its module (B7, amended 2026-10-17): materialized on its declared `git.branch`
    (often `v3`) by the same function as the modules when the module is materialized or
    present in this install, `excluded` when it is not; an empty directory at its place
-   counts as absent. A guest Module of another Organization
+   counts as absent. A shared Module of another Organization
    (`workspace/<Home>_GEN3/<module>` with `home_organization`, decision F67) and its data
    mount (`…/<module>/db`) are children like a workspace module and its mount, cloned
    with this Environment's identity; a repository it cannot read is `denied` for that
-   slot alone. A guest is never prepared. A present checkout is reported as for any child (`present`, or
+   slot alone. A shared Module is never prepared. A present checkout is reported as for any child (`present`, or
    `blocked` for another repository) and never changed. `infra` and a database slot
    declared otherwise are left out (`excluded`). The role scope comes first: a restricted
    (Organization Admin only, `default_access` `restricted` or `private`) slot and every

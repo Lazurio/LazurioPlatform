@@ -318,8 +318,8 @@ export type AppsSection = Readonly<{
   kind: CatalogSectionKind | "personal";
   title: string;
   /** A quiet badge beside the flag with its explanation as a tooltip: the
-   * guest section's "hostující" (decision F67's addendum of 2026-11-01);
-   * null for every other section. */
+   * guest section's "nasdílený" (decision F67's addenda of 2026-11-01 and
+   * 2026-11-21); null for every other section. */
   badge: Readonly<{ text: string; hint: string }> | null;
   count: string;
   tiles: readonly AppsTile[];
