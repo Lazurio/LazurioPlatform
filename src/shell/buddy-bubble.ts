@@ -13,6 +13,7 @@ import {
   buddyFrameSource,
   buddyMessage,
   createBuddyContextSender,
+  createBuddyLayoutSender,
   createBuddyShownSender,
 } from "./buddy-protocol";
 import {
@@ -237,6 +238,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // Tells the frame whether his window shows it (F60's addendum of
   // 2026-11-20), so that a closed window reads none of his answers as seen.
   let shownSender: ReturnType<typeof createBuddyShownSender> | null = null;
+  let layoutSender: ReturnType<typeof createBuddyLayoutSender> | null = null;
   let receiver: ReturnType<typeof createGuideReceiver> | null = null;
 
   const remembered = (): BuddyWindowSize => {
@@ -330,6 +332,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   const draw = () => {
     seams.draw(model());
     shownSender?.changed();
+    layoutSender?.changed();
   };
   // The page's language for the sign's words: the element's, else the
   // person's profile.
@@ -379,7 +382,10 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             origin: next,
             frame: seams.frameWindow,
             context,
-            before: () => shownSender?.beforeContext(),
+            before: () => {
+              shownSender?.beforeContext();
+              layoutSender?.beforeContext();
+            },
           });
     shownSender =
       next === null
@@ -390,6 +396,14 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             // The window shows the frame only after the meeting: before it
             // the window holds his hello and the frame stays hidden.
             shown: () => layout !== "closed" && meeting === null,
+          });
+    layoutSender =
+      next === null
+        ? null
+        : createBuddyLayoutSender({
+            origin: next,
+            frame: seams.frameWindow,
+            layout: () => layout,
           });
     receiver =
       next === null
@@ -484,11 +498,13 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       );
       if (message === null) return;
       if (message.type === buddyMessage.ready) {
-        // `shown` before the context: a frame takes a context without it
-        // for an older host's and would count a visit.
+        // `shown` and `layout` before the context: a frame takes a context
+        // without `shown` for an older host's and would count a visit.
         shownSender?.ready();
+        layoutSender?.ready();
         sender?.ready();
         shownSender?.answered();
+        layoutSender?.answered();
         return;
       }
       if (meeting !== null) return;

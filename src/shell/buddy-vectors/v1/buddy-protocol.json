@@ -37,6 +37,42 @@
       }
     },
     {
+      "name": "the window is full screen",
+      "call": "buddyLayoutMessage",
+      "args": [
+        "fullscreen"
+      ],
+      "expect": {
+        "type": "lazurio.buddy.layout",
+        "v": 1,
+        "mode": "fullscreen"
+      }
+    },
+    {
+      "name": "the window is the small panel",
+      "call": "buddyLayoutMessage",
+      "args": [
+        "panel"
+      ],
+      "expect": {
+        "type": "lazurio.buddy.layout",
+        "v": 1,
+        "mode": "panel"
+      }
+    },
+    {
+      "name": "the window is closed",
+      "call": "buddyLayoutMessage",
+      "args": [
+        "closed"
+      ],
+      "expect": {
+        "type": "lazurio.buddy.layout",
+        "v": 1,
+        "mode": "closed"
+      }
+    },
+    {
       "name": "v1",
       "call": "buddyMajor",
       "expect": 1
