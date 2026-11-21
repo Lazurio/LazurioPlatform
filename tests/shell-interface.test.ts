@@ -43,7 +43,9 @@ const themeValues = Object.fromEntries(
 // nothing; decision F60 (2026-10-21) added Buddy's bubble in the same
 // element and the properties `--lazurio-buddy-right` and
 // `--lazurio-buddy-bottom`, and removed nothing; its addendum of 2026-10-25
-// added the property `--lazurio-buddy-clearance`, and removed nothing.
+// added the property `--lazurio-buddy-clearance`, and removed nothing; F36's
+// addendum of 2026-11-17 added the font family "Inter Variable", and removed
+// nothing.
 
 test("the promised interface v1 is exactly this", () => {
   expect(JSON.parse(JSON.stringify(shellElementInterface))).toEqual({
@@ -71,7 +73,7 @@ test("the promised interface v1 is exactly this", () => {
     },
     marks: ["data-guide", "data-guide-help"],
     declares: {
-      fonts: ["Inter Tight Variable", "Geist Mono"],
+      fonts: ["Inter Variable", "Inter Tight Variable", "Geist Mono"],
       tokens: [
         "--lz-surface",
         "--lz-paper",

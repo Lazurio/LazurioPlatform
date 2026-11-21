@@ -244,5 +244,9 @@ test("the font faces the shell declares are the families the tokens name first",
   expect(families).toEqual([...shellElementInterface.declares.fonts]);
   const first = (name: string) =>
     /^"([^"]+)"/.exec(declared.get(name) ?? "")?.[1];
-  expect([first("--lz-font-sans"), first("--lz-font-mono")]).toEqual(families);
+  expect([
+    first("--lz-font-sans"),
+    first("--lz-font-heading"),
+    first("--lz-font-mono"),
+  ]).toEqual(families);
 });
