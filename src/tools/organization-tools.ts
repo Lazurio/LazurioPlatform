@@ -410,15 +410,31 @@ async function oneTool(
     found !== undefined &&
     before !== undefined &&
     compareVersions(before, declared.minimum) >= 0
-  )
-    return onUserPath === undefined
-      ? Object.freeze({
+  ) {
+    if (onUserPath !== undefined)
+      return Object.freeze({ ...base, result: "current", version: before });
+    // The installer's own installation the PATH does not reach (an earlier
+    // install, Lazurio's or the person's): linked into ~/.local/bin like an
+    // installed one, and only then off the PATH if that PATH lacks it too.
+    try {
+      await linkInto(bin, recipe.links, home);
+    } catch {
+      return failed("link", "link-failed");
+    }
+    const reached = await resolveOnPath(
+      recipe.command,
+      input.path,
+      input.platform,
+    );
+    return reached !== undefined
+      ? Object.freeze({ ...base, result: "current", version: before })
+      : Object.freeze({
           ...base,
           result: "current",
           version: before,
           onPath: false,
-        })
-      : Object.freeze({ ...base, result: "current", version: before });
+        });
+  }
   const timeout = input.timeoutMs ?? installTimeoutMs;
   const run = async (
     argv: readonly string[],

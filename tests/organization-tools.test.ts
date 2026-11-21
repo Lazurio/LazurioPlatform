@@ -487,6 +487,44 @@ test.skipIf(windows)(
       },
     ]);
     expect(calls).toEqual([]);
+    // Linked all the same, for a PATH that reaches ~/.local/bin later.
+    expect(await readlink(join(user, ".local", "bin", "cargo"))).toBe(
+      join(user, ".cargo", "bin", "cargo"),
+    );
+  },
+);
+
+test.skipIf(windows)(
+  "an earlier installation outside ~/.local/bin is linked there, and the PATH that has ~/.local/bin then finds it (#1030)",
+  async () => {
+    const user = await home();
+    await rustupAt(user, {
+      default: "stable",
+      toolchains: { stable: "1.99.1" },
+      channels: { stable: "1.99.1" },
+    });
+    const entry = join(user, ".local", "bin");
+    await mkdir(entry, { recursive: true });
+    const calls: string[] = [];
+    const items = await provisionOrganizationTools({
+      tools: [cargo("1.89.0")],
+      path: `${entry}:${join(user, "empty")}`,
+      home: user,
+      platform: process.platform,
+      run: runner(async () => 0, calls),
+    });
+    expect(items).toEqual([
+      {
+        tool: "cargo",
+        minimum: "1.89.0",
+        result: "current",
+        version: "1.99.1",
+      },
+    ]);
+    expect(calls).toEqual([]);
+    expect(await readlink(join(entry, "cargo"))).toBe(
+      join(user, ".cargo", "bin", "cargo"),
+    );
   },
 );
 
