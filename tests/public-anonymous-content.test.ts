@@ -474,6 +474,61 @@ posixTest(
 );
 
 posixTest(
+  "a public Environment passes over a GEN4 root that clones but still declares GEN3, and publishes the GEN3 root (LZD-0041 G1)",
+  async () => {
+    world = await createWorld();
+    await lowercaseOrganization(world, "beta");
+    // beta_GEN4 exists (its history pushed) but its data still name GEN3.
+    await remoteRepository(world, "beta/beta_GEN4", (directory) =>
+      writeOrganizationRoot(directory, {
+        slug: "beta",
+        forge: "beta",
+        root: "beta/beta_GEN3",
+        slots: [
+          {
+            path: "workspace/web",
+            slug: "web",
+            git: { url: "git@github.com:beta/web.git", branch: "main" },
+          },
+        ],
+      }),
+    );
+    const folder = await presetFolder(
+      world,
+      "hosted-organization-team",
+      publicBinding("beta"),
+    );
+    const { github, calls } = stubGitHub(world, {
+      viewer: { kind: "signed-out" },
+    });
+    const host = await anonymousHost(world, github);
+    const steps: ContentStep[] = [];
+    const result = await installContent(
+      folder,
+      {},
+      (step) => steps.push(step),
+      host,
+    );
+    expect(result.kind === "content-install" && result.state).toBe("succeeded");
+    expect(await readdir(join(folder, "organizations"))).toEqual([
+      "beta_GEN3",
+    ]);
+    expect(
+      result.kind === "content-install" && result.items[0]?.repository,
+    ).toBe("beta/beta_GEN3");
+    // Both root candidates cloned anonymously, GEN4 first; nothing of
+    // GitHub asked.
+    expect(
+      host.clones
+        .filter((clone) => /_GEN[34]\.git$/.test(clone.url))
+        .map((clone) => clone.url.replace(/^.*\//, "")),
+    ).toEqual(["beta_GEN4.git", "beta_GEN3.git"]);
+    expect(calls).toEqual([]);
+  },
+  60_000,
+);
+
+posixTest(
   "a public Environment installs only as a Module Reader: any other role fails closed before anything is cloned",
   async () => {
     world = await createWorld();
