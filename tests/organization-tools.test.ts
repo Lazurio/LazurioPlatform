@@ -531,7 +531,12 @@ test.skipIf(windows)(
 test.skipIf(windows)(
   "an entry in ~/.local/bin that does not run (a dangling link, a file that is not executable) is left and named, never reported as a PATH without ~/.local/bin",
   async () => {
-    for (const blocker of ["dangling", "not-executable"] as const) {
+    for (const [blocker, spelling] of [
+      ["dangling", "literal"],
+      ["not-executable", "literal"],
+      // The same directory written another way on the PATH.
+      ["dangling", "equivalent"],
+    ] as const) {
       const user = await home();
       await rustupAt(user, {
         default: "stable",
@@ -547,7 +552,7 @@ test.skipIf(windows)(
       const calls: string[] = [];
       const [item] = await provisionOrganizationTools({
         tools: [cargo("1.89.0")],
-        path: `${entry}:${join(user, "empty")}`,
+        path: `${spelling === "literal" ? entry : `${entry}/../bin/`}:${join(user, "empty")}`,
         home: user,
         platform: process.platform,
         run: runner(async () => 0, calls),
@@ -567,6 +572,23 @@ test.skipIf(windows)(
     }
   },
 );
+
+test("lazurio update says when a declared tool is current but its PATH does not reach ~/.local/bin (#1030)", () => {
+  expect(
+    everythingText([
+      {
+        part: "organization-tools",
+        tool: "cargo",
+        minimum: "1.89.0",
+        result: "current",
+        version: "1.99.1",
+        onPath: false,
+      },
+    ]),
+  ).toEqual([
+    "The Organization's tool cargo (minimum 1.89.0) is 1.99.1, but ~/.local/bin is not on this PATH, so commands do not find it.",
+  ]);
+});
 
 test.skipIf(windows)(
   "below the minimum but installed another way (a system package): reported, never replaced or shadowed",

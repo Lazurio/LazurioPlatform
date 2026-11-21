@@ -7,7 +7,7 @@ import {
   stat,
   symlink,
 } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { delimiter, join, resolve, sep } from "node:path";
 import {
   type OrganizationTool,
   type OrganizationToolId,
@@ -375,9 +375,17 @@ async function occupiedEntry(
   home: string,
 ): Promise<string | undefined> {
   const entry = join(home, ".local", "bin");
-  const onPath = (path ?? "")
-    .split(":")
-    .some((part) => part.replace(/\/+$/, "") === entry);
+  const real = async (directory: string) => {
+    try {
+      return await realpath(directory);
+    } catch {
+      return resolve(directory);
+    }
+  };
+  const target = await real(entry);
+  let onPath = false;
+  for (const part of (path ?? "").split(delimiter))
+    if (part !== "" && (await real(part)) === target) onPath = true;
   if (!onPath) return undefined;
   const file = join(entry, command);
   try {
