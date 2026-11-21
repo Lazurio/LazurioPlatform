@@ -979,10 +979,28 @@ export function keepIntroduced(
   }
 }
 
-/** Buddy's notices on this page's origin, as the shell says them: on,
- * off (the browser's permission still to ask), blocked by the browser, or
- * a browser without notices. */
-export type BuddyNoticesState = "on" | "off" | "blocked" | "unsupported";
+/** Buddy's notices on this page's origin: `off` while the browser is still
+ * to ask, `allowed` where it allowed them before (the person's choice in
+ * the menu at his figure may still be off), `on` right after the click that
+ * turned them on, `blocked` by the browser, `unsupported` without notices. */
+export type BuddyNoticesState =
+  | "on"
+  | "off"
+  | "allowed"
+  | "blocked"
+  | "unsupported";
+
+/** The state from the browser's permission (null: no notices). */
+export const buddyNoticesStateOf = (
+  permission: NotificationPermission | null,
+): BuddyNoticesState =>
+  permission === null
+    ? "unsupported"
+    : permission === "granted"
+      ? "allowed"
+      : permission === "denied"
+        ? "blocked"
+        : "off";
 
 /** The notices' row under his signs (Matěj, 2026-11-21: notices on from
  * the start, and in the guide how to turn them off): one click asks the
@@ -1003,6 +1021,8 @@ export function buddyNoticesView(
       return { button: copy.buddyNoticesTurnOn, line: copy.buddyNoticesHowOff };
     case "on":
       return { button: null, line: copy.buddyNoticesAreOn };
+    case "allowed":
+      return { button: null, line: copy.buddyNoticesWhere };
     case "blocked":
       return { button: null, line: copy.buddyNoticesBlockedHere };
     case "unsupported":

@@ -13,6 +13,7 @@ import {
   beatView,
   buddyFact,
   buddyIntroductionDue,
+  buddyNoticesStateOf,
   buddyNoticesView,
   buddySignInRow,
   buddySignInStep,
@@ -1515,12 +1516,33 @@ test("the introduction's mark: kept only when it reads back, so a full or refuse
 test("his notices under his signs: one click where the browser is still to ask, and how to turn them off, in Lazurio's vy (Matěj, 2026-11-21)", () => {
   expect(buddyNoticesView("off", cs)).toEqual({
     button: "Zapnout oznámení",
-    line: "Vypnout je můžete kdykoli v nabídce u postavičky.",
+    line: "Vypnout je můžete kdykoli v nabídce u postavičky (Zobrazovat oznámení).",
   });
   expect(buddyNoticesView("on", cs)).toEqual({
     button: null,
-    line: "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky.",
+    line: "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky (Zobrazovat oznámení).",
   });
+  // Allowed before: the menu may have them off, so no claim that they are on.
+  expect(buddyNoticesView("allowed", cs)).toEqual({
+    button: null,
+    line: "Oznámení zapnete i vypnete v nabídce u postavičky (Zobrazovat oznámení).",
+  });
+  // The menu's item is named as the shell names it.
+  for (const line of [
+    cs.buddyNoticesHowOff,
+    cs.buddyNoticesAreOn,
+    cs.buddyNoticesWhere,
+  ])
+    expect(line).toContain(shellMessages("cs").buddyNotices);
+  for (const line of [
+    en.buddyNoticesHowOff,
+    en.buddyNoticesAreOn,
+    en.buddyNoticesWhere,
+  ])
+    expect(line).toContain(shellMessages("en").buddyNotices);
+  expect(
+    (["default", "granted", "denied", null] as const).map(buddyNoticesStateOf),
+  ).toEqual(["off", "allowed", "blocked", "unsupported"]);
   // Blocked: the shell's own words, which its menu says too.
   expect(buddyNoticesView("blocked", cs).line).toBe(
     shellMessages("cs").buddyNoticesBlocked,
