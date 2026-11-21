@@ -10873,7 +10873,8 @@ and Automate keep their app).
 ### F36 addendum of 2026-11-17: the design system's clean type
 
 **Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
-awaits Matěj's decision (Organization Admin) with its pull request.** The design system's
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+merge of its pull request and of the dark appearance Grafit that stands on it.** The design system's
 clean look of 2026-10-21, which its owner decided for the product too, sets text in Inter and
 headings in Inter Tight at weight 600. The shell's copy of `tokens.css` is from 2026-10-19
 and predates it, and every newer copy brings it: the dark scheme Grafit (2026-11-08) cannot
