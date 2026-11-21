@@ -10922,8 +10922,8 @@ shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded 
 ### F36 addendum of 2026-11-17 (2): the theme Lazurio is dark in Grafit
 
 **Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
-awaits Matěj's decision (Organization Admin) with its pull request, after the addendum of
-2026-11-17.** Point 2 of the addendum of 2026-10-18 made the theme Lazurio light only,
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+addendum of 2026-11-17 and the merge of both pull requests.** Point 2 of the addendum of 2026-10-18 made the theme Lazurio light only,
 because the design system had no dark UI. Since 2026-11-08 it has one: the dark scheme
 Grafit, graphite greys in steps instead of near-black, chosen by the design system's owner
 over the prototype. Until now a dark device with the theme Lazurio showed T3 Code's own
