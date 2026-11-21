@@ -139,58 +139,101 @@ test("each tab holds its own view and lets it go when the person leaves it, with
   expect(claims.claim(key)).toBe(true);
 });
 
-test("a change held back only by a view said before it is claimed again, and told once the view is let go, even where the release came late or never (#1151)", () => {
-  let at = Date.parse("2026-11-19T16:01:00.000Z");
-  const viewedFrom = at - 5_000;
+test("a claim that comes before its tab's release is claimed again and told once the view is let go, or once its hold ends where the release never comes (#1151)", () => {
+  let at = 0;
   const current = sign("waiting", 1);
   const claims = createBuddyNoticeClaims(
     () => current,
     () => at,
   );
   const key = buddyNoticeKey(current);
-  // The tab said it views Buddy's window before the change; its release is
-  // still on its way when the claim comes.
-  at = viewedFrom;
-  claims.viewing("chat");
-  at = viewedFrom + 5_001;
+  claims.viewing("chat", 1);
+  at = 5_000;
+  // The person left, but the release is still on its way.
   expect(claims.claim(key)).toBe(false);
-  expect(claims.retryIn(key)).toBe(buddyViewingHoldMs - 5_001);
-  // The release arrives: the next claim is told.
-  claims.release("chat");
+  expect(claims.retryIn(key)).toBe(buddyViewingHoldMs - 5_000);
+  claims.release("chat", 2);
   expect(claims.claim(key)).toBe(true);
   expect(claims.retryIn(key)).toBeNull();
 
   // A release that never arrives: the hold ends by itself.
   const later = sign("failed", 2);
-  const changes = createBuddyNoticeClaims(
+  const lost = createBuddyNoticeClaims(
     () => later,
     () => at,
   );
   const failed = buddyNoticeKey(later);
-  at = Date.parse(later.since ?? "") - 1;
-  changes.viewing("chat");
-  at += 2;
-  expect(changes.claim(failed)).toBe(false);
-  expect(changes.retryIn(failed)).not.toBeNull();
+  lost.viewing("chat", 1);
+  expect(lost.claim(failed)).toBe(false);
+  expect(lost.retryIn(failed)).toBe(buddyViewingHoldMs);
   at += buddyViewingHoldMs;
-  expect(changes.claim(failed)).toBe(true);
+  expect(lost.claim(failed)).toBe(true);
 });
 
-test("a view said after the change means the person saw it: no claim again, and none told after they leave", () => {
-  let at = Date.parse("2026-11-19T16:01:00.000Z");
+test("a tab's views and releases count in its own order: a heartbeat overtaken by its release holds nothing back, and one late before the release only delays the notice (#1151)", () => {
+  const at = 0;
   const current = sign("waiting", 1);
   const claims = createBuddyNoticeClaims(
     () => current,
     () => at,
   );
   const key = buddyNoticeKey(current);
-  at += 1_000;
-  claims.viewing("chat");
+  // Lazurio still has his window in view; Chat's heartbeat (2) arrives after
+  // Chat's release (3).
+  claims.viewing("lazurio", 1);
+  claims.viewing("chat", 1);
+  claims.release("chat", 3);
+  claims.viewing("chat", 2);
+  claims.release("lazurio", 2);
+  expect(claims.claim(key)).toBe(true);
+
+  // Chat's heartbeat sent before the person left arrives after the change,
+  // and before the release: the claim waits, and the release lets it through.
+  const later = sign("failed", 2);
+  const late = createBuddyNoticeClaims(
+    () => later,
+    () => at,
+  );
+  const failed = buddyNoticeKey(later);
+  late.viewing("lazurio", 1);
+  late.viewing("chat", 5);
+  expect(late.claim(failed)).toBe(false);
+  expect(late.retryIn(failed)).not.toBeNull();
+  // Releasing Chat's view leaves Lazurio's.
+  late.release("chat", 6);
+  expect(late.claim(failed)).toBe(false);
+  late.release("lazurio", 2);
+  expect(late.claim(failed)).toBe(true);
+});
+
+test("only the tab that had Buddy's window in view as the change came says the person saw it: then no claim again, and none told after they leave", async () => {
+  let at = 0;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  claims.viewing("chat", 1);
   expect(claims.claim(key)).toBe(false);
+  expect(claims.retryIn(key)).not.toBeNull();
+  claims.seen(key);
   expect(claims.retryIn(key)).toBeNull();
-  // Another tab's older view does not change that.
-  claims.viewing("lazurio");
-  expect(claims.retryIn(key)).toBeNull();
+  claims.release("chat", 2);
+  at += 1;
+  expect(claims.claim(key)).toBe(false);
+  // The tab in view says so as the change comes.
+  const seen: string[] = [];
+  const watch = createBuddyNotifier({
+    enabled: () => true,
+    inView: () => true,
+    claim: async () => ({ notify: true, retryInMs: null }),
+    show: () => {},
+    seen: (change) => seen.push(change),
+  });
+  await watch.observe(sign("quiet"));
+  expect(await watch.observe(sign("waiting", 1))).toBe(false);
+  expect(seen).toEqual([key ?? ""]);
 });
 
 test("a tab claims a held change again while it is still the sign, and stops when it changes or the Launchpad says no", async () => {
@@ -271,6 +314,7 @@ test("a page's copy of the choice follows the other pages, and a late first read
     async (choice) => {
       if (fail) throw new Error("not saved");
       held = choice;
+      return held;
     },
   );
   // The first read is still on its way when the person turns them off.
@@ -291,6 +335,15 @@ test("a page's copy of the choice follows the other pages, and a late first read
   waits = false;
   expect(await cache.set("off")).toBe(false);
   expect(cache.current()).toBe("on");
+});
+
+test("a page whose choice was overtaken on its way shows the newer one the Launchpad holds", async () => {
+  const cache = createNoticesChoiceCache(
+    async () => "off",
+    async () => "off",
+  );
+  expect(await cache.set("on")).toBe(false);
+  expect(cache.current()).toBe("off");
 });
 
 test("the click that opens Buddy's window asks once, after the meeting, where the choice is on and the browser has not answered (Matěj 2026-11-21)", () => {

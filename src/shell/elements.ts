@@ -1391,6 +1391,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   // page's own name for it, so that leaving lets go of this view only.
   private viewingTimer: ReturnType<typeof setInterval> | null = null;
   private readonly tab = pageTabName();
+  private viewingSeq = 0;
   // Read once the browser settled the focus: a blur while the focus moves
   // into Buddy's frame still leaves this page focused.
   private readonly viewingChanged = () => {
@@ -1608,6 +1609,13 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         );
       },
       show: (signal) => this.notice(signal),
+      seen: (key) =>
+        void fetch(buddyNoticePath, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ seen: key }),
+        }).catch(() => undefined),
     });
     // The stream's own events, never the window's messages.
     source.onmessage = (event) => {
@@ -1655,14 +1663,16 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
    * longer is the moment the person leaves it. */
   private followViewing(): void {
     const inView = this.signalSource !== null && this.windowInView();
-    const say = (viewing: boolean) =>
+    const say = (viewing: boolean) => {
+      this.viewingSeq += 1;
       void fetch(buddyNoticePath, {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ viewing, tab: this.tab }),
+        body: JSON.stringify({ viewing, tab: this.tab, seq: this.viewingSeq }),
         keepalive: !viewing,
       }).catch(() => undefined);
+    };
     if (inView && this.viewingTimer === null) {
       say(true);
       this.viewingTimer = setInterval(() => say(true), buddyViewingEveryMs);

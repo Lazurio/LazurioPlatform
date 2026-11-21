@@ -58,13 +58,25 @@ export async function writeNoticesChoice(
   }
 }
 
+/** How far apart two choices may be made and still arrive out of order: a
+ * choice made this much before the one held, which arrives after it, was
+ * overtaken on its way and is dropped. Beyond it, the browser's clock is
+ * off, and the choice that arrives last is the person's. */
+export const noticesChoiceReorderMs = 30_000;
+
 /** The Launchpad's one holder of the choice: read once from the file, then
  * kept here, so a claim knows it at once. Writes go to the file one after
- * another in the order the person made them, and the choice held is the
- * one last saved; a write that fails leaves the saved one and is thrown to
- * the caller. */
-export function createNoticesChoiceHolder(home: string | undefined) {
+ * another, and the newest choice the person made wins even where it
+ * arrives first: each says when it was made (`at`, the browser's clock as
+ * the person clicked, never later than the Launchpad's), and an older one
+ * arriving after it is dropped. A write that fails leaves the saved choice
+ * and is thrown to the caller. */
+export function createNoticesChoiceHolder(
+  home: string | undefined,
+  now: () => number = Date.now,
+) {
   let held: BuddyNoticesChoice = "on";
+  let heldAt = Number.NEGATIVE_INFINITY;
   const loaded =
     home === undefined
       ? Promise.resolve()
@@ -80,13 +92,22 @@ export function createNoticesChoiceHolder(home: string | undefined) {
       await loaded;
       return held;
     },
-    /** Saves the person's choice after every earlier save. */
-    write(choice: BuddyNoticesChoice): Promise<BuddyNoticesChoice> {
+    /** Saves the person's choice made at `at`, after every earlier save;
+     * answers the choice held after it, which is a newer one where this one
+     * was overtaken. */
+    write(
+      choice: BuddyNoticesChoice,
+      at: number = now(),
+    ): Promise<BuddyNoticesChoice> {
       if (home === undefined)
         return Promise.reject(new Error("The Environment has no home"));
+      const made = Number.isFinite(at) ? Math.min(at, now()) : now();
       const saved = queue.then(async () => {
+        if (made < heldAt && heldAt - made <= noticesChoiceReorderMs)
+          return held;
         await writeNoticesChoice(home, choice);
         held = choice;
+        heldAt = Math.max(heldAt, made);
         return choice;
       });
       queue = saved.then(

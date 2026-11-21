@@ -46,6 +46,9 @@ export type BuddyNoticeSeams = Readonly<{
   claim: (key: string) => Promise<BuddyClaimAnswer>;
   /** Shows the notice. */
   show: (signal: ShellBuddySignal) => void;
+  /** Says to the Launchpad that the person saw the change `key` here, in
+   * Buddy's window in view as it came. */
+  seen?: (key: string) => void;
   /** Waits before a claim again; a timer by default. */
   wait?: (ms: number) => Promise<void>;
 }>;
@@ -56,9 +59,10 @@ const lost: BuddyClaimAnswer = Object.freeze({
 });
 
 /** Watches the sign a tab follows and tells each change once. The sign the
- * tab finds when it starts is no change. A change held back only by a view
- * said before it is claimed again, while it is still the sign, until the
- * Launchpad lets it through or says it was seen. */
+ * tab finds when it starts is no change. A change that comes while Buddy's
+ * window is in view here is seen, and the Launchpad hears so. A change held
+ * back by another tab's view is claimed again, while it is still the sign,
+ * until the Launchpad lets it through or says no. */
 export function createBuddyNotifier(seams: BuddyNoticeSeams) {
   const wait =
     seams.wait ??
@@ -77,7 +81,12 @@ export function createBuddyNotifier(seams: BuddyNoticeSeams) {
       if (first || key === null) return false;
       // A view's hold ends by itself (`buddyViewingHoldMs`), so this ends.
       for (let attempt = 0; attempt < 64; attempt += 1) {
-        if (last !== key || !seams.enabled() || seams.inView()) return false;
+        if (last !== key) return false;
+        if (seams.inView()) {
+          seams.seen?.(key);
+          return false;
+        }
+        if (!seams.enabled()) return false;
         const answer = await seams.claim(key).catch(() => lost);
         if (answer.notify) {
           seams.show(signal);
@@ -117,23 +126,35 @@ export const buddyViewingHoldMs = 20_000;
  * the person's choice is off, and every claim while a tab on any origin has
  * Buddy's window in view (`viewing`, said every `buddyViewingEveryMs`) loses.
  * Each tab holds its own view, and lets it go when the person leaves it
- * (`release`), so a window out of focus holds nothing back (#1151). A claim
- * that lost only to views last said before the change is told when to come
- * again (`retryIn`): the person may have left while the claim was on its
- * way, and a view said after the change means the person saw it. Keeps the
- * last few changes only. */
+ * (`release`), so a window out of focus holds nothing back (#1151); a tab's
+ * views and releases count in its own order (`seq`), so one overtaken on its
+ * way is dropped. A claim lost only to a view is told when to come again
+ * (`retryIn`), because the person may have left while it was on its way;
+ * only the tab that had his window in view as the change came says the
+ * person saw it (`seen`), and then no notice follows. Keeps the last few
+ * changes and tabs only. */
 export function createBuddyNoticeClaims(
   current: () => ShellBuddySignal,
   now: () => number = Date.now,
   allowed: () => boolean = () => true,
 ) {
   const claimed: string[] = [];
-  const views = new Map<string, Readonly<{ said: number; until: number }>>();
+  const views = new Map<string, number>();
+  const order = new Map<string, number>();
   const tabOf = (tab: unknown) =>
     typeof tab === "string" && tab.length > 0 && tab.length <= 64 ? tab : "";
+  // Whether this event of the tab's comes after every one already heard.
+  const inOrder = (tab: string, seq: unknown): boolean => {
+    if (typeof seq !== "number" || !Number.isFinite(seq)) return true;
+    if (seq <= (order.get(tab) ?? Number.NEGATIVE_INFINITY)) return false;
+    order.delete(tab);
+    order.set(tab, seq);
+    if (order.size > 64) order.delete(order.keys().next().value ?? "");
+    return true;
+  };
   const live = () => {
     const at = now();
-    for (const [tab, view] of views) if (view.until <= at) views.delete(tab);
+    for (const [tab, until] of views) if (until <= at) views.delete(tab);
     return at;
   };
   const open = (key: unknown): key is string =>
@@ -141,38 +162,41 @@ export function createBuddyNoticeClaims(
     allowed() &&
     buddyNoticeKey(current()) === key &&
     !claimed.includes(key);
+  const take = (key: string) => {
+    claimed.push(key);
+    if (claimed.length > 32) claimed.shift();
+  };
   return Object.freeze({
     /** A tab has Buddy's window in view now. */
-    viewing(tab?: unknown): void {
-      const at = now();
-      views.delete(tabOf(tab));
-      views.set(tabOf(tab), { said: at, until: at + buddyViewingHoldMs });
+    viewing(tab?: unknown, seq?: unknown): void {
+      const name = tabOf(tab);
+      if (!inOrder(name, seq)) return;
+      views.delete(name);
+      views.set(name, now() + buddyViewingHoldMs);
       if (views.size > 64) views.delete(views.keys().next().value ?? "");
     },
     /** That tab no longer has it in view: its hold ends now. */
-    release(tab?: unknown): void {
-      views.delete(tabOf(tab));
+    release(tab?: unknown, seq?: unknown): void {
+      const name = tabOf(tab);
+      if (inOrder(name, seq)) views.delete(name);
+    },
+    /** The person saw the change `key` in Buddy's window: no tab tells it. */
+    seen(key: unknown): void {
+      if (open(key)) take(key);
     },
     claim(key: unknown): boolean {
       live();
       if (!open(key) || views.size > 0) return false;
-      claimed.push(key);
-      if (claimed.length > 32) claimed.shift();
+      take(key);
       return true;
     },
-    /** After a lost claim of `key`: in how many ms to claim it again, or
-     * null where it will not be told. */
+    /** After a lost claim of `key`: in how many ms to claim it again (when
+     * the longest view's hold ends, at the latest), or null where it will
+     * not be told. */
     retryIn(key: unknown): number | null {
       const at = live();
       if (!open(key) || views.size === 0) return null;
-      const changed = Date.parse(current().since ?? "");
-      if (Number.isNaN(changed)) return null;
-      let until = at;
-      for (const view of views.values()) {
-        if (view.said >= changed) return null;
-        until = Math.max(until, view.until);
-      }
-      return Math.max(until - at, 1);
+      return Math.max(Math.max(...views.values()) - at, 1);
     },
   });
 }
@@ -206,8 +230,8 @@ export type BuddyNoticesSeams = Readonly<{
   permission: () => NotificationPermission | null;
   /** The browser's question; called first, still inside the person's click. */
   request: () => Promise<NotificationPermission>;
-  /** Sets the choice for the Environment. */
-  choose: (choice: BuddyNoticesChoice) => Promise<void>;
+  /** Sets the choice for the Environment, as made now. */
+  choose: (choice: BuddyNoticesChoice) => Promise<unknown>;
   /** Remembers that this origin asked. */
   asked: () => void;
 }>;
@@ -243,18 +267,24 @@ export async function readLaunchpadNoticesChoice(): Promise<BuddyNoticesChoice> 
     : "on";
 }
 
-/** Saves the Environment's choice with the Launchpad; throws where it did
- * not save it. */
+/** Saves the Environment's choice with the Launchpad, saying when the
+ * person made it (now, as they click: the call is the click's), and
+ * answers the choice the Launchpad holds after it, a newer one where this
+ * one was overtaken on its way; throws where it did not save it. */
 export async function writeLaunchpadNoticesChoice(
   choice: BuddyNoticesChoice,
-): Promise<void> {
+): Promise<BuddyNoticesChoice> {
+  const at = Date.now();
   const answer = await fetch(buddyNoticePath, {
     method: "POST",
     credentials: "same-origin",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ choice }),
+    body: JSON.stringify({ choice, at }),
   });
   if (!answer.ok) throw new Error("The choice was not saved");
+  const value: unknown = await answer.json().catch(() => null);
+  const held = (value as { choice?: unknown } | null)?.choice;
+  return held === "on" || held === "off" ? held : choice;
 }
 
 /** The seams of this page's browser and Launchpad. */
@@ -309,7 +339,7 @@ export async function readBuddyNoticesState(
  * and a choice the Launchpad failed to save goes back to what it holds. */
 export function createNoticesChoiceCache(
   read: () => Promise<BuddyNoticesChoice>,
-  write: (choice: BuddyNoticesChoice) => Promise<void>,
+  write: (choice: BuddyNoticesChoice) => Promise<BuddyNoticesChoice>,
   changed: () => void = () => {},
 ) {
   let choice: BuddyNoticesChoice = "on";
@@ -336,8 +366,13 @@ export function createNoticesChoiceCache(
         changed();
       }
       try {
-        await write(next);
-        return true;
+        // A newer choice made on another page may have won on the way.
+        const held = await write(next);
+        if (mine === version && held !== choice) {
+          choice = held;
+          changed();
+        }
+        return held === next;
       } catch {
         // A newer choice of the person's own stays; else the held one.
         if (mine === version) await refresh();

@@ -13,6 +13,7 @@ import {
   createNoticesChoiceHolder,
   isBuddyNoticesChoice,
   noticesChoicePath,
+  noticesChoiceReorderMs,
   readNoticesChoice,
   writeNoticesChoice,
 } from "../src/buddy/notices-choice";
@@ -94,6 +95,33 @@ test("a save that fails is told to the caller and leaves the choice saved before
     await expect(
       createNoticesChoiceHolder(undefined).write("on"),
     ).rejects.toThrow();
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("the newest choice the person made wins even where an older one arrives after it, on any page, and a browser whose clock is far off is still heard", async () => {
+  const home = await mkdtemp(join(tmpdir(), "buddy-notices-"));
+  try {
+    let now = 1_000_000;
+    const holder = createNoticesChoiceHolder(home, () => now);
+    // Lazurio's "on" (the first question's click) is made at 0 s and held up
+    // on its way; Chat's "off", made 2 s later, arrives first.
+    expect(await holder.write("off", now - 1_000)).toBe("off");
+    expect(await holder.write("on", now - 3_000)).toBe("off");
+    expect(await readNoticesChoice(home)).toBe("off");
+    // A later choice wins as usual.
+    now += 5_000;
+    expect(await holder.write("on", now)).toBe("on");
+    // A choice from a browser whose clock is far behind is still the
+    // person's latest, and one from a clock ahead counts as made now.
+    now += 60_000;
+    expect(
+      await holder.write("off", now - noticesChoiceReorderMs - 120_000),
+    ).toBe("off");
+    expect(await holder.write("on", now + 3_600_000)).toBe("on");
+    now += 1_000;
+    expect(await holder.write("off", now)).toBe("off");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

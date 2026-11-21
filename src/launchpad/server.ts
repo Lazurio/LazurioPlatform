@@ -2406,20 +2406,31 @@ export async function startLaunchpad(
           if (toolsEnvironment.home === undefined)
             return response({ error: "no-home" }, 503);
           try {
-            return response({ choice: await buddyNoticesChoice.write(choice) });
+            // When the person made it, by the page's clock: an older choice
+            // overtaken on its way never undoes a newer one.
+            const at = typeof body.at === "number" ? body.at : Date.now();
+            return response({
+              choice: await buddyNoticesChoice.write(choice, at),
+            });
           } catch {
             return response({ error: "not-saved" }, 500);
           }
         }
         // A tab with Buddy's window in view holds every notice back, until
         // it says the person left it.
+        // Each in the tab's own order (`seq`): one overtaken is dropped.
         if (body.viewing === true) {
-          buddyNoticeClaims.viewing(body.tab);
+          buddyNoticeClaims.viewing(body.tab, body.seq);
           return response({ viewing: true });
         }
         if (body.viewing === false) {
-          buddyNoticeClaims.release(body.tab);
+          buddyNoticeClaims.release(body.tab, body.seq);
           return response({ viewing: false });
+        }
+        // The tab that had Buddy's window in view as the change came saw it.
+        if (typeof body.seen === "string") {
+          buddyNoticeClaims.seen(body.seen);
+          return response({ seen: true });
         }
         await buddyNoticesChoice.read();
         if (buddyNoticeClaims.claim(body.key))
