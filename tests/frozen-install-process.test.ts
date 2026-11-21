@@ -946,7 +946,12 @@ posixTest(
       }),
     ).rejects.toThrow("Workspace installation input snapshot is not qualified");
   },
-  15_000,
+  // Real Bun runs the whole lifecycle several times over: two preparations
+  // with an install each, a start, a stop and four preflights. The test took
+  // 13.2 s alone on an idle Linux Environment and timed out at 15 s under
+  // CI's four parallel workers (#879). Its own timeout overrides CI's
+  // --timeout=20000, so it gets the budget of the real work it does.
+  60_000,
 );
 
 posixTest(
