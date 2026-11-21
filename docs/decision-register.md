@@ -683,10 +683,10 @@ Where an old structure is discarded or rebuilt (a module brought to the standard
 
 ### 0174 — A repository created from a template keeps its lineage through merge commits
 
-- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-02
-- **Related:** 0077, 0171
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-02 · **Amended:** by 0251 on 2026-11-21
+- **Related:** 0077, 0171, 0251
 
-A module or Organization-level repository created from a Lazurio template allows merge commits on GitHub next to rebase. A template synchronization is a pull request whose head contains the exact template commit as an ancestor; a repository without shared history first imports it on the pull request branch (a merge with `--allow-unrelated-histories`, with the `ours` strategy for identical content) without rewriting the protected `main`, and the pull request is merged with a merge commit. If the ancestor is missing or the repository does not allow merge commits, the agent does not merge and reports it. Whoever creates a repository from a template allows merge commits at creation, because squash or rebase rewrites the template's commits and loses the merge base. Protection of `main`, review before Publication and rebase as the default for repositories not created from a template stay.
+A GEN4 Organization root does not follow this entry: it takes its template's managed files by 0251. A module or Organization-level repository created from a Lazurio template allows merge commits on GitHub next to rebase. A template synchronization is a pull request whose head contains the exact template commit as an ancestor; a repository without shared history first imports it on the pull request branch (a merge with `--allow-unrelated-histories`, with the `ours` strategy for identical content) without rewriting the protected `main`, and the pull request is merged with a merge commit. If the ancestor is missing or the repository does not allow merge commits, the agent does not merge and reports it. Whoever creates a repository from a template allows merge commits at creation, because squash or rebase rewrites the template's commits and loses the merge base. Protection of `main`, review before Publication and rebase as the default for repositories not created from a template stay.
 
 ### 0175 — The person agents work for is the user
 
@@ -1454,4 +1454,6 @@ This decision amends 0231, 0234 and 0239 for access, publication and the terms, 
 
 **New Organizations.** Once that gate holds for every place where a new Organization can be created or used, Organizations are created only as `<Organization>_GEN4`, from the GEN4 root template; the GEN3 root template is no longer used to create them.
 
-**What stays.** Template synchronization follows 0174 until a decision replaces it. Repositories other than Organization roots keep their names. This entry does not move a Personalspace: a GEN4 template for new Personalspace repositories is created next to the root template, and whether and how an existing person's Personalspace repository changes is left to a decision of its own, taken with that person. Access and its trust boundaries move with the root and are compared before and after (0234, 0245).
+**Template synchronization of a root.** A GEN4 root takes its template by managed files, not by Git lineage, and this replaces 0174 for Organization roots: the template release names every file it manages and the release they come from, a managed file is the same in every root of that release and blocks in `AGENTS.md` are marked as managed, and a new release reaches a root as an ordinary reviewed pull request that rewrites only the managed files and blocks, without a merge commit of the template and without a `template` remote. The move to GEN4 is the first such pull request. Modules created from templates keep 0174.
+
+**What stays.** Repositories other than Organization roots keep their names. This entry does not move a Personalspace: a GEN4 template for new Personalspace repositories is created next to the root template, and whether and how an existing person's Personalspace repository changes is left to a decision of its own, taken with that person. Access and its trust boundaries move with the root and are compared before and after (0234, 0245).
