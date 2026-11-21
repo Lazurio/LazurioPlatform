@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { brainHttp } from "../src/brain/admin";
 import { archiveOffMark } from "../src/brain/archive";
-import { brainSetupAtStart } from "../src/brain/at-start";
+import { brainSetupAtStart, runBrainSetup } from "../src/brain/at-start";
 import { runBrainCommand } from "../src/brain/cli";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import { meaningPin } from "../src/brain/meaning-pin";
@@ -506,6 +506,52 @@ describe("the agents' conversations stay out of the memory; deliberate notes go 
     expect(again.archive).toBe("off");
     expect(await storedOff(paths)).toBe(true);
     expect(await marked(paths)).toBe(true);
+  });
+
+  test("a first install refused once is finished by the Launchpad's next run: through the CLI, its parser and the loop", async () => {
+    const { setupHost, paths, calls, archive } = await host();
+    archive.refused = true;
+    // The Launchpad runs `lazurio brain setup --json` as its child; here the
+    // child is the real CLI over the stand.
+    const child: ToolRunner = async (command) => {
+      const out = await runBrainCommand(command.slice(2), {
+        identity: {} as never,
+        platform: "linux",
+        env: {},
+        executable: "lazurio",
+        host: setupHost,
+      });
+      return {
+        exitCode: out.code,
+        stdout: (out.stdout as string | undefined) ?? "",
+        stderr: (out.stderr as string | undefined) ?? "",
+      };
+    };
+    const seen: Array<string | undefined> = [];
+    const labels = await brainSetupAtStart({
+      run: async () => {
+        const read = await runBrainSetup({
+          executable: "lazurio",
+          run: child,
+          env: {},
+        });
+        seen.push(read === null ? "none" : `${read.server} ${read.archive}`);
+        return read;
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      sleep: async () => {
+        // The refusal was passing.
+        archive.refused = false;
+      },
+    });
+    expect(seen).toEqual(["failed failed:refused", "installed off"]);
+    expect(labels).toMatchObject({ server: "installed", archive: "off" });
+    // Started once, and only with the archive off.
+    expect(
+      calls.filter((c) => c[2] === "start" && c[3] === brainUnit),
+    ).toHaveLength(1);
+    expect(await storedOff(paths)).toBe(true);
   });
 
   test("a running brain's switch that fails leaves no mark and the server running, and setup says so", async () => {

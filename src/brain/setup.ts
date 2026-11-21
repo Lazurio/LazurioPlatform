@@ -449,8 +449,16 @@ async function install(
   // The agents' conversations stay out of the memory from its first start
   // (`./archive.ts`): a brain whose archive could not be switched off is not
   // started; the install stays pending and the next run tries again.
-  if ((await archiveOffBeforeStart(moveHost(host), release)) !== "off")
-    return failed("archive", status);
+  const archive = await archiveOffBeforeStart(moveHost(host), release);
+  if (archive !== "off")
+    // The outcome goes with the failure: the Launchpad runs setup again
+    // while the archive is not off, and that run resumes this install.
+    return Object.freeze({
+      server: "failed",
+      step: "archive",
+      archive,
+      status,
+    });
   if (!(await systemctl(command, "daemon-reload")))
     return failed("reload", status);
   if (!(await systemctl(command, "enable", brainUnit)))
