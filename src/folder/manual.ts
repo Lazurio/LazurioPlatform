@@ -552,6 +552,13 @@ const gitAndGitHub: readonly Text[] = [
 // them in one line.
 const safeHabits: readonly Text[] = [
   t("## Bezpečné návyky", "## Safe habits"),
+  // Matěj 2026-11-21 (plan LZD-0033 task-2026-11-21-830): agents guessed a
+  // Lazurio mechanism wrong; they read it here first. AGENTS.md has no room
+  // for the rule (its 32 KiB budget), so it lives in this manual.
+  t(
+    "- **Mechanismus z manuálu, ne odhadem.** Než řekneš, jak nějaký mechanismus Lazuria funguje, nebo podle něj navrhneš krok, přečti si ho v tomto manuálu (`manual/`); neodhaduj. Co tu není, řekni jako neznámé, ověř u zdroje a mezeru zapiš jako issue do repozitáře Lazuria.",
+    "- **A mechanism from the manual, not a guess.** Before you say how a Lazurio mechanism works, or propose a step that relies on it, read it in this manual (`manual/`); do not guess. What is not here, say is unknown, check it at the source and record the gap as an issue in Lazurio's repository.",
+  ),
   t(
     "- **Místo na disku jen s jistotou.** Smaž jen to, o čem víš jistě, že se nepoužívá a nikdo to nebude chtít zpátky, třeba výstup vlastního hotového úkolu. Mezipaměti, stav nástrojů a služeb ani nic, u čeho to dokázat nemůžeš, nemaž: vypiš to uživateli i s velikostí a nech ho rozhodnout.",
     "- **Disk space only with certainty.** Delete only what you know for certain is unused and nobody will want back, such as the output of your own finished task. Never delete caches, the state of tools and services, or anything you cannot prove unused: list it for the user with its size and let them decide.",
