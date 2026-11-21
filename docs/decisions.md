@@ -16017,6 +16017,41 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
     - **Before the wave.** It was measured on a server processor, not an i7.
       Before the wave to people, the same is verified on one customer-class
       Environment: memory, the first embedding and queries in Czech.
+11. **The agents' conversations stay out of the memory** (amendment
+    2026-11-21). gbrain 0.60.733 keeps a conversation archive that is on by
+    default on a personal brain. While the server is quiet, its upkeep reads
+    the harnesses' sessions in the home (Claude Code, Codex and others) and
+    writes them as pages of a source `conversations` (measured on a
+    fictional brain: within a minute of quiet). Matěj decided on 2026-11-21:
+    „rozhovory do paměti vypnout - stačí, že budou v prostředí dle mého.
+    Ale, dedikované zápisky by se měly propisovat do gbrainu, to pořád
+    platí." (Switch the conversations into the memory off: it is enough that
+    they stay in the Environment. Deliberate notes still go into gbrain.)
+    - **How.** Lazurio switches the archive off with gbrain's own switch
+      (`gbrain transcripts archive off`, the setting
+      `transcripts.archive.enabled` in its database). The running server
+      holds the database, so the switch is made with the server stopped.
+      - **A new database is never started with the archive on.** A new
+        brain is switched before its first start, with no stop at all;
+        where the switch fails, it is not started and the install is
+        resumed by the next run. A brain the vault makes anew is switched
+        before its first start too; where that fails, the rebuild goes back
+        to its copy (`stop:rebuild-archive`).
+      - **A brain that runs already** is switched in one short stop while
+        Buddy is idle.
+    - **Once per brain, carried with it.** A mark in the brain's directory
+      (`lazurio-archive-off.json`) records the switch. Every copy and way
+      back of the brain carries it with the database it belongs to, and a
+      brain made anew from its vault has none, so it is switched off again.
+    - **Seen and retried.** `lazurio brain setup` prints the outcome
+      (`archive`) and is not finished (exit 1) while the switch fails. The
+      Launchpad runs setup again after a pause while the archive is not off
+      (Buddy working, a switch that failed), also where search by meaning
+      has nothing left to do, at most a day of runs a start.
+    - **Not changed.** Deliberate notes (pages written over MCP, through
+      Executor or the memory's skill) and every key that writes. Pages the
+      archive wrote before stay until the person decides; removing them is
+      a separate, irreversible step.
 
 | Alternative | Trade-off / disposition |
 | --- | --- |
@@ -16029,7 +16064,7 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
 Verified by tests:
 - the status and the owners of a unit (`tests/brain-status.test.ts`);
 - the keys against a stand-in of the admin API (`tests/brain-keys.test.ts`);
-- setup, including the handover mark (`tests/brain-setup.test.ts`);
+- setup, including the handover mark and the conversation archive switched off: before a new brain's first start, with a short stop only while Buddy is idle, refused and tried again, and carried with copies (`tests/brain-setup.test.ts`);
 - the vault's decision, rebuild and way back (`tests/brain-vault.test.ts`);
 - the takeover with and without consent, the move, a refused pin, a server that does not stop, a stopped and an interrupted move, and `take-over` printing no key or path (`tests/brain-move.test.ts`);
 - the Launchpad's child process and the server Brain (`tests/brain-at-start.test.ts`);

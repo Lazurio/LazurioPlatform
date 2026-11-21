@@ -49,6 +49,9 @@ export function createTour(
     columnHead: () => HTMLElement | null;
     /** Recovery mode: no tour. */
     off: () => boolean;
+    /** The person moved the introduction on (Další, Hotovo): what waits for
+     * its end (Buddy GEN4's introduction) looks again. */
+    advanced?: () => void;
     /** The shell's guide (decision F56): told whether the tour wants
      * attention, asked whether it is out, heard when it ends, and when a
      * "?" asked while the tour comes first. */
@@ -248,6 +251,7 @@ export function createTour(
           tourAdvance(progress?.value ?? freshTourProgress, next),
         );
         update();
+        options.advanced?.();
       };
       // Nothing is lost (0201 point 2): Začínáme stays in Settings, and
       // the next page load shows the tour again until the basics exist.

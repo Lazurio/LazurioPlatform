@@ -26,8 +26,17 @@ export type BrainSetupLabels = Readonly<{
   move?: string;
   takeover?: string;
   vault?: string;
+  archive?: string;
   meaning?: string;
 }>;
+
+/** Whether gbrain's conversation archive is not off yet and another run
+ * switches it (`./archive.ts`): Buddy was working (`waits-idle`), the
+ * release was unknown, or the switch failed. */
+export const archiveWaits = (labels: BrainSetupLabels | null) =>
+  labels?.archive === "waits-idle" ||
+  labels?.archive?.startsWith("waits:") === true ||
+  labels?.archive?.startsWith("failed:") === true;
 
 /** How long the Launchpad lets one setup run: longer than its longest
  * supported step, a move or one stop of search by meaning (an hour at most
@@ -108,12 +117,15 @@ export async function brainSetupAtStart(
   // `fills` runs (a day at the default pause); a later start goes on from
   // the brain's own record. It ends at `on`, `held`, a stop for a person or
   // any other answer.
+  // An archive not off yet (Buddy working, a switch that failed) waits the
+  // same way, also where search by meaning has nothing left to do.
   // Another setup holding the lock (`busy`, no meaning in its answer) is
   // passing: while a meaning waited before it, the next run comes as well.
   let waiting = false;
   for (let i = 0; i < (input.fills ?? 288); i++) {
     if (labels === null || signal.aborted) break;
-    if (labels.server !== "busy") waiting = meaningWaits(labels);
+    if (labels.server !== "busy")
+      waiting = meaningWaits(labels) || archiveWaits(labels);
     if (!waiting) break;
     input.report?.(labels);
     if (labels.meaning === "waits:night" && input.nightInMs !== undefined) {
@@ -183,6 +195,7 @@ export async function runBrainSetup(
       ...label("move"),
       ...label("takeover"),
       ...label("vault"),
+      ...label("archive"),
       ...label("meaning"),
     });
   } catch {

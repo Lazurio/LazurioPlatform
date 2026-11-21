@@ -1794,6 +1794,32 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 .buddy-beat-phone .buddy-beat-tile-screen { display: flex; width: 44px; height: 80px; flex-direction: column; gap: 5px; padding: 10px 5px; border-radius: 9px; }
 .buddy-beat-msg { width: 72%; height: 7px; border-radius: 4px; background: var(--muted); box-shadow: 0 0 0 1px var(--lz-gray-100); }
 .buddy-beat-msg-mine { align-self: flex-end; background: var(--lz-blue-50); }
+/* Buddy GEN4's beats (the guide to Buddy): his chats, a thing he hands on,
+   the page he knows, his signs. The same entrance as the beats above; a row
+   that finishes swaps its words in place; nothing waits on the motion. */
+.buddy-beat-sign { display: inline-grid; min-width: 18px; height: 18px; box-sizing: border-box; padding: 0 4px; place-items: center; border: 2px solid var(--lz-white); border-radius: 999px; background: var(--lz-red-500); color: var(--lz-white); font-size: 10.5px; font-weight: 700; line-height: 1; }
+.buddy-beat-bot[data-state] { grid-template-columns: minmax(0, 1fr) auto; padding-left: 12px; }
+.buddy-beat-bot-state[data-asks] { color: var(--fg); }
+.buddy-beat-bot-state[data-asks] .buddy-beat-sign { animation: buddy-pop 360ms cubic-bezier(0.23, 1, 0.32, 1) 1500ms both; }
+.buddy-beat-then { display: inline-grid; }
+.buddy-beat-then > span { display: inline-flex; grid-area: 1 / 1; align-items: center; justify-content: flex-end; gap: 6px; }
+.buddy-beat-then-from { animation: buddy-out 240ms ease-out var(--then, 2300ms) both; }
+.buddy-beat-then-to { color: var(--success-fg); animation: buddy-in 320ms ease-out var(--then, 2300ms) both; }
+.buddy-beat-handoff { display: grid; gap: 10px; }
+.buddy-beat-mine { justify-self: end; max-width: 80%; background: var(--lz-blue-50); font-size: 14px; animation: buddy-say 320ms ease-out 600ms both; }
+.buddy-beat-handoff .buddy-beat-panel { animation-delay: 1300ms; }
+.buddy-beat-handoff .buddy-beat-bot { animation-delay: 1500ms; }
+.buddy-beat-handoff .buddy-beat-then > span { --then: 2900ms; }
+.buddy-beat-pin { position: absolute; right: 30px; bottom: 7px; display: inline-flex; max-width: calc(100% - 50px); align-items: center; gap: 3px; padding: 1px 6px 1px 4px; overflow: hidden; border: 1px solid var(--lz-line); border-radius: 999px; background: var(--lz-surface); color: var(--fg); font-size: 10.5px; font-weight: var(--lz-weight-akce); text-overflow: ellipsis; white-space: nowrap; }
+.buddy-beat-pin .icon { width: 10px; height: 10px; flex: none; }
+.buddy-beat-place .buddy-beat-tile { max-width: 160px; }
+.buddy-beat-signs { display: flex; justify-content: center; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.buddy-beat-signs-item { display: grid; flex: 1 1 0; min-width: 0; max-width: 150px; justify-items: center; gap: 8px; text-align: center; animation: buddy-in 320ms ease-out both; animation-delay: calc(800ms + var(--n, 0) * 700ms); }
+.buddy-beat-signs-face { position: relative; display: grid; width: 60px; height: 60px; place-items: center; border-radius: 50%; background: var(--lz-surface); box-shadow: 0 0 0 1px var(--lz-line); }
+.buddy-beat-signs-face img { width: 44px; height: 48px; object-fit: contain; image-rendering: pixelated; }
+.buddy-beat-signs-face .buddy-beat-sign { position: absolute; top: -2px; right: -2px; animation: buddy-pop 360ms cubic-bezier(0.23, 1, 0.32, 1) both; animation-delay: calc(1100ms + var(--n, 0) * 700ms); }
+.buddy-beat-signs-item[data-sign="answered"] .buddy-beat-sign { min-width: 12px; width: 12px; height: 12px; padding: 0; top: 2px; right: 2px; }
+.buddy-beat-signs-label { max-width: 100%; color: var(--muted-fg); font-size: 12.5px; line-height: 1.3; overflow-wrap: anywhere; }
 .buddy-beat-progress { display: flex; justify-content: center; gap: 5px; }
 .buddy-beat-progress i { width: 18px; height: 4px; border-radius: 2px; background: var(--lz-gray-100); }
 .buddy-beat-progress i[data-state="done"] { background: var(--lz-gray-300); }
@@ -1808,10 +1834,13 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 .buddy-answers { display: inline-flex; flex-wrap: wrap; gap: 8px; }
 @keyframes buddy-say { from { opacity: 0; transform: translateY(6px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes buddy-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes buddy-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes buddy-pop { from { opacity: 0; transform: scale(0.95); } 60% { opacity: 1; transform: scale(1.12); } to { opacity: 1; transform: none; } }
 @keyframes buddy-hop { 0% { opacity: 0; transform: translateY(14px) scale(0.92, 1.06); } 45% { opacity: 1; transform: translateY(-10px) scale(1.04, 0.97); } 70% { transform: translateY(0) scale(1.03, 0.96); } 100% { opacity: 1; transform: none; } }
 @keyframes buddy-wave { 0% { transform: none; } 22% { transform: translateX(calc(var(--frame, 96px) * -1)); } 30% { transform: translateX(calc(var(--frame, 96px) * -2)); } 38% { transform: translateX(calc(var(--frame, 96px) * -1)); } 46% { transform: translateX(calc(var(--frame, 96px) * -2)); } 54% { transform: translateX(calc(var(--frame, 96px) * -1)); } 62%, 100% { transform: none; } }
-@media (max-width: 560px) { .buddy-beat { min-height: 0; padding: 16px 12px 12px; } .buddy-beat-talk { gap: 10px; } .buddy-beat[data-beat="hello"] .buddy-wave { --frame: 96px !important; } .buddy-beat-where { gap: 8px; } .buddy-beat-cards { grid-template-columns: 1fr; } .buddy-q { grid-template-columns: 1fr; } .buddy-q-face { display: none; } }
+@media (max-width: 560px) { .buddy-beat { min-height: 0; padding: 16px 12px 12px; } .buddy-beat-talk { gap: 10px; } .buddy-beat[data-beat="hello"] .buddy-wave { --frame: 96px !important; } .buddy-beat-where { gap: 8px; } .buddy-beat-cards { grid-template-columns: 1fr; } .buddy-beat-signs { gap: 8px; } .buddy-beat-signs-label { font-size: 11.5px; } .buddy-beat-place .buddy-beat-pin { right: 28px; gap: 0; padding: 2px; font-size: 0; } .buddy-beat-place .buddy-beat-pin .icon { width: 11px; height: 11px; } .buddy-q { grid-template-columns: 1fr; } .buddy-q-face { display: none; } }
 @media (prefers-reduced-motion: reduce) { .buddy-beat-line, .buddy-beat-card, .buddy-beat-panel, .buddy-beat-bot, .buddy-beat-chip, .buddy-beat-tile, .buddy-wave img, .buddy-beat[data-beat="hello"] .buddy-wave { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .buddy-beat-mine, .buddy-beat-signs-item, .buddy-beat-bot-state[data-asks] .buddy-beat-sign, .buddy-beat-signs-face .buddy-beat-sign, .buddy-beat-then > .buddy-beat-then-to { animation: none; } .buddy-beat-then > .buddy-beat-then-from { animation: none; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } .spinner, .browser-panel, .browser-panel.is-leaving { animation: none; } }
 </style>
 <noscript><style>body { visibility: visible !important; animation: none !important; }</style></noscript>
@@ -1824,7 +1853,9 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
      does not draw, is Iconoir's app-window (iconoir-react 7.12.1 AppWindow),
      i-trash its trash (iconoir 7.12.1), and i-panel-close its
      sidebar-collapse beside i-panel, its sidebar-expand (iconoir-react
-     7.12.1 SidebarCollapse and SidebarExpand). -->
+     7.12.1 SidebarCollapse and SidebarExpand). i-chat is the shell's own chat
+     (src/shell/icons.ts) and i-map-pin Iconoir's map-pin, the pin of the page
+     Buddy's window carries, for Buddy GEN4's introduction. -->
 <svg hidden aria-hidden="true">
 <symbol id="i-general" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.6224 10.3954L18.5247 7.7448L20 6L18 4L16.2647 5.48295L13.5578 4.36974L12.9353 2H10.981L10.3491 4.40113L7.70441 5.51596L6 4L4 6L5.45337 7.78885L4.3725 10.4463L2 11V13L4.40111 13.6555L5.51575 16.2997L4 18L6 20L7.79116 18.5403L10.397 19.6123L11 22H13L13.6045 19.6132L16.2551 18.5155C16.6969 18.8313 18 20 18 20L20 18L18.5159 16.2494L19.6139 13.598L21.9999 12.9772L22 11L19.6224 10.3954Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-machine" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6 18.01L6.01 17.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 6.01L6.01 5.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 9.4V2.6C2 2.26863 2.26863 2 2.6 2H21.4C21.7314 2 22 2.26863 22 2.6V9.4C22 9.73137 21.7314 10 21.4 10H2.6C2.26863 10 2 9.73137 2 9.4Z" stroke="currentColor"/><path d="M2 21.4V14.6C2 14.2686 2.26863 14 2.6 14H21.4C21.7314 14 22 14.2686 22 14.6V21.4C22 21.7314 21.7314 22 21.4 22H2.6C2.26863 22 2 21.7314 2 21.4Z" stroke="currentColor"/></symbol>
@@ -1863,6 +1894,8 @@ input.telegram-token-input[aria-invalid="true"] { border-color: var(--warning-fg
 <symbol id="i-sparks" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8 15C12.8747 15 15 12.949 15 8C15 12.949 17.1104 15 22 15C17.1104 15 15 17.1104 15 22C15 17.1104 12.8747 15 8 15Z" stroke="currentColor" stroke-linejoin="round"/><path d="M2 6.5C5.13376 6.5 6.5 5.18153 6.5 2C6.5 5.18153 7.85669 6.5 11 6.5C7.85669 6.5 6.5 7.85669 6.5 11C6.5 7.85669 5.13376 6.5 2 6.5Z" stroke="currentColor" stroke-linejoin="round"/></symbol>
 <symbol id="i-warning" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20.0429 21H3.95705C2.41902 21 1.45658 19.3364 2.22324 18.0031L10.2662 4.01533C11.0352 2.67792 12.9648 2.67791 13.7338 4.01532L21.7768 18.0031C22.5434 19.3364 21.581 21 20.0429 21Z" stroke="currentColor" stroke-linecap="round"/><path d="M12 9V13" stroke="currentColor" stroke-linecap="round"/><path d="M12 17.01L12.01 16.9989" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M5 13L9 17L19 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M17 12.5C17.2761 12.5 17.5 12.2761 17.5 12C17.5 11.7239 17.2761 11.5 17 11.5C16.7239 11.5 16.5 11.7239 16.5 12C16.5 12.2761 16.7239 12.5 17 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12.5C12.2761 12.5 12.5 12.2761 12.5 12C12.5 11.7239 12.2761 11.5 12 11.5C11.7239 11.5 11.5 11.7239 11.5 12C11.5 12.2761 11.7239 12.5 12 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 12.5C7.27614 12.5 7.5 12.2761 7.5 12C7.5 11.7239 7.27614 11.5 7 11.5C6.72386 11.5 6.5 11.7239 6.5 12C6.5 12.2761 6.72386 12.5 7 12.5Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 13.8214 2.48697 15.5291 3.33782 17L2.5 21.5L7 20.6622C8.47087 21.513 10.1786 22 12 22Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+<symbol id="i-map-pin" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M20 10C20 14.4183 12 22 12 22C12 22 4 14.4183 4 10C4 5.58172 7.58172 2 12 2C16.4183 2 20 5.58172 20 10Z" stroke="currentColor"/><path d="M12 11C12.5523 11 13 10.5523 13 10C13 9.44772 12.5523 9 12 9C11.4477 9 11 9.44772 11 10C11 10.5523 11.4477 11 12 11Z" fill="currentColor" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M8 8.6V4.6C8 4.26863 8.26863 4 8.6 4H19.4C19.7314 4 20 4.26863 20 4.6V15.4C20 15.7314 19.7314 16 19.4 16H15.4" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 19.4V8.6C4 8.26863 4.26863 8 4.6 8H15.4C15.7314 8 16 8.26863 16 8.6V19.4C16 19.7314 15.7314 20 15.4 20H4.6C4.26863 20 4 19.7314 4 19.4Z" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M6.75827 17.2426L12.0009 12M17.2435 6.75736L12.0009 12M12.0009 12L6.75827 6.75736M12.0009 12L17.2435 17.2426" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
 <symbol id="i-browser" viewBox="0 0 24 24" fill="none" stroke-width="1.6"><path d="M2 19V5C2 3.89543 2.89543 3 4 3H20C21.1046 3 22 3.89543 22 5V19C22 20.1046 21.1046 21 20 21H4C2.89543 21 2 20.1046 2 19Z" stroke="currentColor"/><path d="M2 7L22 7" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 5.01L5.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5.01L8.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M11 5.01L11.01 4.99889" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></symbol>
