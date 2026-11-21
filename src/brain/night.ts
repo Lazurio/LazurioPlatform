@@ -75,23 +75,57 @@ export function nightOf(stored: unknown): NightWindow {
   return typeof parsed === "string" ? defaultNight : parsed;
 }
 
-/** The minute of the day at `now` in a time zone. */
-function minuteIn(now: Date, timeZone: string): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(now);
+/** Real milliseconds until a night stop may start: 0 inside the window
+ * with at least `leastMs` left; else to the next window's start (after this
+ * one's end, where too little of it is left). */
+export function nightStartsIn(
+  now: Date,
+  window: NightWindow,
+  leastMs: number,
+): number {
+  const at = nightAt(now, window);
+  if (!at.inside) return at.startsInMs;
+  if (at.endsInMs >= leastMs) return 0;
+  const after = nightAt(new Date(now.getTime() + at.endsInMs), window);
+  return at.endsInMs + (after.inside ? 0 : after.startsInMs);
+}
+
+const formats = new Map<string, Intl.DateTimeFormat>();
+
+/** The minute of the day the zone's clock reads at `at` (epoch ms). */
+function minuteIn(at: number, timeZone: string): number {
+  let format = formats.get(timeZone);
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+    formats.set(timeZone, format);
+  }
+  const parts = format.formatToParts(at);
   const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
   return hour * 60 + minute;
 }
 
-/** Where `now` stands to the window: inside it, with the milliseconds left
- * to its end, or outside, with the milliseconds to its next start. Counted
- * in whole minutes of the zone's clock, so a change of daylight saving time
- * moves the window with the clock. */
+const minuteMs = 60_000;
+/** How far ahead the next change is looked for: a day where the window's
+ * hours do not exist (a spring change), then the next day's. */
+const horizonMinutes = 3 * 24 * 60;
+
+/** Where `now` stands to the window: inside it, with the real milliseconds
+ * left to its end, or outside, with the real milliseconds to its next start.
+ * The window is where the zone's clock reads inside it, so on a change of
+ * daylight saving time the real time differs from the clock's:
+ * - in spring, hours the clock skips do not count: a window of 01:00–03:30
+ *   in Prague at 01:50 on the day of the change ends 40 real minutes later,
+ *   and a start the clock skips (02:30) begins where the clock goes on
+ *   (03:00);
+ * - in autumn, an hour the clock repeats is inside the window each time it
+ *   reads inside it, and its end is the first time the clock reads the end.
+ * Found by walking real minutes ahead, the zone's clock read at each. */
 export function nightAt(
   now: Date,
   window: NightWindow,
@@ -101,17 +135,22 @@ export function nightAt(
   const day = 24 * 60;
   const start = minutesOf(window.start) as number;
   const end = minutesOf(window.end) as number;
-  const minute = minuteIn(now, window.timeZone);
-  const seconds = now.getUTCSeconds() * 1000 + now.getUTCMilliseconds();
   const length = (end - start + day) % day;
-  const sinceStart = (minute - start + day) % day;
-  if (sinceStart < length)
-    return {
-      inside: true,
-      endsInMs: (length - sinceStart) * 60_000 - seconds,
-    };
-  return {
-    inside: false,
-    startsInMs: (day - sinceStart) * 60_000 - seconds,
-  };
+  const inside = (at: number) =>
+    (minuteIn(at, window.timeZone) - start + day) % day < length;
+  const at = now.getTime();
+  const wasInside = inside(at);
+  const first = Math.floor(at / minuteMs) * minuteMs + minuteMs;
+  for (let i = 0; i < horizonMinutes; i++) {
+    const next = first + i * minuteMs;
+    if (inside(next) !== wasInside)
+      return wasInside
+        ? { inside: true, endsInMs: next - at }
+        : { inside: false, startsInMs: next - at };
+  }
+  // Unreachable for a window `parseNight` accepts: every day has a minute
+  // outside it, and every two days one inside.
+  return wasInside
+    ? { inside: true, endsInMs: horizonMinutes * minuteMs }
+    : { inside: false, startsInMs: horizonMinutes * minuteMs };
 }

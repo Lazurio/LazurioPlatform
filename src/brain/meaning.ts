@@ -72,20 +72,83 @@ export type MeaningFetch = (
 
 export type MeaningHost = MoveHost & Readonly<{ fetch: MeaningFetch }>;
 
-/** How long the next stop may keep the memory down, or null where it waits
- * for the night: in the person's night window up to `meaningNightStopMs`
- * (never past its end); by day one short window only for a small backlog
- * (`meaningWindowMs`); else nothing stops by day. */
-async function stopBudget(
+const clockOf = (host: MoveHost) => (host.now ?? (() => new Date()))();
+
+/** When the next stop must be over, the server answering again (epoch
+ * milliseconds), or null where it waits for the night. Read just before the
+ * server stops, and bounding the whole stop: the copy, the steps, the
+ * embedding and the start after it (`embedPlan`).
+ * - In the person's night window: up to `meaningNightStopMs`, never past the
+ *   window's end, and no stop where less than `meaningNightLeastMs` is left.
+ * - A small backlog, at any other time: one short window, the whole stop
+ *   within `meaningDayStopMs` (the day's exception holds at any hour, also
+ *   at a night window's end).
+ * - Else nothing stops. */
+type Deadline = Readonly<{ at: number; short: boolean }>;
+
+async function stopDeadline(
   host: MoveHost,
   small: boolean,
-): Promise<number | null> {
+): Promise<Deadline | null> {
   const night = nightOf((await readBrainState(host.paths)).night);
-  const at = nightAt((host.now ?? (() => new Date()))(), night);
+  const now = clockOf(host);
+  const at = nightAt(now, night);
   if (at.inside && at.endsInMs >= meaningNightLeastMs)
-    return Math.min(at.endsInMs, meaningNightStopMs);
-  return small ? meaningWindowMs : null;
+    return {
+      at: now.getTime() + Math.min(at.endsInMs, meaningNightStopMs),
+      short: false,
+    };
+  return small ? { at: now.getTime() + meaningDayStopMs, short: true } : null;
 }
+
+/** A window that found too little of its stop left to compute anything (the
+ * steps before it took the time): its copy comes back and the next run tries
+ * again, as if it had not started; it is no failure of the model. */
+const noTime = "no-time";
+
+/** How one window's embedding fits the time its stop has left: the
+ * process's hard limit leaves `meaningRestartReserveMs` for the count, the
+ * units and the server's start (or a copy brought back); within it, a batch
+ * begun at the budget's end (`meaningBatchLimitMs`) and gbrain's own start
+ * and last write (`meaningEmbedGraceMs`). A short window's budget stays
+ * `meaningWindowMs` at most. Null where not even a minute of budget is
+ * left. */
+export type EmbedPlan = Readonly<{ budgetMs: number; limitMs: number }>;
+
+export function embedPlan(
+  leftMs: number,
+  most: number = meaningNightStopMs,
+): EmbedPlan | null {
+  const limitMs = leftMs - meaningRestartReserveMs;
+  const budgetMs = Math.min(
+    most,
+    limitMs - meaningBatchLimitMs - meaningEmbedGraceMs,
+  );
+  if (budgetMs < 60_000) return null;
+  return Object.freeze({ budgetMs, limitMs });
+}
+
+/** The plan of a window whose stop ends at `deadline`, from the time left
+ * when its embedding starts: a short stop keeps the short window's budget. */
+const planOf = (host: MoveHost, deadline: Deadline) =>
+  embedPlan(
+    deadline.at - clockOf(host).getTime(),
+    deadline.short ? meaningWindowMs : meaningNightStopMs,
+  );
+
+/** The limit of a step inside a stop: its own, and never into the time the
+ * stop keeps after it (`keepMs`): before the embedding the start after it,
+ * after the embedding the server's start and answer. */
+const stepIn = (host: MoveHost, deadline: Deadline, keepMs: number) =>
+  Math.max(
+    1_000,
+    Math.min(
+      meaningStepLimitMs,
+      deadline.at - clockOf(host).getTime() - keepMs,
+    ),
+  );
+/** What a stop keeps after its last count: the server's start and answer. */
+const startReserveMs = 2 * 60_000;
 
 export type MeaningResult =
   | "on"
@@ -345,16 +408,29 @@ export const meaningWindowMs = 3 * 60_000;
  * Environment of 4 vCPU needs longer, and an abandoned batch is computed
  * again (verified 2026-11-20: 192 batches abandoned, the step failed). */
 export const meaningBatchLimitMs = 10 * 60_000;
-/** The limit of one window's process: its budget, a batch begun just before
- * it, and the rest; a run that reaches it ends gbrain's process group. */
-export const embedLimitFor = (budgetMs: number) =>
-  budgetMs + meaningBatchLimitMs + 5 * 60_000;
-export const meaningEmbedLimitMs = embedLimitFor(meaningWindowMs);
+/** gbrain's own start before its first batch and its last write after the
+ * budget's batch, within a window's process limit. */
+export const meaningEmbedGraceMs = 2 * 60_000;
+/** What a stop keeps after its embedding: the count of the pages, the units,
+ * the server's start and its answer, or a copy brought back and the same
+ * start (a copy of a brain of 344 MB took under 0.2 s, measured
+ * 2026-11-20). */
+export const meaningRestartReserveMs = 3 * 60_000;
+/** The whole stop for a small backlog by day: the bound Matěj accepted for
+ * the short windows (#1134, about 18 minutes on a heavily loaded
+ * Environment), the stop, the copy, the embedding and the start included.
+ * Its embedding keeps the short window's budget (`meaningWindowMs`). */
+export const meaningDayStopMs = 18 * 60_000;
+/** The process limit of a short window's embedding, at the start of a day
+ * stop (its other steps take seconds). */
+export const meaningEmbedLimitMs = meaningDayStopMs - meaningRestartReserveMs;
 /** The longest stop in the night window (Matěj: an hour at a stretch is
- * fine); a window that ends sooner bounds it, and a night window shorter
- * than `meaningNightLeastMs` left starts no stop. */
+ * fine), the whole stop; a window that ends sooner bounds it, and a night
+ * window with less than `meaningNightLeastMs` left starts no stop: a stop
+ * needs a minute of budget, a batch, gbrain's start and the server's, with
+ * room for the copy and the steps before. */
 export const meaningNightStopMs = 60 * 60_000;
-export const meaningNightLeastMs = 2 * 60_000;
+export const meaningNightLeastMs = 20 * 60_000;
 /** A backlog small enough for one short window by day: a brain of at most
  * this many pages before the first window, or this many chunks left after
  * one (gbrain's count; at about 1.4 s a chunk on 4 vCPU, a short window). */
@@ -393,15 +469,19 @@ const gbrainEnv = (
   GBRAIN_EMBED_TIME_BUDGET_MS: String(budgetMs),
 });
 
+/** gbrain's CLI: an embedding at its plan's limit and budget, any other step
+ * at `limitMs` (its own, or what a stop leaves it, `stepIn`). */
 const gbrainOf =
-  (host: MeaningHost, command: string, budgetMs = meaningWindowMs) =>
+  (
+    host: MeaningHost,
+    command: string,
+    plan: EmbedPlan | number = meaningStepLimitMs,
+  ) =>
   async (args: readonly string[]) => {
+    const limit = typeof plan === "number" ? plan : plan.limitMs;
+    const budget = typeof plan === "number" ? meaningWindowMs : plan.budgetMs;
     const result = await host
-      .run(
-        [command, ...args],
-        args[0] === "embed" ? embedLimitFor(budgetMs) : meaningStepLimitMs,
-        gbrainEnv(host, budgetMs),
-      )
+      .run([command, ...args], limit, gbrainEnv(host, budget))
       .catch(() => "timeout" as const);
     return result === "timeout"
       ? { ok: false, exit: null, out: null }
@@ -424,12 +504,12 @@ export type EmbedWindow =
 export async function embedWindow(
   host: MeaningHost,
   command: string,
-  budgetMs: number = meaningWindowMs,
+  plan: EmbedPlan,
 ): Promise<EmbedWindow> {
   const ran = await gbrainOf(
     host,
     command,
-    budgetMs,
+    plan,
   )(["embed", "--stale", "--json"]);
   if (ran.exit === null) return { result: "failed", reason: "embed-limit" };
   const count = (key: string) => {
@@ -468,8 +548,9 @@ export async function embedWindow(
 async function storedPages(
   host: MeaningHost,
   command: string,
+  limitMs: number = meaningStepLimitMs,
 ): Promise<number | null> {
-  const ran = await gbrainOf(host, command)(["stats", "--json"]);
+  const ran = await gbrainOf(host, command, limitMs)(["stats", "--json"]);
   const count = ran.ok ? ran.out?.page_count : undefined;
   return typeof count === "number" && Number.isInteger(count) && count >= 0
     ? count
@@ -483,8 +564,10 @@ async function storedPages(
 export async function switchOn(
   host: MeaningHost,
   command: string,
+  limitMs: () => number = () => meaningStepLimitMs,
 ): Promise<string | null> {
-  const gbrain = gbrainOf(host, command);
+  const gbrain = (args: readonly string[]) =>
+    gbrainOf(host, command, limitMs())(args);
   const model = meaningPin.provider;
   const width = String(meaningPin.dimensions);
   const enable = (dims: string) =>
@@ -800,7 +883,8 @@ export async function convergeMeaning(
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider === meaningPin.provider &&
-    (attempt.result === "restored" || attempt.result === "stopped")
+    (attempt.result === "stopped" ||
+      (attempt.result === "restored" && attempt.reason !== noTime))
   )
     return attempt.result === "restored"
       ? "held"
@@ -810,15 +894,15 @@ export async function convergeMeaning(
   // A small brain (a new Environment's) is switched on at once; a larger one
   // waits for the person's night window.
   const served = await pages(host);
-  const budget = await stopBudget(
-    host,
-    served !== null && served <= meaningSmallPages,
-  );
-  if (budget === null) return "waits:night";
+  const small = served !== null && served <= meaningSmallPages;
+  if ((await stopDeadline(host, small)) === null) return "waits:night";
   if (!(await host.idle())) return "waits-idle";
   const release = state.release;
   if (release === undefined) return "waits:release-unknown";
-  const now = (host.now ?? (() => new Date()))();
+  // The whole stop from here on ends by its deadline, read just before it.
+  const deadline = await stopDeadline(host, small);
+  if (deadline === null) return "waits:night";
+  const now = clockOf(host);
   const backup = join(host.paths.home, `.gbrain.bak-meaning-${stampOf(now)}`);
   const record = recorder(host, now);
   // The intent before the server stops: a run that dies from here on is
@@ -850,15 +934,24 @@ export async function convergeMeaning(
   const fallBack = (reason: string) =>
     restoreCopy(host, release, backup, now, reason);
   // The pages as stored, read with the server stopped.
-  const stored = await storedPages(host, release.command);
+  const before = () => stepIn(host, deadline, meaningRestartReserveMs);
+  const stored = await storedPages(host, release.command, before());
   if (stored === null) return fallBack("page-count");
-  const refused = await switchOn(host, release.command);
+  const refused = await switchOn(host, release.command, before);
   if (refused !== null) return fallBack(refused);
   // The first window: until it is committed, the copy before is the way
   // back, and the server is stopped, so no page is written meanwhile.
-  const window = await embedWindow(host, release.command, budget);
+  const plan = planOf(host, deadline);
+  if (plan === null) return fallBack(noTime);
+  const window = await embedWindow(host, release.command, plan);
   if (window.result === "failed") return fallBack(window.reason);
-  if ((await storedPages(host, release.command)) !== stored)
+  if (
+    (await storedPages(
+      host,
+      release.command,
+      stepIn(host, deadline, startReserveMs),
+    )) !== stored
+  )
     return fallBack("page-count");
   try {
     await writeBrainUnits(host.paths, release.command, true);
@@ -950,12 +1043,13 @@ async function fill(
     return "restored:embed-windows";
   }
   // What is left waits for the night, unless one short window computes it.
-  const budget = await stopBudget(
-    host,
-    attempt.remaining !== undefined && attempt.remaining <= meaningSmallChunks,
-  );
-  if (budget === null) return "waits:night";
+  const small =
+    attempt.remaining !== undefined && attempt.remaining <= meaningSmallChunks;
+  if ((await stopDeadline(host, small)) === null) return "waits:night";
   if (!(await host.idle())) return "waits:filling";
+  // The whole stop from here on ends by its deadline, read just before it.
+  const deadline = await stopDeadline(host, small);
+  if (deadline === null) return "waits:night";
   // A copy a run left after its window was committed is not the way back.
   await rm(window, { recursive: true, force: true }).catch(() => undefined);
   const inWindow = { phase: "filling" as const, windowBackup: windowName };
@@ -984,17 +1078,27 @@ async function fill(
   }
   await record("started", undefined, inWindow);
   // The pages as stored, with the server stopped (and so no writes).
-  const before = await storedPages(host, release.command);
-  const result =
+  const before = await storedPages(
+    host,
+    release.command,
+    stepIn(host, deadline, meaningRestartReserveMs),
+  );
+  const plan = before === null ? null : planOf(host, deadline);
+  const result: EmbedWindow =
     before === null
-      ? ({ result: "failed", reason: "page-count" } as const)
-      : await embedWindow(host, release.command, budget);
+      ? { result: "failed", reason: "page-count" }
+      : plan === null
+        ? { result: "failed", reason: noTime }
+        : await embedWindow(host, release.command, plan);
   const counted = (await readBrainState(host.paths)).meaningAttempt;
-  const windows = (counted?.windows ?? 0) + 1;
+  // A window with no time left did not run: it counts neither as a window
+  // nor as one without progress.
+  const ran = !(result.result === "failed" && result.reason === noTime);
+  const windows = (counted?.windows ?? 0) + (ran ? 1 : 0);
   const progressed =
     result.result === "done" ||
     (result.result === "partial" && result.embedded > 0);
-  const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
+  const stalled = progressed ? 0 : (counted?.stalled ?? 0) + (ran ? 1 : 0);
   const back = (reason: string) =>
     restoreCopy(host, release, window, at, reason, {
       failedName: failedWindowName,
@@ -1008,7 +1112,13 @@ async function fill(
       },
     });
   if (result.result === "failed") return back(result.reason);
-  if ((await storedPages(host, release.command)) !== before)
+  if (
+    (await storedPages(
+      host,
+      release.command,
+      stepIn(host, deadline, startReserveMs),
+    )) !== before
+  )
     return back("page-count");
   // Committed before the server starts: a run that dies from here on
   // never brings the window's copy back over pages written since; only a

@@ -15943,15 +15943,31 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         by default 02:00–05:00 in Prague's time. An Environment does not
         know the person's time zone, so the choice carries it:
         `lazurio brain night 01:00-04:30 --time-zone Europe/Prague`, shown
-        by `lazurio brain status`. A row in Settings comes later.
+        by `lazurio brain status`. A row in Settings comes later. The window
+        is where the zone's clock reads inside it, counted in real time: on
+        the night the clock skips an hour the window is that much shorter,
+        on the night it repeats one the repeated hour counts again. While
+        the Launchpad waits for the window it reads it again at least every
+        10 minutes, so a window the person moves counts that night.
       - **How long.** In the night window one stop may last up to an hour,
-        never past the window's end, and only while Buddy is idle. Between
-        stops the server runs for the pause as before. A computation the
-        night does not finish goes on the next night.
+        never past the window's end, and only while Buddy is idle. The hour
+        is the whole stop: stopping, the copy, the steps, the computation
+        and the start after it. The computation's budget is what is left of
+        the stop less one batch to the model (10 minutes), gbrain's own
+        start (2 minutes) and the server's start (3 minutes), so an hour's
+        stop computes for about 45 minutes. No stop starts with less than
+        20 minutes of the window left. A stop whose steps leave no minute
+        for the computation brings its copy back and is tried again; it is
+        no failure of the model. Between stops the server runs for the
+        pause as before. A computation the night does not finish goes on
+        the next night.
       - **By day** nothing stops the memory for search by meaning. The one
         exception is a small backlog that one short window (3 minutes)
         computes: a brain of at most 25 pages before the first window (a
         new or small Environment), or at most 100 chunks left after one.
+        That stop lasts 18 minutes at most as a whole, the bound accepted
+        for the short windows; it holds at any hour, also at a night
+        window's end.
       - **What a person notices.** Search by words works at all times. A
         page written while search by meaning is on is found by meaning at
         once, because the server computes its vectors as it is written
