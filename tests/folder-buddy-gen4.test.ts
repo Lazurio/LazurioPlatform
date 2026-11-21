@@ -48,6 +48,42 @@ const persona: Persona = Object.freeze({
 });
 const allowAll = async () => {};
 
+// How the user decides with Buddy (the first converted person, 2026-11-21):
+// Buddy puts decisions into the conversation with a recommendation and a
+// sentence to answer with, keeps the question tool for approving the exact
+// wording of a message to other people or on request, starts with what is new
+// since the user's last message, and keeps one overview file while the user is
+// away. An AI employee keeps the question tool for its questions.
+test("Buddy decides with the user in the conversation; an AI employee keeps the question tool", () => {
+  const words = {
+    cs: {
+      decide: "- **Rozhodnutí** předkládej v rozhovoru běžnou zprávou",
+      tool: "- **Nástroj na otázky** svého harnessu",
+      back: "- **Když se uživatel vrátí,** začni tím, co je nové od jeho poslední zprávy",
+      away: "- **Když uživatel není k dispozici**",
+      employee: "- **Otázky** pokládej nástrojem na otázky svého harnessu",
+    },
+    en: {
+      decide: "- **Decisions** go into the conversation as an ordinary message",
+      tool: "- **The question tool** of your harness",
+      back: "- **When the user comes back,** start with what is new since their last message",
+      away: "- **When the user is not available**",
+      employee: "- **Questions** go through your harness's question tool",
+    },
+  } as const;
+  for (const locale of locales) {
+    const w = words[locale];
+    const buddy = renderBuddyAgents(source(locale), "buddy", persona);
+    for (const line of [w.decide, w.tool, w.back, w.away])
+      expect(buddy).toContain(line);
+    expect(buddy).not.toContain(w.employee);
+    const employee = renderBuddyAgents(source(locale), "employee", persona);
+    expect(employee).toContain(w.employee);
+    for (const line of [w.decide, w.tool, w.back, w.away])
+      expect(employee).not.toContain(line);
+  }
+});
+
 test("the folder holds AGENTS.md and each skill in both harness directories, and no CLAUDE.md", () => {
   expect([...buddyFolderPaths]).toEqual([
     "AGENTS.md",

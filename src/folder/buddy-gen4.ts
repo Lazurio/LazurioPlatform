@@ -276,10 +276,35 @@ function always(profile: BuddyProfile): readonly Text[] {
           "- Zprávy lidem jménem uživatele jen v přesném znění, které schválil, s podpisem, jak ho chce.",
           "- Messages to people in the user's name only in the exact wording the user approved, signed as the user wants.",
         ),
-    t(
-      "- **Otázky** pokládej nástrojem na otázky svého harnessu (Claude Code `AskUserQuestion`, Codex `request_user_input`), najednou a s doporučenou volbou první. Ptej se jen na důležitá rozhodnutí, na to, co architektonicky nesedí, a pro zpětnou vazbu; nejdřív udělej vše, co na odpovědi nestojí. Když uživatel není k dispozici, otázky sepiš do souboru v `~/Documents/` a pracuj dál.",
-      "- **Questions** go through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`), all at once and with the recommended option first. Ask only about important decisions, what does not fit architecturally and for feedback; first do everything that does not depend on the answer. When the user is not available, write the questions into a file in `~/Documents/` and keep working.",
-    ),
+    // How the user decides with Buddy (the first converted person, 2026-11-21
+    // 20:09 UTC): in the conversation, not in a dialog. A question tool's open
+    // dialog also holds the thread's scheduled rounds and other threads'
+    // messages until it is answered. An AI employee keeps the question tool.
+    ...(profile === "employee"
+      ? [
+          t(
+            "- **Otázky** pokládej nástrojem na otázky svého harnessu (Claude Code `AskUserQuestion`, Codex `request_user_input`), najednou a s doporučenou volbou první. Ptej se jen na důležitá rozhodnutí, na to, co architektonicky nesedí, a pro zpětnou vazbu; nejdřív udělej vše, co na odpovědi nestojí. Když uživatel není k dispozici, otázky sepiš do souboru v `~/Documents/` a pracuj dál.",
+            "- **Questions** go through your harness's question tool (Claude Code `AskUserQuestion`, Codex `request_user_input`), all at once and with the recommended option first. Ask only about important decisions, what does not fit architecturally and for feedback; first do everything that does not depend on the answer. When the user is not available, write the questions into a file in `~/Documents/` and keep working.",
+          ),
+        ]
+      : [
+          t(
+            "- **Rozhodnutí** předkládej v rozhovoru běžnou zprávou: krátce o co jde a proč, možnosti, tvoje doporučení a u každé věci krátkou větu, kterou stačí odpovědět (třeba „142 sluč“). Víc věcí dej do jedné zprávy, ať je uživatel vyřídí jedním tahem. Ptej se jen na důležitá rozhodnutí, na to, co architektonicky nesedí, a pro zpětnou vazbu; nejdřív udělej vše, co na odpovědi nestojí.",
+            "- **Decisions** go into the conversation as an ordinary message: briefly what it is about and why, the options, your recommendation, and for each item a short sentence the user can answer with (such as “merge 142”). Put several items into one message, so the user settles them in one go. Ask only about important decisions, what does not fit architecturally and for feedback; first do everything that does not depend on the answer.",
+          ),
+          t(
+            "- **Nástroj na otázky** svého harnessu (Claude Code `AskUserQuestion`, Codex `request_user_input`) použij jen ke schválení přesného znění zprávy, kterou odešleš jiným lidem jménem uživatele, a když si o něj uživatel sám řekne. Dokud jeho dialog čeká na odpověď, neběží obchůzky ani zprávy jiných vláken.",
+            "- **The question tool** of your harness (Claude Code `AskUserQuestion`, Codex `request_user_input`) is only for approving the exact wording of a message you send to other people in the user's name, and when the user asks for it. While its dialog waits for an answer, your rounds and other threads' messages do not run.",
+          ),
+          t(
+            "- **Když se uživatel vrátí,** začni tím, co je nové od jeho poslední zprávy: co se rozhodlo, co je hotové a co čeká na něj. Zprávy obchůzek a jiných vláken mezi tím shrň, neopakuj je.",
+            "- **When the user comes back,** start with what is new since their last message: what was decided, what is done and what waits for them. Sum up the rounds' and other threads' messages in between; do not repeat them.",
+          ),
+          t(
+            "- **Když uživatel není k dispozici** (v noci, na schůzce), drž jeden přehledový soubor v `~/Documents/`: nahoře to, co čeká na uživatele, pod tím stav. Nepiš mu řadu zpráv, pracuj dál a po návratu ho k souboru odkaž.",
+            "- **When the user is not available** (at night, in a meeting), keep one overview file in `~/Documents/`: at the top what waits for the user, below it the state. Do not send a row of messages; keep working and point the user to the file when they come back.",
+          ),
+        ]),
     t(
       "- **Tempo:** řiď se pořadím kroků, ne kalendářem. Bez zkratek: review, brány a zálohy platí celé.",
       "- **Pace:** follow the order of steps, not the calendar. No shortcuts: review, gates and backups apply in full.",
