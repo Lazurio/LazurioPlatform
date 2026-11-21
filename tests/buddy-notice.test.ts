@@ -7,6 +7,7 @@ import {
   createBuddyNotifier,
   createNoticesChoiceCache,
   enableBuddyNotices,
+  parseBuddyClaimAnswer,
   readBuddyNoticesState,
   shouldAskBuddyNotices,
 } from "../src/shell/buddy-notice";
@@ -44,7 +45,7 @@ function notifier(
     inView: () => options.inView ?? false,
     claim: async (key) => {
       claimed.push(key);
-      return options.claims ?? true;
+      return { notify: options.claims ?? true, retryInMs: null };
     },
     show: (signal) => shown.push(signal),
   });
@@ -74,7 +75,7 @@ test("each change the tab sees is told once; what it finds at start, quiet and u
   ]);
 });
 
-test("nothing is told without the person's choice, with Buddy's window in view, or where another tab claimed it", async () => {
+test("nothing is told where the browser does not allow it, with Buddy's window in view, or where another tab claimed it", async () => {
   for (const options of [
     { enabled: false },
     { inView: true },
@@ -136,6 +137,111 @@ test("each tab holds its own view and lets it go when the person leaves it, with
   at += 1;
   claims.release("lazurio");
   expect(claims.claim(key)).toBe(true);
+});
+
+test("a change held back only by a view said before it is claimed again, and told once the view is let go, even where the release came late or never (#1151)", () => {
+  let at = Date.parse("2026-11-19T16:01:00.000Z");
+  const viewedFrom = at - 5_000;
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  // The tab said it views Buddy's window before the change; its release is
+  // still on its way when the claim comes.
+  at = viewedFrom;
+  claims.viewing("chat");
+  at = viewedFrom + 5_001;
+  expect(claims.claim(key)).toBe(false);
+  expect(claims.retryIn(key)).toBe(buddyViewingHoldMs - 5_001);
+  // The release arrives: the next claim is told.
+  claims.release("chat");
+  expect(claims.claim(key)).toBe(true);
+  expect(claims.retryIn(key)).toBeNull();
+
+  // A release that never arrives: the hold ends by itself.
+  const later = sign("failed", 2);
+  const changes = createBuddyNoticeClaims(
+    () => later,
+    () => at,
+  );
+  const failed = buddyNoticeKey(later);
+  at = Date.parse(later.since ?? "") - 1;
+  changes.viewing("chat");
+  at += 2;
+  expect(changes.claim(failed)).toBe(false);
+  expect(changes.retryIn(failed)).not.toBeNull();
+  at += buddyViewingHoldMs;
+  expect(changes.claim(failed)).toBe(true);
+});
+
+test("a view said after the change means the person saw it: no claim again, and none told after they leave", () => {
+  let at = Date.parse("2026-11-19T16:01:00.000Z");
+  const current = sign("waiting", 1);
+  const claims = createBuddyNoticeClaims(
+    () => current,
+    () => at,
+  );
+  const key = buddyNoticeKey(current);
+  at += 1_000;
+  claims.viewing("chat");
+  expect(claims.claim(key)).toBe(false);
+  expect(claims.retryIn(key)).toBeNull();
+  // Another tab's older view does not change that.
+  claims.viewing("lazurio");
+  expect(claims.retryIn(key)).toBeNull();
+});
+
+test("a tab claims a held change again while it is still the sign, and stops when it changes or the Launchpad says no", async () => {
+  const shown: ShellBuddySignal[] = [];
+  const answers: { notify: boolean; retryInMs: number | null }[] = [];
+  const waits: number[] = [];
+  let onWait: () => void = () => {};
+  const watch = createBuddyNotifier({
+    enabled: () => true,
+    inView: () => false,
+    claim: async () => answers.shift() ?? { notify: false, retryInMs: null },
+    show: (signal) => shown.push(signal),
+    wait: async (ms) => {
+      waits.push(ms);
+      onWait();
+    },
+  });
+  await watch.observe(sign("quiet"));
+  // Held twice, then told.
+  answers.push(
+    { notify: false, retryInMs: 15_000 },
+    { notify: false, retryInMs: 400 },
+    { notify: true, retryInMs: null },
+  );
+  expect(await watch.observe(sign("waiting", 1))).toBe(true);
+  expect(waits).toEqual([1_000, 400]);
+  expect(shown.map((signal) => signal.state)).toEqual(["waiting"]);
+  // Held, and the sign changes while it waits: the old change is dropped.
+  answers.push({ notify: false, retryInMs: 5_000 });
+  onWait = () => {
+    onWait = () => {};
+    void watch.observe(sign("quiet", 3));
+  };
+  expect(await watch.observe(sign("failed", 2))).toBe(false);
+  expect(shown).toHaveLength(1);
+  // A claim the Launchpad refuses for good is not repeated.
+  waits.length = 0;
+  expect(await watch.observe(sign("waiting", 4))).toBe(false);
+  expect(waits).toEqual([]);
+  expect(parseBuddyClaimAnswer({ notify: false, retryInMs: 999_999 })).toEqual({
+    notify: false,
+    retryInMs: buddyViewingHoldMs,
+  });
+  expect(parseBuddyClaimAnswer({ notify: true, retryInMs: 5 })).toEqual({
+    notify: true,
+    retryInMs: null,
+  });
+  expect(parseBuddyClaimAnswer("nonsense")).toEqual({
+    notify: false,
+    retryInMs: null,
+  });
 });
 
 test("the Launchpad refuses every claim while the Environment's choice is off, whichever page claims", () => {
@@ -230,23 +336,42 @@ function noticesSeams(
   };
 }
 
-test("one function turns the notices on: the browser asks first, inside the click, then the choice is on for the Environment", async () => {
+test("one function turns the notices on: the choice is saved as the person clicks, then the browser asks, still inside the click", async () => {
   const fresh = noticesSeams("default");
   expect(await enableBuddyNotices(fresh.seams)).toBe(true);
-  expect(fresh.calls).toEqual(["request", "asked", "choose:on"]);
+  expect(fresh.calls).toEqual(["choose:on", "request", "asked"]);
   // A refusal still records that this origin asked, and keeps the choice on
   // for the Environment: another origin may allow them.
   const refused = noticesSeams("default", "denied");
   expect(await enableBuddyNotices(refused.seams)).toBe(false);
-  expect(refused.calls).toEqual(["request", "asked", "choose:on"]);
+  expect(refused.calls).toEqual(["choose:on", "request", "asked"]);
   // Where the browser already allows them, it is not asked again.
   const granted = noticesSeams("granted");
   expect(await enableBuddyNotices(granted.seams)).toBe(true);
-  expect(granted.calls).toEqual(["asked", "choose:on"]);
+  expect(granted.calls).toEqual(["choose:on", "asked"]);
   // Where the browser has no notices, nothing happens.
   const none = noticesSeams(null);
   expect(await enableBuddyNotices(none.seams)).toBe(false);
   expect(none.calls).toEqual([]);
+});
+
+test("a choice made on another page while the browser's question is open stays: answering it does not turn the notices back on", async () => {
+  let held = "off" as "on" | "off";
+  let answer: (permission: NotificationPermission) => void = () => {};
+  const enabling = enableBuddyNotices({
+    permission: () => "default",
+    request: () => new Promise((resolve) => (answer = resolve)),
+    choose: async (choice) => {
+      held = choice;
+    },
+    asked: () => {},
+  });
+  expect(held).toBe("on");
+  // Another page turns them off while the question is open.
+  held = "off";
+  answer("granted");
+  expect(await enabling).toBe(true);
+  expect(held).toBe("off");
 });
 
 test("the state of notices on an origin, for the guide: on only where the browser allows them and the choice is on", async () => {

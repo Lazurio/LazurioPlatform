@@ -15,6 +15,7 @@ import {
   createBuddyNotifier,
   createNoticesChoiceCache,
   enableBuddyNotices,
+  parseBuddyClaimAnswer,
   readLaunchpadNoticesChoice,
   shouldAskBuddyNotices,
   writeLaunchpadNoticesChoice,
@@ -1591,11 +1592,9 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       this.bubble?.update();
     };
     this.notifier ??= createBuddyNotifier({
-      // The Launchpad refuses the claim too where the choice is off, which
-      // another page may have just made.
-      enabled: () =>
-        this.noticesChoice.current() === "on" &&
-        notificationPermission() === "granted",
+      // The choice is the Launchpad's to apply at the claim: a page that
+      // last heard it off still claims, and hears it on there.
+      enabled: () => notificationPermission() === "granted",
       inView: () => this.windowInView(),
       claim: async (key) => {
         const answer = await fetch(buddyNoticePath, {
@@ -1604,13 +1603,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ key }),
         });
-        if (!answer.ok) return false;
-        const value: unknown = await answer.json().catch(() => null);
-        return (
-          typeof value === "object" &&
-          value !== null &&
-          "notify" in value &&
-          value.notify === true
+        return parseBuddyClaimAnswer(
+          answer.ok ? await answer.json().catch(() => null) : null,
         );
       },
       show: (signal) => this.notice(signal),

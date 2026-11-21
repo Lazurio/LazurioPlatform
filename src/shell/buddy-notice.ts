@@ -24,22 +24,45 @@ export function buddyNoticeKey(signal: ShellBuddySignal): string | null {
   return null;
 }
 
+/** The Launchpad's answer to a claim: whether this tab tells the notice,
+ * and, where it lost only to a view said before the change (one the person
+ * may have left while the claim was on its way), when to claim again. */
+export type BuddyClaimAnswer = Readonly<{
+  notify: boolean;
+  retryInMs: number | null;
+}>;
+
+/** How soon a tab claims again a change held back by an older view. */
+export const buddyClaimRetryMs = 1_000;
+
 export type BuddyNoticeSeams = Readonly<{
-  /** Whether the person chose notices on this origin and the browser
-   * allows them. */
+  /** Whether the browser allows notices on this origin. The person's
+   * choice for the Environment is the Launchpad's to apply: it refuses
+   * every claim while the choice is off, whichever page last heard it. */
   enabled: () => boolean;
   /** Whether Buddy's window shows in this tab while the tab is in view. */
   inView: () => boolean;
-  /** Claims the notice of `key` at the Launchpad: true for the one tab
-   * that tells it. */
-  claim: (key: string) => Promise<boolean>;
+  /** Claims the notice of `key` at the Launchpad. */
+  claim: (key: string) => Promise<BuddyClaimAnswer>;
   /** Shows the notice. */
   show: (signal: ShellBuddySignal) => void;
+  /** Waits before a claim again; a timer by default. */
+  wait?: (ms: number) => Promise<void>;
 }>;
 
+const lost: BuddyClaimAnswer = Object.freeze({
+  notify: false,
+  retryInMs: null,
+});
+
 /** Watches the sign a tab follows and tells each change once. The sign the
- * tab finds when it starts is no change. */
+ * tab finds when it starts is no change. A change held back only by a view
+ * said before it is claimed again, while it is still the sign, until the
+ * Launchpad lets it through or says it was seen. */
 export function createBuddyNotifier(seams: BuddyNoticeSeams) {
+  const wait =
+    seams.wait ??
+    ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
   let seen = false;
   let last: string | null = null;
   return Object.freeze({
@@ -52,11 +75,35 @@ export function createBuddyNotifier(seams: BuddyNoticeSeams) {
       if (key === last) return false;
       last = key;
       if (first || key === null) return false;
-      if (!seams.enabled() || seams.inView()) return false;
-      if (!(await seams.claim(key).catch(() => false))) return false;
-      seams.show(signal);
-      return true;
+      // A view's hold ends by itself (`buddyViewingHoldMs`), so this ends.
+      for (let attempt = 0; attempt < 64; attempt += 1) {
+        if (last !== key || !seams.enabled() || seams.inView()) return false;
+        const answer = await seams.claim(key).catch(() => lost);
+        if (answer.notify) {
+          seams.show(signal);
+          return true;
+        }
+        if (answer.retryInMs === null) return false;
+        await wait(Math.min(answer.retryInMs, buddyClaimRetryMs));
+      }
+      return false;
     },
+  });
+}
+
+/** Reads the Launchpad's answer to a claim; anything else loses. */
+export function parseBuddyClaimAnswer(value: unknown): BuddyClaimAnswer {
+  if (typeof value !== "object" || value === null) return lost;
+  const { notify, retryInMs } = value as Record<string, unknown>;
+  return Object.freeze({
+    notify: notify === true,
+    retryInMs:
+      notify !== true &&
+      typeof retryInMs === "number" &&
+      Number.isFinite(retryInMs) &&
+      retryInMs > 0
+        ? Math.min(retryInMs, buddyViewingHoldMs)
+        : null,
   });
 }
 
@@ -70,21 +117,36 @@ export const buddyViewingHoldMs = 20_000;
  * the person's choice is off, and every claim while a tab on any origin has
  * Buddy's window in view (`viewing`, said every `buddyViewingEveryMs`) loses.
  * Each tab holds its own view, and lets it go when the person leaves it
- * (`release`), so a window out of focus holds nothing back (#1151). Keeps
- * the last few changes only. */
+ * (`release`), so a window out of focus holds nothing back (#1151). A claim
+ * that lost only to views last said before the change is told when to come
+ * again (`retryIn`): the person may have left while the claim was on its
+ * way, and a view said after the change means the person saw it. Keeps the
+ * last few changes only. */
 export function createBuddyNoticeClaims(
   current: () => ShellBuddySignal,
   now: () => number = Date.now,
   allowed: () => boolean = () => true,
 ) {
   const claimed: string[] = [];
-  const views = new Map<string, number>();
+  const views = new Map<string, Readonly<{ said: number; until: number }>>();
   const tabOf = (tab: unknown) =>
     typeof tab === "string" && tab.length > 0 && tab.length <= 64 ? tab : "";
+  const live = () => {
+    const at = now();
+    for (const [tab, view] of views) if (view.until <= at) views.delete(tab);
+    return at;
+  };
+  const open = (key: unknown): key is string =>
+    typeof key === "string" &&
+    allowed() &&
+    buddyNoticeKey(current()) === key &&
+    !claimed.includes(key);
   return Object.freeze({
     /** A tab has Buddy's window in view now. */
     viewing(tab?: unknown): void {
-      views.set(tabOf(tab), now() + buddyViewingHoldMs);
+      const at = now();
+      views.delete(tabOf(tab));
+      views.set(tabOf(tab), { said: at, until: at + buddyViewingHoldMs });
       if (views.size > 64) views.delete(views.keys().next().value ?? "");
     },
     /** That tab no longer has it in view: its hold ends now. */
@@ -92,16 +154,25 @@ export function createBuddyNoticeClaims(
       views.delete(tabOf(tab));
     },
     claim(key: unknown): boolean {
-      if (typeof key !== "string") return false;
-      if (!allowed()) return false;
-      const at = now();
-      for (const [tab, until] of views) if (until <= at) views.delete(tab);
-      if (views.size > 0) return false;
-      if (buddyNoticeKey(current()) !== key) return false;
-      if (claimed.includes(key)) return false;
+      live();
+      if (!open(key) || views.size > 0) return false;
       claimed.push(key);
       if (claimed.length > 32) claimed.shift();
       return true;
+    },
+    /** After a lost claim of `key`: in how many ms to claim it again, or
+     * null where it will not be told. */
+    retryIn(key: unknown): number | null {
+      const at = live();
+      if (!open(key) || views.size === 0) return null;
+      const changed = Date.parse(current().since ?? "");
+      if (Number.isNaN(changed)) return null;
+      let until = at;
+      for (const view of views.values()) {
+        if (view.said >= changed) return null;
+        until = Math.max(until, view.until);
+      }
+      return Math.max(until - at, 1);
     },
   });
 }
@@ -149,12 +220,16 @@ export async function enableBuddyNotices(
 ): Promise<boolean> {
   const permission = seams.permission();
   if (permission === null) return false;
-  // The browser asks only inside the click: nothing awaits before it.
+  // The choice is saved as the person clicks, before the browser's question
+  // opens: a choice made elsewhere while it is open is newer and stays.
+  // Nothing awaits before the question, which the browser asks only inside
+  // the click.
+  const saved = seams.choose("on").catch(() => undefined);
   const answer =
     permission === "default" ? seams.request() : Promise.resolve(permission);
   seams.asked();
   const granted = (await answer.catch(() => "denied")) === "granted";
-  await seams.choose("on").catch(() => undefined);
+  await saved;
   return granted;
 }
 

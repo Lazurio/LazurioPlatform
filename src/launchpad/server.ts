@@ -2422,7 +2422,13 @@ export async function startLaunchpad(
           return response({ viewing: false });
         }
         await buddyNoticesChoice.read();
-        return response({ notify: buddyNoticeClaims.claim(body.key) });
+        if (buddyNoticeClaims.claim(body.key))
+          return response({ notify: true });
+        // Held back only by a view said before the change: claim again.
+        const retryInMs = buddyNoticeClaims.retryIn(body.key);
+        return response(
+          retryInMs === null ? { notify: false } : { notify: false, retryInMs },
+        );
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the
