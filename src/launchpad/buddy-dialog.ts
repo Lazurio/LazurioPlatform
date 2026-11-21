@@ -458,6 +458,8 @@ export function createBuddyDialog(
         buddyName: draft.buddyName,
         address: draft.address,
         ...options.apps(),
+        // Buddy GEN4 has no sign-in and no Telegram of his own (#1137).
+        telegram: buddyOwnSignIn(options.facts().reading),
       },
       copy,
     );
@@ -575,6 +577,7 @@ export function createBuddyDialog(
           tile.append(screen, element("span", "buddy-beat-tile-name", app));
           tiles.append(tile);
         });
+        if (drawing.phone === null) return tiles;
         const phone = delayed(
           element("li", "buddy-beat-tile buddy-beat-phone"),
           drawing.apps.length,

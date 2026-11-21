@@ -22,6 +22,14 @@ export {
   unavailableSignal,
 } from "../shell/buddy-signal";
 
+/** The sign while nothing is for the person. */
+const quietSignal: BuddySignal = Object.freeze({
+  state: "quiet",
+  since: null,
+  request: null,
+  startedBy: null,
+});
+
 /** The longest line a follower reads; a longer one is no sign. */
 export const buddySignalLineLimit = 64 * 1024;
 
@@ -44,6 +52,11 @@ export function parseBuddySignalLine(line: string): BuddySignal {
     return unavailableSignal;
   }
   if (!isRecord(value) || value.version !== 1) return unavailableSignal;
+  // Before the person's first conversation Buddy has no thread yet: T3 Code
+  // says so with `no_thread`, an absence it confirmed, not a failed reading
+  // (Lazurio/t3code#239). Nothing to tell the person, so quiet (#1136).
+  if (value.state === "unavailable" && value.reason === "no_thread")
+    return quietSignal;
   if (value.state === "unavailable") return unavailableSignal;
   if (typeof value.threadId !== "string" || value.threadId === "")
     return unavailableSignal;
