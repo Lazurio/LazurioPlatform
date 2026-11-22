@@ -133,17 +133,21 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // and 4d7a1b23… (python-uv). Since the tools for agents (Module Standard,
 // MS-16) a bun-service answers /mcp with its tool registry
 // (`src/agent-tools.ts` and its test); before it bun-service was 7b725564….
+// Since the stack profiles' release 2027.01 (module-kit v0.5.0) every stack
+// with a Bun app or a Python app pins v0.5.0 and its README names 2027.01;
+// before it they were 30ea162d… (vite-react), 19a02de5… (astro), 3af81980…
+// (astro-starlight), 3b836cc9… (bun-service) and 805de1ea… (python-uv).
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:30ea162d4cd37d27859233381e609b32c6ef2ce990804dc20443ba4b24f454fd",
+    "sha256:68f06ccb9f0927f5b37adbf3c9f3c1a3966e7eeb2fffbc51cae6761aa82033d2",
   astro:
-    "sha256:19a02de565eda200e257394946423939541aafec8868b5cbde29a6ad26e0a5cb",
+    "sha256:a7b32d902fd08d2430f801bd68ef42b0011d3b77824951145b0fb9aecbcd30a0",
   "astro-starlight":
-    "sha256:3af8198097e5c47d06efb00e273a84dcac51f2828d56e9280bdf576111f63477",
+    "sha256:4b57e3cfc1e64fb5c7503512b9d063e147705a666f1a32fd364e9582fd3595b7",
   "bun-service":
-    "sha256:3b836cc9fe1910c9efea0ac3b3496863f0d1eebeffdb908344f32f41082d4c83",
+    "sha256:b1d07a62fee0c1bb2e572a777d03250fdfe750bae1870368a7debc3d2b676b2e",
   "python-uv":
-    "sha256:805de1ea8f81075234ca74c67825e326fe63f79edbac510b0a7c7029ced9d956",
+    "sha256:d79d8624ff5d854ef53c7cf47e4023dc5967edefce41178e50f91266043be34d",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
 };
 
@@ -156,7 +160,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:f9292594aa7de468859465997ad5df64984a52569441e2a8c39fc65dd2d6cdd0",
+      "sha256:df9e3341af8c2148c7ce3962d838954fc573262124472ef13d5d542b38ca4250",
     );
   });
 

@@ -977,7 +977,7 @@ of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 
 **Status.** The registry, both transports and the test helpers are in
 `@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
-v0.4.0, which the stack profiles pin from release 2026.12. The Application host's gateway admits `/mcp` today (Machines
+v0.4.0 and later; the stack profiles pin v0.5.0 from release 2027.01. The Application host's gateway admits `/mcp` today (Machines
 v0.12.244 and later states the scope, below). Apps offers an Application's MCP server where the account says it has one
 and Apps' probe finds its host admitting MCP sign-in: its tile's menu
 "Připojit k agentům" opens Integrations → Custom filled in, and the person
