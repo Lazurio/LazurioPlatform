@@ -26146,13 +26146,14 @@ replaces the v0.3.0 bump that #919 asked for.
 The common base pins `@lazurio/module-kit` v0.5.0 instead of v0.4.0:
 - v0.4.1 makes the writer rule hold in a runtime that states production
   (Lazurio/module-kit#9);
-- v0.5.0 declares a publication as `effect: "publish"` and offers no publication
-  tool in a production application until the Owner decides how the App knows
-  the person's "Publikuj" (decision D1 of LZD-0037), so the library keeps that
-  rule of the Module Standard;
+- v0.5.0 declares a publication as `effect: "publish"`, a tool of its own with
+  `destructiveHint`; it still offers no publication tool in a production
+  application, which a later module-kit release lifts now that decision D1 of
+  LZD-0037 is settled (2026-11-22: "Publikuj" is the person's command to the
+  agent, not a mechanism the App checks);
 - v0.5.0 refuses a publication declared the 0.4 way (`publishesData`,
-  `publicationConsent`); a Module that relies on it keeps its 0.4.x pin until
-  that decision.
+  `publicationConsent`); a Module that relies on it keeps its 0.4.x pin until a
+  module-kit release offers publication in production again.
 
 `lazurio module create` follows: `stackProfilesRelease` `2027.01` and
 `defaultScaffoldVersions.moduleKit` `0.5.0`. An existing Module changes its pin

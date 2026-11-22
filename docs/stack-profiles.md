@@ -66,7 +66,7 @@ Every profile builds on this base.
 | Bun: runtime, package manager, tests | `packageManager: "bun@1.4.4"` | The App's runtime ([Bun is the App's runtime](module-standard.md#bun-is-the-apps-runtime), F62). 1.4 brought `bun test --parallel`, `--changed` and `--isolate`. |
 | `@types/bun` | `1.4.4` | Always the pinned Bun's own version. |
 | `@biomejs/biome` | `2.6.4` | Lint and format with one tool and one configuration. |
-| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.5.0` | The one runtime library Modules share (`MS-10`): `appAccess`, who came and with which application role (0231), the writer rule (`dataWriter`), and the tools for agents with their test helpers (`/tools`, `/webmcp`, `/tools/testing`), which keep a production application from offering a publication ([Effects and publication](module-standard.md#effects-and-publication)). |
+| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.5.0` | The one runtime library Modules share (`MS-10`): `appAccess`, who came and with which application role (0231), the writer rule (`dataWriter`), and the tools for agents with their test helpers (`/tools`, `/webmcp`, `/tools/testing`), where a publication is a tool of its own ([Effects and publication](module-standard.md#effects-and-publication)). |
 | Tests | `bun test`, built in | The tests run on the same runtime as the App and add no dependency. |
 | CI | the one Linux workflow of the standard ([CI](module-standard.md#ci)) | Unchanged. |
 
@@ -362,16 +362,18 @@ v0.5.0.
   `LAZURIO_RUNTIME_DATA_WRITER=true` it never writes (module-kit#9). v0.5.0 lets
   a tool declare a publication as `effect: "publish"`, gives it
   `destructiveHint`, passes a draft and a publication through the same writer
-  gate, and in a production application offers no publication tool on `/mcp`
-  or on the page until the Owner decides how the App knows the person's
-  "Publikuj" ([Effects and publication](module-standard.md#effects-and-publication)).
-  The library itself then keeps that rule of the Standard, not each Module's
-  own code ([module readiness](module-readiness.md), "Publication tools").
+  gate ([Effects and publication](module-standard.md#effects-and-publication)).
+  v0.5.0 still offers no publication tool in a production application, on
+  `/mcp` or on the page. Since decision D1 of LZD-0037 was settled on
+  2026-11-22 ("Publikuj" is the person's command to the agent, not a mechanism
+  the App checks), a later module-kit release lifts that, and a profile release
+  follows it.
 - **Breaking for one kind of Module.** v0.5.0 refuses at registration a
   publication declared the 0.4 way (`effect: "write"` with `publishesData:
   true`, or `publicationConsent`). A Module that relies on
-  `publicationConsent` stays on its 0.4.x pin until that decision. For every
-  other Module the pin changes nothing it imports.
+  `publicationConsent` stays on its 0.4.x pin until a module-kit release offers
+  publication in production again. For every other Module the pin changes
+  nothing it imports.
 - **What an existing Module changes.** In its own pull request:
   - a Bun app: its pin, `"@lazurio/module-kit": "github:Lazurio/module-kit#v0.5.0"`,
     then `bun install` to refresh `bun.lock`, then `bun run check`;
