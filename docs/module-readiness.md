@@ -36,7 +36,7 @@ does not add a second standard, it names which of its rules decide readiness.
 
 | Verdict | Means |
 | --- | --- |
-| `no-application` | A Module without an app (V0): there is no Application. |
+| `no-application` | There is no Application: a Module without an app (V0), or a Module whose app is only a tool of the Environment (`"application": false` in `lazurio.module.json`); its tile opens STAGING. |
 | `not-ready` | A blocker: the Application cannot run from this Module. |
 | `ready-for-trial` | It can run as an Application, but live use still needs something (CI, contract tests), or the evidence could not be read (Git did not list the committed files). |
 | `ready-for-live` | Nothing found: people may do their real work in it. |
@@ -72,6 +72,17 @@ use, CI on the Module. A release tag is not a requirement of the Module: the
 rollout asks for the evidence the Organization's release mode needs.
 
 - **V0, no app.** Nothing to deploy; the verdict is `no-application`.
+- **Any generation, relying on a person's Environment.** An app whose code that
+  runs (tests, fixtures, scripts, skills and docs left out) calls the person's
+  GitHub sign-in (`gh`), the Environment's Integrations (`executor`,
+  `composio`, `wacli`, `gogcli`), the person's files or Folder (the home
+  directory, `~/`) or the Organization's network (the tailnet, an
+  Environment's address under `*.lazurio.io`) gets the blocker
+  `environment-dependency`, naming those kinds: it has no PROD until it is
+  changed (Module Standard, A Module that relies on a person's Environment). A
+  static check reads markers in code, so a call it does not recognise passes
+  and the Module's review stays the evidence. `"application": false` turns the
+  verdict into `no-application`.
 - **V1, content is part of the app** (a reference app such as a design
   system). Usually a static build: the host condition `static-app` until the
   application host serves static Applications. An own server additionally

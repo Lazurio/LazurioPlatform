@@ -10,8 +10,10 @@ export const moduleReadinessHelp = `module readiness <absolute module directory>
   Checks, without running anything and without the network, whether the
   Module is ready as an Application (decision 0249, docs/module-readiness.md):
   its generation V0-V4 by where its data are, its findings and its verdict.
-  no-application: a Module without an app (V0). not-ready: a blocker, the
-  Application cannot run from it. ready-for-trial: it can run, but live use
+  no-application: a Module without an app (V0), or one whose app is only a
+  tool of the Environment ("application": false). not-ready: a blocker, the
+  Application cannot run from it (an app that relies on a person's
+  Environment among them). ready-for-trial: it can run, but live use
   still needs something (CI, contract tests) or Git could not list the
   committed files. ready-for-live: nothing found. Host conditions (a static build, sibling data, a sibling
   API) are what the application host must support; they are listed apart

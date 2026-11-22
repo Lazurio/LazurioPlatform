@@ -152,6 +152,7 @@ symlink created at start; an absolute path of a particular computer.
 | `port_leases[]` | `id` (`^[a-z][a-z0-9-]*$`), `host` (`127.0.0.1`, `localhost` or `::1`; a new Module gets `127.0.0.1`), `port` (1024–65535); ids and ports unique |
 | `apps[]` | the App packages, each a relative path ending in `package.json`, unique; a missing `apps` is a legacy Module that does not start (`explicit-apps-required`) |
 | `default_app` | one of `apps[]`; absent when `apps` is empty |
+| `application` | optional, only `false`, only with an app: the Module's app is a tool of the Environment and never becomes an Application; its tile keeps opening STAGING ([A Module that relies on a person's Environment](#applications-of-an-organization)). A Platform release before this field refuses the manifest, so a Module declares it only once every Environment of its Organization runs a release that reads it |
 
 `parseModuleManifest` (`src/modules/manifest.ts`) refuses anything else, an
 unknown field included. The catalog accepts a Module only when its `company` is
@@ -836,6 +837,26 @@ deployed through a reviewed pull request to the Deployment Repo, and its merge i
 the approval (decision 0239). In `app/v4` an automatically deployed migration only
 expands the schema; one that drops or narrows it goes only through an approved
 release with a restore from backup as the way back.
+
+**A Module that relies on a person's Environment** (decision 0249, addendum of
+2026-11-22). An app whose code stands on a person's GitHub sign-in, the
+Environment's Integrations, the person's files or Folder, or the Organization's
+network has no PROD, and its tile opens STAGING, until it is changed.
+`lazurio module readiness` finds it (`environment-dependency`, a blocker, with
+the kinds it found). Changing it follows four rules:
+
+- the Organization's access (a GitHub repository, a mailbox, a service) is held
+  by the Application's server as a secret from the Organization's vault;
+- a person's own access does not belong in the Application: the person's agent
+  uses it in their Environment and writes the result through the Application's
+  MCP server;
+- another Module is a sibling on the host ([Siblings](#siblings));
+- the Organization's files reach the server as a read-only copy.
+
+Keys are never kept in the browser. A Module that is only a tool of the
+Environment, and stays one for good, declares `"application": false` in
+`lazurio.module.json`: the check then reports `no-application` instead of
+`not-ready`, and its tile keeps opening STAGING.
 
 **A person without an Environment.** Some people have only Applications: no
 Environment, no Organization network and no GitHub account. An Application

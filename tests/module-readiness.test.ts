@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   assessReadiness,
+  environmentDependencies,
   readReadinessInput,
   specVersion,
 } from "../src/modules/readiness";
@@ -474,5 +475,68 @@ posixTest(
     expect(result.findings[0]?.message).toContain("contract tests");
     expect(result.findings[0]?.message).not.toContain("appAccess");
     expect(result.verdict).toBe("ready-for-trial");
+  },
+);
+
+test("every kind of a person's Environment is found in code that runs", () => {
+  expect(environmentDependencies('spawnSync("gh", ["api", path])')).toEqual([
+    "GitHub sign-in",
+  ]);
+  expect(
+    environmentDependencies("await $`composio execute OUTLOOK_SEND_EMAIL`"),
+  ).toEqual(["Integrations"]);
+  expect(
+    environmentDependencies('join(os.homedir(), "OneDrive", "Revize")'),
+  ).toEqual(["files"]);
+  expect(
+    environmentDependencies(
+      'fetch("https://launchpad.station.example.lazurio.io/x")',
+    ),
+  ).toEqual(["network"]);
+  expect(
+    environmentDependencies(
+      "const writer = process.env.LAZURIO_RUNTIME_DATA_WRITER;",
+    ),
+  ).toEqual([]);
+});
+
+posixTest(
+  "an app that relies on a person's Environment is not ready, and a test that does is no evidence",
+  async () => {
+    const files = readyServer();
+    const inTestOnly = await assess({
+      ...files,
+      "app/v3/tests/github.test.ts": 'spawnSync("gh", ["auth", "status"]);\n',
+    });
+    expect(inTestOnly.verdict).toBe("ready-for-live");
+    const relies = await assess({
+      ...files,
+      "app/v3/server.ts": `${files["app/v3/server.ts"]}spawnSync("gh", ["auth", "git-credential"]);\nconst root = join(os.homedir(), "inbox");\n`,
+    });
+    expect(relies.verdict).toBe("not-ready");
+    const finding = relies.findings.find(
+      (item) => item.id === "environment-dependency",
+    );
+    expect(finding?.level).toBe("blocker");
+    expect(finding?.message).toContain("GitHub sign-in, files");
+  },
+);
+
+posixTest(
+  "a Module that is only a tool of the Environment is no Application, whatever its code relies on",
+  async () => {
+    const files = readyServer();
+    const declared = JSON.parse(files["lazurio.module.json"] as string);
+    const result = await assess({
+      ...files,
+      "lazurio.module.json": JSON.stringify({
+        ...declared,
+        application: false,
+      }),
+      "app/v3/server.ts": 'spawnSync("gh", ["api", "user"]);\n',
+    });
+    expect(result.verdict).toBe("no-application");
+    expect(result.generation).toBe("V3");
+    expect(result.findings).toEqual([]);
   },
 );
