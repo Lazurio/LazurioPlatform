@@ -39,12 +39,16 @@ export const archiveWaits = (labels: BrainSetupLabels | null) =>
   labels?.archive?.startsWith("failed:") === true;
 
 /** How long the Launchpad lets one setup run: longer than its longest
- * supported step, a move or one window of search by meaning (gbrain's
- * `embed` with its budget and one batch, `meaningEmbedLimitMs`), with the
- * copy, a migration and the start around it. A setup it ends anyway leaves its gbrain command
+ * supported step, a move or one stop of search by meaning (an hour at most
+ * as a whole, `meaningNightStopMs`: the copy, the steps, the embedding and
+ * the start after it). A setup it ends anyway leaves its gbrain command
  * running in its own group; the next setup ends that writer before it
  * recovers or starts anything (`./writers.ts`). */
 export const setupTimeoutMs = 8 * 3_600_000;
+
+/** The longest a wait for the night window sleeps before it reads the
+ * window again: a window moved while it waits starts at most this late. */
+export const nightRecheckMs = 10 * 60_000;
 
 /** Machines' mark that they hand the brain over on this host (C1). */
 export const brainHandoverMark = "/etc/lazurio/brain-handover";
@@ -79,6 +83,9 @@ export async function brainSetupAtStart(
      * many such runs one start makes at most. */
     fillMs?: number;
     fills?: number;
+    /** Milliseconds to the start of the person's night window, where search
+     * by meaning waits for it (`waits:night`); without it the pause. */
+    nightInMs?: () => Promise<number>;
     sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   }>,
 ): Promise<BrainSetupLabels | null> {
@@ -121,7 +128,32 @@ export async function brainSetupAtStart(
       waiting = meaningWaits(labels) || archiveWaits(labels);
     if (!waiting) break;
     input.report?.(labels);
-    await sleep(input.fillMs ?? meaningPauseMs, signal);
+    // The archive not off yet is retried after the pause, not at night.
+    if (
+      labels.meaning === "waits:night" &&
+      input.nightInMs !== undefined &&
+      !archiveWaits(labels)
+    ) {
+      // Waiting for the night: the next run at its start (at least a minute
+      // and at most a day from now), not every pause. The window is read
+      // again at least every `nightRecheckMs`, so a window the person moves
+      // (`lazurio brain night`) counts while this waits.
+      const nightIn = input.nightInMs;
+      const day = 24 * 3_600_000;
+      let slept = 0;
+      let left = await nightIn().catch(() => meaningPauseMs);
+      do {
+        const ms = Math.min(
+          Math.max(left, 60_000),
+          nightRecheckMs,
+          day - slept,
+        );
+        await sleep(ms, signal);
+        slept += ms;
+        if (signal.aborted) break;
+        left = await nightIn().catch(() => meaningPauseMs);
+      } while (left > 0 && slept < day);
+    } else await sleep(input.fillMs ?? meaningPauseMs, signal);
     if (signal.aborted) break;
     labels = await run();
   }

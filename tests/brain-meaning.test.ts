@@ -2,29 +2,45 @@ import { describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  cp,
   mkdir,
   mkdtemp,
   readdir,
   readFile,
+  rename,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BrainHttp } from "../src/brain/admin";
-import { brainSetupAtStart, setupTimeoutMs } from "../src/brain/at-start";
+import {
+  brainSetupAtStart,
+  nightRecheckMs,
+  setupTimeoutMs,
+} from "../src/brain/at-start";
 import { readBrainState, writeBrainState } from "../src/brain/keys";
 import {
   convergeMeaning,
   downloadVerified,
+  embedPlan,
+  failedWindowName,
   type MeaningHost,
   meaningBatchLimitMs,
+  meaningDayStopMs,
+  meaningEmbedGraceMs,
   meaningEmbedLimitMs,
   meaningMaxStalled,
   meaningMaxWindows,
+  meaningNightLeastMs,
+  meaningNightStopMs,
+  meaningPauseMs,
+  meaningRestartReserveMs,
+  meaningSmallChunks,
   meaningStepLimitMs,
   meaningWindowMs,
 } from "../src/brain/meaning";
 import { meaningPaths, meaningUnit } from "../src/brain/meaning-pin";
+import { nightStartsIn } from "../src/brain/night";
 import {
   brainPaths,
   brainPin,
@@ -114,8 +130,34 @@ async function stand(
     startFailsAt?: number;
     /** Buddy works for the first questions, up to this one. */
     busyUntil?: number;
+    /** The night window the person chose. */
+    night?: Readonly<{ start: string; end: string; timeZone: string }>;
+    /** The pages the running server counts at the start (46 by default). */
+    served?: number;
+    /** How long each of gbrain's steps takes on the stand's clock (none by
+     * default: the clock stands at 00:10 UTC). */
+    stepMs?: number;
+    /** How long stopping the server takes, and a copy of the brain. */
+    stopMs?: number;
+    copyMs?: number;
+    /** After a start, the server answers health only this long later; each
+     * question to it passes a minute. */
+    bootMs?: number;
   }> = {},
 ) {
+  let clock = Date.parse("2026-11-19T00:10:00Z");
+  let startedAt = clock;
+  const step = { ms: options.stepMs ?? 0 };
+  /** Each copy of the brain: when it began and its limit. */
+  const copies: Array<Readonly<{ at: number; limit: number }>> = [];
+  /** When the server was started, on the stand's clock, and what the home
+   * held then. */
+  const startTimes: number[] = [];
+  const homeAtStart: string[][] = [];
+  const refuse = { start: false };
+  /** Each gbrain step's limit, and when it started, on the stand's clock. */
+  const limits: Array<Readonly<{ step: string; at: number; limit: number }>> =
+    [];
   let starts = 0;
   /** The attempt as recorded at each start of the server: what a run that
    * died right then would leave for the next. */
@@ -150,6 +192,9 @@ async function stand(
       command,
       source: "lazurio",
     },
+    // The stand's clock (00:10 UTC) inside the night window unless a test
+    // gives another, so its windows run; the day is tested on its own.
+    night: options.night ?? { start: "00:00", end: "23:00", timeZone: "UTC" },
   });
   // `stored`: the pages as stored; `served`: what the running server
   // counts, where pages written while it runs count too.
@@ -157,8 +202,8 @@ async function stand(
     server: true,
     timer: true,
     model: false,
-    stored: 46,
-    served: 46,
+    stored: options.served ?? 46,
+    served: options.served ?? 46,
   };
   const calls: string[][] = [];
   const service: ProcessRunner = async (argv) => {
@@ -177,9 +222,17 @@ async function stand(
     if (verb === "is-enabled") return done(1, "disabled\n");
     for (const name of names) {
       if (name === meaningUnit && verb === "enable") world.model = true;
-      if (name === brainUnit && (verb === "stop" || verb === "disable"))
+      if (name === brainUnit && (verb === "stop" || verb === "disable")) {
+        if (world.server) clock += options.stopMs ?? 0;
         world.server = false;
+      }
+      // systemd does not start the server at all (changeable between runs).
+      if (name === brainUnit && verb === "start" && refuse.start)
+        return done(1);
       if (name === brainUnit && verb === "start") {
+        startedAt = clock;
+        startTimes.push(clock);
+        homeAtStart.push(await readdir(paths.home));
         atStart.push((await readBrainState(paths)).meaningAttempt);
         world.server = true;
         starts += 1;
@@ -192,8 +245,10 @@ async function stand(
     return done(0);
   };
   const envs: Readonly<Record<string, string>>[] = [];
-  const run: ToolRunner = async (argv, _timeout, env) => {
+  const run: ToolRunner = async (argv, timeout, env) => {
     calls.push([...argv]);
+    limits.push({ step: argv[1] ?? "", at: clock, limit: timeout });
+    clock += step.ms;
     if (argv[1] === "embed") envs.push(env);
     const ok = { exitCode: 0, stdout: "", stderr: "" };
     if (argv[1] === "embeddings") {
@@ -303,6 +358,11 @@ async function stand(
         : { status: 200, body: "{}" };
     }
     if (!world.server) return null;
+    if (pathname === "/health" && options.bootMs !== undefined) {
+      const booting = clock < startedAt + options.bootMs;
+      clock += 60_000;
+      if (booting) return null;
+    }
     if (pathname === "/health")
       return {
         status: 200,
@@ -335,12 +395,48 @@ async function stand(
         return false;
       return options.idle ?? true;
     },
-    now: () => new Date("2026-11-19T00:10:00Z"),
-    tries: 2,
+    now: () => new Date(clock),
+    // The copy takes `copyMs` on the stand's clock (none by default); one
+    // longer than its limit is ended there, half made.
+    copyBrain: async (from: string, to: string, limitMs: number) => {
+      copies.push({ at: clock, limit: limitMs });
+      const takes = options.copyMs ?? 0;
+      if (takes > limitMs) {
+        clock += limitMs;
+        await mkdir(to, { recursive: true });
+        await writeFile(join(to, "partial"), "x");
+        return false;
+      }
+      clock += takes;
+      await cp(from, to, { recursive: true, errorOnExist: true });
+      return true;
+    },
+    tries: options.bootMs === undefined ? 2 : 1000,
     waitMs: 1,
     fetch: async () => new Response("never asked", { status: 500 }),
   };
-  return { host, paths, calls, world, command, envs, atStart };
+  const time = {
+    now: () => clock,
+    advance: (ms: number) => {
+      clock += ms;
+    },
+  };
+  return {
+    host,
+    paths,
+    calls,
+    world,
+    command,
+    envs,
+    atStart,
+    limits,
+    step,
+    time,
+    copies,
+    startTimes,
+    homeAtStart,
+    refuse,
+  };
 }
 
 const unit = (paths: ReturnType<typeof brainPaths>, name: string) =>
@@ -483,7 +579,8 @@ describe("switching search by meaning on", () => {
       },
     } as typeof host;
     expect(await convergeMeaning(slow)).toBe("restored:embed-limit");
-    expect(limit).toBe(meaningEmbedLimitMs);
+    // In the night window: the hour's stop less what it keeps for the start.
+    expect(limit).toBe(meaningNightStopMs - meaningRestartReserveMs);
     expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
       '{"brain":"before"}',
     );
@@ -491,7 +588,7 @@ describe("switching search by meaning on", () => {
     // Setup as the Launchpad's child outlasts the one window a run takes, at
     // its process limit, and a migration, the counts and the start around it.
     expect(setupTimeoutMs).toBeGreaterThan(
-      meaningEmbedLimitMs + 6 * meaningStepLimitMs,
+      meaningNightStopMs + 6 * meaningStepLimitMs,
     );
   });
 
@@ -662,11 +759,26 @@ describe("the vectors in short windows, the server running with the model betwee
     // Each window is bounded by gbrain's budget, and a batch to the local
     // model has longer than gbrain's 60 s.
     for (const env of envs) {
-      expect(env.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningWindowMs));
+      // In the night window, an hour's stop (the window ends far later):
+      // its budget leaves a batch, gbrain's start and the server's.
+      expect(env.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(
+        String(
+          meaningNightStopMs -
+            meaningRestartReserveMs -
+            meaningBatchLimitMs -
+            meaningEmbedGraceMs,
+        ),
+      );
       expect(env.GBRAIN_AI_EMBED_TIMEOUT_MS).toBe(String(meaningBatchLimitMs));
     }
-    expect(meaningEmbedLimitMs).toBeGreaterThan(
-      meaningWindowMs + meaningBatchLimitMs,
+    // A short window by day: its 3 minutes, a batch and the rest within the
+    // day's bound of the whole stop.
+    expect(embedPlan(meaningDayStopMs, meaningWindowMs)).toEqual({
+      budgetMs: meaningWindowMs,
+      limitMs: meaningEmbedLimitMs,
+    });
+    expect(meaningEmbedLimitMs + meaningRestartReserveMs).toBeLessThanOrEqual(
+      meaningDayStopMs,
     );
     // After the first window the server runs with the model.
     expect(await unit(paths, brainUnit)).toContain(
@@ -1018,5 +1130,564 @@ describe("the Launchpad goes on by itself while search by meaning waits", () => 
     });
     // The first window, then two that failed; then nothing more.
     expect(start.runs()).toBe(3);
+  });
+});
+
+describe("by day the memory is not stopped for search by meaning, except a small backlog", () => {
+  /** A night window the stand's clock (00:10 UTC) is outside of. */
+  const night = { start: "02:00", end: "05:00", timeZone: "UTC" };
+  const stops = (calls: string[][]) =>
+    calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
+
+  test("a brain larger than a small backlog waits for the night: nothing stops, nothing is copied", async () => {
+    const { host, paths, calls, world } = await stand({ night });
+    expect(await convergeMeaning(host)).toBe("waits:night");
+    expect(stops(calls)).toBe(0);
+    expect(calls.some((c) => c[1] === "embed" || c[1] === "embeddings")).toBe(
+      false,
+    );
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+  });
+
+  test("a small brain (a new Environment's) is switched on at once, in one short window", async () => {
+    const { host, calls, envs } = await stand({ night, served: 3 });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(stops(calls)).toBe(1);
+    expect(envs[0]?.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningWindowMs));
+  });
+
+  test("what is left after the night: a small rest is computed by day, a larger one waits for the next night", async () => {
+    // The first window in the night: a large rest left.
+    const large = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 300, reason: "time_budget" },
+        { exit: 0, embedded: 300 },
+      ],
+    });
+    expect(await convergeMeaning(large.host)).toBe("waits:filling");
+    // Then the day comes.
+    await writeBrainState(large.paths, {
+      ...(await readBrainState(large.paths)),
+      night,
+    });
+    expect(await convergeMeaning(large.host)).toBe("waits:night");
+    expect(stops(large.calls)).toBe(1);
+    // A rest one short window computes, by day.
+    const small = await stand({
+      windows: [
+        {
+          exit: 11,
+          embedded: 10,
+          remaining: meaningSmallChunks,
+          reason: "time_budget",
+        },
+        { exit: 0, embedded: meaningSmallChunks },
+      ],
+    });
+    expect(await convergeMeaning(small.host)).toBe("waits:filling");
+    await writeBrainState(small.paths, {
+      ...(await readBrainState(small.paths)),
+      night,
+    });
+    expect(await convergeMeaning(small.host)).toBe("on");
+    expect(small.envs.at(-1)?.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(
+      String(meaningWindowMs),
+    );
+  });
+
+  /** The Launchpad's wait for the night over the stand: the window's start
+   * comes `startsIn` after the first run, unless `moved` brings it forward
+   * after that many sleeps; the run at the start finds the night. */
+  const waitForNight = async (startsIn: number, moved?: number) => {
+    const { host } = await stand({ night });
+    const pauses: number[] = [];
+    let left = startsIn;
+    let runs = 0;
+    const labels = await brainSetupAtStart({
+      run: async () => {
+        runs += 1;
+        if (runs === 2)
+          await writeBrainState(host.paths, {
+            ...(await readBrainState(host.paths)),
+            night: { start: "00:00", end: "23:00", timeZone: "UTC" },
+          });
+        return { server: "running", meaning: await convergeMeaning(host) };
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      nightInMs: async () => Math.max(0, left),
+      sleep: async (ms) => {
+        pauses.push(ms);
+        left -= ms;
+        // The person moves the window to start now (`lazurio brain night`).
+        if (pauses.length === moved) left = 0;
+      },
+    });
+    return { labels, pauses, runs };
+  };
+
+  test("an archive not off yet is retried after the pause, though search by meaning waits for the night", async () => {
+    const pauses: number[] = [];
+    const answers = [
+      { server: "running", archive: "waits-idle", meaning: "waits:night" },
+      { server: "running", archive: "off", meaning: "waits:night" },
+    ];
+    let runs = 0;
+    await brainSetupAtStart({
+      run: async () => answers[Math.min(runs++, answers.length - 1)] ?? null,
+      handover: async () => true,
+      signal: new AbortController().signal,
+      nightInMs: async () => 10 * 3_600_000,
+      fills: 1,
+      sleep: async (ms) => {
+        pauses.push(ms);
+      },
+    });
+    // The first wait is the pause (for the archive); the night's wait, read
+    // every `nightRecheckMs`, only once the archive is off.
+    expect(pauses[0]).toBe(meaningPauseMs);
+    expect(runs).toBe(2);
+  });
+
+  test("the Launchpad waits for the night window, not every pause, and computes then", async () => {
+    const { labels, pauses, runs } = await waitForNight(110 * 60_000);
+    expect(labels).toEqual({ server: "running", meaning: "on" });
+    // Until the window's start, read again every `nightRecheckMs`; one run
+    // after the first, at the start, switched it on.
+    expect(pauses).toEqual([...Array(11).fill(nightRecheckMs)]);
+    expect(runs).toBe(2);
+  });
+
+  test("a window the person moves while the Launchpad waits counts at the next reading, not the next night", async () => {
+    const { labels, pauses, runs } = await waitForNight(20 * 3_600_000, 1);
+    expect(labels).toEqual({ server: "running", meaning: "on" });
+    expect(pauses).toEqual([nightRecheckMs]);
+    expect(runs).toBe(2);
+  });
+});
+
+describe("a stop is bounded as a whole: its steps, its embedding and the start after it", () => {
+  const minute = 60_000;
+  /** The stand's clock at the start. */
+  const t0 = Date.parse("2026-11-19T00:10:00Z");
+  const budgetOf = (env: Readonly<Record<string, string>> | undefined) =>
+    Number(env?.GBRAIN_EMBED_TIME_BUDGET_MS);
+
+  test("a night stop ends by the window's end, the time its steps took counted", async () => {
+    // The window ends 50 minutes after the clock; each step takes 2 minutes.
+    const { host, limits, envs } = await stand({
+      night: { start: "00:00", end: "01:00", timeZone: "UTC" },
+      stepMs: 2 * minute,
+    });
+    expect(await convergeMeaning(host)).toBe("on");
+    const end = t0 + 50 * minute;
+    const embed = limits.find((l) => l.step === "embed");
+    // The count and the switch took 4 minutes: the embedding's limit leaves
+    // the start after it before the window's end, and its budget a batch
+    // and gbrain's own start within that limit.
+    expect(embed?.at).toBe(t0 + 4 * minute);
+    expect(
+      (embed?.at ?? 0) + (embed?.limit ?? 0) + meaningRestartReserveMs,
+    ).toBe(end);
+    expect(budgetOf(envs[0])).toBe(
+      (embed?.limit ?? 0) - meaningBatchLimitMs - meaningEmbedGraceMs,
+    );
+    // No step of the stop may run past the window's end.
+    for (const l of limits) expect(l.at + l.limit).toBeLessThanOrEqual(end);
+  });
+
+  test("near the window's end a large backlog waits; a small one gets the day's bound for the whole stop, not three fresh minutes", async () => {
+    // 15 minutes of the window left: less than a night stop needs.
+    const night = { start: "23:45", end: "00:25", timeZone: "UTC" };
+    expect(15 * minute).toBeLessThan(meaningNightLeastMs);
+    const large = await stand({ night });
+    expect(await convergeMeaning(large.host)).toBe("waits:night");
+    expect(large.limits.some((l) => l.step === "embed")).toBe(false);
+    // A small brain: the day's exception, its whole stop within the day's
+    // bound, and the minutes its steps took come off its budget.
+    const small = await stand({ night, served: 3, stepMs: minute });
+    expect(await convergeMeaning(small.host)).toBe("on");
+    const embed = small.limits.find((l) => l.step === "embed");
+    expect(
+      (embed?.at ?? 0) + (embed?.limit ?? 0) + meaningRestartReserveMs,
+    ).toBe(t0 + meaningDayStopMs);
+    expect(budgetOf(small.envs[0])).toBe(minute);
+    for (const l of small.limits)
+      expect(l.at + l.limit).toBeLessThanOrEqual(t0 + meaningDayStopMs);
+  });
+
+  test("a first window its steps left no time for brings its copy back and is tried again: no failure of the model", async () => {
+    // 20 minutes left; the count and the switch take 10 of them.
+    const night = { start: "23:50", end: "00:30", timeZone: "UTC" };
+    const { host, paths, limits } = await stand({ night, stepMs: 5 * minute });
+    expect(await convergeMeaning(host)).toBe("waits:no-time");
+    expect(limits.some((l) => l.step === "embed")).toBe(false);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    // Not held for the pin: the next run decides again (here the window has
+    // too little left, so it waits for the night).
+    expect(await convergeMeaning(host)).toBe("waits:night");
+  });
+
+  test("a later window its steps left no time for counts neither as a window nor as one without progress", async () => {
+    const { host, paths, limits, step } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 300, reason: "time_budget" },
+        { exit: 0, embedded: 300 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    // 20 minutes of the window left, and the count takes 5 more than a
+    // window then has for its embedding.
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      night: { start: "23:50", end: "00:30", timeZone: "UTC" },
+    });
+    step.ms = 9 * minute;
+    expect(await convergeMeaning(host)).toBe("waits:no-time");
+    expect(limits.filter((l) => l.step === "embed")).toHaveLength(1);
+    const attempt = (await readBrainState(paths)).meaningAttempt;
+    expect(attempt?.result).toBe("filling");
+    expect(attempt?.windows).toBe(1);
+    expect(attempt?.stalled).toBe(0);
+  });
+
+  test("a slow stop leaves no time for a window: the server comes back as it was, and no copy stays", async () => {
+    // An hour's stop, and stopping the server takes 50 minutes of it.
+    const { host, paths, world, limits } = await stand({ stopMs: 50 * minute });
+    expect(await convergeMeaning(host)).toBe("waits:no-time");
+    expect(
+      limits.some((l) => l.step === "embed" || l.step === "embeddings"),
+    ).toBe(false);
+    expect(world.server).toBe(true);
+    expect(
+      (await readdir(paths.home)).filter((n) =>
+        n.startsWith(".gbrain.bak-meaning-"),
+      ),
+    ).toEqual([]);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+  });
+
+  test("a slow copy comes off the embedding's time; the way back needs none, it is a rename", async () => {
+    const { host, limits } = await stand({ copyMs: 5 * minute });
+    expect(await convergeMeaning(host)).toBe("on");
+    const embed = limits.find((l) => l.step === "embed");
+    expect(embed?.at).toBe(t0 + 5 * minute);
+    expect(
+      (embed?.at ?? 0) + (embed?.limit ?? 0) + meaningRestartReserveMs,
+    ).toBe(t0 + meaningNightStopMs);
+  });
+
+  for (const [what, copyMs] of [
+    ["longer than the whole stop (61 minutes)", 61 * minute],
+    ["that never finishes", Number.POSITIVE_INFINITY],
+  ] as const) {
+    test(`a copy ${what} is ended in time: the server is back before the stop's end, the brain as it was`, async () => {
+      const { host, paths, world, copies, startTimes, limits } = await stand({
+        copyMs,
+      });
+      expect(await convergeMeaning(host)).toBe("waits:no-time");
+      // The copy's limit leaves a window's least and the start; it was ended
+      // there, its half copy removed, nothing of gbrain run.
+      expect(copies).toHaveLength(1);
+      expect((copies[0]?.at ?? 0) + (copies[0]?.limit ?? 0)).toBe(
+        t0 +
+          meaningNightStopMs -
+          meaningRestartReserveMs -
+          meaningBatchLimitMs -
+          meaningEmbedGraceMs -
+          minute,
+      );
+      expect(
+        (await readdir(paths.home)).filter((n) =>
+          n.startsWith(".gbrain.bak-meaning-"),
+        ),
+      ).toEqual([]);
+      expect(limits).toEqual([]);
+      expect(world.server).toBe(true);
+      expect(startTimes.at(-1) ?? 0).toBeLessThanOrEqual(
+        t0 + meaningNightStopMs,
+      );
+      expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+        '{"brain":"before"}',
+      );
+    });
+  }
+
+  test("a window that fails at its limit comes back by a rename and starts before the stop's end", async () => {
+    // The copy takes 5 minutes; the embedding runs to its very limit.
+    const { host, paths, copies, startTimes, time } = await stand({
+      copyMs: 5 * minute,
+    });
+    const run = host.run;
+    const slow = {
+      ...host,
+      run: async (
+        argv: readonly string[],
+        timeout: number,
+        env: Readonly<Record<string, string>>,
+      ) => {
+        if (argv[1] !== "embed") return run(argv, timeout, env);
+        await writeFile(join(paths.brain, "config.json"), '{"brain":"half"}');
+        time.advance(timeout);
+        return "timeout" as const;
+      },
+    } as typeof host;
+    expect(await convergeMeaning(slow)).toBe("restored:embed-limit");
+    // One copy only: the way back renamed it into place.
+    expect(copies).toHaveLength(1);
+    expect(await readFile(join(paths.brain, "config.json"), "utf8")).toBe(
+      '{"brain":"before"}',
+    );
+    expect(startTimes.at(-1) ?? 0).toBeLessThanOrEqual(t0 + meaningNightStopMs);
+  });
+
+  test("a server slow to answer after a committed window: the wait ends with the stop, the server is not kept down, the next run goes on", async () => {
+    const { host, world, time, paths } = await stand({
+      bootMs: 3 * 3_600_000,
+    });
+    expect(await convergeMeaning(host)).toBe("waits:no-answer");
+    // Asked once a minute up to the stop's end, an hour after it began.
+    expect(time.now()).toBeLessThanOrEqual(t0 + meaningNightStopMs + minute);
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+      "filling",
+    );
+  });
+
+  test("the Launchpad tries a window that had no time left again, in the same start", async () => {
+    // The count and the switch take the whole hour of the first stop.
+    const { host, step } = await stand({ stepMs: 30 * minute });
+    const seen: string[] = [];
+    const labels = await brainSetupAtStart({
+      run: async () => {
+        const meaning = await convergeMeaning(host);
+        seen.push(meaning);
+        return { server: "running", meaning };
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      sleep: async () => {
+        step.ms = 0;
+      },
+    });
+    expect(seen).toEqual(["waits:no-time", "on"]);
+    expect(labels).toEqual({ server: "running", meaning: "on" });
+  });
+
+  test("a window of the shortest length a person may choose runs its stop at its start", async () => {
+    const night = { start: "00:20", end: "00:50", timeZone: "UTC" };
+    const { host, time } = await stand({ night });
+    const seen: string[] = [];
+    const labels = await brainSetupAtStart({
+      run: async () => {
+        const meaning = await convergeMeaning(host);
+        seen.push(meaning);
+        return { server: "running", meaning };
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      nightInMs: async () =>
+        nightStartsIn(new Date(time.now()), night, meaningNightLeastMs),
+      sleep: async (ms) => {
+        time.advance(ms);
+      },
+    });
+    expect(seen).toEqual(["waits:night", "on"]);
+    expect(labels).toEqual({ server: "running", meaning: "on" });
+    // It waited until the window's start, 10 minutes after the clock.
+    expect(time.now()).toBe(t0 + 10 * minute);
+  });
+});
+
+describe("a way back a run that died left is finished, never brought back over later writes", () => {
+  const at = "2026-11-19T00:00:00.000Z";
+  const backup = ".gbrain.bak-meaning-20261119T000000Z";
+  const failed = ".gbrain.failed-meaning-20261119T000000Z";
+  const config = (dir: string) =>
+    readFile(join(dir, "config.json"), "utf8").catch(() => null);
+  /** The first window's way back, journaled, and the home as a run that
+   * died at `where` left it. */
+  const left = async (
+    where: "before-renames" | "between-renames" | "after-renames",
+    result: "restoring" | "started" = "restoring",
+  ) => {
+    const s = await stand();
+    const { paths, world } = s;
+    const home = (name: string) => join(paths.home, name);
+    // The copy is the brain from before; the brain is what the window left.
+    await mkdir(home(backup), { recursive: true });
+    await writeFile(join(home(backup), "config.json"), '{"brain":"before"}');
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"torn"}');
+    if (where !== "before-renames") await rename(paths.brain, home(failed));
+    if (where === "after-renames") await rename(home(backup), paths.brain);
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result,
+        at,
+        backup,
+        reason: "embed",
+      },
+    });
+    world.server = false;
+    world.timer = false;
+    return s;
+  };
+
+  for (const where of [
+    "before-renames",
+    "between-renames",
+    "after-renames",
+  ] as const) {
+    test(`a first window's way back that died ${where.replace("-", " the ")} ends with the brain from before, and the server up`, async () => {
+      const { host, paths, world } = await left(where);
+      expect(await convergeMeaning(host)).toBe("restored:embed");
+      expect(await config(paths.brain)).toBe('{"brain":"before"}');
+      expect(await config(join(paths.home, failed))).toBe('{"brain":"torn"}');
+      expect(world.server && world.timer).toBe(true);
+      expect(await convergeMeaning(host)).toBe("held");
+    });
+  }
+
+  test("a copy missing where no way back was journaled is never taken as done: kept down for a person", async () => {
+    const { host, paths } = await left("after-renames", "started");
+    expect(await convergeMeaning(host)).toBe("stopped:copy-not-restored");
+    expect(await config(paths.brain)).toBe('{"brain":"before"}');
+  });
+
+  test("a way back committed before the server started is not done again over a later write", async () => {
+    const { host, paths, world } = await left("after-renames");
+    expect(await convergeMeaning(host)).toBe("restored:embed");
+    // The server took a write after the way back.
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"later"}');
+    world.server = false;
+    expect(await convergeMeaning(host)).toBe("held");
+    expect(await config(paths.brain)).toBe('{"brain":"later"}');
+  });
+
+  test("a later window's way back that died after both renames goes on with the window's brain", async () => {
+    const { host, paths, world } = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 30, reason: "time_budget" },
+      ],
+      busyFrom: 2,
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    // The window's copy renamed into place, the torn brain aside, and the
+    // journal still says the way back began.
+    await writeFile(join(paths.brain, "config.json"), '{"brain":"window"}');
+    await mkdir(join(paths.home, failedWindowName), { recursive: true });
+    const state = await readBrainState(paths);
+    await writeBrainState(paths, {
+      ...state,
+      meaningAttempt: {
+        ...(state.meaningAttempt as NonNullable<typeof state.meaningAttempt>),
+        result: "restoring",
+        reason: "embed-failures",
+        phase: "filling",
+        windowBackup: ".gbrain.bak-meaning-window",
+      },
+    });
+    world.server = false;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(await config(paths.brain)).toBe('{"brain":"window"}');
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+      "filling",
+    );
+  });
+
+  test("what a stop leaves is removed only once the server runs again: a copy ended at its limit, a failed brain before", async () => {
+    // A copy that never ends: its half copy is still there when the
+    // server starts, and gone after.
+    const ended = await stand({ copyMs: Number.POSITIVE_INFINITY });
+    expect(await convergeMeaning(ended.host)).toBe("waits:no-time");
+    expect(
+      ended.homeAtStart
+        .at(-1)
+        ?.some((n) => n.startsWith(".gbrain.bak-meaning-")),
+    ).toBe(true);
+    expect(
+      (await readdir(ended.paths.home)).some((n) =>
+        n.startsWith(".gbrain.bak-meaning-"),
+      ),
+    ).toBe(false);
+    // A window that fails while the failed brain of an earlier one is kept:
+    // that one is set aside in the stop and removed after the start.
+    const failing = await stand({
+      windows: [
+        { exit: 11, embedded: 10, remaining: 300, reason: "time_budget" },
+        { exit: 1, embedded: 0, failures: 3 },
+      ],
+    });
+    expect(await convergeMeaning(failing.host)).toBe("waits:filling");
+    const earlier = join(failing.paths.home, failedWindowName);
+    await mkdir(earlier, { recursive: true });
+    await writeFile(join(earlier, "config.json"), '{"brain":"earlier"}');
+    expect(await convergeMeaning(failing.host)).toBe("waits:embed-failures");
+    expect(
+      failing.homeAtStart
+        .at(-1)
+        ?.some((n) => n.startsWith(`${failedWindowName}.aside-`)),
+    ).toBe(true);
+    const after = await readdir(failing.paths.home);
+    expect(after.some((n) => n.includes(".aside-"))).toBe(false);
+    expect(await config(earlier)).not.toBe('{"brain":"earlier"}');
+  });
+
+  test("a server that does not start after a copy ended at its limit keeps the journal and the copy; the next run starts it, then removes the copy", async () => {
+    const { host, paths, world, refuse } = await stand({
+      copyMs: Number.POSITIVE_INFINITY,
+    });
+    refuse.start = true;
+    expect(await convergeMeaning(host)).toBe("waits:start");
+    // Down, and recoverable: the journal still says `stopping`, and nothing
+    // was removed while the server was down.
+    expect(world.server).toBe(false);
+    expect((await readBrainState(paths)).meaningAttempt?.result).toBe(
+      "stopping",
+    );
+    const left = (await readdir(paths.home)).filter((n) =>
+      n.startsWith(".gbrain.bak-meaning-"),
+    );
+    expect(left).toHaveLength(1);
+    // systemd starts it again: the next run recovers, the server first.
+    refuse.start = false;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(
+      (await readdir(paths.home)).some((n) =>
+        n.startsWith(".gbrain.bak-meaning-"),
+      ),
+    ).toBe(false);
+  });
+
+  test("a run that died after the server started but before the journal was settled: the next run settles it and removes the copy", async () => {
+    const { host, paths, world } = await stand();
+    // The server runs again; the journal still says `stopping`, with the
+    // stop's copy left.
+    const name = ".gbrain.bak-meaning-20261119T000000Z";
+    await mkdir(join(paths.home, name), { recursive: true });
+    await writeFile(join(paths.home, name, "partial"), "x");
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningAttempt: {
+        provider: "llama-server:bge-m3",
+        result: "stopping",
+        at,
+        backup: name,
+      },
+    });
+    world.server = true;
+    expect(await convergeMeaning(host)).toBe("waits:interrupted");
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaningAttempt).toBeUndefined();
+    expect(await readdir(paths.home)).not.toContain(name);
+    expect(await config(paths.brain)).toBe('{"brain":"before"}');
   });
 });

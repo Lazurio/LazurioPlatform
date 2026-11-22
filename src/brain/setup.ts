@@ -312,6 +312,16 @@ async function recoverFirst(
   const meaning = await recoverAttempt(moveHost(host));
   if (meaning === null) return null;
   if (meaning.startsWith("stopped:")) return stop({ meaning });
+  // A recovery whose server systemd did not start: nothing recovered yet,
+  // the journal kept. This run ends with it (not finished), and the
+  // Launchpad runs setup again after the pause (`waits:*`).
+  if (meaning === "waits:start")
+    return Object.freeze({
+      server: "failed",
+      step: "start",
+      meaning,
+      status: await brainStatus(host),
+    });
   return "again";
 }
 

@@ -1,7 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   chmod,
-  cp,
   lstat,
   mkdir,
   open,
@@ -10,9 +9,10 @@ import {
   rename,
   rm,
 } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { systemctl, unitMarker } from "../update/service-control";
+import { healthVersion } from "./admin";
 import { readBrainState, writeBrainState } from "./keys";
 import {
   meaningConcurrency,
@@ -22,7 +22,14 @@ import {
   meaningUnit,
   meaningUrl,
 } from "./meaning-pin";
-import { answers, keepDown, type MoveHost, stoppedForSure } from "./move";
+import {
+  answers,
+  keepDown,
+  type MoveHost,
+  pages,
+  stoppedForSure,
+} from "./move";
+import { nightAt, nightLeastMinutes, nightOf } from "./night";
 import { brainRefreshTimer, brainUnit } from "./pin";
 import { writeBrainUnits } from "./units";
 
@@ -48,7 +55,10 @@ import { writeBrainUnits } from "./units";
 // amendment of 2026-11-20 to decision F44 point 10, they are computed in
 // windows (`gbrain embed --stale` with its time budget), one per setup run,
 // the server running with the model between them; the Launchpad runs setup
-// again while windows are left (`./at-start.ts`). Every window, and every
+// again while windows are left (`./at-start.ts`). Since the amendment of
+// 2026-11-21 the windows run in the person's night window (`./night.ts`), up
+// to an hour each; by day only a small backlog gets one short window, and
+// anything larger waits for the night (`waits:night`). Every window, and every
 // way back, is committed before the server starts, so no copy ever comes
 // back over a write. The first window that fails brings the copy before
 // back without the model and is not tried again for this pin (`held`); a
@@ -60,7 +70,163 @@ export type MeaningFetch = (
   init?: RequestInit,
 ) => Promise<Response>;
 
-export type MeaningHost = MoveHost & Readonly<{ fetch: MeaningFetch }>;
+export type MeaningHost = MoveHost &
+  Readonly<{
+    fetch: MeaningFetch;
+    /** Copies the brain with the server stopped within a limit, true where
+     * the copy is whole (default `cp -a` in its own process): a seam for a
+     * copy that takes long or never ends. */
+    copyBrain?: (from: string, to: string, limitMs: number) => Promise<boolean>;
+  }>;
+
+const clockOf = (host: MoveHost) => (host.now ?? (() => new Date()))();
+
+/** When the next stop must be over, the server answering again (epoch
+ * milliseconds), or null where it waits for the night. Read just before the
+ * server stops, and bounding the whole stop: the copy, the steps, the
+ * embedding and the start after it (`embedPlan`).
+ * - In the person's night window: up to `meaningNightStopMs`, never past the
+ *   window's end, and no stop where less than `meaningNightLeastMs` is left.
+ * - A small backlog, at any other time: one short window, the whole stop
+ *   within `meaningDayStopMs` (the day's exception holds at any hour, also
+ *   at a night window's end).
+ * - Else nothing stops. */
+type Deadline = Readonly<{ at: number; short: boolean }>;
+
+async function stopDeadline(
+  host: MoveHost,
+  small: boolean,
+): Promise<Deadline | null> {
+  const night = nightOf((await readBrainState(host.paths)).night);
+  const now = clockOf(host);
+  const at = nightAt(now, night);
+  if (at.inside && at.endsInMs >= meaningNightLeastMs)
+    return {
+      at: now.getTime() + Math.min(at.endsInMs, meaningNightStopMs),
+      short: false,
+    };
+  return small ? { at: now.getTime() + meaningDayStopMs, short: true } : null;
+}
+
+/** A window that found too little of its stop left to compute anything (the
+ * steps before it took the time): its copy comes back and the next run tries
+ * again, as if it had not started; it is no failure of the model. */
+const noTime = "no-time";
+
+/** How one window's embedding fits the time its stop has left: the
+ * process's hard limit leaves `meaningRestartReserveMs` for the count, the
+ * units and the server's start (or a copy brought back); within it, a batch
+ * begun at the budget's end (`meaningBatchLimitMs`) and gbrain's own start
+ * and last write (`meaningEmbedGraceMs`). A short window's budget stays
+ * `meaningWindowMs` at most. Null where not even a minute of budget is
+ * left. */
+export type EmbedPlan = Readonly<{ budgetMs: number; limitMs: number }>;
+
+export function embedPlan(
+  leftMs: number,
+  most: number = meaningNightStopMs,
+  reserveMs: number = meaningRestartReserveMs,
+): EmbedPlan | null {
+  const limitMs = leftMs - reserveMs;
+  const budgetMs = Math.min(
+    most,
+    limitMs - meaningBatchLimitMs - meaningEmbedGraceMs,
+  );
+  if (budgetMs < 60_000) return null;
+  return Object.freeze({ budgetMs, limitMs });
+}
+
+/** The plan of a window whose stop ends at `deadline`, from the time left
+ * when its embedding starts: a short stop keeps the short window's budget.
+ * What the stop keeps after the embedding is the start
+ * (`meaningRestartReserveMs`): a way back is a rename, which takes no time
+ * (`restoreCopy`). */
+const planOf = (host: MoveHost, deadline: Deadline) =>
+  embedPlan(
+    deadline.at - clockOf(host).getTime(),
+    deadline.short ? meaningWindowMs : meaningNightStopMs,
+  );
+
+/** How long a stop's copy may take: what leaves a window its least (a
+ * minute of budget, a batch, gbrain's start) and the start after it. Zero
+ * or less where the stop has no time for a copy any more. */
+const copyLimitOf = (host: MoveHost, deadline: Deadline) =>
+  deadline.at -
+  clockOf(host).getTime() -
+  meaningRestartReserveMs -
+  meaningBatchLimitMs -
+  meaningEmbedGraceMs -
+  60_000;
+
+/** The brain copied with the server stopped, within `limitMs`: a copy that
+ * does not finish by then is ended (`cp` in its own process, which the
+ * runner ends at its limit) and reads as not made. A seam for a copy that
+ * takes long. */
+async function copyWithin(
+  host: MoveHost & Pick<MeaningHost, "copyBrain">,
+  from: string,
+  to: string,
+  limitMs: number,
+): Promise<boolean> {
+  if (limitMs <= 0 || (await present(to))) return false;
+  if (host.copyBrain !== undefined) return host.copyBrain(from, to, limitMs);
+  const ran = await host
+    .run(["cp", "-a", "--", from, to], limitMs, {
+      PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
+    })
+    .catch(() => "timeout" as const);
+  return ran !== "timeout" && ran.exitCode === 0;
+}
+
+/** A stop's copy of the brain: `copied` where it is whole and a window
+ * still fits after it, `no-time` where the stop has no time for it or it
+ * did not finish within that time, `copy` where it failed otherwise. */
+async function copyStep(
+  host: MoveHost & Pick<MeaningHost, "copyBrain">,
+  deadline: Deadline,
+  from: string,
+  to: string,
+): Promise<"copied" | typeof noTime | "copy"> {
+  const limit = copyLimitOf(host, deadline);
+  if (limit <= 0) return noTime;
+  const started = clockOf(host).getTime();
+  const whole = await copyWithin(host, from, to, limit).catch(() => false);
+  if (!whole)
+    return clockOf(host).getTime() - started >= limit ? noTime : "copy";
+  await chmod(to, 0o700).catch(() => undefined);
+  return planOf(host, deadline) === null ? noTime : "copied";
+}
+
+/** Whether the server answers its pinned version, asked until `deadline`
+ * at most (and at most `tries` times): where a stop's committed window
+ * waits for it. A server not answering by then was started all the same;
+ * the next run starts one that does not answer (`afterCommit`). */
+async function answersBy(
+  host: MoveHost,
+  deadline: number,
+): Promise<string | null> {
+  for (let i = 0; i < (host.tries ?? 450); i++) {
+    const version = await healthVersion(host.http, host.base);
+    if (version !== null) return version;
+    if (clockOf(host).getTime() >= deadline) return null;
+    await new Promise((resolve) => setTimeout(resolve, host.waitMs ?? 2000));
+  }
+  return null;
+}
+
+/** The limit of a step inside a stop: its own, and never into the time the
+ * stop keeps after it (`keepMs`): before the embedding the start after it,
+ * after the embedding the server's start and answer. */
+const stepIn = (host: MoveHost, deadline: Deadline, keepMs: number) =>
+  Math.max(
+    1_000,
+    Math.min(
+      meaningStepLimitMs,
+      deadline.at - clockOf(host).getTime() - keepMs,
+    ),
+  );
+/** What a stop keeps after its last count: the server's start and answer. */
+const startReserveMs = 2 * 60_000;
 
 export type MeaningResult =
   | "on"
@@ -320,10 +486,34 @@ export const meaningWindowMs = 3 * 60_000;
  * Environment of 4 vCPU needs longer, and an abandoned batch is computed
  * again (verified 2026-11-20: 192 batches abandoned, the step failed). */
 export const meaningBatchLimitMs = 10 * 60_000;
-/** The limit of one window's process: its budget, a batch begun just before
- * it, and the rest; a run that reaches it ends gbrain's process group. */
-export const meaningEmbedLimitMs =
-  meaningWindowMs + meaningBatchLimitMs + 5 * 60_000;
+/** gbrain's own start before its first batch and its last write after the
+ * budget's batch, within a window's process limit. */
+export const meaningEmbedGraceMs = 2 * 60_000;
+/** What a stop keeps after its embedding: the count of the pages, the units,
+ * the server's start and its answer, or a copy brought back and the same
+ * start (a copy of a brain of 344 MB took under 0.2 s, measured
+ * 2026-11-20). */
+export const meaningRestartReserveMs = 3 * 60_000;
+/** The whole stop for a small backlog by day: the bound Matěj accepted for
+ * the short windows (#1134, about 18 minutes on a heavily loaded
+ * Environment), the stop, the copy, the embedding and the start included.
+ * Its embedding keeps the short window's budget (`meaningWindowMs`). */
+export const meaningDayStopMs = 18 * 60_000;
+/** The process limit of a short window's embedding, at the start of a day
+ * stop (its other steps take seconds). */
+export const meaningEmbedLimitMs = meaningDayStopMs - meaningRestartReserveMs;
+/** The longest stop in the night window (Matěj: an hour at a stretch is
+ * fine), the whole stop; a window that ends sooner bounds it, and a night
+ * window with less than `meaningNightLeastMs` left starts no stop: a stop
+ * needs a minute of budget, a batch, gbrain's start and the server's, with
+ * room for the copy and the steps before. */
+export const meaningNightStopMs = 60 * 60_000;
+export const meaningNightLeastMs = nightLeastMinutes * 60_000;
+/** A backlog small enough for one short window by day: a brain of at most
+ * this many pages before the first window, or this many chunks left after
+ * one (gbrain's count; at about 1.4 s a chunk on 4 vCPU, a short window). */
+export const meaningSmallPages = 25;
+export const meaningSmallChunks = 100;
 /** How long the server runs between two windows, so Buddy and the agents
  * reach the memory: longer than a window, so the memory answers most of
  * the time even where the filling takes many windows (on a fully loaded
@@ -344,24 +534,32 @@ export const meaningStepLimitMs = 15 * 60_000;
  * left (`BUDGET_STOP_EXIT_CODE`, src/core/exit-codes.ts of the pin). */
 const budgetStopExit = 11;
 
-const gbrainEnv = (host: MeaningHost): Record<string, string> => ({
+const gbrainEnv = (
+  host: MeaningHost,
+  budgetMs: number,
+): Record<string, string> => ({
   HOME: host.paths.home,
   GBRAIN_HOME: host.paths.home,
   PATH: host.env.PATH ?? "/usr/local/bin:/usr/bin:/bin",
   LLAMA_SERVER_BASE_URL: `${meaningUrl}/v1`,
   GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
   GBRAIN_AI_EMBED_TIMEOUT_MS: String(meaningBatchLimitMs),
-  GBRAIN_EMBED_TIME_BUDGET_MS: String(meaningWindowMs),
+  GBRAIN_EMBED_TIME_BUDGET_MS: String(budgetMs),
 });
 
+/** gbrain's CLI: an embedding at its plan's limit and budget, any other step
+ * at `limitMs` (its own, or what a stop leaves it, `stepIn`). */
 const gbrainOf =
-  (host: MeaningHost, command: string) => async (args: readonly string[]) => {
+  (
+    host: MeaningHost,
+    command: string,
+    plan: EmbedPlan | number = meaningStepLimitMs,
+  ) =>
+  async (args: readonly string[]) => {
+    const limit = typeof plan === "number" ? plan : plan.limitMs;
+    const budget = typeof plan === "number" ? meaningWindowMs : plan.budgetMs;
     const result = await host
-      .run(
-        [command, ...args],
-        args[0] === "embed" ? meaningEmbedLimitMs : meaningStepLimitMs,
-        gbrainEnv(host),
-      )
+      .run([command, ...args], limit, gbrainEnv(host, budget))
       .catch(() => "timeout" as const);
     return result === "timeout"
       ? { ok: false, exit: null, out: null }
@@ -384,8 +582,13 @@ export type EmbedWindow =
 export async function embedWindow(
   host: MeaningHost,
   command: string,
+  plan: EmbedPlan,
 ): Promise<EmbedWindow> {
-  const ran = await gbrainOf(host, command)(["embed", "--stale", "--json"]);
+  const ran = await gbrainOf(
+    host,
+    command,
+    plan,
+  )(["embed", "--stale", "--json"]);
   if (ran.exit === null) return { result: "failed", reason: "embed-limit" };
   const count = (key: string) => {
     const value = ran.out?.[key];
@@ -423,8 +626,9 @@ export async function embedWindow(
 async function storedPages(
   host: MeaningHost,
   command: string,
+  limitMs: number = meaningStepLimitMs,
 ): Promise<number | null> {
-  const ran = await gbrainOf(host, command)(["stats", "--json"]);
+  const ran = await gbrainOf(host, command, limitMs)(["stats", "--json"]);
   const count = ran.ok ? ran.out?.page_count : undefined;
   return typeof count === "number" && Number.isInteger(count) && count >= 0
     ? count
@@ -438,8 +642,10 @@ async function storedPages(
 export async function switchOn(
   host: MeaningHost,
   command: string,
+  limitMs: () => number = () => meaningStepLimitMs,
 ): Promise<string | null> {
-  const gbrain = gbrainOf(host, command);
+  const gbrain = (args: readonly string[]) =>
+    gbrainOf(host, command, limitMs())(args);
   const model = meaningPin.provider;
   const width = String(meaningPin.dimensions);
   const enable = (dims: string) =>
@@ -570,8 +776,18 @@ async function restoreCopy(
     /** The window's own name for the brain it puts aside. */
     failedName: string;
   }>,
+  /** A way back a run that died began (`restoring`): a copy gone with a
+   * brain in place was renamed into place already. Without it, a missing
+   * copy is never taken as done. */
+  resumed = false,
 ): Promise<MeaningResult> {
   const record = recorder(host, now);
+  // The way back takes no time: the copy is renamed into place (one file
+  // system, the home), and the brain it replaces is renamed aside. The
+  // copy is the brain from before, so nothing is lost by its being used.
+  // The server's answer after this start is waited for as before: the
+  // server is started by then, and a slow answer cut short would keep it
+  // down for a person.
   if (!(await stoppedForSure(host))) {
     await record("stopped", "not-stopped");
     await keepDown(host);
@@ -581,18 +797,31 @@ async function restoreCopy(
     host.paths.home,
     filling?.failedName ?? `.gbrain.failed-meaning-${stampOf(now)}`,
   );
+  // The way back is journaled before its renames, so a run that dies
+  // between them is finished by the next one (`recoverAttempt`): the copy
+  // still there is renamed into place; a copy gone with a brain in place
+  // was renamed already (nothing else takes the copy while this lasts).
+  await record(
+    "restoring",
+    reason,
+    filling === undefined
+      ? {}
+      : { phase: "filling", windowBackup: basename(backup) },
+  );
   try {
-    if (!(await present(backup))) throw new Error("no copy");
-    // A window's failed brain is kept once: the previous one goes, so
-    // failures over many windows never fill the disk (`./room.ts`).
-    if (filling !== undefined)
-      await rm(failed, { recursive: true, force: true });
-    if (await present(host.paths.brain)) await rename(host.paths.brain, failed);
-    await cp(backup, host.paths.brain, {
-      recursive: true,
-      verbatimSymlinks: true,
-      preserveTimestamps: true,
-    });
+    const copyThere = await present(backup);
+    const brainThere = await present(host.paths.brain);
+    if (copyThere) {
+      if (brainThere) {
+        // A window's failed brain is kept once: the one before it is
+        // renamed aside now and removed once the server runs again, so
+        // failures over many windows never fill the disk (`./room.ts`).
+        if (await present(failed))
+          await rename(failed, `${failed}${asideMark}${stampOf(now)}`);
+        await rename(host.paths.brain, failed);
+      }
+      await rename(backup, host.paths.brain);
+    } else if (!brainThere || !resumed) throw new Error("no copy");
     await chmod(host.paths.brain, 0o700);
     await writeBrainUnits(host.paths, release.command, filling !== undefined);
   } catch {
@@ -621,8 +850,47 @@ async function restoreCopy(
     return "stopped:no-answer";
   }
   await service(host, "start", brainRefreshTimer);
+  // What was set aside goes once the server runs, outside the stop.
+  await removeAside(host.paths.home, basename(failed));
   return result;
 }
+
+/** The infix of a failed brain set aside for removal after the start. */
+const asideMark = ".aside-";
+
+/** Removes the brains a way back set aside (`<name>.aside-<stamp>`), once
+ * the server runs: their removal never lengthens a stop. */
+async function removeAside(home: string, name: string): Promise<void> {
+  const entries = await readdir(home).catch(() => [] as string[]);
+  for (const entry of entries)
+    if (entry.startsWith(`${name}${asideMark}`))
+      await rm(join(home, entry), { recursive: true, force: true }).catch(
+        () => undefined,
+      );
+}
+
+/** The server and its timer started again with the brain as it was; only
+ * once systemd started it, the journal is settled (`settle`) and what the
+ * stop left (a partial or unused copy) removed, outside the stop. Where the
+ * start fails, the journal stays `stopping` and nothing is removed: the
+ * next run recovers it, starting the server first (`recoverAttempt`). */
+async function startThenRemove(
+  host: MoveHost,
+  leftover: string | undefined,
+  settle: () => Promise<void>,
+): Promise<boolean> {
+  const started = await service(host, "start", brainUnit);
+  await service(host, "start", brainRefreshTimer);
+  if (!started) return false;
+  await settle();
+  if (leftover !== undefined)
+    await rm(leftover, { recursive: true, force: true }).catch(() => undefined);
+  return true;
+}
+
+/** What a stop answers where its server did not start again: the journal
+ * is kept, and the next run recovers it. */
+const notStarted = "waits:start";
 
 /** An attempt a run left half way. `stopping`: the brain was not touched
  * (gbrain's steps begin only after `started`), so a partial copy goes, the
@@ -638,10 +906,17 @@ export async function recoverAttempt(
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider !== meaningPin.provider ||
-    (attempt.result !== "stopping" && attempt.result !== "started")
+    (attempt.result !== "stopping" &&
+      attempt.result !== "started" &&
+      attempt.result !== "restoring")
   )
     return null;
   const at = new Date(attempt.at);
+  // A way back a run began is finished for the reason it began with.
+  const reason =
+    attempt.result === "restoring"
+      ? (attempt.reason ?? "interrupted")
+      : "interrupted";
   if (attempt.phase === "filling") {
     // A window a run left: its own copy, the brain with the model before it.
     const window =
@@ -650,46 +925,56 @@ export async function recoverAttempt(
         : join(host.paths.home, attempt.windowBackup);
     const record = recorder(host, at);
     if (attempt.result === "stopping") {
-      if (window !== undefined)
-        await rm(window, { recursive: true, force: true }).catch(
-          () => undefined,
-        );
-      await service(host, "start", brainUnit);
-      await service(host, "start", brainRefreshTimer);
-      await record("filling");
-      return "waits:interrupted";
+      // The brain was not touched: the server first, then the copy it left.
+      return (await startThenRemove(host, window, () => record("filling")))
+        ? "waits:interrupted"
+        : notStarted;
     }
     if (state.release === undefined || window === undefined) {
       await record("stopped", "interrupted-unknown");
       await keepDown(host);
       return "stopped:interrupted-unknown";
     }
-    return restoreCopy(host, state.release, window, at, "interrupted", {
-      failedName: failedWindowName,
-      next: async () => {
-        await record("filling", "interrupted");
-        return "waits:interrupted";
+    return restoreCopy(
+      host,
+      state.release,
+      window,
+      at,
+      reason,
+      {
+        failedName: failedWindowName,
+        next: async () => {
+          await record("filling", "interrupted");
+          return "waits:interrupted";
+        },
       },
-    });
+      attempt.result === "restoring",
+    );
   }
   const backup =
     attempt.backup === undefined
       ? undefined
       : join(host.paths.home, attempt.backup);
   if (attempt.result === "stopping") {
-    if (backup !== undefined)
-      await rm(backup, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    await clearAttempt(host);
-    return "waits:interrupted";
+    // The brain was not touched: the server first, then the copy it left.
+    return (await startThenRemove(host, backup, () => clearAttempt(host)))
+      ? "waits:interrupted"
+      : notStarted;
   }
   if (state.release === undefined || backup === undefined) {
     await recorder(host, at)("stopped", "interrupted-unknown");
     await keepDown(host);
     return "stopped:interrupted-unknown";
   }
-  return restoreCopy(host, state.release, backup, at, "interrupted");
+  return restoreCopy(
+    host,
+    state.release,
+    backup,
+    at,
+    reason,
+    undefined,
+    attempt.result === "restoring",
+  );
 }
 
 /** The model server, and the brain switched on once. */
@@ -755,17 +1040,26 @@ export async function convergeMeaning(
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider === meaningPin.provider &&
-    (attempt.result === "restored" || attempt.result === "stopped")
+    (attempt.result === "stopped" ||
+      (attempt.result === "restored" && attempt.reason !== noTime))
   )
     return attempt.result === "restored"
       ? "held"
       : `stopped:${attempt.reason ?? "unknown"}`;
   if (attempt?.provider === meaningPin.provider && attempt.result === "filling")
     return fill(host, state.release, attempt);
+  // A small brain (a new Environment's) is switched on at once; a larger one
+  // waits for the person's night window.
+  const served = await pages(host);
+  const small = served !== null && served <= meaningSmallPages;
+  if ((await stopDeadline(host, small)) === null) return "waits:night";
   if (!(await host.idle())) return "waits-idle";
   const release = state.release;
   if (release === undefined) return "waits:release-unknown";
-  const now = (host.now ?? (() => new Date()))();
+  // The whole stop from here on ends by its deadline, read just before it.
+  const deadline = await stopDeadline(host, small);
+  if (deadline === null) return "waits:night";
+  const now = clockOf(host);
   const backup = join(host.paths.home, `.gbrain.bak-meaning-${stampOf(now)}`);
   const record = recorder(host, now);
   // The intent before the server stops: a run that dies from here on is
@@ -777,35 +1071,40 @@ export async function convergeMeaning(
     await clearAttempt(host);
     return "waits:not-stopped";
   }
-  try {
-    await cp(host.paths.brain, backup, {
-      recursive: true,
-      verbatimSymlinks: true,
-      preserveTimestamps: true,
-      errorOnExist: true,
-      force: false,
-    });
-    await chmod(backup, 0o700);
-  } catch {
-    await rm(backup, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    await clearAttempt(host);
-    return "waits:copy";
-  }
+  // The copy within what the stop leaves it. One that does not finish by
+  // then is ended, and a stop or a copy that took the time a window needs
+  // leaves nothing to compute in: nothing of the brain changed yet, so the
+  // server comes back as it was, and the next run tries again.
+  const copied = await copyStep(host, deadline, host.paths.brain, backup);
+  if (copied !== "copied")
+    return (await startThenRemove(host, backup, () => clearAttempt(host)))
+      ? `waits:${copied}`
+      : notStarted;
   await record("started");
-  const fallBack = (reason: string) =>
-    restoreCopy(host, release, backup, now, reason);
+  const fallBack = async (reason: string) => {
+    const back = await restoreCopy(host, release, backup, now, reason);
+    // A window with no time left is tried again by the next run.
+    return back === `restored:${noTime}` ? (`waits:${noTime}` as const) : back;
+  };
   // The pages as stored, read with the server stopped.
-  const stored = await storedPages(host, release.command);
+  const before = () => stepIn(host, deadline, meaningRestartReserveMs);
+  const stored = await storedPages(host, release.command, before());
   if (stored === null) return fallBack("page-count");
-  const refused = await switchOn(host, release.command);
+  const refused = await switchOn(host, release.command, before);
   if (refused !== null) return fallBack(refused);
   // The first window: until it is committed, the copy before is the way
   // back, and the server is stopped, so no page is written meanwhile.
-  const window = await embedWindow(host, release.command);
+  const plan = planOf(host, deadline);
+  if (plan === null) return fallBack(noTime);
+  const window = await embedWindow(host, release.command, plan);
   if (window.result === "failed") return fallBack(window.reason);
-  if ((await storedPages(host, release.command)) !== stored)
+  if (
+    (await storedPages(
+      host,
+      release.command,
+      stepIn(host, deadline, startReserveMs),
+    )) !== stored
+  )
     return fallBack("page-count");
   try {
     await writeBrainUnits(host.paths, release.command, true);
@@ -828,7 +1127,7 @@ export async function convergeMeaning(
     (await service(host, "daemon-reload")) &&
     (await service(host, "start", brainUnit));
   if (!started) return afterCommit(host, record, "start");
-  if ((await answers(host)) !== release.version)
+  if ((await answersBy(host, deadline.at)) !== release.version)
     return afterCommit(host, record, "no-answer");
   if (window.result === "done") return switchedOn(host, now);
   // Vectors are left: the server runs with the model and what is computed
@@ -896,7 +1195,14 @@ async function fill(
     await record("restored", "embed-windows");
     return "restored:embed-windows";
   }
+  // What is left waits for the night, unless one short window computes it.
+  const small =
+    attempt.remaining !== undefined && attempt.remaining <= meaningSmallChunks;
+  if ((await stopDeadline(host, small)) === null) return "waits:night";
   if (!(await host.idle())) return "waits:filling";
+  // The whole stop from here on ends by its deadline, read just before it.
+  const deadline = await stopDeadline(host, small);
+  if (deadline === null) return "waits:night";
   // A copy a run left after its window was committed is not the way back.
   await rm(window, { recursive: true, force: true }).catch(() => undefined);
   const inWindow = { phase: "filling" as const, windowBackup: windowName };
@@ -907,35 +1213,39 @@ async function fill(
     await record("filling", "not-stopped");
     return "waits:not-stopped";
   }
-  try {
-    await cp(host.paths.brain, window, {
-      recursive: true,
-      verbatimSymlinks: true,
-      preserveTimestamps: true,
-      errorOnExist: true,
-      force: false,
-    });
-    await chmod(window, 0o700);
-  } catch {
-    await rm(window, { recursive: true, force: true }).catch(() => undefined);
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    await record("filling", "copy");
-    return "waits:copy";
-  }
+  // The copy within what the stop leaves it; where it fails, does not finish
+  // or leaves no time for a window, the brain did not change, so the server
+  // comes back as it was, and the next run goes on.
+  const copied = await copyStep(host, deadline, host.paths.brain, window);
+  if (copied !== "copied")
+    return (await startThenRemove(host, window, () =>
+      record("filling", copied),
+    ))
+      ? `waits:${copied}`
+      : notStarted;
   await record("started", undefined, inWindow);
   // The pages as stored, with the server stopped (and so no writes).
-  const before = await storedPages(host, release.command);
-  const result =
+  const before = await storedPages(
+    host,
+    release.command,
+    stepIn(host, deadline, meaningRestartReserveMs),
+  );
+  const plan = before === null ? null : planOf(host, deadline);
+  const result: EmbedWindow =
     before === null
-      ? ({ result: "failed", reason: "page-count" } as const)
-      : await embedWindow(host, release.command);
+      ? { result: "failed", reason: "page-count" }
+      : plan === null
+        ? { result: "failed", reason: noTime }
+        : await embedWindow(host, release.command, plan);
   const counted = (await readBrainState(host.paths)).meaningAttempt;
-  const windows = (counted?.windows ?? 0) + 1;
+  // A window with no time left did not run: it counts neither as a window
+  // nor as one without progress.
+  const ran = !(result.result === "failed" && result.reason === noTime);
+  const windows = (counted?.windows ?? 0) + (ran ? 1 : 0);
   const progressed =
     result.result === "done" ||
     (result.result === "partial" && result.embedded > 0);
-  const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
+  const stalled = progressed ? 0 : (counted?.stalled ?? 0) + (ran ? 1 : 0);
   const back = (reason: string) =>
     restoreCopy(host, release, window, at, reason, {
       failedName: failedWindowName,
@@ -949,7 +1259,13 @@ async function fill(
       },
     });
   if (result.result === "failed") return back(result.reason);
-  if ((await storedPages(host, release.command)) !== before)
+  if (
+    (await storedPages(
+      host,
+      release.command,
+      stepIn(host, deadline, startReserveMs),
+    )) !== before
+  )
     return back("page-count");
   // Committed before the server starts: a run that dies from here on
   // never brings the window's copy back over pages written since; only a
@@ -963,7 +1279,7 @@ async function fill(
   });
   if (!(await service(host, "start", brainUnit)))
     return afterCommit(host, record, "start");
-  if ((await answers(host)) !== release.version)
+  if ((await answersBy(host, deadline.at)) !== release.version)
     return afterCommit(host, record, "no-answer");
   await rm(window, { recursive: true, force: true }).catch(() => undefined);
   if (result.result === "done") return switchedOn(host, at);

@@ -16036,6 +16036,82 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       - **Not changed:** the model, its pin and priority, the copy before the
         first window, and that gbrain's trust claim of pages from before
         trust tracking stays the owner's own step.
+    - **Amendment 2026-11-21: at night.** It follows the intermediate step
+      above, as Matěj decided on 2026-11-21.
+      - **When.** The windows run only in a night window the person chooses,
+        by default 02:00–05:00 in Prague's time. An Environment does not
+        know the person's time zone, so the choice carries it:
+        `lazurio brain night 01:00-04:30 --time-zone Europe/Prague`, shown
+        by `lazurio brain status`. A row in Settings comes later. The window
+        is where the zone's clock reads inside it, counted in real time: on
+        the night the clock skips an hour the window is that much shorter,
+        on the night it repeats one the repeated hour counts again. While
+        the Launchpad waits for the window it reads it again at least every
+        10 minutes, so a window the person moves counts that night. A
+        window is at least 30 minutes long; a shorter one is refused with
+        the reason, as no stop could compute in it.
+      - **How long.** In the night window one stop may last up to an hour,
+        never past the window's end, and only while Buddy is idle. The hour
+        is the whole stop as Lazurio runs it: stopping, the copy, the steps,
+        the computation, a way back where one is needed, and the start
+        after it.
+        - The copy runs in its own process with a limit: what leaves a
+          window its least and the server's start. A copy that does not
+          finish by then is ended and removed, the brain is as it was, and
+          the server starts again.
+        - A way back is a rename of the copy into place, on the same file
+          system, so it takes no time. The copy is the brain from before,
+          so nothing is lost by its being used. The failed brain is renamed
+          aside and kept once.
+        - The way back is journaled (`restoring`) before its renames, so a
+          run that dies between them is finished by the next one: a copy
+          still there is renamed into place, and a copy gone with a brain in
+          place was renamed already. Without that journal, a missing copy is
+          never taken as done.
+        - What a stop leaves (a copy ended at its limit, an earlier failed
+          brain set aside) is removed only once systemd started the server
+          again, so its removal never lengthens a stop. The journal is
+          settled only then too. Where the start fails, the journal stays
+          `stopping` and nothing is removed: the next run starts the server
+          first, then settles and removes.
+        - A copy a dead setup left running is ended with the other stray
+          writers before anything else (`./writers.ts`). Only the copy the
+          journal names while it says `stopping` counts, so a person's own
+          copy of the brain is never ended.
+        - The computation's budget is what is left of the stop after the
+          copy and the steps, less one batch to the model (10 minutes),
+          gbrain's own start (2 minutes) and the server's start (3 minutes).
+          An hour's stop thus computes for about 45 minutes.
+        - No stop starts with less than 20 minutes of the window left.
+          Where stopping or the copy took the time a window needs, the
+          server comes back as it was; where the steps after took it, the
+          copy comes back. Either way the window is tried again, in the
+          same start of the Launchpad, and it is no failure of the model.
+        - After a committed window, the server's answer is awaited until
+          the stop's end at most; a server that has not answered by then
+          was started all the same, and the next run starts one that does
+          not answer.
+        - **Not bounded by Lazurio:** how long systemd takes to stop or start
+          the server, and gbrain's own boot (seconds, measured). After a way
+          back the server's answer is awaited as before (#1134). It decides
+          whether the brain brought back runs: a brain that does not answer
+          is kept down for a person. Cutting that wait short would keep a
+          brain down that only boots slowly.
+        - Between stops the server runs for the pause as before. A
+          computation the night does not finish goes on the next night.
+      - **By day** nothing stops the memory for search by meaning. The one
+        exception is a small backlog that one short window (3 minutes)
+        computes: a brain of at most 25 pages before the first window (a
+        new or small Environment), or at most 100 chunks left after one.
+        Its stop usually lasts under 4 minutes, and up to 18 minutes as a
+        whole on a heavily loaded Environment: the bound accepted for the
+        short windows. It holds at any hour, also at a night window's end.
+      - **What a person notices.** Search by words works at all times. A
+        page written while search by meaning is on is found by meaning at
+        once, because the server computes its vectors as it is written
+        (measured on 2026-11-21). The night is for the first computation and
+        for what is left. While a night stop lasts, the memory does not
+        answer, also not for agents' nightly work.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.
