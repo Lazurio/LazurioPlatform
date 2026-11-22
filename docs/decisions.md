@@ -16058,7 +16058,9 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         as before. A window that exits 0 counts as the last only where
         gbrain's own preview then says nothing is left: gbrain's heal of
         pages stored without chunks may stop at the budget, exit 0 and set
-        no reason.
+        no reason. The preview gets a budget longer than the limit Lazurio
+        ends it at, so one that answers has looked at every page; one that
+        does not answer is not taken for done.
       - **The facts.** After the pages, the facts the memory remembered get
         their vectors the same way, in windows handed to the running server
         (`embed --stale --facts` for the source `default`, at no cost).
@@ -16068,10 +16070,11 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         stop (`embeddings enable` with the model it already has); a brain
         switched on by this pin has it from the switch. That stop is on
         record until the server answers again: a run that dies in it leaves
-        the next run to start the server first, a server that does not come
-        back is never reported as done, and setup at the Launchpad's start
-        runs again after a run without an answer (three times in a row at
-        most). Two fact windows in a row without progress give the facts up,
+        the next run to start the server first, a start that fails keeps the
+        record and ends the run with a wait the Launchpad repeats after a
+        pause, a server that does not come back is never reported as done,
+        and setup at the Launchpad's start runs again after a run without an
+        answer (three times in a row at most). Two fact windows in a row without progress give the facts up,
         facts over the model's input limit (skipped by gbrain, never
         truncated) end them incomplete, and the pages keep search by meaning
         either way.

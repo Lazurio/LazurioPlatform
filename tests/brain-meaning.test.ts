@@ -21,6 +21,7 @@ import {
   meaningEmbedLimitMs,
   meaningMaxStalled,
   meaningMaxWindows,
+  meaningPreviewLimitMs,
   meaningStepLimitMs,
   meaningWindowMs,
   recoverAttempt,
@@ -118,6 +119,9 @@ async function stand(
     /** The start of the server (1 is the first) that systemd reports as
      * failed though the server runs: an ambiguous start. */
     startFailsAt?: number;
+    /** The starts of the server (1 is the first) that fail for real: the
+     * server stays down and never answers. */
+    deadStarts?: readonly number[];
     /** Buddy works for the first questions, up to this one. */
     busyUntil?: number;
     /** What each window of the facts' vectors answers, in turn (the last
@@ -199,8 +203,9 @@ async function stand(
         world.server = false;
       if (name === brainUnit && verb === "start") {
         atStart.push((await readBrainState(paths)).meaningAttempt);
-        world.server = true;
         starts += 1;
+        if (options.deadStarts?.includes(starts)) return done(1);
+        world.server = true;
         // The server runs, and may take writes, though systemd says no.
         if (starts === options.startFailsAt) return done(1);
       }
@@ -210,6 +215,8 @@ async function stand(
     return done(0);
   };
   const envs: Readonly<Record<string, string>>[] = [];
+  const previews: { env: Readonly<Record<string, string>>; timeout: number }[] =
+    [];
   const run: ToolRunner = async (argv, _timeout, env) => {
     calls.push([...argv]);
     // The facts' windows: their own answers, apart from the pages' windows.
@@ -228,7 +235,10 @@ async function stand(
         stderr: "",
       };
     }
-    if (argv[1] === "embed") envs.push(env);
+    // The windows' environments; the preview after a window has its own.
+    if (argv[1] === "embed" && !argv.includes("--dry-run")) envs.push(env);
+    if (argv[1] === "embed" && argv.includes("--dry-run"))
+      previews.push({ env, timeout: _timeout });
     const ok = { exitCode: 0, stdout: "", stderr: "" };
     if (argv[1] === "embeddings") {
       const dims = argv[argv.indexOf("--embedding-dimensions") + 1];
@@ -387,7 +397,7 @@ async function stand(
     waitMs: 1,
     fetch: async () => new Response("never asked", { status: 500 }),
   };
-  return { host, paths, calls, world, command, envs, atStart };
+  return { host, paths, calls, world, command, envs, previews, atStart };
 }
 
 const unit = (paths: ReturnType<typeof brainPaths>, name: string) =>
@@ -761,6 +771,42 @@ describe("the vectors in short windows, computed by the running server", () => {
     expect(
       calls.filter((c) => c[1] === "embed" && c.includes("--dry-run")),
     ).toHaveLength(2);
+  });
+
+  test("the preview cannot stop at its own budget: it gets a longer one than the limit it is ended at, and one that ends at that limit or answers no count is not done", async () => {
+    // gbrain's dry run, like the run, stops between steps at its budget and
+    // reports no budget stop (Lazurio/gbrain#3): a zero from a preview that
+    // ran out of budget would be a zero without looking.
+    const answered = await stand({ windows: [{ exit: 0, embedded: 46 }] });
+    expect(await convergeMeaning(answered.host)).toBe("on");
+    expect(answered.previews).toHaveLength(1);
+    const [preview] = answered.previews;
+    expect(preview?.timeout).toBe(meaningPreviewLimitMs);
+    expect(Number(preview?.env.GBRAIN_EMBED_TIME_BUDGET_MS)).toBeGreaterThan(
+      meaningPreviewLimitMs,
+    );
+    // A preview Lazurio ended at its limit, or that answered no count: the
+    // window is not the last, and the filling goes on.
+    for (const preview of ["timeout", "no-count"] as const) {
+      const s = await stand({ windows: [{ exit: 0, embedded: 46 }] });
+      const base = s.host.run;
+      const host = {
+        ...s.host,
+        run: async (
+          argv: readonly string[],
+          timeout: number,
+          env: Readonly<Record<string, string>>,
+        ) => {
+          if (argv[1] === "embed" && argv.includes("--dry-run")) {
+            if (preview === "timeout") throw new Error("ended at its limit");
+            return { exitCode: 0, stdout: '{"dryRun":true}', stderr: "" };
+          }
+          return base(argv, timeout, env);
+        },
+      } as typeof s.host;
+      expect(await convergeMeaning(host)).toBe("waits:filling");
+      expect((await readBrainState(s.paths)).meaning).toBeUndefined();
+    }
   });
 
   test("a window gbrain stops at its budget leaves the rest to the next runs, one window each; no window stops the server", async () => {
@@ -1159,15 +1205,58 @@ describe("the facts' vectors, after the pages'", () => {
 
   test("a server that does not come back after the facts' stop is never reported as done, even where enabling fails", async () => {
     for (const otherVectors of [false, true]) {
-      const s = await onBefore({ startFailsAt: 1, otherVectors });
+      // The start after the stop and the next two recoveries' starts fail
+      // for real; the fourth start works.
+      const s = await onBefore({ deadStarts: [1, 2, 3], otherVectors });
       expect(await convergeMeaning(s.host)).toBe("waits:start");
+      expect(s.world.server).toBe(false);
       const facts = (await readBrainState(s.paths)).meaningFacts;
       expect(facts?.done).toBeUndefined();
       expect(facts?.reason).toBeUndefined();
-      // The stop stays on record, so the next run's recovery starts the server.
+      // The stop stays on record while the server does not answer, through
+      // every recovery that fails to start it: each a wait to repeat.
       expect(facts?.stopping).toBeDefined();
+      for (let i = 0; i < 2; i++) {
+        expect(await recoverAttempt(s.host)).toBe("waits:facts-start");
+        expect(
+          (await readBrainState(s.paths)).meaningFacts?.stopping,
+        ).toBeDefined();
+      }
+      // Once a start works, the record goes and the facts go on.
       expect(await recoverAttempt(s.host)).toBe("waits:facts-interrupted");
+      expect(s.world.server).toBe(true);
+      expect(
+        (await readBrainState(s.paths)).meaningFacts?.stopping,
+      ).toBeUndefined();
     }
+  });
+
+  test("a stop that does not go through clears its record only once the server answers", async () => {
+    const s = await onBefore({ deadStarts: [1] });
+    // systemd reports the stop as failed, though it half happened: the
+    // server is down, and its first start fails too.
+    const stubborn = {
+      ...s.host,
+      service: async (...args: Parameters<typeof s.host.service>) => {
+        const [argv] = args;
+        if (argv.includes("stop") && argv.includes(brainUnit)) {
+          s.world.server = false;
+          return { exitCode: 1, stdout: "", stderr: "" };
+        }
+        return s.host.service(...args);
+      },
+    } as typeof s.host;
+    expect(await convergeMeaning(stubborn)).toBe("waits:start");
+    expect(s.world.server).toBe(false);
+    expect(
+      (await readBrainState(s.paths)).meaningFacts?.stopping,
+    ).toBeDefined();
+    // The next run's recovery starts it; then the record goes.
+    expect(await recoverAttempt(s.host)).toBe("waits:facts-interrupted");
+    expect(s.world.server).toBe(true);
+    expect(
+      (await readBrainState(s.paths)).meaningFacts?.stopping,
+    ).toBeUndefined();
   });
 });
 

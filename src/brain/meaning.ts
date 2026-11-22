@@ -342,6 +342,13 @@ export const meaningMaxStalled = 2;
 /** How long any other of gbrain's steps here may take. */
 export const meaningStepLimitMs = 15 * 60_000;
 
+/** How long Lazurio lets gbrain's preview after a window run (a dry run
+ * computes no vector: it counts), and the budget it gives that preview:
+ * longer than the limit, so the preview never stops at its budget, and one
+ * that answers has looked at every page (`embedWindow`). */
+export const meaningPreviewLimitMs = meaningStepLimitMs;
+export const meaningPreviewBudgetMs = 2 * meaningPreviewLimitMs;
+
 /** gbrain's exit code where an embedding stopped at its budget with chunks
  * left (`BUDGET_STOP_EXIT_CODE`, src/core/exit-codes.ts of the pin). */
 const budgetStopExit = 11;
@@ -412,12 +419,24 @@ export async function embedWindow(
     // Exit 0 is not "nothing left": gbrain's heal of pages stored without
     // chunks may stop at the budget with pages left, still exit 0 and set no
     // reason (Lazurio/gbrain#3). Only gbrain's own preview, handed to the
-    // running server like the window, says nothing is left.
-    const preview = await gbrainOf(
-      host,
-      command,
-    )(["embed", "--stale", "--dry-run", "--json"]);
-    const left = preview.ok ? preview.out?.would_embed : undefined;
+    // running server like the window, says nothing is left, and only where
+    // it could not stop at a budget either (its dry run reports no budget
+    // stop): its budget is longer than the limit Lazurio ends it at, so a
+    // preview that answers at all has looked at every page.
+    const preview = await host
+      .run(
+        [command, "embed", "--stale", "--dry-run", "--json"],
+        meaningPreviewLimitMs,
+        {
+          ...gbrainEnv(host),
+          GBRAIN_EMBED_TIME_BUDGET_MS: String(meaningPreviewBudgetMs),
+        },
+      )
+      .catch(() => "timeout" as const);
+    const left =
+      preview !== "timeout" && preview.exitCode === 0
+        ? printed(preview.stdout)?.would_embed
+        : undefined;
     if (left === 0) return { result: "done", embedded };
     return {
       result: "partial",
@@ -669,16 +688,12 @@ export async function recoverAttempt(
   const state = await readBrainState(host.paths);
   // The facts' one stop (`convergeFacts`) a run left: `embeddings enable`
   // either went through or not, and the brain is the brain either way, so
-  // only the server comes back; the next idle run goes on.
+  // only the server comes back; the next idle run goes on. The record stays
+  // until the server answers: a start that fails waits (`facts-start`, a
+  // run the Launchpad repeats after a pause), never cleared on a hope.
   if (state.meaningFacts?.stopping !== undefined) {
-    await service(host, "start", brainUnit);
-    await service(host, "start", brainRefreshTimer);
-    const current = await readBrainState(host.paths);
-    const { stopping: _stop, ...kept } = current.meaningFacts ?? {};
-    await writeBrainState(host.paths, {
-      ...current,
-      meaningFacts: Object.freeze(kept),
-    });
+    if (!(await factsServerBack(host, state.release)))
+      return "waits:facts-start";
     return "waits:facts-interrupted";
   }
   const attempt = state.meaningAttempt;
@@ -946,18 +961,11 @@ async function convergeFacts(
   if (release === undefined) return "on";
   if (!(await host.idle())) return "waits:facts";
   const now = (host.now ?? (() => new Date()))().toISOString();
-  const save = async (
-    next: NonNullable<BrainState["meaningFacts"]>,
-    endStop = false,
-  ) => {
+  const save = async (next: NonNullable<BrainState["meaningFacts"]>) => {
     const current = await readBrainState(host.paths);
-    const { stopping: _stop, ...kept } = current.meaningFacts ?? {};
     await writeBrainState(host.paths, {
       ...current,
-      meaningFacts: Object.freeze({
-        ...(endStop ? kept : current.meaningFacts),
-        ...next,
-      }),
+      meaningFacts: Object.freeze({ ...current.meaningFacts, ...next }),
     });
   };
   const stalledAfter = async (code: string, progressed: boolean) => {
@@ -976,9 +984,9 @@ async function convergeFacts(
     // anything else (`recoverAttempt`).
     await save({ stopping: now });
     if (!(await stoppedForSure(host))) {
-      await service(host, "start", brainUnit);
-      await service(host, "start", brainRefreshTimer);
-      await save({}, true);
+      // The stop may have half happened: the record goes only once the
+      // server answers.
+      if (!(await factsServerBack(host, release))) return "waits:start";
       return "waits:not-stopped";
     }
     const enabled = await gbrain([
@@ -990,22 +998,12 @@ async function convergeFacts(
       String(meaningPin.dimensions),
       "--json",
     ]);
-    const started =
-      (await service(host, "start", brainUnit)) &&
-      (await answers(host)) === release.version;
-    await service(host, "start", brainRefreshTimer);
+    if (enabled.ok) await save({ plane: now, stalled: 0 });
     // A server that did not come back is never reported as done: the run
-    // waits, and the next one starts it (setup starts a brain that does not
-    // answer), whatever the enable did.
-    if (!started) {
-      // `stopping` stays: the server is still down, and the next run's
-      // recovery starts it before anything else.
-      if (enabled.ok) await save({ plane: now, stalled: 0 });
-      return "waits:start";
-    }
-    await save({}, true);
+    // waits with `stopping` kept, and the next run's recovery starts it
+    // before anything else, whatever the enable did.
+    if (!(await factsServerBack(host, release))) return "waits:start";
     if (!enabled.ok) return stalledAfter("facts-plane", false);
-    await save({ plane: now, stalled: 0 });
   }
   const ran = await gbrain([
     "embed",
@@ -1052,6 +1050,31 @@ async function convergeFacts(
     ran.exit === null ? "facts-limit" : "facts",
     embedded > 0,
   );
+}
+
+/** After the facts' one stop: the server and its refresh timer started, and
+ * the record of the stop (`meaningFacts.stopping`) removed only once the
+ * server answers with the pinned release's version. False where it does
+ * not: the record stays for the next run. */
+async function factsServerBack(
+  host: MoveHost,
+  release: Release | undefined,
+): Promise<boolean> {
+  await service(host, "start", brainUnit);
+  await service(host, "start", brainRefreshTimer);
+  const answered = await answers(host);
+  if (
+    answered === null ||
+    (release !== undefined && answered !== release.version)
+  )
+    return false;
+  const current = await readBrainState(host.paths);
+  const { stopping: _stop, ...kept } = current.meaningFacts ?? {};
+  await writeBrainState(host.paths, {
+    ...current,
+    meaningFacts: Object.freeze(kept),
+  });
+  return true;
 }
 
 /** The brain of the last window that failed, kept for a person (one,
