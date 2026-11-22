@@ -1612,12 +1612,11 @@ describe("Aktualizovat: the run's rows per module", () => {
   // The open page's refresher with a scripted Launchpad: each read answers
   // the next of `answers` (null: refused or invalid), retries wait on a
   // hand-run timer.
-  const refresherWorld = (have: boolean, answers: (Catalog | null)[]) => {
+  const refresherWorld = (answers: (Catalog | null)[]) => {
     const reads: number[] = [];
     const applied: Catalog[] = [];
     const timers: (() => void)[] = [];
     const refresher = catalogRefresher({
-      have,
       read: async () => {
         reads.push(reads.length);
         return answers.shift() ?? null;
@@ -1640,6 +1639,11 @@ describe("Aktualizovat: the run's rows per module", () => {
       running: false,
       lines: [sharedModule("mission-control", { result: "materialized", to })],
     }) as unknown as UpdateJob;
+  const running = {
+    id: "run",
+    running: true,
+    lines: [sharedModule("mission-control", { step: "checking" })],
+  } as unknown as UpdateJob;
   const catalogNamed = (title: string): Catalog => ({
     kind: "catalog",
     organizations: [
@@ -1654,14 +1658,18 @@ describe("Aktualizovat: the run's rows per module", () => {
       },
     ],
   });
+  const titleOf = (read: Catalog | undefined) =>
+    read?.organizations[0]?.guests?.[0]?.display?.title;
 
-  test("an open page without a boot catalog reads one, also when the run is already over and polling has stopped (the review of #1187)", async () => {
-    const world = refresherWorld(false, [catalogNamed("Mission Control v3")]);
-    // A completed run is the page's only reading of the update.
+  test("an open page reads the catalog on its first reading of the update whatever its boot document carried: a synchronization may have ended between the two (the review of #1187)", async () => {
+    // The boot catalog was read before a run cloned the shared Module and
+    // ended; the page's first reading is that completed run, and polling
+    // stops after it.
+    const world = refresherWorld([catalogNamed("Mission Control v3")]);
     world.refresher.observe(finished(sha("a")));
     await world.settle();
     expect(world.reads.length).toBe(1);
-    expect(world.applied.length).toBe(1);
+    expect(titleOf(world.applied[0])).toBe("Mission Control v3");
     const read = world.applied[0];
     if (read === undefined) throw new Error("no catalog");
     expect(shown(finished(sha("a")), cs, read)[0]?.[0]).toBe(
@@ -1671,66 +1679,72 @@ describe("Aktualizovat: the run's rows per module", () => {
     world.refresher.observe(finished(sha("a")));
     await world.settle();
     expect(world.reads.length).toBe(1);
-    // Without any run at all, too.
-    const idle = refresherWorld(false, [catalogNamed("Mission Control v3")]);
-    idle.refresher.observe(null);
-    await idle.settle();
-    expect(idle.applied.length).toBe(1);
+    // Without any run at all, and with a run under way, too.
+    for (const job of [null, running]) {
+      const other = refresherWorld([catalogNamed("Mission Control v3")]);
+      other.refresher.observe(job);
+      await other.settle();
+      expect(other.applied.length).toBe(1);
+    }
   });
 
   test("a refused or invalid catalog read is retried until one succeeds, also after the run ended, and the change is recorded only then (the review of #1187)", async () => {
-    const world = refresherWorld(true, [
+    const world = refresherWorld([
+      catalogNamed("Mission Control"),
       null,
       null,
       catalogNamed("Mission Control v3"),
     ]);
-    const running = {
-      id: "run",
-      running: true,
-      lines: [sharedModule("mission-control", { step: "checking" })],
-    } as unknown as UpdateJob;
-    // The boot catalog stands for the first reading: nothing read.
+    // The first reading: one read, which succeeds.
     world.refresher.observe(running);
     await world.settle();
-    expect(world.reads.length).toBe(0);
+    expect(world.reads.length).toBe(1);
+    expect(world.applied.length).toBe(1);
     // The run clones it and ends; the page stops polling after this.
     world.refresher.observe(finished(sha("a")));
     await world.settle();
-    expect(world.reads.length).toBe(1);
-    expect(world.applied.length).toBe(0);
-    // The same reading again does not lose the owed read: one retry waits.
+    expect(world.reads.length).toBe(2);
+    expect(world.applied.length).toBe(1);
+    // The same reading again while a retry waits asks nothing more.
     world.refresher.observe(finished(sha("a")));
     await world.settle();
+    expect(world.reads.length).toBe(2);
     expect(world.timers.length).toBe(1);
     // The timer retries; refused again, it waits again; then it succeeds.
     await world.tick();
-    expect(world.reads.length).toBe(2);
+    expect(world.reads.length).toBe(3);
     expect(world.timers.length).toBe(1);
     await world.tick();
-    expect(world.reads.length).toBe(3);
-    expect(world.applied.length).toBe(1);
+    expect(world.reads.length).toBe(4);
+    expect(world.applied.length).toBe(2);
     expect(world.timers.length).toBe(0);
     // Recorded now: the same change asks nothing more.
     world.refresher.observe(finished(sha("a")));
     await world.settle();
-    expect(world.reads.length).toBe(3);
+    expect(world.reads.length).toBe(4);
     // A retry that fell due while the page was hidden (its timer ran without
     // trying): shown again, it tries now, and a refusal waits again.
-    const hidden = refresherWorld(true, [null, null, catalogNamed("Clients")]);
+    const hidden = refresherWorld([
+      catalogNamed("Mission Control"),
+      null,
+      null,
+      catalogNamed("Clients"),
+    ]);
     hidden.refresher.observe(running);
+    await hidden.settle();
     hidden.refresher.observe(finished(sha("a")));
     await hidden.settle();
-    expect(hidden.reads.length).toBe(1);
+    expect(hidden.reads.length).toBe(2);
     hidden.timers.shift();
     hidden.refresher.retry();
     await hidden.settle();
-    expect(hidden.reads.length).toBe(2);
+    expect(hidden.reads.length).toBe(3);
     expect(hidden.timers.length).toBe(1);
     await hidden.tick();
-    expect(hidden.applied.length).toBe(1);
+    expect(titleOf(hidden.applied.at(-1))).toBe("Clients");
     // A change seen while a read is under way is read for after it.
-    const racing = refresherWorld(true, [
-      catalogNamed("Mission Control v3"),
+    const racing = refresherWorld([
+      catalogNamed("Mission Control"),
       catalogNamed("Plans v4"),
     ]);
     racing.refresher.observe(running);
@@ -1739,9 +1753,7 @@ describe("Aktualizovat: the run's rows per module", () => {
     await racing.settle();
     await racing.settle();
     expect(racing.reads.length).toBe(2);
-    expect(
-      racing.applied.at(-1)?.organizations[0]?.guests?.[0]?.display?.title,
-    ).toBe("Plans v4");
+    expect(titleOf(racing.applied.at(-1))).toBe("Plans v4");
   });
 
   // Every line of a row: its first and its further findings (the review of

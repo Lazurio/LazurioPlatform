@@ -1620,18 +1620,19 @@ export function catalogChangeKey(job: UpdateJob | null): string {
 }
 
 /** How an open page keeps the catalog it names Modules by current (the
- * reviews of #1187). It reads the catalog when it has none (a boot document
- * without one: slow or failed), and again whenever a run's
- * `catalogChangeKey` differs from the change its catalog reflects; the boot
- * catalog reflects the first reading of a run. A change is recorded only once
- * a read succeeds: a refused, timed-out or invalid answer is retried after
- * `retryMs` until one succeeds, whether or not a run is still under way, and
- * a change seen while a read is under way is read for after it. No DOM: the
- * page gives it its reader, what to do with a catalog and a timer. */
+ * reviews of #1187). It reads the catalog on its first reading of the update,
+ * whatever the boot document carried: the boot catalog is read before that
+ * reading, and a synchronization may clone, rename or revoke a shared Module
+ * in between and end, with nothing to prove the two describe the same state.
+ * It reads again whenever a run's `catalogChangeKey` differs from the change
+ * its catalog reflects. A change is recorded only once a read succeeds: a
+ * refused, timed-out or invalid answer is retried after `retryMs` until one
+ * succeeds, whether or not a run is still under way, and a change seen while
+ * a read is under way is read for after it. No DOM: the page gives it its
+ * reader, what to do with a catalog and a timer; until a read succeeds the
+ * page keeps its boot catalog, if any. */
 export function catalogRefresher(
   options: Readonly<{
-    /** Whether the page already has a catalog (its boot document's). */
-    have: boolean;
     read: () => Promise<Catalog | null>;
     apply: (catalog: Catalog) => void;
     /** Schedules the next try; the page skips it while it is hidden and
@@ -1645,12 +1646,13 @@ export function catalogRefresher(
   /** Tries again now if a read is still owed (the page shown again). */
   retry: () => void;
 }> {
-  let have = options.have;
+  // The change the page's catalog reflects (null: none read yet) and the one
+  // it needs a catalog for (null: no reading of the update yet).
   let reflects: string | null = null;
-  let wanted: string | null = have ? null : "";
+  let wanted: string | null = null;
   let reading = false;
   let waiting = false;
-  const owed = () => wanted !== null && (!have || wanted !== reflects);
+  const owed = () => wanted !== null && wanted !== reflects;
   const attempt = async (): Promise<void> => {
     if (reading || !owed()) return;
     reading = true;
@@ -1663,7 +1665,6 @@ export function catalogRefresher(
     }
     reading = false;
     if (read !== null) {
-      have = true;
       reflects = target;
       options.apply(read);
     }
@@ -1682,12 +1683,6 @@ export function catalogRefresher(
   return {
     observe(job) {
       const change = catalogChangeKey(job);
-      // The boot catalog stands for the page's first reading of a run.
-      if (have && reflects === null && wanted === null) {
-        reflects = change;
-        wanted = change;
-        return;
-      }
       // The same change while a retry waits for its timer asks nothing more;
       // a new one is read for now.
       const changed = change !== wanted;

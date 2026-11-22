@@ -102,9 +102,10 @@ let locale: "cs" | "en" = boot?.locale ?? browserLanguage(navigator.language);
 let copy = newTabCopy(locale);
 let shell: Shell | null = boot?.shell ?? null;
 const entry = boot?.entry ?? null;
-// The catalog the page names Modules by: the boot document's, read when it
-// has none and again when a run changes a checkout or ends, retried until a
-// read succeeds (`catalogRefresher`).
+// The catalog the page names Modules by: the boot document's until the
+// first read, which follows the page's first reading of the update, then read
+// again when a run changes a checkout or ends, retried until a read succeeds
+// (`catalogRefresher`).
 let catalog = boot?.catalog ?? null;
 let look = catalogModuleLook(catalog);
 let offered = suggestions(catalog, entry);
@@ -1069,7 +1070,6 @@ async function readUpdate(): Promise<void> {
  * changed gets its name here as in Apps. A refused or unreadable answer
  * keeps the catalog the page has, and the refresher tries again. */
 const catalogs = catalogRefresher({
-  have: catalog !== null,
   read: async () => {
     const answer = await post("/api/catalog", {});
     return answer.status === 200 ? parseCatalog(answer.value) : null;
