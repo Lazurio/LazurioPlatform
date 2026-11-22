@@ -86,8 +86,10 @@ rollout asks for the evidence the Organization's release mode needs.
   a version, never its internal files, and says so plainly when the replica is
   missing.
 - **V4, a database in Server Services.** As V3, over the same data port
-  (`store`). DEV uses a local database with preview data and never a grant to
-  the Application's database. A migration deployed
+  (`store`). STAGING and DEV work on their Environment's branch in Dolt, never
+  on the production branch; only someone who has the Module gets a branch, and
+  for an Application with personal data the Organization Admin may switch the
+  branches off (decision 0249, addendum of 2026-11-22). A migration deployed
   automatically only expands the schema; one that drops or narrows goes only
   through an approved release with a restore from backup as the way back.
 

@@ -356,8 +356,9 @@ Application User (the module kit's `appRole` `admin` and `user`).
   included (0249, addendum of 2026-11-22). Access to an application never gives
   access to its Module.
 - **Availability.** The person on whose Environment STAGING runs
-  may make it available to the Organization, as before; whether this sharing ends
-  once the Module has its Application is open in decision 0249. People with an active membership of the
+  may make it available to the Organization, as before, until the Module has its
+  Application; from then on STAGING is no longer shared with people from other
+  Environments (decision 0249, addendum of 2026-11-22). People with an active membership of the
   Organization and a role see it in Apps of their Launchpad, or on their Lazurio
   account without an Environment, and the gateway admits them to that application
   only (see app-only entry below). The target is the Application the Organization

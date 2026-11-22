@@ -53,9 +53,10 @@ request what it could not verify.
   Module and Application.
 - **DEV, STAGING, PROD**: the three versions of one Module's app (decision 0249,
   addendum of 2026-11-22). **DEV** is a worktree's development server on a
-  loopback address in the Environment browser, one agent's change in progress,
-  with its own trial copy of the data. **STAGING** is the built version from
-  `main` in an Environment, opened from the ⋯ menu of the Module's tile. **PROD**
+  loopback address in the Environment browser, one agent's change in progress;
+  its writes stay local. **STAGING** is the built version from `main` in an
+  Environment, opened from the ⋯ menu of the Module's tile. Both work on their
+  Environment's branch of the data. **PROD**
   is the Application on the application host, opened by clicking the tile.
   Earlier texts call STAGING the development version.
 - **Generation**: where a Module's data are, V0 to V4 ([App generations](#app-generations)).
@@ -119,7 +120,7 @@ and manifests (`guests`, `home_organization`, `repository_db_mount`) keep their 
 | `biome.json` | lint and format, in the App or at the Module root | each App |
 | `README.md`, `AGENTS.md` | what the Module does and how to develop it; the rules for agents | always |
 | `.github/workflows/` | the Module's CI | always |
-| `.agents/skills/` | the Module's own procedures for agents, those that relate to this Module (decision 0249, addendum of 2026-11-22) | when the Module has such procedures |
+| `.agents/skills/` | the Module's own procedures for agents, those that relate to this Module; a person who has only the Application gets them through its MCP server (decision 0249, addendum of 2026-11-22) | when the Module has such procedures |
 | `db/` | the Module's repository-db data, a checkout of its own, ignored by the Module's Git | a Module with data |
 
 An App never lives at the Module root. A Module without an App has
@@ -771,24 +772,38 @@ One Module's app comes in three versions:
 - **STAGING** is the built version from `main` in an Environment, for the people
   who build the Module and their agents, not necessarily the version people have.
   It is opened from the ⋯ menu of the tile, and it runs the build, not a
-  development server.
+  development server. It writes to its Environment's branch of the data.
 - **DEV** is a worktree's development server on a loopback address in the
-  Environment browser: one agent's change in progress.
+  Environment browser: one agent's change in progress, on its Environment's
+  branch of the data, with writes that stay local.
 
 DEV and STAGING have a frame with a label, "DEV" or "STAGING", drawn by Buddy's
-overlay; PROD has neither, and Buddy is available in all three (decisions 0180,
-0248). The colour of that frame is decided with the prototype.
+overlay; PROD has neither, and Buddy is available in all three, in PROD through
+the overlay the application host's gateway adds (decisions 0180, 0248). Red and
+blue keep saying whose Environment it is; the colour for the person's own
+Environment is decided with the prototype.
+
+**Which Modules are Applications.** The application host derives them from the
+Organization's module manifest: a Module with an app in the manifest that passes
+`lazurio module readiness` and has passing checks on `main` is deployed by
+itself, and the Organization Admin may stop it. No hand-written entry lists the
+Applications; the Deployment Repo keeps only secrets, the server's services,
+switching an Application off, the release step and the host's capacity.
+Becoming an Application is no conversion of its own: it happens with the
+conversion to a new generation (decision 0249, addendum of 2026-11-22).
 
 **Who enters.** Whoever has the Module enters its Application: a Module Reader as
 an Application User, a Module Contributor and a Module Maintainer as an Application
 Admin, by the Module roles Lazurio holds (reading a public repository is no Module
 Reader role). Roles given in the Application to a person, a Team or the whole
 Organization add to that, and the higher role holds. No Application admits the
-whole Organization by default, a read-only one included: who sees which
-Application is set in the Organization overview (decision 0249, addendum of
-2026-11-22). For one Application the
+whole Organization by default, a read-only one included: the Organization Admin
+sets who sees which Application in the Organization overview (decision 0249,
+addendum of 2026-11-22). Once a Module has its Application, its STAGING is no
+longer shared with people from other Environments. For one Application the
 Organization Admin may switch the entry through the Module off ("application roles
-only"); then only roles given in the Application decide. Access to an Application
+only"); then only roles given in the Application decide, and the Organization
+Admin gives them. Access to an Application
 never gives access to the Module. The App itself learns only the application role,
 through `appAccess`; how the role was derived is Lazurio Auth's (decisions 0231,
 0249). Until Auth itself holds the Module roles, a person enters the Application only
@@ -796,18 +811,17 @@ through a role given in it or the Organization Admin role; having the whole of a
 Environment makes someone Application Admin only of the STAGING running there,
 never of the Application on the application host.
 
-**A new version.** By default what is on `main` goes to PROD by itself. A release
-step between STAGING and PROD, a release approved on GitHub with a version number
-and release notes, is a setting of the single Module, whatever its generation,
-and the Owners of the Organization set it (decision 0249, addendum of
-2026-11-22). The setting never lives in the Module's repository, where anyone who
-merges into the Module could switch it off. *Proposed:* it is recorded with its
-approvers in the Deployment Repo (decision 0245) and shown in the Organization
-overview. Every rollout keeps its Plan, Permit, readback and evidence for the
-exact commit (decision 0205). Who approves a release where the step is on is
-open in 0249; the proposed safeguards of an automatic deployment are green checks
-on the merged commit, a backup of the data before the switch, and the new
-version switched to only when its health is good. A Module is built so that this works: one
+**A new version.** By default what is on `main` goes to PROD by itself, with
+passing checks on the merged commit, a backup of the data before the switch, and
+a return to the previous version when the new one does not start. A release step
+between STAGING and PROD, a release approved on GitHub with a version number and
+release notes, is a setting of the single Module, whatever its generation. The
+Owners of the Organization switch it on, so it never lives in the Module's
+repository, where anyone who merges into the Module could switch it off; it is
+recorded with the Owners and shown in the Organization overview. Where it is on,
+the Module Maintainer releases, unless an Owner names someone else for that
+Module (decision 0249, addendum of 2026-11-22). Every rollout keeps its Plan,
+Permit, readback and evidence for the exact commit (decision 0205). A Module is built so that this works: one
 process, deep health, and in `app/v4` migrations that only expand. While the
 two versions share the same data, only one of them writes. In the host's
 proposal (Machines#1356) the first slice, R1, stops the old version and then
@@ -845,50 +859,41 @@ or any other value it neither writes, pulls nor publishes, by the one rule
 [Effects and publication](#effects-and-publication).
 
 **Writing without the variable** (decided, decision 0249, addendum of
-2026-11-22). The target is that a Module's data are written only in the
-Application: people in PROD, agents through its MCP server, and DEV writes to
-its own trial copy. What STAGING does with data then is *under discussion*
-(decision 0249, addendum of 2026-11-22):
+2026-11-22). Only the Application writes production data: people in PROD,
+agents through its MCP server. A Module that has no live Application yet keeps
+writing in the Environment as today until it is switched over. Until then a
+missing `LAZURIO_RUNTIME_DATA_WRITER` means STAGING or DEV in an Environment: only
+the entries `local` and `environment` write, and so does the data sync host
+itself (at start, in the background and after their requests); a request from
+the entry `app` (a person who has only the application) only reads and syncs
+nothing, and its write is refused. A runtime that states
+`LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes without `true`.
+`dataWriter` of `@lazurio/module-kit` 0.4.1 and later decides exactly this.
 
-- *Variant 1:* STAGING reads the real data and changes none of them.
-- *Variant 2:* every Environment has its own branch of the data (a branch of the
-  data repository in `app/v3`, a branch in Dolt in `app/v4`), created from
-  production when STAGING is first opened, where STAGING applies the new
-  version's migrations, writes trial data and compares with production. Only the
-  Application writes to the production branch; the Environment's branch takes
-  changes from production, never the other way; from it to production leads
-  only a proposal the Application takes over, which is also the way of a bulk
-  import.
+**Switching the writing over.** The Module Maintainer switches a Module's writing
+from the Environment to its Application in one deliberate step, with a backup of
+the data, once `lazurio module readiness` says the Module is ready; the
+Organization Admin may do it too. With repository-db the application host is
+then the sole sync host for the declared data repository. Until the switch the
+Application runs as a trial with `data.writer: false`. A second writer is never
+a trial.
 
-A Module that has no live Application yet keeps writing in the Environment as
-today until it is switched over, and the old path is not cut off before the new
-one works. Until then a missing `LAZURIO_RUNTIME_DATA_WRITER` means STAGING or
-DEV in an Environment: only the entries `local` and
-`environment` write, and so does the data sync host itself (at start, in the
-background and after their requests); a request from the entry `app` (a person
-who has only the application) only reads and syncs nothing, and its write is
-refused. A runtime that states `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041)
-never writes without `true`. `dataWriter` of `@lazurio/module-kit` 0.4.1 and
-later decides exactly this. Once a Module is switched over, its data in an
-Environment are no longer changed by hand; *proposed:* a bulk change by an agent
-goes in as an import that the Application takes over. How STAGING learns that
-its Module has been switched over is not built yet (#1034).
+**Every Environment's own branch of the data** (a branch of the data repository
+in `app/v3`, a branch in Dolt in `app/v4`), by three rules:
 
-With repository-db the application host is then the sole sync host for the
-declared data repository. Moving the writer names the old and new writer and its
-approved steps; until then the Application runs as a trial with
-`data.writer: false`. A second writer is never a trial.
+- only the Application writes to the production branch;
+- an Environment's branch is created when STAGING is first opened and takes
+  changes only from production. Until someone writes to it, it keeps itself
+  current; after the first trial write it offers a comparison with production.
+  A new version runs its migrations there, so STAGING shows a new shape of the
+  data before PROD has it, also where the release step keeps PROD behind;
+- from an Environment's branch to production leads only a proposal that the
+  Application takes over; a bulk import goes that way too.
 
-**STAGING ahead of PROD.** Where the release step is on, STAGING runs a newer
-version than PROD, and that version may expect data in a new shape. With
-variant 1 (*proposed*): a version reads the previous shape of its data too (a new
-field is optional and its validator ships first,
-[Boundaries and dependencies](#boundaries-and-dependencies); in `app/v4` a
-migration only expands), and a change that needs the data in a new shape reaches
-the real data together with its migration in the release to PROD; before that it
-is seen only in DEV, on its trial copy. With variant 2, STAGING applies the
-migration on its Environment's own branch, so it shows the new shape before
-PROD has it.
+In `app/v4` only someone who has the Module gets a branch, and for an
+Application with personal data the Organization Admin may switch the branches
+off. How an Environment's branch is created, kept current and proposed to
+production is not built yet (repository-db, Dolt).
 
 **Siblings.** An Application reads from a sibling's data (`workspace/<slug>/db`)
 only the contract the sibling documents with a version, never its internal files,
@@ -932,11 +937,9 @@ not a substitute for Lazurio sign-in. Buddy's bubble appears in an Application o
 for a person who has Buddy (decision 0180 as amended by 0249); Buddy is then one
 more client of the same tools, through the Application's MCP server connected in
 the person's Work Environment or STAGING's page tools there, and
-never gets more than the person's role. Buddy is available in an Application
-(decision 0249, addendum of 2026-11-22); how the bubble gets onto it is open in
-0249 (proposed: the application host's gateway adds it, so a Module would carry
-no code for it); until it is decided, the standard asks nothing of a Module for
-the bubble.
+never gets more than the person's role. The application host's gateway adds
+the overlay with the bubble to an Application (decision 0249, addendum of
+2026-11-22), so the standard asks nothing of a Module for the bubble.
 
 The generated `manual/admin.md` describes the Organization Admin's part (the
 entry switch, roles, verification); the release step is the Organization Owners'
@@ -1082,7 +1085,9 @@ cases when it needs them; a `vite-react` or
 
 - **Which Apps.** Every App with an interface where people do something:
   create, edit, search, assign, prepare, approve. A website or a knowledge base
-  that people only read (`astro`, `astro-starlight`) needs none; a service
+  that people only read (`astro`, `astro-starlight`) needs none in the Module:
+  the application host itself offers search and reading of its pages to agents
+  (decision 0249, addendum of 2026-11-22; not built yet); a service
   without an interface (`bun-service`) offers its tools through `/mcp` only.
 - **Which tools.** The actions a person does most and the ones an agent is
   asked to do: find a record, read it, fill or change it, prepare a document,
@@ -1273,10 +1278,9 @@ missing role through the real gateway.
   the person who connected; never by a copy of its data or a direct
   connection to its database.
 - **STAGING and DEV in an Environment** run from the Module's checkout and a
-  worktree. DEV works on its own trial copy. Until the Module has a live
-  Application, STAGING writes as today; after that it reads the real data or
-  works on its Environment's own branch of them, which is still under discussion
-  ([Writing without the variable](#applications-of-an-organization)). Agents use
+  worktree. Until the Module has a live Application, STAGING writes as today;
+  after that both work on their Environment's own branch of the data
+  ([Applications of an Organization](#applications-of-an-organization)). Agents use
   them to develop and test: their `/mcp` on the loopback address and their page
   tools answer as `entry: local`, an Application Admin without a name, and
   `get_app_context` says `environment`. Neither is an Integration and neither
@@ -1549,13 +1553,11 @@ writer of its data ([Applications](#applications-of-an-organization)).
 Until a Module is switched over to its Application, agents may change its data
 directly in STAGING in an Environment, for a bulk import or a clean-up, with `repository-db origin --kind agent` and only
 on the person's word; they store a new revision with every change, and the
-port refuses a stale save instead of overwriting it. Whether agents may also
-write an Application's data directly, in `app/v3` or `app/v4`, is an
-open decision (LZD-0037); until it is decided they change production data
-only through the App's interface and tools. Once a Module is switched over, its
-data in an Environment are no longer changed by hand (decision 0249, addendum of
-2026-11-22; *proposed:* a bulk change goes in as an import the Application takes
-over). The database's access contract for
+port refuses a stale save instead of overwriting it. Agents never write an
+Application's production data directly, in `app/v3` or `app/v4`: they change
+them through the Application's MCP server, and in bulk by a proposal from their
+Environment's branch that the Application takes over (decision 0249, addendum of
+2026-11-22, which replaces the decision of 2026-11-14 on direct writes). The database's access contract for
 an Organization's App is proposed in Machines#1350.
 
 **Moving a Module from `app/v3` to `app/v4`**, as a generation transition:
