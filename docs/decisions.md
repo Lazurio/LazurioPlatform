@@ -25924,8 +25924,8 @@ Organization's Module „„Organizace / Modul“ + štítek (Doporučeno)“.
 2. **How the update view shows them.** This extends [F47's addendum of
    2026-10-24](#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
    (its point 3, one row per module): a Module's data repository stays in its Module's row
-   and is named `<Module> · data` (Czech `<Modul> · data`) only where its state differs
-   from the Module's; a shared Module has a row of its own named
+   and only where its state differs from the Module's does that row say so, as `Data: …`
+   under the Module's name (it reads `<Module> · data`, Czech `<Modul> · data`); a shared Module has a row of its own named
    `<home Organization> / <slot slug>` with the badge, its data repository under it like
    any Module's, and it is never merged with the Organization's own Module of the same
    slug.
@@ -25949,6 +25949,42 @@ progress lands in the row of the Organization's own Module of that slug when the
 and its data repository is a row named "db"; a later step of plan LZD-0046 changes it. The
 folder of a shared Module's slot keeps its name until Lazurio/LazurioPlatform#1149 decides
 it.
+
+**Implemented on 2026-11-21 for plan LZD-0046 (step D2): the update view follows point 2.**
+
+- **What the synchronization says.** Each content item and each step of `lazurio update
+  --json` (and of Aktualizovat's job) names where its repository belongs, from the slots
+  alone: a data repository its Module's path in `parent` (as `dataMountOf` reads it), a
+  shared Module and its data their home Organization in `home` and the slot slug in
+  `module`; every one names its repository as declared in `repository` (`<owner>/<name>`:
+  the slot's remote, the root's `root_repository.locator`, after the review of #1184).
+  The record of the synchronization keeps them. They are additive; nothing reads the
+  shared Module's manifest (point 3). The view shows a row's repositories as its name's
+  tooltip, never as its name.
+- **How the view keys and names rows.** An own Module's row stays keyed by its Organization
+  and id, which its builds share, and named as Apps names it. A data line goes into the
+  row of its `parent`, never into one found by its path's last segment. A shared Module's
+  row is keyed by its Organization, home and slug apart from every own Module, named
+  `<home> / <slug>` with the stone Apps gives its tile and the badge "nasdílený" /
+  "shared" with Apps' explanation; a line of an older run without `home` is still known as
+  shared by the catalog's guests. A repository of no Module of the catalog and no shared
+  Module is shown by its path relative to the root; this replaces F47's "no path is ever
+  shown" for that case only. An absent shared Module, like an absent Module, has no row.
+- **A data finding.** Where its data has a finding (blocked, denied, unreachable, failed),
+  the Module's row says „Data: …“ / "Data: …" with the finding in words on a line of its
+  own under the Module's name, so it reads as „<Modul> · data“ without repeating the
+  name. Every distinct finding of the row is said, each on its own line, in this order:
+  the Module's own, its data's, a failed build; none hides another, so the row says all
+  that is left to fix (the review of #1184). Progress (checking, fetching, done with its
+  commit) is the row's one line as before.
+
+Tests: `tests/new-tab-view.test.ts` (three data repositories and no "db" row; an own and a
+shared Mission Control as two rows; the data finding; the Module's, its data's and a
+failed build's findings together; the repositories as a row's tooltip; an absent shared
+Module left out; a repository of no Module by its path), `tests/guest-modules.test.ts`
+and `tests/content-sync.test.ts` (`repository`, `parent`, `home` and `module` on the
+answers, the steps and the record, for the root, an own Module and its data, a shared
+Module and its data).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

@@ -83,7 +83,7 @@ name, and Lazurio shows it one way
 | Kind | What it is | How Lazurio shows it |
 | --- | --- | --- |
 | **Module** | a repository with `lazurio.module.json` at its root, in `workspace/<module>/` or at the Organization's root as `mission-control` or `design-system` ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog)) | its own row or tile, named by its own declaration (its default App's title, else its slug) |
-| **Module data repository** | the slot directly below a Module with `materialization: "repository_db_mount"`: on GitHub `<owner>/<module>-data`, checked out on its generation branch (`v3`) as `<module path>/db` ([Data](#boundaries-and-dependencies)) | it belongs to its Module and is never shown as a Module of its own: wherever Lazurio lists repositories it stands under its Module, and only where its state differs from the Module's is it named `<Module> · data` (cs `<Modul> · data`) |
+| **Module data repository** | the slot directly below a Module with `materialization: "repository_db_mount"`: on GitHub `<owner>/<module>-data`, checked out on its generation branch (`v3`) as `<module path>/db` ([Data](#boundaries-and-dependencies)) | it belongs to its Module and is never shown as a Module of its own: wherever Lazurio lists repositories it stands under its Module, and only where its state differs from the Module's does the Module's row say so, as `Data: …` under the Module's name (it reads `<Module> · data`) |
 | **Productionspace repository** | any repository under `productionspace/` ([0041](decision-register.md#0041--flat-workspace-teams-as-declarations-and-productionspace)), never a Module whatever it contains ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog), point 1) | in Apps only in its Productionspace section, read-only; the general `lazurio update` leaves it alone ([content sync](content-sync.md)) |
 | **Shared Module** | another Organization's Module that the Organization keeps current read-only, in the slot that names its home Organization (`home_organization`) (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) | named by its home Organization and its slot, `<home Organization> / <slot slug>`, with the badge cs "nasdílený", en "shared"; its data repository stands under it like any Module's; never merged with the Organization's own Module of the same name |
 
@@ -94,8 +94,12 @@ repository and its root slots without `lazurio.module.json`, such as `infra`, ar
 of these kinds and never a Module (F24, point 1).
 
 Every place that shows repositories (Apps, the update view, `lazurio module list`,
-`lazurio doctor`, the Folder manual) names them by this section; the update view
-follows in a later step (F67's addendum of 2026-11-21). Identifiers in code, schemas
+`lazurio doctor`, the Folder manual) names them by this section; the update view does
+since plan LZD-0046's step D2, from what each content item of `lazurio update --json`
+says of which repository it is and where it belongs (`repository`, `parent`, `home`,
+`module`, [the answer](update.md)), and shows
+a repository of no Module of the catalog by its path relative to the root, never by its
+last segment. Identifiers in code, schemas
 and manifests (`guests`, `home_organization`, `repository_db_mount`) keep their names.
 
 ## Repository layout

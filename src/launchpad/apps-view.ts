@@ -541,8 +541,9 @@ export function appsTiles(
 
 /** The stone of a Module known here by its slug alone (a guest Module, a
  * shared application): the org-agnostic fallback of its id, never an
- * Organization's or a Module's name. */
-const slugStone = (module: string) =>
+ * Organization's or a Module's name. Nová karta's update view draws a
+ * shared Module's row with it, as Apps draws its tile. */
+export const slugStone = (module: string) =>
   stoneOf(semanticAppIconKey({ module, id: null, tags: [], icon: null }));
 
 /** A guest Module's tile: its slot id as GitHub names the repository, the

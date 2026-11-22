@@ -14,6 +14,7 @@ import { dataMountOf } from "../src/content/provide";
 import {
   readSyncRecord,
   type SyncEntry,
+  type SyncProgress,
   syncContent,
 } from "../src/content/sync";
 import { catalogChecks } from "../src/doctor/doctor";
@@ -875,7 +876,7 @@ const exists = (path: string) =>
   );
 
 posixTest(
-  "installation clones the guests beside the host's own, a missing grant stays slot-local, and synchronization keeps them current",
+  "installation clones the guests beside the host's own, a missing grant stays slot-local, and synchronization keeps them current, each answer naming its repository, Module and home",
   async () => {
     world = await createWorld();
     const current = world;
@@ -1022,7 +1023,10 @@ posixTest(
     // module, and the root stays clean around their checkouts.
     const knowledgebase = await advance(current, "HomeOrg/knowledgebase");
     const data = await advance(current, "HomeOrg/mission-control-data", "v3");
-    const run = await syncContent(folder, host, {});
+    const progress: SyncProgress[] = [];
+    const run = await syncContent(folder, host, {
+      onProgress: (event) => progress.push(event),
+    });
     if (run.kind !== "content-sync") throw new Error(run.kind);
     const byPath = (entries: readonly SyncEntry[]) =>
       Object.fromEntries(
@@ -1055,6 +1059,75 @@ posixTest(
         (entry) => entry.path === "workspace/HomeOrg_GEN3/mission-control/db",
       ),
     ).toMatchObject({ kind: "data", branch: "v3", to: data });
+    // Where each repository belongs (F67's addendum of 2026-11-21): a data
+    // mount names its Module, a shared Module and its data their home and
+    // slot slug, from the slots alone; the host's own name no home.
+    const belongs = (entries: readonly Partial<SyncEntry>[]) =>
+      Object.fromEntries(
+        entries.map((entry) => [
+          entry.path,
+          {
+            kind: entry.kind,
+            ...(entry.repository === undefined
+              ? {}
+              : { repository: entry.repository }),
+            ...(entry.parent === undefined ? {} : { parent: entry.parent }),
+            ...(entry.home === undefined ? {} : { home: entry.home }),
+            ...(entry.module === undefined ? {} : { module: entry.module }),
+          },
+        ]),
+      );
+    // Each names its repository as declared (the review of #1184): the
+    // root's `root_repository`, the slots' remotes.
+    const expected = {
+      ".": { kind: "root", repository: "HostOrg/HostOrg_GEN3" },
+      "mission-control": {
+        kind: "module",
+        repository: "HostOrg/mission-control",
+      },
+      "mission-control/db": {
+        kind: "data",
+        repository: "HostOrg/mission-control-data",
+        parent: "mission-control",
+      },
+      "workspace/knowledgebase": {
+        kind: "module",
+        repository: "HostOrg/knowledgebase",
+      },
+      "workspace/HomeOrg_GEN3/knowledgebase": {
+        kind: "module",
+        repository: "HomeOrg/knowledgebase",
+        home: "HomeOrg",
+        module: "knowledgebase",
+      },
+      "workspace/HomeOrg_GEN3/mission-control": {
+        kind: "module",
+        repository: "HomeOrg/mission-control",
+        home: "HomeOrg",
+        module: "mission-control",
+      },
+      "workspace/HomeOrg_GEN3/mission-control/db": {
+        kind: "data",
+        repository: "HomeOrg/mission-control-data",
+        parent: "workspace/HomeOrg_GEN3/mission-control",
+        home: "HomeOrg",
+        module: "mission-control",
+      },
+      "workspace/HomeOrg_GEN3/private-notes": {
+        kind: "module",
+        repository: "HomeOrg/private-notes",
+        home: "HomeOrg",
+        module: "private-notes",
+      },
+    };
+    expect(belongs(run.entries)).toEqual(expected);
+    // Every step says it too, before the answer, and the record keeps it.
+    expect(
+      belongs(progress.filter((event) => event.step === "checking")),
+    ).toEqual(expected);
+    expect(
+      belongs((await readSyncRecord(host.lockDirectory, folder)) ?? []),
+    ).toEqual(expected);
   },
 );
 

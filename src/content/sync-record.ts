@@ -70,6 +70,21 @@ export type SyncEntry = Readonly<{
   kind: "root" | "module" | "data";
   /** The branch it is kept on: `main`, or a data mount's declared one. */
   branch: string;
+  /** The repository as declared, `<owner>/<name>`: a module's or data
+   * mount's slot remote, the root's `root_repository.locator`; absent where
+   * the root's declaration could not be read. */
+  repository?: string;
+  /** A data mount's Module, by its path relative to the root, as its slot
+   * declares it (`dataMountOf`): where Lazurio shows it (the Module
+   * Standard's kinds of repository, decision F67's addendum of 2026-11-21). */
+  parent?: string;
+  /** A shared Module (decision F67) and its data mount: the home
+   * Organization the slot declares (`home_organization`). */
+  home?: string;
+  /** With `home`: the shared Module's slot slug (its `slug`, else the last
+   * segment of its path), on its data mount's entry too; its name is
+   * `<home> / <module>`, since its own manifest stays unread (F67 point 5). */
+  module?: string;
   result: SyncResult;
   /** `blocked`: a `syncBlockedReasons` member; `denied`, `unavailable`,
    * `failed`: a locale-neutral code. */
@@ -167,6 +182,10 @@ const validEntry = (value: unknown): value is SyncEntry => {
     text(entry.path) &&
     ["root", "module", "data"].includes(entry.kind as string) &&
     text(entry.branch) &&
+    (entry.repository === undefined || text(entry.repository)) &&
+    (entry.parent === undefined || text(entry.parent)) &&
+    (entry.home === undefined || text(entry.home)) &&
+    (entry.module === undefined || text(entry.module)) &&
     results.includes(entry.result as SyncResult) &&
     text(entry.at) &&
     (entry.reason === undefined || text(entry.reason)) &&
