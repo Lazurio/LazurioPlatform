@@ -1377,7 +1377,7 @@ async function brainCheck(
   const context: ErrorContext =
     status.running === null
       ? {}
-      : { toolVersion: status.running.split(/[-+]/, 1)[0] };
+      : { toolVersion: status.running.split(/[-+]/, 1)[0] ?? status.running };
   if (!status.handover)
     return check("brain", "skipped", "brain-waits-machines", context);
   if (status.state === "machines")

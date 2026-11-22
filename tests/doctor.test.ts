@@ -1565,7 +1565,9 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
     id: "brain",
     outcome: "ok",
     // The fork release's suffix (`-lazurio.2`) is not carried, only the numbers.
-    context: { toolVersion: brainPin.version.split(/[-+]/, 1)[0] },
+    context: {
+      toolVersion: brainPin.version.split(/[-+]/, 1)[0] ?? brainPin.version,
+    },
   });
   // Without the model the memory answers by words only: warn.
   live.model = false;
