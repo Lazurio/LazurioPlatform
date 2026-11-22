@@ -1619,6 +1619,90 @@ export function catalogChangeKey(job: UpdateJob | null): string {
   return [job.id, job.running ? "running" : "over", ...moved].join("\n");
 }
 
+/** How an open page keeps the catalog it names Modules by current (the
+ * reviews of #1187). It reads the catalog when it has none (a boot document
+ * without one: slow or failed), and again whenever a run's
+ * `catalogChangeKey` differs from the change its catalog reflects; the boot
+ * catalog reflects the first reading of a run. A change is recorded only once
+ * a read succeeds: a refused, timed-out or invalid answer is retried after
+ * `retryMs` until one succeeds, whether or not a run is still under way, and
+ * a change seen while a read is under way is read for after it. No DOM: the
+ * page gives it its reader, what to do with a catalog and a timer. */
+export function catalogRefresher(
+  options: Readonly<{
+    /** Whether the page already has a catalog (its boot document's). */
+    have: boolean;
+    read: () => Promise<Catalog | null>;
+    apply: (catalog: Catalog) => void;
+    /** Schedules the next try; the page skips it while it is hidden and
+     * calls `retry` when it shows again. */
+    later: (run: () => void, ms: number) => void;
+    retryMs: number;
+  }>,
+): Readonly<{
+  /** A reading of the newest run (null: none), or none yet. */
+  observe: (job: UpdateJob | null) => void;
+  /** Tries again now if a read is still owed (the page shown again). */
+  retry: () => void;
+}> {
+  let have = options.have;
+  let reflects: string | null = null;
+  let wanted: string | null = have ? null : "";
+  let reading = false;
+  let waiting = false;
+  const owed = () => wanted !== null && (!have || wanted !== reflects);
+  const attempt = async (): Promise<void> => {
+    if (reading || !owed()) return;
+    reading = true;
+    const target = wanted;
+    let read: Catalog | null = null;
+    try {
+      read = await options.read();
+    } catch {
+      read = null;
+    }
+    reading = false;
+    if (read !== null) {
+      have = true;
+      reflects = target;
+      options.apply(read);
+    }
+    if (!owed()) return;
+    if (read !== null) {
+      void attempt();
+      return;
+    }
+    if (waiting) return;
+    waiting = true;
+    options.later(() => {
+      waiting = false;
+      void attempt();
+    }, options.retryMs);
+  };
+  return {
+    observe(job) {
+      const change = catalogChangeKey(job);
+      // The boot catalog stands for the page's first reading of a run.
+      if (have && reflects === null && wanted === null) {
+        reflects = change;
+        wanted = change;
+        return;
+      }
+      // The same change while a retry waits for its timer asks nothing more;
+      // a new one is read for now.
+      const changed = change !== wanted;
+      wanted = change;
+      if (changed || !waiting) void attempt();
+    },
+    retry() {
+      // The page calls it when a retry fell due while it was hidden: that
+      // timer has run without trying, so nothing waits any more.
+      waiting = false;
+      void attempt();
+    },
+  };
+}
+
 const word = (value: unknown, max = 200) => text(value, max) ?? undefined;
 const lineSteps = new Set([
   "checking",

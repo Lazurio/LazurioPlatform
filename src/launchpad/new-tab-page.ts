@@ -22,8 +22,8 @@ import { parseCatalog } from "./catalog-view";
 import {
   actionFailure,
   afterRestart,
-  catalogChangeKey,
   catalogModuleLook,
+  catalogRefresher,
   closeOutcome,
   closeWarning,
   cpuModel,
@@ -102,14 +102,12 @@ let locale: "cs" | "en" = boot?.locale ?? browserLanguage(navigator.language);
 let copy = newTabCopy(locale);
 let shell: Shell | null = boot?.shell ?? null;
 const entry = boot?.entry ?? null;
-// The catalog the page names Modules by: the boot document's, read again
-// when a run changes a checkout or ends (`catalogChangeKey`).
+// The catalog the page names Modules by: the boot document's, read when it
+// has none and again when a run changes a checkout or ends, retried until a
+// read succeeds (`catalogRefresher`).
 let catalog = boot?.catalog ?? null;
 let look = catalogModuleLook(catalog);
 let offered = suggestions(catalog, entry);
-// The run's change the catalog was last read for; null before the first
-// reading of a run, which the boot document's catalog already reflects.
-let catalogReadFor: string | null = null;
 let viewOrigin: string | null =
   entry?.browserOrigin !== undefined && entry.browserOrigin !== location.origin
     ? entry.browserOrigin
@@ -999,6 +997,11 @@ const updateEveryMs = 1_000;
  * the run started. */
 const restartWaitMs = 120_000;
 let restartSince: number | null = null;
+/** How long the page waits before it tries a refused catalog read again. */
+const catalogRetryMs = 5_000;
+let catalogTimer: ReturnType<typeof setTimeout> | undefined;
+// A retry that fell due while the page was hidden: tried once it shows.
+let catalogOwedWhileHidden = false;
 
 async function readJson(path: string): Promise<NewTabAnswer> {
   try {
@@ -1055,12 +1058,7 @@ async function readUpdate(): Promise<void> {
     if (Date.now() - restartSince < restartWaitMs) scheduleUpdate(2_000);
     else updateJob = Object.freeze({ ...shown, running: false });
   } else if (answer.status !== 0) updateOffered = false;
-  const change = catalogChangeKey(updateJob);
-  if (catalogReadFor === null) catalogReadFor = change;
-  else if (change !== catalogReadFor) {
-    catalogReadFor = change;
-    void readCatalogAgain();
-  }
+  catalogs.observe(updateJob);
   drawOverview();
   if (updateJob?.running === true && updateTimer === undefined)
     scheduleUpdate(updateEveryMs);
@@ -1069,16 +1067,29 @@ async function readUpdate(): Promise<void> {
 /** The catalog as the Launchpad keeps it now (`/api/catalog`, with each
  * guest's last access): a shared Module the run cloned or whose default app
  * changed gets its name here as in Apps. A refused or unreadable answer
- * keeps the catalog the page has. */
-async function readCatalogAgain(): Promise<void> {
-  const answer = await post("/api/catalog", {});
-  const read = answer.status === 200 ? parseCatalog(answer.value) : null;
-  if (read === null) return;
-  catalog = read;
-  look = catalogModuleLook(read);
-  offered = suggestions(read, entry);
-  drawOverview();
-}
+ * keeps the catalog the page has, and the refresher tries again. */
+const catalogs = catalogRefresher({
+  have: catalog !== null,
+  read: async () => {
+    const answer = await post("/api/catalog", {});
+    return answer.status === 200 ? parseCatalog(answer.value) : null;
+  },
+  apply: (read) => {
+    catalog = read;
+    look = catalogModuleLook(read);
+    offered = suggestions(read, entry);
+    drawOverview();
+  },
+  later: (run, ms) => {
+    clearTimeout(catalogTimer);
+    catalogTimer = setTimeout(() => {
+      catalogTimer = undefined;
+      if (document.visibilityState === "visible") run();
+      else catalogOwedWhileHidden = true;
+    }, ms);
+  },
+  retryMs: catalogRetryMs,
+});
 
 function scheduleUpdate(ms: number) {
   clearTimeout(updateTimer);
@@ -1177,6 +1188,10 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     void poll();
     if (updateJob?.running === true) void readUpdate();
+    if (catalogOwedWhileHidden) {
+      catalogOwedWhileHidden = false;
+      catalogs.retry();
+    }
   } else {
     clearTimeout(pollTimer);
     pollTimer = undefined;

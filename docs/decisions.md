@@ -26038,8 +26038,12 @@ Module's name on the tile, he chose „Nechat (Doporučeno)“.
    as the slot's slug (`lazurio update --json`). An open page reads the catalog again
    (`/api/catalog`) whenever a run moves or materializes a checkout and when it ends
    (`catalogChangeKey`), so a shared Module the run clones or whose default app it
-   renames gets its new name without reloading, as Apps shows it (the review of
-   #1187). `lazurio module list` keeps the address
+   renames gets its new name without reloading, as Apps shows it. It reads one at once
+   when its boot document carries none (slow or failed, whether a run is under way,
+   over or absent), records a change only once a read succeeded, and retries a refused,
+   timed-out or invalid read every 5 seconds until one succeeds, also after the run
+   ended, and when it is shown again after being hidden (`catalogRefresher`; the
+   reviews of #1187). `lazurio module list` keeps the address
    `<home>/<slot id>`, by which commands name it, and puts the name first in the row's
    description. The register's amendment of 0221 says the same.
 
@@ -26051,7 +26055,9 @@ a shared Module cloned before and refused now named by its slot's id in the cata
 Apps, the update view and `lazurio module list`, and named again once GitHub reads it)
 and `tests/new-tab-view.test.ts` (the update view's row `HumanAndMachine-ai / Mission
 Control` with the tile's stone beside one named by its slot's id; when an open page
-reads the catalog again: a clone, a move and the run's end, never a step alone).
+reads the catalog again: a clone, a move and the run's end, never a step alone; a page
+without a boot catalog after a completed run or none; refused reads retried until one
+succeeds after the run ended, also after a hidden page; a change seen during a read).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 
