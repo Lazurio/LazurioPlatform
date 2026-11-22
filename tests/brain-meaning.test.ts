@@ -114,9 +114,15 @@ async function stand(
     startFailsAt?: number;
     /** Buddy works for the first questions, up to this one. */
     busyUntil?: number;
+    /** What each window of the facts' vectors answers, in turn (the last
+     * repeats); where not given, one window computes every fact. */
+    facts?: ReadonlyArray<
+      Readonly<{ exit: number; embedded?: number; remaining?: number }>
+    >;
   }> = {},
 ) {
   let starts = 0;
+  let factsRun = 0;
   /** The attempt as recorded at each start of the server: what a run that
    * died right then would leave for the next. */
   const atStart: unknown[] = [];
@@ -194,6 +200,21 @@ async function stand(
   const envs: Readonly<Record<string, string>>[] = [];
   const run: ToolRunner = async (argv, _timeout, env) => {
     calls.push([...argv]);
+    // The facts' windows: their own answers, apart from the pages' windows.
+    if (argv[1] === "embed" && argv.includes("--facts")) {
+      const answers = options.facts ?? [{ exit: 0, embedded: 1, remaining: 0 }];
+      const answer =
+        answers[Math.min(factsRun, answers.length - 1)] ?? answers[0];
+      factsRun += 1;
+      return {
+        exitCode: answer?.exit ?? 0,
+        stdout: JSON.stringify({
+          embedded: answer?.embedded ?? 0,
+          remaining: answer?.remaining ?? 0,
+        }),
+        stderr: "",
+      };
+    }
     if (argv[1] === "embed") envs.push(env);
     const ok = { exitCode: 0, stdout: "", stderr: "" };
     if (argv[1] === "embeddings") {
@@ -363,7 +384,8 @@ describe("switching search by meaning on", () => {
       },
     } as typeof base;
     expect(await convergeMeaning(host)).toBe("on");
-    expect(running).toEqual([true]);
+    // The pages' window, then the facts' window, both with the server running.
+    expect(running).toEqual([true, true]);
     const model = await unit(paths, meaningUnit);
     expect(model).toContain("--host 127.0.0.1 --port 3132");
     expect(model).toContain("Nice=10");
@@ -383,10 +405,19 @@ describe("switching search by meaning on", () => {
     const gbrain = calls.filter(
       (c) => c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed",
     );
-    expect(gbrain.map((c) => c.slice(1, 3))).toEqual([
-      ["embeddings", "enable"],
-      ["embed", "--stale"],
+    expect(gbrain.map((c) => c.slice(1, 4))).toEqual([
+      ["embeddings", "enable", "--embedding-model"],
+      ["embed", "--stale", "--json"],
+      // The facts follow, at no cost, for the source default.
+      ["embed", "--stale", "--facts"],
     ]);
+    // No repair stop for the facts: the switch recorded the database plane.
+    expect((await readBrainState(paths)).meaningFacts).toMatchObject({
+      windows: 1,
+      remaining: 0,
+    });
+    expect((await readBrainState(paths)).meaningFacts?.plane).toBeDefined();
+    expect((await readBrainState(paths)).meaningFacts?.done).toBeDefined();
     const embedded = calls.findIndex((c) => c[1] === "embed");
     const restarted =
       calls.length -
@@ -429,8 +460,11 @@ describe("switching search by meaning on", () => {
   test("a column of another width is enabled at it, moved to the model's with every page kept, then embedded", async () => {
     const { host, calls } = await stand({ column: "768" });
     expect(await convergeMeaning(host)).toBe("on");
+    // The switch and the pages' window (the facts' window follows apart).
     const gbrain = calls.filter(
-      (c) => c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed",
+      (c) =>
+        (c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed") &&
+        !c.includes("--facts"),
     );
     expect(
       gbrain.map((c) =>
@@ -449,8 +483,10 @@ describe("switching search by meaning on", () => {
     expect(await convergeMeaning(host)).toBe("on");
     expect(
       calls
-        .filter((c) =>
-          ["embeddings", "migrate", "embed"].includes(c[1] as string),
+        .filter(
+          (c) =>
+            ["embeddings", "migrate", "embed"].includes(c[1] as string) &&
+            !c.includes("--facts"),
         )
         .map((c) => c.slice(1, 4).join(" ")),
     ).toEqual([
@@ -471,8 +507,10 @@ describe("switching search by meaning on", () => {
     expect(await convergeMeaning(host)).toBe("on");
     expect(
       calls
-        .filter((c) =>
-          ["embeddings", "migrate", "embed"].includes(c[1] as string),
+        .filter(
+          (c) =>
+            ["embeddings", "migrate", "embed"].includes(c[1] as string) &&
+            !c.includes("--facts"),
         )
         .map((c) => c.slice(1, 4).join(" ")),
     ).toEqual([
@@ -682,7 +720,9 @@ describe("the vectors in short windows, computed by the running server", () => {
     expect(await convergeMeaning(host)).toBe("on");
     // Three windows, the server stopped once only: for the switch, before
     // the first.
-    expect(calls.filter((c) => c[1] === "embed")).toHaveLength(3);
+    expect(
+      calls.filter((c) => c[1] === "embed" && !c.includes("--facts")),
+    ).toHaveLength(3);
     expect(stops(calls)).toBe(1);
     // Each window is bounded by gbrain's budget, and a batch to the local
     // model has longer than gbrain's 60 s.
@@ -914,6 +954,88 @@ describe("the vectors in short windows, computed by the running server", () => {
           name === ".gbrain.bak-meaning-window",
       ),
     ).toEqual([]);
+  });
+});
+
+describe("the facts' vectors, after the pages'", () => {
+  const stops = (calls: string[][]) =>
+    calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
+  /** A brain switched on by an earlier pin: on for the pages, its database
+   * plane never recorded, no facts computed. */
+  const onBefore = async (options: Parameters<typeof stand>[0] = {}) => {
+    const s = await stand(options);
+    await writeBrainState(s.paths, {
+      ...(await readBrainState(s.paths)),
+      meaning: {
+        provider: "llama-server:bge-m3",
+        dimensions: 1024,
+        at: "2026-11-20T00:00:00.000Z",
+      },
+    });
+    return s;
+  };
+
+  test("a brain switched on before gets its database plane in one short stop, then its facts with the server running", async () => {
+    const { host, paths, calls, world } = await onBefore();
+    expect(await convergeMeaning(host)).toBe("on");
+    // One stop, for `embeddings enable` with the model it already has.
+    expect(stops(calls)).toBe(1);
+    const enable = calls.findIndex((c) => c[1] === "embeddings");
+    const facts = calls.findIndex(
+      (c) => c[1] === "embed" && c.includes("--facts"),
+    );
+    const started = calls.findIndex(
+      (c, i) => i > enable && c[2] === "start" && c[3] === brainUnit,
+    );
+    expect(enable).toBeGreaterThan(-1);
+    expect(started).toBeGreaterThan(enable);
+    expect(facts).toBeGreaterThan(started);
+    expect(calls[facts]).toEqual(
+      expect.arrayContaining(["--source", "default", "--max-cost-usd", "0"]),
+    );
+    expect(world.server).toBe(true);
+    const done = (await readBrainState(paths)).meaningFacts;
+    expect(done?.plane).toBeDefined();
+    expect(done?.done).toBeDefined();
+    // Done once: a later run stops nothing and computes nothing.
+    calls.length = 0;
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(calls.some((c) => c[1] === "embed" || c[2] === "stop")).toBe(false);
+  });
+
+  test("while Buddy works nothing stops; the facts wait for the next idle run", async () => {
+    const { host, calls } = await onBefore({ idle: false });
+    expect(await convergeMeaning(host)).toBe("waits:facts");
+    expect(stops(calls)).toBe(0);
+    expect(calls.some((c) => c[1] === "embed")).toBe(false);
+  });
+
+  test("facts left go on in later windows; two in a row without progress give them up, the pages kept on", async () => {
+    const left = await onBefore({
+      facts: [
+        { exit: 0, embedded: 5, remaining: 7 },
+        { exit: 0, embedded: 7, remaining: 0 },
+      ],
+    });
+    expect(await convergeMeaning(left.host)).toBe("waits:facts");
+    expect(await convergeMeaning(left.host)).toBe("on");
+    expect((await readBrainState(left.paths)).meaningFacts).toMatchObject({
+      windows: 2,
+      remaining: 0,
+    });
+    // One stop only, for the plane: the windows do not stop the server.
+    expect(stops(left.calls)).toBe(1);
+    const stuck = await onBefore({
+      facts: [{ exit: 1, embedded: 0, remaining: 4 }],
+    });
+    expect(await convergeMeaning(stuck.host)).toBe("waits:facts");
+    expect(await convergeMeaning(stuck.host)).toBe("on");
+    const given = (await readBrainState(stuck.paths)).meaningFacts;
+    expect(given?.reason).toBe("facts");
+    expect(given?.done).toBeUndefined();
+    expect((await readBrainState(stuck.paths)).meaning?.provider).toBe(
+      "llama-server:bge-m3",
+    );
   });
 });
 

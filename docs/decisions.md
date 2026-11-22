@@ -16056,6 +16056,16 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         that fails keeps every vector the server wrote and brings nothing
         back; two in a row without progress, or 400 in all, stop the filling
         as before.
+      - **The facts.** After the pages, the facts the memory remembered get
+        their vectors the same way, in windows handed to the running server
+        (`embed --stale --facts` for the source `default`, at no cost).
+        gbrain embeds a fact only where the database's own plane names the
+        model, which an earlier release's `embeddings enable` did not record.
+        So a brain switched on before this pin gets it once, in one short
+        stop (`embeddings enable` with the model it already has); a brain
+        switched on by this pin has it from the switch. Two fact windows in
+        a row without progress give the facts up, and the pages keep search
+        by meaning.
       - **What a person notices.** Search by words and writing work all the
         time. While a window computes, search by meaning is slower (measured
         on 4 cores with bge-m3: a median of about 5 to 6 s instead of 0.3 s,

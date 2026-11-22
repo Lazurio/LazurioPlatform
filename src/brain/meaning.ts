@@ -13,7 +13,7 @@ import {
 import { dirname, join } from "node:path";
 import { writeDurableFile } from "../update/durable-file";
 import { systemctl, unitMarker } from "../update/service-control";
-import { readBrainState, writeBrainState } from "./keys";
+import { type BrainState, readBrainState, writeBrainState } from "./keys";
 import {
   meaningConcurrency,
   meaningPaths,
@@ -753,7 +753,10 @@ export async function convergeMeaning(
   const recovered = await recoverAttempt(host);
   if (recovered !== null) return recovered;
   const state = await readBrainState(host.paths);
-  if (state.meaning?.provider === meaningPin.provider) return "on";
+  // On for the pages: the facts' vectors follow (`convergeFacts`), `on` once
+  // they are done or given up.
+  if (state.meaning?.provider === meaningPin.provider)
+    return convergeFacts(host, state.release);
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider === meaningPin.provider &&
@@ -820,6 +823,13 @@ export async function convergeMeaning(
   // MCP write). The vectors are computed after it, while the server runs
   // (`fill`); the next run goes on from `filling`.
   await record("filling", undefined, { windows: 0, stalled: 0 });
+  // The pinned release's switch recorded the model in the database's own
+  // plane too, so the facts need no repair stop later (`convergeFacts`).
+  const current = await readBrainState(host.paths);
+  await writeBrainState(host.paths, {
+    ...current,
+    meaningFacts: Object.freeze({ plane: now.toISOString() }),
+  });
   const started =
     (await service(host, "daemon-reload")) &&
     (await service(host, "start", brainUnit));
@@ -863,6 +873,103 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
   return "on";
 }
 
+/**
+ * The vectors of the brain's facts, once its pages have theirs: gbrain embeds
+ * a fact only where the database's own plane names the model (the pinned
+ * release's `embeddings enable` records it; an earlier one did not, so a
+ * brain switched on before it refused every fact). Like the pages' windows,
+ * only while Buddy is idle, one window per run, the server answering:
+ * - a brain whose plane is not recorded yet (switched on by an earlier pin)
+ *   gets it once, in one short stop: `embeddings enable` with the model it
+ *   already has, then the server starts again;
+ * - then `embed --stale --facts` for the source `default`, handed to the
+ *   running server, with the window's budget and at no cost (a local model).
+ * Two windows in a row without progress give the facts up (`reason`); the
+ * pages keep search by meaning either way. `on` once nothing is left or the
+ * facts were given up; `waits:facts…` while windows are left.
+ */
+async function convergeFacts(
+  host: MeaningHost,
+  release: Release | undefined,
+): Promise<MeaningResult> {
+  const facts = (await readBrainState(host.paths)).meaningFacts ?? {};
+  if (facts.done !== undefined || facts.reason !== undefined) return "on";
+  if (release === undefined) return "on";
+  if (!(await host.idle())) return "waits:facts";
+  const now = (host.now ?? (() => new Date()))().toISOString();
+  const save = async (next: NonNullable<BrainState["meaningFacts"]>) => {
+    const current = await readBrainState(host.paths);
+    await writeBrainState(host.paths, {
+      ...current,
+      meaningFacts: Object.freeze({ ...current.meaningFacts, ...next }),
+    });
+  };
+  const stalledAfter = async (code: string, progressed: boolean) => {
+    const stalled = progressed ? 0 : (facts.stalled ?? 0) + 1;
+    if (stalled >= meaningMaxStalled) {
+      await save({ stalled, reason: code });
+      return "on" as const;
+    }
+    await save({ stalled });
+    return `waits:${code}` as const;
+  };
+  const gbrain = gbrainOf(host, release.command);
+  if (facts.plane === undefined) {
+    if (!(await stoppedForSure(host))) {
+      await service(host, "start", brainUnit);
+      await service(host, "start", brainRefreshTimer);
+      return "waits:not-stopped";
+    }
+    const enabled = await gbrain([
+      "embeddings",
+      "enable",
+      "--embedding-model",
+      meaningPin.provider,
+      "--embedding-dimensions",
+      String(meaningPin.dimensions),
+      "--json",
+    ]);
+    const started =
+      (await service(host, "start", brainUnit)) &&
+      (await answers(host)) === release.version;
+    await service(host, "start", brainRefreshTimer);
+    if (!enabled.ok) return stalledAfter("facts-plane", false);
+    await save({ plane: now, stalled: 0 });
+    if (!started) return "waits:start";
+  }
+  const ran = await gbrain([
+    "embed",
+    "--stale",
+    "--facts",
+    "--source",
+    "default",
+    "--yes",
+    "--max-cost-usd",
+    "0",
+    "--budget-ms",
+    String(meaningWindowMs),
+    "--json",
+  ]);
+  const count = (key: string) => {
+    const value = ran.out?.[key];
+    return typeof value === "number" && Number.isInteger(value) && value >= 0
+      ? value
+      : undefined;
+  };
+  const remaining = count("remaining");
+  const embedded = count("embedded") ?? 0;
+  const windows = (facts.windows ?? 0) + 1;
+  if (ran.ok && remaining === 0) {
+    await save({ windows, stalled: 0, remaining: 0, done: now });
+    return "on";
+  }
+  await save({ windows, ...(remaining === undefined ? {} : { remaining }) });
+  return stalledAfter(
+    ran.exit === null ? "facts-limit" : "facts",
+    embedded > 0,
+  );
+}
+
 /** The brain of the last window that failed, kept for a person (one,
  * replaced by the next failure): from the windows that stopped the server
  * (#1134); an attempt such a window left is still recovered with it
@@ -899,7 +1006,10 @@ async function fill(
     result.result === "done" ||
     (result.result === "partial" && result.embedded > 0);
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
-  if (result.result === "done") return switchedOn(host, at);
+  if (result.result === "done") {
+    await switchedOn(host, at);
+    return convergeFacts(host, release);
+  }
   const reason = result.result === "failed" ? result.reason : undefined;
   if (stalled >= meaningMaxStalled) {
     const why = reason ?? "embed-stalled";
