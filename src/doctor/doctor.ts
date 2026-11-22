@@ -1372,8 +1372,12 @@ async function brainCheck(
         ? "handover-unreadable"
         : "not-offered",
     );
+  // The numeric part only: a fork release's suffix (`-lazurio.2`) is free
+  // text the context does not carry, as for Organization tools.
   const context: ErrorContext =
-    status.running === null ? {} : { toolVersion: status.running };
+    status.running === null
+      ? {}
+      : { toolVersion: status.running.split(/[-+]/, 1)[0] };
   if (!status.handover)
     return check("brain", "skipped", "brain-waits-machines", context);
   if (status.state === "machines")

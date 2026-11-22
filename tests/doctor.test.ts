@@ -1564,7 +1564,8 @@ test("the brain: ok running the pin with working keys, warn otherwise, skipped b
   expect(await read()).toEqual({
     id: "brain",
     outcome: "ok",
-    context: { toolVersion: brainPin.version },
+    // The fork release's suffix (`-lazurio.2`) is not carried, only the numbers.
+    context: { toolVersion: brainPin.version.split(/[-+]/, 1)[0] },
   });
   // Without the model the memory answers by words only: warn.
   live.model = false;
