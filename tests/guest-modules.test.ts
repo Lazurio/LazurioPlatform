@@ -63,7 +63,8 @@ import {
 } from "./fixtures/owned-files";
 import { runChild } from "./fixtures/run-child";
 
-// Guest Modules (hostující Moduly, root decision 0221, DEV-6694): a host
+// Guest Modules (called shared Modules, cs nasdílené moduly, since F67's
+// addendum of 2026-11-21; root decision 0221, DEV-6694): a host
 // Organization's `modules.manifest.json` mounts a Module of another
 // Organization, its home Organization, at `workspace/<Home>_GEN3/<repo>`
 // (and its repository database child below it), with `home_organization`.
@@ -693,17 +694,17 @@ test.skipIf(!posix)(
         read,
       );
       expect(text.text).toMatch(
-        /^HomeOrg\/knowledgebase +- +- +guest in hostorg at workspace\/HomeOrg_GEN3\/knowledgebase, read-only$/m,
+        /^HomeOrg\/knowledgebase +- +- +shared with hostorg at workspace\/HomeOrg_GEN3\/knowledgebase, read-only$/m,
       );
       expect(text.text).toContain(
-        "guest in hostorg at workspace/HomeOrg_GEN3/absent, read-only, not checked out",
+        "shared with hostorg at workspace/HomeOrg_GEN3/absent, read-only, not checked out",
       );
       const organizations = await runCatalogCommand(
         ["organization", "list", "--folder", folder],
         cli,
         read,
       );
-      expect(organizations.text).toContain("2 modules, 3 guest modules");
+      expect(organizations.text).toContain("2 modules, 3 shared modules");
     });
   },
 );

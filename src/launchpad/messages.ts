@@ -582,7 +582,7 @@ const en = {
     "Not here yet. Once {this} can read it on GitHub, Lazurio clones it at the next synchronization; ask an Organization Admin of {home} for access.",
   appsGuestHome: "Home Organization",
   appsGuestApp: "Not started here. Open its app in its home Organization.",
-  appsGuestBadge: "guest",
+  appsGuestBadge: "shared",
   appsGuestHint:
     "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
   appsInfoGuest: "Open on GitHub",
@@ -3079,7 +3079,7 @@ const cs: Record<MessageKey, string> = {
   appsGuestHome: "Domovská Organizace",
   appsGuestApp:
     "Tady se nespouští. Aplikaci otevřete v jeho domovské Organizaci.",
-  appsGuestBadge: "hostující",
+  appsGuestBadge: "nasdílený",
   appsGuestHint:
     "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
   appsInfoGuest: "Otevřít na GitHubu",

@@ -25903,6 +25903,53 @@ cannot read.
 This replaces the first sentence of **Not covered** above. A guest's name from its home's
 manifest stays out of scope.
 
+### Addendum of 2026-11-21: shared Module, and how the kinds of repository are shown
+
+**Decided by Matěj on 2026-11-21 for plan LZD-0046 (step D1); this revision renames the
+term and writes the definition, and the update view follows in a later step.** Matěj asked
+for one clear definition of the kinds of repository in an Organization: „Je potřeba
+rozlišovat: co je repozitář, který je modul workspace, co má uvnitř sebe
+modul.lazurio.json, co je repozitář v productionspace, a co jsou datové repozitáře modulů.
+Tohleto je potřeba, ať máme čistě jasně nadefinovaný.“ On the name: „Namísto „hostujícího
+modulu“ bych to pojmenoval něco ve smyslu „nasdílený modul“, jako „shared“. To si myslím,
+že je mnohem lepší standardní pojmenování, že je to jako nasdíleno.“ In the question tool
+he chose for a Module's data repository „Pod svým modulem (Doporučeno)“ and for another
+Organization's Module „„Organizace / Modul“ + štítek (Doporučeno)“.
+
+1. **The term.** A guest Module is a shared Module in every text for people and agents:
+   Czech "nasdílený modul" with the badge "nasdílený", English "shared Module" with the
+   badge "shared". Identifiers in code, schemas, manifests, routes and doctor checks keep
+   their names (`guests`, `guest: true`, `home_organization`, `guest-module`,
+   `/o/<org>/guest/<home>/<module>`), and the points and addenda above stay as written.
+2. **How the update view shows them.** This extends [F47's addendum of
+   2026-10-24](#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
+   (its point 3, one row per module): a Module's data repository stays in its Module's row
+   and is named `<Module> · data` (Czech `<Modul> · data`) only where its state differs
+   from the Module's; a shared Module has a row of its own named
+   `<home Organization> / <slot slug>` with the badge, its data repository under it like
+   any Module's, and it is never merged with the Organization's own Module of the same
+   slug.
+3. **Point 5 stands.** The Platform still does not read a shared Module's
+   `lazurio.module.json`, so its name is its slot's slug, not the title its own declaration
+   gives.
+4. **One definition.** The four kinds (Module, Module data repository, Productionspace
+   repository, shared Module) and how each is shown live in the Module Standard's [Kinds of
+   repository in an Organization](module-standard.md#kinds-of-repository-in-an-organization);
+   every place that shows repositories (Apps, the update view, `lazurio module list`,
+   `lazurio doctor`, the Folder manual) names them by it.
+
+This revision renames the term in Apps' badge, in the output and help of
+`lazurio organization list` and `lazurio module list` (", 1 shared module"; a row's
+"shared with `<host>` at `<path>`, read-only") and in the Folder's `manual/working-here.md`.
+Template revision `base-instructions-149`.
+
+**Not covered.** The update view does not follow point 2 yet. It names a repository that is
+no module of the catalog by the last segment of its path, so today a shared Module's
+progress lands in the row of the Organization's own Module of that slug when there is one,
+and its data repository is a row named "db"; a later step of plan LZD-0046 changes it. The
+folder of a shared Module's slot keeps its name until Lazurio/LazurioPlatform#1149 decides
+it.
+
 ## F68 — Only the installed product acts on the declared operator's Folder
 
 **Proposed 2026-11-01 for #782 and accepted by the Organization Admin the same day; not implemented yet: the implementation follows in its own pull request.**
