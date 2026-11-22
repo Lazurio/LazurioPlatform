@@ -1459,3 +1459,16 @@ This decision amends 0231, 0234 and 0239 for access, publication and the terms, 
 **Template synchronization of a root.** A GEN4 root takes its template by managed files, not by Git lineage, and this replaces 0174 for Organization roots: the template release names every file it manages and the release they come from, a managed file is the same in every root of that release and blocks in `AGENTS.md` are marked as managed, and a new release reaches a root as an ordinary reviewed pull request that rewrites only the managed files and blocks, without a merge commit of the template and without a `template` remote. The move to GEN4 is the first such pull request. Modules created from templates keep 0174.
 
 **What stays.** Repositories other than Organization roots keep their names. This entry does not move a Personalspace: a GEN4 template for new Personalspace repositories is created next to the root template, and whether and how an existing person's Personalspace repository changes is left to a decision of its own, taken with that person. Access and its trust boundaries move with the root and are compared before and after (0234, 0245).
+
+### 0252 — In what people see, the Personal Environment's memory is „Dlouhodobá Paměť“; „Brain“ („Firemní Mozek“) is reserved for the Organization's GitHub Organization
+
+- **Status:** decided, not yet deployed; the English name, the capitalisation in running text and whether agents' wording follows are open · **Applies to:** GEN4 · **Decided:** 2026-11-22
+- **Related:** 0046, 0170, 0207, 0210, 0251
+
+**The Owner's words.** Matěj, 2026-11-22 14:07:49 UTC, in his Buddy's thread, about the page „Brain“ in his Lazurio (Apps → Brain, `/memory`): „Tohle musíme přejmenovat na Dlouhodobá Paměť. Protože Paměť více sedí s koncepty, co lidé už znají. Jako Brain budeme označovat Lazurio Github Organizaci do bucoudna. Jako "Firemní Mozek"“
+
+**The person's memory.** What Lazurio today calls the Brain toward people is the memory of the user of a Personal Environment, GBrain, which Lazurio installs, updates and watches (0046, 0210's addendum of 2026-11-17). Toward people it is named **„Dlouhodobá Paměť“** (Czech). That covers the item in the Apps column, the page's title, the guide and every text a person reads. Names in code, commands (`lazurio brain …`), units, files, paths and the MCP tools (`get_brain_identity` and others) do not change by this entry.
+
+**„Brain“ is reserved.** In the future „Brain“, in Czech **„Firemní Mozek“**, names an Organization's GitHub Organization in Lazurio: its company-wide store of knowledge and work, rooted in its root repository (0251). Until a later decision gives that meaning a shape in the product, „Brain“ is used toward people for nothing else, and the person's memory no longer carries it.
+
+**Open, for the Owner:** the English name (proposed: „Long-term Memory“); capitals (proposed: „Dlouhodobá Paměť“ as the name of the page and app, „dlouhodobá paměť“ in a running sentence); and whether agents' instructions (Buddy's section „Paměť: Brain“, the skill `buddy-brain`, the Folder's glossary) say „Dlouhodobá Paměť (GBrain)“ or keep „Brain“ as the agents' technical name.
