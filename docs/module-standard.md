@@ -844,6 +844,13 @@ fonts or links, not for its siblings' data or APIs, and not for a service it
 calls. The application host reaches what the App needs, and the person reaches
 only `https://<module>.<org>.lazurio.app`.
 
+**Memory.** An Application is frugal: it gets a smaller memory reserve on the
+application host than today's 512 MiB, and the Module's CI enforces a memory
+ceiling on the built App started with representative data under a burst of
+requests. An App that does not fit under the ceiling does not pass until agents
+make it leaner (decision 0249, addendum of 2026-11-22). The ceiling's value is
+set by measurement and is not set yet.
+
 **The runtime contract** still holds: built output, one server process, listener
 host and port from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`, direct 200
 health that answers 503 until the App's data are open, and secrets declared by name
@@ -1721,7 +1728,7 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a publication is a tool of its own with `destructiveHint` that an agent calls on the person's "Publikuj" (LZD-0037, D1) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
 | `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
 | `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, which decides writes by the same `dataWriter` rule as the tools, whose revision is unique per write (never content alone, never a counter) and whose implementations pass one `store-contract` including A → B → A ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
-| `MS-19` | A Module with an app is ready as an Application before it is deployed as one: a built version, Bun pinned exactly with a committed lockfile, no committed `.env*` file anywhere in the Module (`.env.example` excepted), and for an own server `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and a health path of its own; in V3 and V4 the writer rule; for live use CI and contract tests over the module kit's testing helpers. The release evidence the Organization's release mode needs is the rollout's | `lazurio module readiness` (`src/modules/readiness.ts`, `tests/module-readiness.test.ts`) reads it statically; the contract tests run in the Module's CI |
+| `MS-19` | A Module with an app is ready as an Application before it is deployed as one: a built version, Bun pinned exactly with a committed lockfile, no committed `.env*` file anywhere in the Module (`.env.example` excepted), and for an own server `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and a health path of its own; in V3 and V4 the writer rule; for live use CI and contract tests over the module kit's testing helpers, and in CI the memory ceiling of an own server once its value is set ([Memory](#applications-of-an-organization)). The release evidence the Organization's release mode needs is the rollout's | `lazurio module readiness` (`src/modules/readiness.ts`, `tests/module-readiness.test.ts`) reads it statically; the contract tests run in the Module's CI |
 
 ## GEN3
 

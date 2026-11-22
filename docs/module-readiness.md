@@ -20,12 +20,14 @@ does not add a second standard, it names which of its rules decide readiness.
    `@lazurio/module-kit` (`/tools/testing` and `/testing`): who came and with
    which role, the tool list by role, refusal without a role (`403
    identity_unavailable`), refusal of a write without the writer, a stale
-   write ending in `record_changed`, and deep health. The static check asks
-   that the Module has them; CI proves they pass.
+   write ending in `record_changed`, and deep health; and, once its value is
+   set, the memory ceiling of an own server (the built App started with
+   representative data under a burst of requests stays under it; Module
+   Standard, Memory). The static check asks that the Module has them; CI
+   proves they pass.
 3. **The rollout** on the application host: the release evidence the
-   Organization's release mode asks for (by default a merge to `main` with
-   green checks, or an approved release where the Organization switched that
-   on), the deployed Application's health, and from outside its gateway's
+   Module's release step asks for (by default a merge to `main` with passing
+   checks, or a release where the Organization's Owners switched the step on), the deployed Application's health, and from outside its gateway's
    `401` with a `scope` on `/mcp`, its protected-resource metadata and the
    host's scope at the issuer. These need the live host and the
    Organization's rule and belong to the rollout, not to the Module.
