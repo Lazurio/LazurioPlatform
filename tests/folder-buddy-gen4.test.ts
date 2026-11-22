@@ -201,6 +201,27 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   // GBrain says "Not for facts about a person" of `share`, not `visibility`.
   expect(cs).toContain("nepoužívej `share: true`");
   expect(en).toContain("Do not use `share: true`");
+  // Visibility: the pinned GBrain's recall gives remote callers (Executor)
+  // `world` facts only, so a `private` fact is lost to every agent; a test
+  // persona's Buddy saved one as private and could not read it back (rc.3).
+  expect(cs).toContain(
+    "`visibility` u `remember` neposílej, nebo pošli `world`",
+  );
+  expect(en).toContain(
+    "do not pass `visibility` to `remember`, or pass `world`",
+  );
+  expect(cs).toContain("vrací `recall` jen fakta `world`");
+  expect(en).toContain("`recall` returns `world` facts only");
+  // A private write is written again without visibility; the pinned GBrain
+  // refuses a world fact replacing a private one (replaces_visibility_mismatch).
+  expect(cs).toContain("Když `remember` vrátí `visibility: private`");
+  expect(en).toContain("When `remember` returns `visibility: private`");
+  expect(cs).toContain("zapiš ho znovu bez `visibility`");
+  expect(en).toContain("write it again without `visibility`");
+  expect(cs).toContain("GBrain soukromý fakt faktem `world` nenahradí");
+  expect(en).toContain("does not let a `world` fact replace a private one");
+  for (const text of [cs, en])
+    expect(text).not.toContain('visibility: "private"');
   // put_page on an existing page needs the revision, and a refusal changes nothing.
   expect(cs).toContain("`revision_required` a nic nezmění");
   expect(en).toContain("ends with `revision_required` and changes nothing");

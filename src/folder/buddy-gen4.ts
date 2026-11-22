@@ -470,6 +470,10 @@ const brainSkill: FolderSkill = {
       "- **Facts and preferences:** `remember` always with `provenance` (required: who and when) and with `entity`, the name or slug of whom or what the fact is about (a person, a company, a project). Without `entity` GBrain tries to infer it, which is not reliable, and `recall` finds facts by it. Do not use `share: true`, which makes the fact readable to every reader of the source, for facts about a person.",
     ),
     t(
+      "- **Viditelnost:** `visibility` u `remember` neposílej, nebo pošli `world`. Přes Executor vrací `recall` jen fakta `world`, takže fakt uložený jako `private` nenajdeš ty ani žádný jiný agent tohoto Prostředí. V Osobním Prostředí čtou fakta jen agenti jeho člověka.",
+      "- **Visibility:** do not pass `visibility` to `remember`, or pass `world`. Through Executor `recall` returns `world` facts only, so a fact saved as `private` is found neither by you nor by any other agent of this Environment. In a Personal Environment only its person's agents read the facts.",
+    ),
+    t(
       "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `edit_page`, `put_page`. Stránku priorit udržuješ aktuální úpravami; nedělej z ní desítky poznámek.",
       "- **Pages:** priorities, work in progress and agreements on pages: `get_page`, `edit_page`, `put_page`. You keep the priorities page current by editing it; do not turn it into dozens of notes.",
     ),
@@ -490,8 +494,8 @@ const brainSkill: FolderSkill = {
       "- **An incomplete result:** an empty or thin result is no proof that nothing is there when the answer reports that part of the search did not run: in `recall` the field `facts_degraded` (facts without meaning search, the reason in `reason`) or `search_degraded` (words only), elsewhere the notice `degraded_recall` or `_meta.retrieval.degraded` (a stage left out, such as the rerank or the embedding). Try other words, `get_page` or `entity`; after a transient failure (`timeout`, `rate_limited`) repeat the call a little later.",
     ),
     t(
-      "- **Ověření:** po každém zápisu ho přečti zpět. Zdraví Brainu: `get_brain_health`.",
-      "- **Check:** read every write back. The Brain's health: `get_brain_health`.",
+      "- **Ověření:** po každém zápisu ho přečti zpět. Když `remember` vrátí `visibility: private`, fakt nenajdeš: zapiš ho znovu bez `visibility` (`replaces` tu nepomůže, GBrain soukromý fakt faktem `world` nenahradí). Zdraví Brainu: `get_brain_health`.",
+      "- **Check:** read every write back. When `remember` returns `visibility: private`, you will not find the fact: write it again without `visibility` (`replaces` does not help here, GBrain does not let a `world` fact replace a private one). The Brain's health: `get_brain_health`.",
     ),
     t(
       "- **Hranice:** u práce Organizace zapiš jen krátký popis a odkaz na místo v Organizaci; nikdy kopii plánu, dat ani tajemství.",
