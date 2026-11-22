@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0254**, by a pull request to this
+A new decision takes the next free number, **0253**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -1460,7 +1460,7 @@ This decision amends 0231, 0234 and 0239 for access, publication and the terms, 
 
 **What stays.** Repositories other than Organization roots keep their names. This entry does not move a Personalspace: a GEN4 template for new Personalspace repositories is created next to the root template, and whether and how an existing person's Personalspace repository changes is left to a decision of its own, taken with that person. Access and its trust boundaries move with the root and are compared before and after (0234, 0245).
 
-### 0253 — Access that really ends: one passport, decisions at each Organization, and only short credentials for people
+### 0252 — Access that really ends: one passport, decisions at each Organization, and only short credentials for people
 
 - **Status:** decided, not yet deployed; the fixed windows are decided separately · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-22
 - **Related:** 0172, 0213, 0214, 0216, 0245, 0246, 0247, 0250
