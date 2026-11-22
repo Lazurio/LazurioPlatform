@@ -1,5 +1,6 @@
-// The brand fonts of the shell (src/shell/vendor/README.md): Inter Tight and
-// Geist Mono, Latin and Latin Extended, served by the Launchpad at
+// The brand fonts of the shell (src/shell/vendor/README.md): Inter for text,
+// Inter Tight for headings and Geist Mono, Latin and Latin Extended, served by
+// the Launchpad at
 // `/.lazurio/fonts/<file>` on every origin of the Environment. A font face
 // declared inside a shadow root does not apply, so the elements declare these
 // once in the document; the families are the ones `tokens.css` names.
@@ -10,6 +11,18 @@ const latinExt =
   "U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF";
 
 export const shellFonts = [
+  {
+    file: "inter-latin-wght-normal.woff2",
+    family: "Inter Variable",
+    weight: "100 900",
+    range: latin,
+  },
+  {
+    file: "inter-latin-ext-wght-normal.woff2",
+    family: "Inter Variable",
+    weight: "100 900",
+    range: latinExt,
+  },
   {
     file: "inter-tight-latin-wght-normal.woff2",
     family: "Inter Tight Variable",

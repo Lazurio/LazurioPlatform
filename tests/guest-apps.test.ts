@@ -34,7 +34,7 @@ import {
 
 // Decision F67's addendum of 2026-11-01 (DEV-6694 M7): Apps draws the guest
 // Modules an Organization declares, one section per home Organization
-// after its own, titled with the home's GitHub login and a quiet "hostující"
+// after its own, titled with the home's GitHub login and a quiet "nasdílený"
 // badge. A guest is drawn like a module, read-only: never opened or
 // started, its menu leads to GitHub, and one this Environment cannot read
 // (never cloned here) is not shown at all. Synthetic names only.
@@ -184,7 +184,8 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
     for (const tile of section.tiles)
       expect(tile.action).toEqual({ kind: "route", href: tile.info ?? "" });
   }
-  expect(cs.appsGuestBadge).toBe("hostující");
+  expect(cs.appsGuestBadge).toBe("nasdílený");
+  expect(en.appsGuestBadge).toBe("shared");
 });
 
 test("the page keeps a valid guest list and refuses a forged one", () => {

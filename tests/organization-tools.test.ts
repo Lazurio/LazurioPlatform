@@ -487,8 +487,117 @@ test.skipIf(windows)(
       },
     ]);
     expect(calls).toEqual([]);
+    // Linked all the same, for a PATH that reaches ~/.local/bin later.
+    expect(await readlink(join(user, ".local", "bin", "cargo"))).toBe(
+      join(user, ".cargo", "bin", "cargo"),
+    );
   },
 );
+
+test.skipIf(windows)(
+  "an earlier installation outside ~/.local/bin is linked there, and the PATH that has ~/.local/bin then finds it (#1030)",
+  async () => {
+    const user = await home();
+    await rustupAt(user, {
+      default: "stable",
+      toolchains: { stable: "1.99.1" },
+      channels: { stable: "1.99.1" },
+    });
+    const entry = join(user, ".local", "bin");
+    await mkdir(entry, { recursive: true });
+    const calls: string[] = [];
+    const items = await provisionOrganizationTools({
+      tools: [cargo("1.89.0")],
+      path: `${entry}:${join(user, "empty")}`,
+      home: user,
+      platform: process.platform,
+      run: runner(async () => 0, calls),
+    });
+    expect(items).toEqual([
+      {
+        tool: "cargo",
+        minimum: "1.89.0",
+        result: "current",
+        version: "1.99.1",
+      },
+    ]);
+    expect(calls).toEqual([]);
+    expect(await readlink(join(entry, "cargo"))).toBe(
+      join(user, ".cargo", "bin", "cargo"),
+    );
+  },
+);
+
+test.skipIf(windows)(
+  "an entry in ~/.local/bin that does not run (a dangling link, a file that is not executable) is left and named, never reported as a PATH without ~/.local/bin",
+  async () => {
+    for (const [blocker, spelling, where] of [
+      ["dangling", "literal", "short"],
+      ["not-executable", "literal", "short"],
+      // The same directory written another way on the PATH.
+      ["dangling", "equivalent", "short"],
+      // A home whose path has a long run without a dot, as macOS's temporary
+      // folders (/private/var/folders/9d/l02zfgrs…/T/…): the entry is a path
+      // Lazurio composed, named exactly, never withheld as if it were key
+      // material (main red on macOS after #1181).
+      ["dangling", "literal", "long"],
+    ] as const) {
+      const user =
+        where === "long"
+          ? join(await home(), "var-folders-9d-l02zfgrs7c16twd3wbpdmhkc0000gn")
+          : await home();
+      await mkdir(user, { recursive: true });
+      await rustupAt(user, {
+        default: "stable",
+        toolchains: { stable: "1.99.1" },
+        channels: { stable: "1.99.1" },
+      });
+      const entry = join(user, ".local", "bin");
+      await mkdir(entry, { recursive: true });
+      const occupied = join(entry, "cargo");
+      if (blocker === "dangling")
+        await symlink(join(user, "nowhere", "cargo"), occupied);
+      else await writeFile(occupied, "not a program\n", { mode: 0o644 });
+      const calls: string[] = [];
+      const [item] = await provisionOrganizationTools({
+        tools: [cargo("1.89.0")],
+        path: `${spelling === "literal" ? entry : `${entry}/../bin/`}:${join(user, "empty")}`,
+        home: user,
+        platform: process.platform,
+        run: runner(async () => 0, calls),
+      });
+      expect(item).toMatchObject({
+        tool: "cargo",
+        result: "failed",
+        stage: "link",
+        reason: "link-occupied",
+        detail: occupied,
+      });
+      expect(calls).toEqual([]);
+      // Left as it was.
+      if (blocker === "dangling")
+        expect(await readlink(occupied)).toBe(join(user, "nowhere", "cargo"));
+      else expect(await readFile(occupied, "utf8")).toBe("not a program\n");
+    }
+  },
+);
+
+test("lazurio update says when a declared tool is current but its PATH does not reach ~/.local/bin (#1030)", () => {
+  expect(
+    everythingText([
+      {
+        part: "organization-tools",
+        tool: "cargo",
+        minimum: "1.89.0",
+        result: "current",
+        version: "1.99.1",
+        onPath: false,
+      },
+    ]),
+  ).toEqual([
+    "The Organization's tool cargo (minimum 1.89.0) is 1.99.1, but ~/.local/bin is not on this PATH, so commands do not find it.",
+  ]);
+});
 
 test.skipIf(windows)(
   "below the minimum but installed another way (a system package): reported, never replaced or shadowed",

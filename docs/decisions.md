@@ -4162,7 +4162,7 @@ What changes:
 - **Manifest schema 7** records the new skill; Folders at 2 to 6 gain it on their next change
   where nothing is at its paths.
 
-Template revision `base-instructions-149`. Verified by `tests/folder-automate.test.ts`,
+Template revision `base-instructions-150`. Verified by `tests/folder-automate.test.ts`,
 `tests/folder-skills.test.ts`, the budget tests and the pinned digest. Not proven: that agents
 in every harness pick the skill over their own scheduler.
 
@@ -10917,6 +10917,105 @@ Verified by unit tests: `tests/shell-account.test.ts` (the account's last visit 
 opens Chat from Chat and Apps from a page that is no Environment's), `tests/shell.test.ts` (Chat
 and Automate keep their app).
 
+### F36 addendum of 2026-11-17: the design system's clean type
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+merge of its pull request and of the dark appearance Grafit that stands on it.** The design system's
+clean look of 2026-10-21, which its owner decided for the product too, sets text in Inter and
+headings in Inter Tight at weight 600. The shell's copy of `tokens.css` is from 2026-10-19
+and predates it, and every newer copy brings it: the dark scheme Grafit (2026-11-08) cannot
+reach the Environment theme without a newer copy, and the type comes with it. This addendum
+takes the copy and serves the font it names.
+
+1. **The copy.** `tokens.css` byte for byte from the design system at the commit the vendor
+   README records. Only values change in promised names: `--lz-font-sans` names Inter
+   Variable first, the title and hero weights are 600 instead of 700, and the tracking
+   follows. New names nobody is promised: `--lz-font-heading` (Inter Tight Variable), the
+   deep band, `--lz-radius-lg`, the web's section size, `--lz-weight-medium` and the
+   Grafit steps. No promised name is dropped or renamed.
+2. **The faces.** The shell declares Inter Variable (weights 100 to 900, Latin and Latin
+   Extended, `@fontsource-variable/inter` 5.3.0, SIL OFL 1.1) before Inter Tight Variable
+   and Geist Mono, from `/.lazurio/fonts/`. `declares.fonts` grows by "Inter Variable", an
+   addition to v1 as point 8 of the addendum of 2026-10-13 allows; the version stays 1. A
+   fork that maps `--lz-font-sans` sets its text in Inter with no release of its own.
+3. **The Launchpad.** Its page and its new tab declare the same faces. Its titles (the
+   column's, a page's, a dialog's and the MCP page's) take `--lz-font-heading`; everything
+   else follows the values.
+4. **The elements' scope.** The shell scopes the file to its elements by replacing the
+   selector of its one rule with `:host`, now only at the start of a line, so a comment
+   naming the root never takes the replacement. The design system's first copy of this
+   header did exactly that; the design system now keeps the selector out of its comments
+   and tests it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the copy of 2026-10-19 | Grafit and every later design system change never arrive; rejected |
+| Take the new copy but keep Inter Tight for text | Not a byte-for-byte copy, against F36's vendoring rule; rejected |
+| Promise `--lz-font-heading` to the forks now | No fork maps headings yet; left until one needs it |
+| Copy the new file and the font (selected) | One copy of the design system, an addition to v1, and the type the product was decided to have |
+
+**Honest limits.** With this release the text of Chat, Automate and Apps changes from Inter
+Tight to Inter on every Environment, and the titles get lighter. Inter adds about 130 KB of
+font files, fetched only where a page uses the characters of a subset. Ring 0 with a browser
+check (root decision 0178) shows it before the waves.
+
+Verified by unit tests: `tests/shell-tokens.test.ts` (the vendored file's shape, the faces
+are the families `--lz-font-sans`, `--lz-font-heading` and `--lz-font-mono` name first, the
+elements' `:host`), `tests/shell-interface.test.ts` (interface v1 grows by the family and
+loses nothing), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
+shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded hash).
+
+### F36 addendum of 2026-11-17 (2): the theme Lazurio is dark in Grafit
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+addendum of 2026-11-17 and the merge of both pull requests.** Point 2 of the addendum of 2026-10-18 made the theme Lazurio light only,
+because the design system had no dark UI. Since 2026-11-08 it has one: the dark scheme
+Grafit, graphite greys in steps instead of near-black, chosen by the design system's owner
+over the prototype. Until now a dark device with the theme Lazurio showed T3 Code's own
+near-black palette in Chat, because the theme gave no dark values and the fork's gate fell
+back to it.
+
+1. **The values.** The theme's dark appearance is the design system's `tokens-dark.css`,
+   vendored from the same commit as `tokens.css` and resolved over it as a browser
+   resolves the rule (`src/theme/design-tokens-dark.ts`, `src/theme/palettes.ts`): the
+   rail and sidebar (`--lz-paper`) `#171717`, the page (`--lz-surface`) `#1e1e1e`, the
+   quiet and the selected surface (`--lz-gray-50`, `--lz-gray-100`) `#2b2b2b` and
+   `#313131`, the ink `#f0f0f0`, the accent the ramp's `blue-300` and the button a light
+   pill with ink of the rail's colour. `--lz-red-500` and `--lz-green-500` keep their
+   light values, as Grafit leaves them. Contrast holds as for every theme
+   (`tests/theme-palettes.test.ts`); the closest pair is the error graphic on the page,
+   3.03:1 against 3:1.
+2. **Who shows it.** Chat (the T3 Code fork's gate, point 11 of the addendum of
+   2026-10-18) and Automate (MausBot's Environment skin) already follow a theme's dark
+   values, so they show Grafit on a dark device with no release of their own. Settings
+   shows the Lazurio card with its light and dark windows, as the others.
+3. **Apps stays light** (0208 point 5): its page still hands the shell only the light
+   values (`appsTheme`), because part of its CSS draws from names no theme gives a value.
+   A dark page of its own is a change of its own.
+4. **A card's step.** Grafit lifts a card above the page (`--lz-white`, `#252525`).
+   Interface v1 does not promise `--lz-white`, so a fork draws its cards on the page's
+   surface, as under every theme. Promising a card colour is an interface change of its
+   own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Lazurio light only | Chat on a dark device keeps the near-black palette the design system replaced; rejected |
+| Put `tokens-dark.css` into the app's document beside the tokens | Restyles every `--lz-*` name under the dark attribute, beyond the promised ones, and the theme's style already carries the dark values; rejected |
+| Apps dark now | A half-dark page, as the addendum of 2026-10-18 says; left for its own change |
+| The theme's dark values from the design system's dark scheme (selected) | One source for both appearances, no fork release, the contrast held by the existing tests |
+
+**Honest limits.** In Chat, Grafit reaches the rail, the sidebar, the page and the
+selection; T3 Code's cards stay on the page's grey (point 4). The comment in the T3 Code
+fork's `theme.css` still says the dark mode of Lazurio keeps T3 Code's palettes; its next
+release should correct it, and nothing in its behaviour changes. Ring 0 with a browser
+check (root decision 0178) of Chat and Automate on a dark device comes before the waves.
+
+Verified by unit tests: `tests/theme-palettes.test.ts` (Lazurio's dark values are the dark
+scheme's, resolved over the tokens; text 4.5:1 and graphics 3:1 in dark),
+`tests/apps-view.test.ts` (the vendored file's recorded hash).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction
@@ -15984,6 +16083,59 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       - **Not changed:** the model, its pin and priority, the copy before the
         first window, and that gbrain's trust claim of pages from before
         trust tracking stays the owner's own step.
+    - **Amendment 2026-11-21: computed by the running server** (proposed;
+      it takes effect with a pinned release that carries the hand-over). Matěj
+      decided on 2026-11-21 for computing in the background and against a
+      night computation: „Jsem pro vsadit na průběžné počítání a noční výpočet
+      nenasazovat a zahodit ho.“ (Bet on continuous computing; do not deploy
+      the night computation and drop it.)
+      - **The hand-over.** The pinned release hands `gbrain embed --stale` to
+        the running server (`writer_embed_stale`, in the Lazurio fork of
+        gbrain until upstream takes it). No window stops the server any
+        more. The memory answers throughout, and a page written meanwhile is
+        kept as written.
+      - **The one stop.** Only switching the model on (enable, or the
+        migration of another model's vectors) stops the server once, after a
+        copy, for seconds. It is committed before the server starts again,
+        and a switch that fails brings the copy back as before.
+      - **The windows.** The windows keep their budget (3 minutes), their
+        pause (5 minutes) and their condition that Buddy is idle. A window
+        that fails keeps every vector the server wrote and brings nothing
+        back; two in a row without progress, or 400 in all, stop the filling
+        as before. A window that exits 0 counts as the last only where
+        gbrain's own preview then says nothing is left: gbrain's heal of
+        pages stored without chunks may stop at the budget, exit 0 and set
+        no reason. The preview gets a budget longer than the limit Lazurio
+        ends it at, so one that answers has looked at every page; one that
+        does not answer is not taken for done.
+      - **The facts.** After the pages, the facts the memory remembered get
+        their vectors the same way, in windows handed to the running server
+        (`embed --stale --facts` for the source `default`, at no cost).
+        gbrain embeds a fact only where the database's own plane names the
+        model, which an earlier release's `embeddings enable` did not record.
+        So a brain switched on before this pin gets it once, in one short
+        stop (`embeddings enable` with the model it already has); a brain
+        switched on by this pin has it from the switch. That stop is on
+        record until the server answers again: a run that dies in it leaves
+        the next run to start the server first, a start that fails keeps the
+        record and ends the run with a wait the Launchpad repeats after a
+        pause, a server that does not come back is never reported as done,
+        and setup at the Launchpad's start runs again after a run without an
+        answer (three times in a row at most). Two fact windows in a row without progress give the facts up,
+        facts over the model's input limit (skipped by gbrain, never
+        truncated) end them incomplete, and the pages keep search by meaning
+        either way. Facts that ended incomplete on one pinned release are
+        tried once more on the next, with no step by a person: the pin
+        `v0.60.733.0-lazurio.2` refused the plane of a brain whose pages it
+        had embedded (`facts-plane`), and `lazurio.3` accepts it where every
+        stored vector is stamped with the model.
+      - **What a person notices.** Search by words and writing work all the
+        time. While a window computes, search by meaning is slower (measured
+        on 4 cores with bge-m3: a median of about 5 to 6 s instead of 0.3 s,
+        some answers by words only), and it is fast again after the window.
+      - **Measured** on a fictional brain with a prototype of the hand-over:
+        80 stale chunks in five windows of 60 s with the server never
+        stopped, and every page write during them stored.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.
@@ -25850,6 +26002,89 @@ cannot read.
 
 This replaces the first sentence of **Not covered** above. A guest's name from its home's
 manifest stays out of scope.
+
+### Addendum of 2026-11-21: shared Module, and how the kinds of repository are shown
+
+**Decided by Matěj on 2026-11-21 for plan LZD-0046 (step D1); this revision renames the
+term and writes the definition, and the update view follows in a later step.** Matěj asked
+for one clear definition of the kinds of repository in an Organization: „Je potřeba
+rozlišovat: co je repozitář, který je modul workspace, co má uvnitř sebe
+modul.lazurio.json, co je repozitář v productionspace, a co jsou datové repozitáře modulů.
+Tohleto je potřeba, ať máme čistě jasně nadefinovaný.“ On the name: „Namísto „hostujícího
+modulu“ bych to pojmenoval něco ve smyslu „nasdílený modul“, jako „shared“. To si myslím,
+že je mnohem lepší standardní pojmenování, že je to jako nasdíleno.“ In the question tool
+he chose for a Module's data repository „Pod svým modulem (Doporučeno)“ and for another
+Organization's Module „„Organizace / Modul“ + štítek (Doporučeno)“.
+
+1. **The term.** A guest Module is a shared Module in every text for people and agents:
+   Czech "nasdílený modul" with the badge "nasdílený", English "shared Module" with the
+   badge "shared". Identifiers in code, schemas, manifests, routes and doctor checks keep
+   their names (`guests`, `guest: true`, `home_organization`, `guest-module`,
+   `/o/<org>/guest/<home>/<module>`), and the points and addenda above stay as written.
+2. **How the update view shows them.** This extends [F47's addendum of
+   2026-10-24](#f47--nová-karta-one-shell-element-for-every-apps-right-panel-the-places-that-hold-a-remote-tab-and-the-environments-overview)
+   (its point 3, one row per module): a Module's data repository stays in its Module's row
+   and only where its state differs from the Module's does that row say so, as `Data: …`
+   under the Module's name (it reads `<Module> · data`, Czech `<Modul> · data`); a shared Module has a row of its own named
+   `<home Organization> / <slot slug>` with the badge, its data repository under it like
+   any Module's, and it is never merged with the Organization's own Module of the same
+   slug.
+3. **Point 5 stands.** The Platform still does not read a shared Module's
+   `lazurio.module.json`, so its name is its slot's slug, not the title its own declaration
+   gives.
+4. **One definition.** The four kinds (Module, Module data repository, Productionspace
+   repository, shared Module) and how each is shown live in the Module Standard's [Kinds of
+   repository in an Organization](module-standard.md#kinds-of-repository-in-an-organization);
+   every place that shows repositories (Apps, the update view, `lazurio module list`,
+   `lazurio doctor`, the Folder manual) names them by it.
+
+This revision renames the term in Apps' badge, in the output and help of
+`lazurio organization list` and `lazurio module list` (", 1 shared module"; a row's
+"shared with `<host>` at `<path>`, read-only") and in the Folder's `manual/working-here.md`.
+Template revision `base-instructions-149`.
+
+**Not covered.** The update view does not follow point 2 yet. It names a repository that is
+no module of the catalog by the last segment of its path, so today a shared Module's
+progress lands in the row of the Organization's own Module of that slug when there is one,
+and its data repository is a row named "db"; a later step of plan LZD-0046 changes it. The
+folder of a shared Module's slot keeps its name until Lazurio/LazurioPlatform#1149 decides
+it.
+
+**Implemented on 2026-11-21 for plan LZD-0046 (step D2): the update view follows point 2.**
+
+- **What the synchronization says.** Each content item and each step of `lazurio update
+  --json` (and of Aktualizovat's job) names where its repository belongs, from the slots
+  alone: a data repository its Module's path in `parent` (as `dataMountOf` reads it), a
+  shared Module and its data their home Organization in `home` and the slot slug in
+  `module`; every one names its repository as declared in `repository` (`<owner>/<name>`:
+  the slot's remote, the root's `root_repository.locator`, after the review of #1184).
+  The record of the synchronization keeps them. They are additive; nothing reads the
+  shared Module's manifest (point 3). The view shows a row's repositories as its name's
+  tooltip, never as its name.
+- **How the view keys and names rows.** An own Module's row stays keyed by its Organization
+  and id, which its builds share, and named as Apps names it. A data line goes into the
+  row of its `parent`, never into one found by its path's last segment. A shared Module's
+  row is keyed by its Organization, home and slug apart from every own Module, named
+  `<home> / <slug>` with the stone Apps gives its tile and the badge "nasdílený" /
+  "shared" with Apps' explanation; a line of an older run without `home` is still known as
+  shared by the catalog's guests. A repository of no Module of the catalog and no shared
+  Module is shown by its path relative to the root; this replaces F47's "no path is ever
+  shown" for that case only. An absent shared Module, like an absent Module, has no row.
+- **A data finding.** Where its data has a finding (blocked, denied, unreachable, failed),
+  the Module's row says „Data: …“ / "Data: …" with the finding in words on a line of its
+  own under the Module's name, so it reads as „<Modul> · data“ without repeating the
+  name. Every distinct finding of the row is said, each on its own line, in this order:
+  the Module's own, its data's, a failed build; none hides another, so the row says all
+  that is left to fix (the review of #1184). Progress (checking, fetching, done with its
+  commit) is the row's one line as before.
+
+Tests: `tests/new-tab-view.test.ts` (three data repositories and no "db" row; an own and a
+shared Mission Control as two rows; the data finding; the Module's, its data's and a
+failed build's findings together; the repositories as a row's tooltip; an absent shared
+Module left out; a repository of no Module by its path), `tests/guest-modules.test.ts`
+and `tests/content-sync.test.ts` (`repository`, `parent`, `home` and `module` on the
+answers, the steps and the record, for the root, an own Module and its data, a shared
+Module and its data).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

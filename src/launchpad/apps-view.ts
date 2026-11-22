@@ -318,8 +318,8 @@ export type AppsSection = Readonly<{
   kind: CatalogSectionKind | "personal";
   title: string;
   /** A quiet badge beside the flag with its explanation as a tooltip: the
-   * guest section's "hostující" (decision F67's addendum of 2026-11-01);
-   * null for every other section. */
+   * guest section's "nasdílený" (decision F67's addenda of 2026-11-01 and
+   * 2026-11-21); null for every other section. */
   badge: Readonly<{ text: string; hint: string }> | null;
   count: string;
   tiles: readonly AppsTile[];
@@ -541,8 +541,9 @@ export function appsTiles(
 
 /** The stone of a Module known here by its slug alone (a guest Module, a
  * shared application): the org-agnostic fallback of its id, never an
- * Organization's or a Module's name. */
-const slugStone = (module: string) =>
+ * Organization's or a Module's name. Nová karta's update view draws a
+ * shared Module's row with it, as Apps draws its tile. */
+export const slugStone = (module: string) =>
   stoneOf(semanticAppIconKey({ module, id: null, tags: [], icon: null }));
 
 /** A guest Module's tile: its slot id as GitHub names the repository, the

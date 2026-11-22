@@ -34,6 +34,8 @@
      the elements find this block and add none, and the text is laid out in
      them before the page shows. -->
 <style data-lazurio-fonts>
+@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-latin-wght-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-latin-ext-wght-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-wght-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-ext-wght-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:"Geist Mono";font-style:normal;font-display:swap;font-weight:400;src:url("/.lazurio/fonts/geist-mono-latin-400-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -49,7 +51,8 @@
    rows) in the Lazurio design-system look: every colour, type and radius
    below comes from its vendored tokens (src/shell/vendor/lazurio/tokens.css);
    the aliases keep the names the panels use. Plain CSS, no framework. Light
-   only: the design system has no dark mode yet.
+   only: only part of this CSS draws from the names a theme gives values, so
+   a dark device would get a half-dark page (root decision 0208 point 5).
    The Environment's theme (root decision 0208, F36's addendum of
    2026-10-18) gives the colour names interface v1 promises other values:
    the shell writes them into `style[data-lazurio-environment-theme]`, which
@@ -94,6 +97,7 @@
   --radius-control: var(--lz-radius-sm);
   --radius-card: var(--lz-radius-md);
   --font-sans: var(--lz-font-sans);
+  --font-heading: var(--lz-font-heading);
   --font-mono: var(--lz-font-mono);
   --column-width: 264px;
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23707070' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -206,7 +210,7 @@ h1, h2, h3, h4 { margin: 0; font-size: 14px; }
 .column-lockup { display: block; flex: none; width: auto; height: 18px; }
 .column-apps, .column-settings { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 10px; }
 .column-scroll { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 14px; overflow-y: auto; }
-.column-title { padding: 0 8px; font-size: 18px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); }
+.column-title { padding: 0 8px; font-family: var(--font-heading); font-size: 18px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); }
 .column-label { padding: 4px 10px 6px; color: var(--muted-fg); font-size: 13px; }
 .column-favorites { display: grid; gap: 1px; padding-bottom: 8px; border-bottom: 1px solid var(--lz-gray-100); }
 .column-hint { padding: 2px 10px 4px; color: var(--muted-fg); font-size: 13px; }
@@ -351,9 +355,10 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
    per theme the Environment may take, on the design system's tile (a
    hairline, radius-md, the ink's edge once chosen, never a shadow). Each
    shows its light and its dark look as two small windows of the app in its
-   own colours (theme-view.ts, `previewColours`), Lazurio its light one
-   alone; below, the name and the check of the chosen one. A native radio
-   group: the arrows move between the cards, a choice applies at once. */
+   own colours (theme-view.ts, `previewColours`), Lazurio since F36's
+   addendum of 2026-11-17 (2) too; below, the name and the check of the
+   chosen one. A native radio group: the arrows move between the cards, a
+   choice applies at once. */
 .theme-choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 168px), 1fr)); gap: 12px; margin: 0; padding: 0; border: 0; }
 .theme-card { position: relative; display: grid; gap: 10px; padding: 10px; border: 1px solid var(--lz-gray-100); border-radius: var(--lz-radius-md); background: var(--card); color: var(--fg); cursor: pointer; }
 .theme-card:hover { border-color: var(--line-strong); }
@@ -388,7 +393,7 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .apps-where { display: grid; gap: 2px; min-width: 0; }
 .apps-environment { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); font-size: 15px; font-weight: var(--lz-weight-akce); }
 .apps-environment .icon { width: 15px; height: 15px; }
-.apps-title, .module-title { font-size: 28px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.2; }
+.apps-title, .module-title { font-family: var(--font-heading); font-size: 28px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.2; }
 /* The Organization's name opens its Dashboard (F36's addendum of 2026-10-06,
    the wireframe's .lp-head__link): the heading's look, underlined on hover. */
 .apps-title-link { color: inherit; text-decoration: none; }
@@ -402,8 +407,9 @@ main > section, .stack { display: flex; flex-direction: column; gap: 28px; min-w
 .section-head { display: flex; align-items: center; gap: 10px; border-bottom: 2px solid var(--lz-accent); }
 .section-pill { padding: 5px 12px; border-radius: 7px 7px 0 0; background: var(--lz-accent); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); line-height: normal; }
 .section-count { color: var(--muted-fg); font-size: 13px; }
-/* A guest section's "hostující" (decision F67's addendum of 2026-11-01): a
-   quiet badge on the rule beside the flag, its explanation in the tooltip. */
+/* A guest section's "nasdílený" (decision F67's addenda of 2026-11-01 and
+   2026-11-21): a quiet badge on the rule beside the flag, its explanation in
+   the tooltip. */
 .section-badge { padding: 1px 7px; border-radius: 999px; background: var(--hover); color: var(--muted-fg); font-size: 11px; font-weight: 600; cursor: help; }
 /* An Organization's own Workspace tabs (decision F32's addenda of 2026-10-16
    and 2026-10-19, prototypes-lazurio#73): the segmented switch of the column
@@ -795,7 +801,7 @@ fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 /* Dialogs (T3 Code ui/alert-dialog.tsx, Lazurio look). */
 dialog { width: min(40rem, calc(100vw - 2rem)); max-height: calc(100vh - 2rem); padding: 1.5rem; border: 1px solid var(--border); border-radius: 14px; background: var(--card); color: var(--fg); box-shadow: 0 24px 64px -24px rgb(0 0 0 / 55%); }
 dialog::backdrop { background: rgb(0 0 0 / 28%); }
-dialog h2 { margin-bottom: 0.75rem; font-size: 20px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.3; }
+dialog h2 { margin-bottom: 0.75rem; font-family: var(--font-heading); font-size: 20px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.3; }
 dialog h2:focus { outline: none; }
 dialog > p, dialog label, #tools-login-body > * { margin-bottom: 0.625rem; }
 #tools-prompt { width: min(44rem, calc(100vw - 2rem)); }
@@ -1061,6 +1067,7 @@ button.link-button.danger { color: var(--destructive); }
 .integration-server .row-title a:hover { text-decoration: underline; }
 .integration-server .row-control { gap: 14px; }
 .integration-server[data-state="failed"] .row-status { color: var(--destructive); }
+.integration-server[data-state="expired"] .row-status, .integration-server .row-status.warning { color: var(--warning-fg); }
 /* The page of a custom MCP server (decision F42, addendum of 2026-10-11):
    Codex Desktop's "Connect to a custom MCP" in the Lazurio look, below the
    tabs as Codex shows it below its own. Back, the title and "Návod"; a card
@@ -1072,7 +1079,7 @@ button.link-button.danger { color: var(--destructive); }
 .mcp-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .mcp-page .back { margin-bottom: 0; }
 .mcp-head { display: grid; gap: 6px; margin-bottom: 4px; }
-.mcp-title { font-size: 22px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.25; }
+.mcp-title { font-family: var(--font-heading); font-size: 22px; font-weight: var(--lz-weight-title); letter-spacing: var(--lz-track-title); line-height: 1.25; }
 .mcp-docs { display: inline-flex; align-items: center; gap: 6px; justify-self: start; color: var(--muted-fg); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .mcp-docs:hover { color: var(--fg); }
 .mcp-docs .icon { width: 14px; height: 14px; }

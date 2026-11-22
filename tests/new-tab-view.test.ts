@@ -5,6 +5,7 @@ import {
   addressBarTarget as resolveAddress,
 } from "../src/browser/contract/pure";
 import type { PublicEntry } from "../src/launchpad/chat";
+import { messages } from "../src/launchpad/messages";
 import {
   actionFailure,
   afterRestart,
@@ -1250,6 +1251,7 @@ describe("Aktualizovat: the run's rows per module", () => {
           part: "content",
           root: "organizations/example_GEN3",
           path: "workspace/deals",
+          kind: "module",
           step: "checking",
         },
       ],
@@ -1307,7 +1309,7 @@ describe("Aktualizovat: the run's rows per module", () => {
     ]);
   });
 
-  test("up to date, a data mount folded into its module, a module not in the catalog by its id, an absent one left out", () => {
+  test("up to date, a data mount folded into its module, a module not in the catalog by its path, an absent one left out", () => {
     expect(
       rows(
         job(
@@ -1328,8 +1330,415 @@ describe("Aktualizovat: the run's rows per module", () => {
       ),
     ).toEqual([
       ["knowledgebase", "done", "Hotovo, verze ccccccc"],
-      ["orders", "current", "Aktuální"],
+      // Never by the last segment of its path (F67's addendum of 2026-11-21).
+      ["workspace/orders", "current", "Aktuální"],
     ]);
+  });
+
+  // The kinds of repository (the Module Standard, decision F67's addendum of
+  // 2026-11-21), on the lines a run of this Environment's shape gives: its
+  // own Mission Control with its data and its own Knowledgebase beside the
+  // shared Modules of HumanAndMachine-ai, one of them absent here.
+  const home = "HumanAndMachine-ai";
+  const shared = (slug: string) => `workspace/${home}_GEN3/${slug}`;
+  const sharedGuest = (slug: string) => ({
+    organization: "example",
+    module: slug,
+    path: shared(slug),
+    homeOrganization: home,
+    guest: true as const,
+    checkedOut: true,
+    url: null,
+  });
+  const hosting: Catalog = {
+    kind: "catalog",
+    organizations: [
+      {
+        ...example,
+        modules: [
+          catalogModule("mission-control", {
+            path: "mission-control",
+            display: {
+              id: "mission-control",
+              title: "Mission Control",
+              tags: [],
+            },
+          }),
+          ...example.modules,
+        ],
+        guests: ["deals", "knowledgebase", "mission-control", "clients"].map(
+          sharedGuest,
+        ),
+      },
+    ],
+  };
+  // A line as `lazurio update --json` gives it: a data repository with its
+  // Module (`parent`), a shared Module's and its data's with their home and
+  // slot slug.
+  const own = (path: string, extra: Record<string, unknown> = {}) => ({
+    ...where(path),
+    ...extra,
+  });
+  const data = (parent: string, extra: Record<string, unknown> = {}) => ({
+    ...where(`${parent}/db`),
+    kind: "data",
+    branch: "v3",
+    parent,
+    ...extra,
+  });
+  const sharedModule = (slug: string, extra: Record<string, unknown> = {}) => ({
+    ...where(shared(slug)),
+    home,
+    module: slug,
+    ...extra,
+  });
+  const sharedData = (slug: string, extra: Record<string, unknown> = {}) =>
+    data(shared(slug), { home, module: slug, ...extra });
+  const shown = (read: UpdateJob, copy = cs, from: Catalog = hosting) =>
+    updateView(read, from, copy).rows.map((row) => [
+      row.name,
+      row.state,
+      row.text,
+      row.badge?.text ?? null,
+    ]);
+
+  test("three data repositories (the own Mission Control's, a shared Mission Control's, a shared Clients') make no row \"db\": each stands in its Module's row", () => {
+    const run = job(
+      [
+        own(".", { result: "current" }),
+        own("mission-control", { result: "current" }),
+        own("workspace/knowledgebase", { result: "current" }),
+        sharedModule("deals", {
+          result: "absent",
+          reason: "repository-denied",
+        }),
+        sharedModule("knowledgebase", { result: "current" }),
+        sharedModule("mission-control", { result: "current" }),
+        sharedModule("clients", { result: "current" }),
+        data("mission-control", { result: "fast-forwarded", to: sha("c") }),
+        sharedData("deals", { result: "absent" }),
+        sharedData("mission-control", {
+          result: "fast-forwarded",
+          to: sha("d"),
+        }),
+        sharedData("clients", { result: "fast-forwarded", to: sha("e") }),
+      ],
+      "succeeded",
+    );
+    const view = shown(run);
+    expect(view.map(([name]) => name)).not.toContain("db");
+    expect(view).toEqual([
+      ["Mission Control", "done", "Hotovo, verze ccccccc", null],
+      ["knowledgebase", "current", "Aktuální", null],
+      [`${home} / knowledgebase`, "current", "Aktuální", "nasdílený"],
+      [
+        `${home} / mission-control`,
+        "done",
+        "Hotovo, verze ddddddd",
+        "nasdílený",
+      ],
+      [`${home} / clients`, "done", "Hotovo, verze eeeeeee", "nasdílený"],
+    ]);
+    // The keys are all different: no two repositories of different Modules
+    // share a row.
+    const keys = updateView(run, hosting, cs).rows.map((row) => row.key);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  test('an own Module and a shared Module with the same slug are two rows, the shared one "HumanAndMachine-ai / mission-control" with the badge', () => {
+    const lines = [
+      own("mission-control", { step: "fetching", to: sha("a") }),
+      sharedModule("mission-control", { result: "current" }),
+    ];
+    expect(shown(job(lines))).toEqual([
+      [
+        "Mission Control",
+        "fetching",
+        "Nalezena novější verze aaaaaaa, stahuje se",
+        null,
+      ],
+      [`${home} / mission-control`, "current", "Aktuální", "nasdílený"],
+    ]);
+    const row = updateView(job(lines), hosting, en).rows[1];
+    expect(row?.badge).toEqual({
+      text: "shared",
+      hint: "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
+    });
+    // The badge is Apps' own word, in both languages.
+    expect(cs.updateShared).toBe(messages("cs").appsGuestBadge);
+    expect(en.updateShared).toBe(messages("en").appsGuestBadge);
+    expect(cs.updateSharedHint).toBe(messages("cs").appsGuestHint);
+    expect(en.updateSharedHint).toBe(messages("en").appsGuestHint);
+    // The line alone names it where the catalog does not list the shared
+    // Module; the catalog's guest names it for a line that does not say its
+    // home (an older run's).
+    expect(shown(job(lines), cs, catalog)[1]).toEqual([
+      `${home} / mission-control`,
+      "current",
+      "Aktuální",
+      "nasdílený",
+    ]);
+    expect(
+      shown(job([{ ...where(shared("mission-control")), result: "current" }])),
+    ).toEqual([
+      [`${home} / mission-control`, "current", "Aktuální", "nasdílený"],
+    ]);
+  });
+
+  // Every line of a row: its first and its further findings (the review of
+  // #1184).
+  const said = (read: UpdateJob, copy = cs) =>
+    updateView(read, hosting, copy).rows.map((row) => [
+      row.name,
+      row.state,
+      [row.text, ...(row.more ?? [])],
+    ]);
+  const buildFailed = (module: string) => ({
+    part: "build",
+    organization: "example",
+    module,
+    app: "app/v1/package.json",
+    result: "failed",
+    reason: "build-script-failed",
+  });
+
+  test("a data repository whose state differs from its Module's says so on its Module's row as \"Data: …\"; the Module's own finding and its data's are both said", () => {
+    const dirty = { result: "blocked", reason: "dirty" };
+    expect(
+      shown(
+        job(
+          [
+            own("mission-control", { result: "current" }),
+            data("mission-control", dirty),
+            sharedModule("clients", { result: "current" }),
+            sharedData("clients", {
+              result: "denied",
+              reason: "repository-denied",
+            }),
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "finding",
+        "Data: Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+        null,
+      ],
+      [
+        `${home} / clients`,
+        "finding",
+        "Data: GitHub k němu toto Prostředí nepustil",
+        "nasdílený",
+      ],
+    ]);
+    expect(
+      shown(
+        job(
+          [
+            own("mission-control", { result: "current" }),
+            data("mission-control", {
+              result: "unavailable",
+              reason: "remote-unavailable",
+            }),
+          ],
+          "succeeded",
+        ),
+        en,
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "finding",
+        "Data: GitHub is not answering; try again in a moment",
+        null,
+      ],
+    ]);
+    // The Module's own finding first, its data's on a line of its own.
+    expect(
+      said(
+        job(
+          [
+            own("mission-control", {
+              result: "blocked",
+              reason: "wrong-branch",
+            }),
+            data("mission-control", dirty),
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "finding",
+        [
+          "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+          "Data: Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+        ],
+      ],
+    ]);
+  });
+
+  test("a data finding never hides a failed build: both are said, each on a line of its own", () => {
+    expect(
+      said(
+        job(
+          [
+            own("mission-control", { result: "current" }),
+            data("mission-control", { result: "blocked", reason: "dirty" }),
+            buildFailed("mission-control"),
+          ],
+          "succeeded",
+        ),
+        en,
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "finding",
+        [
+          "Data: Its main version has unfinished changes, so it does not update by itself",
+          "The new version could not be built; the previous one keeps running",
+        ],
+      ],
+    ]);
+  });
+
+  test("the Module's own finding, its data's and a failed build together: three lines in that order", () => {
+    const lines = [
+      sharedModule("clients", { result: "blocked", reason: "wrong-branch" }),
+      sharedData("clients", { result: "denied", reason: "repository-denied" }),
+      own("mission-control", { result: "denied", reason: "repository-denied" }),
+      data("mission-control", {
+        result: "denied",
+        reason: "repository-denied",
+      }),
+      buildFailed("mission-control"),
+    ];
+    expect(said(job(lines, "succeeded"))).toEqual([
+      [
+        `${home} / clients`,
+        "finding",
+        [
+          "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+          "Data: GitHub k němu toto Prostředí nepustil",
+        ],
+      ],
+      [
+        "Mission Control",
+        "finding",
+        [
+          "GitHub k němu toto Prostředí nepustil",
+          "Data: GitHub k němu toto Prostředí nepustil",
+          "Novou verzi se nepodařilo sestavit; dál běží předchozí",
+        ],
+      ],
+    ]);
+    // Progress stays the row's one line while a repository is under way.
+    expect(
+      said(
+        job([
+          ...lines,
+          own("mission-control", { step: "fetching", to: sha("f") }),
+        ]),
+      )[1],
+    ).toEqual([
+      "Mission Control",
+      "fetching",
+      ["Nalezena novější verze fffffff, stahuje se"],
+    ]);
+  });
+
+  test("each line keeps its repository as declared, and a row lists its repositories for its tooltip, never in its name", () => {
+    const repository = (name: string) => ({ repository: name });
+    const read = job(
+      [
+        own(".", { result: "blocked", reason: "dirty" }),
+        own("mission-control", {
+          result: "current",
+          ...repository("Example/mission-control"),
+        }),
+        data("mission-control", {
+          result: "current",
+          ...repository("Example/mission-control-data"),
+        }),
+        sharedModule("mission-control", {
+          result: "current",
+          ...repository(`${home}/mission-control`),
+        }),
+        sharedData("mission-control", {
+          result: "current",
+          ...repository(`${home}/mission-control-data`),
+        }),
+      ].map((line, index) =>
+        index === 0 ? { ...line, ...repository("Example/example_GEN3") } : line,
+      ),
+      "succeeded",
+    );
+    expect(
+      read.lines.map((line) =>
+        line.part === "content" ? line.repository : undefined,
+      ),
+    ).toEqual([
+      "Example/example_GEN3",
+      "Example/mission-control",
+      "Example/mission-control-data",
+      `${home}/mission-control`,
+      `${home}/mission-control-data`,
+    ]);
+    expect(
+      updateView(read, hosting, cs).rows.map((row) => [
+        row.name,
+        row.repositories,
+      ]),
+    ).toEqual([
+      ["Example Company", ["Example/example_GEN3"]],
+      [
+        "Mission Control",
+        ["Example/mission-control", "Example/mission-control-data"],
+      ],
+      [
+        `${home} / mission-control`,
+        [`${home}/mission-control`, `${home}/mission-control-data`],
+      ],
+    ]);
+  });
+
+  test("an absent shared Module and its data are left out as an absent Module is, never folded into the own Module of its slug", () => {
+    expect(
+      shown(
+        job(
+          [
+            own("workspace/deals", { result: "current" }),
+            sharedModule("deals", {
+              result: "absent",
+              reason: "repository-denied",
+            }),
+            sharedModule("clients", { result: "current" }),
+            sharedData("deals", { result: "absent" }),
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([
+      ["Deals", "current", "Aktuální", null],
+      [`${home} / clients`, "current", "Aktuální", "nasdílený"],
+    ]);
+    // The other way round: the own Deals absent here, the shared one
+    // present, is the shared one's row alone.
+    expect(
+      shown(
+        job(
+          [
+            own("workspace/deals", { result: "absent" }),
+            sharedModule("deals", { result: "current" }),
+          ],
+          "succeeded",
+        ),
+      ),
+    ).toEqual([[`${home} / deals`, "current", "Aktuální", "nasdílený"]]);
   });
 
   test("findings in plain words, never a code: unfinished work, another branch, GitHub refusing or silent, a failed build; a blocked root by its Organization", () => {
@@ -1575,6 +1984,22 @@ describe("Aktualizovat: the run's rows per module", () => {
         }),
       ),
     ).toEqual(["The installation did not finish: reason something-new"]);
+    // An entry in ~/.local/bin that does not run it: named, never "not on this PATH" (#1030).
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          minimum: "1.89.0",
+          result: "failed",
+          stage: "link",
+          reason: "link-occupied",
+          source: "https://rustup.rs",
+        }),
+        cs,
+      ),
+    ).toEqual([
+      "Nepodařilo se ho propojit do ~/.local/bin: ~/.local/bin/cargo už existuje a nástroj nespouští; Lazurio ho nechává, jak je. Odstraňte ho a příští aktualizace nástroj propojí",
+    ]);
     // The part as a whole: why it did not check, or that it failed.
     expect(
       rows(

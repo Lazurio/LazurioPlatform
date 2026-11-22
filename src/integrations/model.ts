@@ -73,6 +73,11 @@ export type ExecutorConnection = Readonly<{
    * account the provider names, or none. */
   label: string | null;
   state: AccountState;
+  /** Whether its sign-in lasts: the scopes Executor recorded as granted
+   * (`oauthScope`) hold `offline_access`, so the issuer keeps it beyond its
+   * sign-in session. False where they hold none of it; null where Executor
+   * recorded no scope (no sign-in, or none told). */
+  lasting: boolean | null;
 }>;
 
 /** One integration (a source of tools) Executor holds. */
@@ -192,6 +197,14 @@ export type CustomServer = Readonly<{
   target: string | null;
   state: AccountState | "ready";
   tools: number | null;
+  /** For a remote server that is an Organization's Application
+   * (`https://<module>.<organization>.lazurio.app/mcp`): whether its
+   * connection lasts beyond the issuer's sign-in session (7 days idle, 30 at
+   * most). False where it was signed in without `offline_access`, before the
+   * Applications offered it (Lazurio/LazurioPlatform#1076): the person
+   * connects it again once, and it lasts. Null for every other server, or
+   * where it is not known. */
+  lasting: boolean | null;
 }>;
 
 export type IntegrationsOverview = Readonly<{
@@ -456,6 +469,7 @@ export function mergeIntegrations(input: MergeInput): IntegrationsOverview {
             target: integration.kind === "remote" ? integration.target : null,
             state: serverState(own),
             tools: integration.tools,
+            lasting: serverLasting(integration, own),
           }),
         );
         continue;
@@ -699,6 +713,40 @@ function serverState(
   if (connections.some((connection) => connection.state === "connected"))
     return "connected";
   return connections[0]?.state ?? "ready";
+}
+
+/** An Organization's Application's MCP endpoint:
+ * `https://<module>.<organization>.lazurio.app/mcp`, on the default port. */
+export function isOrganizationApplicationMcp(endpoint: string): boolean {
+  if (!URL.canParse(endpoint)) return false;
+  const url = new URL(endpoint);
+  return (
+    url.protocol === "https:" &&
+    url.port === "" &&
+    url.username === "" &&
+    url.password === "" &&
+    url.pathname === "/mcp" &&
+    url.search === "" &&
+    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.lazurio\.app$/.test(
+      url.hostname,
+    )
+  );
+}
+
+/** Whether a custom server's connection lasts: only told for an
+ * Organization's Application, whose issuer grants `offline_access` to an
+ * agent's connection; false where its signed-in connection lacks it. */
+function serverLasting(
+  integration: ExecutorIntegration,
+  connections: readonly ExecutorConnection[],
+): boolean | null {
+  if (integration.kind !== "remote" || integration.target === null) return null;
+  if (!isOrganizationApplicationMcp(integration.target)) return null;
+  const signedIn = connections.filter(
+    (connection) => connection.lasting !== null,
+  );
+  if (signedIn.length === 0) return null;
+  return signedIn.every((connection) => connection.lasting === true);
 }
 
 /** The path as a person who is the Organization's Admin or Owner sees it:

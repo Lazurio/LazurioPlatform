@@ -9,7 +9,7 @@
  * Rozjedeme-ai) není uzavřená a je eskalovaná na foundera. Hodnoty níž platí;
  * to, kde je jejich kanonický domov, ne. Detail v AGENTS.md.
  *
- * Princip (Principál, 2026-07-25):
+ * Princip (Anna, 2026-07-25):
  * minimalismus, stupně šedi + černá a bílá, JEDINÝ výrazný prvek je
  * sytá modrá inspirovaná lapis lazuli. Žádná druhá barevná rampa.
  *
@@ -20,11 +20,18 @@
  * Rampa se jmenuje `blue`, ne `lapis` ani `kobalt`: lapis je brand příběh
  * (Lazurio <- lazurit), ale zvolený odstín je kobaltový, a název podle
  * pigmentu by při další iteraci lhal. `blue` přežije i změnu odstínu.
+ *
+ * Tvar souboru je kontrakt: jediné pravidlo pro kořen dokumentu a v něm
+ * jen tokeny `--lz-*`. Lazurio ho vkládá tak, jak je, do každé aplikace
+ * i do prvků shellu a jiný tvar jeho test odmítne (LazurioPlatform,
+ * `tests/shell-tokens.test.ts`). Pro prvky shellu mění selektor kořene na
+ * `:host`, proto ho komentáře nad pravidlem nejmenují. Tmavý režim je
+ * v `tokens-dark.css`.
  */
 
 :root {
 	/* --- Neutrály: papír, inkoust, linky ------------------------------ */
-	/* REVIZE 4. 8. 2026 (Principál): rampa byla chladně neutrální a vedle
+	/* REVIZE 4. 8. 2026 (Anna): rampa byla chladně neutrální a vedle
 	 * kobaltového akcentu se to sečetlo do studeného dojmu. Původní důvod
 	 * („vedle syté modré nesmí šedá táhnout do teplé, jinak vypadá
 	 * zažloutle") platí pro VÝRAZNĚ teplou šedou; tenhle posun je 2 body.
@@ -52,8 +59,36 @@
 	--lz-gray-950: #090909;
 	--lz-black: #000000;
 
+	/* --- Grafit: šedi tmavého režimu --------------------------------- */
+	/* Anna 7. 11. 2026, prostřední ze tří zkoušených stupňů vybraný 8. 11.
+	 * 2026 nad prototypem (prototypes-lazurio#118, inspirace nastavením
+	 * Cal.com). Tmavý režim byl do té doby skoro černý: vrstvy stály do
+	 * 0,03 světlosti od sebe a karta měla barvu stránky, takže splývaly.
+	 * Grafit jde po stupních od lišty přes stránku ke kartě.
+	 *
+	 * Číslo stupně je světlost v OKLCH krát tisíc (`grafit-265` = L 0,265);
+	 * jako u odstupů je klíčem hodnota, ne pořadí. Šedi jsou přesně
+	 * neutrální jako tmavá polovina rampy výš; nádech kamene přidává až
+	 * Vzhled Prostředí v aplikaci. Dva stupně se s rampou kryjí: 205 je
+	 * `gray-900`, 360 je `gray-700`. Role stupňů jsou v `tokens-dark.css`.
+	 * Odvozeno v `tools/brand/grafit.py`. */
+	--lz-grafit-205: #171717;
+	--lz-grafit-235: #1e1e1e;
+	--lz-grafit-265: #252525;
+	--lz-grafit-290: #2b2b2b;
+	--lz-grafit-300: #2e2e2e;
+	--lz-grafit-315: #313131;
+	--lz-grafit-325: #343434;
+	--lz-grafit-360: #3d3d3d;
+	--lz-grafit-560: #747474;
+	--lz-grafit-720: #a4a4a4;
+	--lz-grafit-775: #b6b6b6;
+	--lz-grafit-845: #cccccc;
+	--lz-grafit-885: #d9d9d9;
+	--lz-grafit-955: #f0f0f0;
+
 	/* --- Modrá: rampa rozhraní --------------------------------------- */
-	/* REVIZE 4. 8. 2026 (Principál): ULTRAMARÍN, odstín 239°, vysoká sytost.
+	/* REVIZE 4. 8. 2026 (Anna): ULTRAMARÍN, odstín 239°, vysoká sytost.
 	 * Dřív tu stál kobalt na 221° s poznámkou „proti ultramarínu chybí
 	 * fialový tah" — jenže značka se jmenuje po lapisu a lapis lazuli JE
 	 * ultramarín. Odstín se tedy otočil za pigmentem.
@@ -86,7 +121,7 @@
 
 	/* --- Expresivní barvy mimo rozhraní ----------------------------- */
 	/* Schválená sada z `specimens/08-prvky.html`, rozšířená rozhodnutím
-	 * Principála 18. 8. 2026 o tlumenou orchidejovou. Tyto barvy nesmějí nést
+	 * Anny 18. 8. 2026 o tlumenou orchidejovou. Tyto barvy nesmějí nést
 	 * stav ani aktivní prvek produktového UI; patří ilustracím,
 	 * obálkám a kampaním. Původní čtyři doplňkové barvy stojí v nejsytější
 	 * poloze odstínu; orchidejová je záměrně tlumená. Varianta
@@ -186,14 +221,30 @@
 	 * plochu i text. U kyanové to nešlo (2,4:1) a musely být tři různé
 	 * tokeny. Tady stačí jeden signature odstín. `blue-400` má na bílé
 	 * 6,26:1 a jako běžný text prochází; `blue-300` s 3,34:1 už ne. */
+	/* ČISTÝ VZHLED 21. 10. 2026 (Anna): modrá je JEDINÝ akcent a používá se
+	 * střídmě. Signální barvy (i rumělka a `danger`) nejsou nikdy dekorace;
+	 * „problém v rumělce" na webu je zrušený. */
 	--lz-accent: var(--lz-blue-500); /* glow, grafika, akcentní text, odkazy */
 	--lz-accent-strong: var(--lz-blue-600); /* akcent v malém, badge text */
-	--lz-accent-deep: var(--lz-blue-900); /* hloubka, tmavé podklady */
+	--lz-accent-deep: var(--lz-blue-900); /* hloubka, tmavé podklady, tmavý pás */
 	--lz-accent-on-dark: var(--lz-blue-300); /* akcent na tmavém podkladu */
+
+	/* Tmavý pás značky (`lz-band--deep`, 21. 10. 2026). Jediná velká barevná
+	 * plocha stránky: podklad `accent-deep` (blue-900), dlaždice o stupeň
+	 * světlejší, hrana a čtverec ikony o další stupeň, drobný text blue-200
+	 * a akcentní slovo `accent-on-dark`. Kontrasty jsou v patě souboru. */
+	--lz-deep-surface: var(--lz-accent-deep);
+	--lz-deep-tile: var(--lz-blue-800);
+	--lz-deep-edge: var(--lz-blue-700);
+	--lz-deep-icon: var(--lz-blue-700);
+	--lz-deep-ink-muted: var(--lz-blue-200);
+	/* Text pásu je bílý napevno: pás je tmavý v obou režimech, kdežto
+	 * `white` je v tmavém režimu šedá karta. */
+	--lz-deep-ink: #ffffff;
 	--lz-accent-soft: var(--lz-blue-50); /* podklad pillu, jemné zvýraznění */
 	--lz-on-accent: var(--lz-white); /* text na accent ploše */
 
-	/* Tlačítka jsou ČERNÁ (Principál 2026-07-31: „pozadí ve stupních bílé
+	/* Tlačítka jsou ČERNÁ (Anna 2026-07-31: „pozadí ve stupních bílé
 	 * a šedi, tlačítka černé, aby to odpovídalo technologii").
 	 *
 	 * Ruší to zápis z 2026-07-25 („tlačítka trošku ztmavit" = blue-700).
@@ -207,59 +258,64 @@
 	--lz-accent-button-hover: var(--lz-gray-800);
 
 	/* --- Typografie -------------------------------------------------- */
-	/* Inter Tight vybral Principál 2026-07-25. Je to Inter s předstaženým
-	 * trackingem, tedy přesně ten „reference look" bez dolaďování.
-	 * Inter nemá sesterský mono řez, takže mono je párované zvlášť —
-	 * Geist Mono je z neutrálních monospace nejblíž metrikám Interu.
+	/* REVIZE 21. 10. 2026 (Anna, čistý vzhled; platí pro produkt i web).
+	 * Text sází INTER, nadpisy zůstávají v INTER TIGHT. Důvod: klidnější
+	 * a důvěryhodnější podnikový vzhled; Inter je kreslený pro textové
+	 * velikosti a čte se v nich lépe než předstažený Inter Tight.
 	 *
-	 * NÁHRADNÍ PÍSMO (rozhodl Principál 2026-08-01): když Inter Tight není,
-	 * nastupuje Inter. Je to užší řez téže kresby, takže záskok drží tvar
-	 * písmen; mění se šířka, ne charakter.
+	 * `--lz-font-sans` je od té doby PÍSMO TEXTU (lead, body, meta, ovládací
+	 * prvky). `--lz-font-heading` je písmo nadpisů (hero, display, title,
+	 * h1–h3). Kdo dřív bral `--lz-font-sans` pro nadpis, přejde na heading.
 	 *
-	 * Pozor na hranici, která se snadno splete: `Inter` v tomhle výčtu chytá
-	 * jen LOKÁLNĚ nainstalovaný Inter. Webfont Inter tu nehostujeme schválně —
-	 * padal by ze stejného původu jako Inter Tight, takže by selhal s ním
-	 * a jen by zdvojil stahování. Na téhle mašině Inter nainstalovaný není,
-	 * takže tam řetěz projde rovnou na system-ui; to je v pořádku a je to
-	 * očekávaný stav, ne chyba.
+	 * PRVNÍ POLOŽKY MUSÍ ZŮSTAT „Inter Variable" a „Inter Tight Variable".
+	 * Fontsource registruje variabilní řezy pod těmito jmény
+	 * (`@fontsource-variable/inter`, `@fontsource-variable/inter-tight`).
+	 * Kdyby tu stálo jen „Inter", vlastní hosting by se nepoužil a stránka by
+	 * tiše jela na systémové písmo — okem se to skoro nepozná.
 	 *
-	 * ŠIŘKA: Inter je širší než Inter Tight, takže při záskoku se sazba
-	 * roztáhne a stažený tracking přestane sedět. Kompenzace se ZATÍM
-	 * nezavádí — musela by se změřit na nainstalovaném Interu, ne odhadnout.
+	 * ZÁSKOK TEXTU: hostovaný Inter → lokální Inter → hostovaný Inter Tight →
+	 * system-ui. Inter Tight je v řetězu schválně: consumer, který zatím
+	 * hostuje jen Inter Tight (video spot, vizuály, starší vendored kopie),
+	 * tak zůstane u téže kresby a nespadne na systémové písmo.
 	 *
-	 * PRVNÍ POLOŽKA MUSÍ ZŮSTAT „Inter Tight Variable". Fontsource registruje
-	 * variabilní řez pod tímhle jménem, ne pod „Inter Tight". Kdyby tu bylo
-	 * jen „Inter Tight", vlastní hosting by se NEPOUŽIL a stránka by tiše
-	 * jela na system-ui — vypadá to skoro stejně, takže se to nepozná okem.
-	 * Druhá položka „Inter Tight" chytá lokálně nainstalovaný statický řez. */
-	--lz-font-sans: "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
+	 * Historie: Inter Tight vybrala Anna 2026-07-25 pro všechno; Inter byl
+	 * od 2026-08-01 jen lokální záskok a webfont se nehostoval. Obojí nahrazuje
+	 * revize 21. 10. 2026. Mono zůstává Geist Mono. */
+	--lz-font-sans: "Inter Variable", Inter, "Inter Tight Variable", system-ui, sans-serif;
+	--lz-font-heading: "Inter Tight Variable", "Inter Tight", Inter, system-ui, sans-serif;
 	--lz-font-mono: "Geist Mono", ui-monospace, monospace;
 
-	/* Tracking je u tohohle typu identity důležitější než volba fontu.
-	 * Stažená sazba zůstává součástí kresby i po zesílení nadpisů. */
-	--lz-track-hero: -0.045em;
-	--lz-track-display: -0.035em;
-	--lz-track-title: -0.02em;
-	--lz-track-body: -0.005em;
+	/* REVIZE 21. 10. 2026: tracking povolený. Nadpisy už nejsou stažené
+	 * (hero −0,045 → −0,02, display −0,035 → −0,016, title −0,02 → −0,015)
+	 * a text drží vlastní optické prostrkání Interu v textových velikostech
+	 * (−0,011em). Stažená sazba nadpisů se rušila spolu s váhou 700. */
+	--lz-track-hero: -0.02em;
+	--lz-track-display: -0.016em;
+	--lz-track-title: -0.015em;
+	--lz-track-body: -0.011em;
 	/* ZASTARALÉ. Verzálky se od 4. 8. 2026 nepoužívají nikde a tenhle
 	 * tracking dává smysl jen u nich. Token zůstává kvůli zpětné
 	 * kompatibilitě; nové použití patří na `--lz-track-body`. */
 	--lz-track-eyebrow: 0.12em;
 
-	/* REVIZE 1. 9. 2026. Principál nad veřejným webem rozhodl, že nadpisy
-	 * potřebují větší důraz: hero, display i title přecházejí z 600 na 700.
-	 * Akční prvky zůstávají na 600 a běžný text na 400. Wordmark si drží
-	 * vlastních 550 (jiná kresba, viz logo manuál). */
-	--lz-weight-hero: 700;
-	--lz-weight-title: 700;
+	/* REVIZE 21. 10. 2026 (Anna, čistý vzhled): nadpisy hero, display i title
+	 * jdou ze 700 zpět na 600. Ruší rozhodnutí z 1. 9. 2026 (600 → 700 nad
+	 * veřejným webem): silnější nadpis s předstaženým trackingem působil
+	 * hlasitě, podnikový zákazník má číst klid a jistotu. Akční prvky zůstávají
+	 * na 600, běžný text na 400. `medium` (500) nese navigaci webu, název
+	 * položky v nabídce a citát. Wordmark si drží vlastních 550 (jiná kresba,
+	 * viz logo manuál). */
+	--lz-weight-hero: 600;
+	--lz-weight-title: 600;
 	--lz-weight-body: 400;
+	--lz-weight-medium: 500; /* navigace webu, název položky nabídky, citát */
 	--lz-weight-akce: 600;   /* tlačítka, odkazy v navigaci, popisky */
 
 	/* --- Velikosti písma a proklady ----------------------------------- */
 	/* DOPLNĚNO 4. 8. 2026. Do té doby byly v identitě ukotvené jen ROLE,
 	 * takže si každý dokument sázel vlastní čísla a `content/brand/stav`
 	 * vedl typografickou škálu jako `část`. Hodnoty vznikly na listu prvků
-	 * (`specimens/08-prvky.html`) a jsou po dvou revizích Principála:
+	 * (`specimens/08-prvky.html`) a jsou po dvou revizích Anny:
 	 * nejdřív nahoru, protože první návrh byl příliš drobný, pak váhy na 600
 	 * a při revizi veřejného webu 1. 9. 2026 nadpisy na 700.
 	 *
@@ -267,6 +323,9 @@
 	 * schválně TOUŽ velikost a liší se prokladem a váhou — je to táž
 	 * důležitost řečená jednou jako nadpis a jednou jako odstavec. */
 	--lz-size-hero: 56px;
+	/* Nadpis sekce webu (21. 10. 2026): mluví, nekřičí. Nejvýš 44 px, na
+	 * užším okně plynule dolů k 32 px. Role `lz-type-section`. */
+	--lz-size-section: clamp(32px, 3.4vw, 44px);
 	--lz-size-display: 34px;
 	--lz-size-title: 20px;
 	--lz-size-lead: 20px;
@@ -275,6 +334,7 @@
 	--lz-size-meta: 14px;
 
 	--lz-leading-hero: 1.02;
+	--lz-leading-section: 1.12;
 	--lz-leading-display: 1.12;
 	--lz-leading-title: 1.3;
 	--lz-leading-lead: 1.55;
@@ -301,23 +361,40 @@
 	--lz-space-128: 128px; /* = viditelný krok mřížky, dva moduly */
 
 	/* --- Tvar a struktura -------------------------------------------- */
-	/* Tři poloměry, každý pro jeden druh věci (owner design systému
-	 * 4. 10. 2026): `xs` vstupní pole a štítek dat, `sm` ovládací prvky
-	 * a značky, `md` volně stojící objekty. Výřezy mřížky a pásy stránky
-	 * jsou hranaté. Rozdíl `xs` a `sm` dál říká, co se vyplňuje a co se
-	 * mačká. (Revize 4. 8. 2026 přidala `xs` a `md` dočasně odložila.) */
+	/* REVIZE 21. 10. 2026 (Anna, čistý vzhled; produkt i web). Tvar říká, co
+	 * věc je:
+	 *   pill  tlačítko, jednořádkové pole, přepínač, stav, odznak, filtr
+	 *   xs    štítek dat (`lz-tag`) — jediný hranatý ovládací tvar
+	 *   sm    značky a malé vnitřní kusy: položka nabídky, čtverec ikony,
+	 *         značka v railu, ikonové tlačítko (čtverec, ne kolečko)
+	 *   md    karta a volně stojící objekt: nabídka, okno, hláška, víceřádkové
+	 *         pole, řádková dlaždice
+	 *   lg    velká ukázková plocha webu: šedá plocha karty funkce, karta
+	 *         případové studie, jeviště produktového okna
+	 * Výřezy mřížky, buňky spojené vlasovou linkou a pásy stránky jsou dál
+	 * hranaté. Historie: od 4. 10. 2026 platily tři poloměry a pilulka
+	 * patřila jen stavu (sklizeň z Launchpadu 9. 8. 2026); tlačítko a pole
+	 * byly na 6 a 3 px. */
 	--lz-radius-xs: 3px;
 	--lz-radius-sm: 6px;
 	--lz-radius-md: 10px;
+	--lz-radius-lg: 16px;
 	--lz-radius-pill: 999px;
 	/* Jediný vržený stín systému (owner design systému 4. 10. 2026). Patří
 	 * jen vrstvě, která pluje nad stránkou: nabídce, popisku, dialogu,
 	 * oznámení, plovoucímu oknu. Vždy spolu s vlasovou linkou `line`.
-	 * Objekt v toku stránky (dlaždice, karta, panel) stín nemá nikdy. */
+	 * Objekt v toku stránky (dlaždice, karta, panel) stín nemá nikdy.
+	 * Čistý vzhled (21. 10. 2026) to potvrzuje: vlasové linky, minimum stínů. */
 	--lz-shadow-float: 0 8px 24px rgba(9, 9, 9, 0.1);
-	/* Mřížka jako nosná struktura, ne dekorace. Konstrukční modul je 64 px,
-	 * ale kreslí se každá druhá linka: viditelný krok je 128 px. Obě hodnoty
-	 * jsou veřejné, aby komponenty nemusely vztah znovu odhadovat. */
+	/* Konstrukční modul 64 px zůstává jednotkou rozvržení (šířka sloupce,
+	 * rail, velikost dlaždic).
+	 *
+	 * VYŘAZENO 21. 10. 2026 (Anna, čistý vzhled): KRESLENÁ mřížka — linky
+	 * a křížky na `lz-grid-surface`, `lz-band--grid`, `lz-hero` a `lz-cta`.
+	 * Působila jako technický výkres a s klidným podnikovým vzhledem se
+	 * tloukla. `--lz-grid-visible-step` zůstává jen kvůli zpětné kompatibilitě
+	 * vendored kopií; nové použití nevzniká. Linky `*-on-color/-on-dark`
+	 * kreslí už jen konstrukci uvnitř vzorků expresivní palety. */
 	--lz-grid-step: 64px;
 	--lz-grid-visible-step: 128px;
 	--lz-grid-line-on-color: rgba(0, 0, 0, 0.16);
@@ -335,6 +412,27 @@
  *   blue-300 na gray-900 ... 5,36:1  -> akcent v dark režimu
  *   bílá na gray-950 ....... 19,91:1 -> tlačítko v klidu
  *   bílá na gray-800 ....... 15,13:1 -> hover tlačítka
+ *   gray-500 na bílé ....... 4,95:1  -> AA, `ink-muted`, tichý text
+ *   gray-500 na papíře ..... 4,75:1  -> AA
+ *   gray-500 na gray-100 ... 4,16:1  -> POD AA pro běžný text
+ *   gray-400 na bílé ....... 2,85:1  -> POD AA, `ink-faint` nikdy jako text,
+ *                                       jen linky, oddělovače a neaktivní
+ *                                       obsah maket (2026-10-21, pilot
+ *                                       Impeccable na webu); výjimka je
+ *                                       ztlumená položka navigace webu po
+ *                                       dobu hoveru jiné položky (v klidu
+ *                                       a ve focusu je navigace inkoustová)
+ *   gray-500 na gray-50 .... 4,51:1  -> AA, popisek na šedé ploše karty funkce
+ *
+ * Tmavý pás značky (21. 10. 2026):
+ *   bílá na blue-900 ...... 17,60:1  -> nadpis a text na `lz-band--deep`
+ *   bílá na blue-800 ...... 15,96:1  -> název v dlaždici
+ *   blue-200 na blue-900 ... 9,22:1  -> drobný text na pásu
+ *   blue-200 na blue-800 ... 8,36:1  -> drobný text v dlaždici
+ *   blue-300 na blue-900 ... 5,26:1  -> akcentní slovo (`accent-on-dark`)
+ *   bílá na blue-700 ...... 14,13:1  -> ikona ve čtverci
+ *   blue-700 na blue-800 ... 1,13:1  -> jen hrana dlaždice, nikdy nositel
+ *                                       informace
  *
  * Symbol značky, tmavá rampa (nejtmavší faseta proti podkladu ikony):
  *   blue-300 na gray-900 ... 5,36:1  -> OK, minimum pro grafiku je 3:1

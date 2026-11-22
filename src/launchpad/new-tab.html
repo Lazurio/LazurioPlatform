@@ -6,6 +6,8 @@
 <!-- The brand fonts, exactly the font faces of the shell (`fontFaceCss`,
      src/shell/fonts.ts), as the Launchpad page declares them. -->
 <style data-lazurio-fonts>
+@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-latin-wght-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-latin-ext-wght-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-wght-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"Inter Tight Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url("/.lazurio/fonts/inter-tight-latin-ext-wght-normal.woff2") format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
 @font-face{font-family:"Geist Mono";font-style:normal;font-display:swap;font-weight:400;src:url("/.lazurio/fonts/geist-mono-latin-400-normal.woff2") format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -129,6 +131,13 @@ button { cursor: pointer; }
 .nto-update-state.is-working { color: var(--lz-blue-500); }
 .nto-update-state.is-finding { color: var(--lz-warning); }
 .nto-update-state { overflow-wrap: anywhere; }
+/* A shared Module's row (decision F67's addendum of 2026-11-21): its name
+   and the quiet badge Apps gives it, its explanation in the tooltip. */
+.nto-update-name { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.nto-update-name .nto-name { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+/* Every name in the update list wraps rather than being cut, own or shared. */
+.nto-update-row .nto-name { white-space: normal; overflow-wrap: anywhere; }
+.nto-badge { flex: none; padding: 1px 7px; border-radius: 999px; background: var(--nt-hover); color: var(--nt-muted); font-size: 11px; font-weight: 600; cursor: help; }
 .nto-update-link { justify-self: start; color: var(--nt-muted); font-size: 12px; text-decoration: underline; text-underline-offset: 2px; touch-action: manipulation; }
 .nto-update-link:focus-visible { outline: 2px solid var(--lz-blue-500); outline-offset: 2px; border-radius: 2px; }
 @media (hover: hover) and (pointer: fine) { .nto-update-link:hover { color: var(--nt-ink); } }
