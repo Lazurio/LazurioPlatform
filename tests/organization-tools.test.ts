@@ -531,13 +531,22 @@ test.skipIf(windows)(
 test.skipIf(windows)(
   "an entry in ~/.local/bin that does not run (a dangling link, a file that is not executable) is left and named, never reported as a PATH without ~/.local/bin",
   async () => {
-    for (const [blocker, spelling] of [
-      ["dangling", "literal"],
-      ["not-executable", "literal"],
+    for (const [blocker, spelling, where] of [
+      ["dangling", "literal", "short"],
+      ["not-executable", "literal", "short"],
       // The same directory written another way on the PATH.
-      ["dangling", "equivalent"],
+      ["dangling", "equivalent", "short"],
+      // A home whose path has a long run without a dot, as macOS's temporary
+      // folders (/private/var/folders/9d/l02zfgrs…/T/…): the entry is a path
+      // Lazurio composed, named exactly, never withheld as if it were key
+      // material (main red on macOS after #1181).
+      ["dangling", "literal", "long"],
     ] as const) {
-      const user = await home();
+      const user =
+        where === "long"
+          ? join(await home(), "var-folders-9d-l02zfgrs7c16twd3wbpdmhkc0000gn")
+          : await home();
+      await mkdir(user, { recursive: true });
       await rustupAt(user, {
         default: "stable",
         toolchains: { stable: "1.99.1" },
