@@ -1162,6 +1162,60 @@ describe("the facts' vectors, after the pages'", () => {
     expect(facts?.done).toBeUndefined();
   });
 
+  test("facts given up on an earlier release are tried once more on this pin: the plane in one short stop, then the facts", async () => {
+    // Bob's brain after rc.3: the pages on, the facts given up because that
+    // release's `embeddings enable` refused (`facts-plane`), no release on record.
+    const { host, paths, calls } = await onBefore();
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningFacts: { stalled: 2, reason: "facts-plane" },
+    });
+    expect(await convergeMeaning(host)).toBe("on");
+    const facts = (await readBrainState(paths)).meaningFacts;
+    expect(facts?.done).toBeDefined();
+    expect(facts?.plane).toBeDefined();
+    expect(facts?.reason).toBeUndefined();
+    expect(facts?.stalled).toBe(0);
+    expect(calls.filter((c) => c[1] === "embeddings")).toHaveLength(1);
+    expect(
+      calls.filter((c) => c[2] === "stop" && c[3] === brainUnit),
+    ).toHaveLength(1);
+  });
+
+  test("facts given up on this very release are not tried again: no stop, no window", async () => {
+    const { host, paths, calls } = await onBefore();
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningFacts: {
+        stalled: 2,
+        reason: "facts-plane",
+        release: brainPin.version,
+      },
+    });
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(calls.some((c) => c[1] === "embeddings" || c[1] === "embed")).toBe(
+      false,
+    );
+    expect(calls.some((c) => c[2] === "stop" && c[3] === brainUnit)).toBe(
+      false,
+    );
+    expect((await readBrainState(paths)).meaningFacts?.reason).toBe(
+      "facts-plane",
+    );
+  });
+
+  test("a give-up records its release, so the same release does not try again but the next does", async () => {
+    const { host, paths } = await onBefore({
+      facts: [{ exit: 1, embedded: 0, remaining: 4 }],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:facts");
+    expect(await convergeMeaning(host)).toBe("on");
+    expect((await readBrainState(paths)).meaningFacts).toMatchObject({
+      reason: "facts",
+      release: brainPin.version,
+    });
+  });
+
   test("a run that dies in the facts' stop leaves it recorded; the next run starts the server before anything else", async () => {
     const s = await onBefore();
     // What a run that died during `embeddings enable` leaves: the state and

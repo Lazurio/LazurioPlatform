@@ -99,6 +99,9 @@ export type BrainState = Readonly<{
     refused?: number;
     done?: string;
     reason?: string;
+    /** The pinned release the facts ended incomplete on (`reason`): another
+     * release tries them once more, a newer pin may fix what refused. */
+    release?: string;
   }>;
   /** The SHA-256 of the model's unit as Lazurio last wrote it: a unit of
    * that name is Lazurio's only if it is that or what it writes now. */
