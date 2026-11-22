@@ -352,7 +352,8 @@ Application User (the module kit's `appRole` `admin` and `user`).
   application. Module Contributors, Module Maintainers and the Organization Admin
   give the role of Application Admin or Application User to people, a Team or the
   whole Organization; the higher role holds, and the Organization Admin may remove
-  any. No application admits the whole Organization by default, a read-only one
+  any. Where the Organization Admin has switched the entry through the Module off
+  for an application, only the Organization Admin gives its roles. No application admits the whole Organization by default, a read-only one
   included (0249, addendum of 2026-11-22). Access to an application never gives
   access to its Module.
 - **Availability.** The person on whose Environment STAGING runs

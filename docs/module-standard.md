@@ -861,7 +861,7 @@ values in Git or requests. The App enforces Application User and Application Adm
 permissions on every server request through `appAccess` of `@lazurio/module-kit`;
 unknown identity or a missing role grants nothing.
 
-**The Application is the sole writer of its data.** On the application host the
+**The Application is the sole writer of its production data.** On the application host the
 App always gets `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes; with `false`
 or any other value it neither writes, pulls nor publishes, by the one rule
 `dataWriter` of
@@ -869,8 +869,10 @@ or any other value it neither writes, pulls nor publishes, by the one rule
 
 **Writing without the variable** (decided, decision 0249, addendum of
 2026-11-22). Only the Application writes production data: people in PROD,
-agents through its MCP server. A Module that has no live Application yet keeps
-writing in the Environment as today until it is switched over. Until then a
+agents through its MCP server; STAGING and DEV write their Environment's own
+branch. Until the Module Maintainer switches its writing over, a Module keeps
+writing in the Environment as today, also while its Application runs as a trial
+with `data.writer: false`. Until then a
 missing `LAZURIO_RUNTIME_DATA_WRITER` means STAGING or DEV in an Environment: only
 the entries `local` and `environment` write, and so does the data sync host
 itself (at start, in the background and after their requests); a request from
@@ -1287,8 +1289,9 @@ missing role through the real gateway.
   the person who connected; never by a copy of its data or a direct
   connection to its database.
 - **STAGING and DEV in an Environment** run from the Module's checkout and a
-  worktree. Until the Module has a live Application, STAGING writes as today;
-  after that both work on their Environment's own branch of the data
+  worktree. Until the Module Maintainer switches the Module's writing over to
+  the Application, STAGING writes as today; after that both work on their
+  Environment's own branch of the data
   ([Applications of an Organization](#applications-of-an-organization)). Agents use
   them to develop and test: their `/mcp` on the loopback address and their page
   tools answer as `entry: local`, an Application Admin without a name, and

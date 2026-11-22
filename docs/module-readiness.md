@@ -104,8 +104,10 @@ DEV in an Environment, only the entries `local` and `environment` and the data
 sync host (at start, in the background and after their requests) write there,
 while a request from `app` only reads, and a runtime stating
 `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes without `true`;
-this holds until the Module is switched over to its Application, after which
-data are written only there (decided, Module Standard, Applications of an
+this holds until the Module Maintainer switches the Module's writing over to its
+Application, also while the Application runs as a trial with
+`data.writer: false`. After the switch, production data are written only in the
+Application, and STAGING and DEV write their Environment's own branch (decided, Module Standard, Applications of an
 Organization; decision 0249, addendum of 2026-11-22). The App must read the
 variable, so the static check looks for it (or module-kit's `dataWriter`) in a
 V3 or V4 app's source, and the contract tests prove these cases.
