@@ -950,16 +950,42 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
  * answers again, so a run that dies in it leaves the next run to start the
  * server first (`recoverAttempt`), and a server that does not come back
  * waits (`waits:start`), never `on`. `on` once nothing is left or the facts
- * ended; `waits:…` while windows are left.
+ * ended; `waits:…` while windows are left. Facts that ended incomplete on
+ * one pinned release (`release`) are tried once more on the next: the run
+ * clears the give-up and starts again, the plane included where it is not
+ * recorded.
  */
 async function convergeFacts(
   host: MeaningHost,
   release: Release | undefined,
 ): Promise<MeaningResult> {
-  const facts = (await readBrainState(host.paths)).meaningFacts ?? {};
-  if (facts.done !== undefined || facts.reason !== undefined) return "on";
+  let facts = (await readBrainState(host.paths)).meaningFacts ?? {};
+  if (facts.done !== undefined) return "on";
   if (release === undefined) return "on";
+  // Facts given up on one release are tried once more on another: a newer
+  // pin may fix what refused (an earlier release's `embeddings enable`
+  // refused a brain whose pages it had embedded, `facts-plane`). A give-up
+  // recorded before releases were recorded counts as another release's.
+  if (facts.reason !== undefined && facts.release === release.version)
+    return "on";
   if (!(await host.idle())) return "waits:facts";
+  if (facts.reason !== undefined) {
+    const {
+      stalled: _s,
+      reason: _r,
+      release: _v,
+      windows: _w,
+      remaining: _m,
+      refused: _f,
+      ...kept
+    } = facts;
+    const current = await readBrainState(host.paths);
+    await writeBrainState(host.paths, {
+      ...current,
+      meaningFacts: Object.freeze(kept),
+    });
+    facts = kept;
+  }
   const now = (host.now ?? (() => new Date()))().toISOString();
   const save = async (next: NonNullable<BrainState["meaningFacts"]>) => {
     const current = await readBrainState(host.paths);
@@ -971,7 +997,7 @@ async function convergeFacts(
   const stalledAfter = async (code: string, progressed: boolean) => {
     const stalled = progressed ? 0 : (facts.stalled ?? 0) + 1;
     if (stalled >= meaningMaxStalled) {
-      await save({ stalled, reason: code });
+      await save({ stalled, reason: code, release: release.version });
       return "on" as const;
     }
     await save({ stalled });
@@ -1038,6 +1064,7 @@ async function convergeFacts(
       remaining: 0,
       refused,
       reason: "facts-oversized",
+      release: release.version,
     });
     return "on";
   }
