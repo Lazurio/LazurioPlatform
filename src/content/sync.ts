@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
+import { parseCanonicalOrganization } from "../organizations/canonical-manifest";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationDocuments } from "../organizations/read-documents";
 import { resolveOrganizationRoot } from "../organizations/root-resolution";
@@ -107,8 +108,9 @@ export type SyncProgress = Readonly<{
   /** `done`: the answer. */
   entry?: SyncEntry;
 }> &
-  /** Where the repository belongs, as its answer names it. */
-  Pick<SyncEntry, "parent" | "home" | "module">;
+  /** Which repository it is and where it belongs, as its answer names
+   * them. */
+  Pick<SyncEntry, "repository" | "parent" | "home" | "module">;
 
 export type SyncRequest = Readonly<{
   /** Only this Organization, by GitHub login; absent: every one this
@@ -258,19 +260,26 @@ export async function syncContent(
       const one = async (
         place: Pick<
           SyncEntry,
-          "path" | "kind" | "branch" | "parent" | "home" | "module"
+          | "path"
+          | "kind"
+          | "branch"
+          | "repository"
+          | "parent"
+          | "home"
+          | "module"
         >,
         run: (
           progress: (step: CheckoutStep, to: string) => void,
         ) => Promise<Outcome>,
       ): Promise<SyncEntry> => {
-        const { path, kind, branch, parent, home, module } = place;
+        const { path, kind, branch, repository, parent, home, module } = place;
         const where = {
           organization: login,
           root,
           path,
           kind,
           branch,
+          ...(repository === undefined ? {} : { repository }),
           ...(parent === undefined ? {} : { parent }),
           ...(home === undefined ? {} : { home }),
           ...(module === undefined ? {} : { module }),
@@ -294,8 +303,16 @@ export async function syncContent(
         return entry;
       };
       const directory = join(folder, root);
+      // The root as it declares itself (`root_repository.locator`), read
+      // from its checkout before it is synchronized.
+      const declaredRoot = await rootRepositoryOf(directory, login);
       const rootEntry = await one(
-        { path: ".", kind: "root", branch: "main" },
+        {
+          path: ".",
+          kind: "root",
+          branch: "main",
+          ...(declaredRoot === null ? {} : { repository: declaredRoot }),
+        },
         (progress) =>
           syncCheckout(
             context,
@@ -444,6 +461,36 @@ type SyncChild = Readonly<{
   home?: string;
   module?: string;
 }>;
+
+/** The root's own repository as its declaration names it
+ * (`root_repository.locator`, `<owner>/<name>`), when it is the root of
+ * `login`; null when the declaration cannot be read or names another
+ * owner. Files only, nothing of Git or GitHub. */
+async function rootRepositoryOf(
+  root: string,
+  login: string,
+): Promise<string | null> {
+  try {
+    const documents = await readOrganizationDocuments(root);
+    if (
+      documents.kind !== "documents-observed" ||
+      documents.canonical.kind !== "present"
+    )
+      return null;
+    const canonical = parseCanonicalOrganization(
+      documents.canonical.value,
+    ) as Readonly<Record<string, unknown>>;
+    const locator = (
+      canonical.root_repository as Readonly<Record<string, unknown>> | null
+    )?.locator;
+    return typeof locator === "string" &&
+      locator.split("/")[0]?.toLowerCase() === login.toLowerCase()
+      ? locator
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The modules and data mounts the root declares now: workspace modules
  * (guest Modules of another Organization among them, DEV-6694), the

@@ -876,7 +876,7 @@ const exists = (path: string) =>
   );
 
 posixTest(
-  "installation clones the guests beside the host's own, a missing grant stays slot-local, and synchronization keeps them current, each answer naming its Module and home",
+  "installation clones the guests beside the host's own, a missing grant stays slot-local, and synchronization keeps them current, each answer naming its repository, Module and home",
   async () => {
     world = await createWorld();
     const current = world;
@@ -1068,35 +1068,54 @@ posixTest(
           entry.path,
           {
             kind: entry.kind,
+            ...(entry.repository === undefined
+              ? {}
+              : { repository: entry.repository }),
             ...(entry.parent === undefined ? {} : { parent: entry.parent }),
             ...(entry.home === undefined ? {} : { home: entry.home }),
             ...(entry.module === undefined ? {} : { module: entry.module }),
           },
         ]),
       );
+    // Each names its repository as declared (the review of #1184): the
+    // root's `root_repository`, the slots' remotes.
     const expected = {
-      ".": { kind: "root" },
-      "mission-control": { kind: "module" },
-      "mission-control/db": { kind: "data", parent: "mission-control" },
-      "workspace/knowledgebase": { kind: "module" },
+      ".": { kind: "root", repository: "HostOrg/HostOrg_GEN3" },
+      "mission-control": {
+        kind: "module",
+        repository: "HostOrg/mission-control",
+      },
+      "mission-control/db": {
+        kind: "data",
+        repository: "HostOrg/mission-control-data",
+        parent: "mission-control",
+      },
+      "workspace/knowledgebase": {
+        kind: "module",
+        repository: "HostOrg/knowledgebase",
+      },
       "workspace/HomeOrg_GEN3/knowledgebase": {
         kind: "module",
+        repository: "HomeOrg/knowledgebase",
         home: "HomeOrg",
         module: "knowledgebase",
       },
       "workspace/HomeOrg_GEN3/mission-control": {
         kind: "module",
+        repository: "HomeOrg/mission-control",
         home: "HomeOrg",
         module: "mission-control",
       },
       "workspace/HomeOrg_GEN3/mission-control/db": {
         kind: "data",
+        repository: "HomeOrg/mission-control-data",
         parent: "workspace/HomeOrg_GEN3/mission-control",
         home: "HomeOrg",
         module: "mission-control",
       },
       "workspace/HomeOrg_GEN3/private-notes": {
         kind: "module",
+        repository: "HomeOrg/private-notes",
         home: "HomeOrg",
         module: "private-notes",
       },

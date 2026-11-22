@@ -285,7 +285,9 @@ it the sweep's round is `busy` and changes nothing, and the next sweep tries aga
 **The record.** The last answer per repository (with `since` for a lasting non-current
 answer) is written whole, by a rename, beside the content lock in the install base:
 `<base>/content/sync-<digest of the Folder>.json`. An answer and each step of its
-repository name where it belongs, from the slots: a data mount its Module (`parent`), a
+repository name the repository as declared (`repository`, `<owner>/<name>`: a slot's
+remote, the root's `root_repository.locator`, which is read from its checkout before it
+is synchronized) and where it belongs, from the slots: a data mount its Module (`parent`), a
 shared Module and its data mount their home Organization (`home`) and slot slug
 (`module`), as `lazurio update --json` carries them
 ([update](update.md#one-lazurio-update-content-tools-builds-and-lazurio-itself), F67's

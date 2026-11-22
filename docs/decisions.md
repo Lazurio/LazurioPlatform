@@ -25956,8 +25956,11 @@ it.
   --json` (and of Aktualizovat's job) names where its repository belongs, from the slots
   alone: a data repository its Module's path in `parent` (as `dataMountOf` reads it), a
   shared Module and its data their home Organization in `home` and the slot slug in
-  `module`. The record of the synchronization keeps them. They are additive; nothing
-  reads the shared Module's manifest (point 3).
+  `module`; every one names its repository as declared in `repository` (`<owner>/<name>`:
+  the slot's remote, the root's `root_repository.locator`, after the review of #1184).
+  The record of the synchronization keeps them. They are additive; nothing reads the
+  shared Module's manifest (point 3). The view shows a row's repositories as its name's
+  tooltip, never as its name.
 - **How the view keys and names rows.** An own Module's row stays keyed by its Organization
   and id, which its builds share, and named as Apps names it. A data line goes into the
   row of its `parent`, never into one found by its path's last segment. A shared Module's
@@ -25967,18 +25970,21 @@ it.
   shared by the catalog's guests. A repository of no Module of the catalog and no shared
   Module is shown by its path relative to the root; this replaces F47's "no path is ever
   shown" for that case only. An absent shared Module, like an absent Module, has no row.
-- **A data finding.** Where the Module has no finding of its own and its data has one
-  (blocked, denied, unreachable, failed), the row's line under the Module's name says
-  „Data: …“ / "Data: …" with the finding in words, so the row reads as „<Modul> · data“
-  without repeating the name; the Module's own finding stays the row's, without the
-  data's name. Progress (checking, fetching, done with its commit) is
-  the row's as before.
+- **A data finding.** Where its data has a finding (blocked, denied, unreachable, failed),
+  the Module's row says „Data: …“ / "Data: …" with the finding in words on a line of its
+  own under the Module's name, so it reads as „<Modul> · data“ without repeating the
+  name. Every distinct finding of the row is said, each on its own line, in this order:
+  the Module's own, its data's, a failed build; none hides another, so the row says all
+  that is left to fix (the review of #1184). Progress (checking, fetching, done with its
+  commit) is the row's one line as before.
 
 Tests: `tests/new-tab-view.test.ts` (three data repositories and no "db" row; an own and a
-shared Mission Control as two rows; the data finding; an absent shared Module left out;
-a repository of no Module by its path), `tests/guest-modules.test.ts` and
-`tests/content-sync.test.ts` (`parent`, `home` and `module` on the answers, the steps and
-the record).
+shared Mission Control as two rows; the data finding; the Module's, its data's and a
+failed build's findings together; the repositories as a row's tooltip; an absent shared
+Module left out; a repository of no Module by its path), `tests/guest-modules.test.ts`
+and `tests/content-sync.test.ts` (`repository`, `parent`, `home` and `module` on the
+answers, the steps and the record, for the root, an own Module and its data, a shared
+Module and its data).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

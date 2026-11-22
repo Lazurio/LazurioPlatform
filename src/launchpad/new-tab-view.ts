@@ -1528,6 +1528,8 @@ export type UpdateJobLine =
       /** Which kind of repository it is (the Module Standard's kinds of
        * repository): the root, a Module's checkout or a Module's data. */
       kind?: "root" | "module" | "data";
+      /** The repository as declared, `<owner>/<name>`. */
+      repository?: string;
       /** A data repository's Module, by its path relative to the root. */
       parent?: string;
       /** A shared Module's (or its data's) home Organization and slot
@@ -1642,6 +1644,7 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
           typeof value.kind === "string" && contentKinds.has(value.kind)
             ? value.kind
             : undefined,
+        repository: word(value.repository, 140),
         parent: word(value.parent),
         home: word(value.home, 60),
         module: word(value.module, 100),
@@ -1755,6 +1758,13 @@ export type UpdateRow = Readonly<{
   /** A shared Module's "nasdílený" with its explanation as a tooltip, as
    * Apps shows it (decision F67's addendum of 2026-11-21). */
   badge?: Readonly<{ text: string; hint: string }>;
+  /** A finding row's further findings, each a line of its own under `text`:
+   * the Module's own, its data's ("Data: …") and a failed build are all
+   * said, so nothing that is left to fix is hidden (the review of #1184). */
+  more?: readonly string[];
+  /** The repositories of the row as declared (`<owner>/<name>`), in the
+   * order their lines came: the name's tooltip, never its visible name. */
+  repositories?: readonly string[];
 }>;
 
 export type UpdateView = Readonly<{
@@ -2032,6 +2042,9 @@ export function updateView(
             stone: null,
             state: "finding",
             text: contentFinding(line, copy),
+            ...(line.repository === undefined
+              ? {}
+              : { repositories: [line.repository] }),
           });
         continue;
       }
@@ -2048,14 +2061,27 @@ export function updateView(
   const buildsDone = !job.running || product !== null;
   const rows: UpdateRow[] = [...roots];
   for (const module of modules.values()) {
-    const row = (state: UpdateRow["state"], words: string) =>
+    const repositories = [
+      ...new Set(
+        module.content.flatMap((line) =>
+          line.repository === undefined ? [] : [line.repository],
+        ),
+      ),
+    ];
+    const row = (
+      state: UpdateRow["state"],
+      words: string,
+      more: readonly string[] = [],
+    ) =>
       rows.push({
         key: module.key,
         name: module.name,
         stone: module.stone,
         state,
         text: words,
+        ...(more.length === 0 ? {} : { more }),
         ...(module.badge === undefined ? {} : { badge: module.badge }),
+        ...(repositories.length === 0 ? {} : { repositories }),
       });
     const building = module.builds.find((line) => line.step === "building");
     const fetching = module.content.find(
@@ -2064,20 +2090,31 @@ export function updateView(
         line.step === "fast-forwarding" ||
         line.step === "cloning",
     );
-    const findingIn = (data: boolean) =>
-      module.content.find(
-        (line) =>
-          (line.kind === "data") === data &&
-          line.step === undefined &&
-          ["blocked", "denied", "unavailable", "failed"].includes(
-            line.result ?? "",
-          ),
-      ) ?? null;
-    // The Module's own finding first; its data's only where the Module has
-    // none, said as the data's (`<Module> · data`).
-    const finding = findingIn(false);
-    const dataFinding = finding === null ? findingIn(true) : null;
+    const failed = (line: (typeof module.content)[number]) =>
+      line.step === undefined &&
+      ["blocked", "denied", "unavailable", "failed"].includes(
+        line.result ?? "",
+      );
     const buildFailed = module.builds.find((line) => line.result === "failed");
+    // Every distinct finding of the row, each its own line, so that nothing
+    // left to fix hides behind another (the review of #1184): the Module's
+    // own first, then its data's, said as the data's ("Data: …", which
+    // with the name above reads `<Module> · data`), then a failed build.
+    const findings = [
+      ...new Set([
+        ...module.content
+          .filter((line) => line.kind !== "data" && failed(line))
+          .map((line) => contentFinding(line, copy)),
+        ...module.content
+          .filter((line) => line.kind === "data" && failed(line))
+          .map((line) =>
+            fill(copy.updateDataFinding, {
+              state: contentFinding(line, copy),
+            }),
+          ),
+        ...(buildFailed === undefined ? [] : [copy.updateBuildFailed]),
+      ]),
+    ];
     const moved = module.content.find(
       (line) =>
         line.result === "fast-forwarded" || line.result === "materialized",
@@ -2095,15 +2132,8 @@ export function updateView(
       );
     else if (module.content.some((line) => line.step === "checking"))
       row("checking", copy.updateChecking);
-    else if (finding !== null) row("finding", contentFinding(finding, copy));
-    else if (dataFinding !== null)
-      row(
-        "finding",
-        fill(copy.updateDataFinding, {
-          state: contentFinding(dataFinding, copy),
-        }),
-      );
-    else if (buildFailed !== undefined) row("finding", copy.updateBuildFailed);
+    else if (findings.length > 0)
+      row("finding", findings[0] as string, findings.slice(1));
     else if (moved !== undefined && built === undefined && !buildsDone)
       row(
         "fetched",

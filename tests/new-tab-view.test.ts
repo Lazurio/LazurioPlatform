@@ -1485,7 +1485,24 @@ describe("Aktualizovat: the run's rows per module", () => {
     ]);
   });
 
-  test("a data repository whose state differs from its Module's says so on its Module's row as \"Data: …\"; the Module's own finding stays its own", () => {
+  // Every line of a row: its first and its further findings (the review of
+  // #1184).
+  const said = (read: UpdateJob, copy = cs) =>
+    updateView(read, hosting, copy).rows.map((row) => [
+      row.name,
+      row.state,
+      [row.text, ...(row.more ?? [])],
+    ]);
+  const buildFailed = (module: string) => ({
+    part: "build",
+    organization: "example",
+    module,
+    app: "app/v1/package.json",
+    result: "failed",
+    reason: "build-script-failed",
+  });
+
+  test("a data repository whose state differs from its Module's says so on its Module's row as \"Data: …\"; the Module's own finding and its data's are both said", () => {
     const dirty = { result: "blocked", reason: "dirty" };
     expect(
       shown(
@@ -1538,9 +1555,9 @@ describe("Aktualizovat: the run's rows per module", () => {
         null,
       ],
     ]);
-    // The Module's own finding is the row's, without the data's name.
+    // The Module's own finding first, its data's on a line of its own.
     expect(
-      shown(
+      said(
         job(
           [
             own("mission-control", {
@@ -1556,8 +1573,135 @@ describe("Aktualizovat: the run's rows per module", () => {
       [
         "Mission Control",
         "finding",
-        "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
-        null,
+        [
+          "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+          "Data: Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
+        ],
+      ],
+    ]);
+  });
+
+  test("a data finding never hides a failed build: both are said, each on a line of its own", () => {
+    expect(
+      said(
+        job(
+          [
+            own("mission-control", { result: "current" }),
+            data("mission-control", { result: "blocked", reason: "dirty" }),
+            buildFailed("mission-control"),
+          ],
+          "succeeded",
+        ),
+        en,
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "finding",
+        [
+          "Data: Its main version has unfinished changes, so it does not update by itself",
+          "The new version could not be built; the previous one keeps running",
+        ],
+      ],
+    ]);
+  });
+
+  test("the Module's own finding, its data's and a failed build together: three lines in that order", () => {
+    const lines = [
+      sharedModule("clients", { result: "blocked", reason: "wrong-branch" }),
+      sharedData("clients", { result: "denied", reason: "repository-denied" }),
+      own("mission-control", { result: "denied", reason: "repository-denied" }),
+      data("mission-control", {
+        result: "denied",
+        reason: "repository-denied",
+      }),
+      buildFailed("mission-control"),
+    ];
+    expect(said(job(lines, "succeeded"))).toEqual([
+      [
+        `${home} / clients`,
+        "finding",
+        [
+          "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+          "Data: GitHub k němu toto Prostředí nepustil",
+        ],
+      ],
+      [
+        "Mission Control",
+        "finding",
+        [
+          "GitHub k němu toto Prostředí nepustil",
+          "Data: GitHub k němu toto Prostředí nepustil",
+          "Novou verzi se nepodařilo sestavit; dál běží předchozí",
+        ],
+      ],
+    ]);
+    // Progress stays the row's one line while a repository is under way.
+    expect(
+      said(
+        job([
+          ...lines,
+          own("mission-control", { step: "fetching", to: sha("f") }),
+        ]),
+      )[1],
+    ).toEqual([
+      "Mission Control",
+      "fetching",
+      ["Nalezena novější verze fffffff, stahuje se"],
+    ]);
+  });
+
+  test("each line keeps its repository as declared, and a row lists its repositories for its tooltip, never in its name", () => {
+    const repository = (name: string) => ({ repository: name });
+    const read = job(
+      [
+        own(".", { result: "blocked", reason: "dirty" }),
+        own("mission-control", {
+          result: "current",
+          ...repository("Example/mission-control"),
+        }),
+        data("mission-control", {
+          result: "current",
+          ...repository("Example/mission-control-data"),
+        }),
+        sharedModule("mission-control", {
+          result: "current",
+          ...repository(`${home}/mission-control`),
+        }),
+        sharedData("mission-control", {
+          result: "current",
+          ...repository(`${home}/mission-control-data`),
+        }),
+      ].map((line, index) =>
+        index === 0 ? { ...line, ...repository("Example/example_GEN3") } : line,
+      ),
+      "succeeded",
+    );
+    expect(
+      read.lines.map((line) =>
+        line.part === "content" ? line.repository : undefined,
+      ),
+    ).toEqual([
+      "Example/example_GEN3",
+      "Example/mission-control",
+      "Example/mission-control-data",
+      `${home}/mission-control`,
+      `${home}/mission-control-data`,
+    ]);
+    expect(
+      updateView(read, hosting, cs).rows.map((row) => [
+        row.name,
+        row.repositories,
+      ]),
+    ).toEqual([
+      ["Example Company", ["Example/example_GEN3"]],
+      [
+        "Mission Control",
+        ["Example/mission-control", "Example/mission-control-data"],
+      ],
+      [
+        `${home} / mission-control`,
+        [`${home}/mission-control`, `${home}/mission-control-data`],
       ],
     ]);
   });

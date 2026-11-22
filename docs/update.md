@@ -947,10 +947,10 @@ repository, pinned Bun, built app and the product, in the order the parts gave t
 ```json
 {"kind":"up-to-date","running":"0.1.12","latest":"0.1.12","folderRefresh":null,
  "items":[
-  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":".","kind":"root","branch":"main","result":"current","at":"…"},
-  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/site","kind":"module","branch":"main","result":"fast-forwarded","from":"…","to":"…","at":"…"},
-  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"mission-control/db","kind":"data","branch":"v3","parent":"mission-control","result":"current","to":"…","at":"…"},
-  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/Beta_GEN3/notes","kind":"module","branch":"main","home":"Beta","module":"notes","result":"current","to":"…","at":"…"},
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":".","kind":"root","branch":"main","repository":"Alpha/alpha_GEN4","result":"current","at":"…"},
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/site","kind":"module","branch":"main","repository":"Alpha/site","result":"fast-forwarded","from":"…","to":"…","at":"…"},
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"mission-control/db","kind":"data","branch":"v3","repository":"Alpha/mission-control-data","parent":"mission-control","result":"current","to":"…","at":"…"},
+  {"part":"content","organization":"Alpha","root":"organizations/alpha","path":"workspace/Beta_GEN3/notes","kind":"module","branch":"main","repository":"Beta/notes","home":"Beta","module":"notes","result":"current","to":"…","at":"…"},
   {"part":"tools","packageManager":"bun@1.4.3","result":"fetched"},
   {"part":"build","organization":"alpha","module":"site","app":"app/package.json","result":"built","commit":"…"},
   {"part":"product","result":"current","version":"0.1.12"}]}
@@ -964,12 +964,15 @@ comes with it, from the slots alone, so that a reader shows it as the Module Sta
 [kinds of repository](module-standard.md#kinds-of-repository-in-an-organization) say
 without guessing from its path ([F67's addendum of
 2026-11-21](decisions.md#addendum-of-2026-11-21-shared-module-and-how-the-kinds-of-repository-are-shown)):
-a `data` item names its Module's path relative to the root in `parent`, and a shared
+every item names its repository as declared in `repository`, `<owner>/<name>` (a
+module's or data repository's slot remote, the root's `root_repository.locator`; absent
+only where the root's declaration could not be read), a `data` item names its Module's path relative to the root in `parent`, and a shared
 Module's item and its data's name its home Organization in `home` (the slot's
 `home_organization`) and the shared Module's slot slug in `module` (its `slug`, else the
 last segment of its path; its own manifest stays unread). The fields are additive: an
 item of the Organization's own Module has neither `home` nor `module`, and a reader that
-does not know them reads the item as before. Each step of a repository under way carries
+does not know them reads the item as before. Nová karta's update view shows a row's
+repositories as its name's tooltip, never as its name. Each step of a repository under way carries
 the same fields. The part as a whole: `{"part":"content","result":"not-run","reason"}` with `folder-unreadable`,
 `not-for-this-environment`, `content-busy` or `not-installed`. A tools item is a pinned
 Bun by its pin (`packageManager`): `cached`, `fetched`, `refused` with its reason (and

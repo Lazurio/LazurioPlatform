@@ -352,6 +352,15 @@ posixTest(
           (e.kind !== "data") !== (e.parent === undefined),
       ),
     ).toEqual([]);
+    // Each answer names its repository as declared (the review of #1184).
+    expect(
+      Object.fromEntries(run.entries.map((e) => [e.path, e.repository])),
+    ).toEqual({
+      ".": "Alpha/alpha_GEN3",
+      "workspace/web": "Alpha/web",
+      "mission-control": "Alpha/mission-control",
+      "mission-control/db": "Alpha/mission-control-data",
+    });
     expect(
       await ok(
         fixture.at("mission-control/db"),

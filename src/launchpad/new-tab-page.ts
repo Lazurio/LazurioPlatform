@@ -404,17 +404,13 @@ function updateItem(row: UpdateRow): HTMLLIElement {
     item.append(stone);
   }
   const text = element("span", "nto-text");
-  const state = element(
-    "span",
-    `nto-update-state${
-      row.state === "finding"
-        ? " is-finding"
-        : ["checking", "fetching", "fetched", "building"].includes(row.state)
-          ? " is-working"
-          : ""
-    }`,
-    row.text,
-  );
+  const tone =
+    row.state === "finding"
+      ? " is-finding"
+      : ["checking", "fetching", "fetched", "building"].includes(row.state)
+        ? " is-working"
+        : "";
+  const state = element("span", `nto-update-state${tone}`, row.text);
   // A shared Module's name with its badge beside it, as Apps shows it.
   const name =
     row.badge === undefined
@@ -425,7 +421,12 @@ function updateItem(row: UpdateRow): HTMLLIElement {
     badge.title = row.badge.hint;
     name.append(element("span", "nto-name", row.name), badge);
   }
+  // Its repositories as declared, the name's tooltip.
+  if (row.repositories !== undefined) name.title = row.repositories.join("\n");
   text.append(name, state);
+  // Each further finding on a line of its own, in the same words' look.
+  for (const words of row.more ?? [])
+    text.append(element("span", `nto-update-state${tone}`, words));
   if (row.link !== undefined) {
     const link = element("a", "nto-update-link", row.link.text);
     link.href = row.link.href;

@@ -70,6 +70,10 @@ export type SyncEntry = Readonly<{
   kind: "root" | "module" | "data";
   /** The branch it is kept on: `main`, or a data mount's declared one. */
   branch: string;
+  /** The repository as declared, `<owner>/<name>`: a module's or data
+   * mount's slot remote, the root's `root_repository.locator`; absent where
+   * the root's declaration could not be read. */
+  repository?: string;
   /** A data mount's Module, by its path relative to the root, as its slot
    * declares it (`dataMountOf`): where Lazurio shows it (the Module
    * Standard's kinds of repository, decision F67's addendum of 2026-11-21). */
@@ -178,6 +182,7 @@ const validEntry = (value: unknown): value is SyncEntry => {
     text(entry.path) &&
     ["root", "module", "data"].includes(entry.kind as string) &&
     text(entry.branch) &&
+    (entry.repository === undefined || text(entry.repository)) &&
     (entry.parent === undefined || text(entry.parent)) &&
     (entry.home === undefined || text(entry.home)) &&
     (entry.module === undefined || text(entry.module)) &&
