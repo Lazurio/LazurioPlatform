@@ -1066,6 +1066,7 @@ button.link-button.danger { color: var(--destructive); }
 .integration-server .row-title a:hover { text-decoration: underline; }
 .integration-server .row-control { gap: 14px; }
 .integration-server[data-state="failed"] .row-status { color: var(--destructive); }
+.integration-server[data-state="expired"] .row-status, .integration-server .row-status.warning { color: var(--warning-fg); }
 /* The page of a custom MCP server (decision F42, addendum of 2026-10-11):
    Codex Desktop's "Connect to a custom MCP" in the Lazurio look, below the
    tabs as Codex shows it below its own. Back, the title and "Návod"; a card

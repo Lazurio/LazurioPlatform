@@ -69,6 +69,7 @@ import {
   removalStep,
   removalsRead,
   serverLine,
+  serverReconnects,
   sourceLines,
   tabLabels,
   toolStatesKey,
@@ -504,6 +505,7 @@ export function createIntegrationsPanel(
         session.window?.close();
         const name =
           overview?.apps.find((app) => app.id === session.app)?.name ??
+          overview?.custom.find((server) => server.id === session.app)?.name ??
           session.app;
         note = {
           text: fill(copy.integrationsConnectedNow, { app: name }),
@@ -577,7 +579,10 @@ export function createIntegrationsPanel(
     busy = new Set([...busy].filter((id) => id !== app));
     if (value.kind === "connected") {
       forming = null;
-      const name = overview?.apps.find((item) => item.id === app)?.name ?? app;
+      const name =
+        overview?.apps.find((item) => item.id === app)?.name ??
+        overview?.custom.find((server) => server.id === app)?.name ??
+        app;
       note = {
         text: fill(copy.integrationsConnectedNow, { app: name }),
         tone: "success",
@@ -1330,7 +1335,19 @@ export function createIntegrationsPanel(
           ),
           element("p", "row-status", serverLine(server, copy)),
         );
+        // An Application's connection signed in before it offered a lasting
+        // sign-in (Lazurio/LazurioPlatform#1076): said, with one click.
+        if (server.state === "connected" && server.lasting === false)
+          words.append(
+            element("p", "row-status warning", copy.integrationsMcpLapses),
+          );
         const controls = element("div", "row-control");
+        if (serverReconnects(server))
+          controls.append(
+            button(copy.integrationsMcpReconnect, "link-button", () => {
+              void reconnectServer(server);
+            }),
+          );
         controls.append(
           routeLink(
             customServerPath(server.id),
@@ -1368,6 +1385,27 @@ export function createIntegrationsPanel(
     section.setAttribute("aria-labelledby", "integrations-mcp-title");
     section.append(...nodes);
     return [section];
+  }
+
+  /** "Připojit znovu" of a custom server: its account signed in anew in a
+   * window of this browser, claimed in the click, as a new server's. */
+  async function reconnectServer(server: CustomServer) {
+    if (busy.has(server.id)) return;
+    const reserved = window.open("about:blank", "_blank");
+    busy = new Set([...busy, server.id]);
+    render();
+    let answer: { value: unknown; ok: boolean };
+    try {
+      answer = await options.post("/api/integrations/custom/reconnect", {
+        id: server.id,
+      });
+    } catch {
+      reserved?.close();
+      busy = new Set([...busy].filter((id) => id !== server.id));
+      say(options.copy().integrationsConnectFailed, "danger");
+      return;
+    }
+    await started(server.id, answer, reserved);
   }
 
   // --- The page of a custom MCP server (F42's addendum of 2026-10-11) -----

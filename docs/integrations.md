@@ -311,6 +311,20 @@ it is said.
 - **Checked twice.** The page and the server share the rules
   (`src/integrations/custom-server.ts`): what the page refuses as the user types, the
   route refuses before Executor is asked.
+- **An Organization's Application: a lasting connection** (Lazurio/LazurioPlatform#1076).
+  For a server at `https://<module>.<organization>.lazurio.app/mcp`, the reading tells
+  `lasting`: whether its sign-in was granted `offline_access`, read from the scopes
+  Executor recorded for it (`oauthScope` of `GET /api/connections`). Executor asks for
+  the scopes the Application's protected-resource metadata offer, which hold
+  `offline_access` since 2026-11-19, so a new connection lasts. One signed in before
+  holds only the issuer's sign-in session (7 days idle, 30 at most) and then expires;
+  nothing converts it. The row then says "Toto připojení časem vyprší. Když ho
+  připojíte znovu, vydrží i delší přestávky." and offers "Připojit znovu", which signs
+  the same account (`org/default`) in again (`POST /api/integrations/custom/reconnect`,
+  `{id}`, answered as a connect); an expired Application's sign-in says "Přihlášení
+  vypršelo" and offers the same. `lasting` is null for every other server and where
+  Executor recorded no scope; a server with keys or a command is never signed in
+  again.
 
 ## Composio (`composio` 0.4.x)
 
@@ -927,7 +941,8 @@ lists and focuses that card even where nothing connects the app here), the
 accounts of Composio toolkits the catalog does not know (named from the toolkit),
 and the custom MCP
 servers (address without userinfo or query, which may carry a key; a command
-server's line is not shown). A source that cannot be read is said so and never
+server's line is not shown; `lasting` for an Organization's Application:
+[above](#custom-mcp-servers-vlastní)). A source that cannot be read is said so and never
 taken for "nothing connected"; only a Folder that cannot be read fails the route
 (500).
 

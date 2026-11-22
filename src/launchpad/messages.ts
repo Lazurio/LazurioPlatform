@@ -2292,6 +2292,10 @@ const en = {
   integrationsMcpTools: "Connected · {tools}",
   integrationsMcpPending: "Starting…",
   integrationsMcpFailed: "Could not start",
+  integrationsMcpExpired: "The sign-in has expired",
+  integrationsMcpLapses:
+    "This connection will lapse after a while. Connect it again so that it also lasts through longer breaks.",
+  integrationsMcpReconnect: "Connect again",
   integrationsMcpEdit: "Edit",
   integrationsMcpRemove: "Remove",
   integrationsMcpRemoveTitle: "Remove the MCP server “{name}”?",
@@ -4651,6 +4655,10 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpTools: "Připojeno · {tools}",
   integrationsMcpPending: "Spouštím…",
   integrationsMcpFailed: "Nepodařilo se spustit",
+  integrationsMcpExpired: "Přihlášení vypršelo",
+  integrationsMcpLapses:
+    "Toto připojení časem vyprší. Když ho připojíte znovu, vydrží i delší přestávky.",
+  integrationsMcpReconnect: "Připojit znovu",
   integrationsMcpEdit: "Upravit",
   integrationsMcpRemove: "Odebrat",
   integrationsMcpRemoveTitle: "Odebrat MCP server „{name}“?",

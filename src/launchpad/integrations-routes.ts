@@ -64,6 +64,8 @@ import { fill } from "./update-view";
 //                                           keys-required for a kept key that
 //                                           must come again
 //   POST /api/integrations/custom/remove    {id, confirm: true}
+//   POST /api/integrations/custom/reconnect {id}: its account signed in
+//                                           again, answered as a connect
 //   POST /api/integrations/chatgpt-apps     {allowed}: the person's own
 //                                           choice of ChatGPT's apps where
 //                                           no Organization governs (409
@@ -575,6 +577,16 @@ export function createIntegrationsRoutes(
           return response({ error: "invalid-server" }, 400);
         extend(60);
         const result = await sessions.removeCustom(value.id);
+        reader.forget();
+        return response(result, result.kind === "blocked" ? 409 : 200);
+      }
+      if (url.pathname === "/api/integrations/custom/reconnect") {
+        const value = await body(request, ["id"]);
+        if (value instanceof Response) return value;
+        if (typeof value.id !== "string" || !appPattern.test(value.id))
+          return response({ error: "invalid-server" }, 400);
+        extend(180);
+        const result = await sessions.reconnectCustom(value.id);
         reader.forget();
         return response(result, result.kind === "blocked" ? 409 : 200);
       }
