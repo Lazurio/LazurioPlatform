@@ -27,7 +27,7 @@ does not add a second standard, it names which of its rules decide readiness.
    proves they pass.
 3. **The rollout** on the application host: the release evidence the
    Module's release step asks for (by default a merge to `main` with passing
-   checks, or a release where the Organization's Owners switched the step on), the deployed Application's health, and from outside its gateway's
+   checks, or a release where the Module's release step is on), the deployed Application's health, and from outside its gateway's
    `401` with a `scope` on `/mcp`, its protected-resource metadata and the
    host's scope at the issuer. These need the live host and the
    Organization's rule and belong to the rollout, not to the Module.

@@ -777,11 +777,11 @@ One Module's app comes in three versions:
   Environment browser: one agent's change in progress, on its Environment's
   branch of the data, with writes that stay local.
 
-DEV and STAGING have a frame with a label, "DEV" or "STAGING", drawn by Buddy's
-overlay; PROD has neither, and Buddy is available in all three, in PROD through
-the overlay the application host's gateway adds (decisions 0180, 0248). Red and
-blue keep saying whose Environment it is; the colour for the person's own
-Environment is decided with the prototype.
+DEV and STAGING have a blue frame with a label, "DEV" or "STAGING", drawn by
+Buddy's overlay; PROD has neither, and Buddy is available in all three, in PROD
+through the overlay the application host's gateway adds (decisions 0180, 0248).
+A shared Environment's frame is blue too, and its label says it is shared: the
+label tells them apart, not the colour. Another person's Environment stays red.
 
 **Which Modules are Applications.** The application host derives them from the
 Organization's module manifest: a Module with an app in the manifest that passes
@@ -807,7 +807,9 @@ Admin gives them. Access to an Application
 never gives access to the Module. The App itself learns only the application role,
 through `appAccess`; how the role was derived is Lazurio Auth's (decisions 0231,
 0249). Until Auth itself holds the Module roles, a person enters the Application only
-through a role given in it or the Organization Admin role; having the whole of an
+through a role given in it or the Organization Admin role, so clicking the tile
+opens PROD only for them; Auth counts Module roles for no Organization yet
+(Auth#128, Auth#131); having the whole of an
 Environment makes someone Application Admin only of the STAGING running there,
 never of the Application on the application host.
 
@@ -815,12 +817,12 @@ never of the Application on the application host.
 passing checks on the merged commit, a backup of the data before the switch, and
 a return to the previous version when the new one does not start. A release step
 between STAGING and PROD, a release approved on GitHub with a version number and
-release notes, is a setting of the single Module, whatever its generation. The
-Owners of the Organization switch it on, so it never lives in the Module's
-repository, where anyone who merges into the Module could switch it off; it is
-recorded with the Owners and shown in the Organization overview. Where it is on,
-the Module Maintainer releases, unless an Owner names someone else for that
-Module (decision 0249, addendum of 2026-11-22). Every rollout keeps its Plan,
+release notes, is a setting of the single Module, whatever its generation. It
+never lives in the Module's repository, where anyone who merges into the Module
+could switch it off. Where it is on, the Module Maintainer releases, unless an
+Owner names someone else for that Module (decision 0249, addendum of
+2026-11-22). Who switches the step on, where it is recorded and what enforces
+that are open; Matěj's view is that the Owners of the Organization set it. Every rollout keeps its Plan,
 Permit, readback and evidence for the exact commit (decision 0205). A Module is built so that this works: one
 process, deep health, and in `app/v4` migrations that only expand. While the
 two versions share the same data, only one of them writes. In the host's
