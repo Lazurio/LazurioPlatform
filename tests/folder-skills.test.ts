@@ -115,10 +115,15 @@ test("the skills are outputs after the manual, one file per harness, and a manif
     uiCraftClaude,
     ".agents/skills/admin-request/SKILL.md",
     ".claude/skills/admin-request/SKILL.md",
+    ".agents/skills/automate/SKILL.md",
+    ".claude/skills/automate/SKILL.md",
   ]);
   expect(outputPaths).toEqual(["AGENTS.md", ...manualPaths, ...skillPaths]);
   expect(manualPaths).not.toContain("manual/new-module.md" as never);
-  expect(manifestOutputPaths[6]).toEqual(outputPaths);
+  expect(manifestOutputPaths[7]).toEqual(outputPaths);
+  expect(manifestOutputPaths[6]).toEqual(
+    outputPaths.filter((path) => !path.includes("/automate/")),
+  );
   expect(manifestOutputPaths[5]).toEqual([
     "AGENTS.md",
     ...manualBeforeSchema6,
@@ -148,8 +153,8 @@ test("the skills are outputs after the manual, one file per harness, and a manif
     standardClaude,
   ]);
   expect(manifestOutputPaths[2]).toEqual(["AGENTS.md", ...manualBeforeSchema6]);
-  expect(instructionManifestSchema).toBe(6);
-  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5, 6]);
+  expect(instructionManifestSchema).toBe(7);
+  expect(folderStateSchemas.manifest).toEqual([2, 3, 4, 5, 6, 7]);
 });
 
 test("every Environment renders the skill new-module in its locale, the same bytes for Codex and Claude Code: what a module is, the interview first, the agent's technical choices, the plan and the route its preset allows", () => {
@@ -533,14 +538,19 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
     ],
   ).toBe(digest);
   expect(
-    parseInstructionManifest(manifest(6, outputPaths)).outputs[
+    parseInstructionManifest(manifest(6, manifestOutputPaths[6])).outputs[
       "manual/mechanisms.md"
+    ],
+  ).toBe(digest);
+  expect(
+    parseInstructionManifest(manifest(7, outputPaths)).outputs[
+      ".claude/skills/automate/SKILL.md"
     ],
   ).toBe(digest);
   // Each schema has one set: no skills in a schema 2 manifest, only
   // new-module in a schema 3 manifest, no ui-craft in schema 4, no
-  // mechanisms.md, admin.md or admin-request in schema 5, every output in
-  // schema 6, and no other schema.
+  // mechanisms.md, admin.md or admin-request in schema 5, no automate in
+  // schema 6, every output in schema 7, and no other schema.
   expect(() => parseInstructionManifest(manifest(2, outputPaths))).toThrow();
   expect(() =>
     parseInstructionManifest(manifest(3, manifestOutputPaths[2])),
@@ -557,7 +567,11 @@ test("a manifest of schema 2 owns exactly AGENTS.md and the manual, schema 3 add
   expect(() =>
     parseInstructionManifest(manifest(6, manifestOutputPaths[5])),
   ).toThrow();
-  expect(() => parseInstructionManifest(manifest(7, outputPaths))).toThrow();
+  expect(() => parseInstructionManifest(manifest(6, outputPaths))).toThrow();
+  expect(() =>
+    parseInstructionManifest(manifest(7, manifestOutputPaths[6])),
+  ).toThrow();
+  expect(() => parseInstructionManifest(manifest(8, outputPaths))).toThrow();
 });
 
 // A personal Remote Environment's Folder, as in the refresh tests: hosted, so
@@ -640,7 +654,7 @@ async function expectCurrent(folder: string) {
   const manifest = JSON.parse(
     await readFile(join(folder, ".lazurio", "instructions.json"), "utf8"),
   );
-  expect(manifest.schemaVersion).toBe(6);
+  expect(manifest.schemaVersion).toBe(7);
   expect(manifest.templateRevision).toBe(instructionTemplateRevision);
   expect(Object.keys(manifest.outputs)).toEqual([...outputPaths]);
 }

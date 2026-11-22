@@ -22,7 +22,7 @@ const preferences = {
   customInstructions: "  Vlastní pracovní instrukce.\n",
 };
 const manifest = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   preferenceRevision: 1,
   templateRevision: "base-instructions-3",
   outputs: Object.fromEntries(

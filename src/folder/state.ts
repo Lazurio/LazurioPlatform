@@ -34,15 +34,16 @@ export { stateFields } from "./state-fields";
 // artifact identity so staging can check backward read compatibility.
 export const folderStateSchemas = Object.freeze({
   preferences: Object.freeze([2, 3]),
-  manifest: Object.freeze([2, 3, 4, 5, 6]),
+  manifest: Object.freeze([2, 3, 4, 5, 6, 7]),
 });
 
 // The manifest schema this product writes: every output it renders (decision
-// F14, addenda of 2026-10-14, 2026-10-21, 2026-11-01 and the proposed one of
-// 2026-11-05). Schemas 2 (the Folder before its skills), 3 (`new-module`
-// only), 4 (without `ui-craft`) and 5 (without `mechanisms.md`, `admin.md`
-// and `admin-request`) stay readable and are upgraded by the next change.
-export const instructionManifestSchema = 6;
+// F14, addenda of 2026-10-14, 2026-10-21, 2026-11-01 and the proposed ones of
+// 2026-11-05 and 2026-11-20). Schemas 2 (the Folder before its skills), 3
+// (`new-module` only), 4 (without `ui-craft`), 5 (without `mechanisms.md`,
+// `admin.md` and `admin-request`) and 6 (without `automate`) stay readable
+// and are upgraded by the next change.
+export const instructionManifestSchema = 7;
 
 // Development schema for the generated-output transaction. Parsing is not proof
 // of custody: a filesystem adapter must establish the state owner's trusted
@@ -186,7 +187,7 @@ export function withToolSelection<
 export type OutputDigests = Readonly<Record<OutputPath, string>>;
 export type RecordedDigests = Readonly<Partial<Record<OutputPath, string>>>;
 export type InstructionManifest = Readonly<{
-  schemaVersion: 2 | 3 | 4 | 5 | 6;
+  schemaVersion: 2 | 3 | 4 | 5 | 6 | 7;
   preferenceRevision: number;
   templateRevision: string;
   outputs: RecordedDigests;
@@ -333,7 +334,8 @@ export function parseInstructionManifest(input: unknown): InstructionManifest {
     value.schemaVersion !== 3 &&
     value.schemaVersion !== 4 &&
     value.schemaVersion !== 5 &&
-    value.schemaVersion !== 6
+    value.schemaVersion !== 6 &&
+    value.schemaVersion !== 7
   )
     throw new FolderStateUnreadable("unsupported-schema", {
       field: "schemaVersion",
