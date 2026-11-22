@@ -132,10 +132,12 @@ import {
 } from "../organization-settings/relay";
 import { provisionDeclaredTools } from "../organization-settings/tools";
 import {
+  type Catalog,
   handoverServerServices,
   type ServerServices,
 } from "../organizations/catalog";
 import { selectCatalogOrganization } from "../organizations/catalog-selection";
+import { withGuestAccess } from "../organizations/guest-access";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import {
@@ -222,7 +224,6 @@ import { createBuddyRoutes } from "./buddy-routes";
 import { buddySignalPath, buddySignalStream } from "./buddy-signal-stream";
 import { telegramPairingLine } from "./buddy-view";
 import { createCatalogReading, organizationsOnly } from "./catalog-reading";
-import { withGuestAccess } from "./catalog-view";
 import {
   chatPairingPath,
   createChatPromptCheck,
@@ -1836,6 +1837,21 @@ export async function startLaunchpad(
   // local facts (F53's addendum of 2026-10-18 (3), never failing). None when
   // that fails or takes longer than a moment: the page then reads it all
   // itself, as before.
+  // The catalog as this Launchpad keeps it, with the last synchronization's
+  // answer on each guest: one whose access was lost stays checked out, Apps
+  // hides it and every view names it by its slot's id (F67's addenda of
+  // 2026-11-01 and 2026-11-22). The page's boot document and `/api/catalog`
+  // both read it. Without a record nothing is marked.
+  async function guardedCatalog(): Promise<Catalog> {
+    const read = await catalog.read();
+    return syncHost === undefined
+      ? read
+      : withGuestAccess(
+          read,
+          await readSyncRecord(syncHost.lockDirectory, folder),
+        );
+  }
+
   async function pageBoot(): Promise<LaunchpadBoot | null> {
     let late: ReturnType<typeof setTimeout> | undefined;
     const read = (async () => {
@@ -1843,7 +1859,7 @@ export async function startLaunchpad(
         readShellInputs(folder, {
           ownerKey: hostedOptions.ownerKey,
           lockWaitMs: bootLockWaitMs,
-          catalog: catalog.read,
+          catalog: guardedCatalog,
         }),
         (hostedOptions.offlineTailnet ?? machineTailnet)(),
         themeStore.read(),
@@ -3084,15 +3100,7 @@ export async function startLaunchpad(
           // A guest whose access was lost stays checked out; the last
           // synchronization's answer hides it in Apps (F67's addendum of
           // 2026-11-01). Without a record nothing is marked.
-          const read = await catalog.read();
-          return response(
-            syncHost === undefined
-              ? read
-              : withGuestAccess(
-                  read,
-                  await readSyncRecord(syncHost.lockDirectory, folder),
-                ),
-          );
+          return response(await guardedCatalog());
         }
         if (url.pathname === "/api/agent-entry") {
           // Settings → Tento Environment (LZD-0009 M9): the switch of agents

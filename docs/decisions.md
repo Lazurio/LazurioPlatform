@@ -26021,25 +26021,37 @@ Module's name on the tile, he chose „Nechat (Doporučeno)“.
    point 5 stands: no identity check against the host, no module row, app, start,
    preparation, port lease, runtime secret or hosted name.
 4. **Where an own module would not stand, the slot's id.** Not checked out (never
-   cloned, or GitHub refuses this Environment's identity), an unreadable or refused
-   manifest (also `default_app` outside `apps`, no apps at all), an unreadable or
-   refused default app, an app whose `company` or `module` is not the manifest's, an
-   empty title, or a declaration that changes during the read: no `display`, and the
-   shared Module keeps its slot's id and the stone of that id, as before.
+   cloned), an unreadable or refused manifest (also `default_app` outside `apps`, no
+   apps at all), an unreadable or refused default app, an app whose `company` or
+   `module` is not the manifest's, an empty title, or a declaration that changes during
+   the read: no `display`, and the shared Module keeps its slot's id and the stone of
+   that id, as before. **Access lost** (the review of #1187): a checkout GitHub refused
+   at the last synchronization stays on disk (addendum of 2026-11-01), so
+   `withGuestAccess` (`src/organizations/guest-access.ts`) marks it `revoked` and
+   leaves its `display` out; every consumer of the catalog applies it, the Launchpad's
+   `/api/catalog` and boot document and `lazurio module list`, until a synchronization
+   reads the remote again.
 5. **Where the name shows.** Apps: under the home Organization's heading (the section
    of the addendum of 2026-11-01), the tile and its overview's heading are its name,
    with the badge. Nová karta's update view: `<home> / <name>` with the same stone, from
    the catalog; the synchronization itself still reads no manifest and keeps `module`
-   as the slot's slug (`lazurio update --json`). `lazurio module list` keeps the address
+   as the slot's slug (`lazurio update --json`). An open page reads the catalog again
+   (`/api/catalog`) whenever a run moves or materializes a checkout and when it ends
+   (`catalogChangeKey`), so a shared Module the run clones or whose default app it
+   renames gets its new name without reloading, as Apps shows it (the review of
+   #1187). `lazurio module list` keeps the address
    `<home>/<slot id>`, by which commands name it, and puts the name first in the row's
    description. The register's amendment of 0221 says the same.
 
 Tests: `tests/guest-modules.test.ts` (a valid declaration gives the name and the icon
 and no description; each case of point 4 gives none; still no module, app or start of
 the host; `lazurio module list`), `tests/guest-apps.test.ts` (the tile's name and stone,
-the page's reader keeps `display` and refuses one with a description or an empty title)
+the page's reader keeps `display` and refuses one with a description or an empty title;
+a shared Module cloned before and refused now named by its slot's id in the catalog,
+Apps, the update view and `lazurio module list`, and named again once GitHub reads it)
 and `tests/new-tab-view.test.ts` (the update view's row `HumanAndMachine-ai / Mission
-Control` with the tile's stone beside one named by its slot's id).
+Control` with the tile's stone beside one named by its slot's id; when an open page
+reads the catalog again: a clone, a move and the run's end, never a step alone).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

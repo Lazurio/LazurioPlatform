@@ -1600,6 +1600,25 @@ export type UpdateJob = Readonly<{
   lines: readonly UpdateJobLine[];
 }>;
 
+/** What of a run can change the catalog an open page names its rows by: the
+ * content items that moved or materialized a checkout (a shared Module cloned
+ * here, a default app's title or icon changed) and whether the run is over.
+ * The page reads the catalog again whenever this changes, so a row and its
+ * tile in Apps keep one name (F67's addendum of 2026-11-22, the review of
+ * #1187). */
+export function catalogChangeKey(job: UpdateJob | null): string {
+  if (job === null) return "";
+  const moved = job.lines
+    .flatMap((line) =>
+      line.part === "content" &&
+      (line.result === "fast-forwarded" || line.result === "materialized")
+        ? [`${line.root ?? ""}\0${line.path ?? ""}\0${line.to ?? ""}`]
+        : [],
+    )
+    .sort();
+  return [job.id, job.running ? "running" : "over", ...moved].join("\n");
+}
+
 const word = (value: unknown, max = 200) => text(value, max) ?? undefined;
 const lineSteps = new Set([
   "checking",

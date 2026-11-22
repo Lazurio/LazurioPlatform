@@ -96,7 +96,8 @@ catalog's `display` on its entry: `id`, `title`, `icon`, `tags`, never the App's
 description); it never has a module row, an App, a start, a preparation, a port lease,
 a runtime secret or a hosted name. Where it would not stand as an own Module's (not
 checked out, an unreadable or refused declaration, an App whose `company` or `module`
-is not the manifest's, an empty title) it keeps its slot's slug
+is not the manifest's, an empty title), and where GitHub refused it at the last
+synchronization though its checkout stays, it keeps its slot's slug
 ([F67's addendum of 2026-11-22](decisions.md#addendum-of-2026-11-22-a-shared-module-is-named-by-its-default-app-as-an-own-module-is)).
 Command output keeps its address without the spaces, as every `<Organization>/<module>`,
 `<home Organization>/<slot slug>`, and puts its name first in the row's description. The Organization's root

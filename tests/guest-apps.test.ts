@@ -9,7 +9,12 @@ import {
 } from "../src/content/sync-record";
 import { initializeFolder } from "../src/folder/initialize-folder";
 import { executionOs } from "../src/folder/platform";
-import { appsSectionHead, appsSections } from "../src/launchpad/apps-view";
+import {
+  appsSectionHead,
+  appsSections,
+  guestName,
+  slugStone,
+} from "../src/launchpad/apps-view";
 import {
   catalogGroupEntry,
   catalogSelection,
@@ -18,6 +23,11 @@ import {
   withGuestAccess,
 } from "../src/launchpad/catalog-view";
 import { messages } from "../src/launchpad/messages";
+import {
+  newTabCopy,
+  type UpdateJob,
+  updateView,
+} from "../src/launchpad/new-tab-view";
 import { pageRoute, routePath, routeTitle } from "../src/launchpad/routes";
 import type {
   Catalog,
@@ -26,6 +36,8 @@ import type {
   CatalogOrganization,
 } from "../src/organizations/catalog";
 import { readFolderCatalog } from "../src/organizations/catalog";
+import { runCatalogCommand } from "../src/organizations/cli";
+import type { CliContext } from "../src/update/cli";
 import { writeModule, writeOrganization } from "./fixtures/catalog-folder";
 import {
   guestKnowledgebase,
@@ -39,6 +51,12 @@ import {
 // started, its menu leads to GitHub, and one this Environment cannot read
 // (never cloned here) is not shown at all. Synthetic names only.
 
+const cli: CliContext = {
+  identity: { version: "1.0.0", commit: "0".repeat(40), target: "fixture" },
+  platform: process.platform,
+  env: {},
+  executable: "/nonexistent/lazurio",
+};
 const cs = messages("cs");
 const en = messages("en");
 
@@ -348,6 +366,115 @@ test("a guest whose access was lost stays checked out but leaves Apps, and comes
       at,
     );
     expect(await shown()).toEqual(["knowledgebase", "mission-control"]);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test("a shared Module cloned before and now refused by GitHub loses its name everywhere: the catalog, Apps, the update view and module list name it by its slot's id until GitHub reads it again (the review of #1187)", async () => {
+  const parent = await realpath(await mkdtemp(join(tmpdir(), "guest-named-")));
+  const folder = join(parent, "Lazurio");
+  const locks = join(parent, "locks");
+  await mkdir(locks);
+  try {
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "cs",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const root = await writeOrganization(folder, "HostOrg_GEN3", {
+      slug: "hostorg",
+      forge: "HostOrg",
+      state: "current",
+      modules: [{ id: "web" }],
+      slots: [guestMissionControl],
+    });
+    const path = join(root, "workspace/HomeOrg_GEN3/mission-control");
+    await writeModule(path, "HomeOrg", {
+      id: "mission-control",
+      runtime: { title: "Mission Control v3", icon: "control" },
+    });
+    await mkdir(join(path, ".git"));
+    const at = new Date().toISOString();
+    const entry = (result: SyncEntry["result"]): SyncEntry => ({
+      organization: "HostOrg",
+      root: "organizations/HostOrg_GEN3",
+      path: "workspace/HomeOrg_GEN3/mission-control",
+      kind: "module",
+      branch: "main",
+      result,
+      ...(result === "denied" ? { reason: "repository-denied" } : {}),
+      at,
+    });
+    const seen = async () => {
+      const record = await readSyncRecord(locks, folder);
+      const catalog = withGuestAccess(await readFolderCatalog(folder), record);
+      const guest = catalog.organizations[0]?.guests?.[0];
+      if (guest === undefined) throw new Error("no guest");
+      // The update view's row for it, from a run's line of it.
+      const job = {
+        id: "job",
+        running: false,
+        lines: [
+          {
+            part: "content",
+            organization: "HostOrg",
+            root: "organizations/HostOrg_GEN3",
+            path: "workspace/HomeOrg_GEN3/mission-control",
+            kind: "module",
+            home: "HomeOrg",
+            module: "mission-control",
+            result: "current",
+          },
+        ],
+      } as unknown as UpdateJob;
+      const [row] = updateView(job, catalog, newTabCopy("cs")).rows;
+      const listed = await runCatalogCommand(
+        ["module", "list", "hostorg", "--folder", folder],
+        cli,
+        (at: string) => readFolderCatalog(at),
+        async () => record,
+      );
+      return {
+        revoked: guest.revoked === true,
+        display: guest.display?.title ?? null,
+        name: guestName(guest),
+        row: row?.name,
+        stone: row?.stone,
+        listed: /Mission Control, shared/.test(listed.text),
+      };
+    };
+    // Cloned and readable: its name everywhere.
+    expect(await seen()).toEqual({
+      revoked: false,
+      display: "Mission Control v3",
+      name: "Mission Control",
+      row: "HomeOrg / Mission Control",
+      stone: slugStone("mission-control").src,
+      listed: true,
+    });
+    // GitHub refused it at the last synchronization; the checkout stays.
+    await recordSync(locks, folder, [entry("denied")], { replace: "all" }, at);
+    expect(await seen()).toEqual({
+      revoked: true,
+      display: null,
+      name: "mission-control",
+      row: "HomeOrg / mission-control",
+      stone: slugStone("mission-control").src,
+      listed: false,
+    });
+    // Access back: the next synchronization reads it, and the name returns.
+    await recordSync(
+      locks,
+      folder,
+      [entry("current")],
+      { replace: "answered" },
+      at,
+    );
+    expect((await seen()).row).toBe("HomeOrg / Mission Control");
   } finally {
     await rm(parent, { recursive: true, force: true });
   }

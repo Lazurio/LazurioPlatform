@@ -18,9 +18,11 @@ import {
   newTabThemeRoles,
 } from "../shell/new-tab-protocol";
 import { bootElementId, parseBoot } from "./boot";
+import { parseCatalog } from "./catalog-view";
 import {
   actionFailure,
   afterRestart,
+  catalogChangeKey,
   catalogModuleLook,
   closeOutcome,
   closeWarning,
@@ -100,9 +102,14 @@ let locale: "cs" | "en" = boot?.locale ?? browserLanguage(navigator.language);
 let copy = newTabCopy(locale);
 let shell: Shell | null = boot?.shell ?? null;
 const entry = boot?.entry ?? null;
-const catalog = boot?.catalog ?? null;
-const look = catalogModuleLook(catalog);
-const offered = suggestions(catalog, entry);
+// The catalog the page names Modules by: the boot document's, read again
+// when a run changes a checkout or ends (`catalogChangeKey`).
+let catalog = boot?.catalog ?? null;
+let look = catalogModuleLook(catalog);
+let offered = suggestions(catalog, entry);
+// The run's change the catalog was last read for; null before the first
+// reading of a run, which the boot document's catalog already reflects.
+let catalogReadFor: string | null = null;
 let viewOrigin: string | null =
   entry?.browserOrigin !== undefined && entry.browserOrigin !== location.origin
     ? entry.browserOrigin
@@ -1048,9 +1055,29 @@ async function readUpdate(): Promise<void> {
     if (Date.now() - restartSince < restartWaitMs) scheduleUpdate(2_000);
     else updateJob = Object.freeze({ ...shown, running: false });
   } else if (answer.status !== 0) updateOffered = false;
+  const change = catalogChangeKey(updateJob);
+  if (catalogReadFor === null) catalogReadFor = change;
+  else if (change !== catalogReadFor) {
+    catalogReadFor = change;
+    void readCatalogAgain();
+  }
   drawOverview();
   if (updateJob?.running === true && updateTimer === undefined)
     scheduleUpdate(updateEveryMs);
+}
+
+/** The catalog as the Launchpad keeps it now (`/api/catalog`, with each
+ * guest's last access): a shared Module the run cloned or whose default app
+ * changed gets its name here as in Apps. A refused or unreadable answer
+ * keeps the catalog the page has. */
+async function readCatalogAgain(): Promise<void> {
+  const answer = await post("/api/catalog", {});
+  const read = answer.status === 200 ? parseCatalog(answer.value) : null;
+  if (read === null) return;
+  catalog = read;
+  look = catalogModuleLook(read);
+  offered = suggestions(read, entry);
+  drawOverview();
 }
 
 function scheduleUpdate(ms: number) {

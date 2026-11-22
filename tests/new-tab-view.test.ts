@@ -11,6 +11,7 @@ import {
   actionFailure,
   afterRestart,
   ago,
+  catalogChangeKey,
   catalogModuleLook,
   closeOutcome,
   closeWarning,
@@ -1528,6 +1529,83 @@ describe("Aktualizovat: the run's rows per module", () => {
     expect(row?.stone).toBe(guestStone(guest).src);
     // The same name and stone as its tile in Apps.
     expect(guestName(guest)).toBe("Mission Control");
+  });
+
+  test("an open page reads the catalog again when a run clones a shared Module or moves it, and when the run ends, so its row gets the name Apps gives it (the review of #1187)", () => {
+    const withGuest = (display?: { title: string }): Catalog => ({
+      kind: "catalog",
+      organizations: [
+        {
+          ...example,
+          guests: [
+            {
+              ...sharedGuest("mission-control"),
+              ...(display === undefined
+                ? {}
+                : {
+                    display: {
+                      id: "mc",
+                      title: display.title,
+                      tags: [],
+                    },
+                  }),
+            },
+          ],
+        },
+      ],
+    });
+    // The page as it opened: the shared Module not cloned here yet.
+    const before = withGuest();
+    const run = (running: boolean, lines: Record<string, unknown>[]) =>
+      ({ id: "run", running, lines }) as unknown as UpdateJob;
+    const checking = run(true, [
+      sharedModule("mission-control", { step: "checking" }),
+    ]);
+    const fetching = run(true, [
+      sharedModule("mission-control", { step: "fetching", to: sha("a") }),
+    ]);
+    const cloned = run(true, [
+      sharedModule("mission-control", {
+        result: "materialized",
+        to: sha("a"),
+      }),
+    ]);
+    const over = run(false, [
+      sharedModule("mission-control", {
+        result: "materialized",
+        to: sha("a"),
+      }),
+    ]);
+    // Steps alone never ask for the catalog again; a clone does, and the
+    // run's end does once more.
+    expect(catalogChangeKey(fetching)).toBe(catalogChangeKey(checking));
+    expect(catalogChangeKey(cloned)).not.toBe(catalogChangeKey(fetching));
+    expect(catalogChangeKey(over)).not.toBe(catalogChangeKey(cloned));
+    expect(catalogChangeKey(null)).toBe("");
+    // With the catalog the page had, the row is its slug; with the one read
+    // again after the clone, its name, as in Apps.
+    expect(shown(cloned, cs, before)[0]?.[0]).toBe(`${home} / mission-control`);
+    const after = withGuest({ title: "Mission Control v3" });
+    expect(shown(cloned, cs, after)[0]?.[0]).toBe(`${home} / Mission Control`);
+    // A later run that moves it (its default app renamed): the key changes
+    // again, and the catalog read then names the row anew.
+    const moved = run(true, [
+      sharedModule("mission-control", {
+        result: "fast-forwarded",
+        to: sha("b"),
+      }),
+    ]);
+    const movedAgain = run(true, [
+      sharedModule("mission-control", {
+        result: "fast-forwarded",
+        to: sha("c"),
+      }),
+    ]);
+    expect(catalogChangeKey(moved)).not.toBe(catalogChangeKey(over));
+    expect(catalogChangeKey(movedAgain)).not.toBe(catalogChangeKey(moved));
+    expect(shown(moved, cs, withGuest({ title: "Plans v4" }))[0]?.[0]).toBe(
+      `${home} / Plans`,
+    );
   });
 
   // Every line of a row: its first and its further findings (the review of
