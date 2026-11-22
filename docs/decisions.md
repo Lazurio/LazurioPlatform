@@ -16077,7 +16077,11 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
         answer (three times in a row at most). Two fact windows in a row without progress give the facts up,
         facts over the model's input limit (skipped by gbrain, never
         truncated) end them incomplete, and the pages keep search by meaning
-        either way.
+        either way. Facts that ended incomplete on one pinned release are
+        tried once more on the next, with no step by a person: the pin
+        `v0.60.733.0-lazurio.2` refused the plane of a brain whose pages it
+        had embedded (`facts-plane`), and `lazurio.3` accepts it where every
+        stored vector is stamped with the model.
       - **What a person notices.** Search by words and writing work all the
         time. While a window computes, search by meaning is slower (measured
         on 4 cores with bge-m3: a median of about 5 to 6 s instead of 0.3 s,
