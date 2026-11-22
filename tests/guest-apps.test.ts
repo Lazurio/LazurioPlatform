@@ -188,6 +188,56 @@ test("Apps draws a guest like a module, read-only, with its home on the flag and
   expect(en.appsGuestBadge).toBe("shared");
 });
 
+test("a shared Module whose declaration was read is named and drawn by its default app, as an own module is (F67, addendum of 2026-11-22)", () => {
+  const named: CatalogGuestModule = {
+    ...guest("plans", "HomeOrg"),
+    display: {
+      id: "homeorg-plans-v3",
+      title: "Mission Control v3",
+      icon: "control",
+      tags: ["planning"],
+    },
+  };
+  const organization = host([named, guest("knowledgebase", "HomeOrg")]);
+  const value = catalogOf(organization);
+  // The page keeps its name and icon through its reader.
+  const parsed = parseCatalog(JSON.parse(JSON.stringify(value)));
+  expect(parsed?.organizations[0]?.guests?.[0]?.display).toEqual(named.display);
+  for (const copy of [cs, en]) {
+    const group = catalogGroupEntry(value, organization, copy);
+    const section = appsSections(value, group, copy, null, []).find(
+      (item) => item.kind === "guest",
+    );
+    if (section === undefined) throw new Error("no guest section");
+    // Under its home's heading; the tile its name without the version, its
+    // stone by its icon; the other still by its slot's id.
+    expect(appsSectionHead(section, "/edit").flag).toBe("HomeOrg");
+    expect(
+      section.tiles.map((tile) =>
+        tile.kind === "guest"
+          ? [tile.name, tile.stone.key, tile.description, tile.info]
+          : null,
+      ),
+    ).toEqual([
+      [
+        "Mission Control",
+        "control",
+        copy.appsDescriptionControl,
+        "/o/hostorg/guest/HomeOrg/plans",
+      ],
+      [
+        "knowledgebase",
+        "knowledge",
+        copy.appsDescriptionKnowledge,
+        "/o/hostorg/guest/HomeOrg/knowledgebase",
+      ],
+    ]);
+    // Still never an app: its overview, read-only.
+    for (const tile of section.tiles)
+      expect(tile.action).toEqual({ kind: "route", href: tile.info ?? "" });
+  }
+});
+
 test("the page keeps a valid guest list and refuses a forged one", () => {
   const valid = catalogOf(host([guest("knowledgebase", "HomeOrg")]));
   expect(parseCatalog(JSON.parse(JSON.stringify(valid)))).not.toBeNull();
@@ -195,6 +245,15 @@ test("the page keeps a valid guest list and refuses a forged one", () => {
     { ...guest("knowledgebase", "HomeOrg"), url: "https://example.com/x" },
     { ...guest("knowledgebase", "HomeOrg"), guest: false },
     { ...guest("knowledgebase", "HomeOrg"), homeOrganization: "-bad-" },
+    // A shared Module carries its name and icon, never its app's own line.
+    {
+      ...guest("knowledgebase", "HomeOrg"),
+      display: { id: "kb", title: "Knowledgebase", description: "x", tags: [] },
+    },
+    {
+      ...guest("knowledgebase", "HomeOrg"),
+      display: { id: "kb", title: "", tags: [] },
+    },
   ])
     expect(
       parseCatalog(

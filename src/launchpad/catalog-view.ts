@@ -770,7 +770,8 @@ function isRepository(value: unknown): value is CatalogRepository {
         entry.services.every(isCatalogService)))
   );
 }
-// A guest Module as the catalog lists it (decision F67 point 5).
+// A guest Module as the catalog lists it (decision F67 point 5): its name
+// and icon only, never its app's description (addendum of 2026-11-22).
 function isGuest(value: unknown): value is CatalogGuestModule {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
@@ -784,6 +785,10 @@ function isGuest(value: unknown): value is CatalogGuestModule {
     ) &&
     entry.guest === true &&
     typeof entry.checkedOut === "boolean" &&
+    (entry.display === undefined ||
+      (isDisplay(entry.display) &&
+        (entry.display as Record<string, unknown>).description ===
+          undefined)) &&
     (entry.revoked === undefined || entry.revoked === true) &&
     (entry.url === null ||
       (text(entry.url) && entry.url.startsWith("https://github.com/")))

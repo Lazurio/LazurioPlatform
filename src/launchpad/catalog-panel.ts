@@ -44,6 +44,7 @@ import {
   favoriteTiles,
   groupDashboardSlug,
   guestLook,
+  guestName,
   moduleAccessTarget,
   moduleDescription,
   moduleName,
@@ -1821,7 +1822,7 @@ export function createCatalogPanel(
     back.append(svg("chevron-left"), copy.appsAll);
     const look = guestLook(guest, copy);
     const top = element("div", "module-head");
-    const heading = element("h1", "module-title", guest.module);
+    const heading = element("h1", "module-title", guestName(guest));
     heading.tabIndex = -1;
     heading.dataset.pageHeading = "";
     const badge = element("span", "section-badge", copy.appsGuestBadge);

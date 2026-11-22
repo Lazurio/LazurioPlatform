@@ -25803,6 +25803,8 @@ Organization keeps it, and nothing else changes.
    present only when the Organization declares one; `lazurio organization list` and
    `lazurio module list` print them, with `--json` whole. The Launchpad's page draws
    those checked out here (addendum of 2026-11-01 below).
+   *Amended by the addendum of 2026-11-22 below: the catalog reads a guest's
+   declaration as an own module's and uses only its default app's name and icon.*
 6. **"The" Knowledgebase and Mission Control** of an Organization stay its own root and
    workspace slots: a guest is never a module of the catalog, so nothing that looks a
    module up by slug finds it, and module creation ignores guest slots when it checks
@@ -25881,7 +25883,8 @@ cannot read.
    `lazurio organization list` and the doctor.
 3. **A tile like a module's, read-only** (`guestTile`): its stone and its slot id, as GitHub
    names the repository, and the org-agnostic sentence of its stone (`guestLook`); its own
-   `lazurio.module.json` stays unread (point 5). It has no favourite, which belongs to the
+   `lazurio.module.json` stays unread (point 5; *since the addendum of 2026-11-22 its
+   default app's name and icon, read as an own module's*). It has no favourite, which belongs to the
    Organization's own tiles. The page refuses a catalog whose guest list is not the
    catalog's shape (`parseCatalog`).
 4. **Its overview** (the Admin's choice of 2026-11-01, "Přidat přehled"): a click opens
@@ -25931,7 +25934,9 @@ Organization's Module „„Organizace / Modul“ + štítek (Doporučeno)“.
    slug.
 3. **Point 5 stands.** The Platform still does not read a shared Module's
    `lazurio.module.json`, so its name is its slot's slug, not the title its own declaration
-   gives.
+   gives. *Superseded by the addendum of 2026-11-22 below: it is named by its default
+   app's title, read as an own module's, and keeps its slot's slug only where that
+   declaration would not stand.*
 4. **One definition.** The four kinds (Module, Module data repository, Productionspace
    repository, shared Module) and how each is shown live in the Module Standard's [Kinds of
    repository in an Organization](module-standard.md#kinds-of-repository-in-an-organization);
@@ -25985,6 +25990,56 @@ Module left out; a repository of no Module by its path), `tests/guest-modules.te
 and `tests/content-sync.test.ts` (`repository`, `parent`, `home` and `module` on the
 answers, the steps and the record, for the root, an own Module and its data, a shared
 Module and its data).
+
+### Addendum of 2026-11-22: a shared Module is named by its default app, as an own module is
+
+**Decided by Matěj on 2026-11-22 for plan LZD-0046 (step D4); amends point 5 and point 3
+of the addendum of 2026-11-21.** On where a shared Module's name should come from: „Já
+jsem osobně pro číst to ze stejného místa, jako se čtou standardní moduly organizace.
+[…] když organizace nasdílí celý modul, tak s tím dává i přístup přečíst si manifest,
+který modul definuje a dává mi smysl, že to je pak to jedno místo kde je modul
+nasdefinovaný, ať není více míst, které se můžou případně rozejít mezi sebou“. On Apps,
+asked whether it keeps the home Organization as the section's heading and only the
+Module's name on the tile, he chose „Nechat (Doporučeno)“.
+
+1. **The same place as an own module.** An own module is named by its default app's
+   title without a trailing version and drawn by that app's icon, else by its id
+   (`moduleName`, `moduleStone`; the Module Standard's [Kinds of
+   repository](module-standard.md#kinds-of-repository-in-an-organization)).
+   `lazurio.module.json` carries no name: its `default_app` points at the app whose
+   `lazurio.runtime` does. A shared Module is named from there too.
+2. **Read and judged as an own module's.** For a shared Module checked out here the
+   catalog reads its declaration as `observeModuleDirectory` reads an own module's, for
+   its default app only (`observeSharedModuleDisplay`): `lazurio.module.json` and the
+   app's `package.json` under the checkout rule, the whole manifest through
+   `parseModuleManifest` (so `default_app` is one of `apps`), the app's run declaration
+   through the same reader, its `company` and `module` the manifest's, and the module
+   directory and manifest unchanged across the read. Its other apps are not read.
+3. **Only the name and the icon are used.** The guest entry carries `display`
+   (`{id, title, icon?, tags}`, bounded as an own module's, never the app's
+   description); the page's reader refuses one with a description. Everything else of
+   point 5 stands: no identity check against the host, no module row, app, start,
+   preparation, port lease, runtime secret or hosted name.
+4. **Where an own module would not stand, the slot's id.** Not checked out (never
+   cloned, or GitHub refuses this Environment's identity), an unreadable or refused
+   manifest (also `default_app` outside `apps`, no apps at all), an unreadable or
+   refused default app, an app whose `company` or `module` is not the manifest's, an
+   empty title, or a declaration that changes during the read: no `display`, and the
+   shared Module keeps its slot's id and the stone of that id, as before.
+5. **Where the name shows.** Apps: under the home Organization's heading (the section
+   of the addendum of 2026-11-01), the tile and its overview's heading are its name,
+   with the badge. Nová karta's update view: `<home> / <name>` with the same stone, from
+   the catalog; the synchronization itself still reads no manifest and keeps `module`
+   as the slot's slug (`lazurio update --json`). `lazurio module list` keeps the address
+   `<home>/<slot id>`, by which commands name it, and puts the name first in the row's
+   description. The register's amendment of 0221 says the same.
+
+Tests: `tests/guest-modules.test.ts` (a valid declaration gives the name and the icon
+and no description; each case of point 4 gives none; still no module, app or start of
+the host; `lazurio module list`), `tests/guest-apps.test.ts` (the tile's name and stone,
+the page's reader keeps `display` and refuses one with a description or an empty title)
+and `tests/new-tab-view.test.ts` (the update view's row `HumanAndMachine-ai / Mission
+Control` with the tile's stone beside one named by its slot's id).
 
 ## F68 — Only the installed product acts on the declared operator's Folder
 

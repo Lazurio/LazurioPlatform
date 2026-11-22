@@ -1,6 +1,7 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { processPersonalspaceHolder } from "../content/holder";
+import { appBaseTitle } from "../shell/stones";
 import { type CliContext, operatorFolder } from "../update/cli";
 import {
   type Catalog,
@@ -151,11 +152,13 @@ const declared = (entry: CatalogOrganization) => {
 };
 
 // A guest Module's row: under its home Organization, never runnable here.
+// Its address stays `<home>/<slot id>`; where its declaration was read, its
+// name leads the description (decision F67, addendum of 2026-11-22).
 const guestRow = (entry: CatalogGuestModule) => [
   `${entry.homeOrganization}/${entry.module}`,
   "-",
   "-",
-  `shared with ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
+  `${entry.display === undefined ? "" : `${appBaseTitle(entry.display.title)}, `}shared with ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
 ];
 
 function organizationLines(catalog: Catalog): string {

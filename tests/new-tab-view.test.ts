@@ -4,6 +4,7 @@ import {
   browserTimes,
   addressBarTarget as resolveAddress,
 } from "../src/browser/contract/pure";
+import { guestName, guestStone } from "../src/launchpad/apps-view";
 import type { PublicEntry } from "../src/launchpad/chat";
 import { messages } from "../src/launchpad/messages";
 import {
@@ -1483,6 +1484,50 @@ describe("Aktualizovat: the run's rows per module", () => {
     ).toEqual([
       [`${home} / mission-control`, "current", "Aktuální", "nasdílený"],
     ]);
+  });
+
+  test('a shared Module whose declaration the catalog read is named and drawn as Apps draws it: "HumanAndMachine-ai / Mission Control" (F67, addendum of 2026-11-22)', () => {
+    const named: Catalog = {
+      kind: "catalog",
+      organizations: [
+        {
+          ...example,
+          guests: [
+            {
+              ...sharedGuest("mission-control"),
+              display: {
+                id: "humanandmachine-ai-mission-control-v3",
+                title: "Mission Control v3",
+                icon: "control",
+                tags: [],
+              },
+            },
+            sharedGuest("clients"),
+          ],
+        },
+      ],
+    };
+    const lines = [
+      sharedModule("mission-control", { result: "current" }),
+      sharedData("mission-control", { result: "fast-forwarded", to: sha("d") }),
+      sharedModule("clients", { result: "current" }),
+    ];
+    expect(shown(job(lines, "succeeded"), cs, named)).toEqual([
+      [
+        `${home} / Mission Control`,
+        "done",
+        "Hotovo, verze ddddddd",
+        "nasdílený",
+      ],
+      // Without its declaration read, still its slot's id.
+      [`${home} / clients`, "current", "Aktuální", "nasdílený"],
+    ]);
+    const [row] = updateView(job(lines, "succeeded"), named, cs).rows;
+    const guest = named.organizations[0]?.guests?.[0];
+    if (guest === undefined) throw new Error("no guest");
+    expect(row?.stone).toBe(guestStone(guest).src);
+    // The same name and stone as its tile in Apps.
+    expect(guestName(guest)).toBe("Mission Control");
   });
 
   // Every line of a row: its first and its further findings (the review of

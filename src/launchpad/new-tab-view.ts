@@ -13,7 +13,14 @@ import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
-import { moduleName, moduleStone, slugStone, tileTarget } from "./apps-view";
+import {
+  guestName,
+  guestStone,
+  moduleName,
+  moduleStone,
+  slugStone,
+  tileTarget,
+} from "./apps-view";
 import type { PublicEntry } from "./chat";
 
 // Nová karta's page without a DOM (decision F47 points 1-3 and 6-9, the
@@ -1974,15 +1981,22 @@ export function updateView(
     const holds = (place: string) =>
       at === place || (line.parent === undefined && at.startsWith(`${place}/`));
     const organization = organizationOf(group);
-    // A shared Module, by what its line says, else by the catalog's guests.
+    // A shared Module, by what its line says, else by the catalog's guests;
+    // named and drawn as Apps draws its tile where the catalog read its
+    // declaration (decision F67, addendum of 2026-11-22), else by its slug.
     const guest = (group.guests ?? []).find((item) => holds(item.path));
     const home = line.home ?? guest?.homeOrganization;
     if (home !== undefined) {
       const slug = line.module ?? guest?.module;
       return {
         key: `${organization}\0shared\0${home.toLowerCase()}/${slug ?? at}`,
-        name: `${home} / ${slug ?? at}`,
-        stone: slug === undefined ? null : slugStone(slug).src,
+        name: `${home} / ${guest === undefined ? (slug ?? at) : guestName(guest)}`,
+        stone:
+          guest !== undefined
+            ? guestStone(guest).src
+            : slug === undefined
+              ? null
+              : slugStone(slug).src,
         badge: { text: copy.updateShared, hint: copy.updateSharedHint },
       };
     }

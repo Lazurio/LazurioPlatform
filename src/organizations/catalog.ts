@@ -50,6 +50,8 @@ import {
 import {
   type AppDisplay,
   observeOrganizationApplications,
+  observeSharedModuleDisplay,
+  type SharedModuleDisplay,
 } from "./read-applications";
 import { readOrganizationDocuments } from "./read-documents";
 import type { OrganizationRootState } from "./root-resolution";
@@ -119,7 +121,7 @@ export type ModuleReason =
 /** What the default app of a module says of itself for a page (decision
  * F36): its id, title, description, semantic icon key and tags, bounded and
  * display-only. The Module's own manifest stays the authority. */
-export type { AppDisplay } from "./read-applications";
+export type { AppDisplay, SharedModuleDisplay } from "./read-applications";
 
 export type CatalogApp = Readonly<{
   package: string;
@@ -238,8 +240,9 @@ export type CatalogRepository = Readonly<{
  * `workspace/<Home>_GEN3/<module>` for context and kept up to date with the
  * rest of its content. Listed read-only, like a productionspace repository:
  * never a module of this Organization, never started, opened, prepared or
- * given a port, a secret or a hosted name, and its `lazurio.module.json`,
- * which names its home, is not read here. Its home Organization's rules,
+ * given a port, a secret or a hosted name. Of its declaration only its name
+ * and icon are used, read as an own module's (decision F67, addendum of
+ * 2026-11-22; `observeSharedModuleDisplay`). Its home Organization's rules,
  * review and Publication apply to it; a change goes as a pull request to its
  * home repository. */
 export type CatalogGuestModule = Readonly<{
@@ -259,6 +262,11 @@ export type CatalogGuestModule = Readonly<{
   checkedOut: boolean;
   /** Its GitHub page, as a repository's `url`; null otherwise. */
   url: string | null;
+  /** Its default app's title and icon, as an own module's `display`:
+   * present only when it is checked out and its declaration stands as an own
+   * module's would (decision F67, addendum of 2026-11-22). Without it the
+   * shared Module is named by `module`, its slot's id. */
+  display?: SharedModuleDisplay;
   /** Set by the Launchpad's catalog only, from the last synchronization:
    * GitHub refused this Environment's identity for a guest that is still
    * checked out (access lost). The checkout stays; Apps hides it (decision
@@ -1127,18 +1135,22 @@ export async function readCatalogOrganization(
     ),
   );
   const guests = await Promise.all(
-    (result.guests ?? []).map(
-      async (slot): Promise<CatalogGuestModule> =>
-        Object.freeze({
-          organization: result.company,
-          module: slot.id,
-          path: slot.path,
-          homeOrganization: slot.home,
-          guest: true,
-          checkedOut: await isCheckedOut(directory, slot.path),
-          url: repositoryPage(slotRemote(bySlotPath.get(slot.path))),
-        }),
-    ),
+    (result.guests ?? []).map(async (slot): Promise<CatalogGuestModule> => {
+      const checkedOut = await isCheckedOut(directory, slot.path);
+      const display = checkedOut
+        ? await observeSharedModuleDisplay(join(directory, slot.path))
+        : undefined;
+      return Object.freeze({
+        organization: result.company,
+        module: slot.id,
+        path: slot.path,
+        homeOrganization: slot.home,
+        guest: true,
+        checkedOut,
+        url: repositoryPage(slotRemote(bySlotPath.get(slot.path))),
+        ...(display === undefined ? {} : { display }),
+      });
+    }),
   );
   return Object.freeze({
     directory: name,
