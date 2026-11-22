@@ -86,8 +86,8 @@ rollout asks for the evidence the Organization's release mode needs.
   a version, never its internal files, and says so plainly when the replica is
   missing.
 - **V4, a database in Server Services.** As V3, over the same data port
-  (`store`). The development version uses a local database with preview data
-  and never a grant to the Application's database. A migration deployed
+  (`store`). DEV uses a local database with preview data and never a grant to
+  the Application's database. A migration deployed
   automatically only expands the schema; one that drops or narrows goes only
   through an approved release with a restore from backup as the way back.
 
@@ -95,17 +95,16 @@ rollout asks for the evidence the Organization's release mode needs.
 
 On the application host the Application always gets
 `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes; with `false` or any other
-value it neither writes, pulls nor publishes. What an App may do without the variable, in a development
-version in an Environment, is open and decided by the Owner (Module Standard,
-Applications of an Organization): variant A (recommended) lets only the entries
-`local` and `environment` and the data sync host (at start, in the background
-and after their requests) write there, while a request from `app` only reads,
-and a runtime stating `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never
-writes without `true`;
-variant B writes nothing without the variable until the Platform passes `true`
-to the writing Environment (#1034). Either way the App must read the variable,
-so the static check looks for it (or module-kit's `dataWriter`) in a V3 or V4
-app's source, and the contract tests prove the cases of the chosen variant.
+value it neither writes, pulls nor publishes. Without the variable, in STAGING or
+DEV in an Environment, only the entries `local` and `environment` and the data
+sync host (at start, in the background and after their requests) write there,
+while a request from `app` only reads, and a runtime stating
+`LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes without `true`;
+this holds until the Module is switched over to its Application, after which
+data are written only there (decided, Module Standard, Applications of an
+Organization; decision 0249, addendum of 2026-11-22). The App must read the
+variable, so the static check looks for it (or module-kit's `dataWriter`) in a
+V3 or V4 app's source, and the contract tests prove these cases.
 
 ## Publication tools
 

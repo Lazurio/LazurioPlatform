@@ -11,7 +11,7 @@ working. It serves the stable version from `main`; the target is a built release
 without a development server or hot reload. Starting a preview must leave that
 application, its address, service and port alone.
 
-A development version runs from its own worktree on a separate free loopback port.
+A development version (DEV in the terms of decision 0249's addendum of 2026-11-22) runs from its own worktree on a separate free loopback port.
 Open its actual `http://127.0.0.1:<port>` or `http://localhost:<port>` address in the
 browser of the Environment where the process runs. This applies to module changes,
 prototypes, other branches and development applications in productionspace. A
