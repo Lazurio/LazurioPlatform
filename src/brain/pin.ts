@@ -10,9 +10,12 @@ import { join } from "node:path";
 // in the person's Personalspace (root decision 0046).
 //
 // A new pin is a reviewed change of this file: an exact tag of the fork
-// Lazurio/gbrain (upstream stable plus the fork's `lazurio/` overlay only),
-// its commit and the version its package.json carries, after the fork's
-// upgrade test from the previous pin passed (`lazurio/upgrade-test/run.sh`).
+// Lazurio/gbrain (upstream stable plus the fork's `lazurio/` overlay and the
+// code patches its `lazurio/patches.list` records), its commit and the
+// version its package.json carries, after the fork's upgrade test from the
+// previous pin passed (`lazurio/upgrade-test/run.sh`). The version names the
+// fork release (`-lazurio.<N>`), so a new release on the same upstream
+// version still reads as a new pin.
 
 export type BrainPin = Readonly<{
   repository: string;
@@ -23,9 +26,9 @@ export type BrainPin = Readonly<{
 
 export const brainPin: BrainPin = Object.freeze({
   repository: "Lazurio/gbrain",
-  tag: "v0.60.733.0-lazurio.1",
-  commit: "565d60463ada53c636da1ab186099e76d4e197a7",
-  version: "0.60.733.0",
+  tag: "v0.60.733.0-lazurio.2",
+  commit: "4f9507186aa23c67649901b6e3cac8b03752bdcd",
+  version: "0.60.733.0-lazurio.2",
 });
 
 /** The server's address: loopback only, the port every client of the brain
