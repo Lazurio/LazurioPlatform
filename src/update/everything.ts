@@ -631,6 +631,10 @@ export function organizationToolsText(items: readonly UpdateItem[]): string[] {
       lines.push(
         `Updated the Organization's tool ${name}: ${item.from} to ${item.version}${onPath(item.onPath)}.`,
       );
+    else if (item.result === "current" && item.onPath === false)
+      lines.push(
+        `The Organization's tool ${name} is ${item.version}, but ~/.local/bin is not on this PATH, so commands do not find it.`,
+      );
     else if (item.result === "below-minimum")
       lines.push(
         `The Organization's tool ${name} is ${item.version} at ${item.path}, installed another way; it was left as it is (${item.reason}). Its official source: ${item.source}`,

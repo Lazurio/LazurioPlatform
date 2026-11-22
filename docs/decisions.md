@@ -10870,6 +10870,105 @@ Verified by unit tests: `tests/shell-account.test.ts` (the account's last visit 
 opens Chat from Chat and Apps from a page that is no Environment's), `tests/shell.test.ts` (Chat
 and Automate keep their app).
 
+### F36 addendum of 2026-11-17: the design system's clean type
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+merge of its pull request and of the dark appearance Grafit that stands on it.** The design system's
+clean look of 2026-10-21, which its owner decided for the product too, sets text in Inter and
+headings in Inter Tight at weight 600. The shell's copy of `tokens.css` is from 2026-10-19
+and predates it, and every newer copy brings it: the dark scheme Grafit (2026-11-08) cannot
+reach the Environment theme without a newer copy, and the type comes with it. This addendum
+takes the copy and serves the font it names.
+
+1. **The copy.** `tokens.css` byte for byte from the design system at the commit the vendor
+   README records. Only values change in promised names: `--lz-font-sans` names Inter
+   Variable first, the title and hero weights are 600 instead of 700, and the tracking
+   follows. New names nobody is promised: `--lz-font-heading` (Inter Tight Variable), the
+   deep band, `--lz-radius-lg`, the web's section size, `--lz-weight-medium` and the
+   Grafit steps. No promised name is dropped or renamed.
+2. **The faces.** The shell declares Inter Variable (weights 100 to 900, Latin and Latin
+   Extended, `@fontsource-variable/inter` 5.3.0, SIL OFL 1.1) before Inter Tight Variable
+   and Geist Mono, from `/.lazurio/fonts/`. `declares.fonts` grows by "Inter Variable", an
+   addition to v1 as point 8 of the addendum of 2026-10-13 allows; the version stays 1. A
+   fork that maps `--lz-font-sans` sets its text in Inter with no release of its own.
+3. **The Launchpad.** Its page and its new tab declare the same faces. Its titles (the
+   column's, a page's, a dialog's and the MCP page's) take `--lz-font-heading`; everything
+   else follows the values.
+4. **The elements' scope.** The shell scopes the file to its elements by replacing the
+   selector of its one rule with `:host`, now only at the start of a line, so a comment
+   naming the root never takes the replacement. The design system's first copy of this
+   header did exactly that; the design system now keeps the selector out of its comments
+   and tests it.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep the copy of 2026-10-19 | Grafit and every later design system change never arrive; rejected |
+| Take the new copy but keep Inter Tight for text | Not a byte-for-byte copy, against F36's vendoring rule; rejected |
+| Promise `--lz-font-heading` to the forks now | No fork maps headings yet; left until one needs it |
+| Copy the new file and the font (selected) | One copy of the design system, an addition to v1, and the type the product was decided to have |
+
+**Honest limits.** With this release the text of Chat, Automate and Apps changes from Inter
+Tight to Inter on every Environment, and the titles get lighter. Inter adds about 130 KB of
+font files, fetched only where a page uses the characters of a subset. Ring 0 with a browser
+check (root decision 0178) shows it before the waves.
+
+Verified by unit tests: `tests/shell-tokens.test.ts` (the vendored file's shape, the faces
+are the families `--lz-font-sans`, `--lz-font-heading` and `--lz-font-mono` name first, the
+elements' `:host`), `tests/shell-interface.test.ts` (interface v1 grows by the family and
+loses nothing), `tests/launchpad-first-paint.test.ts` (the page declares exactly the
+shell's faces), `tests/apps-view.test.ts` (every vendored file has its recorded hash).
+
+### F36 addendum of 2026-11-17 (2): the theme Lazurio is dark in Grafit
+
+**Proposed on 2026-11-17 by the agent on the design system owner's direction of 2026-11-16;
+approved by Matěj (Organization Admin) on 2026-11-21 at about 19:59 UTC, together with the
+addendum of 2026-11-17 and the merge of both pull requests.** Point 2 of the addendum of 2026-10-18 made the theme Lazurio light only,
+because the design system had no dark UI. Since 2026-11-08 it has one: the dark scheme
+Grafit, graphite greys in steps instead of near-black, chosen by the design system's owner
+over the prototype. Until now a dark device with the theme Lazurio showed T3 Code's own
+near-black palette in Chat, because the theme gave no dark values and the fork's gate fell
+back to it.
+
+1. **The values.** The theme's dark appearance is the design system's `tokens-dark.css`,
+   vendored from the same commit as `tokens.css` and resolved over it as a browser
+   resolves the rule (`src/theme/design-tokens-dark.ts`, `src/theme/palettes.ts`): the
+   rail and sidebar (`--lz-paper`) `#171717`, the page (`--lz-surface`) `#1e1e1e`, the
+   quiet and the selected surface (`--lz-gray-50`, `--lz-gray-100`) `#2b2b2b` and
+   `#313131`, the ink `#f0f0f0`, the accent the ramp's `blue-300` and the button a light
+   pill with ink of the rail's colour. `--lz-red-500` and `--lz-green-500` keep their
+   light values, as Grafit leaves them. Contrast holds as for every theme
+   (`tests/theme-palettes.test.ts`); the closest pair is the error graphic on the page,
+   3.03:1 against 3:1.
+2. **Who shows it.** Chat (the T3 Code fork's gate, point 11 of the addendum of
+   2026-10-18) and Automate (MausBot's Environment skin) already follow a theme's dark
+   values, so they show Grafit on a dark device with no release of their own. Settings
+   shows the Lazurio card with its light and dark windows, as the others.
+3. **Apps stays light** (0208 point 5): its page still hands the shell only the light
+   values (`appsTheme`), because part of its CSS draws from names no theme gives a value.
+   A dark page of its own is a change of its own.
+4. **A card's step.** Grafit lifts a card above the page (`--lz-white`, `#252525`).
+   Interface v1 does not promise `--lz-white`, so a fork draws its cards on the page's
+   surface, as under every theme. Promising a card colour is an interface change of its
+   own.
+
+| Alternative | Trade-off / disposition |
+| --- | --- |
+| Keep Lazurio light only | Chat on a dark device keeps the near-black palette the design system replaced; rejected |
+| Put `tokens-dark.css` into the app's document beside the tokens | Restyles every `--lz-*` name under the dark attribute, beyond the promised ones, and the theme's style already carries the dark values; rejected |
+| Apps dark now | A half-dark page, as the addendum of 2026-10-18 says; left for its own change |
+| The theme's dark values from the design system's dark scheme (selected) | One source for both appearances, no fork release, the contrast held by the existing tests |
+
+**Honest limits.** In Chat, Grafit reaches the rail, the sidebar, the page and the
+selection; T3 Code's cards stay on the page's grey (point 4). The comment in the T3 Code
+fork's `theme.css` still says the dark mode of Lazurio keeps T3 Code's palettes; its next
+release should correct it, and nothing in its behaviour changes. Ring 0 with a browser
+check (root decision 0178) of Chat and Automate on a dark device comes before the waves.
+
+Verified by unit tests: `tests/theme-palettes.test.ts` (Lazurio's dark values are the dark
+scheme's, resolved over the tokens; text 4.5:1 and graphics 3:1 in dark),
+`tests/apps-view.test.ts` (the vendored file's recorded hash).
+
 ## F37 — The viewer's Environments in the shell: `/.lazurio/account.json`, answered by the Environment's gateway with the person's own token (direction decided)
 
 **Proposal of 2026-10-04 (plan DEV-6639, with DEV-6638 and DEV-6552); its direction

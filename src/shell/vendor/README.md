@@ -26,7 +26,8 @@ these brand assets in this public repository (2026-10-03).
 
 | File | Source path | SHA-256 |
 | --- | --- | --- |
-| `lazurio/tokens.css` | `tokens.css` | `a8e4be9f818a896537ccac7dd6a97fa58985ca4a05842b804e2eae2ab4093251` |
+| `lazurio/tokens.css` | `tokens.css` | `4137293738cc818ff6fea6b8ccb6682fcae527507093b3ffe1e05398f7c32c52` |
+| `lazurio/tokens-dark.css` | `tokens-dark.css` | `a0725ab973622d6166213c8ed9fd253b5c192a0fda906186a962e379243cad98` |
 | `lazurio/symbol-color.svg` | `content/brand/logo/symbol-color.svg` | `657d021e5fab5f28df6b10488d68f567149783ec51d44f44ba18b129ce9c1941` |
 | `lazurio/lockup-color.svg` | `content/brand/logo/lockup-color.svg` | `56148f482211a3bdb62311ccabb9f943f61440c7b2c23101f120fb1e0f02aefe` |
 
@@ -59,7 +60,11 @@ promised needs no other edit. Since F36's addendum of 2026-10-18 (root decision
 --lazurio-color-scheme: light; }`, the scheme of the values, and the
 Environment's theme gives the promised colour names other values over them; the
 theme Lazurio is this file's own values (`src/theme/palettes.ts`), so a new copy
-reaches it too.
+reaches it too. Since F36's addendum of 2026-11-17 (2) its dark appearance is the
+design system's dark scheme Grafit, `lazurio/tokens-dark.css` (one
+`[data-scheme="dark"]` rule over the same names), resolved over this file
+(`src/theme/design-tokens-dark.ts`); the shell never puts that file into a
+document.
 
 ## Module stones
 
@@ -108,13 +113,18 @@ Launchpad's `launchpad/public/app-icons/lazurio/README.md` require.
 
 ## Fonts
 
-The design system's type is Inter Tight (variable) with Geist Mono
-(`--lz-font-sans`, `--lz-font-mono` in `tokens.css`); the wireframe hosts both
-from Fontsource. Only the Latin and Latin Extended subsets (Czech needs the
-latter) of the upright styles are vendored. Both fonts are under the SIL Open
-Font License 1.1, whose text is copied next to them.
+The design system's type is Inter for text and Inter Tight for headings (both
+variable) with Geist Mono (`--lz-font-sans`, `--lz-font-heading`,
+`--lz-font-mono` in `tokens.css`, since its clean look of 2026-10-21; Inter
+Tight was the text font before); the design system hosts all three from
+Fontsource. Only the Latin and Latin Extended subsets (Czech needs the latter)
+of the upright styles are vendored. All three fonts are under the SIL Open Font
+License 1.1, whose text is copied next to them.
 
-Source: the npm tarballs `@fontsource-variable/inter-tight@5.3.0`
+Source: the npm tarballs `@fontsource-variable/inter@5.3.0`
+(integrity `sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA==`,
+the version the design system's viewer locks; added 2026-11-17),
+`@fontsource-variable/inter-tight@5.3.0`
 (integrity `sha512-ZhZZ29sNZ15P1K+cUt13GeBRYON0akgmNiftshUeDLos7X7zGcRgPzt434879Xhq1QbwlW3M/apBMk7jWabwvA==`)
 and `@fontsource/geist-mono@5.3.0`
 (integrity `sha512-UtJ1BBBCVpMYdIcW7nEB45UAoAw5M53ZXs2t0ciPW+IokuAAIc56M8+kW5tXbRJCTpDw4XTtU7proT6NdQAHTg==`),
@@ -122,10 +132,13 @@ files from `package/files/` and `package/LICENSE`.
 
 | File | SHA-256 |
 | --- | --- |
+| `fonts/inter-latin-wght-normal.woff2` | `3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62` |
+| `fonts/inter-latin-ext-wght-normal.woff2` | `34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956` |
 | `fonts/inter-tight-latin-wght-normal.woff2` | `77fefe8ca19b9f69b5284832c519e0493127c1f091f0a8936884be7721c4e618` |
 | `fonts/inter-tight-latin-ext-wght-normal.woff2` | `fd9beddaaec644945809da574cf1caf342073c7e4b46a2ea5bd136c8cf1a9eca` |
 | `fonts/geist-mono-latin-400-normal.woff2` | `3f98383b122fe015a48536cd4a1cda855a201718923ffe74931a01597107b9b5` |
 | `fonts/geist-mono-latin-ext-400-normal.woff2` | `8ede9cb664d0e0446ed066201d58e444f6147645ae0cb1108f765f68c54fe0a4` |
+| `fonts/LICENSE-inter.txt` | `3b0a5fca3d17942cde889069889dedbbbd075e9b599968c82a95f4d944e9b345` |
 | `fonts/LICENSE-inter-tight.txt` | `1e1c8b3dc6dfcbd5498a33f17fcc68ff2d39c599f6e8195fbf14601261dbef6a` |
 | `fonts/LICENSE-geist-mono.txt` | `cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6` |
 
@@ -148,7 +161,25 @@ byte-for-byte from the design system at the pinned commit
 
 ## Svěží palette refresh (2026-10-19)
 
-`tokens.css` is a byte-for-byte copy from `HumanAndMachine-ai/design-system-lazurio`
+`tokens.css` was a byte-for-byte copy from `HumanAndMachine-ai/design-system-lazurio`
 commit `f3eb7117e81ea52b341a03b0d45a8842a9b81525` (reviewed PR #99). Success, warning and danger
 use the approved semantic foreground, background and border values. Other assets
 retain the provenance recorded above.
+
+## The clean look (2026-11-17)
+
+`tokens.css` is a byte-for-byte copy from `HumanAndMachine-ai/design-system-lazurio`
+commit `51f32033fed379ae6b74abc69121496b4355dcdf` (PR #125). It keeps the Svěží
+values and brings the design system's clean look of 2026-10-21, which its owner
+decided for the product too: text in Inter (`--lz-font-sans`, served from
+`fonts/inter-*.woff2` above), headings in Inter Tight through the new
+`--lz-font-heading`, heading weights 600 instead of 700 (`--lz-weight-title`,
+`--lz-weight-hero`) and the tracking that goes with them (`--lz-track-*`). The
+Launchpad page sets its titles in `--lz-font-heading`; every other change
+arrives through the values alone. New names nobody is promised: the deep band
+(`--lz-deep-*`), `--lz-radius-lg`, the web's `--lz-size-section` and
+`--lz-leading-section`, `--lz-weight-medium` and the steps of the dark scheme
+Grafit (`--lz-grafit-*`, 2026-11-08). The file is one `:root` rule as before:
+the design system keeps Grafit's roles in its own `tokens-dark.css`, copied
+from the same commit for the theme Lazurio's dark appearance (F36's addendum of
+2026-11-17 (2)).

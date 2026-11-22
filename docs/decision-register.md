@@ -38,7 +38,7 @@ on, and only the operational details stay internal.
 
 ## Recording a decision
 
-A new decision takes the next free number, **0251**, by a pull request to this
+A new decision takes the next free number, **0252**, by a pull request to this
 file. Check `main` again before the merge, because a parallel pull request may
 take the same number, and fix a collision by renumbering before the merge. An
 amendment is folded into the entry with its date. An internal decision gets a
@@ -179,10 +179,10 @@ A new client Organization is set up directly in the GEN3 layout. There is no onb
 
 ### 0045 — `_GENn` is a permanent generation marker in names
 
-- **Status:** in force · **Applies to:** GEN3 and GEN4
-- **Related:** 0219
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Amended:** by 0251 on 2026-11-21
+- **Related:** 0219, 0251
 
-The suffix `_GENn` is a permanent generation marker in the name of a repository and its mount, such as `<Organization>_GEN3`. The internal identity of the Organization or brand stays clean, without the marker. Repository names and the Organization layout do not change with GEN4 (0219).
+The suffix `_GENn` is the generation marker in the name of an Organization root's repository and its folder, such as `<Organization>_GEN3`; a root keeps its name for the generation it belongs to. The internal identity of the Organization or brand stays clean, without the marker. A root that moves to GEN4 does so as a new repository `<Organization>_GEN4` (0251); the marker never identifies a root, its declaration does.
 
 ### 0046 — Buddy's gbrain belongs to the Personalspace
 
@@ -491,10 +491,10 @@ Lazurio Machines delivers a hosted Machine online: operating system, network, SS
 
 ### 0145 — The Organization manifest compatibility window ends
 
-- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Amended:** by 0225 on 2026-11-01 · **GEN4 counterpart:** F12
-- **Related:** 0026, 0031, 0042, 0167, 0225, F22
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Amended:** by 0225 on 2026-11-01, by 0251 on 2026-11-21 · **GEN4 counterpart:** F12
+- **Related:** 0026, 0031, 0042, 0167, 0225, 0251, F22
 
-`company.gen3.json` is deprecated, and every Organization's target state is `lazurio.organization.json` alone, without a legacy projection. Each root moves through the states `legacy` (only `company.gen3.json`), `transition` (both files, the canonical one authoritative and the legacy one generated) and `current` (only `lazurio.organization.json`). A root in `transition` regenerates the projection and may remove it only after the finalization gate (`lazurio migrate organization-manifest --finalize`), once every mutation-capable reader and supported Machine has passed the reader gate. The contract belongs to Lazurio Platform (0225): its `docs/organization-contract.md` and its readers are the authority, its schema is written anew there, and the GEN3 Root's Core with its migrator and Machines follow that contract; no second schema or source of truth exists. In GEN4, Organizations in `transition` and `current` run their applications (0167).
+`company.gen3.json` is deprecated, and every Organization's target state is `lazurio.organization.json` alone, without a legacy projection. Each root moves through the states `legacy` (only `company.gen3.json`), `transition` (both files, the canonical one authoritative and the legacy one generated) and `current` (only `lazurio.organization.json`). A root in `transition` regenerates the projection and may remove it only after the finalization gate (`lazurio migrate organization-manifest --finalize`), once every mutation-capable reader and supported Machine has passed the reader gate. The contract belongs to Lazurio Platform (0225): its `docs/organization-contract.md` and its readers are the authority, its schema is written anew there, and the GEN3 Root's Core with its migrator and Machines follow that contract; no second schema or source of truth exists. In GEN4, Organizations in `transition` and `current` run their applications (0167). A root that moves to a new `<Organization>_GEN4` repository (0251) starts `current`; for it the finalization gate is the version gate of that move: it begins only once every mutation-capable reader and supported Machine that can reach the Organization no longer requires the projection and accepts the new name.
 
 ### 0146 — Names and entry of hosted Environments
 
@@ -683,10 +683,10 @@ Where an old structure is discarded or rebuilt (a module brought to the standard
 
 ### 0174 — A repository created from a template keeps its lineage through merge commits
 
-- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-02
-- **Related:** 0077, 0171
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-02 · **Amended:** by 0251 on 2026-11-21
+- **Related:** 0077, 0171, 0251
 
-A module or Organization-level repository created from a Lazurio template allows merge commits on GitHub next to rebase. A template synchronization is a pull request whose head contains the exact template commit as an ancestor; a repository without shared history first imports it on the pull request branch (a merge with `--allow-unrelated-histories`, with the `ours` strategy for identical content) without rewriting the protected `main`, and the pull request is merged with a merge commit. If the ancestor is missing or the repository does not allow merge commits, the agent does not merge and reports it. Whoever creates a repository from a template allows merge commits at creation, because squash or rebase rewrites the template's commits and loses the merge base. Protection of `main`, review before Publication and rebase as the default for repositories not created from a template stay.
+A GEN4 Organization root does not follow this entry: it takes its template's managed files by 0251. A module or Organization-level repository created from a Lazurio template allows merge commits on GitHub next to rebase. A template synchronization is a pull request whose head contains the exact template commit as an ancestor; a repository without shared history first imports it on the pull request branch (a merge with `--allow-unrelated-histories`, with the `ours` strategy for identical content) without rewriting the protected `main`, and the pull request is merged with a merge commit. If the ancestor is missing or the repository does not allow merge commits, the agent does not merge and reports it. Whoever creates a repository from a template allows merge commits at creation, because squash or rebase rewrites the template's commits and loses the merge base. Protection of `main`, review before Publication and rebase as the default for repositories not created from a template stay.
 
 ### 0175 — The person agents work for is the user
 
@@ -991,10 +991,10 @@ Threads do not coordinate with each other: each takes its own request through wi
 
 ### 0219 — The Lazurio Root and the Lazurio Folder converge on the Folder's mechanisms
 
-- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-28 (amended by 0225 on 2026-11-01)
-- **Related:** 0144, 0161, 0217, 0225, F14, F67
+- **Status:** decided, not yet deployed · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-28 (amended by 0225 on 2026-11-01 and by 0251 on 2026-11-21)
+- **Related:** 0144, 0161, 0217, 0225, 0251, F14, F67
 
-The Lazurio Root (the root repository with its CLI on a person's computer) and the Lazurio Folder (the folder the Platform manages in an Environment) work on the same mechanisms, with the Folder as the reference: someone who has Lazurio both on a computer and in an Environment gets the same behaviour in both, and agents on the computer know how to reach the Environment and work with its Folder. GEN3 designates the Lazurio Root on a computer with `<login>_GEN3` Organizations and GEN4 Lazurio Platform with its Folder and Environments; since 0225 these are official designations in texts, not names of folders or repositories, nor a separate architecture layer, and repository names and the Organization layout do not change. Differences are measured on real consumers, each convergence step is a pull request in the owning repository with a contract on the consumer, and mechanisms are not duplicated: what the Folder can do, the Root adopts instead of building its own variant.
+The Lazurio Root (the root repository with its CLI on a person's computer) and the Lazurio Folder (the folder the Platform manages in an Environment) work on the same mechanisms, with the Folder as the reference: someone who has Lazurio both on a computer and in an Environment gets the same behaviour in both, and agents on the computer know how to reach the Environment and work with its Folder. GEN3 designates the Lazurio Root on a computer with `<login>_GEN3` Organizations and GEN4 Lazurio Platform with its Folder and Environments; since 0225 these are official designations in texts, not names of folders or repositories, nor a separate architecture layer, and the Organization layout does not change; Organization roots move to new `<Organization>_GEN4` repositories by 0251. Differences are measured on real consumers, each convergence step is a pull request in the owning repository with a contract on the consumer, and mechanisms are not duplicated: what the Folder can do, the Root adopts instead of building its own variant.
 
 ### 0220 — AI Employee (working name)
 
@@ -1029,10 +1029,10 @@ Each Task Agent thread has for itself everything its work needs: a worktree per 
 
 ### 0225 — GEN3 and GEN4 are official designations; GEN3 stays maintained and transitional
 
-- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-01
-- **Related:** 0164, 0171, 0219, 0226
+- **Status:** in force · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-01 · **Amended:** by 0251 on 2026-11-21
+- **Related:** 0164, 0171, 0219, 0226, 0251
 
-GEN3 is the official designation of the Lazurio Root, the root repository with its CLI and Organizations on a person's computer, and GEN4 of Lazurio Platform with its Folder and Environments. The designations hold in texts (documentation, agent instructions, Knowledgebases); repositories and folders are not renamed, and the `_GEN3` suffix of Organization repositories stays because both generations use it. GEN3 stays maintained because customers work on it every day: fixes and security go on, but new norms are written only in GEN4, and GEN3 links to them instead of keeping its own copy. Shared contracts belong to Lazurio Platform, among them the Organization manifest contract with its schema and the Module Standard, written anew there under its licence, and GEN3 pins them. Customers move to GEN4 by the one-way migration of 0164. Amends 0219, whose orientation terms become official designations.
+GEN3 is the official designation of the Lazurio Root, the root repository with its CLI and Organizations on a person's computer, and GEN4 of Lazurio Platform with its Folder and Environments. The designations hold in texts (documentation, agent instructions, Knowledgebases). Repositories and folders are not renamed, except that each Organization root moves to a new `<Organization>_GEN4` repository and folder (0251); until an Organization has moved, its `<Organization>_GEN3` root serves both generations. GEN3 stays maintained because customers work on it every day: fixes and security go on, but new norms are written only in GEN4, and GEN3 links to them instead of keeping its own copy. Shared contracts belong to Lazurio Platform, among them the Organization manifest contract with its schema and the Module Standard, written anew there under its licence, and GEN3 pins them. Customers move to GEN4 by the one-way migration of 0164. Amends 0219, whose orientation terms become official designations.
 
 ### 0226 — One decision register for both generations; a decision's home follows its audience
 
@@ -1440,3 +1440,20 @@ This decision amends 0231, 0234 and 0239 for access, publication and the terms, 
 **A change of access.** A change of access (membership, roles, Teams, people's devices) is opened as a pull request in `infra` only by an Organization Owner. The Organization's Henry reviews it as a second pair of eyes by Lazurio's principles and, when it holds, may approve it and deploy it after the merge, within the gates that 0205, 0245 and the contract of Lazurio Machines set for a deployment, including a person's approval where they require one. Where the Organization has no Henry of its own, the integrator's Henry does this. Any other agent only proposes a change of access and never approves it itself. In a Free Organization an agreement holds this, in a paid one the rules of the `infra` repository. Their enforcement in paid Organizations is still being introduced; until then the agreement holds there too. It is enough that a change of access an Owner did not open can be neither merged nor deployed. This holds for a change of access by a pull request in `infra`, a change of the Organization's boundaries; what 0245 leaves to an Organization Admin inside the boundaries (for example a person's device on the fast path, once it is deployed) does not go through this pull request, and this entry does not change 0245 there. A pull request that an agent opens directly under the Owner's own account counts as the Owner's. How the rule meets 0245's target path, where Lazurio opens the pull request for an Organization Admin's request from the Organization's overview, this entry does not decide; the amendment of 0245 settles it, and until then 0245 holds for that path.
 
 **Relation to earlier entries.** 0169 says that the persona never changes access, apart from narrow exceptions that a decision records; this entry is such an exception, for a change of access that an Organization Owner opened, and it holds for the Organization's own Henry as for the integrator's. Otherwise 0169 stands: the Organization's Henry never opens a change of access itself and never issues a Release or changes secrets or billing, and an assignment alone never authorizes it to approve a change of access (0222). This entry does not settle who merges such a pull request, nor how its deployment after the merge meets the rule of 0205 that a persona never approves an apply and the contract of Lazurio Machines; until they are decided, 0205 and 0245 hold for the merge and the apply.
+
+### 0251 — Organization roots move to new `<Organization>_GEN4` repositories, without backward compatibility
+
+- **Status:** decided, implementation in progress · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-11-20 (completed 2026-11-21)
+- **Related:** 0045, 0145, 0164, 0174, 0219, 0225, 0234, 0245
+
+**The move.** Each Organization's root moves, one Organization at a time, from `<Organization>_GEN3` to a new private repository `<Organization>_GEN4`. The new repository carries the full history of the GEN3 root's `main`, not as a GitHub fork, and only the mechanisms of GEN4: the canonical Organization manifest and the modules manifest, without the legacy projection `company.gen3.json`, the compatibility block or its digest, and with the checks, CI and texts of the GEN4 root template (Organization Root Standard). Code and texts that exist only for GEN2 or GEN3 do not move. The GEN3 root is archived after the move, never deleted, and stays readable.
+
+**A root is its declaration.** Readers find and accept a root by its declaration in `lazurio.organization.json` (`root_repository`, `forge_binding`), never by the suffix of its name or the name of its folder. During the move they accept both names and prefer the declared GEN4 root.
+
+**Order.** An Organization moves only once every reader that can reach it (Lazurio Platform, the Root's Core where it still runs, the Dashboard and Lazurio Machines) no longer requires the projection and accepts the new name; this is the finalization gate of 0145 for a root that moves. On each Environment of the Organization its folder becomes `organizations/<Organization>_GEN4` and its origin the new repository, through the entry the Organization approved (0247), and only by the documented conversion procedure: it lists everything that refers to the root's path (worktrees, services, agent threads and projects, running Modules, backups, scripts), stops and restarts what runs on it in order, verifies every step, has a way back, and is tried first on the reference Organization before any customer's. Every Environment that is not moved is recorded as an exception with its reason and with what it still needs of the GEN3 root (reading, writing). Two gates follow: the GEN3 root is archived only when no exception still needs to write to it, and the operational access to the GEN3 root (the Teams' grants used by people and services and the selection of GitHub App installations) is removed only when no exception still needs it at all; an exception keeps the reading and writing it needs until it is moved or retired. Reading the archived history stays at least with the Organization's Owners and Admin, by a path that this removal does not change (the Owner role, a direct read grant on the archived repository, or a read-only Team kept for it), set up before the removal and verified after it.
+
+**New Organizations.** Once that gate holds for every place where a new Organization can be created or used, Organizations are created only as `<Organization>_GEN4`, from the GEN4 root template; the GEN3 root template is no longer used to create them.
+
+**Template synchronization of a root.** A GEN4 root takes its template by managed files, not by Git lineage, and this replaces 0174 for Organization roots: the template release names every file it manages and the release they come from, a managed file is the same in every root of that release and blocks in `AGENTS.md` are marked as managed, and a new release reaches a root as an ordinary reviewed pull request that rewrites only the managed files and blocks, without a merge commit of the template and without a `template` remote. The move to GEN4 is the first such pull request. Modules created from templates keep 0174.
+
+**What stays.** Repositories other than Organization roots keep their names. This entry does not move a Personalspace: a GEN4 template for new Personalspace repositories is created next to the root template, and whether and how an existing person's Personalspace repository changes is left to a decision of its own, taken with that person. Access and its trust boundaries move with the root and are compared before and after (0234, 0245).

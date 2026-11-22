@@ -22,8 +22,9 @@ import { designTokens } from "./design-tokens";
 // fallback); it is only ever read with the design system's value as
 // fallback.
 
-/** The tokens, scoped to the element. */
-export const hostTokens = designTokens.replace(":root", ":host");
+/** The tokens, scoped to the element: the selector of the file's one rule,
+ * at the start of its line, so a comment naming the root never takes it. */
+export const hostTokens = designTokens.replace(/^:root(?=\s*\{)/m, ":host");
 
 /** The colour roles bound to the shell's names, the element's own text, and
  * an Organization's mark (its avatar or initials). */

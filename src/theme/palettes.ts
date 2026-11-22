@@ -5,6 +5,7 @@ import {
   shellThemeColors,
 } from "../shell/contract";
 import { designTokens } from "../shell/design-tokens";
+import { designTokensDark } from "./design-tokens-dark";
 import {
   EMBER_THEME,
   GROVE_THEME,
@@ -30,8 +31,10 @@ import {
 // (tests/theme-palettes.test.ts). Type, the radius and the success colours
 // stay the design system's: in light its own `--lz-success`, in dark the
 // light end of the same green ramp, as the design system pairs its accent
-// with `--lz-accent-on-dark`. The Lazurio theme is exactly the vendored
-// tokens' values, light only: the design system has no dark UI yet.
+// with `--lz-accent-on-dark`. The Lazurio theme is exactly the design
+// system's values: light from the vendored `tokens.css`, dark from its dark
+// scheme Grafit (`tokens-dark.css`, F36's addendum of 2026-11-17 (2)) over
+// them.
 
 export const environmentThemeIds = [
   "lazurio",
@@ -225,11 +228,13 @@ function projectedPalette(
 export const environmentThemeChoices: readonly EnvironmentThemeChoice[] =
   (() => {
     const design = designSystemValues();
+    const grafit = designSystemValues(`${designTokens}\n${designTokensDark}`);
     return Object.freeze([
       Object.freeze({
         id: "lazurio",
         label: "Lazurio",
         light: designSystemAppearance(design, {}),
+        dark: designSystemAppearance(grafit, {}),
       }),
       ...[GROVE_THEME, OCEAN_THEME, EMBER_THEME, IRIS_THEME].map((palette) =>
         projectedPalette(palette, design),
