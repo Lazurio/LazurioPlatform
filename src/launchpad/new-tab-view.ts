@@ -13,7 +13,7 @@ import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
-import { moduleName, moduleStone, tileTarget } from "./apps-view";
+import { moduleName, moduleStone, slugStone, tileTarget } from "./apps-view";
 import type { PublicEntry } from "./chat";
 
 // Nová karta's page without a DOM (decision F47 points 1-3 and 6-9, the
@@ -178,6 +178,10 @@ const en = {
   updateDenied: "GitHub did not let this Environment reach it",
   updateUnreachable: "GitHub is not answering; try again in a moment",
   updateFailed: "It could not be updated",
+  updateDataFinding: "Data: {state}",
+  updateShared: "shared",
+  updateSharedHint:
+    "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
   updateBuildFailed:
     "The new version could not be built; the previous one keeps running",
   updateBusy:
@@ -380,6 +384,10 @@ const cs: Words = {
   updateDenied: "GitHub k němu toto Prostředí nepustil",
   updateUnreachable: "GitHub teď neodpovídá; zkuste to za chvíli znovu",
   updateFailed: "Nepodařilo se aktualizovat",
+  updateDataFinding: "Data: {state}",
+  updateShared: "nasdílený",
+  updateSharedHint:
+    "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
   updateBuildFailed: "Novou verzi se nepodařilo sestavit; dál běží předchozí",
   updateBusy:
     "Toto Prostředí se už aktualizuje jinde; zkuste to za chvíli znovu.",
@@ -1506,7 +1514,9 @@ export function toolForKey(
 // names them, one per Bun a moved module pins while it is fetched and once it
 // is (decision F62), and one for Lazurio itself, each with its state in plain
 // words: checking, a newer version found (its short commit) and fetched,
-// building, done, up to date, or a finding. Never a code or a path.
+// building, done, up to date, or a finding. Never a code, and a path only
+// for a repository of no Module of the catalog (decision F67's addendum of
+// 2026-11-21).
 
 /** One line of the run as the page reads it. */
 export type UpdateJobLine =
@@ -1515,6 +1525,17 @@ export type UpdateJobLine =
       /** Absent for the content part as a whole. */
       root?: string;
       path?: string;
+      /** Which kind of repository it is (the Module Standard's kinds of
+       * repository): the root, a Module's checkout or a Module's data. */
+      kind?: "root" | "module" | "data";
+      /** The repository as declared, `<owner>/<name>`. */
+      repository?: string;
+      /** A data repository's Module, by its path relative to the root. */
+      parent?: string;
+      /** A shared Module's (or its data's) home Organization and slot
+       * slug (decision F67's addendum of 2026-11-21). */
+      home?: string;
+      module?: string;
       step?: "checking" | "fetching" | "fast-forwarding" | "cloning";
       result?: string;
       reason?: string;
@@ -1588,6 +1609,7 @@ const contentSteps = new Set([
   "fast-forwarding",
   "cloning",
 ]);
+const contentKinds = new Set(["root", "module", "data"]);
 /** An https address, or nothing: a link the page draws is never another
  * scheme. */
 const httpsAddress = (value: unknown) => {
@@ -1618,6 +1640,14 @@ function parseUpdateLine(value: unknown): UpdateJobLine | null {
         part: "content",
         root: word(value.root),
         path: word(value.path),
+        kind:
+          typeof value.kind === "string" && contentKinds.has(value.kind)
+            ? value.kind
+            : undefined,
+        repository: word(value.repository, 140),
+        parent: word(value.parent),
+        home: word(value.home, 60),
+        module: word(value.module, 100),
         step: step !== undefined && contentSteps.has(step) ? step : undefined,
         result,
         reason: word(value.reason, 60),
@@ -1725,6 +1755,16 @@ export type UpdateRow = Readonly<{
   /** The next step, where the row has one: the tool's official
    * installation page. */
   link?: Readonly<{ href: string; text: string }>;
+  /** A shared Module's "nasdílený" with its explanation as a tooltip, as
+   * Apps shows it (decision F67's addendum of 2026-11-21). */
+  badge?: Readonly<{ text: string; hint: string }>;
+  /** A finding row's further findings, each a line of its own under `text`:
+   * the Module's own, its data's ("Data: …") and a failed build are all
+   * said, so nothing that is left to fix is hidden (the review of #1184). */
+  more?: readonly string[];
+  /** The repositories of the row as declared (`<owner>/<name>`), in the
+   * order their lines came: the name's tooltip, never its visible name. */
+  repositories?: readonly string[];
 }>;
 
 export type UpdateView = Readonly<{
@@ -1883,41 +1923,72 @@ function toolRow(
  * Organization's root only when it is a finding, then each tool the
  * Organization declares that did something or could not, then each Bun a moved
  * module pins that was fetched or could not be, and one finding when the
- * pins could not all be read, Lazurio last. */
+ * pins could not all be read, Lazurio last. Each repository is shown as the
+ * Module Standard's kinds of repository say (decision F67's addendum of
+ * 2026-11-21): a Module's data in its Module's row, named `<Module> · data`
+ * only for a finding of its own; a shared Module in a row of its own,
+ * `<home Organization> / <slot slug>` with the badge, never merged with the
+ * Organization's own Module of that slug; a repository of no Module of the
+ * catalog by its path, never by its last segment. */
 export function updateView(
   job: UpdateJob,
   catalog: Catalog | null,
   copy: NewTabCopy,
 ): UpdateView {
   const groups = catalog === null ? [] : catalogGroups(catalog);
-  type Where = { key: string; name: string; stone: string | null };
-  const lookOf = (
-    group: (typeof groups)[number] | undefined,
-    id: string,
-  ): Where => {
+  type Group = (typeof groups)[number];
+  type Where = {
+    key: string;
+    name: string;
+    stone: string | null;
+    badge?: UpdateRow["badge"];
+  };
+  const organizationOf = (group: Group | undefined) =>
+    (group === undefined || catalog === null
+      ? null
+      : catalogOrganizationKey(catalog, group)) ??
+    group?.directory ??
+    "";
+  // An own Module by its id: the key its builds' lines share.
+  const lookOf = (group: Group | undefined, id: string): Where => {
     const found = group?.modules.find((item) => item.module === id);
-    const org =
-      group === undefined || catalog === null
-        ? null
-        : catalogOrganizationKey(catalog, group);
     return {
-      key: `${org ?? group?.directory ?? ""}\0${id}`,
+      key: `${organizationOf(group)}\0${id}`,
       name: found === undefined ? id : moduleName(found),
       stone: found === undefined ? null : moduleStone(found).src,
     };
   };
-  // A repository's module: the one at its path, or above it (a data mount).
-  const contentWhere = (root: string, path: string): Where | "root" | null => {
+  // A repository's Module: a data repository's declared `parent`, else the
+  // repository itself; a line without `parent` (an older run's) is the
+  // Module's at its path or above it.
+  const contentWhere = (
+    line: Extract<UpdateJobLine, { part: "content" }>,
+    root: string,
+    path: string,
+  ): Where | "root" | null => {
     const directory = root.split("/").at(-1) ?? "";
     const group = groups.find((item) => item.directory === directory);
     if (path === ".") return "root";
-    const module = group?.modules.find(
-      (item) => path === item.path || path.startsWith(`${item.path}/`),
-    );
+    if (group === undefined) return null;
+    const at = line.parent ?? path;
+    const holds = (place: string) =>
+      at === place || (line.parent === undefined && at.startsWith(`${place}/`));
+    const organization = organizationOf(group);
+    // A shared Module, by what its line says, else by the catalog's guests.
+    const guest = (group.guests ?? []).find((item) => holds(item.path));
+    const home = line.home ?? guest?.homeOrganization;
+    if (home !== undefined) {
+      const slug = line.module ?? guest?.module;
+      return {
+        key: `${organization}\0shared\0${home.toLowerCase()}/${slug ?? at}`,
+        name: `${home} / ${slug ?? at}`,
+        stone: slug === undefined ? null : slugStone(slug).src,
+        badge: { text: copy.updateShared, hint: copy.updateSharedHint },
+      };
+    }
+    const module = group.modules.find((item) => holds(item.path));
     if (module !== undefined) return lookOf(group, module.module);
-    return group === undefined
-      ? null
-      : lookOf(group, path.split("/").at(-1) ?? path);
+    return { key: `${organization}\0path\0${at}`, name: at, stone: null };
   };
   type Module = Where & {
     content: Extract<UpdateJobLine, { part: "content" }>[];
@@ -1954,7 +2025,7 @@ export function updateView(
           note = copy.updateModulesFailed;
         continue;
       }
-      const where = contentWhere(line.root, line.path);
+      const where = contentWhere(line, line.root, line.path);
       if (where === null) continue;
       if (where === "root") {
         const finding =
@@ -1971,6 +2042,9 @@ export function updateView(
             stone: null,
             state: "finding",
             text: contentFinding(line, copy),
+            ...(line.repository === undefined
+              ? {}
+              : { repositories: [line.repository] }),
           });
         continue;
       }
@@ -1987,13 +2061,27 @@ export function updateView(
   const buildsDone = !job.running || product !== null;
   const rows: UpdateRow[] = [...roots];
   for (const module of modules.values()) {
-    const row = (state: UpdateRow["state"], words: string) =>
+    const repositories = [
+      ...new Set(
+        module.content.flatMap((line) =>
+          line.repository === undefined ? [] : [line.repository],
+        ),
+      ),
+    ];
+    const row = (
+      state: UpdateRow["state"],
+      words: string,
+      more: readonly string[] = [],
+    ) =>
       rows.push({
         key: module.key,
         name: module.name,
         stone: module.stone,
         state,
         text: words,
+        ...(more.length === 0 ? {} : { more }),
+        ...(module.badge === undefined ? {} : { badge: module.badge }),
+        ...(repositories.length === 0 ? {} : { repositories }),
       });
     const building = module.builds.find((line) => line.step === "building");
     const fetching = module.content.find(
@@ -2002,15 +2090,31 @@ export function updateView(
         line.step === "fast-forwarding" ||
         line.step === "cloning",
     );
-    const finding =
-      module.content.find(
-        (line) =>
-          line.step === undefined &&
-          ["blocked", "denied", "unavailable", "failed"].includes(
-            line.result ?? "",
-          ),
-      ) ?? null;
+    const failed = (line: (typeof module.content)[number]) =>
+      line.step === undefined &&
+      ["blocked", "denied", "unavailable", "failed"].includes(
+        line.result ?? "",
+      );
     const buildFailed = module.builds.find((line) => line.result === "failed");
+    // Every distinct finding of the row, each its own line, so that nothing
+    // left to fix hides behind another (the review of #1184): the Module's
+    // own first, then its data's, said as the data's ("Data: …", which
+    // with the name above reads `<Module> · data`), then a failed build.
+    const findings = [
+      ...new Set([
+        ...module.content
+          .filter((line) => line.kind !== "data" && failed(line))
+          .map((line) => contentFinding(line, copy)),
+        ...module.content
+          .filter((line) => line.kind === "data" && failed(line))
+          .map((line) =>
+            fill(copy.updateDataFinding, {
+              state: contentFinding(line, copy),
+            }),
+          ),
+        ...(buildFailed === undefined ? [] : [copy.updateBuildFailed]),
+      ]),
+    ];
     const moved = module.content.find(
       (line) =>
         line.result === "fast-forwarded" || line.result === "materialized",
@@ -2028,8 +2132,8 @@ export function updateView(
       );
     else if (module.content.some((line) => line.step === "checking"))
       row("checking", copy.updateChecking);
-    else if (finding !== null) row("finding", contentFinding(finding, copy));
-    else if (buildFailed !== undefined) row("finding", copy.updateBuildFailed);
+    else if (findings.length > 0)
+      row("finding", findings[0] as string, findings.slice(1));
     else if (moved !== undefined && built === undefined && !buildsDone)
       row(
         "fetched",

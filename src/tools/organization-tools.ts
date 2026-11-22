@@ -421,6 +421,19 @@ async function oneTool(
       source: recipe.source,
     });
   };
+  // ~/.local/bin/<command> left in place: its path is one Lazurio composed,
+  // not a tool's output, so it is named exactly. Only what a tool printed can
+  // carry a secret (F19); through safeTail a long home or temporary path
+  // (macOS's /private/var/folders/…) would be withheld as key material.
+  const occupiedFailure = (path: string): OrganizationToolItem =>
+    Object.freeze({
+      ...base,
+      result: "failed" as const,
+      stage: "link" as const,
+      reason: "link-occupied",
+      detail: path,
+      source: recipe.source,
+    });
   // The one the user runs: the first on their own PATH. Where none is, the
   // official installer's own installation that PATH does not reach yet (a
   // run before linked it into a ~/.local/bin the PATH lacks) is the one to
@@ -461,7 +474,7 @@ async function oneTool(
       return Object.freeze({ ...base, result: "current", version: before });
     const occupied = await occupiedEntry(recipe.command, input.path, home);
     return occupied !== undefined
-      ? failed("link", "link-occupied", occupied)
+      ? occupiedFailure(occupied)
       : Object.freeze({
           ...base,
           result: "current",
@@ -570,8 +583,7 @@ async function oneTool(
   const onPath = located !== undefined;
   if (!onPath) {
     const occupied = await occupiedEntry(recipe.command, input.path, home);
-    if (occupied !== undefined)
-      return failed("link", "link-occupied", occupied);
+    if (occupied !== undefined) return occupiedFailure(occupied);
   }
   return result === "installed"
     ? Object.freeze({ ...base, result, version: after, onPath })

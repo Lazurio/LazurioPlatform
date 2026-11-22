@@ -29,6 +29,7 @@ import {
   removalStep,
   removalsRead,
   serverLine,
+  serverReconnects,
   sourceLines,
   tabLabels,
   toolSignInsKey,
@@ -212,6 +213,7 @@ test("the tabs count what is connected and the custom servers; expired sign-ins 
           target: "https://x.example/mcp",
           state: "connected",
           tools: 5,
+          lasting: null,
         },
       ],
     },
@@ -910,12 +912,31 @@ test("a source that cannot be read says so on the page; custom servers count the
     target: null,
     state,
     tools,
+    lasting: null,
   });
   expect(serverLine(server(1), cs)).toBe("Připojeno · 1 nástroj");
   expect(serverLine(server(3), cs)).toBe("Připojeno · 3 nástroje");
   expect(serverLine(server(7), cs)).toBe("Připojeno · 7 nástrojů");
   expect(serverLine(server(null, "ready"), en)).toBe("Added");
   expect(serverLine(server(2, "failed"), en)).toBe("Could not start");
+  // An Application's sign-in (#1076): an expired one says so and connects
+  // again, one that does not last connects again; another server never.
+  const application = (
+    state: "connected" | "expired" | "failed",
+    lasting: boolean | null,
+  ) => ({ ...server(2), state, lasting });
+  expect(serverLine(application("expired", false), cs)).toBe(
+    "Přihlášení vypršelo",
+  );
+  expect(serverLine(application("expired", null), cs)).toBe(
+    "Nepodařilo se spustit",
+  );
+  expect(serverReconnects(application("connected", false))).toBe(true);
+  expect(serverReconnects(application("expired", true))).toBe(true);
+  expect(serverReconnects(application("connected", true))).toBe(false);
+  expect(serverReconnects(application("failed", false))).toBe(false);
+  expect(serverReconnects(application("expired", null))).toBe(false);
+  expect(serverReconnects(application("connected", null))).toBe(false);
   expect(monogram("  ďábel")).toBe("Ď");
 });
 

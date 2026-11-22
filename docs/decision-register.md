@@ -155,7 +155,7 @@ When sources disagree, the higher one wins: decision records, then schemas and c
 - **Status:** in force · **Applies to:** GEN3 and GEN4
 - **Related:** 0021, 0023, 0186, 0221, F32, F67
 
-All modules of an Organization live side by side in one flat `workspace/` folder. A Team is an N:M declaration in the manifest, not a directory; a module without a declaration belongs to the default Team `workspace`, and since 0186 the declaration is only the starting state when a module is created, never an access authority. `productionspace` is a reserved Organization-level name outside Teams for repositories with their own branch and release rules, where the doctor enforces only a safe minimum. The only exception to the flat folder is a guest module of another Organization (0221).
+All modules of an Organization live side by side in one flat `workspace/` folder. A Team is an N:M declaration in the manifest, not a directory; a module without a declaration belongs to the default Team `workspace`, and since 0186 the declaration is only the starting state when a module is created, never an access authority. `productionspace` is a reserved Organization-level name outside Teams for repositories with their own branch and release rules, where the doctor enforces only a safe minimum. The only exception to the flat folder is a shared Module of another Organization (0221).
 
 ### 0042 — The Launchpad discovers Organization mounts by itself
 
@@ -1004,10 +1004,12 @@ The full decision is internal to the HumanAndMachine-ai Organization. Its public
 
 ### 0221 — Guest Modules: an Organization may host another Organization's Module in its workspace
 
-- **Status:** in force; deployment in progress · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-30 (amended 2026-10-31)
+- **Status:** in force; deployment in progress · **Applies to:** GEN3 and GEN4 · **Decided:** 2026-10-30 (amended 2026-10-31 and 2026-11-21)
 - **Related:** 0041, 0186, 0217, 0219, F67
 
-An Organization may host a Module of another, home Organization as a guest Module: it is mounted in the host's workspace under `workspace/<HomeOrganization>_GEN3/<repository>`, with repository-db data under `…/db`, its slot in the host's `modules.manifest.json` carries `home_organization` and the home repository's remote, and the home Organization's folder has its own README.md and AGENTS.md saying that these Modules belong to another Organization. The root CLI and the Platform clone and update guest Modules with the user's own rights, relate their identity to the home Organization and never run them as the host's applications, and changes go by pull request to the home repository under the home Organization's rules, review and Publication. Hosting changes no owner, visibility or grant: access follows live GitHub rights (0186), nothing is copied between Organizations, a person without access to the home repository does not get the guest Module, client Organizations' data are never shared this way, and guest folders are the only exception to the flat `workspace/` (0041).
+An Organization may host a Module of another, home Organization as a shared Module: it is mounted in the host's workspace under `workspace/<HomeOrganization>_GEN3/<repository>`, with repository-db data under `…/db`, its slot in the host's `modules.manifest.json` carries `home_organization` and the home repository's remote, and the home Organization's folder has its own README.md and AGENTS.md saying that these Modules belong to another Organization. The root CLI and the Platform clone and update shared Modules with the user's own rights, relate their identity to the home Organization and never run them as the host's applications, and changes go by pull request to the home repository under the home Organization's rules, review and Publication. Hosting changes no owner, visibility or grant: access follows live GitHub rights (0186), nothing is copied between Organizations, a person without access to the home repository does not get the shared Module, client Organizations' data are never shared this way, and the folders of shared Modules are the only exception to the flat `workspace/` (0041).
+
+**Amendment of 2026-11-21 — the name.** Texts for people call such a Module a shared Module (Czech "nasdílený modul"), no longer a guest Module, and show it as `<home Organization> / <slot slug>` with the badge "shared" (Czech "nasdílený"); identifiers in code, schemas and manifests (`guests`, `home_organization`) keep their names (F67, addendum of 2026-11-21).
 
 ### 0222 — Every pull request has an assignee who takes it to `main`
 

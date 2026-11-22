@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
+import { parseCanonicalOrganization } from "../organizations/canonical-manifest";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationDocuments } from "../organizations/read-documents";
 import { resolveOrganizationRoot } from "../organizations/root-resolution";
@@ -106,7 +107,10 @@ export type SyncProgress = Readonly<{
   to?: string;
   /** `done`: the answer. */
   entry?: SyncEntry;
-}>;
+}> &
+  /** Which repository it is and where it belongs, as its answer names
+   * them. */
+  Pick<SyncEntry, "repository" | "parent" | "home" | "module">;
 
 export type SyncRequest = Readonly<{
   /** Only this Organization, by GitHub login; absent: every one this
@@ -254,14 +258,32 @@ export async function syncContent(
       const root = join("organizations", organization.directory);
       // One repository: its progress as it goes, then its answer.
       const one = async (
-        path: string,
-        kind: SyncEntry["kind"],
-        branch: string,
+        place: Pick<
+          SyncEntry,
+          | "path"
+          | "kind"
+          | "branch"
+          | "repository"
+          | "parent"
+          | "home"
+          | "module"
+        >,
         run: (
           progress: (step: CheckoutStep, to: string) => void,
         ) => Promise<Outcome>,
       ): Promise<SyncEntry> => {
-        const where = { organization: login, root, path, kind, branch };
+        const { path, kind, branch, repository, parent, home, module } = place;
+        const where = {
+          organization: login,
+          root,
+          path,
+          kind,
+          branch,
+          ...(repository === undefined ? {} : { repository }),
+          ...(parent === undefined ? {} : { parent }),
+          ...(home === undefined ? {} : { home }),
+          ...(module === undefined ? {} : { module }),
+        };
         const report = (
           step: SyncProgress["step"],
           extra: Readonly<{ to?: string; entry?: SyncEntry }> = {},
@@ -281,15 +303,25 @@ export async function syncContent(
         return entry;
       };
       const directory = join(folder, root);
-      const rootEntry = await one(".", "root", "main", (progress) =>
-        syncCheckout(
-          context,
-          directory,
-          (repository) =>
-            repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
-          "main",
-          progress,
-        ),
+      // The root as it declares itself (`root_repository.locator`), read
+      // from its checkout before it is synchronized.
+      const declaredRoot = await rootRepositoryOf(directory, login);
+      const rootEntry = await one(
+        {
+          path: ".",
+          kind: "root",
+          branch: "main",
+          ...(declaredRoot === null ? {} : { repository: declaredRoot }),
+        },
+        (progress) =>
+          syncCheckout(
+            context,
+            directory,
+            (repository) =>
+              repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
+            "main",
+            progress,
+          ),
       );
       entries.push(rootEntry);
       // A root that did not end on its published commit stops this
@@ -325,7 +357,7 @@ export async function syncContent(
           children.filter((child) => child.kind === pass),
           request.concurrency ?? syncConcurrency,
           (child) =>
-            one(child.path, child.kind, child.branch, async (progress) => {
+            one(child, async (progress) => {
               const outcome = await syncCheckout(
                 context,
                 join(directory, child.path),
@@ -423,7 +455,42 @@ type SyncChild = Readonly<{
   restricted: boolean;
   /** A data mount's module. */
   parent?: string;
+  /** A shared Module's slot and its data mount's: the home Organization
+   * (`home_organization`) and the shared Module's slot slug, as the entry
+   * carries them. */
+  home?: string;
+  module?: string;
 }>;
+
+/** The root's own repository as its declaration names it
+ * (`root_repository.locator`, `<owner>/<name>`), when it is the root of
+ * `login`; null when the declaration cannot be read or names another
+ * owner. Files only, nothing of Git or GitHub. */
+async function rootRepositoryOf(
+  root: string,
+  login: string,
+): Promise<string | null> {
+  try {
+    const documents = await readOrganizationDocuments(root);
+    if (
+      documents.kind !== "documents-observed" ||
+      documents.canonical.kind !== "present"
+    )
+      return null;
+    const canonical = parseCanonicalOrganization(
+      documents.canonical.value,
+    ) as Readonly<Record<string, unknown>>;
+    const locator = (
+      canonical.root_repository as Readonly<Record<string, unknown>> | null
+    )?.locator;
+    return typeof locator === "string" &&
+      locator.split("/")[0]?.toLowerCase() === login.toLowerCase()
+      ? locator
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 /** The modules and data mounts the root declares now: workspace modules
  * (guest Modules of another Organization among them, DEV-6694), the
@@ -449,6 +516,20 @@ async function childrenOf(root: string): Promise<SyncChild[]> {
         .filter((child) => child.excluded === "excluded_by_role_scope")
         .map((child) => child.path),
     );
+    // The declared slots by path: a shared Module's home and slug, as the
+    // slot declares them, for it and for its data mount (decision F67's
+    // addendum of 2026-11-21). Its own manifest stays unread (F67 point 5).
+    const slots = new Map(
+      inventory.inventory.slots.flatMap((slot) =>
+        slot === null ? [] : [[slot.path, slot] as const],
+      ),
+    );
+    const shared = (path: string, module: string) => {
+      const home = slots.get(path)?.home;
+      if (home === undefined) return {};
+      const slug = slots.get(module)?.id ?? undefined;
+      return slug === undefined ? { home } : { home, module: slug };
+    };
     return declaredChildren(inventory, "include").flatMap((child) =>
       child.kind === "module" &&
       child.excluded === undefined &&
@@ -463,6 +544,7 @@ async function childrenOf(root: string): Promise<SyncChild[]> {
               ...(child.data === undefined
                 ? {}
                 : { parent: child.data.parent }),
+              ...shared(child.path, child.data?.parent ?? child.path),
             } as const),
           ]
         : [],

@@ -33,7 +33,7 @@ export const catalogHelp = `organization list [--folder <absolute Folder>] [--js
   service opens on this Environment's loopback; where the Folder holds no
   Organization that owns this Machine, in serverServices, named as the
   Machine handover names its owner, with no directory and no modules, which
-  is not an installed Organization and is not in the table), its guest
+  is not an installed Organization and is not in the table), its shared
   Modules (guests: Modules of another Organization, its home Organization,
   mounted at workspace/<Home>_GEN3/<module>, each with homeOrganization,
   guest true and whether it is checked out; read-only, never run here), and
@@ -50,7 +50,7 @@ module list [<Organization>] [--folder <absolute Folder>] [--json]
   it may run or the typed reason why not. Teams come from
   module_slots[].teams; an older manifest's legacy alias (workspaces, then
   workspace) is read for compatibility and named once per Organization; a
-  module that declares none is in the default Team workspace. Guest Modules
+  module that declares none is in the default Team workspace. Shared Modules
   of another Organization (workspace/<Home>_GEN3/<module>) follow, listed
   read-only under their home Organization (guests in --json, with
   homeOrganization and guest true): they are kept up to date here and never
@@ -147,7 +147,7 @@ function legacyAliasNotes(
 // any.
 const declared = (entry: CatalogOrganization) => {
   const guests = entry.guests?.length ?? 0;
-  return `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}${guests === 0 ? "" : `, ${guests} guest ${guests === 1 ? "module" : "modules"}`}`;
+  return `${entry.modules.length} ${entry.modules.length === 1 ? "module" : "modules"}${guests === 0 ? "" : `, ${guests} shared ${guests === 1 ? "module" : "modules"}`}`;
 };
 
 // A guest Module's row: under its home Organization, never runnable here.
@@ -155,7 +155,7 @@ const guestRow = (entry: CatalogGuestModule) => [
   `${entry.homeOrganization}/${entry.module}`,
   "-",
   "-",
-  `guest in ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
+  `shared with ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
 ];
 
 function organizationLines(catalog: Catalog): string {

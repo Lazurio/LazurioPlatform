@@ -582,7 +582,7 @@ const en = {
     "Not here yet. Once {this} can read it on GitHub, Lazurio clones it at the next synchronization; ask an Organization Admin of {home} for access.",
   appsGuestHome: "Home Organization",
   appsGuestApp: "Not started here. Open its app in its home Organization.",
-  appsGuestBadge: "guest",
+  appsGuestBadge: "shared",
   appsGuestHint:
     "A Module of another Organization, read here only. Changes belong to its home Organization, and GitHub decides who can read it.",
   appsInfoGuest: "Open on GitHub",
@@ -2292,6 +2292,10 @@ const en = {
   integrationsMcpTools: "Connected · {tools}",
   integrationsMcpPending: "Starting…",
   integrationsMcpFailed: "Could not start",
+  integrationsMcpExpired: "The sign-in has expired",
+  integrationsMcpLapses:
+    "This connection will lapse after a while. Connect it again so that it also lasts through longer breaks.",
+  integrationsMcpReconnect: "Connect again",
   integrationsMcpEdit: "Edit",
   integrationsMcpRemove: "Remove",
   integrationsMcpRemoveTitle: "Remove the MCP server “{name}”?",
@@ -3075,7 +3079,7 @@ const cs: Record<MessageKey, string> = {
   appsGuestHome: "Domovská Organizace",
   appsGuestApp:
     "Tady se nespouští. Aplikaci otevřete v jeho domovské Organizaci.",
-  appsGuestBadge: "hostující",
+  appsGuestBadge: "nasdílený",
   appsGuestHint:
     "Modul jiné Organizace, tady jen ke čtení. Změny patří do jeho domovské Organizace a přístup k němu určuje GitHub.",
   appsInfoGuest: "Otevřít na GitHubu",
@@ -4651,6 +4655,10 @@ const cs: Record<MessageKey, string> = {
   integrationsMcpTools: "Připojeno · {tools}",
   integrationsMcpPending: "Spouštím…",
   integrationsMcpFailed: "Nepodařilo se spustit",
+  integrationsMcpExpired: "Přihlášení vypršelo",
+  integrationsMcpLapses:
+    "Toto připojení časem vyprší. Když ho připojíte znovu, vydrží i delší přestávky.",
+  integrationsMcpReconnect: "Připojit znovu",
   integrationsMcpEdit: "Upravit",
   integrationsMcpRemove: "Odebrat",
   integrationsMcpRemoveTitle: "Odebrat MCP server „{name}“?",

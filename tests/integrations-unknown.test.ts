@@ -221,6 +221,7 @@ test("a connected app stays connected whatever another source says", () => {
             integration: "notion-com",
             label: null,
             state: "connected",
+            lasting: null,
           },
         ],
       },

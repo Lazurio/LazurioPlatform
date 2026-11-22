@@ -21,7 +21,13 @@ import {
   executorCall,
   listenerOwnedBy,
 } from "../src/integrations/executor-client";
-import { healthState, readExecutor } from "../src/integrations/executor-source";
+import {
+  healthState,
+  lastingOf,
+  parseConnections,
+  readExecutor,
+} from "../src/integrations/executor-source";
+import { isOrganizationApplicationMcp } from "../src/integrations/model";
 import { startFakeExecutor } from "./fixtures/fake-executor-api";
 import { runChild } from "./fixtures/run-child";
 
@@ -327,4 +333,49 @@ test("on a Remote Environment the sign-in opens in the Environment browser, and 
     kind: "blocked",
     reason: "path-unavailable",
   });
+});
+
+test("a connection lasts where its granted scopes hold offline_access; none recorded is not known (#1076)", () => {
+  expect(lastingOf("example-org--applications offline_access")).toBe(true);
+  expect(lastingOf("offline_access")).toBe(true);
+  expect(lastingOf("example-org--apps-01-applications-mcp")).toBe(false);
+  expect(lastingOf("offline_accessx email")).toBe(false);
+  expect(lastingOf(null)).toBeNull();
+  expect(lastingOf(undefined)).toBeNull();
+  expect(lastingOf("  ")).toBeNull();
+  const base = {
+    owner: "org",
+    name: "default",
+    integration: "records",
+    identityLabel: null,
+    lastHealth: null,
+  };
+  expect(
+    parseConnections([{ ...base, oauthScope: "a offline_access" }])[0]?.lasting,
+  ).toBe(true);
+  expect(parseConnections([base])[0]?.lasting).toBeNull();
+  // An answer of another shape is never a guess.
+  expect(() =>
+    parseConnections([{ ...base, oauthScope: ["offline_access"] }]),
+  ).toThrow();
+});
+
+test("an Organization's Application's MCP endpoint, and nothing like it", () => {
+  expect(
+    isOrganizationApplicationMcp("https://records.example-org.lazurio.app/mcp"),
+  ).toBe(true);
+  for (const other of [
+    "https://example-org.lazurio.app/mcp",
+    "https://a.b.example-org.lazurio.app/mcp",
+    "https://records.example-org.lazurio.app/mcp/x",
+    "https://records.example-org.lazurio.app/other",
+    "https://records.example-org.lazurio.app:8443/mcp",
+    "http://records.example-org.lazurio.app/mcp",
+    "https://records.example-org.lazurio.app/mcp?x=1",
+    "https://user@records.example-org.lazurio.app/mcp",
+    "https://records.example-org.lazurio.app.evil.test/mcp",
+    "https://records.example-org.lazurio.io/mcp",
+    "not a url",
+  ])
+    expect(isOrganizationApplicationMcp(other)).toBe(false);
 });
