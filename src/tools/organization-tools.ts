@@ -7,7 +7,7 @@ import {
   stat,
   symlink,
 } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { delimiter, join, resolve, sep } from "node:path";
 import {
   type OrganizationTool,
   type OrganizationToolId,
@@ -365,6 +365,37 @@ async function executable(file: string): Promise<boolean> {
   }
 }
 
+/** What keeps a tool linked into ~/.local/bin from running where the PATH
+ * looks there: an entry of that name which does not run (a dangling link,
+ * a file that is not executable). Lazurio leaves it and says so, never that
+ * the PATH lacks ~/.local/bin. */
+async function occupiedEntry(
+  command: string,
+  path: string | undefined,
+  home: string,
+): Promise<string | undefined> {
+  const entry = join(home, ".local", "bin");
+  const real = async (directory: string) => {
+    try {
+      return await realpath(directory);
+    } catch {
+      return resolve(directory);
+    }
+  };
+  const target = await real(entry);
+  let onPath = false;
+  for (const part of (path ?? "").split(delimiter))
+    if (part !== "" && (await real(part)) === target) onPath = true;
+  if (!onPath) return undefined;
+  const file = join(entry, command);
+  try {
+    await lstat(file);
+  } catch {
+    return undefined;
+  }
+  return (await executable(file)) ? undefined : file;
+}
+
 async function oneTool(
   declared: OrganizationTool,
   input: OrganizationToolsInput,
@@ -410,15 +441,34 @@ async function oneTool(
     found !== undefined &&
     before !== undefined &&
     compareVersions(before, declared.minimum) >= 0
-  )
-    return onUserPath === undefined
-      ? Object.freeze({
+  ) {
+    if (onUserPath !== undefined)
+      return Object.freeze({ ...base, result: "current", version: before });
+    // The installer's own installation the PATH does not reach (an earlier
+    // install, Lazurio's or the person's): linked into ~/.local/bin like an
+    // installed one, and only then off the PATH if that PATH lacks it too.
+    try {
+      await linkInto(bin, recipe.links, home);
+    } catch {
+      return failed("link", "link-failed");
+    }
+    const reached = await resolveOnPath(
+      recipe.command,
+      input.path,
+      input.platform,
+    );
+    if (reached !== undefined)
+      return Object.freeze({ ...base, result: "current", version: before });
+    const occupied = await occupiedEntry(recipe.command, input.path, home);
+    return occupied !== undefined
+      ? failed("link", "link-occupied", occupied)
+      : Object.freeze({
           ...base,
           result: "current",
           version: before,
           onPath: false,
-        })
-      : Object.freeze({ ...base, result: "current", version: before });
+        });
+  }
   const timeout = input.timeoutMs ?? installTimeoutMs;
   const run = async (
     argv: readonly string[],
@@ -518,6 +568,11 @@ async function oneTool(
   if (compareVersions(after, declared.minimum) < 0)
     return failed("verify", `below-minimum-after:${after}`);
   const onPath = located !== undefined;
+  if (!onPath) {
+    const occupied = await occupiedEntry(recipe.command, input.path, home);
+    if (occupied !== undefined)
+      return failed("link", "link-occupied", occupied);
+  }
   return result === "installed"
     ? Object.freeze({ ...base, result, version: after, onPath })
     : Object.freeze({

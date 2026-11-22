@@ -1575,6 +1575,22 @@ describe("Aktualizovat: the run's rows per module", () => {
         }),
       ),
     ).toEqual(["The installation did not finish: reason something-new"]);
+    // An entry in ~/.local/bin that does not run it: named, never "not on this PATH" (#1030).
+    expect(
+      text(
+        tool({
+          tool: "cargo",
+          minimum: "1.89.0",
+          result: "failed",
+          stage: "link",
+          reason: "link-occupied",
+          source: "https://rustup.rs",
+        }),
+        cs,
+      ),
+    ).toEqual([
+      "Nepodařilo se ho propojit do ~/.local/bin: ~/.local/bin/cargo už existuje a nástroj nespouští; Lazurio ho nechává, jak je. Odstraňte ho a příští aktualizace nástroj propojí",
+    ]);
     // The part as a whole: why it did not check, or that it failed.
     expect(
       rows(
