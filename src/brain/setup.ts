@@ -312,6 +312,10 @@ async function recoverFirst(
   const meaning = await recoverAttempt(moveHost(host));
   if (meaning === null) return null;
   if (meaning.startsWith("stopped:")) return stop({ meaning });
+  // The server did not come back after the facts' stop: the run ends with a
+  // wait the Launchpad repeats after a pause (the record stays), instead of
+  // recovering again at once in this run.
+  if (meaning === "waits:facts-start") return stop({ meaning });
   return "again";
 }
 

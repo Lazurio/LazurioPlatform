@@ -46,6 +46,10 @@ export const archiveWaits = (labels: BrainSetupLabels | null) =>
  * recovers or starts anything (`./writers.ts`). */
 export const setupTimeoutMs = 8 * 3_600_000;
 
+/** Runs in a row without an answer that setup at start runs again (after
+ * the same pause as a window) before it gives up until the next start. */
+export const lostRunsInARow = 3;
+
 /** Machines' mark that they hand the brain over on this host (C1). */
 export const brainHandoverMark = "/etc/lazurio/brain-handover";
 
@@ -114,16 +118,26 @@ export async function brainSetupAtStart(
   // same way, also where search by meaning has nothing left to do.
   // Another setup holding the lock (`busy`, no meaning in its answer) is
   // passing: while a meaning waited before it, the next run comes as well.
+  // A run without an answer (it died or ran out of time, maybe in the middle
+  // of a stop it recorded) is run again after the same pause, a few times
+  // in a row at most: the next run recovers what it left first, the server
+  // included (`recoverAttempt`).
   let waiting = false;
+  let lost = labels === null ? 1 : 0;
   for (let i = 0; i < (input.fills ?? 288); i++) {
-    if (labels === null || signal.aborted) break;
-    if (labels.server !== "busy")
-      waiting = meaningWaits(labels) || archiveWaits(labels);
-    if (!waiting) break;
-    input.report?.(labels);
+    if (signal.aborted) break;
+    if (labels === null) {
+      if (lost > lostRunsInARow) break;
+    } else {
+      if (labels.server !== "busy")
+        waiting = meaningWaits(labels) || archiveWaits(labels);
+      if (!waiting) break;
+      input.report?.(labels);
+    }
     await sleep(input.fillMs ?? meaningPauseMs, signal);
     if (signal.aborted) break;
     labels = await run();
+    lost = labels === null ? lost + 1 : 0;
   }
   return labels;
 }

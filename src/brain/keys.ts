@@ -80,6 +80,26 @@ export type BrainState = Readonly<{
   }>;
   /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
   meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;
+  /** The vectors of the brain's facts, after its pages' (`./meaning.ts`,
+   * `convergeFacts`): when the model was recorded in the database's own
+   * plane (`plane`, gbrain compares it before it embeds a fact), the windows
+   * run and those in a row without progress, and when none was left
+   * (`done`), or why the facts were given up (`reason`). */
+  meaningFacts?: Readonly<{
+    plane?: string;
+    /** Written before the one stop that records the plane, removed once
+     * the server answers again: a run that died in between left the server
+     * down, and the next run starts it first (`recoverAttempt`). */
+    stopping?: string;
+    windows?: number;
+    stalled?: number;
+    remaining?: number;
+    /** Facts over the model's input limit, skipped (never truncated): the
+     * facts then end incomplete (`reason: facts-oversized`). */
+    refused?: number;
+    done?: string;
+    reason?: string;
+  }>;
   /** The SHA-256 of the model's unit as Lazurio last wrote it: a unit of
    * that name is Lazurio's only if it is that or what it writes now. */
   meaningUnit?: string;

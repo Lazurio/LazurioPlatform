@@ -777,6 +777,50 @@ describe("what a dead run left, before the brain starts", () => {
     });
   });
 
+  test("the facts' stop a run left, with starts that keep failing: each setup ends in a wait the Launchpad repeats, the record kept until the server answers", async () => {
+    const { setupHost, paths } = await host();
+    await brainSetup(setupHost);
+    const stopping = "2026-11-22T10:00:00.000Z";
+    await writeBrainState(paths, {
+      ...(await readBrainState(paths)),
+      meaningFacts: { stopping },
+    });
+    // The server is down, and gbrain does not start on this brain for now.
+    brain.up = false;
+    await writeFile(join(paths.brain, "config.json"), '{"half":true}');
+    const labels = async () => {
+      const result = await brainSetup(setupHost);
+      return Object.freeze({
+        server: result.server,
+        ...(result.meaning === undefined ? {} : { meaning: result.meaning }),
+      });
+    };
+    const failing = await brainSetup(setupHost);
+    // Not a failed start that ends the Launchpad's runs: a wait it repeats.
+    expect(failing).toMatchObject({ meaning: "waits:facts-start" });
+    expect((await readBrainState(paths)).meaningFacts?.stopping).toBe(stopping);
+    // The Launchpad's loop: two more runs fail to start it, then gbrain
+    // starts again, and the run after it finds the server answering.
+    let runs = 0;
+    const final = await brainSetupAtStart({
+      run: async () => {
+        runs += 1;
+        if (runs === 3) await writeFile(join(paths.brain, "config.json"), "{}");
+        return labels();
+      },
+      handover: async () => true,
+      signal: new AbortController().signal,
+      fillMs: 1,
+      sleep: async () => undefined,
+    });
+    expect(runs).toBe(3);
+    expect(final?.server).toBe("running");
+    expect(brain.up).toBe(true);
+    expect(
+      (await readBrainState(paths)).meaningFacts?.stopping,
+    ).toBeUndefined();
+  });
+
   test("a takeover whose way back failed waits for a person, even where Lazurio's unit is in place", async () => {
     const { setupHost, paths, calls } = await host();
     await brainSetup(setupHost);

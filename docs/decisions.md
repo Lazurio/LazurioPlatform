@@ -16036,6 +16036,55 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       - **Not changed:** the model, its pin and priority, the copy before the
         first window, and that gbrain's trust claim of pages from before
         trust tracking stays the owner's own step.
+    - **Amendment 2026-11-21: computed by the running server** (proposed;
+      it takes effect with a pinned release that carries the hand-over). Matěj
+      decided on 2026-11-21 for computing in the background and against a
+      night computation: „Jsem pro vsadit na průběžné počítání a noční výpočet
+      nenasazovat a zahodit ho.“ (Bet on continuous computing; do not deploy
+      the night computation and drop it.)
+      - **The hand-over.** The pinned release hands `gbrain embed --stale` to
+        the running server (`writer_embed_stale`, in the Lazurio fork of
+        gbrain until upstream takes it). No window stops the server any
+        more. The memory answers throughout, and a page written meanwhile is
+        kept as written.
+      - **The one stop.** Only switching the model on (enable, or the
+        migration of another model's vectors) stops the server once, after a
+        copy, for seconds. It is committed before the server starts again,
+        and a switch that fails brings the copy back as before.
+      - **The windows.** The windows keep their budget (3 minutes), their
+        pause (5 minutes) and their condition that Buddy is idle. A window
+        that fails keeps every vector the server wrote and brings nothing
+        back; two in a row without progress, or 400 in all, stop the filling
+        as before. A window that exits 0 counts as the last only where
+        gbrain's own preview then says nothing is left: gbrain's heal of
+        pages stored without chunks may stop at the budget, exit 0 and set
+        no reason. The preview gets a budget longer than the limit Lazurio
+        ends it at, so one that answers has looked at every page; one that
+        does not answer is not taken for done.
+      - **The facts.** After the pages, the facts the memory remembered get
+        their vectors the same way, in windows handed to the running server
+        (`embed --stale --facts` for the source `default`, at no cost).
+        gbrain embeds a fact only where the database's own plane names the
+        model, which an earlier release's `embeddings enable` did not record.
+        So a brain switched on before this pin gets it once, in one short
+        stop (`embeddings enable` with the model it already has); a brain
+        switched on by this pin has it from the switch. That stop is on
+        record until the server answers again: a run that dies in it leaves
+        the next run to start the server first, a start that fails keeps the
+        record and ends the run with a wait the Launchpad repeats after a
+        pause, a server that does not come back is never reported as done,
+        and setup at the Launchpad's start runs again after a run without an
+        answer (three times in a row at most). Two fact windows in a row without progress give the facts up,
+        facts over the model's input limit (skipped by gbrain, never
+        truncated) end them incomplete, and the pages keep search by meaning
+        either way.
+      - **What a person notices.** Search by words and writing work all the
+        time. While a window computes, search by meaning is slower (measured
+        on 4 cores with bge-m3: a median of about 5 to 6 s instead of 0.3 s,
+        some answers by words only), and it is fast again after the window.
+      - **Measured** on a fictional brain with a prototype of the hand-over:
+        80 stale chunks in five windows of 60 s with the server never
+        stopped, and every page write during them stored.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.
