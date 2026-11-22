@@ -374,13 +374,21 @@ const gbrainOf =
         };
   };
 
-/** One window of the embedding, with the server stopped: `done` where no
- * chunk is left, `partial` where gbrain stopped at its budget or computed
- * some and failed some (it keeps every vector it wrote; the next window goes
- * on), `failed` where it computed nothing. Closed labels and counts only. */
+/** One window of the embedding, handed to the running server: `done` only
+ * where gbrain's own preview after it says nothing is left to embed,
+ * `partial` where gbrain stopped at its budget, chunked pages or computed
+ * some and failed some, or exited 0 with work left (it keeps every vector it
+ * wrote; the next window goes on), `failed` where it did nothing. Closed
+ * labels and counts only. */
 export type EmbedWindow =
   | Readonly<{ result: "done"; embedded: number }>
-  | Readonly<{ result: "partial"; embedded: number; remaining?: number }>
+  | Readonly<{
+      result: "partial";
+      embedded: number;
+      /** Pages stored without chunks that gbrain chunked in this window. */
+      healed?: number;
+      remaining?: number;
+    }>
   | Readonly<{ result: "failed"; reason: string }>;
 
 export async function embedWindow(
@@ -398,11 +406,33 @@ export async function embedWindow(
   const embedded = count("embedded") ?? 0;
   const remaining = count("remaining_stale");
   const failures = count("failures") ?? 0;
-  if (ran.ok && failures === 0) return { result: "done", embedded };
-  if (ran.exit === budgetStopExit || embedded > 0)
+  // Pages the run chunked count as progress: their vectors come next.
+  const healed = count("chunkless_pages_healed") ?? 0;
+  if (ran.ok && failures === 0) {
+    // Exit 0 is not "nothing left": gbrain's heal of pages stored without
+    // chunks may stop at the budget with pages left, still exit 0 and set no
+    // reason (Lazurio/gbrain#3). Only gbrain's own preview, handed to the
+    // running server like the window, says nothing is left.
+    const preview = await gbrainOf(
+      host,
+      command,
+    )(["embed", "--stale", "--dry-run", "--json"]);
+    const left = preview.ok ? preview.out?.would_embed : undefined;
+    if (left === 0) return { result: "done", embedded };
     return {
       result: "partial",
       embedded,
+      ...(healed > 0 ? { healed } : {}),
+      ...(typeof left === "number" && Number.isInteger(left) && left > 0
+        ? { remaining: left }
+        : {}),
+    };
+  }
+  if (ran.exit === budgetStopExit || embedded > 0 || healed > 0)
+    return {
+      result: "partial",
+      embedded,
+      ...(healed > 0 ? { healed } : {}),
       ...(remaining === undefined ? {} : { remaining }),
     };
   const reason = ran.out?.reason;
@@ -637,6 +667,20 @@ export async function recoverAttempt(
   host: MoveHost,
 ): Promise<MeaningResult | null> {
   const state = await readBrainState(host.paths);
+  // The facts' one stop (`convergeFacts`) a run left: `embeddings enable`
+  // either went through or not, and the brain is the brain either way, so
+  // only the server comes back; the next idle run goes on.
+  if (state.meaningFacts?.stopping !== undefined) {
+    await service(host, "start", brainUnit);
+    await service(host, "start", brainRefreshTimer);
+    const current = await readBrainState(host.paths);
+    const { stopping: _stop, ...kept } = current.meaningFacts ?? {};
+    await writeBrainState(host.paths, {
+      ...current,
+      meaningFacts: Object.freeze(kept),
+    });
+    return "waits:facts-interrupted";
+  }
   const attempt = state.meaningAttempt;
   if (
     attempt?.provider !== meaningPin.provider ||
@@ -884,9 +928,14 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
  *   already has, then the server starts again;
  * - then `embed --stale --facts` for the source `default`, handed to the
  *   running server, with the window's budget and at no cost (a local model).
- * Two windows in a row without progress give the facts up (`reason`); the
- * pages keep search by meaning either way. `on` once nothing is left or the
- * facts were given up; `waits:facts…` while windows are left.
+ * Two windows in a row without progress give the facts up (`reason`); facts
+ * over the model's input limit, which no window embeds, end them incomplete
+ * (`reason: facts-oversized`, with their count); the pages keep search by
+ * meaning either way. The stop is on record (`stopping`) until the server
+ * answers again, so a run that dies in it leaves the next run to start the
+ * server first (`recoverAttempt`), and a server that does not come back
+ * waits (`waits:start`), never `on`. `on` once nothing is left or the facts
+ * ended; `waits:…` while windows are left.
  */
 async function convergeFacts(
   host: MeaningHost,
@@ -897,11 +946,18 @@ async function convergeFacts(
   if (release === undefined) return "on";
   if (!(await host.idle())) return "waits:facts";
   const now = (host.now ?? (() => new Date()))().toISOString();
-  const save = async (next: NonNullable<BrainState["meaningFacts"]>) => {
+  const save = async (
+    next: NonNullable<BrainState["meaningFacts"]>,
+    endStop = false,
+  ) => {
     const current = await readBrainState(host.paths);
+    const { stopping: _stop, ...kept } = current.meaningFacts ?? {};
     await writeBrainState(host.paths, {
       ...current,
-      meaningFacts: Object.freeze({ ...current.meaningFacts, ...next }),
+      meaningFacts: Object.freeze({
+        ...(endStop ? kept : current.meaningFacts),
+        ...next,
+      }),
     });
   };
   const stalledAfter = async (code: string, progressed: boolean) => {
@@ -915,9 +971,14 @@ async function convergeFacts(
   };
   const gbrain = gbrainOf(host, release.command);
   if (facts.plane === undefined) {
+    // The stop is recorded before it happens: a run that dies with the
+    // server down leaves `stopping`, and the next run starts it again before
+    // anything else (`recoverAttempt`).
+    await save({ stopping: now });
     if (!(await stoppedForSure(host))) {
       await service(host, "start", brainUnit);
       await service(host, "start", brainRefreshTimer);
+      await save({}, true);
       return "waits:not-stopped";
     }
     const enabled = await gbrain([
@@ -933,9 +994,18 @@ async function convergeFacts(
       (await service(host, "start", brainUnit)) &&
       (await answers(host)) === release.version;
     await service(host, "start", brainRefreshTimer);
+    // A server that did not come back is never reported as done: the run
+    // waits, and the next one starts it (setup starts a brain that does not
+    // answer), whatever the enable did.
+    if (!started) {
+      // `stopping` stays: the server is still down, and the next run's
+      // recovery starts it before anything else.
+      if (enabled.ok) await save({ plane: now, stalled: 0 });
+      return "waits:start";
+    }
+    await save({}, true);
     if (!enabled.ok) return stalledAfter("facts-plane", false);
     await save({ plane: now, stalled: 0 });
-    if (!started) return "waits:start";
   }
   const ran = await gbrain([
     "embed",
@@ -958,8 +1028,22 @@ async function convergeFacts(
   };
   const remaining = count("remaining");
   const embedded = count("embedded") ?? 0;
+  // Facts over the model's input limit are skipped, never truncated, and not
+  // counted in `remaining`: no window embeds them, so they end the facts as
+  // incomplete (`reason`, with their count), never as done.
+  const refused = count("refused_oversized") ?? 0;
   const windows = (facts.windows ?? 0) + 1;
-  if (ran.ok && remaining === 0) {
+  if (ran.ok && remaining === 0 && refused > 0) {
+    await save({
+      windows,
+      stalled: 0,
+      remaining: 0,
+      refused,
+      reason: "facts-oversized",
+    });
+    return "on";
+  }
+  if (ran.ok && remaining === 0 && ran.out?.refused_oversized !== undefined) {
     await save({ windows, stalled: 0, remaining: 0, done: now });
     return "on";
   }
@@ -1004,7 +1088,8 @@ async function fill(
   const windows = (counted?.windows ?? 0) + 1;
   const progressed =
     result.result === "done" ||
-    (result.result === "partial" && result.embedded > 0);
+    (result.result === "partial" &&
+      (result.embedded > 0 || (result.healed ?? 0) > 0));
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
   if (result.result === "done") {
     await switchedOn(host, at);

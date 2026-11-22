@@ -23,6 +23,7 @@ import {
   meaningMaxWindows,
   meaningStepLimitMs,
   meaningWindowMs,
+  recoverAttempt,
 } from "../src/brain/meaning";
 import { meaningPaths, meaningUnit } from "../src/brain/meaning-pin";
 import {
@@ -103,6 +104,11 @@ async function stand(
         failures?: number;
         remaining?: number;
         reason?: string;
+        /** Pages stored without chunks it chunked. */
+        healed?: number;
+        /** What gbrain's preview after it says is left to embed
+         * (`would_embed`; 0 where not given). */
+        left?: number;
       }>
     >;
     /** Buddy works from this question on (1 is the first). */
@@ -117,7 +123,13 @@ async function stand(
     /** What each window of the facts' vectors answers, in turn (the last
      * repeats); where not given, one window computes every fact. */
     facts?: ReadonlyArray<
-      Readonly<{ exit: number; embedded?: number; remaining?: number }>
+      Readonly<{
+        exit: number;
+        embedded?: number;
+        remaining?: number;
+        /** Facts over the model's input limit, skipped (not in `remaining`). */
+        refused?: number;
+      }>
     >;
   }> = {},
 ) {
@@ -211,6 +223,7 @@ async function stand(
         stdout: JSON.stringify({
           embedded: answer?.embedded ?? 0,
           remaining: answer?.remaining ?? 0,
+          refused_oversized: answer?.refused ?? 0,
         }),
         stderr: "",
       };
@@ -268,6 +281,16 @@ async function stand(
       return world.server
         ? { ...ok, exitCode: 1, stdout: '{"code":"pglite_busy"}' }
         : { ...ok, stdout: JSON.stringify({ page_count: world.stored }) };
+    // gbrain's preview after a window that exited 0: what is left.
+    if (argv[1] === "embed" && argv.includes("--dry-run")) {
+      const windows = options.windows ?? [{ exit: 0, embedded: 46 }];
+      const last =
+        windows[Math.min(windowsRun - 1, windows.length - 1)] ?? windows[0];
+      return {
+        ...ok,
+        stdout: JSON.stringify({ dryRun: true, would_embed: last?.left ?? 0 }),
+      };
+    }
     if (argv[1] === "embed") {
       if (options.embedFails) {
         await writeFile(
@@ -295,6 +318,9 @@ async function stand(
             ? {}
             : { remaining_stale: answer.remaining }),
           ...(answer?.reason === undefined ? {} : { reason: answer.reason }),
+          ...(answer?.healed === undefined
+            ? {}
+            : { chunkless_pages_healed: answer.healed }),
         }),
         stderr: "",
       };
@@ -384,8 +410,9 @@ describe("switching search by meaning on", () => {
       },
     } as typeof base;
     expect(await convergeMeaning(host)).toBe("on");
-    // The pages' window, then the facts' window, both with the server running.
-    expect(running).toEqual([true, true]);
+    // The pages' window, gbrain's preview that nothing is left, then the
+    // facts' window, all with the server running.
+    expect(running).toEqual([true, true, true]);
     const model = await unit(paths, meaningUnit);
     expect(model).toContain("--host 127.0.0.1 --port 3132");
     expect(model).toContain("Nice=10");
@@ -408,6 +435,8 @@ describe("switching search by meaning on", () => {
     expect(gbrain.map((c) => c.slice(1, 4))).toEqual([
       ["embeddings", "enable", "--embedding-model"],
       ["embed", "--stale", "--json"],
+      // Exit 0 is not taken for "nothing left": gbrain's preview says so.
+      ["embed", "--stale", "--dry-run"],
       // The facts follow, at no cost, for the source default.
       ["embed", "--stale", "--facts"],
     ]);
@@ -464,7 +493,8 @@ describe("switching search by meaning on", () => {
     const gbrain = calls.filter(
       (c) =>
         (c[1] === "embeddings" || c[1] === "migrate" || c[1] === "embed") &&
-        !c.includes("--facts"),
+        !c.includes("--facts") &&
+        !c.includes("--dry-run"),
     );
     expect(
       gbrain.map((c) =>
@@ -486,7 +516,8 @@ describe("switching search by meaning on", () => {
         .filter(
           (c) =>
             ["embeddings", "migrate", "embed"].includes(c[1] as string) &&
-            !c.includes("--facts"),
+            !c.includes("--facts") &&
+            !c.includes("--dry-run"),
         )
         .map((c) => c.slice(1, 4).join(" ")),
     ).toEqual([
@@ -510,7 +541,8 @@ describe("switching search by meaning on", () => {
         .filter(
           (c) =>
             ["embeddings", "migrate", "embed"].includes(c[1] as string) &&
-            !c.includes("--facts"),
+            !c.includes("--facts") &&
+            !c.includes("--dry-run"),
         )
         .map((c) => c.slice(1, 4).join(" ")),
     ).toEqual([
@@ -704,6 +736,33 @@ describe("the vectors in short windows, computed by the running server", () => {
   const stops = (calls: string[][]) =>
     calls.filter((c) => c[2] === "stop" && c[3] === brainUnit).length;
 
+  test("exit 0 with pages left (gbrain's heal of chunkless pages stopped at its budget) is not done: the windows go on until gbrain's preview says nothing is left", async () => {
+    const { host, paths, calls } = await stand({
+      windows: [
+        // The heal ran out of budget before any vector: no reason, exit 0.
+        { exit: 0, embedded: 0, healed: 183, left: 1000 },
+        { exit: 0, embedded: 40, healed: 0, left: 0 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    const filling = (await readBrainState(paths)).meaningAttempt;
+    expect(filling).toMatchObject({
+      result: "filling",
+      windows: 1,
+      stalled: 0,
+      remaining: 1000,
+    });
+    expect((await readBrainState(paths)).meaning).toBeUndefined();
+    expect(await convergeMeaning(host)).toBe("on");
+    expect((await readBrainState(paths)).meaning?.provider).toBe(
+      "llama-server:bge-m3",
+    );
+    // Each window that exited 0 was checked by gbrain's preview.
+    expect(
+      calls.filter((c) => c[1] === "embed" && c.includes("--dry-run")),
+    ).toHaveLength(2);
+  });
+
   test("a window gbrain stops at its budget leaves the rest to the next runs, one window each; no window stops the server", async () => {
     const { host, paths, calls, world, envs } = await stand({
       windows: [
@@ -721,7 +780,12 @@ describe("the vectors in short windows, computed by the running server", () => {
     // Three windows, the server stopped once only: for the switch, before
     // the first.
     expect(
-      calls.filter((c) => c[1] === "embed" && !c.includes("--facts")),
+      calls.filter(
+        (c) =>
+          c[1] === "embed" &&
+          !c.includes("--facts") &&
+          !c.includes("--dry-run"),
+      ),
     ).toHaveLength(3);
     expect(stops(calls)).toBe(1);
     // Each window is bounded by gbrain's budget, and a batch to the local
@@ -1036,6 +1100,74 @@ describe("the facts' vectors, after the pages'", () => {
     expect((await readBrainState(stuck.paths)).meaning?.provider).toBe(
       "llama-server:bge-m3",
     );
+  });
+
+  test("facts over the model's input limit end the facts incomplete, never done, though `remaining` is 0", async () => {
+    const { host, paths } = await onBefore({
+      facts: [{ exit: 0, embedded: 3, remaining: 0, refused: 2 }],
+    });
+    expect(await convergeMeaning(host)).toBe("on");
+    const facts = (await readBrainState(paths)).meaningFacts;
+    expect(facts).toMatchObject({
+      remaining: 0,
+      refused: 2,
+      reason: "facts-oversized",
+    });
+    expect(facts?.done).toBeUndefined();
+  });
+
+  test("a run that dies in the facts' stop leaves it recorded; the next run starts the server before anything else", async () => {
+    const s = await onBefore();
+    // What a run that died during `embeddings enable` leaves: the state and
+    // the server as they are at that moment.
+    let atEnable: Awaited<ReturnType<typeof readBrainState>> | undefined;
+    let serverAtEnable: boolean | undefined;
+    const watching = {
+      ...s.host,
+      run: async (
+        argv: readonly string[],
+        timeout: number,
+        env: Readonly<Record<string, string>>,
+      ) => {
+        if (argv[1] === "embeddings" && atEnable === undefined) {
+          atEnable = await readBrainState(s.paths);
+          serverAtEnable = s.world.server;
+        }
+        return s.host.run(argv, timeout, env);
+      },
+    } as typeof s.host;
+    expect(await convergeMeaning(watching)).toBe("on");
+    // The stop was on record before it happened, the server down meanwhile.
+    expect(serverAtEnable).toBe(false);
+    expect(atEnable?.meaningFacts?.stopping).toBeDefined();
+    // The run dies there: that state, the server down.
+    if (atEnable === undefined) throw new Error("no enable");
+    await writeBrainState(s.paths, atEnable);
+    s.world.server = false;
+    s.world.timer = false;
+    // Setup's next run recovers first: the server comes back, the record goes.
+    expect(await recoverAttempt(s.host)).toBe("waits:facts-interrupted");
+    expect(s.world.server).toBe(true);
+    expect(s.world.timer).toBe(true);
+    expect(
+      (await readBrainState(s.paths)).meaningFacts?.stopping,
+    ).toBeUndefined();
+    // The next idle run goes on: the plane, then the facts.
+    expect(await convergeMeaning(s.host)).toBe("on");
+    expect((await readBrainState(s.paths)).meaningFacts?.done).toBeDefined();
+  });
+
+  test("a server that does not come back after the facts' stop is never reported as done, even where enabling fails", async () => {
+    for (const otherVectors of [false, true]) {
+      const s = await onBefore({ startFailsAt: 1, otherVectors });
+      expect(await convergeMeaning(s.host)).toBe("waits:start");
+      const facts = (await readBrainState(s.paths)).meaningFacts;
+      expect(facts?.done).toBeUndefined();
+      expect(facts?.reason).toBeUndefined();
+      // The stop stays on record, so the next run's recovery starts the server.
+      expect(facts?.stopping).toBeDefined();
+      expect(await recoverAttempt(s.host)).toBe("waits:facts-interrupted");
+    }
   });
 });
 

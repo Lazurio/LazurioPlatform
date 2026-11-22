@@ -9,6 +9,7 @@ import {
   brainAnswers,
   brainSetupAtStart,
   convergeBrainServer,
+  lostRunsInARow,
   runBrainSetup,
 } from "../src/brain/at-start";
 import { brainPaths } from "../src/brain/pin";
@@ -103,6 +104,40 @@ describe("setup at the Launchpad's start and once more when Machines mark the ha
     const lone = world([{ server: "busy" }, filling]);
     expect(await brainSetupAtStart(lone.input)).toEqual({ server: "busy" });
     expect(lone.state.runs).toBe(1);
+  });
+
+  test("a run without an answer (it died, maybe in a stop it recorded) is run again after the pause, a few times in a row at most", async () => {
+    const filling = { server: "running", meaning: "waits:filling" };
+    // A window's run dies; the next one recovers what it left and goes on.
+    const recovers = world([
+      filling,
+      null,
+      filling,
+      { server: "running", meaning: "on" },
+    ]);
+    const pauses: number[] = [];
+    expect(
+      await brainSetupAtStart({
+        ...recovers.input,
+        fillMs: 300_000,
+        sleep: async (ms: number) => {
+          pauses.push(ms);
+        },
+      }),
+    ).toEqual({ server: "running", meaning: "on" });
+    expect(recovers.state.runs).toBe(4);
+    expect(pauses).toEqual([300_000, 300_000, 300_000]);
+    // The first run of the start too.
+    const first = world([null, { server: "running", meaning: "on" }]);
+    expect(await brainSetupAtStart(first.input)).toEqual({
+      server: "running",
+      meaning: "on",
+    });
+    expect(first.state.runs).toBe(2);
+    // Runs that keep dying end after `lostRunsInARow` more, until the next start.
+    const dying = world(Array(20).fill(null));
+    expect(await brainSetupAtStart(dying.input)).toBeNull();
+    expect(dying.state.runs).toBe(1 + lostRunsInARow);
   });
 
   test("the runs one start makes for windows are bounded", async () => {

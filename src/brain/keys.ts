@@ -87,9 +87,16 @@ export type BrainState = Readonly<{
    * (`done`), or why the facts were given up (`reason`). */
   meaningFacts?: Readonly<{
     plane?: string;
+    /** Written before the one stop that records the plane, removed once
+     * the server answers again: a run that died in between left the server
+     * down, and the next run starts it first (`recoverAttempt`). */
+    stopping?: string;
     windows?: number;
     stalled?: number;
     remaining?: number;
+    /** Facts over the model's input limit, skipped (never truncated): the
+     * facts then end incomplete (`reason: facts-oversized`). */
+    refused?: number;
     done?: string;
     reason?: string;
   }>;
