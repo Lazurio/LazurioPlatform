@@ -770,7 +770,8 @@ function isRepository(value: unknown): value is CatalogRepository {
         entry.services.every(isCatalogService)))
   );
 }
-// A guest Module as the catalog lists it (decision F67 point 5).
+// A guest Module as the catalog lists it (decision F67 point 5): its name
+// and icon only, never its app's description (addendum of 2026-11-22).
 function isGuest(value: unknown): value is CatalogGuestModule {
   if (!value || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
@@ -784,6 +785,10 @@ function isGuest(value: unknown): value is CatalogGuestModule {
     ) &&
     entry.guest === true &&
     typeof entry.checkedOut === "boolean" &&
+    (entry.display === undefined ||
+      (isDisplay(entry.display) &&
+        (entry.display as Record<string, unknown>).description ===
+          undefined)) &&
     (entry.revoked === undefined || entry.revoked === true) &&
     (entry.url === null ||
       (text(entry.url) && entry.url.startsWith("https://github.com/")))
@@ -875,43 +880,7 @@ export function parseCatalog(input: unknown): Catalog | null {
     : null;
 }
 
-/** The catalog with each guest whose remote GitHub refused at its last
- * read marked `revoked` (decision F67's addendum of 2026-11-01): a guest
- * stays checked out after its access is lost, and Apps must not show it.
- * The refusal stands through runs that never read the remote (a blocked
- * root, a checkout blocked by its own state, GitHub not answering) until a
- * synchronization reads it again. Reads nothing itself. */
-export function withGuestAccess(
-  catalog: Catalog,
-  record:
-    | readonly Readonly<{
-        organization: string;
-        root: string;
-        path: string;
-        result: string;
-        unreadable?: true;
-      }>[]
-    | null,
-): Catalog {
-  if (record === null) return catalog;
-  // GitHub's last answer was a refusal: `denied`, or a later answer that
-  // never read the remote (`unreadable`); a run that reads it clears both.
-  const denied = new Set(
-    record
-      .filter((entry) => entry.result === "denied" || entry.unreadable === true)
-      .map((entry) => `${entry.root}\0${entry.path}`),
-  );
-  if (denied.size === 0) return catalog;
-  const mark = (organization: CatalogOrganization): CatalogOrganization =>
-    organization.guests === undefined
-      ? organization
-      : {
-          ...organization,
-          guests: organization.guests.map((guest) =>
-            denied.has(`organizations/${organization.directory}\0${guest.path}`)
-              ? { ...guest, revoked: true as const }
-              : guest,
-          ),
-        };
-  return { ...catalog, organizations: catalog.organizations.map(mark) };
-}
+/** The catalog with each guest GitHub refused at its last read marked
+ * `revoked`; it lives with the catalog core (src/organizations/catalog.ts),
+ * which every consumer of the catalog shares. */
+export { withGuestAccess } from "../organizations/guest-access";

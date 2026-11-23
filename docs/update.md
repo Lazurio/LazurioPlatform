@@ -969,7 +969,9 @@ module's or data repository's slot remote, the root's `root_repository.locator`;
 only where the root's declaration could not be read), a `data` item names its Module's path relative to the root in `parent`, and a shared
 Module's item and its data's name its home Organization in `home` (the slot's
 `home_organization`) and the shared Module's slot slug in `module` (its `slug`, else the
-last segment of its path; its own manifest stays unread). The fields are additive: an
+last segment of its path; the synchronization reads no manifest for it, and Nová karta's
+update view names its row as Apps names its tile, from the catalog: F67's addendum of
+2026-11-22). The fields are additive: an
 item of the Organization's own Module has neither `home` nor `module`, and a reader that
 does not know them reads the item as before. Nová karta's update view shows a row's
 repositories as its name's tooltip, never as its name. Each step of a repository under way carries

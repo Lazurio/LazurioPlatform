@@ -92,11 +92,22 @@ name, and Lazurio shows it one way
 | **Module** | a repository with `lazurio.module.json` at its root, in `workspace/<module>/` or at the Organization's root as `mission-control` or `design-system` ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog)) | its own row or tile, named by its own declaration (its default App's title, else its slug) |
 | **Module data repository** | the slot directly below a Module with `materialization: "repository_db_mount"`: on GitHub `<owner>/<module>-data`, checked out on its generation branch (`v3`) as `<module path>/db` ([Data](#boundaries-and-dependencies)) | it belongs to its Module and is never shown as a Module of its own: wherever Lazurio lists repositories it stands under its Module, and only where its state differs from the Module's does the Module's row say so, as `Data: …` under the Module's name (it reads `<Module> · data`) |
 | **Productionspace repository** | any repository under `productionspace/` ([0041](decision-register.md#0041--flat-workspace-teams-as-declarations-and-productionspace)), never a Module whatever it contains ([F24](decisions.md#f24--an-organizations-root-level-applications-are-modules-of-the-catalog), point 1) | in Apps only in its Productionspace section, read-only; the general `lazurio update` leaves it alone ([content sync](content-sync.md)) |
-| **Shared Module** | another Organization's Module that the Organization keeps current read-only, in the slot that names its home Organization (`home_organization`) (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) | named by its home Organization and its slot, `<home Organization> / <slot slug>`, with the badge cs "nasdílený", en "shared"; its data repository stands under it like any Module's; never merged with the Organization's own Module of the same name |
+| **Shared Module** | another Organization's Module that the Organization keeps current read-only, in the slot that names its home Organization (`home_organization`) (decision [0221](decision-register.md#0221--guest-modules-an-organization-may-host-another-organizations-module-in-its-workspace), [F67](decisions.md#f67--guest-modules-another-organizations-module-in-the-hosts-workspace-kept-current-never-run)) | named as an own Module, by its default App's title, else its slot's slug: in the update view `<home Organization> / <name>`, in Apps `<name>` under its home Organization's heading, both with the badge cs "nasdílený", en "shared"; its data repository stands under it like any Module's; never merged with the Organization's own Module of the same name |
 
-The Platform still does not read a shared Module's manifest (F67, point 5), so its name
-is its slot's slug, not the title its own declaration gives. Command output writes the
-name without the spaces, as every `<Organization>/<module>`. The Organization's root
+A shared Module's declaration is read and judged as an own Module's
+(`observeModuleDirectory`), for its default App only: `lazurio.module.json` and the
+App's `package.json` under the checkout rule, the whole manifest by `parseModuleManifest`
+(so `default_app` is one of `apps`), the App's run declaration by the same reader, its
+`company` and `module` the manifest's. Of it only the name and the icon are used (the
+catalog's `display` on its entry: `id`, `title`, `icon`, `tags`, never the App's
+description); it never has a module row, an App, a start, a preparation, a port lease,
+a runtime secret or a hosted name. Where it would not stand as an own Module's (not
+checked out, an unreadable or refused declaration, an App whose `company` or `module`
+is not the manifest's, an empty title), and where GitHub refused it at the last
+synchronization though its checkout stays, it keeps its slot's slug
+([F67's addendum of 2026-11-22](decisions.md#addendum-of-2026-11-22-a-shared-module-is-named-by-its-default-app-as-an-own-module-is)).
+Command output keeps its address without the spaces, as every `<Organization>/<module>`,
+`<home Organization>/<slot slug>`, and puts its name first in the row's description. The Organization's root
 repository and its root slots without `lazurio.module.json`, such as `infra`, are none
 of these kinds and never a Module (F24, point 1).
 

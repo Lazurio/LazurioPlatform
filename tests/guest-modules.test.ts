@@ -539,6 +539,189 @@ async function hostFolder(
 const posix = ["darwin", "linux"].includes(process.platform);
 const posixTest = test.skipIf(!posix);
 
+// One host whose shared Modules are checked out with the given declarations:
+// each `write` gets the module directory and writes what it should hold.
+async function sharedHost(
+  shared: readonly Readonly<{
+    id: string;
+    write?: (path: string) => Promise<void>;
+  }>[],
+  run: (folder: string, root: string) => Promise<void>,
+) {
+  const parent = await realpath(await mkdtemp(join(tmpdir(), "shared-")));
+  const folder = join(parent, "Lazurio");
+  try {
+    await initializeFolder(folder, {
+      os: executionOs(process.platform),
+      access: "local",
+      purpose: "human",
+      locale: "en",
+      detail: "concise",
+      coordination: "direct",
+    });
+    const root = await writeOrganization(folder, "HostOrg_GEN3", {
+      slug: "hostorg",
+      forge: "HostOrg",
+      state: "current",
+      modules: [{ id: "web" }],
+      slots: shared.map(({ id }) => ({
+        ...guestMissionControl,
+        slug: id,
+        path: `workspace/HomeOrg_GEN3/${id}`,
+        git: { url: `git@github.com:HomeOrg/${id}.git`, branch: "main" },
+      })),
+    });
+    for (const { id, write } of shared) {
+      if (write === undefined) continue;
+      const path = join(root, "workspace/HomeOrg_GEN3", id);
+      await write(path);
+      await mkdir(join(path, ".git"), { recursive: true });
+    }
+    await run(folder, root);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+}
+
+const json = (path: string, file: string, value: unknown) =>
+  writeFile(join(path, file), JSON.stringify(value));
+
+posixTest(
+  "a shared Module is named and drawn by its default app as an own module is, and keeps its slot's id wherever an own module would not stand (F67, addendum of 2026-11-22)",
+  async () => {
+    const valid =
+      (id: string, runtime: Record<string, unknown> = {}) =>
+      async (path: string) =>
+        writeModule(path, "HomeOrg", {
+          id,
+          runtime: {
+            title: "Mission Control v3",
+            icon: "control",
+            description: "Never shown for a shared Module.",
+            tags: ["planning"],
+            ...runtime,
+          },
+        });
+    await sharedHost(
+      [
+        { id: "mission-control", write: valid("mission-control") },
+        // Not checked out here (or not readable by this identity).
+        { id: "absent" },
+        // A manifest the module reader refuses.
+        {
+          id: "unreadable",
+          write: async (path) => {
+            await mkdir(path, { recursive: true });
+            await writeFile(join(path, "lazurio.module.json"), "{ not json");
+          },
+        },
+        {
+          id: "unsupported",
+          write: async (path) => {
+            await valid("unsupported")(path);
+            const file = join(path, "lazurio.module.json");
+            const manifest = JSON.parse(await readFile(file, "utf8"));
+            await json(path, "lazurio.module.json", {
+              ...manifest,
+              schema_version: "lazurio.module.v0",
+            });
+          },
+        },
+        // `default_app` outside `apps`: `parseModuleManifest` refuses it.
+        {
+          id: "outside",
+          write: async (path) => {
+            await valid("outside")(path);
+            const file = join(path, "lazurio.module.json");
+            const manifest = JSON.parse(await readFile(file, "utf8"));
+            await json(path, "lazurio.module.json", {
+              ...manifest,
+              default_app: "other/package.json",
+            });
+          },
+        },
+        // A default app without a run declaration.
+        {
+          id: "broken",
+          write: (path) =>
+            writeModule(path, "HomeOrg", { id: "broken", broken: true }),
+        },
+        // An app that names another module or another company.
+        { id: "foreign", write: valid("foreign", { module: "other" }) },
+        { id: "company", write: valid("company", { company: "OtherOrg" }) },
+        // An app-less module has no default app.
+        {
+          id: "appless",
+          write: (path) =>
+            writeModule(path, "HomeOrg", { id: "appless", apps: false }),
+        },
+        { id: "blank", write: valid("blank", { title: "   " }) },
+      ],
+      async (folder, root) => {
+        const catalog = await readFolderCatalog(folder);
+        const host = catalog.organizations.find(
+          (entry) => entry.organization === "hostorg",
+        );
+        const byId = new Map(
+          (host?.guests ?? []).map((guest) => [guest.module, guest]),
+        );
+        // The name and the icon, never the app's description.
+        expect(byId.get("mission-control")?.display).toEqual({
+          id: "mission-control",
+          title: "Mission Control v3",
+          icon: "control",
+          tags: ["planning"],
+        });
+        for (const id of [
+          "absent",
+          "unreadable",
+          "unsupported",
+          "outside",
+          "broken",
+          "foreign",
+          "company",
+          "appless",
+          "blank",
+        ])
+          expect([id, byId.get(id)?.display]).toEqual([id, undefined]);
+        // Only the name and the icon are used: still no module of the host,
+        // no app, no start.
+        expect(host?.modules.map((module) => module.module)).toEqual(["web"]);
+        await expect(
+          resolveOrganizationApplication(root, {
+            company: "hostorg",
+            module: "mission-control",
+            package: "app/package.json",
+          }),
+        ).rejects.toThrow("Selected application unavailable");
+        expect(Object.keys(byId.get("mission-control") ?? {}).sort()).toEqual([
+          "checkedOut",
+          "display",
+          "guest",
+          "homeOrganization",
+          "module",
+          "organization",
+          "path",
+          "url",
+        ]);
+        // `lazurio module list`: the address stays the slot's; the name leads
+        // the description.
+        const text = await runCatalogCommand(
+          ["module", "list", "hostorg", "--folder", folder],
+          cli,
+          (at: string) => readFolderCatalog(at),
+        );
+        expect(text.text).toMatch(
+          /^HomeOrg\/mission-control +- +- +Mission Control, shared with hostorg at workspace\/HomeOrg_GEN3\/mission-control, read-only$/m,
+        );
+        expect(text.text).toMatch(
+          /^HomeOrg\/broken +- +- +shared with hostorg at workspace\/HomeOrg_GEN3\/broken, read-only$/m,
+        );
+      },
+    );
+  },
+);
+
 test.skipIf(!posix)(
   "the catalog lists guests read-only with their home Organization, never as modules, and never starts one",
   async () => {
@@ -579,6 +762,9 @@ test.skipIf(!posix)(
           guest: true,
           checkedOut: true,
           url: "https://github.com/HomeOrg/notes",
+          // Its default app's name and icon only (F67, addendum of
+          // 2026-11-22); the app-less Knowledgebase has none.
+          display: { id: "notes", title: "notes", tags: [] },
         },
         {
           organization: "hostorg",

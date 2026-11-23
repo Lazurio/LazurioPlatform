@@ -452,3 +452,60 @@ export async function observeModuleDirectory(
     apps: Object.freeze(apps),
   });
 }
+
+/** What a shared Module is named and drawn by (decision F67, addendum of
+ * 2026-11-22): the same as an own module's, its default app's title and
+ * icon. Its declaration is read and judged as `observeModuleDirectory`
+ * judges an own module's, for its default app only: `lazurio.module.json`
+ * and the app's `package.json` under the checkout rule, the whole manifest
+ * through `parseModuleManifest` (so `default_app` is one of `apps`), the
+ * app's run declaration through the same reader, its `company` and `module`
+ * the manifest's. Of all that only the name and the icon are kept: no
+ * description, no run plan, listener, lease, script, secret or slot. Where
+ * an own module would not stand (no checkout, a refused or changing
+ * declaration, an empty title), there is none, and the shared Module keeps
+ * its slot's id. Never throws. */
+export type SharedModuleDisplay = Readonly<{
+  id: string;
+  title: string;
+  icon?: string;
+  tags: readonly string[];
+}>;
+
+export async function observeSharedModuleDisplay(
+  path: string,
+): Promise<SharedModuleDisplay | undefined> {
+  try {
+    const before = await inspectCheckoutDirectory(path);
+    const manifest = await readCheckoutJson(join(path, "lazurio.module.json"));
+    const module = parseModuleManifest(manifest);
+    if (module.default_app === null) return undefined;
+    const app = await readModuleApplication(path, module.default_app);
+    if (
+      app.kind !== "declared-runtime-plan" ||
+      app.runtime.company !== module.company ||
+      app.runtime.module !== module.id
+    )
+      return undefined;
+    const { id, title, icon, tags } = appDisplay(app.runtime);
+    const after = await inspectCheckoutDirectory(path);
+    if (
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      organizationDocumentHash(manifest) !==
+        organizationDocumentHash(
+          await readCheckoutJson(join(path, "lazurio.module.json")),
+        )
+    )
+      return undefined;
+    if (title.trim() === "") return undefined;
+    return Object.freeze({
+      id,
+      title,
+      ...(icon === undefined ? {} : { icon }),
+      tags,
+    });
+  } catch {
+    return undefined;
+  }
+}

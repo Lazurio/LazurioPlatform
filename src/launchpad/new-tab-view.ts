@@ -13,7 +13,14 @@ import {
   catalogGroups,
   catalogOrganizationKey,
 } from "../organizations/catalog-selection";
-import { moduleName, moduleStone, slugStone, tileTarget } from "./apps-view";
+import {
+  guestName,
+  guestStone,
+  moduleName,
+  moduleStone,
+  slugStone,
+  tileTarget,
+} from "./apps-view";
 import type { PublicEntry } from "./chat";
 
 // Nová karta's page without a DOM (decision F47 points 1-3 and 6-9, the
@@ -1593,6 +1600,104 @@ export type UpdateJob = Readonly<{
   lines: readonly UpdateJobLine[];
 }>;
 
+/** What of a run can change the catalog an open page names its rows by: the
+ * content items that moved or materialized a checkout (a shared Module cloned
+ * here, a default app's title or icon changed) and whether the run is over.
+ * The page reads the catalog again whenever this changes, so a row and its
+ * tile in Apps keep one name (F67's addendum of 2026-11-22, the review of
+ * #1187). */
+export function catalogChangeKey(job: UpdateJob | null): string {
+  if (job === null) return "";
+  const moved = job.lines
+    .flatMap((line) =>
+      line.part === "content" &&
+      (line.result === "fast-forwarded" || line.result === "materialized")
+        ? [`${line.root ?? ""}\0${line.path ?? ""}\0${line.to ?? ""}`]
+        : [],
+    )
+    .sort();
+  return [job.id, job.running ? "running" : "over", ...moved].join("\n");
+}
+
+/** How an open page keeps the catalog it names Modules by current (the
+ * reviews of #1187). It reads the catalog on its first reading of the update,
+ * whatever the boot document carried: the boot catalog is read before that
+ * reading, and a synchronization may clone, rename or revoke a shared Module
+ * in between and end, with nothing to prove the two describe the same state.
+ * It reads again whenever a run's `catalogChangeKey` differs from the change
+ * its catalog reflects. A change is recorded only once a read succeeds: a
+ * refused, timed-out or invalid answer is retried after `retryMs` until one
+ * succeeds, whether or not a run is still under way, and a change seen while
+ * a read is under way is read for after it. No DOM: the page gives it its
+ * reader, what to do with a catalog and a timer; until a read succeeds the
+ * page keeps its boot catalog, if any. */
+export function catalogRefresher(
+  options: Readonly<{
+    read: () => Promise<Catalog | null>;
+    apply: (catalog: Catalog) => void;
+    /** Schedules the next try; the page skips it while it is hidden and
+     * calls `retry` when it shows again. */
+    later: (run: () => void, ms: number) => void;
+    retryMs: number;
+  }>,
+): Readonly<{
+  /** A reading of the newest run (null: none), or none yet. */
+  observe: (job: UpdateJob | null) => void;
+  /** Tries again now if a read is still owed (the page shown again). */
+  retry: () => void;
+}> {
+  // The change the page's catalog reflects (null: none read yet) and the one
+  // it needs a catalog for (null: no reading of the update yet).
+  let reflects: string | null = null;
+  let wanted: string | null = null;
+  let reading = false;
+  let waiting = false;
+  const owed = () => wanted !== null && wanted !== reflects;
+  const attempt = async (): Promise<void> => {
+    if (reading || !owed()) return;
+    reading = true;
+    const target = wanted;
+    let read: Catalog | null = null;
+    try {
+      read = await options.read();
+    } catch {
+      read = null;
+    }
+    reading = false;
+    if (read !== null) {
+      reflects = target;
+      options.apply(read);
+    }
+    if (!owed()) return;
+    if (read !== null) {
+      void attempt();
+      return;
+    }
+    if (waiting) return;
+    waiting = true;
+    options.later(() => {
+      waiting = false;
+      void attempt();
+    }, options.retryMs);
+  };
+  return {
+    observe(job) {
+      const change = catalogChangeKey(job);
+      // The same change while a retry waits for its timer asks nothing more;
+      // a new one is read for now.
+      const changed = change !== wanted;
+      wanted = change;
+      if (changed || !waiting) void attempt();
+    },
+    retry() {
+      // The page calls it when a retry fell due while it was hidden: that
+      // timer has run without trying, so nothing waits any more.
+      waiting = false;
+      void attempt();
+    },
+  };
+}
+
 const word = (value: unknown, max = 200) => text(value, max) ?? undefined;
 const lineSteps = new Set([
   "checking",
@@ -1974,15 +2079,22 @@ export function updateView(
     const holds = (place: string) =>
       at === place || (line.parent === undefined && at.startsWith(`${place}/`));
     const organization = organizationOf(group);
-    // A shared Module, by what its line says, else by the catalog's guests.
+    // A shared Module, by what its line says, else by the catalog's guests;
+    // named and drawn as Apps draws its tile where the catalog read its
+    // declaration (decision F67, addendum of 2026-11-22), else by its slug.
     const guest = (group.guests ?? []).find((item) => holds(item.path));
     const home = line.home ?? guest?.homeOrganization;
     if (home !== undefined) {
       const slug = line.module ?? guest?.module;
       return {
         key: `${organization}\0shared\0${home.toLowerCase()}/${slug ?? at}`,
-        name: `${home} / ${slug ?? at}`,
-        stone: slug === undefined ? null : slugStone(slug).src,
+        name: `${home} / ${guest === undefined ? (slug ?? at) : guestName(guest)}`,
+        stone:
+          guest !== undefined
+            ? guestStone(guest).src
+            : slug === undefined
+              ? null
+              : slugStone(slug).src,
         badge: { text: copy.updateShared, hint: copy.updateSharedHint },
       };
     }

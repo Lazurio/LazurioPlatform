@@ -1,7 +1,10 @@
 import { isAbsolute, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { processPersonalspaceHolder } from "../content/holder";
-import { type CliContext, operatorFolder } from "../update/cli";
+import { contentLockDirectory } from "../content/host";
+import { readSyncRecord } from "../content/sync-record";
+import { appBaseTitle } from "../shell/stones";
+import { type CliContext, installBase, operatorFolder } from "../update/cli";
 import {
   type Catalog,
   type CatalogGuestModule,
@@ -13,6 +16,7 @@ import {
   handoverServerServices,
   readFolderCatalog,
 } from "./catalog";
+import { type GuestAccessRecord, withGuestAccess } from "./guest-access";
 import { personalspaceName, unverifiedPersonalspace } from "./personalspace";
 
 /** `lazurio organization list` and `lazurio module list`: the terminal surface
@@ -151,11 +155,13 @@ const declared = (entry: CatalogOrganization) => {
 };
 
 // A guest Module's row: under its home Organization, never runnable here.
+// Its address stays `<home>/<slot id>`; where its declaration was read, its
+// name leads the description (decision F67, addendum of 2026-11-22).
 const guestRow = (entry: CatalogGuestModule) => [
   `${entry.homeOrganization}/${entry.module}`,
   "-",
   "-",
-  `shared with ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
+  `${entry.display === undefined ? "" : `${appBaseTitle(entry.display.title)}, `}shared with ${entry.organization} at ${entry.path}, read-only${entry.checkedOut ? "" : ", not checked out"}`,
 ];
 
 function organizationLines(catalog: Catalog): string {
@@ -213,6 +219,20 @@ export async function runCatalogCommand(
         : unverifiedPersonalspace,
       handoverServerServices,
     ),
+  // Test seam: the last synchronization's record, whose refusals mark a
+  // guest whose access was lost (`withGuestAccess`, F67's addenda of
+  // 2026-11-01 and 2026-11-22); the product reads this install base's. None
+  // when it cannot be read: nothing is marked.
+  record: (folder: string) => Promise<GuestAccessRecord> = async (folder) => {
+    try {
+      return await readSyncRecord(
+        contentLockDirectory(installBase(context, undefined)),
+        folder,
+      );
+    } catch {
+      return null;
+    }
+  },
 ): Promise<CatalogCommandOutput> {
   let values: { folder?: string | undefined; json?: boolean | undefined };
   let positionals: string[];
@@ -272,7 +292,10 @@ export async function runCatalogCommand(
       : json;
   let catalog: Catalog;
   try {
-    catalog = await read(folder, personalspace);
+    catalog = withGuestAccess(
+      await read(folder, personalspace),
+      await record(folder),
+    );
   } catch {
     // No raw filesystem error: it could quote a private path.
     return done(

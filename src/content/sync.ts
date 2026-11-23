@@ -518,7 +518,8 @@ async function childrenOf(root: string): Promise<SyncChild[]> {
     );
     // The declared slots by path: a shared Module's home and slug, as the
     // slot declares them, for it and for its data mount (decision F67's
-    // addendum of 2026-11-21). Its own manifest stays unread (F67 point 5).
+    // addendum of 2026-11-21). The synchronization reads no manifest for it;
+    // its name comes from the catalog (F67's addendum of 2026-11-22).
     const slots = new Map(
       inventory.inventory.slots.flatMap((slot) =>
         slot === null ? [] : [[slot.path, slot] as const],

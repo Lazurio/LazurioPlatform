@@ -82,8 +82,9 @@ export type SyncEntry = Readonly<{
    * Organization the slot declares (`home_organization`). */
   home?: string;
   /** With `home`: the shared Module's slot slug (its `slug`, else the last
-   * segment of its path), on its data mount's entry too; its name is
-   * `<home> / <module>`, since its own manifest stays unread (F67 point 5). */
+   * segment of its path), on its data mount's entry too. The synchronization
+   * reads no manifest for it; the update view names its row from the catalog,
+   * as Apps names its tile (F67's addendum of 2026-11-22). */
   module?: string;
   result: SyncResult;
   /** `blocked`: a `syncBlockedReasons` member; `denied`, `unavailable`,

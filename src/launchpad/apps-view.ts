@@ -546,12 +546,29 @@ export function appsTiles(
 export const slugStone = (module: string) =>
   stoneOf(semanticAppIconKey({ module, id: null, tags: [], icon: null }));
 
-/** A guest Module's tile: its slot id as GitHub names the repository, the
- * org-agnostic sentence of its stone, and a click that opens its read-only
- * overview (decision F67's addendum of 2026-11-01). Its own
- * `lazurio.module.json` stays unread (decision F67 point 5). */
-/** A guest Module's stone and one line, from its slot id alone: the
- * org-agnostic sentence of its stone. */
+/** A shared Module's name, as an own module's (`moduleName`): its default
+ * app's title without a trailing version where its declaration was read
+ * (decision F67, addendum of 2026-11-22), otherwise its slot's id. */
+export const guestName = (guest: CatalogGuestModule): string =>
+  guest.display === undefined
+    ? guest.module
+    : appBaseTitle(guest.display.title);
+
+/** A shared Module's stone, as an own module's (`moduleStone`): its default
+ * app's icon, else the org-agnostic fallback from its slot's id, the app's id
+ * and tags; with no declaration read, its slot's id alone (`slugStone`). */
+export const guestStone = (guest: CatalogGuestModule) =>
+  stoneOf(
+    semanticAppIconKey({
+      module: guest.module,
+      id: guest.display?.id ?? null,
+      tags: guest.display?.tags ?? [],
+      icon: guest.display?.icon ?? null,
+    }),
+  );
+
+/** A guest Module's stone and one line: the org-agnostic sentence of its
+ * stone, never its app's own description. */
 export function guestLook(
   guest: CatalogGuestModule,
   copy: Copy,
@@ -559,16 +576,21 @@ export function guestLook(
   stone: Readonly<{ key: StoneKey; src: string; accent: string }>;
   description: string;
 }> {
-  const stone = slugStone(guest.module);
+  const stone = guestStone(guest);
   const key = descriptionKeys[stone.key];
   return {
     stone,
     description:
       key === undefined
-        ? copy.appsDescriptionDefault.replace("{module}", guest.module)
+        ? copy.appsDescriptionDefault.replace("{module}", guestName(guest))
         : copy[key],
   };
 }
+
+/** A guest Module's tile: its name (`guestName`), the org-agnostic sentence
+ * of its stone, and a click that opens its read-only overview (decision
+ * F67's addendum of 2026-11-01); under its home Organization's heading, with
+ * the badge of its section. */
 
 export function guestTile(
   catalog: Catalog,
@@ -582,7 +604,7 @@ export function guestTile(
     kind: "guest",
     key: `g:${guest.homeOrganization.toLowerCase()}/${guest.module}`,
     guest,
-    name: guest.module,
+    name: guestName(guest),
     description,
     stone,
     // Its overview, a route of this page; never an app.

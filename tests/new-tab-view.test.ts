@@ -4,13 +4,16 @@ import {
   browserTimes,
   addressBarTarget as resolveAddress,
 } from "../src/browser/contract/pure";
+import { guestName, guestStone } from "../src/launchpad/apps-view";
 import type { PublicEntry } from "../src/launchpad/chat";
 import { messages } from "../src/launchpad/messages";
 import {
   actionFailure,
   afterRestart,
   ago,
+  catalogChangeKey,
   catalogModuleLook,
+  catalogRefresher,
   closeOutcome,
   closeWarning,
   coresText,
@@ -1483,6 +1486,274 @@ describe("Aktualizovat: the run's rows per module", () => {
     ).toEqual([
       [`${home} / mission-control`, "current", "Aktuální", "nasdílený"],
     ]);
+  });
+
+  test('a shared Module whose declaration the catalog read is named and drawn as Apps draws it: "HumanAndMachine-ai / Mission Control" (F67, addendum of 2026-11-22)', () => {
+    const named: Catalog = {
+      kind: "catalog",
+      organizations: [
+        {
+          ...example,
+          guests: [
+            {
+              ...sharedGuest("mission-control"),
+              display: {
+                id: "humanandmachine-ai-mission-control-v3",
+                title: "Mission Control v3",
+                icon: "control",
+                tags: [],
+              },
+            },
+            sharedGuest("clients"),
+          ],
+        },
+      ],
+    };
+    const lines = [
+      sharedModule("mission-control", { result: "current" }),
+      sharedData("mission-control", { result: "fast-forwarded", to: sha("d") }),
+      sharedModule("clients", { result: "current" }),
+    ];
+    expect(shown(job(lines, "succeeded"), cs, named)).toEqual([
+      [
+        `${home} / Mission Control`,
+        "done",
+        "Hotovo, verze ddddddd",
+        "nasdílený",
+      ],
+      // Without its declaration read, still its slot's id.
+      [`${home} / clients`, "current", "Aktuální", "nasdílený"],
+    ]);
+    const [row] = updateView(job(lines, "succeeded"), named, cs).rows;
+    const guest = named.organizations[0]?.guests?.[0];
+    if (guest === undefined) throw new Error("no guest");
+    expect(row?.stone).toBe(guestStone(guest).src);
+    // The same name and stone as its tile in Apps.
+    expect(guestName(guest)).toBe("Mission Control");
+  });
+
+  test("an open page reads the catalog again when a run clones a shared Module or moves it, and when the run ends, so its row gets the name Apps gives it (the review of #1187)", () => {
+    const withGuest = (display?: { title: string }): Catalog => ({
+      kind: "catalog",
+      organizations: [
+        {
+          ...example,
+          guests: [
+            {
+              ...sharedGuest("mission-control"),
+              ...(display === undefined
+                ? {}
+                : {
+                    display: {
+                      id: "mc",
+                      title: display.title,
+                      tags: [],
+                    },
+                  }),
+            },
+          ],
+        },
+      ],
+    });
+    // The page as it opened: the shared Module not cloned here yet.
+    const before = withGuest();
+    const run = (running: boolean, lines: Record<string, unknown>[]) =>
+      ({ id: "run", running, lines }) as unknown as UpdateJob;
+    const checking = run(true, [
+      sharedModule("mission-control", { step: "checking" }),
+    ]);
+    const fetching = run(true, [
+      sharedModule("mission-control", { step: "fetching", to: sha("a") }),
+    ]);
+    const cloned = run(true, [
+      sharedModule("mission-control", {
+        result: "materialized",
+        to: sha("a"),
+      }),
+    ]);
+    const over = run(false, [
+      sharedModule("mission-control", {
+        result: "materialized",
+        to: sha("a"),
+      }),
+    ]);
+    // Steps alone never ask for the catalog again; a clone does, and the
+    // run's end does once more.
+    expect(catalogChangeKey(fetching)).toBe(catalogChangeKey(checking));
+    expect(catalogChangeKey(cloned)).not.toBe(catalogChangeKey(fetching));
+    expect(catalogChangeKey(over)).not.toBe(catalogChangeKey(cloned));
+    expect(catalogChangeKey(null)).toBe("");
+    // With the catalog the page had, the row is its slug; with the one read
+    // again after the clone, its name, as in Apps.
+    expect(shown(cloned, cs, before)[0]?.[0]).toBe(`${home} / mission-control`);
+    const after = withGuest({ title: "Mission Control v3" });
+    expect(shown(cloned, cs, after)[0]?.[0]).toBe(`${home} / Mission Control`);
+    // A later run that moves it (its default app renamed): the key changes
+    // again, and the catalog read then names the row anew.
+    const moved = run(true, [
+      sharedModule("mission-control", {
+        result: "fast-forwarded",
+        to: sha("b"),
+      }),
+    ]);
+    const movedAgain = run(true, [
+      sharedModule("mission-control", {
+        result: "fast-forwarded",
+        to: sha("c"),
+      }),
+    ]);
+    expect(catalogChangeKey(moved)).not.toBe(catalogChangeKey(over));
+    expect(catalogChangeKey(movedAgain)).not.toBe(catalogChangeKey(moved));
+    expect(shown(moved, cs, withGuest({ title: "Plans v4" }))[0]?.[0]).toBe(
+      `${home} / Plans`,
+    );
+  });
+
+  // The open page's refresher with a scripted Launchpad: each read answers
+  // the next of `answers` (null: refused or invalid), retries wait on a
+  // hand-run timer.
+  const refresherWorld = (answers: (Catalog | null)[]) => {
+    const reads: number[] = [];
+    const applied: Catalog[] = [];
+    const timers: (() => void)[] = [];
+    const refresher = catalogRefresher({
+      read: async () => {
+        reads.push(reads.length);
+        return answers.shift() ?? null;
+      },
+      apply: (read) => applied.push(read),
+      later: (run) => timers.push(run),
+      retryMs: 5_000,
+    });
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const tick = async () => {
+      const run = timers.shift();
+      run?.();
+      await settle();
+    };
+    return { refresher, reads, applied, timers, settle, tick };
+  };
+  const finished = (to: string) =>
+    ({
+      id: "run",
+      running: false,
+      lines: [sharedModule("mission-control", { result: "materialized", to })],
+    }) as unknown as UpdateJob;
+  const running = {
+    id: "run",
+    running: true,
+    lines: [sharedModule("mission-control", { step: "checking" })],
+  } as unknown as UpdateJob;
+  const catalogNamed = (title: string): Catalog => ({
+    kind: "catalog",
+    organizations: [
+      {
+        ...example,
+        guests: [
+          {
+            ...sharedGuest("mission-control"),
+            display: { id: "mc", title, tags: [] },
+          },
+        ],
+      },
+    ],
+  });
+  const titleOf = (read: Catalog | undefined) =>
+    read?.organizations[0]?.guests?.[0]?.display?.title;
+
+  test("an open page reads the catalog on its first reading of the update whatever its boot document carried: a synchronization may have ended between the two (the review of #1187)", async () => {
+    // The boot catalog was read before a run cloned the shared Module and
+    // ended; the page's first reading is that completed run, and polling
+    // stops after it.
+    const world = refresherWorld([catalogNamed("Mission Control v3")]);
+    world.refresher.observe(finished(sha("a")));
+    await world.settle();
+    expect(world.reads.length).toBe(1);
+    expect(titleOf(world.applied[0])).toBe("Mission Control v3");
+    const read = world.applied[0];
+    if (read === undefined) throw new Error("no catalog");
+    expect(shown(finished(sha("a")), cs, read)[0]?.[0]).toBe(
+      `${home} / Mission Control`,
+    );
+    // Nothing changes after: no further read.
+    world.refresher.observe(finished(sha("a")));
+    await world.settle();
+    expect(world.reads.length).toBe(1);
+    // Without any run at all, and with a run under way, too.
+    for (const job of [null, running]) {
+      const other = refresherWorld([catalogNamed("Mission Control v3")]);
+      other.refresher.observe(job);
+      await other.settle();
+      expect(other.applied.length).toBe(1);
+    }
+  });
+
+  test("a refused or invalid catalog read is retried until one succeeds, also after the run ended, and the change is recorded only then (the review of #1187)", async () => {
+    const world = refresherWorld([
+      catalogNamed("Mission Control"),
+      null,
+      null,
+      catalogNamed("Mission Control v3"),
+    ]);
+    // The first reading: one read, which succeeds.
+    world.refresher.observe(running);
+    await world.settle();
+    expect(world.reads.length).toBe(1);
+    expect(world.applied.length).toBe(1);
+    // The run clones it and ends; the page stops polling after this.
+    world.refresher.observe(finished(sha("a")));
+    await world.settle();
+    expect(world.reads.length).toBe(2);
+    expect(world.applied.length).toBe(1);
+    // The same reading again while a retry waits asks nothing more.
+    world.refresher.observe(finished(sha("a")));
+    await world.settle();
+    expect(world.reads.length).toBe(2);
+    expect(world.timers.length).toBe(1);
+    // The timer retries; refused again, it waits again; then it succeeds.
+    await world.tick();
+    expect(world.reads.length).toBe(3);
+    expect(world.timers.length).toBe(1);
+    await world.tick();
+    expect(world.reads.length).toBe(4);
+    expect(world.applied.length).toBe(2);
+    expect(world.timers.length).toBe(0);
+    // Recorded now: the same change asks nothing more.
+    world.refresher.observe(finished(sha("a")));
+    await world.settle();
+    expect(world.reads.length).toBe(4);
+    // A retry that fell due while the page was hidden (its timer ran without
+    // trying): shown again, it tries now, and a refusal waits again.
+    const hidden = refresherWorld([
+      catalogNamed("Mission Control"),
+      null,
+      null,
+      catalogNamed("Clients"),
+    ]);
+    hidden.refresher.observe(running);
+    await hidden.settle();
+    hidden.refresher.observe(finished(sha("a")));
+    await hidden.settle();
+    expect(hidden.reads.length).toBe(2);
+    hidden.timers.shift();
+    hidden.refresher.retry();
+    await hidden.settle();
+    expect(hidden.reads.length).toBe(3);
+    expect(hidden.timers.length).toBe(1);
+    await hidden.tick();
+    expect(titleOf(hidden.applied.at(-1))).toBe("Clients");
+    // A change seen while a read is under way is read for after it.
+    const racing = refresherWorld([
+      catalogNamed("Mission Control"),
+      catalogNamed("Plans v4"),
+    ]);
+    racing.refresher.observe(running);
+    racing.refresher.observe(finished(sha("a")));
+    racing.refresher.observe(finished(sha("b")));
+    await racing.settle();
+    await racing.settle();
+    expect(racing.reads.length).toBe(2);
+    expect(titleOf(racing.applied.at(-1))).toBe("Plans v4");
   });
 
   // Every line of a row: its first and its further findings (the review of
