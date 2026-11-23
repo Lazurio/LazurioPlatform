@@ -1049,3 +1049,76 @@ test.skipIf(process.platform === "win32")(
     ).toEqual(["profile-resume"]);
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "a refused recovery keeps the restart owed: after an explicit repair, the update of a current Folder still restarts the Launchpad",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    await expect(
+      updateProfile(folder, 1, { profile }, async (step) => {
+        if (step === "prepared") throw new Error("cut off");
+      }),
+    ).rejects.toThrow("cut off");
+    const owedFile = layout(base).launchpadRestartOwed;
+    // The update's recovery is refused (an edit the journal does not know).
+    const agents = join(folder, "AGENTS.md");
+    const original = await readFile(agents, "utf8");
+    await writeFile(agents, `${original}\nEdited by hand.\n`);
+    const refused = refreshRunner(base);
+    expect(
+      await resumePreparedTransaction({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+        run: refused.run,
+      }),
+    ).toEqual({ state: "failed", reason: "transaction-pending" });
+    expect(JSON.parse(await readFile(owedFile, "utf8"))).toEqual({ folder });
+    // The person undoes the edit and finishes the transaction by hand.
+    await writeFile(agents, original);
+    const byHand = await refreshRunner(base).run(
+      [
+        layout(base).selector,
+        "profile-resume",
+        "--folder",
+        folder,
+        "--target-revision",
+        "2",
+      ],
+      10_000,
+    );
+    expect(byHand).toMatchObject({ exitCode: 0 });
+    expect(await readdir(join(folder, ".lazurio"))).not.toContain(
+      "transaction",
+    );
+    // A later update finds a current Folder and the debt: it restarts.
+    const later = refreshRunner(base, async (command) =>
+      command[0] === "machine"
+        ? {
+            exitCode: 0,
+            stdout: '{"kind":"unchanged","launchpad":"restarted"}',
+          }
+        : undefined,
+    );
+    expect(
+      await refreshFolderWhenBehind({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+        run: later.run,
+        retry: { attempts: 1, delayMs: 0 },
+      }),
+    ).toEqual({ state: "unchanged" });
+    expect(later.calls.map((call) => call.command.slice(0, 2))).toEqual([
+      ["machine", "folder-refresh"],
+    ]);
+  },
+);

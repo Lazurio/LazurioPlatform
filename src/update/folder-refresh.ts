@@ -6,11 +6,7 @@ import {
 } from "../folder/lock";
 import { neededRefresh } from "../folder/refresh-needed";
 import { shownAsItself } from "../folder/visible-text";
-import {
-  clearRestartOwed,
-  recordRestartOwed,
-  restartOwedFor,
-} from "../machine/launchpad-entry";
+import { recordRestartOwed, restartOwedFor } from "../machine/launchpad-entry";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -338,11 +334,11 @@ async function resumeWith(
           } catch {
             return failedRefresh("launchpad-restart-unrecordable");
           }
-        const outcome = await resume();
-        // Refused: nothing changed, so nothing new is owed.
-        if (outcome.state !== "refreshed" && !owedBefore)
-          await clearRestartOwed(owed, input.folder).catch(() => undefined);
-        return outcome;
+        // The debt stays whatever the recovery answers: the Launchpad may be
+        // in Recovery mode already, and a refused or interrupted recovery may
+        // be finished later by hand. Only a successful restart clears it
+        // (`machine folder-refresh`).
+        return resume();
       },
       0,
     );
