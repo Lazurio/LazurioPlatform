@@ -130,10 +130,28 @@ posix(
     });
     let reading = true;
     let reads = 0;
+    // On macOS an open through `current` at the moment the link is replaced
+    // can fail with EINVAL (seen on CI, #1211); that open is tried again. It
+    // is no partial copy: a missing file, any other error or a copy that does
+    // not parse still fails the test, and Linux stays strict.
+    const open = async (file: string) => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await readFile(join(copy, file), "utf8");
+        } catch (error) {
+          if (
+            process.platform !== "darwin" ||
+            (error as NodeJS.ErrnoException).code !== "EINVAL" ||
+            attempt >= 20
+          )
+            throw error;
+        }
+      }
+    };
     const reader = (async () => {
       while (reading) {
-        JSON.parse(await readFile(join(copy, "revision.json"), "utf8"));
-        await readFile(join(copy, "modules.manifest.json"), "utf8");
+        JSON.parse(await open("revision.json"));
+        await open("modules.manifest.json");
         reads++;
         await Bun.sleep(0);
       }
