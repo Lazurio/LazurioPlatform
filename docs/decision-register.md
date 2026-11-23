@@ -1567,16 +1567,19 @@ Each point names who decided it. "(Matěj, date)" is Matěj's decision. "(coordi
 24. The session lives at the Organization's door, not in the browser or in an application; an ended session cannot be tried again (coordinator).
 25. While the sign-in or a door is down, one window applies: people already signed in keep working for at most 12 hours. A removal made before the outage applies at once (Matěj, 2026-11-22). A separate one-hour window for an outage of the door is struck, because it would need a mechanism of its own (coordinator).
 26. When a person leaves an Organization, only their Personal Environment's way into that Organization closes (Matěj, 2026-11-22).
-27. An Admin's entry into the Work Environments of their Organization, by SSH and for the Admin's agents too, is a service entry with a record of every use (0247; Matěj, 2026-11-23).
+27. An Admin's entry into the Work Environments of their Organization, by SSH and for the Admin's agents too, is a service entry with a record of every use (0247; Matěj, 2026-11-23). After an Organization is handed over to its founder, Lazurio as its integrator stays one of its Admins, with this service entry, for a time, although it is no longer an Owner; it ends as the integrator's role does (0245; Matěj, 2026-11-23).
 28. What cannot be closed is data the person already holds on their devices and passwords they have seen. Lazurio lists them for the Admin (0252).
 
 **Running the sign-in.**
 29. The sign-in runs on Lazurio's own server at a provider that guarantees availability (Matěj, 2026-11-22).
 30. Backups leave the server continuously, and the provider's backups are switched on and kept. When the server fails, a new one is built from the backup within minutes, as measured by a test. The standby server may unpack the backup by itself, with a separate key for recovery only and a record of every use; the backup key that people hold does not change (Matěj, 2026-11-22 and 2026-11-23).
-31. Monitoring reports an outage, not a user (coordinator).
+31. Monitoring reports an outage, not a user (coordinator). An external monitoring service watches the sign-in and alerts named people (Matěj, 2026-11-23).
 32. The administration of the sign-in has three separate keys: an emergency recovery account in custody with a named holder; a machine identity for deployment, narrow and replaceable; and an Admin's steps through the Dashboard (coordinator).
 33. Machine credentials for servers are kept in custody on each Organization's Conglomerate Host, with rotation and a record; never in files on a development station and never in the people's vault (Matěj, 2026-11-22 and 2026-11-23).
 34. The version of the sign-in's identity server and its security advisories have a named owner, and updating it is a regular step of the plan (coordinator).
+
+**Records outside the Environments.**
+35. The record of entries, changes and removals is kept outside the Environments. It starts with events, Lazurio keeps a copy, the Organization gets an export, and it is kept for one year (Matěj, 2026-11-23). Where it is stored is open.
 
 **What is struck.**
 - Seven days for Devices and the watcher that enforced them (Matěj, 2026-11-22).
@@ -1588,7 +1591,7 @@ Each point names who decided it. "(Matěj, date)" is Matěj's decision. "(coordi
 - The one-hour window for an outage of a door (coordinator).
 - "Whoever has the Module has the Application" in the central sign-in; it comes with the Organization's door (Matěj, 2026-11-23, deferred).
 
-**Open, each for a decision of its own.** Where the own entrance of the first Organization with its own directory comes in the order of building against the doors; whether an Organization whose GitHub Organization holds historical code moves or keeps a named exception; whether Lazurio offers Organization-paid Personal Environments to company customers; where records are kept outside the Environments; what happens, until it moves, to a Personal Environment that still runs on an Organization's server from before 0245 when its person leaves (0252); and the network of Personal Environments, which needs only the passport from the sign-in.
+**Open, each for a decision of its own.** Where the own entrance of the first Organization with its own directory comes in the order of building against the doors; whether an Organization whose GitHub Organization holds historical code moves or keeps a named exception; whether Lazurio offers Organization-paid Personal Environments to company customers; where the record of point 35 is stored; what happens, until it moves, to a Personal Environment that still runs on an Organization's server from before 0245 when its person leaves (0252); and the network of Personal Environments, which needs only the passport from the sign-in.
 
 **What this amends.**
 - **0245:** membership, Owners, Admins, assignments, grants and roles are held by the Organization's door, not by Lazurio Auth, and where 0245 says Lazurio Auth holds them, the door holds them. An Admin creates Modules and grants access without being an Owner on GitHub (point 10). The condition of a linked GitHub account applies only to Personal Environments (point 15). The rest of 0245, the boundaries in the Deployment Repo and the Owner's approval of their change included, is unchanged.
