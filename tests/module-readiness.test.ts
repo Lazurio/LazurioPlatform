@@ -456,7 +456,8 @@ posixTest(
   "a marker found in the read source counts even when another file was skipped",
   async () => {
     const files = readyServer();
-    files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    files["app/v3/fixtures/generated.ts"] =
+      `// ${"x".repeat(1024 * 1024 + 10)}\n`;
     const result = await assess(files);
     expect(result.findings).toEqual([]);
     expect(result.verdict).toBe("ready-for-live");
@@ -475,6 +476,22 @@ posixTest(
     expect(result.findings[0]?.message).toContain("contract tests");
     expect(result.findings[0]?.message).not.toContain("appAccess");
     expect(result.verdict).toBe("ready-for-trial");
+  },
+);
+
+posixTest(
+  "code that runs and was not read makes a dependency on a person's Environment unknown, never absent",
+  async () => {
+    const files = readyServer();
+    files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    const result = await assess(files);
+    expect(ids(result)).toEqual(["source-incomplete"]);
+    expect(result.findings[0]?.level).toBe("blocker");
+    expect(result.findings[0]?.message).toContain(
+      "a dependency on a person's Environment",
+    );
+    expect(result.findings[0]?.message).toContain("app/v3/generated.ts");
+    expect(result.verdict).toBe("not-ready");
   },
 );
 

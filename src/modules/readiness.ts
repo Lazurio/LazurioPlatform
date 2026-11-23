@@ -322,7 +322,19 @@ export function assessReadiness(input: ReadinessInput): Readiness {
     );
   // An app that stands on a person's Environment cannot run as an
   // Application until it is changed (decision 0249, addendum of 2026-11-22).
+  // Found markers count; none found counts as none only when all of the
+  // code that runs was read.
   const environment = environmentDependencies(app.runtimeSource);
+  const runtimeKnown =
+    input.tracked !== null &&
+    !app.sourceSkipped.some(
+      (path) => !NOT_RUNTIME.test(path.slice(appPrefix(app.package).length)),
+    );
+  if (environment.length === 0 && !runtimeKnown)
+    unknownMarkers.push({
+      name: "a dependency on a person's Environment",
+      level: "blocker",
+    });
   if (environment.length > 0)
     add(
       "environment-dependency",
@@ -403,6 +415,12 @@ const ENVIRONMENT_MARKERS: ReadonlyArray<readonly [string, RegExp]> = [
   ],
 ];
 
+/** The app's directory as a path prefix ("" for an app at the root). */
+function appPrefix(appPackage: string): string {
+  const appDir = dirname(appPackage);
+  return appDir === "." ? "" : `${appDir}/`;
+}
+
 /** The kinds of a person's Environment an app's running code relies on. */
 export function environmentDependencies(source: string): string[] {
   return ENVIRONMENT_MARKERS.filter(([, pattern]) => pattern.test(source)).map(
@@ -460,7 +478,7 @@ function committedTree(moduleDirectory: string): TreeEntry[] | null {
 function committedSource(
   moduleDirectory: string,
   entries: readonly TreeEntry[],
-): { text: string; skipped: string[] } {
+): { files: Map<string, string>; skipped: string[] } {
   const picked: string[] = [];
   const skipped: string[] = [];
   let total = 0;
@@ -476,16 +494,16 @@ function committedSource(
     picked.push(entry.path);
     total += entry.size;
   }
-  if (picked.length === 0) return { text: "", skipped };
+  if (picked.length === 0) return { files: new Map(), skipped };
   const result = git(
     moduleDirectory,
     ["cat-file", "--batch"],
     picked.map((path) => `HEAD:./${path}\n`).join(""),
   );
   if (result.status !== 0 || !Buffer.isBuffer(result.stdout))
-    return { text: "", skipped: [...skipped, ...picked] };
+    return { files: new Map(), skipped: [...skipped, ...picked] };
   const out = result.stdout;
-  const parts: string[] = [];
+  const files = new Map<string, string>();
   let offset = 0;
   for (const path of picked) {
     const newline = out.indexOf(10, offset);
@@ -500,10 +518,10 @@ function committedSource(
       continue;
     }
     const size = Number(header[2]);
-    parts.push(out.subarray(offset, offset + size).toString("utf8"));
+    files.set(path, out.subarray(offset, offset + size).toString("utf8"));
     offset += size + 1;
   }
-  return { text: parts.join("\n"), skipped };
+  return { files, skipped };
 }
 
 export async function readReadinessInput(
@@ -578,24 +596,24 @@ export async function readReadinessInput(
   }
   // Source markers come only from committed regular files of the app's own
   // directory, read from Git's objects at HEAD.
-  const appDir = dirname(selected);
-  const prefix = appDir === "." ? "" : `${appDir}/`;
+  const prefix = appPrefix(selected);
   const appFiles = (files ?? []).filter(
     (entry) =>
       entry.path.startsWith(prefix) &&
       SOURCE.test(entry.path) &&
       !SKIPPED.test(entry.path),
   );
-  const { text: source, skipped: sourceSkipped } = committedSource(
+  // One read of the source; the code that runs is the part of it outside
+  // tests, fixtures, scripts, skills and docs.
+  const { files: sourceFiles, skipped: sourceSkipped } = committedSource(
     moduleDirectory,
     appFiles,
   );
-  const { text: runtimeSource } = committedSource(
-    moduleDirectory,
-    appFiles.filter(
-      (entry) => !NOT_RUNTIME.test(entry.path.slice(prefix.length)),
-    ),
-  );
+  const source = [...sourceFiles.values()].join("\n");
+  const runtimeSource = [...sourceFiles]
+    .filter(([path]) => !NOT_RUNTIME.test(path.slice(prefix.length)))
+    .map(([, text]) => text)
+    .join("\n");
   return Object.freeze({
     manifest,
     app: Object.freeze({
