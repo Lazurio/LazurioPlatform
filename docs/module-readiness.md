@@ -36,7 +36,7 @@ does not add a second standard, it names which of its rules decide readiness.
 
 | Verdict | Means |
 | --- | --- |
-| `no-application` | A Module without an app (V0): there is no Application. |
+| `no-application` | There is no Application: a Module without an app (V0), or a Module whose app is only a tool of the Environment (`"application": false` in `lazurio.module.json`); its tile opens STAGING. |
 | `not-ready` | A blocker: the Application cannot run from this Module. |
 | `ready-for-trial` | It can run as an Application, but live use still needs something (CI, contract tests), or the evidence could not be read (Git did not list the committed files). |
 | `ready-for-live` | Nothing found: people may do their real work in it. |
@@ -72,6 +72,27 @@ use, CI on the Module. A release tag is not a requirement of the Module: the
 rollout asks for the evidence the Organization's release mode needs.
 
 - **V0, no app.** Nothing to deploy; the verdict is `no-application`.
+- **Any generation, relying on a person's Environment.** An app whose code that
+  runs calls the person's
+  GitHub sign-in (`gh`), the Environment's Integrations (`executor`,
+  `composio`, `wacli`, `gogcli`), the person's files or Folder (the home
+  directory, `~/`) or the Organization's network (the tailnet, an
+  Environment's address such as `launchpad.<environment>.<organization>.lazurio.io`;
+  an Organization's own service address with fewer labels is none) gets the blocker
+  `environment-dependency`, naming those kinds: it has no PROD until it is
+  changed (Module Standard, A Module that relies on a person's Environment).
+  It is an obstacle to PROD, not a ban: the changed code passes. The code that
+  runs is every source file of the app outside tests, fixtures, scripts, skills
+  and docs, and every source file of the Module such code imports by a relative
+  path, transitively, inside the app directory or outside it: a directory's name
+  does not keep an imported file from running. Imported files share the
+  app's read bound of 4 MiB. An import that leaves the Module, names a committed
+  symlink or submodule (never followed), or reaches past the read bound makes
+  the dependency unknown, at blocker level (`source-incomplete`). Without Git
+  the dependency is unknown and blocks, a trial too (`source-incomplete`). A
+  static check reads markers in code, so a call it does not recognise passes
+  and the Module's review stays the evidence. `"application": false` turns the
+  verdict into `no-application`.
 - **V1, content is part of the app** (a reference app such as a design
   system). Usually a static build: the host condition `static-app` until the
   application host serves static Applications. An own server additionally
@@ -167,6 +188,8 @@ otherwise from its directory `app/v<N>/`. Without Git the committed files and
 the source markers are unknown, which it reports instead of passing them. Source is read up to 1 MiB per file
 and 4 MiB in total; a marker found counts, and a marker missing while some
 committed source was not read is reported as `source-incomplete`, never as
-absent. It keeps the level of what is unknown: a blocker when `appAccess` or the
-writer rule is unknown, live evidence when only the contract tests are. It
+absent. It keeps the level of what is unknown: a blocker when `appAccess`, the
+writer rule or a dependency on a person's Environment is unknown (the last one
+when a file of the code that runs was not read), live evidence when only the
+contract tests are. It
 does not read secrets, the vault, deployed hosts or GitHub.

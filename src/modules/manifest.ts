@@ -51,7 +51,7 @@ export function parseModuleManifest(input: unknown) {
   const value = object(
     input,
     ["schema_version", "id", "company", "tcp_port_policy", "port_leases"],
-    ["apps", "default_app"],
+    ["apps", "default_app", "application"],
   );
   if (value.schema_version !== "lazurio.module.v1")
     throw new Error("Unsupported module schema");
@@ -123,6 +123,16 @@ export function parseModuleManifest(input: unknown) {
     throw new Error("Default app requires explicit apps");
   if ((policy.mode === "none") !== (apps !== null && apps.length === 0))
     throw new Error("No-app and no-port policy mismatch");
+  // `application: false`: the Module's app is a tool of the Environment and
+  // never becomes an Application of the Organization (decision 0249, addendum
+  // of 2026-11-22). Only `false` is meaningful, and only for a Module with an
+  // app; without the field a Module with an app may become an Application.
+  if (Object.hasOwn(value, "application")) {
+    if (value.application !== false)
+      throw new Error("application may only be false");
+    if (apps === null || apps.length === 0)
+      throw new Error("application requires a declared app");
+  }
   return Object.freeze({
     schema_version: "lazurio.module.v1" as const,
     id,
@@ -136,6 +146,7 @@ export function parseModuleManifest(input: unknown) {
     port_leases: Object.freeze(leases),
     apps,
     default_app: defaultApp,
+    application: value.application !== false,
     app_declaration_state:
       apps === null ? ("legacy-missing" as const) : ("explicit" as const),
   });
