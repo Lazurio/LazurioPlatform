@@ -28,7 +28,7 @@ Platform). Every file is the root's byte for byte, except:
   `static_fallback: "spa"`), and their `README.md` says that the Launchpad
   opens them from `main` as their build.
 - **The stack profiles** (decision F69, `docs/stack-profiles.md`, release
-  2027.01): every Bun app pins its profile's exact tools (`@types/bun` is
+  2027.02): every Bun app pins its profile's exact tools (`@types/bun` is
   `{{bun_version}}`), `check` runs the tests too and CI runs only `check`,
   `biome.json` uses the recommended preset and leaves Markdown and YAML
   unformatted, the Astro `tsconfig.json` names `"types": ["bun"]` for

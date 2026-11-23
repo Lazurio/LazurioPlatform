@@ -2,7 +2,7 @@
 
 **Decided by Matěj (Operator) on 2026-11-03, decision
 [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
-Current release: `2027.01`.** A stack profile names the exact tools a kind of
+Current release: `2027.02`.** A stack profile names the exact tools a kind of
 Module is built with and why. A Module is born in one profile release, and its
 tools change only in one of two planned ways: a transition to the next App
 generation or a new release of its profile. Nothing else moves them, so a
@@ -66,7 +66,7 @@ Every profile builds on this base.
 | Bun: runtime, package manager, tests | `packageManager: "bun@1.4.4"` | The App's runtime ([Bun is the App's runtime](module-standard.md#bun-is-the-apps-runtime), F62). 1.4 brought `bun test --parallel`, `--changed` and `--isolate`. |
 | `@types/bun` | `1.4.4` | Always the pinned Bun's own version. |
 | `@biomejs/biome` | `2.6.4` | Lint and format with one tool and one configuration. |
-| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.5.0` | The one runtime library Modules share (`MS-10`): `appAccess`, who came and with which application role (0231), the writer rule (`dataWriter`), and the tools for agents with their test helpers (`/tools`, `/webmcp`, `/tools/testing`), which keep a production application from offering a publication ([Effects and publication](module-standard.md#effects-and-publication)). |
+| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.6.0` | The one runtime library Modules share (`MS-10`): `appAccess`, who came and with which application role (0231), the writer rule (`dataWriter`), and the tools for agents with their test helpers (`/tools`, `/webmcp`, `/tools/testing`), which offer a publication as a tool of its own with `destructiveHint`, in production too ([Effects and publication](module-standard.md#effects-and-publication)). |
 | Tests | `bun test`, built in | The tests run on the same runtime as the App and add no dependency. |
 | CI | the one Linux workflow of the standard ([CI](module-standard.md#ci)) | Unchanged. |
 
@@ -334,6 +334,15 @@ release.
 
 ### Earlier releases
 
+#### 2027.01
+
+Decided on 2026-11-22 (F69, addendum). Every table on this page holds for
+`2027.01` except one pin of the common base:
+
+| Tool | Exact pin in `2027.01` |
+| --- | --- |
+| `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.5.0` |
+
 #### 2026.12
 
 Decided on 2026-11-17 (F69, addendum). Every table on this page holds for
@@ -351,6 +360,50 @@ except one pin of the common base:
 | Tool | Exact pin in `2026.11` |
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` |
+
+## Release 2027.02
+
+One change, in the common base: `@lazurio/module-kit` moves from v0.5.0 to
+v0.6.0.
+
+- **Why.** The Owner settled decision D1 of LZD-0037 on 2026-11-22: "Publikuj"
+  is the person's command to the agent, not a mechanism the App checks. v0.6.0
+  follows it: a production application offers its publication tools
+  (`effect: "publish"`) on `/mcp` and on the page as a development version does.
+  Each stays a tool of its own with `destructiveHint: true` and passes the same
+  writer gate as a draft, so a read-only copy offers it to nobody
+  (`data_read_only`). Every audit line names the tool's `effect` beside
+  `subject` and `channel`, and `/tools/testing` gains `mcpTools`, the list with
+  annotations ([Effects and publication](module-standard.md#effects-and-publication)).
+- **What may change for a Module.** Nothing it imports stops compiling:
+  `AGENT_PUBLICATION_IN_PRODUCTION` stays, now `true` and deprecated. A test
+  that expected a publication to be missing in production now sees it listed,
+  and a consumer that matches audit events exactly sees the new field `effect`.
+  A Module whose publication must not be offered in production yet keeps its
+  0.5.0 pin.
+- **What an existing Module changes.** In its own pull request:
+  - a Bun app: its pin, `"@lazurio/module-kit": "github:Lazurio/module-kit#v0.6.0"`,
+    then `bun install` to refresh `bun.lock`, then `bun run check`;
+  - a Python app (`python-uv`): `tag = "v0.6.0"` of `lazurio-module-kit` in
+    `pyproject.toml`, then `uv lock --upgrade-package lazurio-module-kit`, then
+    `uv sync --frozen` and `bun run check` as its CI does.
+- **A template** adopts it in a release of its own, as every release.
+- **The name.** `2027.01` is taken, so it takes the next free month,
+  `2027.02` ([Releases](#releases)).
+
+## Verification of release 2027.02
+
+On 2026-11-23 on Linux x64 with Bun 1.4.4, the plans of `lazurio module create`
+(`planModuleScaffold` with this release's pins) were written out for
+`vite-react`, `vite-react --data`, `astro`, `astro-starlight`, `bun-service`
+and `python-uv`. Each Bun app installed `@lazurio/module-kit` 0.6.0 from its tag,
+and `bun install` and `bun run check` passed in each (type check, Biome and the
+tests; the data module also validated its empty seed). `bun run build` passed
+for the three static stacks. The `python-uv` plan, with its pinned uv 0.11.6,
+locked `lazurio-module-kit` from the tag v0.6.0 (commit `b3e34fe4`) into
+`uv.lock`, and `uv sync --frozen`, ruff, pyright and its pytest tests passed.
+Not verified: macOS and Windows, and the existing Modules and templates, which
+adopt the release in their own pull requests.
 
 ## Release 2027.01
 

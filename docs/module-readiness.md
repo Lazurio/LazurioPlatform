@@ -124,11 +124,13 @@ production too, and records who published and by which channel.
 
 What the module kit does today:
 
-- **`@lazurio/module-kit` 0.5.0** annotates every `effect: "publish"` with
-  `destructiveHint: true`, but still offers no publication on `/mcp` or the page
-  where `deployment()` is `production` (`AGENT_PUBLICATION_IN_PRODUCTION`). Until
-  a module-kit release follows the decision, a Module on 0.5.0 offers
-  publication in production only in its interface.
+- **`@lazurio/module-kit` 0.6.0** (stack profiles 2027.02) offers every
+  `effect: "publish"` on `/mcp` and the page in production too, annotated with
+  `destructiveHint: true`, behind the same writer gate as a draft.
+- **0.5.0** annotates it the same way but offers no publication on `/mcp` or
+  the page where `deployment()` is `production`
+  (`AGENT_PUBLICATION_IN_PRODUCTION`): a Module on 0.5.0 offers publication in
+  production only in its interface.
 - **0.4.x** offers a write that publishes data in production only when the tool
   names `publicationConsent`.
 

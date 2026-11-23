@@ -1091,7 +1091,7 @@ of [0171](decision-register.md#0171--lazurio-module-standard); plan LZD-0037).
 
 **Status.** The registry, both transports and the test helpers are in
 `@lazurio/module-kit/tools`, `/tools/testing` and `/webmcp` of module-kit
-v0.4.0 and later; the stack profiles pin v0.5.0 from release 2027.01. The Application host's gateway admits `/mcp` today (Machines
+v0.4.0 and later; the stack profiles pin v0.6.0 from release 2027.02. The Application host's gateway admits `/mcp` today (Machines
 v0.12.244 and later states the scope, below). Apps offers an Application's MCP server where the account says it has one
 and Apps' probe finds its host admitting MCP sign-in: its tile's menu
 "Připojit k agentům" opens Integrations → Custom filled in, and the person
@@ -1228,10 +1228,10 @@ The App does not have to recognise it. An Application may offer publication
 tools to agents in production too, and an agent calls one on the person's word.
 The tool stays a tool of its own with `destructiveHint`, and the App records who
 published and by which channel. Draft tools are offered as soon as the App
-writes in that place. `@lazurio/module-kit` 0.5.0 still offers no publication
-tool in a production application (`AGENT_PUBLICATION_IN_PRODUCTION`), so until a
-module-kit release follows this decision, a Module on 0.5.0 offers publication
-there only in its interface.
+writes in that place. `@lazurio/module-kit` 0.6.0 (stack profiles 2027.02)
+offers publication tools in a production application too. A Module still on
+0.5.0 offers no publication tool there (`AGENT_PUBLICATION_IN_PRODUCTION`), only
+in its interface.
 
 A write is offered only while the App may write, and the tools, the HTTP API
 and the data port decide it by one rule (`dataWriter` of
