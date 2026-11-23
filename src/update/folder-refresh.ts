@@ -68,7 +68,27 @@ export type FolderRefreshInput = Readonly<{
   run?: ProcessRunner | undefined;
   timeoutMs?: number | undefined;
   retry?: Readonly<{ attempts: number; delayMs: number }> | undefined;
+  /** Run each command as a transient systemd user unit (`systemd-run --user
+   * --wait --pipe`) instead of this process's child, so that it outlives
+   * whatever ends this process: an agent's tool call, a closed session, a
+   * caller's limit (#1205). Only on a supervised Linux base. */
+  detach?: boolean | undefined;
 }>;
+
+/** A transient user unit that runs the command to its end even when this
+ * process is gone, passes its output and exit status back while this process
+ * waits, and is removed after it ends. Killing this process's child stops
+ * only the waiting, never the command. */
+export const detachedPrefix = Object.freeze([
+  "systemd-run",
+  "--user",
+  "--quiet",
+  "--no-ask-password",
+  "--collect",
+  "--wait",
+  "--pipe",
+  "--",
+]);
 
 /** A refresh that did not complete, by how it failed. */
 export const failedRefresh = (reason: string): FolderRefreshOutcome =>
@@ -256,7 +276,11 @@ function boundedRun(input: FolderRefreshInput) {
   };
   return (command: readonly string[]) =>
     run(
-      [layout(input.base).selector, ...command],
+      [
+        ...(input.detach === true ? detachedPrefix : []),
+        layout(input.base).selector,
+        ...command,
+      ],
       input.timeoutMs ?? refreshTimeoutMs,
       serviceEnvironment(input.env),
       killOutsideChange,

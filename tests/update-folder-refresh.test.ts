@@ -27,6 +27,7 @@ import { updateProfile } from "../src/folder/update-profile";
 import { initializeMachineFolder } from "../src/machine/cli";
 import { type CliContext, runUpdateCommand } from "../src/update/cli";
 import {
+  detachedPrefix,
   refreshFolderWhenBehind,
   resumePreparedTransaction,
 } from "../src/update/folder-refresh";
@@ -999,5 +1000,52 @@ test.skipIf(process.platform === "win32")(
     });
     expect(kept).toBe(true);
     expect(kills).toBe(0);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "on a supervised base the refresh and the recovery run as a transient unit that outlives the caller",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    await expect(
+      updateProfile(folder, 1, { profile }, async (step) => {
+        if (step === "prepared") throw new Error("cut off");
+      }),
+    ).rejects.toThrow("cut off");
+    const argvs: (readonly string[])[] = [];
+    const inner = refreshRunner(base);
+    const run: ProcessRunner = async (argv, timeoutMs, env, onTimeout) => {
+      argvs.push(argv);
+      // What the unit runs: the command after the prefix.
+      return inner.run(
+        argv.slice(detachedPrefix.length),
+        timeoutMs,
+        env,
+        onTimeout,
+      );
+    };
+    expect(
+      await refreshFolderWhenBehind({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        run,
+        detach: true,
+        retry: { attempts: 1, delayMs: 0 },
+      }),
+    ).toEqual({ state: "refreshed" });
+    expect(argvs.length).toBeGreaterThan(0);
+    for (const argv of argvs) {
+      expect(argv.slice(0, detachedPrefix.length)).toEqual([...detachedPrefix]);
+      expect(argv[detachedPrefix.length]).toBe(layout(base).selector);
+    }
+    expect(
+      argvs[0]?.slice(detachedPrefix.length + 1, detachedPrefix.length + 2),
+    ).toEqual(["profile-resume"]);
   },
 );
