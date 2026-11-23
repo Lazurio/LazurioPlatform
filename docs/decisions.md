@@ -26275,8 +26275,27 @@ when that name is already taken, the release takes the first later month whose n
 is still free, so every `<profile>@YYYY.MM` names one release and names grow with
 every release. Decided in November 2026, whose `2026.11` is taken, this release is
 `2026.12`; a release decided in December 2026 after it would be `2027.01`.
-The tables of `2026.11` stay in [stack-profiles.md](stack-profiles.md#2026-11). This
+The tables of `2026.11` stay in [stack-profiles.md](stack-profiles.md#202611). This
 replaces the v0.3.0 bump that #919 asked for.
+
+**Addendum: release 2027.01 (2026-11-22; approved by the coordinating agent APLIKACE ORGANIZACE under the Operator's mandate, to be confirmed by the Operator).**
+The common base pins `@lazurio/module-kit` v0.5.0 instead of v0.4.0:
+- v0.4.1 makes the writer rule hold in a runtime that states production
+  (Lazurio/module-kit#9);
+- v0.5.0 declares a publication as `effect: "publish"` and offers no publication
+  tool in a production application until the Owner decides how the App knows
+  the person's "Publikuj" (decision D1 of LZD-0037), so the library keeps that
+  rule of the Module Standard;
+- v0.5.0 refuses a publication declared the 0.4 way (`publishesData`,
+  `publicationConsent`); a Module that relies on it keeps its 0.4.x pin until
+  that decision.
+
+`lazurio module create` follows: `stackProfilesRelease` `2027.01` and
+`defaultScaffoldVersions.moduleKit` `0.5.0`. An existing Module changes its pin
+and its lockfile in its own pull request, and a template adopts the release in a
+release of its own. Decided in November 2026, whose `2026.11` and `2026.12` are
+taken, this release is `2027.01`. The table of `2026.12` stays in
+[stack-profiles.md](stack-profiles.md#202612).
 
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
