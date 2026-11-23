@@ -10,9 +10,10 @@ This repository is the standard's authority. The Lazurio Root (GEN3) converges o
 it, as on every mechanism of the Folder (decision
 [0219](decision-register.md#0219--the-lazurio-root-and-the-lazurio-folder-converge-on-the-folders-mechanisms-gen3-and-gen4-are-orientation-terms)).
 
-**How a requirement is enforced.** No command of the Platform checks a Module
-against the whole standard yet (#423); `lazurio module readiness` checks
-statically what decides whether a Module is ready as an Application (`MS-19`).
+**How a requirement is enforced.** A Module has one check, `lazurio module
+readiness` (decision 0249, addendum of 2026-11-22). Today it checks statically
+what decides whether a Module is ready as an Application (`MS-19`), not yet the
+whole standard (#423); it grows there, and no second command is added.
 The Platform enforces a requirement where
 its readers or its start path refuse a declaration; the requirements list below
 names the source file for each. A requirement marked **rule only** has no check
@@ -50,8 +51,14 @@ request what it could not verify.
   their Lazurio account, without the source code: the released App of a Module on
   the Organization's application host (decision 0249). Texts for people say only
   Module and Application.
-- **Development version**: the App a Module runs from `main` in an Environment,
-  for the people who build it and their agents.
+- **DEV, STAGING, PROD**: the three versions of one Module's app (decision 0249,
+  addendum of 2026-11-22). **DEV** is a worktree's development server on a
+  loopback address in the Environment browser, one agent's change in progress;
+  its writes stay local. **STAGING** is the built version from `main` in an
+  Environment, opened from the ⋯ menu of the Module's tile. Both work on their
+  Environment's branch of the data. **PROD**
+  is the Application on the application host, opened by clicking the tile.
+  Earlier texts call STAGING the development version.
 - **Generation**: where a Module's data are, V0 to V4 ([App generations](#app-generations)).
 
 ## Where a Module lives
@@ -113,6 +120,7 @@ and manifests (`guests`, `home_organization`, `repository_db_mount`) keep their 
 | `biome.json` | lint and format, in the App or at the Module root | each App |
 | `README.md`, `AGENTS.md` | what the Module does and how to develop it; the rules for agents | always |
 | `.github/workflows/` | the Module's CI | always |
+| `.agents/skills/` | the Module's own procedures for agents, those that relate to this Module; a person who has only the Application gets them through its MCP server (decision 0249, addendum of 2026-11-22) | when the Module has such procedures |
 | `db/` | the Module's repository-db data, a checkout of its own, ignored by the Module's Git | a Module with data |
 
 An App never lives at the Module root. A Module without an App has
@@ -557,9 +565,8 @@ sign-in.
 **Status: available** with `@lazurio/module-kit` 0.3.0 (released 2026-11-06) on an
 Environment whose gateway states the person and the entry (Machines v0.12.233
 and later). Behind an older gateway a request through it reads `unknown`, which
-grants no role. The stack profiles still pin module-kit 0.2.0
-([stack profiles](stack-profiles.md)); an App adopts 0.3.0 with the profile
-release that moves the pin.
+grants no role. The stack profiles pin module-kit 0.4.0 from release 2026.12
+([stack profiles](stack-profiles.md)), so an App on a current profile has it.
 
 **How an App reads it.** Only through `@lazurio/module-kit`:
 `appAccess(request, "<listener>")` (Python: `app_access`). Its answer is the
@@ -752,35 +759,71 @@ ready as one (decision 0249, [A Module ready as an Application](module-readiness
 the released, built App on the Organization's application host at
 `https://<module>.<org>.lazurio.app`. People open it with their Lazurio account and
 an Application User or Application Admin role, without an Environment, tailnet
-access or source code; use the verified deployment output for an actual link. The
-App a Module runs from `main` in an Environment is the Application's **development
-version**: the state of `main`, for the people who build the Module and their
-agents, not necessarily the version people have. Read-only Applications (`app/v1`,
-`app/v2`) are Applications too; their content changes only in the Module.
+access or source code; use the verified deployment output for an actual link.
+Every Module with an app is an Application on the application host by default,
+whatever its generation (V1 to V4); a V0 Module has none (decision 0249, addendum
+of 2026-11-22). Read-only Applications (`app/v1`, `app/v2`) are Applications too;
+their content changes only in the Module.
+
+One Module's app comes in three versions:
+
+- **PROD** is the Application. Clicking the Module's tile opens it, when Lazurio
+  Auth gives the person a role in it.
+- **STAGING** is the built version from `main` in an Environment, for the people
+  who build the Module and their agents, not necessarily the version people have.
+  It is opened from the ⋯ menu of the tile, and it runs the build, not a
+  development server. It writes to its Environment's branch of the data.
+- **DEV** is a worktree's development server on a loopback address in the
+  Environment browser: one agent's change in progress, on its Environment's
+  branch of the data, with writes that stay local.
+
+DEV and STAGING have a blue frame with a label, "DEV" or "STAGING", drawn by
+Buddy's overlay; PROD has neither, and Buddy is available in all three, in PROD
+through the overlay the application host's gateway adds (decisions 0180, 0248).
+A shared Environment's frame is blue too, and its label says it is shared: the
+label tells them apart, not the colour. Another person's Environment stays red.
+
+**Which Modules are Applications.** The application host derives them from the
+Organization's module manifest: a Module with an app in the manifest that passes
+`lazurio module readiness` and has passing checks on `main` is deployed by
+itself, and the Organization Admin may stop it. No hand-written entry lists the
+Applications; the Deployment Repo keeps only secrets, the server's services,
+switching an Application off, the release step and the host's capacity.
+Becoming an Application is no conversion of its own: it happens with the
+conversion to a new generation (decision 0249, addendum of 2026-11-22).
 
 **Who enters.** Whoever has the Module enters its Application: a Module Reader as
 an Application User, a Module Contributor and a Module Maintainer as an Application
 Admin, by the Module roles Lazurio holds (reading a public repository is no Module
 Reader role). Roles given in the Application to a person, a Team or the whole
-Organization add to that, and the higher role holds. For one Application the
+Organization add to that, and the higher role holds. No Application admits the
+whole Organization by default, a read-only one included: the Organization Admin
+sets who sees which Application in the Organization overview (decision 0249,
+addendum of 2026-11-22). Once a Module has its Application, its STAGING is no
+longer shared with people from other Environments. For one Application the
 Organization Admin may switch the entry through the Module off ("application roles
-only"); then only roles given in the Application decide. Access to an Application
+only"); then only roles given in the Application decide, and the Organization
+Admin gives them. Access to an Application
 never gives access to the Module. The App itself learns only the application role,
 through `appAccess`; how the role was derived is Lazurio Auth's (decisions 0231,
 0249). Until Auth itself holds the Module roles, a person enters the Application only
-through a role given in it or the Organization Admin role; having the whole of an
-Environment makes someone Application Admin only of the development version
-running there, never of the Application on the application host.
+through a role given in it or the Organization Admin role, so clicking the tile
+opens PROD only for them; Auth counts Module roles for no Organization yet
+(Auth#128, Auth#131); having the whole of an
+Environment makes someone Application Admin only of the STAGING running there,
+never of the Application on the application host.
 
-**A new version.** By default every merge to `main` is deployed; an Organization
-may instead require a release approved on GitHub, with a version number and
-release notes (decision 0249). Every rollout keeps its Plan, Permit, readback and
-evidence for the exact commit (decision 0205). Who approves a release, the
-safeguards of an automatic deployment and where the mode is recorded are open in
-0249; its proposal is green checks on the merged commit, a backup of the data
-before the switch, the new version started beside the running one and switched
-to only when its health is good, and the mode with its approvers in the
-Deployment Repo (decision 0245). A Module is built so that this works: one
+**A new version.** By default what is on `main` goes to PROD by itself, with
+passing checks on the merged commit, a backup of the data before the switch, and
+a return to the previous version when the new one does not start. A release step
+between STAGING and PROD, a release approved on GitHub with a version number and
+release notes, is a setting of the single Module, whatever its generation. It
+never lives in the Module's repository, where anyone who merges into the Module
+could switch it off. Where it is on, the Module Maintainer releases, unless an
+Owner names someone else for that Module (decision 0249, addendum of
+2026-11-22). Who switches the step on, where it is recorded and what enforces
+that are open; Matěj's view is that the Owners of the Organization set it. Every rollout keeps its Plan,
+Permit, readback and evidence for the exact commit (decision 0205). A Module is built so that this works: one
 process, deep health, and in `app/v4` migrations that only expand. While the
 two versions share the same data, only one of them writes. In the host's
 proposal (Machines#1356) the first slice, R1, stops the old version and then
@@ -803,6 +846,13 @@ fonts or links, not for its siblings' data or APIs, and not for a service it
 calls. The application host reaches what the App needs, and the person reaches
 only `https://<module>.<org>.lazurio.app`.
 
+**Memory.** An Application is frugal: it gets a smaller memory reserve on the
+application host than today's 512 MiB, and the Module's CI enforces a memory
+ceiling on the built App started with representative data under a burst of
+requests. An App that does not fit under the ceiling does not pass until agents
+make it leaner (decision 0249, addendum of 2026-11-22). The ceiling's value is
+set by measurement and is not set yet.
+
 **The runtime contract** still holds: built output, one server process, listener
 host and port from `LAZURIO_RUNTIME_LISTENER_<ID>_HOST` and `_PORT`, direct 200
 health that answers 503 until the App's data are open, and secrets declared by name
@@ -811,36 +861,50 @@ values in Git or requests. The App enforces Application User and Application Adm
 permissions on every server request through `appAccess` of `@lazurio/module-kit`;
 unknown identity or a missing role grants nothing.
 
-**The Application is the sole writer of its data.** On the application host the
+**The Application is the sole writer of its production data.** On the application host the
 App always gets `LAZURIO_RUNTIME_DATA_WRITER`: with `true` it writes; with `false`
 or any other value it neither writes, pulls nor publishes, by the one rule
 `dataWriter` of
 [Effects and publication](#effects-and-publication).
 
-**Open: when an App may write without the variable** (decided by the Owner; until
-then Modules keep what they do today and nothing builds on either variant). In an
-Environment the Platform passes no `LAZURIO_RUNTIME_DATA_WRITER`, people still
-write there until the Module's writer moves, and the runtime does not yet state
-where the App runs (#1041, #1034). Two variants:
+**Writing without the variable** (decided, decision 0249, addendum of
+2026-11-22). Only the Application writes production data: people in PROD,
+agents through its MCP server; STAGING and DEV write their Environment's own
+branch. Until the Module Maintainer switches its writing over, a Module keeps
+writing in the Environment as today, also while its Application runs as a trial
+with `data.writer: false`. Until then a
+missing `LAZURIO_RUNTIME_DATA_WRITER` means STAGING or DEV in an Environment: only
+the entries `local` and `environment` write, and so does the data sync host
+itself (at start, in the background and after their requests); a request from
+the entry `app` (a person who has only the application) only reads and syncs
+nothing, and its write is refused. A runtime that states
+`LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes without `true`.
+`dataWriter` of `@lazurio/module-kit` 0.4.1 and later decides exactly this.
 
-- **A, transitional (recommended):** a missing variable means the development
-  version in an Environment. Only the entries `local` and `environment` write,
-  and so does the data sync host itself (at start, in the background and after
-  their requests); a request from the entry `app` (a person who has only the
-  application) only reads and syncs nothing, and its write is refused. A runtime
-  that states `LAZURIO_RUNTIME_DEPLOYMENT=production` (#1041) never writes
-  without `true`, with or without the writer variable.
-- **B, fail-closed:** a missing variable means no write. Before a development
-  version writes again, the Platform has to pass `LAZURIO_RUNTIME_DATA_WRITER=true`
-  on the Environment that is the writer (#1034); until then work in Environments
-  stops writing.
+**Switching the writing over.** The Module Maintainer switches a Module's writing
+from the Environment to its Application in one deliberate step, with a backup of
+the data, once `lazurio module readiness` says the Module is ready; the
+Organization Admin may do it too. With repository-db the application host is
+then the sole sync host for the declared data repository. Until the switch the
+Application runs as a trial with `data.writer: false`. A second writer is never
+a trial.
 
-A keeps people working until the writer moves, and B is stricter but stops
-writing in every Environment until #1034 ships. With
-repository-db the application host is then the sole sync host for the declared
-data repository, and development versions use preview data. Moving the writer
-names the old and new writer and its approved steps; until then the Application
-runs as a trial with `data.writer: false`. A second writer is never a trial.
+**Every Environment's own branch of the data** (a branch of the data repository
+in `app/v3`, a branch in Dolt in `app/v4`), by three rules:
+
+- only the Application writes to the production branch;
+- an Environment's branch is created when STAGING is first opened and takes
+  changes only from production. Until someone writes to it, it keeps itself
+  current; after the first trial write it offers a comparison with production.
+  A new version runs its migrations there, so STAGING shows a new shape of the
+  data before PROD has it, also where the release step keeps PROD behind;
+- from an Environment's branch to production leads only a proposal that the
+  Application takes over; a bulk import goes that way too.
+
+In `app/v4` only someone who has the Module gets a branch, and for an
+Application with personal data the Organization Admin may switch the branches
+off. How an Environment's branch is created, kept current and proposed to
+production is not built yet (repository-db, Dolt).
 
 **Siblings.** An Application reads from a sibling's data (`workspace/<slug>/db`)
 only the contract the sibling documents with a version, never its internal files,
@@ -868,7 +932,7 @@ replica stays readable, as [Siblings](#siblings) allows. Until then, and
 on a host with an older Machines release, Applications still on the shared
 account can read each other's environment and service credentials, and the
 whole application host remains the trust boundary. An App decides by whether the service's variables are present, never by
-the name of the place it runs in: a development version without them may use a
+the name of the place it runs in: STAGING or DEV without them may use a
 local substitute (for printing, the Environment's browser), and an Application
 without a granted service answers a typed refusal (for printing,
 `pdf_unavailable`), never an empty or substitute result. Printing is a read: it
@@ -883,14 +947,14 @@ and a missing application role through the real gateway. A fixed shared token is
 not a substitute for Lazurio sign-in. Buddy's bubble appears in an Application only
 for a person who has Buddy (decision 0180 as amended by 0249); Buddy is then one
 more client of the same tools, through the Application's MCP server connected in
-the person's Work Environment or the development version's page tools there, and
-never gets more than the person's role. How the bubble gets onto an Application
-is open in 0249 (proposed: the application host's gateway adds it, so a Module
-would carry no code for it); until it is decided, the standard asks nothing of a
-Module for the bubble.
+the person's Work Environment or STAGING's page tools there, and
+never gets more than the person's role. The application host's gateway adds
+the overlay with the bubble to an Application (decision 0249, addendum of
+2026-11-22), so the standard asks nothing of a Module for the bubble.
 
 The generated `manual/admin.md` describes the Organization Admin's part (the
-release mode, the entry switch, roles, verification); `admin-request` gives
+entry switch, roles, verification); the release step is the Organization Owners'
+setting (above); `admin-request` gives
 everyone else one request in the Organization's root repository. Check the
 Organization's deployed pipeline and evidence before describing this delivery path
 as available.
@@ -1032,7 +1096,9 @@ cases when it needs them; a `vite-react` or
 
 - **Which Apps.** Every App with an interface where people do something:
   create, edit, search, assign, prepare, approve. A website or a knowledge base
-  that people only read (`astro`, `astro-starlight`) needs none; a service
+  that people only read (`astro`, `astro-starlight`) needs none in the Module:
+  the application host itself offers search and reading of its pages to agents
+  (decision 0249, addendum of 2026-11-22; not built yet); a service
   without an interface (`bun-service`) offers its tools through `/mcp` only.
 - **Which tools.** The actions a person does most and the ones an agent is
   asked to do: find a record, read it, fill or change it, prepare a document,
@@ -1098,7 +1164,7 @@ and whether its answer carries text other people wrote (`untrustedContent`).
   every call. When Lazurio did not say who came (`entry: unknown`) the App
   answers `403` `identity_unavailable` before any MCP processing; the gateway
   already sent an unauthenticated `/mcp` call a `401`. A local entry (`entry:
-  local`, an Application Admin without a name, in a development version in an
+  local`, an Application Admin without a name, in STAGING or DEV in an
   Environment) is a valid caller on both transports. The App never sees the Bearer token and
   cannot tell an MCP call from a browser call: both come as `entry: app` (or
   `environment`) with `source: gateway`, so the registry records the channel
@@ -1129,8 +1195,9 @@ the rule of draft and publication: irreversible changes only after an explicit
 - **A publication** is an irreversible step or one that others see: an approval,
   a signature, a sending, a deletion, a movement of money, the publication of a
   draft or a data change to everyone (one commit and push in repository-db,
-  `DOLT_COMMIT` in a database). An agent calls a publication tool only after the
-  person's explicit "Publikuj" for that step. This is the rule of Publication
+  `DOLT_COMMIT` in a database). An agent calls a publication tool on the
+  person's "Publikuj" for that step: the person's command to the agent, not a
+  mechanism the App checks (below). This is the rule of Publication
   ([Data](#boundaries-and-dependencies)) that holds for everything else.
 
 Every publication is a tool of its own, never a mode of a draft tool. It carries
@@ -1141,34 +1208,32 @@ channel"). A publication tool goes through the same writer gate as a draft: it
 is not offered in a read-only copy, and the data port refuses it there too
 (`MS-18`).
 
-**Open, Matěj's decision:** how the App knows that the person said "Publikuj".
-- **Variant A:** the agent's rule (Lazurio's rules of Publication) and the tool's
-  annotation decide. The App records the path and the agent's statement.
-  Executor's approval of a tool annotated `destructiveHint` returns the pause to
-  the agent by default, not to the person
-  ([Integrations](integrations.md#approvals)), so A rests on the agent alone.
-- **Variant B:** the App asks the person itself. The publication tool answers a
-  pending publication that the person confirms in the App's interface or in an
-  MCP elicitation, and only the confirmation publishes.
-
-Until it is decided, an Application offers no publication tool. A development
-version may, on its own data. Draft tools are offered as soon as the App writes
-in that place.
+**"Publikuj" is an agreement, not a mechanism** (decided, decision D1 of
+LZD-0037 as Matěj settled it on 2026-11-22; decision 0249, addendum of
+2026-11-22): "Publikuj" is the person's command to the agent to send the changes.
+The App does not have to recognise it. An Application may offer publication
+tools to agents in production too, and an agent calls one on the person's word.
+The tool stays a tool of its own with `destructiveHint`, and the App records who
+published and by which channel. Draft tools are offered as soon as the App
+writes in that place. `@lazurio/module-kit` 0.5.0 still offers no publication
+tool in a production application (`AGENT_PUBLICATION_IN_PRODUCTION`), so until a
+module-kit release follows this decision, a Module on 0.5.0 offers publication
+there only in its interface.
 
 A write is offered only while the App may write, and the tools, the HTTP API
 and the data port decide it by one rule (`dataWriter` of
 `@lazurio/module-kit/tools`): `LAZURIO_RUNTIME_DATA_WRITER=true` writes and any
 other value does not (an Application host always sets it, `true` or `false`);
-what it does without the variable is open (variant A: only a local or
-Environment entry and the data sync host write, to the Environment's own data;
-variant B: nothing writes); see
+without the variable only a local or Environment entry and the data sync host
+write, to the Environment's own data, until the Module is switched over to its
+Application (decided, decision 0249, addendum of 2026-11-22); see
 [Applications of an Organization](#applications-of-an-organization).
 
 ### What every App answers
 
 - **`get_app_context`.** Every registry answers it: module, App version, data
   generation (`v3`, `v4`…), `production` (the Application on the
-  application host) or `environment` (a development version in an Environment),
+  application host) or `environment` (STAGING or DEV in an Environment),
   entry, application role, person and whether the caller may change data now.
   An agent checks it before it changes anything, so it knows whether it works
   with real data or with a development copy. Until the runtime states the
@@ -1217,20 +1282,29 @@ the list per role, the refusal without a role, the read-only mode and
 rollout checks `401` without a token and the refusal of a wrong audience or a
 missing role through the real gateway.
 
-### The Application and its development version
+### The Application, STAGING and DEV
 
 - **The Application** (`<module>.<org>.lazurio.app`) holds the real data.
   Agents work with it only through its MCP server or its page, by the role of
   the person who connected; never by a copy of its data or a direct
   connection to its database.
-- **The development version in an Environment** runs from the Module's checkout with
-  preview data (repository-db checkout or a local database seeded by the
-  Module). Agents use it to develop and test: its `/mcp` on the loopback
-  address and its page tools answer as `entry: local`, an Application Admin
-  without a name, and `get_app_context` says `environment`. It is not an
-  Integration and is never connected as one.
+- **STAGING and DEV in an Environment** run from the Module's checkout and a
+  worktree. Until the Module Maintainer switches the Module's writing over to
+  the Application, STAGING writes as today; after that both work on their
+  Environment's own branch of the data
+  ([Applications of an Organization](#applications-of-an-organization)). Agents use
+  them to develop and test: their `/mcp` on the loopback address and their page
+  tools answer as `entry: local`, an Application Admin without a name, and
+  `get_app_context` says `environment`. Neither is an Integration and neither
+  is ever connected as one.
 
 ### Connecting the App in a colleague's Environment
+
+**One connection per Organization** (decision 0249, addendum of 2026-11-22; not
+built yet). A person connects an Organization once and signs in once; the agent
+then sees the tools of every Application of that Organization the person may
+use, and a new Application appears by itself. Until that exists, and alongside
+it afterwards, each Application keeps its own MCP address:
 
 The person adds the App's MCP server (`https://<module>.<org>.lazurio.app/mcp`)
 in their Environment under Integrations; Executor registers itself as the MCP
@@ -1250,8 +1324,7 @@ The App's tests check the names, input schemas and annotations of its tools,
 the list per role and writer mode, that each tool calls the same domain
 operation as its button, the refusals above, that every publication is a tool
 of its own with `destructiveHint` that records who published and by which path,
-and that an Application offers no publication tool until the decision above, on
-both transports. Modules that exist converge in a pull request of their own.
+on both transports. Modules that exist converge in a pull request of their own.
 
 ## App generations
 
@@ -1489,13 +1562,14 @@ Repository-db's single writer or a Git conflict keeps the concurrent cases in
 
 **Direct writes beside the App.** An Application is the only
 writer of its data ([Applications](#applications-of-an-organization)).
-In a development version in an Environment agents may change its data directly, for
-a bulk import or a clean-up, with `repository-db origin --kind agent` and only
+Until a Module is switched over to its Application, agents may change its data
+directly in STAGING in an Environment, for a bulk import or a clean-up, with `repository-db origin --kind agent` and only
 on the person's word; they store a new revision with every change, and the
-port refuses a stale save instead of overwriting it. Whether agents may also
-write an Application's data directly, in `app/v3` or `app/v4`, is an
-open decision (LZD-0037); until it is decided they change production data
-only through the App's interface and tools. The database's access contract for
+port refuses a stale save instead of overwriting it. Agents never write an
+Application's production data directly, in `app/v3` or `app/v4`: they change
+them through the Application's MCP server, and in bulk by a proposal from their
+Environment's branch that the Application takes over (decision 0249, addendum of
+2026-11-22, which replaces the decision of 2026-11-14 on direct writes). The database's access contract for
 an Organization's App is proposed in Machines#1350.
 
 **Moving a Module from `app/v3` to `app/v4`**, as a generation transition:
@@ -1656,10 +1730,10 @@ of the Platform is an issue in this repository, without Organization content.
 | `MS-13` | The `check` and `test` scripts exist; `check` runs the tests, in an App with data `validate:data` as well, and the Module's CI runs `check` | Rule only. `lazurio module create` writes them, with `--data` the validation of the data too (`tests/module-scaffold.test.ts`) |
 | `MS-14` | CI saves minutes: a workflow with a Windows or macOS job runs only for `pull_request` with non-empty `paths` and on `workflow_dispatch` | Rule only |
 | `MS-15` | An App with an interface for people registers its tools as WebMCP tools through `registerAgentTools`, from the same server registry as `/mcp`; view tools of the page never change data; each tool is a read, a preparation, a draft or a publication, and every publication is a tool of its own with `destructiveHint` that records who published and by which path ([Tools for agents](#tools-for-agents-mcp-and-webmcp), [Effects and publication](#effects-and-publication)) | Rule only |
-| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and an Application offers no publication tool until the Owner decides how the App knows the person's "Publikuj" (LZD-0037, D1) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
+| `MS-16` | An App's tools are defined once on its server and offered through `/mcp` and the page over the same handler; both read who came only through `appAccess`, list only what the role and the writer mode allow, and a publication is a tool of its own with `destructiveHint` that an agent calls on the person's "Publikuj" (LZD-0037, D1) ([One registry, two transports](#one-registry-two-transports), [Effects and publication](#effects-and-publication)) | Rule only |
 | `MS-17` | Every tool registry answers `get_app_context` and refuses with the common reasons (`identity_unavailable`, `forbidden`, `unknown_tool`, `invalid_input`, `not_found`, `record_changed` with `current_revision`, `data_read_only`, `unavailable`, `internal_error`) ([What every App answers](#what-every-app-answers)) | Rule only |
 | `MS-18` | Tools, HTTP API and interface reach the data only through the domain port `store.ts`, which decides writes by the same `dataWriter` rule as the tools, whose revision is unique per write (never content alone, never a counter) and whose implementations pass one `store-contract` including A → B → A ([One data port](#one-data-port-under-the-tools-from-appv3-to-appv4)) | Rule only |
-| `MS-19` | A Module with an app is ready as an Application before it is deployed as one: a built version, Bun pinned exactly with a committed lockfile, no committed `.env*` file anywhere in the Module (`.env.example` excepted), and for an own server `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and a health path of its own; in V3 and V4 the writer rule; for live use CI and contract tests over the module kit's testing helpers. The release evidence the Organization's release mode needs is the rollout's | `lazurio module readiness` (`src/modules/readiness.ts`, `tests/module-readiness.test.ts`) reads it statically; the contract tests run in the Module's CI |
+| `MS-19` | A Module with an app is ready as an Application before it is deployed as one: a built version, Bun pinned exactly with a committed lockfile, no committed `.env*` file anywhere in the Module (`.env.example` excepted), and for an own server `@lazurio/module-kit` 0.3.0 or newer, `appAccess` on every request and a health path of its own; in V3 and V4 the writer rule; for live use CI and contract tests over the module kit's testing helpers, and in CI the memory ceiling of an own server once its value is set ([Memory](#applications-of-an-organization)). The release evidence the Organization's release mode needs is the rollout's | `lazurio module readiness` (`src/modules/readiness.ts`, `tests/module-readiness.test.ts`) reads it statically; the contract tests run in the Module's CI |
 
 ## GEN3
 

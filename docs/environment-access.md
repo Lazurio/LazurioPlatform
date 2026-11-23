@@ -338,23 +338,28 @@ Application User (the module kit's `appRole` `admin` and `user`).
 
 - **An application** is the Application of [decision 0249](decision-register.md#0249--module-and-application-two-terms-for-people-every-module-with-an-app-becomes-an-application-and-its-development-version-stays-in-the-environment):
   the released version of a Module at `https://<application>.<organization>.lazurio.app`
-  (decision 0239). The app a Module runs from `main` of the primary checkout on an
-  Environment (decision 0195) is its development version; a worktree's development
-  server is neither.
+  (decision 0239), PROD in the terms of 0249's addendum of 2026-11-22. The app a
+  Module runs from `main` of the primary checkout on an Environment (decision 0195)
+  is its STAGING (earlier texts: development version), and a worktree's development
+  server is its DEV.
 - **Roles hold across Environments.** An application role holds for the Module in the
-  Application and in its development version on every Environment of the
-  Organization. Application Admins without any setting are the Organization Admin
-  and, in a development version, whoever has the whole Environment where it runs.
+  Application and in its STAGING on every Environment of the Organization.
+  Application Admins without any setting are the Organization Admin and, in
+  STAGING, whoever has the whole Environment where it runs.
   Whoever has the Module also has the application (decision 0249): a Module Reader is
   an Application User, a Module Contributor or Module Maintainer an Application Admin,
   unless the Organization Admin switched that automatic entry off for the
   application. Module Contributors, Module Maintainers and the Organization Admin
   give the role of Application Admin or Application User to people, a Team or the
   whole Organization; the higher role holds, and the Organization Admin may remove
-  any. Access to an application never gives access to its Module.
-- **Availability.** The person on whose Environment the development version runs
-  may make it available to the Organization, as before; whether this sharing ends
-  once the Module has its Application is open in decision 0249. People with an active membership of the
+  any. Where the Organization Admin has switched the entry through the Module off
+  for an application, only the Organization Admin gives its roles. No application admits the whole Organization by default, a read-only one
+  included (0249, addendum of 2026-11-22). Access to an application never gives
+  access to its Module.
+- **Availability.** The person on whose Environment STAGING runs
+  may make it available to the Organization, as before, until the Module has its
+  Application; from then on STAGING is no longer shared with people from other
+  Environments (decision 0249, addendum of 2026-11-22). People with an active membership of the
   Organization and a role see it in Apps of their Launchpad, or on their Lazurio
   account without an Environment, and the gateway admits them to that application
   only (see app-only entry below). The target is the Application the Organization
