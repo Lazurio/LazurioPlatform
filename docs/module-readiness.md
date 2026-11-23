@@ -85,8 +85,10 @@ rollout asks for the evidence the Organization's release mode needs.
   runs is every source file of the app outside tests, fixtures, scripts, skills
   and docs, and every source file of the Module such code imports by a relative
   path, transitively, inside the app directory or outside it: a directory's name
-  does not keep an imported file from running. An import that leaves the Module
-  makes the dependency unknown, at blocker level (`source-incomplete`). Without Git
+  does not keep an imported file from running. Imported files share the
+  app's read bound of 4 MiB. An import that leaves the Module, names a committed
+  symlink or submodule (never followed), or reaches past the read bound makes
+  the dependency unknown, at blocker level (`source-incomplete`). Without Git
   the dependency is unknown and blocks, a trial too (`source-incomplete`). A
   static check reads markers in code, so a call it does not recognise passes
   and the Module's review stays the evidence. `"application": false` turns the

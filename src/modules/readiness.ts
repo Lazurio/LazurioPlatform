@@ -442,18 +442,20 @@ const EXTENSIONS = [
 ];
 
 /** The file a relative import names among the Module's committed source
- * files; `outside` when the path leaves the Module, null when it names no
+ * files; `unknown` when the path leaves the Module or names a committed
+ * symlink or submodule, which is never followed; null when it names no
  * source file (a stylesheet, an asset, a generated file). */
 function resolveImport(
   from: string,
   specifier: string,
   files: ReadonlySet<string>,
-): string | "outside" | null {
+  irregular: ReadonlySet<string>,
+): string | "unknown" | null {
   const parts = from.split("/").slice(0, -1);
   for (const segment of specifier.split("/")) {
     if (segment === "" || segment === ".") continue;
     if (segment === "..") {
-      if (parts.length === 0) return "outside";
+      if (parts.length === 0) return "unknown";
       parts.pop();
     } else parts.push(segment);
   }
@@ -463,8 +465,13 @@ function resolveImport(
     base,
     ...EXTENSIONS.map((extension) => `${stem}${extension}`),
     ...EXTENSIONS.map((extension) => `${base}/index${extension}`),
-  ])
+  ]) {
     if (files.has(candidate)) return candidate;
+    if (irregular.has(candidate)) return "unknown";
+  }
+  // A committed link or submodule on the way to the file is never followed.
+  for (let end = parts.length - 1; end > 0; end--)
+    if (irregular.has(parts.slice(0, end).join("/"))) return "unknown";
   return null;
 }
 
@@ -476,6 +483,8 @@ function resolveImport(
 function codeThatRuns(input: {
   app: readonly string[];
   module: ReadonlySet<string>;
+  /** Committed paths that are no regular file: symlinks and submodules. */
+  irregular: ReadonlySet<string>;
   read: Map<string, string>;
   skipped: readonly string[];
   runs: (path: string) => boolean;
@@ -498,8 +507,13 @@ function codeThatRuns(input: {
     }
     if (text === undefined) continue;
     for (const match of text.matchAll(IMPORT)) {
-      const target = resolveImport(from, match[1] as string, input.module);
-      if (target === "outside") unknown.add(`${from} → ${match[1]}`);
+      const target = resolveImport(
+        from,
+        match[1] as string,
+        input.module,
+        input.irregular,
+      );
+      if (target === "unknown") unknown.add(`${from} → ${match[1]}`);
       else if (target !== null && !runtime.has(target)) {
         runtime.add(target);
         queue.push(target);
@@ -709,18 +723,30 @@ export async function readReadinessInput(
       .map((entry) => [entry.path, entry] as const),
   );
   const runtimeFiles = new Map(sourceFiles);
+  // Files outside the app directory share the app's read budget: what is
+  // over it stays unread, and unread code that runs is unknown.
+  let budget =
+    MAX_SOURCE_BYTES -
+    appFiles
+      .filter((entry) => sourceFiles.has(entry.path))
+      .reduce((sum, entry) => sum + entry.size, 0);
   const { runtime, unknown: runtimeSkipped } = codeThatRuns({
     app: appFiles.map((entry) => entry.path),
     module: new Set(moduleSource.keys()),
+    irregular: new Set(
+      (tree ?? [])
+        .filter((entry) => !/^100(644|755)$/.test(entry.mode))
+        .map((entry) => entry.path),
+    ),
     read: runtimeFiles,
     skipped: sourceSkipped,
     runs: (path) => !NOT_RUNTIME.test(path.slice(prefix.length)),
-    // A file outside the app directory, read under the same bounds.
     fetch: (path) => {
       const entry = moduleSource.get(path);
-      if (entry === undefined) return null;
-      const read = committedSource(moduleDirectory, [entry]);
-      return read.files.get(path) ?? null;
+      if (entry === undefined || entry.size > budget) return null;
+      const read = committedSource(moduleDirectory, [entry]).files.get(path);
+      if (read !== undefined) budget -= entry.size;
+      return read ?? null;
     },
   });
   const runtimeSource = runtime

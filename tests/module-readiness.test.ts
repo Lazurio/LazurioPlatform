@@ -615,6 +615,51 @@ posixTest(
 );
 
 posixTest(
+  "an import through a committed symlink is never followed: the dependency is unknown and blocks",
+  async () => {
+    const files = readyServer();
+    files["app/v3/server.ts"] =
+      `import { whoami } from "../../shared/link";\n${files["app/v3/server.ts"]}`;
+    files["shared/client.ts"] =
+      'export const whoami = () => spawnSync("gh", ["api", "user"]);\n';
+    const result = await fixture(files, async (root) => {
+      await symlink("client.ts", join(root, "shared/link.ts"));
+      git(root, "add", "-A");
+      git(root, "commit", "-q", "-m", "link");
+      return assessReadiness(await readReadinessInput(root));
+    });
+    const unknown = result.findings.find(
+      (item) => item.id === "source-incomplete",
+    );
+    expect(unknown?.level).toBe("blocker");
+    expect(unknown?.message).toContain("../../shared/link");
+    expect(result.verdict).toBe("not-ready");
+  },
+);
+
+posixTest(
+  "imported files outside the app share the app's read budget: what is over it is unknown and blocks",
+  async () => {
+    const files = readyServer();
+    const imports: string[] = [];
+    for (let n = 0; n < 5; n++) {
+      files[`shared/part${n}.ts`] =
+        `export const part${n} = 1;\n// ${"x".repeat(900 * 1024)}\n`;
+      imports.push(`import { part${n} } from "../../shared/part${n}";`);
+    }
+    files["app/v3/server.ts"] =
+      `${imports.join("\n")}\n${files["app/v3/server.ts"]}`;
+    const result = await assess(files);
+    const unknown = result.findings.find(
+      (item) => item.id === "source-incomplete",
+    );
+    expect(unknown?.level).toBe("blocker");
+    expect(unknown?.message).toContain("shared/part");
+    expect(result.verdict).toBe("not-ready");
+  },
+);
+
+posixTest(
   "a Module that is only a tool of the Environment is no Application, whatever its code relies on",
   async () => {
     const files = readyServer();
