@@ -115,6 +115,12 @@ export type ProcessRunner = (
   command: readonly string[],
   timeoutMs: number,
   env?: Readonly<Record<string, string>>,
+  /** Called when `timeoutMs` runs out, with the kill (SIGKILL, resolved once
+   * the child is gone). It answers true when it killed the child, false to
+   * give it another `timeoutMs`; it decides and kills under whatever it must
+   * hold so that the decision cannot race the child (a Folder refresh inside
+   * its transaction, #1205). Absent, the child is killed. */
+  onTimeout?: (kill: () => Promise<void>) => Promise<boolean>,
 ) => Promise<ProcessResult>;
 
 const maxOutputBytes = 64 * 1024;
@@ -123,6 +129,7 @@ export const runProcess: ProcessRunner = async (
   command,
   timeoutMs,
   env = {},
+  onTimeout,
 ) => {
   const child = Bun.spawn([...command], {
     // Empty unless the caller names variables: nothing of the caller's
@@ -136,9 +143,41 @@ export const runProcess: ProcessRunner = async (
   // child was killed: the reader is cancelled, not waited for.
   const reader = child.stdout.getReader();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const expired = new Promise<"timeout">((resolve) => {
-    timer = setTimeout(() => resolve("timeout"), timeoutMs);
-  });
+  // Set once the run is over (the child answered or was given up on): the
+  // bound's loop stops at its next step, also when a decision to keep the
+  // child is in flight, and never arms another period.
+  let over = false;
+  let wake: (() => void) | undefined;
+  // The caller's decision while it is being made: a child that ends during
+  // it (its kill, or on its own) is reported as the decision says.
+  let deciding: Promise<boolean> | undefined;
+  const kill = async () => {
+    child.kill("SIGKILL");
+    await child.exited;
+  };
+  const expiry = () =>
+    new Promise<"timeout" | "over">((resolve) => {
+      if (over) return resolve("over");
+      wake = () => resolve("over");
+      timer = setTimeout(() => resolve("timeout"), timeoutMs);
+    });
+  // Past the bound the child is killed, unless the caller keeps it for
+  // another period; a caller that fails to answer keeps it, because it may
+  // not be safe to cut it off.
+  const expired = (async () => {
+    for (;;) {
+      if ((await expiry()) === "over") return "over" as const;
+      if (onTimeout === undefined) {
+        child.kill("SIGKILL");
+        return "timeout" as const;
+      }
+      deciding = onTimeout(kill).catch(() => false);
+      const killed = await deciding;
+      deciding = undefined;
+      if (over) return "over" as const;
+      if (killed) return "timeout" as const;
+    }
+  })();
   const finished = (async () => {
     const chunks: Uint8Array[] = [];
     let length = 0;
@@ -158,14 +197,23 @@ export const runProcess: ProcessRunner = async (
     });
   })();
   try {
-    const result = await Promise.race([finished, expired]);
-    if (result === "timeout") {
-      child.kill("SIGKILL");
-      finished.catch(() => undefined);
-    }
+    // `expired` ends as "over" only after the run is over, so here it is
+    // either the child's answer or "timeout".
+    const raced = (await Promise.race([finished, expired])) as
+      | ProcessResult
+      | "timeout";
+    // A child that ended while the caller was deciding to kill it was cut
+    // off by that decision, not finished: the run timed out.
+    const result =
+      raced !== "timeout" && deciding !== undefined && (await deciding)
+        ? ("timeout" as const)
+        : raced;
+    if (result === "timeout") finished.catch(() => undefined);
     return result;
   } finally {
+    over = true;
     clearTimeout(timer);
+    wake?.();
     await reader.cancel().catch(() => undefined);
   }
 };

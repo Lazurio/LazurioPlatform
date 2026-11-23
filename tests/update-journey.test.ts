@@ -692,3 +692,24 @@ test("nothing installed: every update command says so and creates no installatio
     expect(result).toMatchObject({ kind: "error", code: "not-installed" });
   expect(await readdir(world.root)).not.toContain("absent-base");
 });
+
+test("supervised: a prepared transaction in the unit's Folder is finished before the candidate's probe, even when --folder names another Folder", async () => {
+  world = await createWorld();
+  await world.release("1.1.0");
+  const service = fakeService(world.base, { folder: "/supervised/Folder" });
+  const { commands, run } = recordingRunner();
+  const resumed: string[] = [];
+  const environment = {
+    ...world.environment("1.0.0", { service, run }),
+    folder: "/explicit/Folder",
+    resumeFolder: async (folder: string) => {
+      // Before the probe: nothing has run yet.
+      expect(commands).toEqual([]);
+      resumed.push(folder);
+      return null;
+    },
+  };
+  expect((await performUpdate(environment)).kind).toBe("updated");
+  expect(resumed).toEqual(["/supervised/Folder", "/explicit/Folder"]);
+  expect(commands[0]?.slice(1, 2)).toEqual(["self-check"]);
+});

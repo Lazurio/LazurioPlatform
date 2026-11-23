@@ -87,6 +87,7 @@ import {
 import {
   type FolderRefreshOutcome,
   refreshFolderWhenBehind,
+  resumePreparedTransaction,
 } from "./folder-refresh";
 import {
   embeddedFixture,
@@ -423,6 +424,12 @@ export async function updateEnvironment(
     env: context.env,
     run: context.run,
   });
+  // The Folder's refresh and the recovery of a prepared transaction run
+  // detached from this process on a supervised Linux base, as the
+  // Launchpad's own update does: an agent's tool call that ends, a session
+  // that closes or a caller's limit then cannot cut them off inside the
+  // Folder's transaction (#1205).
+  const detachRefresh = service !== null && context.platform === "linux";
   return Object.freeze({
     base,
     identity: context.identity,
@@ -444,6 +451,18 @@ export async function updateEnvironment(
         env: context.env,
         operatorFolder: context.hostedFolder,
         run: context.run,
+        detach: detachRefresh,
+      }),
+    resumeFolder: (resumed) =>
+      resumePreparedTransaction({
+        base,
+        folder: resumed,
+        // The recovery renders nothing; the revision is the refresh's input.
+        product: "",
+        env: context.env,
+        operatorFolder: context.hostedFolder,
+        run: context.run,
+        detach: detachRefresh,
       }),
     entryUnits: () =>
       convergeEntryUnits({
