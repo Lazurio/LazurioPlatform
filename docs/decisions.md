@@ -26373,6 +26373,20 @@ release of its own. Decided in November 2026, whose `2026.11` and `2026.12` are
 taken, this release is `2027.01`. The table of `2026.12` stays in
 [stack-profiles.md](stack-profiles.md#202612).
 
+**Addendum: release 2027.02 (2026-11-23; asked for by the templates thread GEN4 ŠABLONY under the coordinating agent APLIKACE ORGANIZACE, plan LZD-0045 variant A and H17 of LZD-0047).**
+The common base pins `@lazurio/module-kit` v0.6.0 instead of v0.5.0. v0.6.0
+follows decision D1 of LZD-0037 as the Owner settled it on 2026-11-22: a
+production application offers its publication tools (`effect: "publish"`) to
+agents as a development version does, each a tool of its own with
+`destructiveHint` behind the same writer gate as a draft, and every audit line
+names the tool's `effect`. Nothing a 0.5 Module imports stops compiling
+(`AGENT_PUBLICATION_IN_PRODUCTION` stays, `true` and deprecated). `lazurio module
+create` follows: `stackProfilesRelease` `2027.02` and
+`defaultScaffoldVersions.moduleKit` `0.6.0`. An existing Module changes its pin
+and its lockfile in its own pull request, and a template adopts the release in a
+release of its own. `2027.01` is taken, so this release is `2027.02`. The table
+of `2027.01` stays in [stack-profiles.md](stack-profiles.md#202701).
+
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
