@@ -136,6 +136,7 @@ export type GithubFact =
   | "incomplete"
   | "own-account"
   | "connected"
+  | "limited"
   | "unknown";
 
 type ToolsReading =
@@ -169,11 +170,25 @@ export function githubFact(
   if (signIn?.state === "signed-out") return "missing";
   if (signIn?.state !== "signed-in") return "unknown";
   if (ownAccount(signIn.account, responsible)) return "own-account";
+  // Signed in while GitHub's rate limit is used up (#1223): there, and
+  // nothing to sign in again; what needs GitHub waits for the reset.
+  if (signIn.limit !== undefined) return "limited";
   return signIn.ssh?.state === "linked"
     ? "connected"
     : signIn.ssh?.state === "not-linked"
       ? "incomplete"
       : "unknown";
+}
+
+/** When GitHub's used-up rate limit resets (an ISO time), null where GitHub
+ * did not say, undefined where gh is not limited (#1223). */
+export function githubLimitReset(
+  overview: ToolsReading,
+): string | null | undefined {
+  const github = overview?.tools.find((tool) => tool.name === "gh");
+  if (github?.signIn?.state !== "signed-in") return undefined;
+  const limit = github.signIn.limit;
+  return limit === undefined ? undefined : (limit.reset ?? null);
 }
 
 /** Whether GitHub itself refuses this Environment's key over SSH while the
@@ -416,7 +431,7 @@ export function basicState(
         ? "missing"
         : "unknown";
   if (basic === "github")
-    return facts.github === "connected"
+    return facts.github === "connected" || facts.github === "limited"
       ? "done"
       : githubMissing(facts.github)
         ? "missing"
@@ -752,7 +767,7 @@ export function tourStop(
  * Environment, whose basics are the Organization's) and on a public
  * Environment, whose visitors sign in to nothing, only a known missing
  * GitHub does. Null: it may start. */
-export type ContentBlock = "ai" | "github" | "unknown";
+export type ContentBlock = "ai" | "github" | "github-limit" | "unknown";
 
 export function contentBlockedBy(
   facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
@@ -763,6 +778,9 @@ export function contentBlockedBy(
   if (facts.ai === "loading") return "unknown";
   if (githubMissing(facts.github)) return "github";
   if (facts.github === "unknown") return "unknown";
+  // Signed in, but GitHub refuses requests until its rate limit resets
+  // (#1223): the content waits and starts by itself after it.
+  if (facts.github === "limited") return "github-limit";
   return null;
 }
 
@@ -798,6 +816,10 @@ export function autoStartStep(
   running: boolean,
 ): Readonly<{ state: AutoStart; start: boolean }> {
   const known = (basic: "ai" | "github", before: boolean | null) => {
+    // GitHub refusing requests for its rate limit is not there for the
+    // content yet: its reset arrives as GitHub does, and the content starts
+    // then, as Začínáme says (#1223).
+    if (basic === "github" && facts.github === "limited") return false;
     const now = basicState(facts, basic);
     return now === "unknown" ? before : now === "done";
   };
@@ -856,7 +878,9 @@ export function startDecision(
   if (request === "sign-in-gh") {
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
-    return facts.github === "connected" || facts.github === "own-account"
+    return facts.github === "connected" ||
+      facts.github === "limited" ||
+      facts.github === "own-account"
       ? "drop"
       : "sign-in-gh";
   }
@@ -865,7 +889,7 @@ export function startDecision(
   const blocked = contentBlockedBy(facts);
   if (blocked === "unknown") return "wait";
   if (blocked === "ai") return "open-ai";
-  if (blocked === "github") return "drop";
+  if (blocked === "github" || blocked === "github-limit") return "drop";
   return content === "missing" || content === "failed" ? "install" : "drop";
 }
 
@@ -989,6 +1013,19 @@ export function appsSetupLine(
         };
   }
   const content = facts.content;
+  // GitHub refuses requests until its rate limit resets (#1223): the
+  // content waits for it, and nothing is to try again or sign in before.
+  if (
+    (content.state === "failed" || content.state === "missing") &&
+    facts.running !== true &&
+    contentBlockedBy(facts) === "github-limit"
+  )
+    return {
+      tone: "info",
+      icon: "key",
+      text: copy.setupGithubLimit,
+      actions: [{ action: "open-start", label: copy.setupShow }],
+    };
   if (content.state === "failed") {
     const resolve = facts.resolve ?? "chat";
     const item = content.item;
@@ -1086,7 +1123,10 @@ export function shellSetup(
       : input.ai === "missing"
         ? { ai: "missing" as const }
         : {}),
-    github: input.github === "connected" ? "connected" : "missing",
+    github:
+      input.github === "connected" || input.github === "limited"
+        ? "connected"
+        : "missing",
   } as const;
   if (
     fact.state === "none" ||

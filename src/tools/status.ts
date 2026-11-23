@@ -310,6 +310,11 @@ export async function toolsStatus(
 /** Whether a tool is signed in, and as whom when the tool can tell (decision
  * F18, addendum 2026-09-27). `unknown`: not installed, no probe, a timeout, a
  * failure to run, or output the probe cannot read. */
+/** GitHub refusing a signed-in gh's requests for now: the account's API
+ * rate limit is used up (#1223). `reset`: when GitHub says it ends (an ISO
+ * time), absent when it does not say (a secondary limit). */
+export type GithubLimit = Readonly<{ reset?: string }>;
+
 export type ToolSignIn = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";
   account?: string;
@@ -327,6 +332,10 @@ export type ToolSignIn = Readonly<{
    * Absent when gh names no scopes for the token (a GitHub App's identity,
    * a fine-grained token, an older gh). */
   workflow?: boolean;
+  /** gh signed in, and GitHub refuses its requests until the account's rate
+   * limit resets (#1223): a sign-in that works, with nothing to sign in
+   * again. Its SSH is not proved meanwhile (the proof asks GitHub's API). */
+  limit?: GithubLimit;
 }>;
 
 export type ToolsSignInInput = Readonly<{
@@ -489,8 +498,12 @@ export async function toolsSignIn(
           run,
           status.path,
           signInTimeoutMs,
+          input.sshProofs,
         );
-        if (signIn.state !== "signed-in") return signIn;
+        // Signed in, but GitHub's rate limit is used up: no proof, which
+        // would only ask GitHub's API again (#1223).
+        if (signIn.state !== "signed-in" || signIn.limit !== undefined)
+          return signIn;
         const platform = input.platform ?? process.platform;
         const [keygen, sshCommand] = await Promise.all([
           resolveOnPath("ssh-keygen", input.path, platform),

@@ -8,7 +8,7 @@ import {
 } from "node:fs/promises";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { ghStatus } from "./gh-status";
+import { type GhStatus, ghStatus } from "./gh-status";
 import type { ToolProcessResult } from "./status";
 
 /** The SSH key of this Machine on the signed-in GitHub account (decision
@@ -455,7 +455,9 @@ const unreachable: SshProof = {
  * readings asks once while a fix shows on the next reading after it.
  * Readings that meet share one proof. A sign-in or link of this process
  * keeps what it proved (`passed`), and one that starts, or a sign-out,
- * forgets everything (`forget`). */
+ * forgets everything (`forget`). The same memory keeps gh's sign-in while
+ * GitHub's rate limit is used up (`GithubLimitMemo`, #1223): until the
+ * limit resets, a reading answers it without asking GitHub again. */
 export function createSshProofs(
   options: Readonly<{
     passMs?: number;
@@ -468,6 +470,7 @@ export function createSshProofs(
   const now = options.now ?? Date.now;
   const kept = new Map<string, Readonly<{ proof: SshProof; at: number }>>();
   const running = new Map<string, Promise<SshProof>>();
+  let limit: Readonly<{ status: GhStatus; until: number }> | null = null;
   // A proof that started before a `forget` is not kept.
   let generation = 0;
   // GitHub's logins are case-insensitive; a fingerprint is exact.
@@ -510,11 +513,21 @@ export function createSshProofs(
         at: now(),
       });
     },
+    /** gh's sign-in kept while GitHub's rate limit is used up. */
+    githubLimit(): GhStatus | undefined {
+      if (limit !== null && now() < limit.until) return limit.status;
+      limit = null;
+      return undefined;
+    },
+    keepGithubLimit(status: GhStatus, until: number): void {
+      limit = { status, until };
+    },
     /** A sign-in or sign-out started: nothing kept holds any more. */
     forget(): void {
       generation += 1;
       kept.clear();
       running.clear();
+      limit = null;
     },
   };
 }

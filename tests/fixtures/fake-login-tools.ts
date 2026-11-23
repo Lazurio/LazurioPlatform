@@ -105,6 +105,17 @@ auth)
     if [ "$3" = "--json" ]; then
       if [ -f "$HOME/gh.nojson" ]; then echo "unknown flag: --json" >&2; echo "Usage:  gh auth status [flags]" >&2; exit 1; fi
       [ "$*" = "auth status --json hosts" ] || { echo "Unknown JSON field" >&2; exit 1; }
+      # $HOME/gh.limited: the account's rate limit is used up, and gh's check
+      # of the token gets GitHub's 403 (#1223); $HOME/gh.unauthorized: the
+      # token is revoked (401). gh calls both an invalid token.
+      if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.limited" ]; then
+        printf '{"hosts":{"github.com":[{"state":"error","error":"HTTP 403: API rate limit exceeded for user ID 583231. If you reach out to GitHub Support for help, please include the request ID 82E2:159193:66F69F:6C4BD8:6AEB0B8A and timestamp 2026-11-23 21:05:00 UTC. (https://api.github.com/)","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
+        exit 0
+      fi
+      if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.unauthorized" ]; then
+        printf '{"hosts":{"github.com":[{"state":"error","error":"HTTP 401: Bad credentials (https://api.github.com/)","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
+        exit 0
+      fi
       if [ -f "$HOME/gh.state" ]; then
         scopes=""; for s in $(cat "$HOME/gh.scopes" 2>/dev/null); do scopes="$scopes, $s"; done
         printf '{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","scopes":"%s","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")" "\${scopes#, }"
@@ -115,6 +126,14 @@ auth)
       # read that a sign-out overtakes.
       hang auth-status
       exit 0
+    fi
+    if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.limited" ]; then
+      echo "github.com"
+      echo "  X Failed to log in to github.com account $(cat "$HOME/gh.state") (keyring)"
+      echo "  - Active account: true"
+      echo "  - The token in keyring is invalid."
+      echo "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)" >&2
+      exit 1
     fi
     if [ -f "$HOME/gh.state" ]; then
       echo "github.com"
@@ -130,6 +149,17 @@ auth)
   logout) rm -f "$HOME/gh.state" "$HOME/gh.scopes"; echo "✓ Logged out of github.com account octocat" >&2; exit 0;;
   esac;;
 api)
+  # $HOME/gh.limited: GitHub answers only its rate limit, which it does not
+  # count; its content is the reset (Unix seconds), empty for a secondary
+  # limit that leaves core requests.
+  if [ -f "$HOME/gh.limited" ]; then
+    if [ "$2" = rate_limit ]; then
+      reset=$(cat "$HOME/gh.limited")
+      if [ -n "$reset" ]; then printf '{"resources":{"core":{"limit":5000,"used":5000,"remaining":0,"reset":%s}}}\n' "$reset"; else echo '{"resources":{"core":{"limit":5000,"used":12,"remaining":4988,"reset":1795000000}}}'; fi
+      exit 0
+    fi
+    echo "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)" >&2; exit 1
+  fi
   case "$2" in
   meta)
     hang api-meta

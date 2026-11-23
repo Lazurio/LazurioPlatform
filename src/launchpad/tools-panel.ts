@@ -1491,7 +1491,7 @@ export function createToolsPanel(
     );
 
     const view = toolStatusView(tool, copy, overview?.hosted === true, team);
-    const line = connectionLine(tool, copy, team);
+    const line = connectionLine(tool, copy, team, overview?.locale ?? "en");
     // The last act on this row, said from the tool as it is now (Matěj
     // 2026-10-09): it never contradicts the line above.
     const recorded =

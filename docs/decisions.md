@@ -6051,6 +6051,56 @@ The tests are:
   `unknown`;
 - `tests/start-view.test.ts`: the refused text in both locales, without an action.
 
+**Addendum 2026-11-23 (Matěj, Lazurio/LazurioPlatform#1223): GitHub's used-up rate limit
+is not a missing sign-in.** In a Personal Environment on v0.1.26, Začínáme showed GitHub
+as "Nepřipojeno" with "Připojit", the count fell by one and the personal space could not
+be prepared, while gh was signed in. The account had used up its hourly REST limit (the
+Environment's agents work under the same account and share it). gh checks its token with
+one REST request; GitHub answered 403 "API rate limit exceeded", and `gh auth status`
+reports any failed check as an invalid token (`state: "error"`), which `ghStatus` read as
+signed out. Matěj: it must not look as if GitHub were not signed in at all; it must say
+the limit.
+
+1. **The reading.** `gh auth status --json hosts` with `state: "error"` whose `error` is
+   GitHub's rate limit (HTTP 403 or 429 with "rate limit", primary or secondary;
+   `rateLimited`) is signed in, with the login gh names and `limit`. An older gh's text
+   form with the same error reads the same. Any other error, a 401 included, stays
+   signed out, and only that offers "Připojit".
+2. **When it ends.** `gh api rate_limit`, which GitHub answers without counting it, gives
+   `limit.reset` when `core` is at zero; a secondary limit, which leaves core requests,
+   has no reset.
+3. **No further requests.** The Launchpad keeps the limited reading in the memory of its
+   SSH proofs (`createSshProofs`, `GithubLimitMemo`) until the reset, at most an hour,
+   or a minute when GitHub did not say; meanwhile a reading runs no gh at all. A gh
+   sign-in or sign-out forgets it. A limited gh's SSH is not proved (the proof reads the
+   account's keys and GitHub's host keys through the API) and carries no `ssh`.
+4. **What follows.** `githubFact` gains `limited`, which counts as done: the count stays,
+   the next basic is the content, the shell's `setup.github` is `connected`, and nothing
+   opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
+   no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
+   itself once the limit resets and GitHub reads connected.
+5. **Wording.** Začínáme's GitHub step keeps its done mark and says "Připojeno jako
+   @{login}. GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se
+   v {time}, nic znovu nepřipojujte." ("… It resets at {time}; there is nothing to
+   connect again."), with "Obnoví se sám" where the reset is not known; {time} is the
+   page's clock. The content step says "Čeká, až GitHub obnoví hodinový limit.", its
+   panel "Spustí se samo, až GitHub obnoví hodinový limit.", and Apps' line says GitHub
+   refuses requests and the preparation starts by itself. Nástroje says "Připojeno jako
+   {account} · GitHub do {time} odmítá požadavky, hodinový limit je vyčerpaný" in no
+   success colour and offers no "Propojit SSH klíč". `lazurio tools status` says GitHub
+   refuses requests with the reset, and `lazurio doctor --sign-in` warns
+   `github-rate-limited`.
+
+Not in this addendum:
+- The content routes still ask `gh api user` and repository reads while the limit lasts;
+  they answer GitHub as unavailable, never signed out.
+- A limit that a signed-out gh meets is not seen: gh checks no token then.
+
+The tests are `tests/github-rate-limit.test.ts` (the reading, the reset, the memory and
+its forget, the older gh, the tools' sign-in without proof, the shell's GitHub, 401 still
+signed out, Začínáme, the content, Apps, Nástroje) and `tests/doctor.test.ts`
+(`github-rate-limited` without any further gh API request or ssh).
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**

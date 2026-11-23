@@ -67,11 +67,28 @@ export function readGhJsonStatus(stdout: string): GhStatus | undefined {
   const state = own(active, "state");
   if (state === "timeout")
     return { signIn: { state: "unknown" }, scopes: undefined };
-  if (state !== "success")
-    return { signIn: { state: "signed-out" }, scopes: undefined };
   const label = signInLabel(own(active, "login"));
   const account = label !== undefined && login.test(label) ? label : undefined;
   const source = own(active, "tokenSource");
+  // GitHub refused gh's check of the token because the account's rate limit
+  // is used up (HTTP 403 or 429, "API rate limit exceeded"): gh calls that
+  // an invalid token, but the sign-in is there (#1223).
+  const error = own(active, "error");
+  if (state === "error" && typeof error === "string" && rateLimited(error))
+    return {
+      signIn: {
+        state: "signed-in",
+        ...(account === undefined ? {} : { account }),
+        identity:
+          account === undefined
+            ? "unknown"
+            : ghIdentityOf(account, typeof source === "string" ? source : ""),
+        limit: {},
+      },
+      scopes: undefined,
+    };
+  if (state !== "success")
+    return { signIn: { state: "signed-out" }, scopes: undefined };
   const scopes = own(active, "scopes");
   return {
     signIn: {
@@ -92,9 +109,84 @@ export function readGhJsonStatus(stdout: string): GhStatus | undefined {
   };
 }
 
+/** Whether a GitHub API error is its rate limit, primary or secondary:
+ * HTTP 403 or 429 with GitHub's "rate limit" message, as gh prints it
+ * ("HTTP 403: API rate limit exceeded for user ID …"). A 401 (a revoked or
+ * invalid token) is not. */
+export function rateLimited(error: string): boolean {
+  return /\b(?:403|429)\b/.test(error) && /rate limit/i.test(error);
+}
+
+/** GitHub's used-up rate limit, kept by the process that reads gh's sign-in
+ * (the Launchpad, in its `createSshProofs`): while it lasts, a reading
+ * answers it without asking GitHub again (#1223). */
+export type GithubLimitMemo = Readonly<{
+  /** The kept reading, while its limit has not reset. */
+  githubLimit(): GhStatus | undefined;
+  /** Keep `status` until `untilMs` (this process's clock). */
+  keepGithubLimit(status: GhStatus, untilMs: number): void;
+}>;
+
+// A limit whose end GitHub does not say is asked again after a minute, and
+// none is kept past an hour, GitHub's own window.
+const unknownResetMs = 60_000;
+const longestLimitMs = 60 * 60_000;
+
+/** When the account's core rate limit resets, by `gh api rate_limit`, which
+ * GitHub answers without counting it: an ISO time while `core` is used up,
+ * undefined otherwise (a secondary limit, an unreadable answer). */
+async function limitReset(
+  run: GhRunner,
+  gh: string,
+  timeoutMs: number,
+): Promise<string | undefined> {
+  try {
+    const answer = await run([gh, "api", "rate_limit"], timeoutMs);
+    if (answer === "timeout") return undefined;
+    const core = own(own(JSON.parse(answer.stdout), "resources"), "core");
+    const remaining = own(core, "remaining");
+    const reset = own(core, "reset");
+    if (remaining !== 0 || typeof reset !== "number" || !(reset > 0))
+      return undefined;
+    return new Date(reset * 1000).toISOString();
+  } catch {
+    return undefined;
+  }
+}
+
 /** gh's sign-in as described above. Each command is bounded by `timeoutMs`;
- * a timeout or a failure to run is `unknown`. */
+ * a timeout or a failure to run is `unknown`. A sign-in GitHub refuses for
+ * its rate limit is signed in with `limit`, its reset when GitHub says it;
+ * with `limits` it is kept until then and answered without running gh
+ * (#1223). */
 export async function ghStatus(
+  run: GhRunner,
+  gh: string,
+  timeoutMs: number,
+  limits?: GithubLimitMemo,
+  now: () => number = Date.now,
+): Promise<GhStatus> {
+  const kept = limits?.githubLimit();
+  if (kept !== undefined) return kept;
+  const status = await readGhStatus(run, gh, timeoutMs);
+  if (status.signIn.limit === undefined) return status;
+  const reset = await limitReset(run, gh, timeoutMs);
+  const limited: GhStatus = {
+    ...status,
+    signIn: {
+      ...status.signIn,
+      limit: reset === undefined ? {} : { reset },
+    },
+  };
+  const until =
+    reset === undefined
+      ? now() + unknownResetMs
+      : Math.min(Date.parse(reset), now() + longestLimitMs);
+  if (until > now()) limits?.keepGithubLimit(limited, until);
+  return limited;
+}
+
+async function readGhStatus(
   run: GhRunner,
   gh: string,
   timeoutMs: number,
@@ -109,6 +201,23 @@ export async function ghStatus(
     if (read !== undefined) return read;
     const text = await run([gh, ...probe.argv], timeoutMs);
     if (text === "timeout") return unknown;
+    // An older gh's text form: "Failed to log in to github.com account
+    // octocat (…)" and, last, GitHub's rate-limit error.
+    const printed = `${text.stdout}\n${text.stderr}`;
+    if (rateLimited(printed)) {
+      const named = /account (\S+) \(/.exec(printed)?.[1];
+      const account =
+        named !== undefined && login.test(named) ? named : undefined;
+      return {
+        signIn: {
+          state: "signed-in",
+          ...(account === undefined ? {} : { account }),
+          identity: account === undefined ? "unknown" : ghIdentity(printed),
+          limit: {},
+        },
+        scopes: undefined,
+      };
+    }
     const signIn = readSignIn(probe, text);
     if (signIn.state !== "signed-in") return { signIn, scopes: undefined };
     const output = `${text.stdout}\n${text.stderr}`;

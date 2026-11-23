@@ -148,6 +148,10 @@ export type StartFacts = TourFacts &
      * lists it (`githubRefused`): an outage of GitHub's, not a link to make
      * again. Absent as false. */
     githubRefused?: boolean;
+    /** GitHub's used-up rate limit (`githubLimitReset`), as this page's
+     * clock says its reset ("21:34"); null where GitHub did not say when.
+     * Absent where gh is not limited (#1223). */
+    githubLimitTime?: string | null;
     /** GitHub's sign-in this page runs, its window open or closed (#516):
      * waiting for the person's code, or finishing (the SSH key). Absent
      * when none runs. */
@@ -415,6 +419,20 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
       },
       { enabled: true, kind: "open" },
     ];
+  // Signed in, and GitHub refuses requests until its hourly rate limit
+  // resets (#1223): still connected, so the step stays done and offers
+  // nothing to connect again; it says why GitHub answers nothing now.
+  if (facts.github === "limited") {
+    const connected =
+      facts.githubLogin === null
+        ? copy.startGithubConnectedPlain
+        : fill(copy.startGithubConnected, { login: facts.githubLogin });
+    const limit =
+      facts.githubLimitTime === undefined || facts.githubLimitTime === null
+        ? copy.startGithubLimit
+        : fill(copy.startGithubLimitUntil, { time: facts.githubLimitTime });
+    return [{ ...base, mark: "done", status: `${connected}. ${limit}` }, null];
+  }
   if (facts.github === "connected")
     return [
       {
@@ -505,6 +523,12 @@ function contentStep(facts: StartFacts, copy: Copy): StartStep {
   if (content === "none")
     return { ...base, mark: "done", status: copy.startContentNothing };
   if (content === "ready") return { ...base, mark: "done", status: null };
+  // It waits for GitHub's rate limit (#1223), also after a run it stopped.
+  if (
+    (content === "missing" || content === "failed") &&
+    contentBlockedBy(facts) === "github-limit"
+  )
+    return { ...base, mark: "later", status: copy.startContentGithubLimit };
   if (content === "failed") return { ...base, mark: "failed", status: null };
   if (content === "loading" || content === "unknown")
     return { ...base, mark: "later", status: copy.startChecking };

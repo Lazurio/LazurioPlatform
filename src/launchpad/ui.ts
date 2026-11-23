@@ -89,6 +89,7 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  githubLimitReset,
   githubRefused,
   hasOnboarding,
   idleAutoStart,
@@ -144,6 +145,7 @@ import { createThemePanel } from "./theme-panel";
 import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
 import {
+  clockTime,
   organizationChoices,
   organizationRule,
   type ToolGuideTargets,
@@ -600,6 +602,13 @@ function readBuddy(again = false) {
   buddyAsked = true;
   void buddyClient.read();
 }
+// GitHub's used-up rate limit for Začínáme (#1223): its reset as this
+// page's clock says it, null where GitHub did not say; nothing otherwise.
+function githubLimitFact(): { githubLimitTime?: string | null } {
+  const reset = githubLimitReset(toolsOverview);
+  if (reset === undefined) return {};
+  return { githubLimitTime: reset === null ? null : clockTime(reset, locale) };
+}
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
@@ -914,6 +923,7 @@ const startPanel = createStartPanel({
           aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
           githubRefused: githubRefused(toolsOverview),
+          ...githubLimitFact(),
           // GitHub's sign-in this page runs, its window closed or not
           // (#516): the step says it runs, and opens it again.
           githubFlow: tools.running("gh") ?? undefined,

@@ -32,7 +32,7 @@ import {
   sshLinkFailures,
   sshStatusReasons,
 } from "../tools/ssh-key";
-import type { ToolSignIn } from "../tools/status";
+import type { GithubLimit, ToolSignIn } from "../tools/status";
 import { type GhIdentity, githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
@@ -83,6 +83,32 @@ const identities: readonly GhIdentity[] = [
   "unknown",
 ];
 
+/** An ISO time as this page's clock reads it, hours and minutes ("21:34"),
+ * for when GitHub's rate limit resets (#1223). */
+export function clockTime(iso: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+// GitHub's used-up rate limit of a signed-in gh (#1223): `reset`, when
+// given, an ISO time.
+function parseLimit(input: unknown): GithubLimit | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const reset = (input as Record<string, unknown>).reset;
+  if (reset === undefined) return {};
+  return typeof reset === "string" &&
+    /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(reset) &&
+    Number.isFinite(Date.parse(reset))
+    ? { reset }
+    : null;
+}
+
 function parseSignIn(input: unknown): ToolSignIn | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -99,8 +125,11 @@ function parseSignIn(input: unknown): ToolSignIn | null {
     return null;
   const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
   if (ssh === null) return null;
+  const limit = value.limit === undefined ? undefined : parseLimit(value.limit);
+  if (limit === null) return null;
   return {
     state: value.state,
+    ...(limit === undefined ? {} : { limit }),
     ...(value.account === undefined ? {} : { account: value.account }),
     ...(value.organization === undefined
       ? {}
@@ -416,6 +445,7 @@ export function connectionLine(
   tool: ToolOverview,
   copy: Copy,
   brokered = false,
+  locale = "en",
 ): Readonly<{ text: string; state: string; ssh: string | null }> {
   if (!tool.installed)
     return {
@@ -439,6 +469,22 @@ export function connectionLine(
     text = signInLine({ ...tool, signIn }, copy, brokered);
   }
   const state = tool.signIn?.state ?? "unchecked";
+  // Signed in while GitHub refuses requests for its used-up rate limit
+  // (#1223): the account, in no success colour, and why, never a key to
+  // link.
+  const limit =
+    tool.signIn?.state === "signed-in" ? tool.signIn.limit : undefined;
+  if (tool.name === "gh" && !brokered && limit !== undefined)
+    return {
+      text,
+      state: "limited",
+      ssh:
+        limit.reset === undefined
+          ? copy.toolsGithubLimited
+          : fill(copy.toolsGithubLimitedUntil, {
+              time: clockTime(limit.reset, locale),
+            }),
+    };
   // A person's signed-in gh works here only by a passing proof: one whose
   // status has no SSH part (its shape allows that) is not known to work,
   // as one whose proof could not run (Pablo's review of #524).
@@ -747,8 +793,12 @@ export function curatedActions(
       allowWorkflow: false,
     };
   if (tool.signIn?.state === "signed-in") {
-    // Also without an SSH part: only a passing proof is linked.
-    const linkSsh = tool.name === "gh" && tool.signIn.ssh?.state !== "linked";
+    // Also without an SSH part: only a passing proof is linked. Not while
+    // GitHub's rate limit is used up, which no link changes (#1223).
+    const linkSsh =
+      tool.name === "gh" &&
+      tool.signIn.limit === undefined &&
+      tool.signIn.ssh?.state !== "linked";
     return {
       primary: null,
       logout: true,

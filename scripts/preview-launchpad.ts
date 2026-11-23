@@ -117,7 +117,9 @@
 // would; `gh-no-ssh` starts signed in as octocat without an SSH key, so
 // GitHub is connected badly; `gh-refused` starts signed in as octocat with a
 // key the account lists, which ssh offers and GitHub refuses on every
-// connection, as in an incident of GitHub's (#851). Without any, the
+// connection, as in an incident of GitHub's (#851); `gh-limited` starts
+// signed in as octocat whose API rate limit is used up for the next 40
+// minutes, so GitHub answers its token check with 403 (#1223). Without any, the
 // stand-in gh is signed in as
 // example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
 // keys, the greeting answered by the preview), so GitHub reads connected.
@@ -274,7 +276,9 @@ const ghFake = process.argv.slice(3).includes("gh-signed-out")
     ? "no-ssh"
     : process.argv.slice(3).includes("gh-refused")
       ? "refused"
-      : null;
+      : process.argv.slice(3).includes("gh-limited")
+        ? "limited"
+        : null;
 const ghSlow = process.argv.slice(3).includes("gh-slow");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
@@ -750,7 +754,7 @@ if (ghFake !== null) {
     await fakeAiClis(home, ["codex"]);
     await writeFile(join(home, "codex.provided"), "");
   }
-  if (ghFake === "no-ssh" || ghFake === "refused") {
+  if (ghFake === "no-ssh" || ghFake === "refused" || ghFake === "limited") {
     await writeFile(join(home, "gh.state"), "octocat\n");
     await writeFile(
       join(home, "gh.scopes"),
@@ -759,6 +763,11 @@ if (ghFake !== null) {
   }
   // GitHub in an incident (#851): the account lists this home's key, ssh
   // offers it and GitHub refuses every connection.
+  if (ghFake === "limited")
+    await writeFile(
+      join(home, "gh.limited"),
+      `${Math.floor(Date.now() / 1000) + 40 * 60}\n`,
+    );
   if (ghFake === "refused") {
     if (realSshKeygen === null) throw new Error("gh-refused needs ssh-keygen");
     const ssh = join(home, ".ssh");

@@ -423,7 +423,9 @@ export function contentView(
       ? copy.contentNeedsAi
       : block === "github"
         ? copy.contentNeedsGithub
-        : null;
+        : block === "github-limit"
+          ? copy.contentNeedsGithubLimit
+          : null;
   const blockedBy = !list.allowed ? copy.contentNotAllowed : null;
   // Not its turn: no action, only why (nothing while it is not read yet).
   if (!running && missing.length > 0 && block !== null)

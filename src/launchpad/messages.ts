@@ -393,6 +393,10 @@ const en = {
   toolsSshNotLinked: "SSH key not linked",
   toolsSshUnknown: "SSH key not verified",
   toolsSshRefused: "SSH key linked, GitHub refuses it now",
+  toolsGithubLimited:
+    "GitHub refuses requests for now: the hourly limit is used up",
+  toolsGithubLimitedUntil:
+    "GitHub refuses requests until {time}: the hourly limit is used up",
   toolsSshTeam: capitalized(teamGithubPhrase.en),
   toolsWorksAs: capitalized(teamGithubWorksAs.en),
   toolsLinkSshAction: "Link SSH key",
@@ -1240,6 +1244,8 @@ const en = {
   setupGithubAction: "Connect GitHub",
   setupGithubBroken: "The GitHub connection does not work.",
   setupGithubReconnect: "Connect again",
+  setupGithubLimit:
+    "GitHub refuses requests for now because the hourly limit is used up. The preparation starts by itself once it resets.",
   setupGithubPersona:
     "The GitHub account of the Organization's Henry is not connected.",
   setupGithubOwnAccount:
@@ -1383,6 +1389,10 @@ const en = {
   startGithubRefused:
     "The SSH key is on your account, but GitHub refuses the connection now. GitHub most likely has an outage (githubstatus.com); try Check again in a while.",
   startGithubReconnect: "Connect again",
+  startGithubLimit:
+    "GitHub refuses requests for now because the hourly limit is used up. It resets by itself; there is nothing to connect again.",
+  startGithubLimitUntil:
+    "GitHub refuses requests for now because the hourly limit is used up. It resets at {time}; there is nothing to connect again.",
   startGithubPersona:
     "Not connected. The account of the Organization's Henry belongs here, not yours.",
   startGithubOwnAccount:
@@ -1398,6 +1408,7 @@ const en = {
   startContentBoth: "Download the Organizations and your personal space",
   startContentNone: "Content of {this}",
   startContentNothing: "There is nothing to download here.",
+  startContentGithubLimit: "Waits until GitHub's hourly limit resets.",
   startVaultGroup: "Passwords for agents",
   startVaultTitle: "Environment vault",
   startOpen: "Open",
@@ -1684,6 +1695,8 @@ const en = {
   contentBlocked: "Cannot be prepared now",
   contentDownloadAll: "Download all",
   contentNeedsGithub: "Starts by itself once GitHub is connected.",
+  contentNeedsGithubLimit:
+    "Starts by itself once GitHub's hourly limit resets.",
   contentNeedsAi: "Offered once AI is connected.",
   contentRefusedAi: "Connect AI in Getting started first.",
   contentNotAllowed: "{This} cannot prepare its content.",
@@ -2908,6 +2921,10 @@ const cs: Record<MessageKey, string> = {
   toolsSshNotLinked: "SSH klíč nepropojený",
   toolsSshUnknown: "SSH klíč neověřený",
   toolsSshRefused: "SSH klíč propojený, GitHub ho teď odmítá",
+  toolsGithubLimited:
+    "GitHub teď odmítá požadavky, hodinový limit je vyčerpaný",
+  toolsGithubLimitedUntil:
+    "GitHub do {time} odmítá požadavky, hodinový limit je vyčerpaný",
   toolsSshTeam: capitalized(teamGithubPhrase.cs),
   toolsWorksAs: capitalized(teamGithubWorksAs.cs),
   toolsLinkSshAction: "Propojit SSH klíč",
@@ -3703,6 +3720,8 @@ const cs: Record<MessageKey, string> = {
   setupGithubAction: "Připojit GitHub",
   setupGithubBroken: "Připojení GitHubu nefunguje.",
   setupGithubReconnect: "Připojit znovu",
+  setupGithubLimit:
+    "GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Příprava se spustí sama, až se limit obnoví.",
   setupGithubPersona: "Účet Henryho Organizace na GitHubu není připojený.",
   setupGithubOwnAccount:
     "Na GitHubu je přihlášený váš vlastní účet, sem patří účet Henryho Organizace.",
@@ -3841,6 +3860,10 @@ const cs: Record<MessageKey, string> = {
   startGithubRefused:
     "SSH klíč na vašem účtu je, ale GitHub teď připojení odmítá. Nejspíš má výpadek (githubstatus.com); za chvíli zkuste Zkontrolovat znovu.",
   startGithubReconnect: "Připojit znovu",
+  startGithubLimit:
+    "GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se sám, nic znovu nepřipojujte.",
+  startGithubLimitUntil:
+    "GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se v {time}, nic znovu nepřipojujte.",
   startGithubPersona: "Nepřipojeno. Sem patří účet Henryho Organizace, ne váš.",
   startGithubOwnAccount:
     "Je přihlášený váš vlastní účet @{login}. Sem patří účet Henryho Organizace.",
@@ -3855,6 +3878,7 @@ const cs: Record<MessageKey, string> = {
   startContentBoth: "Stáhnout Organizace a osobní prostor",
   startContentNone: "Obsah Prostředí",
   startContentNothing: "Tady není co stahovat.",
+  startContentGithubLimit: "Čeká, až GitHub obnoví hodinový limit.",
   startVaultGroup: "Hesla pro agenty",
   startVaultTitle: "Správce hesel Prostředí",
   startOpen: "Otevřít",
@@ -4108,6 +4132,7 @@ const cs: Record<MessageKey, string> = {
   contentBlocked: "Teď to připravit nejde",
   contentDownloadAll: "Stáhnout vše",
   contentNeedsGithub: "Spustí se samo po připojení GitHubu.",
+  contentNeedsGithubLimit: "Spustí se samo, až GitHub obnoví hodinový limit.",
   contentNeedsAi: "Nabídne se po připojení AI.",
   contentRefusedAi: "Nejdřív připojte AI v Začínáme.",
   contentNotAllowed: "Tady se obsah připravit nedá.",
