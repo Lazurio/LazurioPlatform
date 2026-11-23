@@ -58,6 +58,8 @@ beforeAll(async () => {
   await compilePlatform(binary);
 });
 afterAll(async () => {
+  // The Organization files' copies are read-only (H20); make them removable.
+  if (root) Bun.spawnSync(["chmod", "-R", "u+w", root]);
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -1259,13 +1261,15 @@ posixTest(
     expect(await run("start", "gamma/notes")).toMatchObject({
       outcome: "started",
     });
-    const copy = join(
-      home,
-      ".local/state/lazurio/organization-files/gamma/notes",
+    // Its own place per checkout, Module and package, and the link to the
+    // current copy in it.
+    const copy = unitRequest(manager).environment
+      .LAZURIO_ORGANIZATION_FILES_DIR as string;
+    expect(copy).toMatch(
+      new RegExp(
+        `^${join(home, ".local/state/lazurio/organization-files/gamma/notes-")}[0-9a-f]{16}/current$`,
+      ),
     );
-    expect(
-      unitRequest(manager).environment.LAZURIO_ORGANIZATION_FILES_DIR,
-    ).toBe(copy);
     expect((await readdir(copy)).sort()).toEqual([
       "lazurio.organization.json",
       "modules.manifest.json",

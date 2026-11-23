@@ -20,7 +20,7 @@ import {
 import { verifyInstallAuthority } from "./install-authority";
 import type { createApplicationLifecycle } from "./lifecycle";
 import {
-  organizationFilesDirectory,
+  organizationFilesPlace,
   provideOrganizationFiles,
 } from "./organization-files";
 import { createOwnerOperations } from "./owner-operations";
@@ -263,11 +263,14 @@ export function localApplicationAdapters(input: {
         input.organizationRoot !== undefined && Array.isArray(declaredFiles)
           ? await provideOrganizationFiles({
               organizationRoot: input.organizationRoot,
-              directory: organizationFilesDirectory(
-                selected.env.HOME ?? "",
-                plan.runtime.company,
-                plan.runtime.id,
-              ),
+              place: organizationFilesPlace({
+                home: selected.env.HOME ?? "",
+                company: plan.runtime.company,
+                appId: plan.runtime.id,
+                organizationRoot: input.organizationRoot,
+                moduleDirectory: module.moduleDirectory,
+                appPackage: plan.package,
+              }),
               files: declaredFiles,
             })
           : undefined;

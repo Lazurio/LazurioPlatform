@@ -596,11 +596,18 @@ old one as a whole directory, so the App never sees half of it.
   installation and then every 5 minutes; it refuses any other name at
   installation (`apps-application-organization-files-invalid`).
 - **DEV and STAGING.** The Platform copies from the root checkout's `HEAD`, as
-  committed, before every start, to
-  `~/.local/state/lazurio/organization-files/<organization>/<app id>/` (`src/modules/organization-files.ts`).
+  committed, before every start. Each App has its own place, keyed by the
+  Organization checkout, the Module and the App's package:
+  `~/.local/state/lazurio/organization-files/<organization>/<app id>-<key>/`.
+  The variable names its link `current`, which one rename moves to the new copy;
+  a failure before that rename keeps the previous copy. The copy, its directory
+  and its place are read-only (0444 and 0555), so writing, replacing or deleting
+  a file is refused; the App runs under the same account, so on purpose it
+  could still change their modes, which only the host's separate account
+  prevents (`src/modules/organization-files.ts`).
 
 When the directory or its `revision.json` is missing (the first fetch failed,
-or the root is no Git checkout with a GitHub remote), the App starts and tells
+or the root is not itself the top of a Git checkout with a GitHub remote), the App starts and tells
 its user that the Organization's manifests are not available. Its health does
 not fail for it. A Personalspace Module and an App that declares nothing get no
 variable.
