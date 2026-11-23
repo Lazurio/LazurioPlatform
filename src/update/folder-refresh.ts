@@ -74,6 +74,10 @@ export type FolderRefreshInput = Readonly<{
 export const failedRefresh = (reason: string): FolderRefreshOutcome =>
   Object.freeze({ state: "failed" as const, reason });
 
+/** A refresh that could not run now and is retried (`folder-busy`). */
+const blockedRefresh = (reason: string): FolderRefreshOutcome =>
+  Object.freeze({ state: "blocked" as const, reason });
+
 // The product's codes and a path within the Folder, never anything else the
 // child printed.
 const code = /^[a-z][a-z0-9-]{0,63}$/;
@@ -320,7 +324,7 @@ async function resumeWith(
     );
   } catch (error) {
     return error instanceof FolderOperationBusyError
-      ? Object.freeze({ state: "blocked" as const, reason: "folder-busy" })
+      ? blockedRefresh("folder-busy")
       : failedRefresh("launchpad-restart-unrecordable");
   }
 }
