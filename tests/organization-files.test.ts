@@ -130,10 +130,13 @@ posix(
     });
     let reading = true;
     let reads = 0;
-    // On macOS an open through `current` at the moment the link is replaced
-    // can fail with EINVAL (seen on CI, #1211); that open is tried again. It
-    // is no partial copy: a missing file, any other error or a copy that does
-    // not parse still fails the test, and Linux stays strict.
+    // On the macOS runners an open through `current` while copies were
+    // replaced failed twice with EINVAL (#1211). The cause is not confirmed;
+    // the guess is the moment the link is replaced. Whether a reader may see
+    // that error at all is an open question in #1211. Until it is answered,
+    // on macOS an open that fails with EINVAL is tried again; a missing file,
+    // any other error or a copy that does not parse still fails the test, and
+    // Linux stays strict.
     const open = async (file: string) => {
       for (let attempt = 1; ; attempt++) {
         try {
