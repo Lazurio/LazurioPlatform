@@ -238,11 +238,16 @@ posixTest(
 );
 
 posixTest(
-  "without Git the committed evidence is unknown, so the verdict is at most a trial",
+  "without Git the committed evidence is unknown, and an unchecked dependency on a person's Environment keeps the app from a trial too",
   async () => {
     const result = await assess(readyServer(), { repository: false });
-    expect(ids(result)).toEqual(["git-unavailable"]);
-    expect(result.verdict).toBe("ready-for-trial");
+    expect(ids(result)).toEqual(["git-unavailable", "source-incomplete"]);
+    const unknown = result.findings.find(
+      (item) => item.id === "source-incomplete",
+    );
+    expect(unknown?.level).toBe("blocker");
+    expect(unknown?.message).toContain("a person's Environment");
+    expect(result.verdict).toBe("not-ready");
   },
 );
 
@@ -542,6 +547,33 @@ posixTest(
     );
     expect(finding?.level).toBe("blocker");
     expect(finding?.message).toContain("GitHub sign-in, files");
+  },
+);
+
+posixTest(
+  "code that runs imports a file under scripts/ or migrations/: it runs too and its dependency counts",
+  async () => {
+    const files = readyServer();
+    const result = await assess({
+      ...files,
+      "app/v3/server.ts": `import { whoami } from "./scripts/client";\n${files["app/v3/server.ts"]}`,
+      "app/v3/scripts/client.ts":
+        'import { token } from "../migrations/auth.js";\nexport const whoami = () => spawnSync("gh", ["api", "user"]);\n',
+      "app/v3/migrations/auth.ts":
+        "export const token = () => join(os.homedir(), '.config');\n",
+      // Not imported by code that runs: still no evidence.
+      "app/v3/scripts/release.ts": 'spawnSync("gh", ["release", "create"]);\n',
+    });
+    const finding = result.findings.find(
+      (item) => item.id === "environment-dependency",
+    );
+    expect(finding?.message).toContain("GitHub sign-in, files");
+    expect(result.verdict).toBe("not-ready");
+    const alone = await assess({
+      ...files,
+      "app/v3/scripts/release.ts": 'spawnSync("gh", ["release", "create"]);\n',
+    });
+    expect(alone.verdict).toBe("ready-for-live");
   },
 );
 

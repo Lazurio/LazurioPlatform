@@ -64,6 +64,9 @@ export type ReadinessInput = Readonly<{
     /** The same, without tests, fixtures, scripts, skills and docs: only what
      * runs, for markers whose presence in a test would be no evidence. */
     runtimeSource: string;
+    /** Files of the code that runs that were not read: over the limits, or
+     * Git could not read them. */
+    runtimeSkipped: readonly string[];
     /** Committed source files that were not read (over a limit, or Git
      * failed); a marker missing from `source` is then unknown, not absent. */
     sourceSkipped: readonly string[];
@@ -325,12 +328,15 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   // Found markers count; none found counts as none only when all of the
   // code that runs was read.
   const environment = environmentDependencies(app.runtimeSource);
-  const runtimeKnown =
-    input.tracked !== null &&
-    !app.sourceSkipped.some(
-      (path) => !NOT_RUNTIME.test(path.slice(appPrefix(app.package).length)),
+  if (environment.length === 0 && input.tracked === null)
+    // Without Git nothing of the source was read: the dependency is unknown,
+    // and an unknown dependency keeps the app from PROD, a trial included.
+    add(
+      "source-incomplete",
+      "blocker",
+      "Git could not list the Module's committed files, so whether the app relies on a person's Environment is unknown.",
     );
-  if (environment.length === 0 && !runtimeKnown)
+  else if (environment.length === 0 && app.runtimeSkipped.length > 0)
     unknownMarkers.push({
       name: "a dependency on a person's Environment",
       level: "blocker",
@@ -419,6 +425,72 @@ const ENVIRONMENT_MARKERS: ReadonlyArray<readonly [string, RegExp]> = [
 function appPrefix(appPackage: string): string {
   const appDir = dirname(appPackage);
   return appDir === "." ? "" : `${appDir}/`;
+}
+
+const IMPORT =
+  /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)["'`](\.{1,2}\/[^"'`]+)["'`]/g;
+const EXTENSIONS = [
+  ".ts",
+  ".tsx",
+  ".mts",
+  ".cts",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+];
+
+/** The file a relative import names, among the app's committed files. */
+function resolveImport(
+  from: string,
+  specifier: string,
+  files: ReadonlySet<string>,
+): string | null {
+  const parts = from.split("/").slice(0, -1);
+  for (const segment of specifier.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === "..") parts.pop();
+    else parts.push(segment);
+  }
+  const base = parts.join("/");
+  const stem = base.replace(/\.[cm]?[jt]sx?$/, "");
+  for (const candidate of [
+    base,
+    ...EXTENSIONS.map((extension) => `${stem}${extension}`),
+    ...EXTENSIONS.map((extension) => `${base}/index${extension}`),
+  ])
+    if (files.has(candidate)) return candidate;
+  return null;
+}
+
+/** The code that runs: the files `runs` names, and every file they import by
+ * a relative path, transitively. A file of it that was not read is returned
+ * as skipped, its imports unknown. */
+function codeThatRuns(
+  paths: readonly string[],
+  read: ReadonlyMap<string, string>,
+  skipped: readonly string[],
+  runs: (path: string) => boolean,
+): { runtime: string[]; skipped: string[] } {
+  const all = new Set(paths);
+  const runtime = new Set(paths.filter(runs));
+  const queue = [...runtime];
+  while (queue.length > 0) {
+    const from = queue.pop() as string;
+    const text = read.get(from);
+    if (text === undefined) continue;
+    for (const match of text.matchAll(IMPORT)) {
+      const target = resolveImport(from, match[1] as string, all);
+      if (target !== null && !runtime.has(target)) {
+        runtime.add(target);
+        queue.push(target);
+      }
+    }
+  }
+  return {
+    runtime: [...runtime],
+    skipped: skipped.filter((path) => runtime.has(path)),
+  };
 }
 
 /** The kinds of a person's Environment an app's running code relies on. */
@@ -565,6 +637,7 @@ export async function readReadinessInput(
         pkg: null,
         source: "",
         runtimeSource: "",
+        runtimeSkipped: [],
         sourceSkipped: [],
         server: false,
         staticBuild: false,
@@ -603,16 +676,23 @@ export async function readReadinessInput(
       SOURCE.test(entry.path) &&
       !SKIPPED.test(entry.path),
   );
-  // One read of the source; the code that runs is the part of it outside
-  // tests, fixtures, scripts, skills and docs.
+  // One read of the source. The code that runs is every file outside tests,
+  // fixtures, scripts, skills and docs, and every file such code imports by a
+  // relative path, wherever it lies: a directory's name does not keep an
+  // imported file from running.
   const { files: sourceFiles, skipped: sourceSkipped } = committedSource(
     moduleDirectory,
     appFiles,
   );
   const source = [...sourceFiles.values()].join("\n");
-  const runtimeSource = [...sourceFiles]
-    .filter(([path]) => !NOT_RUNTIME.test(path.slice(prefix.length)))
-    .map(([, text]) => text)
+  const { runtime, skipped: runtimeSkipped } = codeThatRuns(
+    appFiles.map((entry) => entry.path),
+    sourceFiles,
+    sourceSkipped,
+    (path) => !NOT_RUNTIME.test(path.slice(prefix.length)),
+  );
+  const runtimeSource = runtime
+    .map((path) => sourceFiles.get(path) ?? "")
     .join("\n");
   return Object.freeze({
     manifest,
@@ -622,6 +702,7 @@ export async function readReadinessInput(
       pkg,
       source,
       runtimeSource,
+      runtimeSkipped,
       sourceSkipped,
       server: plan.runtime.server !== null,
       staticBuild: plan.runtime.static !== null,

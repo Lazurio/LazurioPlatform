@@ -73,7 +73,7 @@ rollout asks for the evidence the Organization's release mode needs.
 
 - **V0, no app.** Nothing to deploy; the verdict is `no-application`.
 - **Any generation, relying on a person's Environment.** An app whose code that
-  runs (tests, fixtures, scripts, skills and docs left out) calls the person's
+  runs calls the person's
   GitHub sign-in (`gh`), the Environment's Integrations (`executor`,
   `composio`, `wacli`, `gogcli`), the person's files or Folder (the home
   directory, `~/`) or the Organization's network (the tailnet, an
@@ -81,7 +81,11 @@ rollout asks for the evidence the Organization's release mode needs.
   an Organization's own service address with fewer labels is none) gets the blocker
   `environment-dependency`, naming those kinds: it has no PROD until it is
   changed (Module Standard, A Module that relies on a person's Environment).
-  It is an obstacle to PROD, not a ban: the changed code passes. A
+  It is an obstacle to PROD, not a ban: the changed code passes. The code that
+  runs is every source file outside tests, fixtures, scripts, skills and docs,
+  and every file such code imports by a relative path, wherever it lies: a
+  directory's name does not keep an imported file from running. Without Git
+  the dependency is unknown and blocks, a trial too (`source-incomplete`). A
   static check reads markers in code, so a call it does not recognise passes
   and the Module's review stays the evidence. `"application": false` turns the
   verdict into `no-application`.
