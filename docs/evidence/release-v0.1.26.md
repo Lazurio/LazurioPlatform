@@ -75,14 +75,16 @@ were held by this thread from the end of the apply to the end of the stage.
    - the main path as the Owner and the member: 19 of 19 required and 14 of 14 optional passed, the Marketplace and
      Připojení included;
    - the tiles on every Environment each account lists, **first run, 12:34:28–12:36:56Z: FAILED**, 10 of 12 required
-     passed. At about 12:36Z the member's sign-out waited out its 30 s on the identity service's confirmation page
-     (INCONCLUSIVE `sign-out`, `waitFor: Timeout 30000ms exceeded`), and the following check found the member still
-     signed in (FAIL `session-gone`: `/api/dashboard/v1/session` 200, `/api/dashboard/v1/shell` 200, the sign-in not
-     shown). The Owner's sign-out in the same run passed in 2.4 s. **Repeated at 12:38:14–12:39:50Z:**
-     12 of 12 required and 10 of 10 optional passed; both accounts' sign-out took about 2.4 s and the session answered
-     401 afterwards. The sign-out goes through the realm's confirmation page of the identity service, not through a part
-     this candidate changed; the first run is recorded as what happened, not explained away, and is followed up as an issue
-     of the identity service. The release owner accepted the canary with the repetition.
+     passed. The member's sign-out (12:36:01.195–12:36:31.436Z) waited out its 30 s for the "Odhlásit" button on the
+     Dashboard's Nastavení → Účet page (`/settings/account`), which showed its own error state ("Nepodařilo se načíst",
+     with "Zkusit znovu") instead of the account: the sign-out never reached the identity service (INCONCLUSIVE
+     `sign-out`). The following check (12:36:31.456–12:36:53.348Z, 21.9 s for two calls) found the member still signed
+     in (FAIL `session-gone`: `/api/dashboard/v1/session` 200, `/api/dashboard/v1/shell` 200, the sign-in not shown).
+     The Owner's sign-out in the same run passed in 2.4 s, through the realm's confirmation page. **Repeated at
+     12:38:14–12:39:50Z:** 12 of 12 required and 10 of 10 optional passed; both accounts' sign-out took about 2.4 s and
+     the session answered 401 afterwards. The Account page is the Dashboard's, deployed apart from this candidate; the
+     first run is recorded as what happened, not explained away, and is followed up as an issue of the sign-in
+     services. The release owner accepted the canary with the repetition.
 4. **R2, 12:37:13–12:37:55Z.** The same readings, 12 of 12 required steps passed.
 5. **Recovery issues:** none open with the label `recovery` (12:38Z).
 6. **End:** `2026-11-23T12:39:50Z`, the green light, after the repeated tiles' run.
