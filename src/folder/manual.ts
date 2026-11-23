@@ -1202,12 +1202,12 @@ const roles: readonly Text[] = [
   blank,
   t("### Organizace", "### The Organization"),
   t(
-    "- **Vlastník Organizace**: vlastní GitHub Organizaci, jmenuje a odvolává Adminy Organizace a sám o sobě do žádného Prostředí nevstupuje (decision 0245).",
-    "- **Organization Owner**: owns the GitHub Organization, appoints and removes the Organization Admins and by that alone enters no Environment (decision 0245).",
+    "- **Vlastník Organizace**: jmenuje a odvolává Adminy Organizace a sám o sobě do žádného Prostředí nevstupuje (decision 0245). Dnes je to aktivní Owner GitHub Organizace; cílově ho určuje záznam Organizace u jejích dveří, ne vlastnictví GitHub Organizace (decision 0254).",
+    "- **Organization Owner**: appoints and removes the Organization Admins and by that alone enters no Environment (decision 0245). Today this is an active Owner of the GitHub Organization; as the target the Organization's record at its door says who it is, not ownership of the GitHub Organization (decision 0254).",
   ),
   t(
-    "- **Admin Organizace**: spravuje členství, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou Vlastník Organizace jmenuje v repozitáři nasazení Organizace a Lazurio Auth ji drží (decision 0245, target model). Do té doby připadají aktivnímu Vlastníkovi Organizace jen správní úkony Admina Organizace (schvalování zařízení, zdroj AI, odpovědi na žádosti, role aplikací) a vstup do žádného Prostředí mu nedávají: role Vlastníka Organizace roli Admina Organizace pro přístup nikdy nezastupuje. Jak roli ověřit a co Admin Organizace dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
-    "- **Organization Admin**: manages the Organization's membership, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints in the Organization's Deployment Repo and Lazurio Auth holds (decision 0245, target model). Until then only the Organization Admin's administrative acts (the approval of devices, the AI source, the answers to requests, the roles of applications) fall to an active Organization Owner and give that Owner entry to no Environment: the Organization Owner role never stands in for the Organization Admin role for access. How to check the role and what the Organization Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
+    "- **Admin Organizace**: spravuje členství, Teamy, přístupy včetně omezených repozitářů, zařízení, zdroj AI a Prostředí Organizace. Cílově je to role Lazuria, kterou Vlastník Organizace jmenuje v repozitáři nasazení Organizace a drží ji dveře Organizace na jejím Conglomerate Hostu (decisions 0245, 0254, target model). Do té doby připadají aktivnímu Vlastníkovi Organizace jen správní úkony Admina Organizace (schvalování zařízení, zdroj AI, odpovědi na žádosti, role aplikací) a vstup do žádného Prostředí mu nedávají: role Vlastníka Organizace roli Admina Organizace pro přístup nikdy nezastupuje. Jak roli ověřit a co Admin Organizace dělá, je v `manual/mechanisms.md` a `manual/admin.md`.",
+    "- **Organization Admin**: manages the Organization's membership, Teams, access (restricted repositories included), devices, AI source and Environments. As the target it is a role of Lazurio that an Organization Owner appoints in the Organization's Deployment Repo and the Organization's door on its Conglomerate Host holds (decisions 0245, 0254, target model). Until then only the Organization Admin's administrative acts (the approval of devices, the AI source, the answers to requests, the roles of applications) fall to an active Organization Owner and give that Owner entry to no Environment: the Organization Owner role never stands in for the Organization Admin role for access. How to check the role and what the Organization Admin does is in `manual/mechanisms.md` and `manual/admin.md`.",
   ),
   t(
     "- **Člen Organizace**: každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů a aplikací.",
@@ -1228,8 +1228,8 @@ const roles: readonly Text[] = [
     "- **Module Maintainer**: may also review the module, merge its protected `main` and release it.",
   ),
   t(
-    "- Kdo nemá žádnou roli modulu, k modulu přístup nemá. Roli modulu člověka nebo Teamu drží nastavení Přístup k modulu, které samo rolí není. Teamy a role modulů cílově drží Lazurio Auth a GitHub se z nich odvozuje (decision 0231, not yet deployed); do té doby rozhoduje živý grant na GitHubu (decisions 0186, 0232).",
-    "- Whoever has no Module role has no access to the module. A person's or a Team's Module role is held by the setting Module access, which is no role itself. Teams and Module roles are held in Lazurio Auth as the target and GitHub is derived from them (decision 0231, not yet deployed); until then the live grant on GitHub decides (decisions 0186, 0232).",
+    "- Kdo nemá žádnou roli modulu, k modulu přístup nemá. Roli modulu člověka nebo Teamu drží nastavení Přístup k modulu, které samo rolí není. Teamy a role modulů cílově drží dveře Organizace a GitHub z nich nastavuje aplikace Lazuria (decisions 0231, 0254, not yet deployed); do té doby rozhoduje živý grant na GitHubu (decisions 0186, 0232).",
+    "- Whoever has no Module role has no access to the module. A person's or a Team's Module role is held by the setting Module access, which is no role itself. Teams and Module roles are held at the Organization's door as the target and Lazurio's GitHub application sets GitHub from them (decisions 0231, 0254, not yet deployed); until then the live grant on GitHub decides (decisions 0186, 0232).",
   ),
   blank,
   t("### Aplikace", "### An application"),
@@ -1379,16 +1379,16 @@ const glossary: readonly Text[] = [
     "| Kolega | A user in an Organization, any of its people; their roles and Teams decide what they may do. |",
   ),
   t(
-    "| Vlastník Organizace (`organization-owner`) | Jeden pojem: vlastní GitHub Organizaci a jmenuje Adminy Organizace; sám o sobě do Prostředí nevstupuje. Lazurio vždy ověří, že je vlastníkem i GitHub Organizace. Dnes prvního Vlastníka Organizace v Lazuriu určí Založení Organizace v Lazuriu, které po přihlášení dokončí sám; cílově (rozhodnuto, zatím nenasazeno) ho určí provozovatel Lazuria nebo stávající Vlastník Organizace prohlášením, které Lazurio ověří přes GitHub (decisions 0245, 0234). |",
-    "| Organization Owner (`organization-owner`) | One term: owns the GitHub Organization and appoints the Organization Admins; by that alone enters no Environment. Lazurio always verifies that they own the GitHub Organization too. Today the first Organization Owner in Lazurio is set by setting up the Organization in Lazurio, which they complete themselves after signing in; in the target (decided, not yet deployed) Lazurio's operator or an existing Organization Owner names them by a declaration that Lazurio verifies through GitHub (decisions 0245, 0234). |",
+    "| Vlastník Organizace (`organization-owner`) | Jeden pojem: jmenuje Adminy Organizace; sám o sobě do Prostředí nevstupuje. Dnes je to aktivní Owner GitHub Organizace a prvního Vlastníka Organizace v Lazuriu určí Založení Organizace v Lazuriu, které po přihlášení dokončí sám; cílově (rozhodnuto, zatím nenasazeno) ho určí provozovatel Lazuria nebo stávající Vlastník Organizace prohlášením zapsaným do záznamu Organizace u jejích dveří, ne vlastnictvím GitHub Organizace; co je potřeba udělat na GitHubu, provede aplikace Lazuria (decisions 0245, 0234, 0254). |",
+    "| Organization Owner (`organization-owner`) | One term: appoints the Organization Admins; by that alone enters no Environment. Today this is an active Owner of the GitHub Organization, and the first Organization Owner in Lazurio is set by setting up the Organization in Lazurio, which they complete themselves after signing in; in the target (decided, not yet deployed) Lazurio's operator or an existing Organization Owner names them by a declaration written to the Organization's record at its door, not by ownership of the GitHub Organization; what has to be done on GitHub, Lazurio's GitHub application does (decisions 0245, 0234, 0254). |",
   ),
   t(
     "| Založení Organizace v Lazuriu | Krok, kterým se Organizace v Lazuriu založí a dostane prvního Vlastníka Organizace. Lidem se neříká „nativní Organizace“, „nativní Owner“ ani „nárok“; ty názvy zůstávají jen v kódu a technických dokumentech (decision 0234). |",
     '| Setting up the Organization in Lazurio | The step by which an Organization is set up in Lazurio and gets its first Organization Owner. People are never told "native Organization", "native Owner" or "claim"; those names stay in code and technical documents only (decision 0234). |',
   ),
   t(
-    "| Admin Organizace (`organization-admin`) | Spravuje lidi, Teamy, přístupy, zařízení a Prostředí Organizace; jmenuje ho Vlastník Organizace v repozitáři nasazení a roli drží Lazurio Auth; dokud není nasazená, připadají aktivnímu Vlastníkovi Organizace jen jeho správní úkony, bez vstupu do Prostředí (decisions 0245, 0234). |",
-    "| Organization Admin (`organization-admin`) | Manages the Organization's people, Teams, access, devices and Environments; an Organization Owner appoints the Admin in the Deployment Repo and Lazurio Auth holds the role; until it is deployed, only the Admin's administrative acts fall to an active Organization Owner, with no entry to an Environment (decisions 0245, 0234). |",
+    "| Admin Organizace (`organization-admin`) | Spravuje lidi, Teamy, přístupy, zařízení a Prostředí Organizace; jmenuje ho Vlastník Organizace v repozitáři nasazení a roli cílově drží dveře Organizace (dnes Lazurio Auth); dokud není nasazená, připadají aktivnímu Vlastníkovi Organizace jen jeho správní úkony, bez vstupu do Prostředí (decisions 0245, 0234, 0254). |",
+    "| Organization Admin (`organization-admin`) | Manages the Organization's people, Teams, access, devices and Environments; an Organization Owner appoints the Admin in the Deployment Repo and as the target the Organization's door holds the role (today Lazurio Auth); until it is deployed, only the Admin's administrative acts fall to an active Organization Owner, with no entry to an Environment (decisions 0245, 0234, 0254). |",
   ),
   t(
     "| Člen Organizace (`organization-member`) | Každý další člověk v Organizaci; co smí, plyne z jeho rolí modulů a aplikací (decision 0234). |",
@@ -1440,8 +1440,8 @@ const glossary: readonly Text[] = [
     "| Opatrovník | The named human for recovery and audited service entry; in an Environment that does its work by itself through bots, its responsible user (decisions 0094, 0169). |",
   ),
   t(
-    "| Organizace (Organization) | Jedna firma = jedna GitHub organizace = jedna access hranice = jeden repozitář v `organizations/<org>/`. |",
-    "| Organization (Organizace) | One company = one GitHub organization = one access boundary = one repository at `organizations/<org>/`. |",
+    "| Organizace (Organization) | Jedna firma = jedna GitHub organizace, založená pro Lazurio a jemu podřízená (decision 0254), = jedna access hranice = jeden repozitář v `organizations/<org>/`. |",
+    "| Organization (Organizace) | One company = one GitHub organization, created for Lazurio and subordinate to it (decision 0254), = one access boundary = one repository at `organizations/<org>/`. |",
   ),
   t(
     "| Team | Pojmenovaná skupina uvnitř Organizace, deklarovaná v manifestu a svázaná s GitHub Teamem; není to adresář (decisions 0021/0041). |",
