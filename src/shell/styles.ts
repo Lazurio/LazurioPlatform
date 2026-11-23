@@ -190,6 +190,10 @@ ${identityCss}
 .gear[aria-current="page"] { background: var(--shell-selected); }
 nav.switch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 3px; border-radius: var(--lz-radius-md); background: var(--shell-control); }
 .tab { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px 5px; border-radius: calc(var(--lz-radius-md) - 2px); color: var(--shell-ink-muted); font-size: 11px; font-weight: 550; line-height: normal; text-decoration: none; }
+/* A label wider than its third of the column ends in "…" instead of
+   running over its neighbour: "Automatizace" in Inter at 11 px does not
+   fit a narrow column (Anna 2026-11-23). The tab's title keeps the name. */
+.tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.tab:hover { color: var(--shell-ink); }
 .tab[aria-current="page"] { background: var(--shell-raised); box-shadow: var(--shell-raised-shadow); color: var(--shell-ink); }
 .tab[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
