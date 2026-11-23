@@ -148,6 +148,9 @@ export const runProcess: ProcessRunner = async (
   // child is in flight, and never arms another period.
   let over = false;
   let wake: (() => void) | undefined;
+  // The caller's decision while it is being made: a child that ends during
+  // it (its kill, or on its own) is reported as the decision says.
+  let deciding: Promise<boolean> | undefined;
   const kill = async () => {
     child.kill("SIGKILL");
     await child.exited;
@@ -168,7 +171,9 @@ export const runProcess: ProcessRunner = async (
         child.kill("SIGKILL");
         return "timeout" as const;
       }
-      const killed = await onTimeout(kill).catch(() => false);
+      deciding = onTimeout(kill).catch(() => false);
+      const killed = await deciding;
+      deciding = undefined;
       if (over) return "over" as const;
       if (killed) return "timeout" as const;
     }
@@ -194,9 +199,15 @@ export const runProcess: ProcessRunner = async (
   try {
     // `expired` ends as "over" only after the run is over, so here it is
     // either the child's answer or "timeout".
-    const result = (await Promise.race([finished, expired])) as
+    const raced = (await Promise.race([finished, expired])) as
       | ProcessResult
       | "timeout";
+    // A child that ended while the caller was deciding to kill it was cut
+    // off by that decision, not finished: the run timed out.
+    const result =
+      raced !== "timeout" && deciding !== undefined && (await deciding)
+        ? ("timeout" as const)
+        : raced;
     if (result === "timeout") finished.catch(() => undefined);
     return result;
   } finally {

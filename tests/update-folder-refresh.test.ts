@@ -27,7 +27,7 @@ import { updateProfile } from "../src/folder/update-profile";
 import { initializeMachineFolder } from "../src/machine/cli";
 import { type CliContext, runUpdateCommand } from "../src/update/cli";
 import {
-  detachedPrefix,
+  detachedCommand,
   refreshFolderWhenBehind,
   resumePreparedTransaction,
 } from "../src/update/folder-refresh";
@@ -1020,9 +1020,9 @@ test.skipIf(process.platform === "win32")(
     const inner = refreshRunner(base);
     const run: ProcessRunner = async (argv, timeoutMs, env, onTimeout) => {
       argvs.push(argv);
-      // What the unit runs: the command after the prefix.
+      // What the unit runs: the command after `--`.
       return inner.run(
-        argv.slice(detachedPrefix.length),
+        argv.slice(argv.indexOf("--") + 1),
         timeoutMs,
         env,
         onTimeout,
@@ -1040,13 +1040,19 @@ test.skipIf(process.platform === "win32")(
       }),
     ).toEqual({ state: "refreshed" });
     expect(argvs.length).toBeGreaterThan(0);
+    const units = new Set<string>();
     for (const argv of argvs) {
-      expect(argv.slice(0, detachedPrefix.length)).toEqual([...detachedPrefix]);
-      expect(argv[detachedPrefix.length]).toBe(layout(base).selector);
+      const unit = argv[3] ?? "";
+      expect(unit).toMatch(/^lazurio-folder-refresh-[0-9a-f-]{36}$/);
+      units.add(unit);
+      expect(argv.slice(0, argv.indexOf("--") + 1)).toEqual([
+        ...detachedCommand(unit),
+      ]);
+      expect(argv[argv.indexOf("--") + 1]).toBe(layout(base).selector);
     }
-    expect(
-      argvs[0]?.slice(detachedPrefix.length + 1, detachedPrefix.length + 2),
-    ).toEqual(["profile-resume"]);
+    // Each command its own unit, so that each can be stopped by name.
+    expect(units.size).toBe(argvs.length);
+    expect(argvs[0]?.[argvs[0].indexOf("--") + 2]).toBe("profile-resume");
   },
 );
 
@@ -1120,5 +1126,92 @@ test.skipIf(process.platform === "win32")(
     expect(later.calls.map((call) => call.command.slice(0, 2))).toEqual([
       ["machine", "folder-refresh"],
     ]);
+  },
+);
+
+// Real transient units, where this host has a systemd user manager.
+const userUnits =
+  process.platform === "linux" &&
+  Bun.spawnSync(
+    [
+      "systemd-run",
+      "--user",
+      "--quiet",
+      "--no-ask-password",
+      "--collect",
+      "--wait",
+      "--pipe",
+      "--",
+      "true",
+    ],
+    { stdin: "ignore", stdout: "ignore", stderr: "ignore" },
+  ).exitCode === 0;
+const unitEnv = () => {
+  const env: Record<string, string> = {};
+  for (const name of [
+    "HOME",
+    "PATH",
+    "XDG_RUNTIME_DIR",
+    "DBUS_SESSION_BUS_ADDRESS",
+  ])
+    if (process.env[name] !== undefined)
+      env[name] = process.env[name] as string;
+  return env;
+};
+
+test.skipIf(!userUnits)(
+  "a real detached refresh past its bound is stopped as a unit under the Folder's lock, and does not go on after it",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    // The selector: a refresh that takes longer than the bound, then writes.
+    const marker = join(root, "went-on");
+    await mkdir(join(base, "bin"), { recursive: true, mode: 0o700 });
+    await writeFile(
+      layout(base).selector,
+      `#!/bin/sh\nsleep 2\necho went-on > '${marker}'\nprintf '{"kind":"unchanged"}'\n`,
+      { mode: 0o700 },
+    );
+    expect(
+      await refreshFolderWhenBehind({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: unitEnv(),
+        detach: true,
+        timeoutMs: 400,
+        retry: { attempts: 1, delayMs: 0 },
+      }),
+    ).toEqual({ state: "failed", reason: "timeout" });
+    await Bun.sleep(2_500);
+    expect(await readFile(marker, "utf8").catch(() => null)).toBeNull();
+  },
+);
+
+test.skipIf(!userUnits)(
+  "a real detached command finishes after its caller is gone",
+  async () => {
+    const root = await temporary();
+    const marker = join(root, "finished");
+    const unit = `lazurio-folder-refresh-test-${process.pid}-${Date.now()}`;
+    // No caller decision: past the bound the caller's child (the client) is
+    // killed, as a caller that ends is; the unit goes on to its end.
+    expect(
+      await runProcess(
+        [
+          ...detachedCommand(unit),
+          "sh",
+          "-c",
+          `sleep 1; echo finished > '${marker}'`,
+        ],
+        200,
+        unitEnv(),
+      ),
+    ).toBe("timeout");
+    await Bun.sleep(1_800);
+    expect(await readFile(marker, "utf8")).toBe("finished\n");
   },
 );

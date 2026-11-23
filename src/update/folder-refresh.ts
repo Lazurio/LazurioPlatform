@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { lstat, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
@@ -71,20 +72,26 @@ export type FolderRefreshInput = Readonly<{
   detach?: boolean | undefined;
 }>;
 
-/** A transient user unit that runs the command to its end even when this
- * process is gone, passes its output and exit status back while this process
- * waits, and is removed after it ends. Killing this process's child stops
- * only the waiting, never the command. */
-export const detachedPrefix = Object.freeze([
-  "systemd-run",
-  "--user",
-  "--quiet",
-  "--no-ask-password",
-  "--collect",
-  "--wait",
-  "--pipe",
-  "--",
-]);
+/** A transient user unit, named so that it can be stopped, that runs the
+ * command to its end even when this process is gone, passes its output and
+ * exit status back while this process waits, and is removed after it ends.
+ * Killing this process's child stops only the waiting, never the command. */
+export const detachedCommand = (unit: string) =>
+  Object.freeze([
+    "systemd-run",
+    "--user",
+    "--unit",
+    unit,
+    "--quiet",
+    "--no-ask-password",
+    "--collect",
+    "--wait",
+    "--pipe",
+    "--",
+  ]);
+
+/** How long a stop of a detached refresh waits for its unit to be gone. */
+const unitStopWaitMs = 10_000;
 
 /** A refresh that did not complete, by how it failed. */
 export const failedRefresh = (reason: string): FolderRefreshOutcome =>
@@ -255,32 +262,80 @@ async function operatorOf(input: FolderRefreshInput) {
  * this process holds it, the child cannot enter one before it is gone. */
 function boundedRun(input: FolderRefreshInput) {
   const run = input.run ?? runProcess;
-  const killOutsideChange = async (kill: () => Promise<void>) => {
-    try {
-      await withFolderOperationLock(
-        join(input.folder, ".lazurio"),
-        () => kill(),
-        0,
-      );
-      return true;
-    } catch {
-      // Held by the child or another change, or the lock could not be
-      // verified at all (an I/O error, no descriptor left): nothing shows
-      // that the child is outside its transaction, so it is kept.
-      return false;
-    }
-  };
-  return (command: readonly string[]) =>
-    run(
+  const env = serviceEnvironment(input.env);
+  // Kills under the Folder's lock, and only once the command is really gone:
+  // a detached command is its unit, which is stopped and waited for before
+  // the lock is released, or the child is kept.
+  const killOutsideChange =
+    (unit: string | undefined) => async (kill: () => Promise<void>) => {
+      try {
+        await withFolderOperationLock(
+          join(input.folder, ".lazurio"),
+          async () => {
+            if (unit !== undefined && !(await stopUnit(run, env, unit)))
+              throw new Error("Detached refresh still running");
+            await kill();
+          },
+          0,
+        );
+        return true;
+      } catch {
+        // Held by the child or another change, the lock could not be
+        // verified at all (an I/O error, no descriptor left), or its unit
+        // would not stop: nothing shows the command is outside its
+        // transaction for good, so it is kept.
+        return false;
+      }
+    };
+  return (command: readonly string[]) => {
+    const unit =
+      input.detach === true
+        ? `lazurio-folder-refresh-${randomUUID()}`
+        : undefined;
+    return run(
       [
-        ...(input.detach === true ? detachedPrefix : []),
+        ...(unit === undefined ? [] : detachedCommand(unit)),
         layout(input.base).selector,
         ...command,
       ],
       input.timeoutMs ?? refreshTimeoutMs,
-      serviceEnvironment(input.env),
-      killOutsideChange,
+      env,
+      killOutsideChange(unit),
     );
+  };
+}
+
+/** Kill a detached command's unit and wait until it is no longer running;
+ * true once it is gone. */
+async function stopUnit(
+  run: ProcessRunner,
+  env: Readonly<Record<string, string>>,
+  unit: string,
+): Promise<boolean> {
+  const service = `${unit}.service`;
+  await run(
+    ["systemctl", "--user", "kill", "--signal=SIGKILL", service],
+    unitStopWaitMs,
+    env,
+  ).catch(() => undefined);
+  const deadline = Date.now() + unitStopWaitMs;
+  while (Date.now() < deadline) {
+    const state = await run(
+      ["systemctl", "--user", "is-active", service],
+      unitStopWaitMs,
+      env,
+    ).catch(() => null);
+    if (
+      state !== null &&
+      state !== "timeout" &&
+      !["active", "activating", "deactivating", "reloading"].includes(
+        state.stdout.trim(),
+      )
+    )
+      return true;
+    await Bun.sleep(100);
+  }
+  return false;
 }
 
 async function resumeWith(
