@@ -176,6 +176,8 @@ otherwise from its directory `app/v<N>/`. Without Git the committed files and
 the source markers are unknown, which it reports instead of passing them. Source is read up to 1 MiB per file
 and 4 MiB in total; a marker found counts, and a marker missing while some
 committed source was not read is reported as `source-incomplete`, never as
-absent. It keeps the level of what is unknown: a blocker when `appAccess` or the
-writer rule is unknown, live evidence when only the contract tests are. It
+absent. It keeps the level of what is unknown: a blocker when `appAccess`, the
+writer rule or a dependency on a person's Environment is unknown (the last one
+when a file of the code that runs was not read), live evidence when only the
+contract tests are. It
 does not read secrets, the vault, deployed hosts or GitHub.
