@@ -143,8 +143,8 @@ export const mechanisms: readonly Text[] = [
     "- **The Organization Admin** manages, within the boundaries the Organization Owner sets, the members, Teams, access, devices, AI source and Environments of their Organization. The Admin has service entry to its Work and Team Environments, never to a Personal Environment: as the target the Admin opens it with a reason and only through the recording entry point, and until that is deployed only from an administrative station that the Deployment Repo declares as a named exception (decisions 0245 and 0247). An Organization usually has one Organization Admin and may have more.",
   ),
   t(
-    "- **Vlastník Organizace** jmenuje a odvolává Adminy Organizace; sám o sobě do žádného Prostředí nevstupuje (rozhodnutí 0245). Dnes je to aktivní Owner GitHub Organizace; cílově ho určuje záznam Organizace u jejích dveří, ne vlastnictví GitHub Organizace (rozhodnutí 0254).",
-    "- **The Organization Owner** appoints and removes the Organization Admins; by that alone they enter no Environment (decision 0245). Today this is an active Owner of the GitHub Organization; as the target the Organization's record at its door says who it is, not ownership of the GitHub Organization (decision 0254).",
+    "- **Vlastník Organizace** vlastní GitHub Organizaci a jmenuje a odvolává Adminy Organizace; sám o sobě do žádného Prostředí nevstupuje (rozhodnutí 0245).",
+    "- **The Organization Owner** owns the GitHub Organization and appoints and removes the Organization Admins; by that alone they enter no Environment (decision 0245).",
   ),
   t(
     "- **Člen Organizace** je každý další člověk v Organizaci. Co smí, plyne z jeho rolí na úrovni modulů (Čtenář modulu, Přispěvatel modulu, Správce modulu) a aplikací (Admin aplikace, Uživatel aplikace).",
