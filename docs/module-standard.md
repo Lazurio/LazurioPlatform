@@ -788,8 +788,9 @@ One Module's app comes in three versions:
   Environment browser: one agent's change in progress, on its Environment's
   branch of the data, with writes that stay local.
 
-DEV and STAGING have a blue frame with a label, "DEV" or "STAGING", drawn by
-Buddy's overlay; PROD has neither, and Buddy is available in all three, in PROD
+DEV and STAGING have a blue frame with a label, drawn by Buddy's overlay:
+STAGING a solid frame labelled "STAGING", DEV a dashed one labelled "DEV"
+(decision 0249, addendum of 2026-11-22, decided 2026-11-23); PROD has neither, and Buddy is available in all three, in PROD
 through the overlay the application host's gateway adds (decisions 0180, 0248).
 A shared Environment's frame is blue too, and its label says it is shared: the
 label tells them apart, not the colour. Another person's Environment stays red.
@@ -810,7 +811,8 @@ Reader role). Roles given in the Application to a person, a Team or the whole
 Organization add to that, and the higher role holds. No Application admits the
 whole Organization by default, a read-only one included: the Organization Admin
 sets who sees which Application in the Organization overview (decision 0249,
-addendum of 2026-11-22). Once a Module has its Application, its STAGING is no
+addendum of 2026-11-22). A member without the Organization Admin role sees only
+their own Applications there and asks the Organization Admin for another one. Once a Module has its Application, its STAGING is no
 longer shared with people from other Environments. For one Application the
 Organization Admin may switch the entry through the Module off ("application roles
 only"); then only roles given in the Application decide, and the Organization
