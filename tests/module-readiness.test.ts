@@ -5,7 +5,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
   assessReadiness,
-  environmentDependencies,
   readReadinessInput,
   specVersion,
 } from "../src/modules/readiness";
@@ -238,16 +237,11 @@ posixTest(
 );
 
 posixTest(
-  "without Git the committed evidence is unknown, and an unchecked dependency on a person's Environment keeps the app from a trial too",
+  "without Git the committed evidence is unknown, so the verdict is at most a trial",
   async () => {
     const result = await assess(readyServer(), { repository: false });
-    expect(ids(result)).toEqual(["git-unavailable", "source-incomplete"]);
-    const unknown = result.findings.find(
-      (item) => item.id === "source-incomplete",
-    );
-    expect(unknown?.level).toBe("blocker");
-    expect(unknown?.message).toContain("a person's Environment");
-    expect(result.verdict).toBe("not-ready");
+    expect(ids(result)).toEqual(["git-unavailable"]);
+    expect(result.verdict).toBe("ready-for-trial");
   },
 );
 
@@ -461,8 +455,7 @@ posixTest(
   "a marker found in the read source counts even when another file was skipped",
   async () => {
     const files = readyServer();
-    files["app/v3/fixtures/generated.ts"] =
-      `// ${"x".repeat(1024 * 1024 + 10)}\n`;
+    files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
     const result = await assess(files);
     expect(result.findings).toEqual([]);
     expect(result.verdict).toBe("ready-for-live");
@@ -481,199 +474,5 @@ posixTest(
     expect(result.findings[0]?.message).toContain("contract tests");
     expect(result.findings[0]?.message).not.toContain("appAccess");
     expect(result.verdict).toBe("ready-for-trial");
-  },
-);
-
-posixTest(
-  "code that runs and was not read makes a dependency on a person's Environment unknown, never absent",
-  async () => {
-    const files = readyServer();
-    files["app/v3/generated.ts"] = `// ${"x".repeat(1024 * 1024 + 10)}\n`;
-    const result = await assess(files);
-    expect(ids(result)).toEqual(["source-incomplete"]);
-    expect(result.findings[0]?.level).toBe("blocker");
-    expect(result.findings[0]?.message).toContain(
-      "a dependency on a person's Environment",
-    );
-    expect(result.findings[0]?.message).toContain("app/v3/generated.ts");
-    expect(result.verdict).toBe("not-ready");
-  },
-);
-
-test("every kind of a person's Environment is found in code that runs", () => {
-  expect(environmentDependencies('spawnSync("gh", ["api", path])')).toEqual([
-    "GitHub sign-in",
-  ]);
-  expect(
-    environmentDependencies("await $`composio execute OUTLOOK_SEND_EMAIL`"),
-  ).toEqual(["Integrations"]);
-  expect(
-    environmentDependencies('join(os.homedir(), "OneDrive", "Revize")'),
-  ).toEqual(["files"]);
-  expect(
-    environmentDependencies(
-      'fetch("https://launchpad.station.example.lazurio.io/x")',
-    ),
-  ).toEqual(["network"]);
-  expect(
-    environmentDependencies(
-      "const writer = process.env.LAZURIO_RUNTIME_DATA_WRITER;",
-    ),
-  ).toEqual([]);
-  // An Organization's own service address is no Environment's address.
-  expect(
-    environmentDependencies(
-      'const vault = "https://vault.example.lazurio.io";',
-    ),
-  ).toEqual([]);
-});
-
-posixTest(
-  "an app that relies on a person's Environment is not ready, and a test that does is no evidence",
-  async () => {
-    const files = readyServer();
-    const inTestOnly = await assess({
-      ...files,
-      "app/v3/tests/github.test.ts": 'spawnSync("gh", ["auth", "status"]);\n',
-    });
-    expect(inTestOnly.verdict).toBe("ready-for-live");
-    const relies = await assess({
-      ...files,
-      "app/v3/server.ts": `${files["app/v3/server.ts"]}spawnSync("gh", ["auth", "git-credential"]);\nconst root = join(os.homedir(), "inbox");\n`,
-    });
-    expect(relies.verdict).toBe("not-ready");
-    const finding = relies.findings.find(
-      (item) => item.id === "environment-dependency",
-    );
-    expect(finding?.level).toBe("blocker");
-    expect(finding?.message).toContain("GitHub sign-in, files");
-  },
-);
-
-posixTest(
-  "code that runs imports a file under scripts/ or migrations/: it runs too and its dependency counts",
-  async () => {
-    const files = readyServer();
-    const result = await assess({
-      ...files,
-      "app/v3/server.ts": `import { whoami } from "./scripts/client";\n${files["app/v3/server.ts"]}`,
-      "app/v3/scripts/client.ts":
-        'import { token } from "../migrations/auth.js";\nexport const whoami = () => spawnSync("gh", ["api", "user"]);\n',
-      "app/v3/migrations/auth.ts":
-        "export const token = () => join(os.homedir(), '.config');\n",
-      // Not imported by code that runs: still no evidence.
-      "app/v3/scripts/release.ts": 'spawnSync("gh", ["release", "create"]);\n',
-    });
-    const finding = result.findings.find(
-      (item) => item.id === "environment-dependency",
-    );
-    expect(finding?.message).toContain("GitHub sign-in, files");
-    expect(result.verdict).toBe("not-ready");
-    const alone = await assess({
-      ...files,
-      "app/v3/scripts/release.ts": 'spawnSync("gh", ["release", "create"]);\n',
-    });
-    expect(alone.verdict).toBe("ready-for-live");
-  },
-);
-
-posixTest(
-  "code that runs imports a file elsewhere in the Module, outside the app directory: it is read and its dependency counts; an import that leaves the Module is unknown",
-  async () => {
-    const files = readyServer();
-    const result = await assess({
-      ...files,
-      "app/v3/server.ts": `import { whoami } from "../../shared/client";\n${files["app/v3/server.ts"]}`,
-      "shared/client.ts":
-        'export const whoami = () => spawnSync("gh", ["api", "user"]);\n',
-    });
-    expect(
-      result.findings.find((item) => item.id === "environment-dependency")
-        ?.message,
-    ).toContain("GitHub sign-in");
-    expect(result.verdict).toBe("not-ready");
-    const leaves = await assess({
-      ...files,
-      "app/v3/server.ts": `import { whoami } from "../../../elsewhere/client";\n${files["app/v3/server.ts"]}`,
-    });
-    const unknown = leaves.findings.find(
-      (item) => item.id === "source-incomplete",
-    );
-    expect(unknown?.level).toBe("blocker");
-    expect(unknown?.message).toContain(
-      "a dependency on a person's Environment",
-    );
-    expect(unknown?.message).toContain("../../../elsewhere/client");
-    expect(leaves.verdict).toBe("not-ready");
-    // A stylesheet or an asset is no source and changes nothing.
-    const styled = await assess({
-      ...files,
-      "app/v3/server.ts": `import "./styles.css";\n${files["app/v3/server.ts"]}`,
-    });
-    expect(styled.verdict).toBe("ready-for-live");
-  },
-);
-
-posixTest(
-  "an import through a committed symlink is never followed: the dependency is unknown and blocks",
-  async () => {
-    const files = readyServer();
-    files["app/v3/server.ts"] =
-      `import { whoami } from "../../shared/link";\n${files["app/v3/server.ts"]}`;
-    files["shared/client.ts"] =
-      'export const whoami = () => spawnSync("gh", ["api", "user"]);\n';
-    const result = await fixture(files, async (root) => {
-      await symlink("client.ts", join(root, "shared/link.ts"));
-      git(root, "add", "-A");
-      git(root, "commit", "-q", "-m", "link");
-      return assessReadiness(await readReadinessInput(root));
-    });
-    const unknown = result.findings.find(
-      (item) => item.id === "source-incomplete",
-    );
-    expect(unknown?.level).toBe("blocker");
-    expect(unknown?.message).toContain("../../shared/link");
-    expect(result.verdict).toBe("not-ready");
-  },
-);
-
-posixTest(
-  "imported files outside the app share the app's read budget: what is over it is unknown and blocks",
-  async () => {
-    const files = readyServer();
-    const imports: string[] = [];
-    for (let n = 0; n < 5; n++) {
-      files[`shared/part${n}.ts`] =
-        `export const part${n} = 1;\n// ${"x".repeat(900 * 1024)}\n`;
-      imports.push(`import { part${n} } from "../../shared/part${n}";`);
-    }
-    files["app/v3/server.ts"] =
-      `${imports.join("\n")}\n${files["app/v3/server.ts"]}`;
-    const result = await assess(files);
-    const unknown = result.findings.find(
-      (item) => item.id === "source-incomplete",
-    );
-    expect(unknown?.level).toBe("blocker");
-    expect(unknown?.message).toContain("shared/part");
-    expect(result.verdict).toBe("not-ready");
-  },
-);
-
-posixTest(
-  "a Module that is only a tool of the Environment is no Application, whatever its code relies on",
-  async () => {
-    const files = readyServer();
-    const declared = JSON.parse(files["lazurio.module.json"] as string);
-    const result = await assess({
-      ...files,
-      "lazurio.module.json": JSON.stringify({
-        ...declared,
-        application: false,
-      }),
-      "app/v3/server.ts": 'spawnSync("gh", ["api", "user"]);\n',
-    });
-    expect(result.verdict).toBe("no-application");
-    expect(result.generation).toBe("V3");
-    expect(result.findings).toEqual([]);
   },
 );

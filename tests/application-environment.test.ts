@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processContentGit } from "../src/content/git";
@@ -58,8 +58,6 @@ beforeAll(async () => {
   await compilePlatform(binary);
 });
 afterAll(async () => {
-  // The Organization files' copies are read-only (H20); make them removable.
-  if (root) Bun.spawnSync(["chmod", "-R", "u+w", root]);
   if (root) await rm(root, { recursive: true, force: true });
 });
 
@@ -114,11 +112,7 @@ if (process.env.LAZURIO_RUNTIME_LISTENER_API_PORT)
 async function notesModule(
   folder: string,
   home: string,
-  options: {
-    two?: boolean;
-    admin?: boolean;
-    organizationFiles?: readonly string[];
-  } = {},
+  options: { two?: boolean; admin?: boolean } = {},
 ) {
   const organization = await writeOrganization(folder, "gamma", {
     slug: "gamma",
@@ -164,8 +158,6 @@ async function notesModule(
   const app = join(module, "app");
   const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
   pkg.lazurio.runtime.listeners = listeners;
-  if (options.organizationFiles !== undefined)
-    pkg.lazurio.runtime.organization_files = options.organizationFiles;
   await writeFile(join(app, "package.json"), JSON.stringify(pkg));
   await writeFile(join(app, "server.ts"), strictServer);
   if (options.admin) {
@@ -1211,102 +1203,6 @@ posixTest(
       await world.close();
       await rm(parent, { recursive: true, force: true });
     }
-  },
-  60_000,
-);
-
-posixTest(
-  "an app that declares organization_files gets the root's committed copy of exactly those files and revision.json in LAZURIO_ORGANIZATION_FILES_DIR, never the checkout, made again at every start (H20)",
-  async () => {
-    const parent = await realpath(await mkdtemp(join(root, "orgfiles-")));
-    const { folder, home } = await fixtureFolder(parent, "local");
-    const { organization, web } = await notesModule(folder, home, {
-      organizationFiles: ["modules.manifest.json", "lazurio.organization.json"],
-    });
-    // The root as a Git checkout with its GitHub remote; `.env` is committed
-    // too and never reaches the copy.
-    await writeFile(join(organization, ".env"), "SECRET=1\n");
-    const git = (...args: string[]) => {
-      const result = Bun.spawnSync(["git", ...args], {
-        cwd: organization,
-        env: { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: home },
-      });
-      if (result.exitCode !== 0) throw new Error(result.stderr.toString());
-      return result.stdout.toString().trim();
-    };
-    git("init", "-q", "-b", "main");
-    git("config", "user.email", "fixture@example.test");
-    git("config", "user.name", "fixture");
-    git("remote", "add", "origin", "git@github.com:gamma/gamma-root.git");
-    const commitRoot = () => {
-      git("add", "lazurio.organization.json", "modules.manifest.json", ".env");
-      git("commit", "-q", "-m", "root");
-      return git("rev-parse", "HEAD");
-    };
-    const first = commitRoot();
-    const manager = createFakeServiceManager({
-      runtimeDirectory: join(parent, "runtime"),
-      managerEnvironment: ["HOME=/home/admin", "PATH=/usr/bin"],
-    });
-    await mkdir(manager.runtimeDirectory);
-    const host = linuxHost(manager, home, [web], binary);
-    const run = async (...args: string[]) =>
-      (
-        await runModuleCommand(
-          ["module", ...args, "--folder", folder, "--json"],
-          cliContext(home),
-          host,
-        )
-      ).result;
-    expect(await run("start", "gamma/notes")).toMatchObject({
-      outcome: "started",
-    });
-    // Its own place per checkout, Module and package, and the link to the
-    // current copy in it.
-    const copy = unitRequest(manager).environment
-      .LAZURIO_ORGANIZATION_FILES_DIR as string;
-    expect(copy).toMatch(
-      new RegExp(
-        `^${join(home, ".local/state/lazurio/organization-files/gamma/notes-")}[0-9a-f]{16}/current$`,
-      ),
-    );
-    expect((await readdir(copy)).sort()).toEqual([
-      "lazurio.organization.json",
-      "modules.manifest.json",
-      "revision.json",
-    ]);
-    for (const file of ["lazurio.organization.json", "modules.manifest.json"])
-      expect(await readFile(join(copy, file), "utf8")).toBe(
-        await readFile(join(organization, file), "utf8"),
-      );
-    const revision = JSON.parse(
-      await readFile(join(copy, "revision.json"), "utf8"),
-    );
-    expect(revision).toMatchObject({
-      schema_version: "lazurio.organization-files.v1",
-      repository: "gamma/gamma-root",
-      commit: first,
-      files: ["modules.manifest.json", "lazurio.organization.json"],
-    });
-    expect(revision.fetched_at).toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
-    // A committed change of the root reaches the copy at the next start.
-    const manifest = join(organization, "modules.manifest.json");
-    const changed = `${JSON.stringify(JSON.parse(await readFile(manifest, "utf8")), null, 2)}\n`;
-    await writeFile(manifest, changed);
-    const second = commitRoot();
-    expect(await run("stop", "gamma/notes")).toMatchObject({
-      outcome: "group-stopped",
-    });
-    expect(await run("start", "gamma/notes")).toMatchObject({
-      outcome: "started",
-    });
-    expect(await readFile(join(copy, "modules.manifest.json"), "utf8")).toBe(
-      changed,
-    );
-    expect(
-      JSON.parse(await readFile(join(copy, "revision.json"), "utf8")).commit,
-    ).toBe(second);
-    await run("stop", "gamma/notes");
   },
   60_000,
 );

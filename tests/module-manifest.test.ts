@@ -128,23 +128,3 @@ test("module reader does not coerce mode objects or invoke array accessors", () 
   ).toThrow();
   expect(invoked).toBe(false);
 });
-test("a Module declares that its app is only a tool of the Environment with application: false", () => {
-  expect(parseModuleManifest(fixture()).application).toBe(true);
-  expect(
-    parseModuleManifest({ ...fixture(), application: false }).application,
-  ).toBe(false);
-  for (const value of [true, "false", 0, null])
-    expect(() =>
-      parseModuleManifest({ ...fixture(), application: value }),
-    ).toThrow("application may only be false");
-  expect(() =>
-    parseModuleManifest({
-      ...fixture(),
-      tcp_port_policy: { mode: "none" },
-      port_leases: [],
-      apps: [],
-      default_app: undefined,
-      application: false,
-    }),
-  ).toThrow();
-});

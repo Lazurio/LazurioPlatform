@@ -61,12 +61,6 @@ export type ReadinessInput = Readonly<{
     pkg: Readonly<Record<string, unknown>> | null;
     /** Concatenated source text of the app (bounded), for markers only. */
     source: string;
-    /** The same, without tests, fixtures, scripts, skills and docs: only what
-     * runs, for markers whose presence in a test would be no evidence. */
-    runtimeSource: string;
-    /** Files of the code that runs that were not read: over the limits, or
-     * Git could not read them. */
-    runtimeSkipped: readonly string[];
     /** Committed source files that were not read (over a limit, or Git
      * failed); a marker missing from `source` is then unknown, not absent. */
     sourceSkipped: readonly string[];
@@ -138,12 +132,10 @@ export function assessReadiness(input: ReadinessInput): Readiness {
     findings.push(Object.freeze({ id, level, message }));
   let moduleId: string | null = null;
   let apps: readonly string[] | null = null;
-  let application = true;
   try {
     const manifest = parseModuleManifest(input.manifest);
     moduleId = manifest.id;
     apps = manifest.apps;
-    application = manifest.application;
   } catch (error) {
     add(
       "manifest-invalid",
@@ -160,18 +152,6 @@ export function assessReadiness(input: ReadinessInput): Readiness {
   if (apps !== null && apps.length === 0)
     return finish(moduleId, null, "V0", [], [], "no-application");
   const app = input.app;
-  // A tool of the Environment says so itself and never becomes an
-  // Application: its tile keeps opening STAGING (decision 0249, addendum of
-  // 2026-11-22).
-  if (findings.length === 0 && !application)
-    return finish(
-      moduleId,
-      app?.package ?? null,
-      app === null ? null : generationOf(input),
-      [],
-      [],
-      "no-application",
-    );
   if (findings.length > 0 || app === null)
     return finish(moduleId, null, null, findings, hostConditions);
   // Nothing else of an app the start path refuses is read or judged.
@@ -323,30 +303,6 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       "live",
       "No contract tests over @lazurio/module-kit testing helpers (role list, refusal without a role or without the writer, deep health).",
     );
-  // An app that stands on a person's Environment cannot run as an
-  // Application until it is changed (decision 0249, addendum of 2026-11-22).
-  // Found markers count; none found counts as none only when all of the
-  // code that runs was read.
-  const environment = environmentDependencies(app.runtimeSource);
-  if (environment.length === 0 && input.tracked === null)
-    // Without Git nothing of the source was read: the dependency is unknown,
-    // and an unknown dependency keeps the app from PROD, a trial included.
-    add(
-      "source-incomplete",
-      "blocker",
-      "Git could not list the Module's committed files, so whether the app relies on a person's Environment is unknown.",
-    );
-  else if (environment.length === 0 && app.runtimeSkipped.length > 0)
-    unknownMarkers.push({
-      name: "a dependency on a person's Environment",
-      level: "blocker",
-    });
-  if (environment.length > 0)
-    add(
-      "environment-dependency",
-      "blocker",
-      `The app's code relies on a person's Environment (${environment.join(", ")}), which the application host does not have. Until it is changed it has no PROD and its tile opens STAGING: the Organization's access goes to the Application's server as a secret from the Organization's vault, a person's own access stays with their agent, which writes the result through the Application's MCP server, another Module is a sibling on the host, and the Organization's files reach the server as a read-only copy. A Module that is only a tool of the Environment declares "application": false in lazurio.module.json.`,
-    );
   // Unknown evidence keeps the level of the requirement it stands for: an
   // unknown blocker-level marker blocks, an unknown live-only one does not.
   if (unknownMarkers.length > 0 && input.tracked !== null) {
@@ -356,12 +312,11 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       ? "blocker"
       : "live";
     const names = unknownMarkers.map((item) => item.name).join(", ");
-    const unread = [...new Set([...app.sourceSkipped, ...app.runtimeSkipped])];
-    const files = unread.slice(0, 5).join(", ");
+    const files = app.sourceSkipped.slice(0, 5).join(", ");
     add(
       "source-incomplete",
       level,
-      `Not all committed source of the app was read (${files}${unread.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, Git could not read it, or an import leaves the Module), so whether it has ${names} is unknown. Split oversized source files.`,
+      `Not all committed source of the app was read (${files}${app.sourceSkipped.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, or Git could not read it), so whether it has ${names} is unknown. Split oversized source files.`,
     );
   }
   return finish(moduleId, app.package, generation, findings, hostConditions);
@@ -396,140 +351,6 @@ function finish(
 // --- Reading the checkout -------------------------------------------------
 
 const SOURCE = /\.(?:[cm]?[jt]sx?|py)$/;
-/** Files that do not run in the App: tests, fixtures, scripts, skills, docs. */
-const NOT_RUNTIME =
-  /(^|\/)(tests?|__tests__|__mocks__|e2e|fixtures?|test-support|testing|scripts|skills|docs?|seed|migrations)\/|\.(?:test|spec)\.[cm]?[jt]sx?$|\.d\.ts$/;
-
-/** What only a person's Environment has, by kind, as markers in code that
- * runs: the person's GitHub sign-in, the Environment's Integrations, the
- * person's files and Folder, and the Organization's network. */
-const ENVIRONMENT_MARKERS: ReadonlyArray<readonly [string, RegExp]> = [
-  [
-    "GitHub sign-in",
-    /["'`]gh["'`]\s*[,\]]|\bgh\s+(?:api|pr|issue|repo|auth|release|run|search|workflow)\b|gh auth git-credential|\bhosts\.yml\b/,
-  ],
-  [
-    "Integrations",
-    /["'`](?:executor|composio|wacli|gogcli|neonctl)["'`]\s*[,\]]|\b(?:executor|composio|wacli|gogcli)\s+(?:call|execute|tools|send|auth|run|list|search)\b|\blazurio\s+integrations\b/,
-  ],
-  [
-    "files",
-    /\bos\.homedir\(|\bhomedir\(\)|process\.env\.HOME\b|Bun\.env\.HOME\b|["'`]~\/|\/organizations\/[A-Za-z]/,
-  ],
-  [
-    "network",
-    /\.tailnet\.|\b100\.64\.\d|\b[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.lazurio\.io\b/,
-  ],
-];
-
-/** The app's directory as a path prefix ("" for an app at the root). */
-function appPrefix(appPackage: string): string {
-  const appDir = dirname(appPackage);
-  return appDir === "." ? "" : `${appDir}/`;
-}
-
-const IMPORT =
-  /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|\bimport\s+)["'`](\.{1,2}\/[^"'`]+)["'`]/g;
-const EXTENSIONS = [
-  ".ts",
-  ".tsx",
-  ".mts",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".cjs",
-];
-
-/** The file a relative import names among the Module's committed source
- * files; `unknown` when the path leaves the Module or names a committed
- * symlink or submodule, which is never followed; null when it names no
- * source file (a stylesheet, an asset, a generated file). */
-function resolveImport(
-  from: string,
-  specifier: string,
-  files: ReadonlySet<string>,
-  irregular: ReadonlySet<string>,
-): string | "unknown" | null {
-  const parts = from.split("/").slice(0, -1);
-  for (const segment of specifier.split("/")) {
-    if (segment === "" || segment === ".") continue;
-    if (segment === "..") {
-      if (parts.length === 0) return "unknown";
-      parts.pop();
-    } else parts.push(segment);
-  }
-  const base = parts.join("/");
-  const stem = base.replace(/\.[cm]?[jt]sx?$/, "");
-  for (const candidate of [
-    base,
-    ...EXTENSIONS.map((extension) => `${stem}${extension}`),
-    ...EXTENSIONS.map((extension) => `${base}/index${extension}`),
-  ]) {
-    if (files.has(candidate)) return candidate;
-    if (irregular.has(candidate)) return "unknown";
-  }
-  // A committed link or submodule on the way to the file is never followed.
-  for (let end = parts.length - 1; end > 0; end--)
-    if (irregular.has(parts.slice(0, end).join("/"))) return "unknown";
-  return null;
-}
-
-/** The code that runs: the app's files `runs` names, and every source file
- * of the Module they import by a relative path, transitively, inside the app
- * directory or outside it. A file outside the app is read when it is first
- * imported. A file of it that was not read, and an import that leaves the
- * Module, are returned as unknown. */
-function codeThatRuns(input: {
-  app: readonly string[];
-  module: ReadonlySet<string>;
-  /** Committed paths that are no regular file: symlinks and submodules. */
-  irregular: ReadonlySet<string>;
-  read: Map<string, string>;
-  skipped: readonly string[];
-  runs: (path: string) => boolean;
-  fetch: (path: string) => string | null;
-}): { runtime: string[]; unknown: string[] } {
-  const runtime = new Set(input.app.filter(input.runs));
-  const skipped = new Set(input.skipped);
-  const unknown = new Set<string>();
-  const queue = [...runtime];
-  while (queue.length > 0) {
-    const from = queue.pop() as string;
-    let text = input.read.get(from);
-    if (text === undefined && !skipped.has(from)) {
-      const fetched = input.fetch(from);
-      if (fetched === null) skipped.add(from);
-      else {
-        text = fetched;
-        input.read.set(from, fetched);
-      }
-    }
-    if (text === undefined) continue;
-    for (const match of text.matchAll(IMPORT)) {
-      const target = resolveImport(
-        from,
-        match[1] as string,
-        input.module,
-        input.irregular,
-      );
-      if (target === "unknown") unknown.add(`${from} → ${match[1]}`);
-      else if (target !== null && !runtime.has(target)) {
-        runtime.add(target);
-        queue.push(target);
-      }
-    }
-  }
-  for (const path of skipped) if (runtime.has(path)) unknown.add(path);
-  return { runtime: [...runtime], unknown: [...unknown] };
-}
-
-/** The kinds of a person's Environment an app's running code relies on. */
-export function environmentDependencies(source: string): string[] {
-  return ENVIRONMENT_MARKERS.filter(([, pattern]) => pattern.test(source)).map(
-    ([kind]) => kind,
-  );
-}
 const SKIPPED =
   /(^|\/)(node_modules|dist|build|\.astro|\.next|\.turbo|coverage|\.venv|__pycache__)\//;
 const MAX_SOURCE_BYTES = 4 * 1024 * 1024;
@@ -581,7 +402,7 @@ function committedTree(moduleDirectory: string): TreeEntry[] | null {
 function committedSource(
   moduleDirectory: string,
   entries: readonly TreeEntry[],
-): { files: Map<string, string>; skipped: string[] } {
+): { text: string; skipped: string[] } {
   const picked: string[] = [];
   const skipped: string[] = [];
   let total = 0;
@@ -597,16 +418,16 @@ function committedSource(
     picked.push(entry.path);
     total += entry.size;
   }
-  if (picked.length === 0) return { files: new Map(), skipped };
+  if (picked.length === 0) return { text: "", skipped };
   const result = git(
     moduleDirectory,
     ["cat-file", "--batch"],
     picked.map((path) => `HEAD:./${path}\n`).join(""),
   );
   if (result.status !== 0 || !Buffer.isBuffer(result.stdout))
-    return { files: new Map(), skipped: [...skipped, ...picked] };
+    return { text: "", skipped: [...skipped, ...picked] };
   const out = result.stdout;
-  const files = new Map<string, string>();
+  const parts: string[] = [];
   let offset = 0;
   for (const path of picked) {
     const newline = out.indexOf(10, offset);
@@ -621,10 +442,10 @@ function committedSource(
       continue;
     }
     const size = Number(header[2]);
-    files.set(path, out.subarray(offset, offset + size).toString("utf8"));
+    parts.push(out.subarray(offset, offset + size).toString("utf8"));
     offset += size + 1;
   }
-  return { files, skipped };
+  return { text: parts.join("\n"), skipped };
 }
 
 export async function readReadinessInput(
@@ -667,8 +488,6 @@ export async function readReadinessInput(
         declarationError: reason,
         pkg: null,
         source: "",
-        runtimeSource: "",
-        runtimeSkipped: [],
         sourceSkipped: [],
         server: false,
         staticBuild: false,
@@ -698,60 +517,19 @@ export async function readReadinessInput(
   } catch (error) {
     return refused(error instanceof Error ? error.message : String(error));
   }
-  // Source markers come only from committed regular files, read from Git's
-  // objects at HEAD: the app's own directory, and for the code that runs also
-  // what it imports from elsewhere in the Module.
-  const prefix = appPrefix(selected);
-  const appFiles = (files ?? []).filter(
-    (entry) =>
-      entry.path.startsWith(prefix) &&
-      SOURCE.test(entry.path) &&
-      !SKIPPED.test(entry.path),
-  );
-  // One read of the source. The code that runs is every file outside tests,
-  // fixtures, scripts, skills and docs, and every file such code imports by a
-  // relative path, wherever it lies: a directory's name does not keep an
-  // imported file from running.
-  const { files: sourceFiles, skipped: sourceSkipped } = committedSource(
+  // Source markers come only from committed regular files of the app's own
+  // directory, read from Git's objects at HEAD.
+  const appDir = dirname(selected);
+  const prefix = appDir === "." ? "" : `${appDir}/`;
+  const { text: source, skipped: sourceSkipped } = committedSource(
     moduleDirectory,
-    appFiles,
-  );
-  const source = [...sourceFiles.values()].join("\n");
-  const moduleSource = new Map(
-    (files ?? [])
-      .filter((entry) => SOURCE.test(entry.path) && !SKIPPED.test(entry.path))
-      .map((entry) => [entry.path, entry] as const),
-  );
-  const runtimeFiles = new Map(sourceFiles);
-  // Files outside the app directory share the app's read budget: what is
-  // over it stays unread, and unread code that runs is unknown.
-  let budget =
-    MAX_SOURCE_BYTES -
-    appFiles
-      .filter((entry) => sourceFiles.has(entry.path))
-      .reduce((sum, entry) => sum + entry.size, 0);
-  const { runtime, unknown: runtimeSkipped } = codeThatRuns({
-    app: appFiles.map((entry) => entry.path),
-    module: new Set(moduleSource.keys()),
-    irregular: new Set(
-      (tree ?? [])
-        .filter((entry) => !/^100(644|755)$/.test(entry.mode))
-        .map((entry) => entry.path),
+    (files ?? []).filter(
+      (entry) =>
+        entry.path.startsWith(prefix) &&
+        SOURCE.test(entry.path) &&
+        !SKIPPED.test(entry.path),
     ),
-    read: runtimeFiles,
-    skipped: sourceSkipped,
-    runs: (path) => !NOT_RUNTIME.test(path.slice(prefix.length)),
-    fetch: (path) => {
-      const entry = moduleSource.get(path);
-      if (entry === undefined || entry.size > budget) return null;
-      const read = committedSource(moduleDirectory, [entry]).files.get(path);
-      if (read !== undefined) budget -= entry.size;
-      return read ?? null;
-    },
-  });
-  const runtimeSource = runtime
-    .map((path) => runtimeFiles.get(path) ?? "")
-    .join("\n");
+  );
   return Object.freeze({
     manifest,
     app: Object.freeze({
@@ -759,8 +537,6 @@ export async function readReadinessInput(
       declarationError: null,
       pkg,
       source,
-      runtimeSource,
-      runtimeSkipped,
       sourceSkipped,
       server: plan.runtime.server !== null,
       staticBuild: plan.runtime.static !== null,

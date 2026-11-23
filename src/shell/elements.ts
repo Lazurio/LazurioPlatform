@@ -1279,8 +1279,6 @@ export class LazurioColumnHead extends ShellElement {
         const href = tab.href;
         const anchor = element("a", "tab");
         anchor.href = href;
-        // The full name where a narrow column shortens the label to "…".
-        anchor.title = tab.label;
         anchor.dataset.app = tab.app;
         anchor.dataset.tour = `tab-${tab.app}`;
         if (tab.active) anchor.setAttribute("aria-current", "page");
