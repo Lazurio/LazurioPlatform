@@ -115,6 +115,10 @@ export type ProcessRunner = (
   command: readonly string[],
   timeoutMs: number,
   env?: Readonly<Record<string, string>>,
+  /** Asked when `timeoutMs` runs out: true keeps the child running for
+   * another `timeoutMs` instead of killing it (a Folder refresh in the middle
+   * of its transaction, #1205); absent, the child is killed. */
+  holdOnTimeout?: () => Promise<boolean>,
 ) => Promise<ProcessResult>;
 
 const maxOutputBytes = 64 * 1024;
@@ -123,6 +127,7 @@ export const runProcess: ProcessRunner = async (
   command,
   timeoutMs,
   env = {},
+  holdOnTimeout,
 ) => {
   const child = Bun.spawn([...command], {
     // Empty unless the caller names variables: nothing of the caller's
@@ -136,9 +141,19 @@ export const runProcess: ProcessRunner = async (
   // child was killed: the reader is cancelled, not waited for.
   const reader = child.stdout.getReader();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const expired = new Promise<"timeout">((resolve) => {
-    timer = setTimeout(() => resolve("timeout"), timeoutMs);
-  });
+  const expiry = () =>
+    new Promise<"timeout">((resolve) => {
+      timer = setTimeout(() => resolve("timeout"), timeoutMs);
+    });
+  // A child the caller says must not be cut off now is given another period,
+  // as often as the caller says so; asking never fails the run.
+  const expired = (async () => {
+    for (;;) {
+      await expiry();
+      const hold = await holdOnTimeout?.().catch(() => false);
+      if (hold !== true) return "timeout" as const;
+    }
+  })();
   const finished = (async () => {
     const chunks: Uint8Array[] = [];
     let length = 0;

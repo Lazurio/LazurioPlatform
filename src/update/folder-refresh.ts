@@ -1,6 +1,8 @@
+import { lstat, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { neededRefresh } from "../folder/refresh-needed";
 import { shownAsItself } from "../folder/visible-text";
-import { restartOwedFor } from "../machine/launchpad-entry";
+import { recordRestartOwed, restartOwedFor } from "../machine/launchpad-entry";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -157,6 +159,46 @@ export async function refreshFolderWhenBehind(
   } catch {
     operator = undefined;
   }
+  // A refresh that is inside its transaction when the bound runs out is not
+  // killed: killing it there leaves a prepared transaction that blocks the
+  // Folder and the Launchpad until someone resumes it (#1205). The bound
+  // still ends a child that waits or hangs outside one.
+  const inTransaction = () => exists(transactionOf(input.folder));
+  const bounded = (command: readonly string[]) =>
+    run(
+      [layout(input.base).selector, ...command],
+      input.timeoutMs ?? refreshTimeoutMs,
+      serviceEnvironment(input.env),
+      inTransaction,
+    );
+  // A prepared transaction an earlier, interrupted change left behind is
+  // finished first, by the active version's own explicit recovery
+  // (`profile-resume` at the marker's revision), which validates the whole
+  // journal and the active files under the Folder's lock and refuses,
+  // changing nothing, when they do not agree. On the hosted operator's Folder
+  // its Launchpad, which refused to start on the pending transaction, is
+  // restarted by the refresh that follows (a restart owed).
+  const target = await preparedRevision(input.folder);
+  if (target !== null) {
+    let resumed: ProcessResult | null;
+    try {
+      resumed = await bounded([
+        "profile-resume",
+        "--folder",
+        input.folder,
+        "--target-revision",
+        String(target),
+      ]);
+    } catch {
+      resumed = null;
+    }
+    if (!recovered(resumed)) return failedRefresh("transaction-pending");
+    if (operator === input.folder)
+      await recordRestartOwed(
+        layout(input.base).launchpadRestartOwed,
+        input.folder,
+      ).catch(() => undefined);
+  }
   let refused: FolderRefreshOutcome | null = null;
   for (let attempt = 1; attempt <= retry.attempts; attempt += 1) {
     if (attempt > 1) await Bun.sleep(retry.delayMs);
@@ -177,11 +219,7 @@ export async function refreshFolderWhenBehind(
         : Object.freeze({ state: "unchanged" as const });
     let result: ProcessResult | null;
     try {
-      result = await run(
-        [layout(input.base).selector, ...needed.command],
-        input.timeoutMs ?? refreshTimeoutMs,
-        serviceEnvironment(input.env),
-      );
+      result = await bounded(needed.command);
     } catch {
       result = null;
     }
@@ -190,4 +228,45 @@ export async function refreshFolderWhenBehind(
     refused = outcome;
   }
   return refused;
+}
+
+const transactionOf = (folder: string) =>
+  join(folder, ".lazurio", "transaction");
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The revision a prepared transaction moves the Folder to (its marker's
+ * `nextRevision`), or null when there is none or it cannot be read: an
+ * incomplete preparation without a marker is not resumed here. */
+async function preparedRevision(folder: string): Promise<number | null> {
+  try {
+    const marker = JSON.parse(
+      await readFile(join(transactionOf(folder), "prepared.json"), "utf8"),
+    ) as { nextRevision?: unknown };
+    const next = marker.nextRevision;
+    return typeof next === "number" && Number.isSafeInteger(next) && next >= 2
+      ? next
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** `profile-resume` answered that it finished the transaction. */
+function recovered(result: ProcessResult | null): boolean {
+  if (result === null || result === "timeout" || result.exitCode !== 0)
+    return false;
+  try {
+    const answer = JSON.parse(result.stdout) as { kind?: unknown };
+    return answer.kind === "recovered";
+  } catch {
+    return false;
+  }
 }

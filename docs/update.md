@@ -1071,6 +1071,21 @@ The pipeline owns the minimum version (a pin is a minimum, F17's addendum of 202
   - `lazurio profile-update` with the recorded choices at the current revision for
     every other Folder.
 
+  The two minutes bound a child that waits or hangs outside the Folder's
+  transaction; a child that is inside it when they run out (`.lazurio/transaction`
+  exists) is given another two minutes, as often as that holds, and never killed
+  there, because killing it leaves a prepared transaction that blocks the Folder and
+  the Launchpad (Lazurio/LazurioPlatform#1205). A prepared transaction that an earlier,
+  interrupted change left (its `prepared.json` marker present) is finished first, by
+  the active version's explicit recovery `lazurio profile-resume --folder <Folder>
+  --target-revision <the marker's nextRevision>`, which validates the whole journal and
+  the active files under the lock and refuses, changing nothing, when they do not
+  agree; on the hosted operator's Folder a restart of its Launchpad, which refused to
+  start on the pending transaction, is then owed and done by the refresh that follows.
+  A refusal is the outcome `failed` with the reason `transaction-pending`, and the
+  transaction stays for an explicit repair. An incomplete preparation without a marker
+  is not resumed here.
+
   The Folder is `--folder`, the supervised unit's, or on a hosted Machine the declared
   operator's from the handover; none known, nothing is refreshed. The updater learns the
   revision of a new version from its `self-check` report (`templateRevision`); a version
