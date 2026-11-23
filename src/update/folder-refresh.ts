@@ -70,6 +70,9 @@ export type FolderRefreshInput = Readonly<{
    * whatever ends this process: an agent's tool call, a closed session, a
    * caller's limit (#1205). Only on a supervised Linux base. */
   detach?: boolean | undefined;
+  /** How long a stop of a detached command waits for its unit to be shown
+   * gone; tests only. */
+  stopWaitMs?: number | undefined;
 }>;
 
 /** A transient user unit, named so that it can be stopped, that runs the
@@ -272,7 +275,15 @@ function boundedRun(input: FolderRefreshInput) {
         await withFolderOperationLock(
           join(input.folder, ".lazurio"),
           async () => {
-            if (unit !== undefined && !(await stopUnit(run, env, unit)))
+            if (
+              unit !== undefined &&
+              !(await stopUnit(
+                run,
+                env,
+                unit,
+                input.stopWaitMs ?? unitStopWaitMs,
+              ))
+            )
               throw new Error("Detached refresh still running");
             await kill();
           },
@@ -305,34 +316,42 @@ function boundedRun(input: FolderRefreshInput) {
   };
 }
 
-/** Kill a detached command's unit and wait until it is no longer running;
- * true once it is gone. */
+/** `systemctl --user is-active` answered that the unit is not running. */
+function stopped(state: ProcessResult | null): boolean {
+  return (
+    state !== null &&
+    state !== "timeout" &&
+    (state.exitCode === 3 || state.exitCode === 4) &&
+    ["inactive", "failed"].includes(state.stdout.trim())
+  );
+}
+
+/** Kill a detached command's unit and wait until it is positively no longer
+ * running; true once that is shown, false when it cannot be. */
 async function stopUnit(
   run: ProcessRunner,
   env: Readonly<Record<string, string>>,
   unit: string,
+  waitMs: number,
 ): Promise<boolean> {
   const service = `${unit}.service`;
   await run(
     ["systemctl", "--user", "kill", "--signal=SIGKILL", service],
-    unitStopWaitMs,
+    waitMs,
     env,
   ).catch(() => undefined);
-  const deadline = Date.now() + unitStopWaitMs;
+  const deadline = Date.now() + waitMs;
   while (Date.now() < deadline) {
     const state = await run(
       ["systemctl", "--user", "is-active", service],
-      unitStopWaitMs,
+      waitMs,
       env,
     ).catch(() => null);
-    if (
-      state !== null &&
-      state !== "timeout" &&
-      !["active", "activating", "deactivating", "reloading"].includes(
-        state.stdout.trim(),
-      )
-    )
-      return true;
+    // Only a positive answer counts: `inactive` (also a unit already
+    // collected) or `failed`, with `is-active`'s exit status for a unit that
+    // is not active (3, or 4 for an unknown one). A failed query (no bus,
+    // exit 1, nothing printed) proves nothing, and the unit is kept.
+    if (stopped(state)) return true;
     await Bun.sleep(100);
   }
   return false;

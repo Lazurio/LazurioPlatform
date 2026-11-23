@@ -1215,3 +1215,56 @@ test.skipIf(!userUnits)(
     expect(await readFile(marker, "utf8")).toBe("finished\n");
   },
 );
+
+test.skipIf(process.platform === "win32")(
+  "a detached refresh whose unit cannot be shown stopped is kept: a failed kill and a failed status prove nothing",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const queried: string[] = [];
+    let clientKilled = false;
+    const answers = [
+      // No bus: nothing printed, exit 1.
+      { exitCode: 1, stdout: "" },
+      // Still running.
+      { exitCode: 0, stdout: "active\n" },
+      // Something else printed with a status that is not "not active".
+      { exitCode: 1, stdout: "inactive\n" },
+    ];
+    let decisions = 0;
+    const run: ProcessRunner = async (argv, _timeoutMs, _env, onTimeout) => {
+      if (argv[0] === "systemctl") {
+        queried.push(argv[2] ?? "");
+        if (argv[2] === "kill") return { exitCode: 1, stdout: "" };
+        return answers[decisions] ?? { exitCode: 1, stdout: "" };
+      }
+      // The detached refresh past its bound, three times: never proven
+      // stopped, so never killed and the Folder's lock always released
+      // with the unit kept.
+      for (decisions = 0; decisions < answers.length; decisions++) {
+        const killed = await onTimeout?.(async () => {
+          clientKilled = true;
+        });
+        expect(killed).toBe(false);
+      }
+      return "timeout";
+    };
+    await refreshFolderWhenBehind({
+      base,
+      folder,
+      product: instructionTemplateRevision,
+      env: {},
+      run,
+      detach: true,
+      timeoutMs: 50,
+      stopWaitMs: 300,
+      retry: { attempts: 1, delayMs: 0 },
+    });
+    expect(clientKilled).toBe(false);
+    expect(queried).toContain("kill");
+    expect(queried).toContain("is-active");
+  },
+);
