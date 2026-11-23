@@ -575,20 +575,35 @@ declared: no other path of the root, no `.env*` file, nothing outside the root.
 
 The App reads them only from the directory in `LAZURIO_ORGANIZATION_FILES_DIR`,
 never from the Organization's checkout or `COMPANYASCODE_ORGANIZATION_ROOT`. The
-directory holds a read-only copy of exactly the declared files, so the App reads
-the same in every version:
+directory is read-only for the App. It holds the declared files, unchanged, and
+`revision.json`, in every version the same:
 
-- **PROD.** The application host lays down the copy at installation and renews
-  it from the root's `main` (H20, the host's slice of the frame).
-- **DEV and STAGING.** The Platform copies the declared files from the
-  Organization's checkout before every start, to
+```json
+{
+  "schema_version": "lazurio.organization-files.v1",
+  "repository": "<owner>/<root repository>",
+  "commit": "<40 hex, the root's commit>",
+  "fetched_at": "2026-11-23T09:40:00Z",
+  "files": ["lazurio.organization.json", "modules.manifest.json"]
+}
+```
+
+`files` lists only the declared files the root has at that commit as regular
+files; a missing one is missing from the directory too. A new copy replaces the
+old one as a whole directory, so the App never sees half of it.
+
+- **PROD.** The application host copies from the root's default branch at
+  installation and then every 5 minutes; it refuses any other name at
+  installation (`apps-application-organization-files-invalid`).
+- **DEV and STAGING.** The Platform copies from the root checkout's `HEAD`, as
+  committed, before every start, to
   `~/.local/state/lazurio/organization-files/<organization>/<app id>/` (`src/modules/organization-files.ts`).
 
-The copy never contains anything else. A declared file the root does not have,
-or that is no regular file there, is left out. The App then starts without it
-and tells its user that the Organization's manifests are not available. Its
-health does not fail for it. A Personalspace Module and an App that declares
-nothing get no variable.
+When the directory or its `revision.json` is missing (the first fetch failed,
+or the root is no Git checkout with a GitHub remote), the App starts and tells
+its user that the Organization's manifests are not available. Its health does
+not fail for it. A Personalspace Module and an App that declares nothing get no
+variable.
 
 **Rollout condition.** `lazurio.runtime.v1` has a closed schema, so a Platform
 release before this one refuses a runtime with `organization_files`. An App
