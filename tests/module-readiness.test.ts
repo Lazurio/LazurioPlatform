@@ -578,6 +578,43 @@ posixTest(
 );
 
 posixTest(
+  "code that runs imports a file elsewhere in the Module, outside the app directory: it is read and its dependency counts; an import that leaves the Module is unknown",
+  async () => {
+    const files = readyServer();
+    const result = await assess({
+      ...files,
+      "app/v3/server.ts": `import { whoami } from "../../shared/client";\n${files["app/v3/server.ts"]}`,
+      "shared/client.ts":
+        'export const whoami = () => spawnSync("gh", ["api", "user"]);\n',
+    });
+    expect(
+      result.findings.find((item) => item.id === "environment-dependency")
+        ?.message,
+    ).toContain("GitHub sign-in");
+    expect(result.verdict).toBe("not-ready");
+    const leaves = await assess({
+      ...files,
+      "app/v3/server.ts": `import { whoami } from "../../../elsewhere/client";\n${files["app/v3/server.ts"]}`,
+    });
+    const unknown = leaves.findings.find(
+      (item) => item.id === "source-incomplete",
+    );
+    expect(unknown?.level).toBe("blocker");
+    expect(unknown?.message).toContain(
+      "a dependency on a person's Environment",
+    );
+    expect(unknown?.message).toContain("../../../elsewhere/client");
+    expect(leaves.verdict).toBe("not-ready");
+    // A stylesheet or an asset is no source and changes nothing.
+    const styled = await assess({
+      ...files,
+      "app/v3/server.ts": `import "./styles.css";\n${files["app/v3/server.ts"]}`,
+    });
+    expect(styled.verdict).toBe("ready-for-live");
+  },
+);
+
+posixTest(
   "a Module that is only a tool of the Environment is no Application, whatever its code relies on",
   async () => {
     const files = readyServer();

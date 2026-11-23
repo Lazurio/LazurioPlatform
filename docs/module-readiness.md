@@ -82,9 +82,11 @@ rollout asks for the evidence the Organization's release mode needs.
   `environment-dependency`, naming those kinds: it has no PROD until it is
   changed (Module Standard, A Module that relies on a person's Environment).
   It is an obstacle to PROD, not a ban: the changed code passes. The code that
-  runs is every source file outside tests, fixtures, scripts, skills and docs,
-  and every file such code imports by a relative path, wherever it lies: a
-  directory's name does not keep an imported file from running. Without Git
+  runs is every source file of the app outside tests, fixtures, scripts, skills
+  and docs, and every source file of the Module such code imports by a relative
+  path, transitively, inside the app directory or outside it: a directory's name
+  does not keep an imported file from running. An import that leaves the Module
+  makes the dependency unknown, at blocker level (`source-incomplete`). Without Git
   the dependency is unknown and blocks, a trial too (`source-incomplete`). A
   static check reads markers in code, so a call it does not recognise passes
   and the Module's review stays the evidence. `"application": false` turns the

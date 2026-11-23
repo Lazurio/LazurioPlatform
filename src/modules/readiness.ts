@@ -356,11 +356,12 @@ export function assessReadiness(input: ReadinessInput): Readiness {
       ? "blocker"
       : "live";
     const names = unknownMarkers.map((item) => item.name).join(", ");
-    const files = app.sourceSkipped.slice(0, 5).join(", ");
+    const unread = [...new Set([...app.sourceSkipped, ...app.runtimeSkipped])];
+    const files = unread.slice(0, 5).join(", ");
     add(
       "source-incomplete",
       level,
-      `Not all committed source of the app was read (${files}${app.sourceSkipped.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, or Git could not read it), so whether it has ${names} is unknown. Split oversized source files.`,
+      `Not all committed source of the app was read (${files}${unread.length > 5 ? ", …" : ""}: over ${MAX_BLOB_BYTES / 1024 / 1024} MiB per file or ${MAX_SOURCE_BYTES / 1024 / 1024} MiB in total, Git could not read it, or an import leaves the Module), so whether it has ${names} is unknown. Split oversized source files.`,
     );
   }
   return finish(moduleId, app.package, generation, findings, hostConditions);
@@ -440,17 +441,21 @@ const EXTENSIONS = [
   ".cjs",
 ];
 
-/** The file a relative import names, among the app's committed files. */
+/** The file a relative import names among the Module's committed source
+ * files; `outside` when the path leaves the Module, null when it names no
+ * source file (a stylesheet, an asset, a generated file). */
 function resolveImport(
   from: string,
   specifier: string,
   files: ReadonlySet<string>,
-): string | null {
+): string | "outside" | null {
   const parts = from.split("/").slice(0, -1);
   for (const segment of specifier.split("/")) {
     if (segment === "" || segment === ".") continue;
-    if (segment === "..") parts.pop();
-    else parts.push(segment);
+    if (segment === "..") {
+      if (parts.length === 0) return "outside";
+      parts.pop();
+    } else parts.push(segment);
   }
   const base = parts.join("/");
   const stem = base.replace(/\.[cm]?[jt]sx?$/, "");
@@ -463,34 +468,46 @@ function resolveImport(
   return null;
 }
 
-/** The code that runs: the files `runs` names, and every file they import by
- * a relative path, transitively. A file of it that was not read is returned
- * as skipped, its imports unknown. */
-function codeThatRuns(
-  paths: readonly string[],
-  read: ReadonlyMap<string, string>,
-  skipped: readonly string[],
-  runs: (path: string) => boolean,
-): { runtime: string[]; skipped: string[] } {
-  const all = new Set(paths);
-  const runtime = new Set(paths.filter(runs));
+/** The code that runs: the app's files `runs` names, and every source file
+ * of the Module they import by a relative path, transitively, inside the app
+ * directory or outside it. A file outside the app is read when it is first
+ * imported. A file of it that was not read, and an import that leaves the
+ * Module, are returned as unknown. */
+function codeThatRuns(input: {
+  app: readonly string[];
+  module: ReadonlySet<string>;
+  read: Map<string, string>;
+  skipped: readonly string[];
+  runs: (path: string) => boolean;
+  fetch: (path: string) => string | null;
+}): { runtime: string[]; unknown: string[] } {
+  const runtime = new Set(input.app.filter(input.runs));
+  const skipped = new Set(input.skipped);
+  const unknown = new Set<string>();
   const queue = [...runtime];
   while (queue.length > 0) {
     const from = queue.pop() as string;
-    const text = read.get(from);
+    let text = input.read.get(from);
+    if (text === undefined && !skipped.has(from)) {
+      const fetched = input.fetch(from);
+      if (fetched === null) skipped.add(from);
+      else {
+        text = fetched;
+        input.read.set(from, fetched);
+      }
+    }
     if (text === undefined) continue;
     for (const match of text.matchAll(IMPORT)) {
-      const target = resolveImport(from, match[1] as string, all);
-      if (target !== null && !runtime.has(target)) {
+      const target = resolveImport(from, match[1] as string, input.module);
+      if (target === "outside") unknown.add(`${from} → ${match[1]}`);
+      else if (target !== null && !runtime.has(target)) {
         runtime.add(target);
         queue.push(target);
       }
     }
   }
-  return {
-    runtime: [...runtime],
-    skipped: skipped.filter((path) => runtime.has(path)),
-  };
+  for (const path of skipped) if (runtime.has(path)) unknown.add(path);
+  return { runtime: [...runtime], unknown: [...unknown] };
 }
 
 /** The kinds of a person's Environment an app's running code relies on. */
@@ -667,8 +684,9 @@ export async function readReadinessInput(
   } catch (error) {
     return refused(error instanceof Error ? error.message : String(error));
   }
-  // Source markers come only from committed regular files of the app's own
-  // directory, read from Git's objects at HEAD.
+  // Source markers come only from committed regular files, read from Git's
+  // objects at HEAD: the app's own directory, and for the code that runs also
+  // what it imports from elsewhere in the Module.
   const prefix = appPrefix(selected);
   const appFiles = (files ?? []).filter(
     (entry) =>
@@ -685,14 +703,28 @@ export async function readReadinessInput(
     appFiles,
   );
   const source = [...sourceFiles.values()].join("\n");
-  const { runtime, skipped: runtimeSkipped } = codeThatRuns(
-    appFiles.map((entry) => entry.path),
-    sourceFiles,
-    sourceSkipped,
-    (path) => !NOT_RUNTIME.test(path.slice(prefix.length)),
+  const moduleSource = new Map(
+    (files ?? [])
+      .filter((entry) => SOURCE.test(entry.path) && !SKIPPED.test(entry.path))
+      .map((entry) => [entry.path, entry] as const),
   );
+  const runtimeFiles = new Map(sourceFiles);
+  const { runtime, unknown: runtimeSkipped } = codeThatRuns({
+    app: appFiles.map((entry) => entry.path),
+    module: new Set(moduleSource.keys()),
+    read: runtimeFiles,
+    skipped: sourceSkipped,
+    runs: (path) => !NOT_RUNTIME.test(path.slice(prefix.length)),
+    // A file outside the app directory, read under the same bounds.
+    fetch: (path) => {
+      const entry = moduleSource.get(path);
+      if (entry === undefined) return null;
+      const read = committedSource(moduleDirectory, [entry]);
+      return read.files.get(path) ?? null;
+    },
+  });
   const runtimeSource = runtime
-    .map((path) => sourceFiles.get(path) ?? "")
+    .map((path) => runtimeFiles.get(path) ?? "")
     .join("\n");
   return Object.freeze({
     manifest,
