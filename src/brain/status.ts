@@ -26,7 +26,11 @@ export type BrainUnsupportedReason =
   | "not-operator"
   /** A Work, Team or public Environment: the person's memory is only in a
    * Personal Environment. */
-  | "not-personal";
+  | "not-personal"
+  /** The Folder's state cannot be read right now: an update or another
+   * change of the Folder may be writing it (#1214). Passing, never a
+   * verdict on the kind of Environment. */
+  | "folder-unreadable";
 
 export type BrainContext =
   | Readonly<{ kind: "supported" }>
