@@ -229,8 +229,8 @@ async function operatorOf(input: FolderRefreshInput) {
 
 /** The active version's command, bounded. When the bound runs out the child
  * is killed only while this process holds the Folder's operation lock: a
- * child that holds it is inside its change (its transaction) and is given
- * another period instead, because killing it there leaves a prepared
+ * child that holds it is inside its change (its transaction), and one whose
+ * lock cannot be verified may be, so either is given another period instead, because killing it there leaves a prepared
  * transaction that blocks the Folder and the Launchpad (#1205); and while
  * this process holds it, the child cannot enter one before it is gone. */
 function boundedRun(input: FolderRefreshInput) {
@@ -243,12 +243,11 @@ function boundedRun(input: FolderRefreshInput) {
         0,
       );
       return true;
-    } catch (error) {
-      // Held by the child (or another change): not now. Anything else, a
-      // Folder whose state cannot be locked at all: no change can be in it.
-      if (error instanceof FolderOperationBusyError) return false;
-      await kill();
-      return true;
+    } catch {
+      // Held by the child or another change, or the lock could not be
+      // verified at all (an I/O error, no descriptor left): nothing shows
+      // that the child is outside its transaction, so it is kept.
+      return false;
     }
   };
   return (command: readonly string[]) =>

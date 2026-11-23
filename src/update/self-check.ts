@@ -143,12 +143,19 @@ export const runProcess: ProcessRunner = async (
   // child was killed: the reader is cancelled, not waited for.
   const reader = child.stdout.getReader();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // Set once the run is over (the child answered or was given up on): the
+  // bound's loop stops at its next step, also when a decision to keep the
+  // child is in flight, and never arms another period.
+  let over = false;
+  let wake: (() => void) | undefined;
   const kill = async () => {
     child.kill("SIGKILL");
     await child.exited;
   };
   const expiry = () =>
-    new Promise<"timeout">((resolve) => {
+    new Promise<"timeout" | "over">((resolve) => {
+      if (over) return resolve("over");
+      wake = () => resolve("over");
       timer = setTimeout(() => resolve("timeout"), timeoutMs);
     });
   // Past the bound the child is killed, unless the caller keeps it for
@@ -156,12 +163,14 @@ export const runProcess: ProcessRunner = async (
   // not be safe to cut it off.
   const expired = (async () => {
     for (;;) {
-      await expiry();
+      if ((await expiry()) === "over") return "over" as const;
       if (onTimeout === undefined) {
         child.kill("SIGKILL");
         return "timeout" as const;
       }
-      if (await onTimeout(kill).catch(() => false)) return "timeout" as const;
+      const killed = await onTimeout(kill).catch(() => false);
+      if (over) return "over" as const;
+      if (killed) return "timeout" as const;
     }
   })();
   const finished = (async () => {
@@ -183,11 +192,17 @@ export const runProcess: ProcessRunner = async (
     });
   })();
   try {
-    const result = await Promise.race([finished, expired]);
+    // `expired` ends as "over" only after the run is over, so here it is
+    // either the child's answer or "timeout".
+    const result = (await Promise.race([finished, expired])) as
+      | ProcessResult
+      | "timeout";
     if (result === "timeout") finished.catch(() => undefined);
     return result;
   } finally {
+    over = true;
     clearTimeout(timer);
+    wake?.();
     await reader.cancel().catch(() => undefined);
   }
 };

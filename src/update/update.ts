@@ -93,9 +93,10 @@ export type UpdateEnvironment = Readonly<{
       ) => Promise<FolderRefreshOutcome | null>)
     | undefined;
   /** Before a newer release is staged, under the update lock: the active
-   * version finishes a prepared transaction an interrupted change of `folder`
-   * left (`resumePreparedTransaction`, #1205), because the candidate's
-   * Launchpad probe refuses a pending one. Absent: nothing is resumed. */
+   * version finishes a prepared transaction an interrupted change left in the
+   * supervised unit's Folder (the one the candidate's Launchpad probe reads,
+   * which refuses a pending transaction) and in `folder`
+   * (`resumePreparedTransaction`, #1205). Absent: nothing is resumed. */
   resumeFolder?:
     | ((folder: string) => Promise<FolderRefreshOutcome | null>)
     | undefined;
@@ -515,13 +516,15 @@ const updateOnce = (
       // candidate's Launchpad probe refuse: the active version finishes it
       // first. Whatever it answers, the update goes on; a refusal stays for
       // the probe and the refresh to name.
-      if (
-        environment.folder !== undefined &&
-        environment.resumeFolder !== undefined
-      )
-        await environment
-          .resumeFolder(environment.folder)
-          .catch(() => undefined);
+      // The probe reads the supervised unit's Folder, which an explicit
+      // `--folder` does not change: both are finished, each once.
+      if (environment.resumeFolder !== undefined)
+        for (const folder of new Set(
+          [environment.service?.folder, environment.folder].filter(
+            (value): value is string => value !== undefined,
+          ),
+        ))
+          await environment.resumeFolder(folder).catch(() => undefined);
       const artifact = manifest.targets[identity.target];
       if (!artifact) throw new UpdateFailure("internal");
       // Scratch is a directory nobody else may use while the lock is held:

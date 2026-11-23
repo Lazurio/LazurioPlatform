@@ -6,6 +6,7 @@ import {
   readdir,
   readFile,
   realpath,
+  rename,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -943,5 +944,60 @@ test.skipIf(process.platform === "win32")(
       ["machine", "folder-refresh"],
     ]);
     expect(JSON.parse(owedAtRefresh ?? "{}")).toEqual({ folder });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a child that finishes while a decision to keep it is in flight ends the run, and no period is armed again",
+  async () => {
+    const child = ["sh", "-c", 'sleep 0.25; printf "{}"'];
+    let decisions = 0;
+    const result = await runProcess(child, 100, {}, async () => {
+      decisions += 1;
+      // Deciding takes longer than the child still needs.
+      await Bun.sleep(400);
+      return false;
+    });
+    expect(result).toEqual({ exitCode: 0, stdout: "{}" });
+    const after = decisions;
+    await Bun.sleep(500);
+    expect(decisions).toBe(after);
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "a lock that cannot be verified keeps the child: nothing shows it is outside its transaction",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    const state = join(folder, ".lazurio");
+    let kills = 0;
+    let kept: boolean | undefined;
+    const run: ProcessRunner = async (_argv, _timeoutMs, _env, onTimeout) => {
+      // The state directory is away for the moment: taking the lock fails,
+      // and not because someone holds it.
+      await rename(state, `${state}.away`);
+      try {
+        kept = !(await onTimeout?.(async () => {
+          kills += 1;
+        }));
+      } finally {
+        await rename(`${state}.away`, state);
+      }
+      return "timeout";
+    };
+    await refreshFolderWhenBehind({
+      base,
+      folder,
+      product: instructionTemplateRevision,
+      env: {},
+      run,
+      retry: { attempts: 1, delayMs: 0 },
+    });
+    expect(kept).toBe(true);
+    expect(kills).toBe(0);
   },
 );
