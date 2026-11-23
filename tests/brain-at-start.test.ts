@@ -587,6 +587,30 @@ describe("a Folder that cannot be read right now is waited for", () => {
     expect(pauses).toEqual([300_000]);
   });
 
+  test("waits-folder, then waits-machines: setup waits for the handover mark and runs once it appears", async () => {
+    let runs = 0;
+    let checks = 0;
+    const answers: BrainSetupLabels[] = [
+      { server: "waits-folder" },
+      { server: "waits-machines" },
+      { server: "installed", meaning: "on" },
+    ];
+    expect(
+      await brainSetupAtStart({
+        run: async () => answers[runs++] ?? null,
+        // The mark appears at the second check.
+        handover: async () => ++checks >= 2,
+        signal: new AbortController().signal,
+        waitMs: 60_000,
+        waits: 5,
+        fillMs: 300_000,
+        sleep: async () => {},
+      }),
+    ).toEqual({ server: "installed", meaning: "on" });
+    expect(runs).toBe(3);
+    expect(checks).toBe(2);
+  });
+
   test("unsupported stays final: setup is not run again", async () => {
     let runs = 0;
     expect(
