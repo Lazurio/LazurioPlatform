@@ -80,7 +80,8 @@ rollout asks for the evidence the Organization's release mode needs.
   Environment's address such as `launchpad.<environment>.<organization>.lazurio.io`;
   an Organization's own service address with fewer labels is none) gets the blocker
   `environment-dependency`, naming those kinds: it has no PROD until it is
-  changed (Module Standard, A Module that relies on a person's Environment). A
+  changed (Module Standard, A Module that relies on a person's Environment).
+  It is an obstacle to PROD, not a ban: the changed code passes. A
   static check reads markers in code, so a call it does not recognise passes
   and the Module's review stays the evidence. `"application": false` turns the
   verdict into `no-application`.

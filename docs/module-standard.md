@@ -853,10 +853,18 @@ the kinds it found). Changing it follows four rules:
 - another Module is a sibling on the host ([Siblings](#siblings));
 - the Organization's files reach the server as a read-only copy.
 
-Keys are never kept in the browser. A Module that is only a tool of the
-Environment, and stays one for good, declares `"application": false` in
-`lazurio.module.json`: the check then reports `no-application` instead of
-`not-ready`, and its tile keeps opening STAGING.
+Keys are never kept in the browser. The finding is an obstacle to PROD, not a
+ban: once the code is changed, the check passes and the Module becomes an
+Application like any other.
+
+A Module that is only a tool of the Environment, and stays one for good,
+declares `"application": false` in `lazurio.module.json`: the check then reports
+`no-application` instead of `not-ready`, and its tile keeps opening STAGING. The
+Module Maintainer makes that declaration. By default an app that works in one
+person's rights over their own things (their disk, their mail, their account),
+or a builder's tool in which an agent keeps changing the code, stays in STAGING,
+and everything else is PROD; the Module Maintainer may decide otherwise for their
+Module (decision 0249, addendum of 2026-11-22, point 14).
 
 **A person without an Environment.** Some people have only Applications: no
 Environment, no Organization network and no GitHub account. An Application
