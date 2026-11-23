@@ -77,7 +77,8 @@ rollout asks for the evidence the Organization's release mode needs.
   GitHub sign-in (`gh`), the Environment's Integrations (`executor`,
   `composio`, `wacli`, `gogcli`), the person's files or Folder (the home
   directory, `~/`) or the Organization's network (the tailnet, an
-  Environment's address under `*.lazurio.io`) gets the blocker
+  Environment's address such as `launchpad.<environment>.<organization>.lazurio.io`;
+  an Organization's own service address with fewer labels is none) gets the blocker
   `environment-dependency`, naming those kinds: it has no PROD until it is
   changed (Module Standard, A Module that relies on a person's Environment). A
   static check reads markers in code, so a call it does not recognise passes

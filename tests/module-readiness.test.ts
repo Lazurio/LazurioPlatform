@@ -515,6 +515,12 @@ test("every kind of a person's Environment is found in code that runs", () => {
       "const writer = process.env.LAZURIO_RUNTIME_DATA_WRITER;",
     ),
   ).toEqual([]);
+  // An Organization's own service address is no Environment's address.
+  expect(
+    environmentDependencies(
+      'const vault = "https://vault.example.lazurio.io";',
+    ),
+  ).toEqual([]);
 });
 
 posixTest(

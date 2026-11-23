@@ -411,7 +411,7 @@ const ENVIRONMENT_MARKERS: ReadonlyArray<readonly [string, RegExp]> = [
   ],
   [
     "network",
-    /\.tailnet\.|\b100\.64\.\d|\b[a-z0-9-]+\.[a-z0-9-]+\.lazurio\.io\b/,
+    /\.tailnet\.|\b100\.64\.\d|\b[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.lazurio\.io\b/,
   ],
 ];
 
