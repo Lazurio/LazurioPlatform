@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { processContentGit } from "../src/content/git";
@@ -112,7 +112,11 @@ if (process.env.LAZURIO_RUNTIME_LISTENER_API_PORT)
 async function notesModule(
   folder: string,
   home: string,
-  options: { two?: boolean; admin?: boolean } = {},
+  options: {
+    two?: boolean;
+    admin?: boolean;
+    organizationFiles?: readonly string[];
+  } = {},
 ) {
   const organization = await writeOrganization(folder, "gamma", {
     slug: "gamma",
@@ -158,6 +162,8 @@ async function notesModule(
   const app = join(module, "app");
   const pkg = JSON.parse(await readFile(join(app, "package.json"), "utf8"));
   pkg.lazurio.runtime.listeners = listeners;
+  if (options.organizationFiles !== undefined)
+    pkg.lazurio.runtime.organization_files = options.organizationFiles;
   await writeFile(join(app, "package.json"), JSON.stringify(pkg));
   await writeFile(join(app, "server.ts"), strictServer);
   if (options.admin) {
@@ -1203,6 +1209,65 @@ posixTest(
       await world.close();
       await rm(parent, { recursive: true, force: true });
     }
+  },
+  60_000,
+);
+
+posixTest(
+  "an app that declares organization_files gets a copy of exactly those Organization files in LAZURIO_ORGANIZATION_FILES_DIR, never the checkout, made again at every start (H20)",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "orgfiles-")));
+    const { folder, home } = await fixtureFolder(parent, "local");
+    const { organization, web } = await notesModule(folder, home, {
+      organizationFiles: ["modules.manifest.json", "lazurio.organization.json"],
+    });
+    await writeFile(join(organization, ".env"), "SECRET=1\n");
+    const manager = createFakeServiceManager({
+      runtimeDirectory: join(parent, "runtime"),
+      managerEnvironment: ["HOME=/home/admin", "PATH=/usr/bin"],
+    });
+    await mkdir(manager.runtimeDirectory);
+    const host = linuxHost(manager, home, [web], binary);
+    const run = async (...args: string[]) =>
+      (
+        await runModuleCommand(
+          ["module", ...args, "--folder", folder, "--json"],
+          cliContext(home),
+          host,
+        )
+      ).result;
+    expect(await run("start", "gamma/notes")).toMatchObject({
+      outcome: "started",
+    });
+    const copy = join(
+      home,
+      ".local/state/lazurio/organization-files/gamma/notes",
+    );
+    expect(
+      unitRequest(manager).environment.LAZURIO_ORGANIZATION_FILES_DIR,
+    ).toBe(copy);
+    expect((await readdir(copy)).sort()).toEqual([
+      "lazurio.organization.json",
+      "modules.manifest.json",
+    ]);
+    for (const file of ["lazurio.organization.json", "modules.manifest.json"])
+      expect(await readFile(join(copy, file), "utf8")).toBe(
+        await readFile(join(organization, file), "utf8"),
+      );
+    // A change in the root reaches the copy at the next start.
+    const manifest = join(organization, "modules.manifest.json");
+    const changed = `${JSON.stringify(JSON.parse(await readFile(manifest, "utf8")), null, 2)}\n`;
+    await writeFile(manifest, changed);
+    expect(await run("stop", "gamma/notes")).toMatchObject({
+      outcome: "group-stopped",
+    });
+    expect(await run("start", "gamma/notes")).toMatchObject({
+      outcome: "started",
+    });
+    expect(await readFile(join(copy, "modules.manifest.json"), "utf8")).toBe(
+      changed,
+    );
+    await run("stop", "gamma/notes");
   },
   60_000,
 );

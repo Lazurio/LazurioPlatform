@@ -7,6 +7,15 @@ import {
   text,
 } from "./manifest";
 
+/** The files of an Organization root an App may declare in
+ * `organization_files`: the canonical manifests, nothing else. */
+export const ORGANIZATION_FILES = Object.freeze([
+  "lazurio.organization.json",
+  "modules.manifest.json",
+] as const);
+const ORGANIZATION_FILE =
+  /^(lazurio\.organization\.json|modules\.manifest\.json)$/;
+
 // Existing lazurio.runtime.v1 declaration, not an executable command or rights grant.
 export function parseAppRuntime(input: unknown) {
   const value = object(
@@ -26,6 +35,7 @@ export function parseAppRuntime(input: unknown) {
       "preview_script",
       "build_script",
       "required_module_slots",
+      "organization_files",
       "plugin",
       "icon",
       "description",
@@ -86,6 +96,18 @@ export function parseAppRuntime(input: unknown) {
     if (!slots.length || new Set(slots).size !== slots.length)
       throw new Error("Invalid required module slots");
     optional.required_module_slots = Object.freeze(slots);
+  }
+  // The Organization root's files the App reads (decision 0249, addendum of
+  // 2026-11-22, point 14; H20): only the two canonical manifests, each at
+  // most once. The Platform hands a read-only copy in
+  // LAZURIO_ORGANIZATION_FILES_DIR, never the checkout.
+  if (Object.hasOwn(value, "organization_files")) {
+    const files = array(value.organization_files).map((file) =>
+      text(file, ORGANIZATION_FILE),
+    );
+    if (!files.length || new Set(files).size !== files.length)
+      throw new Error("Invalid organization files");
+    optional.organization_files = Object.freeze(files);
   }
   const secrets = secretNames(value, "secrets");
   const optionalSecrets = secretNames(value, "optional_secrets");

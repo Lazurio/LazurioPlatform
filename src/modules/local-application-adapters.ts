@@ -19,6 +19,10 @@ import {
 } from "./declared-bun-preparation";
 import { verifyInstallAuthority } from "./install-authority";
 import type { createApplicationLifecycle } from "./lifecycle";
+import {
+  organizationFilesDirectory,
+  provideOrganizationFiles,
+} from "./organization-files";
 import { createOwnerOperations } from "./owner-operations";
 import { inspectPreparationBinding } from "./preparation-binding";
 import { parseProcessLaunch } from "./process-launch";
@@ -253,6 +257,20 @@ export function localApplicationAdapters(input: {
       // Read last, at every start: a value changed in the vault reaches the
       // app at its next start. Only the app's own process gets them.
       const secrets = await readRuntimeSecrets(secretInput(plan));
+      // The declared Organization files as a copy, never the checkout (H20).
+      const declaredFiles = plan.runtime.optional.organization_files;
+      const organizationFiles =
+        input.organizationRoot !== undefined && Array.isArray(declaredFiles)
+          ? await provideOrganizationFiles({
+              organizationRoot: input.organizationRoot,
+              directory: organizationFilesDirectory(
+                selected.env.HOME ?? "",
+                plan.runtime.company,
+                plan.runtime.id,
+              ),
+              files: declaredFiles,
+            })
+          : undefined;
       return {
         executable: bun.executable,
         cwd,
@@ -271,6 +289,7 @@ export function localApplicationAdapters(input: {
           externalOrigin,
           siblings,
           secrets: secrets.variables,
+          organizationFiles,
           production,
         }),
         ...(secrets.notProvided.length > 0

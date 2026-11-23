@@ -267,6 +267,7 @@ a conformant App always pins one.
 | `tags` | lowercase words, `^[a-z0-9][a-z0-9-]*$` |
 | `listeners[]` | `id` (`^[a-z][a-z0-9-]*$`), `role` (`entrypoint` or `auxiliary`), `lease` (a lease id of `lazurio.module.json`), `protocol` (`http`, `https` or `tcp`), `health` (`{"kind": "http", "path": "/…"}` or `{"kind": "tcp"}`) |
 | `required_module_slots` | optional: the Organization slots the App needs, see [Siblings](#siblings) |
+| `organization_files` | optional: the Organization root's files the App reads, only `lazurio.organization.json` and `modules.manifest.json`, each at most once, see [The Organization's files](#the-organizations-files) |
 | `secrets`, `optional_secrets` | optional: names of the App's secrets, see [Secrets](#configuration-and-secrets) |
 | `build_script`, `build_output`, `static_fallback`, `start_script` | optional: the built version, see [The built version from `main`](#the-built-version-from-main) |
 | `description` (at most 240 characters), `icon`, `group` (at most 80 characters), `plugin` (ends in `.json`), `preview_script`, `production_url` (starts with `http://` or `https://`) | optional; the catalog shows `title`, `description`, `icon` and `tags` |
@@ -380,6 +381,7 @@ user's environment ([F26](decisions.md#f26--a-started-application-gets-the-runti
 | `LAZURIO_RUNTIME_LISTENER_<ID>_EXTERNAL_ORIGIN` | the browser origin of the entrypoint, only for the Module's default App on a Remote Environment |
 | `LAZURIO_RUNTIME_SIBLING_<SLUG>_ORIGIN` | the loopback origin of each declared sibling, see [Siblings](#siblings) |
 | `LAZURIO_RUNTIME_SECRET_<NAME>` | each declared secret with a value, see [Secrets](#configuration-and-secrets) |
+| `LAZURIO_ORGANIZATION_FILES_DIR` | the directory with the copy of the declared `organization_files`, see [The Organization's files](#the-organizations-files) |
 | `LAZURIO_RUNTIME_BUILD_OUTPUT` | the installed client build of an App with its own server started from `main` |
 | `NODE_ENV` | `development` for the development server, `production` for the built version |
 | `HOME`, `PATH`, `TMPDIR` | the account's home, the `PATH` above, the temporary directory |
@@ -563,6 +565,35 @@ start when absent; when that fails, the start is refused with
 `data-mount-clone-failed` (`src/modules/data-mounts.ts`). No address is passed
 for a Module of another Organization or an undeclared Module, and an App of a
 Personalspace gets none.
+
+### The Organization's files
+
+An App that reads the Organization root's canonical manifests declares them in
+`lazurio.runtime.organization_files`: a non-empty list of unique names from
+`lazurio.organization.json` and `modules.manifest.json`. Nothing else can be
+declared: no other path of the root, no `.env*` file, nothing outside the root.
+
+The App reads them only from the directory in `LAZURIO_ORGANIZATION_FILES_DIR`,
+never from the Organization's checkout or `COMPANYASCODE_ORGANIZATION_ROOT`. The
+directory holds a read-only copy of exactly the declared files, so the App reads
+the same in every version:
+
+- **PROD.** The application host lays down the copy at installation and renews
+  it from the root's `main` (H20, the host's slice of the frame).
+- **DEV and STAGING.** The Platform copies the declared files from the
+  Organization's checkout before every start, to
+  `~/.local/state/lazurio/organization-files/<organization>/<app id>/` (`src/modules/organization-files.ts`).
+
+The copy never contains anything else. A declared file the root does not have,
+or that is no regular file there, is left out. The App then starts without it
+and tells its user that the Organization's manifests are not available. Its
+health does not fail for it. A Personalspace Module and an App that declares
+nothing get no variable.
+
+**Rollout condition.** `lazurio.runtime.v1` has a closed schema, so a Platform
+release before this one refuses a runtime with `organization_files`. An App
+declares it only once every Environment of its Organization runs a release that
+reads it, and the application host serves the copy.
 
 ### Who came and with which role
 
