@@ -131,6 +131,32 @@ test("runtime optional module requirements are retained without claiming availab
   ).toThrow();
   expect(() => parseAppRuntime({ ...runtime(), unknown: "value" })).toThrow();
 });
+test("organization_files names only the Organization's canonical manifests, each once (H20)", () => {
+  expect(
+    parseAppRuntime({
+      ...runtime(),
+      organization_files: [
+        "modules.manifest.json",
+        "lazurio.organization.json",
+      ],
+    }).optional.organization_files,
+  ).toEqual(["modules.manifest.json", "lazurio.organization.json"]);
+  expect(
+    parseAppRuntime(runtime()).optional.organization_files,
+  ).toBeUndefined();
+  for (const files of [
+    [],
+    ["modules.manifest.json", "modules.manifest.json"],
+    [".env"],
+    ["../lazurio.organization.json"],
+    ["workspace/other/data.json"],
+    ["mission-control/mission-control.config.json"],
+    "modules.manifest.json",
+  ])
+    expect(() =>
+      parseAppRuntime({ ...runtime(), organization_files: files }),
+    ).toThrow();
+});
 test("runtime secrets are names only: absent, or a non-empty list of unique upper-case names, never both required and optional (decision F46)", () => {
   // Absent: nothing declared, and the declaration still starts.
   const absent = parseAppRuntime(runtime());

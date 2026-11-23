@@ -91,6 +91,11 @@ export function applicationEnvironment(input: {
    * decision F46). Only the application's own process gets them: never the
    * preparation's processes, never `LAZURIO_RUNTIME_LISTENERS_JSON`. */
   secrets?: Readonly<Record<string, string>> | undefined;
+  /** The directory with the copy of the Organization root's files the app
+   * declares in `organization_files` (`provideOrganizationFiles`, H20), as
+   * `LAZURIO_ORGANIZATION_FILES_DIR`. None: the app declares none, or it is
+   * a Personalspace module. */
+  organizationFiles?: string | undefined;
   /** A start of the app's own server from `main` (decision F58, addendum of
    * 2026-10-21): `NODE_ENV=production` and, for an app with a client, the
    * installed output of the build it starts with as
@@ -160,6 +165,8 @@ export function applicationEnvironment(input: {
     environment[
       `LAZURIO_RUNTIME_SIBLING_${listenerVariableKey(module)}_ORIGIN`
     ] = siblingOrigin;
+  if (input.organizationFiles !== undefined)
+    environment.LAZURIO_ORGANIZATION_FILES_DIR = input.organizationFiles;
   environment.LAZURIO_RUNTIME_LISTENERS_JSON = JSON.stringify(state);
   // Outside the checkout, never changed once there (decision F58 point 3).
   const output = input.production?.buildOutput ?? null;
