@@ -115,10 +115,12 @@ export type ProcessRunner = (
   command: readonly string[],
   timeoutMs: number,
   env?: Readonly<Record<string, string>>,
-  /** Asked when `timeoutMs` runs out: true keeps the child running for
-   * another `timeoutMs` instead of killing it (a Folder refresh in the middle
-   * of its transaction, #1205); absent, the child is killed. */
-  holdOnTimeout?: () => Promise<boolean>,
+  /** Called when `timeoutMs` runs out, with the kill (SIGKILL, resolved once
+   * the child is gone). It answers true when it killed the child, false to
+   * give it another `timeoutMs`; it decides and kills under whatever it must
+   * hold so that the decision cannot race the child (a Folder refresh inside
+   * its transaction, #1205). Absent, the child is killed. */
+  onTimeout?: (kill: () => Promise<void>) => Promise<boolean>,
 ) => Promise<ProcessResult>;
 
 const maxOutputBytes = 64 * 1024;
@@ -127,7 +129,7 @@ export const runProcess: ProcessRunner = async (
   command,
   timeoutMs,
   env = {},
-  holdOnTimeout,
+  onTimeout,
 ) => {
   const child = Bun.spawn([...command], {
     // Empty unless the caller names variables: nothing of the caller's
@@ -141,17 +143,25 @@ export const runProcess: ProcessRunner = async (
   // child was killed: the reader is cancelled, not waited for.
   const reader = child.stdout.getReader();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const kill = async () => {
+    child.kill("SIGKILL");
+    await child.exited;
+  };
   const expiry = () =>
     new Promise<"timeout">((resolve) => {
       timer = setTimeout(() => resolve("timeout"), timeoutMs);
     });
-  // A child the caller says must not be cut off now is given another period,
-  // as often as the caller says so; asking never fails the run.
+  // Past the bound the child is killed, unless the caller keeps it for
+  // another period; a caller that fails to answer keeps it, because it may
+  // not be safe to cut it off.
   const expired = (async () => {
     for (;;) {
       await expiry();
-      const hold = await holdOnTimeout?.().catch(() => false);
-      if (hold !== true) return "timeout" as const;
+      if (onTimeout === undefined) {
+        child.kill("SIGKILL");
+        return "timeout" as const;
+      }
+      if (await onTimeout(kill).catch(() => false)) return "timeout" as const;
     }
   })();
   const finished = (async () => {
@@ -174,10 +184,7 @@ export const runProcess: ProcessRunner = async (
   })();
   try {
     const result = await Promise.race([finished, expired]);
-    if (result === "timeout") {
-      child.kill("SIGKILL");
-      finished.catch(() => undefined);
-    }
+    if (result === "timeout") finished.catch(() => undefined);
     return result;
   } finally {
     clearTimeout(timer);

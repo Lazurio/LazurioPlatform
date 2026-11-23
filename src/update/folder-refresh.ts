@@ -1,8 +1,16 @@
-import { lstat, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { lstat, mkdir, readFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import {
+  FolderOperationBusyError,
+  withFolderOperationLock,
+} from "../folder/lock";
 import { neededRefresh } from "../folder/refresh-needed";
 import { shownAsItself } from "../folder/visible-text";
-import { recordRestartOwed, restartOwedFor } from "../machine/launchpad-entry";
+import {
+  clearRestartOwed,
+  recordRestartOwed,
+  restartOwedFor,
+} from "../machine/launchpad-entry";
 import { layout } from "./layout";
 import {
   type ProcessResult,
@@ -147,61 +155,23 @@ const retryable = (outcome: FolderRefreshOutcome) =>
 
 /** The refresh when the Folder needs one; null when it does not. Every
  * attempt reads the Folder again, so one that another operation refreshed
- * meanwhile is `unchanged`. Never throws. */
+ * meanwhile is `unchanged`. A prepared transaction an interrupted change left
+ * is finished first (`resumePreparedTransaction`). Never throws. */
 export async function refreshFolderWhenBehind(
   input: FolderRefreshInput,
 ): Promise<FolderRefreshOutcome | null> {
-  const run = input.run ?? runProcess;
   const retry = input.retry ?? refreshRetry;
-  let operator: string | undefined;
-  try {
-    operator = await input.operatorFolder?.();
-  } catch {
-    operator = undefined;
-  }
-  // A refresh that is inside its transaction when the bound runs out is not
-  // killed: killing it there leaves a prepared transaction that blocks the
-  // Folder and the Launchpad until someone resumes it (#1205). The bound
-  // still ends a child that waits or hangs outside one.
-  const inTransaction = () => exists(transactionOf(input.folder));
-  const bounded = (command: readonly string[]) =>
-    run(
-      [layout(input.base).selector, ...command],
-      input.timeoutMs ?? refreshTimeoutMs,
-      serviceEnvironment(input.env),
-      inTransaction,
-    );
-  // A prepared transaction an earlier, interrupted change left behind is
-  // finished first, by the active version's own explicit recovery
-  // (`profile-resume` at the marker's revision), which validates the whole
-  // journal and the active files under the Folder's lock and refuses,
-  // changing nothing, when they do not agree. On the hosted operator's Folder
-  // its Launchpad, which refused to start on the pending transaction, is
-  // restarted by the refresh that follows (a restart owed).
-  const target = await preparedRevision(input.folder);
-  if (target !== null) {
-    let resumed: ProcessResult | null;
-    try {
-      resumed = await bounded([
-        "profile-resume",
-        "--folder",
-        input.folder,
-        "--target-revision",
-        String(target),
-      ]);
-    } catch {
-      resumed = null;
-    }
-    if (!recovered(resumed)) return failedRefresh("transaction-pending");
-    if (operator === input.folder)
-      await recordRestartOwed(
-        layout(input.base).launchpadRestartOwed,
-        input.folder,
-      ).catch(() => undefined);
-  }
+  const operator = await operatorOf(input);
+  const bounded = boundedRun(input);
   let refused: FolderRefreshOutcome | null = null;
   for (let attempt = 1; attempt <= retry.attempts; attempt += 1) {
     if (attempt > 1) await Bun.sleep(retry.delayMs);
+    const resumed = await resumeWith(input, operator, bounded);
+    if (resumed !== null && resumed.state !== "refreshed") {
+      if (!retryable(resumed)) return resumed;
+      refused = resumed;
+      continue;
+    }
     // A current Folder still runs the operator's refresh while a restart of
     // its Launchpad is owed (layout launchpadRestartOwed).
     const needed =
@@ -214,9 +184,11 @@ export async function refreshFolderWhenBehind(
         ? { command: ["machine", "folder-refresh"] as const }
         : null);
     if (needed === null)
-      return refused === null
+      return refused === null && resumed === null
         ? null
-        : Object.freeze({ state: "unchanged" as const });
+        : Object.freeze({
+            state: resumed === null ? "unchanged" : "refreshed",
+          } as const);
     let result: ProcessResult | null;
     try {
       result = await bounded(needed.command);
@@ -230,15 +202,141 @@ export async function refreshFolderWhenBehind(
   return refused;
 }
 
+/** Finish a prepared transaction an earlier, interrupted change of the Folder
+ * left behind (#1205), before anything else of an update reads the Folder:
+ * the candidate's Launchpad probe refuses a pending transaction, so this runs
+ * with the ACTIVE version before the candidate is checked, and again before
+ * the refresh after the switch. It is the active version's own explicit
+ * recovery, `profile-resume` at the marker's revision, which validates the
+ * whole journal and the active files under the Folder's lock and refuses,
+ * changing nothing, when they do not agree. Null when there is nothing to
+ * finish; `refreshed` when it finished one; `failed` `transaction-pending`
+ * when the recovery refused, the transaction staying for an explicit repair.
+ * Never throws. */
+export async function resumePreparedTransaction(
+  input: FolderRefreshInput,
+): Promise<FolderRefreshOutcome | null> {
+  return resumeWith(input, await operatorOf(input), boundedRun(input));
+}
+
+async function operatorOf(input: FolderRefreshInput) {
+  try {
+    return await input.operatorFolder?.();
+  } catch {
+    return undefined;
+  }
+}
+
+/** The active version's command, bounded. When the bound runs out the child
+ * is killed only while this process holds the Folder's operation lock: a
+ * child that holds it is inside its change (its transaction) and is given
+ * another period instead, because killing it there leaves a prepared
+ * transaction that blocks the Folder and the Launchpad (#1205); and while
+ * this process holds it, the child cannot enter one before it is gone. */
+function boundedRun(input: FolderRefreshInput) {
+  const run = input.run ?? runProcess;
+  const killOutsideChange = async (kill: () => Promise<void>) => {
+    try {
+      await withFolderOperationLock(
+        join(input.folder, ".lazurio"),
+        () => kill(),
+        0,
+      );
+      return true;
+    } catch (error) {
+      // Held by the child (or another change): not now. Anything else, a
+      // Folder whose state cannot be locked at all: no change can be in it.
+      if (error instanceof FolderOperationBusyError) return false;
+      await kill();
+      return true;
+    }
+  };
+  return (command: readonly string[]) =>
+    run(
+      [layout(input.base).selector, ...command],
+      input.timeoutMs ?? refreshTimeoutMs,
+      serviceEnvironment(input.env),
+      killOutsideChange,
+    );
+}
+
+async function resumeWith(
+  input: FolderRefreshInput,
+  operator: string | undefined,
+  bounded: ReturnType<typeof boundedRun>,
+): Promise<FolderRefreshOutcome | null> {
+  const target = await preparedRevision(input.folder);
+  if (target === null) return null;
+  const resume = async (): Promise<FolderRefreshOutcome> => {
+    let result: ProcessResult | null;
+    try {
+      result = await bounded([
+        "profile-resume",
+        "--folder",
+        input.folder,
+        "--target-revision",
+        String(target),
+      ]);
+    } catch {
+      result = null;
+    }
+    // An answer that was lost (the child cut off, its output unreadable) is
+    // read from the Folder: a transaction no longer pending was finished.
+    return recovered(result) || !(await transactionPending(input.folder))
+      ? Object.freeze({ state: "refreshed" as const })
+      : failedRefresh("transaction-pending");
+  };
+  if (operator !== input.folder) return resume();
+  // The hosted operator's Launchpad refused to start on the pending
+  // transaction. Its restart is owed BEFORE the transaction is finished, under
+  // the same restart lock `machine folder-refresh` takes, so that no failure
+  // after the recovery (this process dying included) can lose it: the refresh
+  // that follows, now or in the next run, restarts the Launchpad and clears
+  // the debt. A debt that cannot be recorded stops the recovery.
+  const owed = layout(input.base).launchpadRestartOwed;
+  const lockDirectory = join(dirname(owed), "launchpad-restart");
+  try {
+    await mkdir(lockDirectory, { recursive: true, mode: 0o700 });
+  } catch {
+    return failedRefresh("launchpad-restart-unrecordable");
+  }
+  try {
+    return await withFolderOperationLock(
+      lockDirectory,
+      async () => {
+        const owedBefore = await restartOwedFor(owed, input.folder);
+        if (!owedBefore)
+          try {
+            await recordRestartOwed(owed, input.folder);
+          } catch {
+            return failedRefresh("launchpad-restart-unrecordable");
+          }
+        const outcome = await resume();
+        // Refused: nothing changed, so nothing new is owed.
+        if (outcome.state !== "refreshed" && !owedBefore)
+          await clearRestartOwed(owed, input.folder).catch(() => undefined);
+        return outcome;
+      },
+      0,
+    );
+  } catch (error) {
+    return error instanceof FolderOperationBusyError
+      ? Object.freeze({ state: "blocked" as const, reason: "folder-busy" })
+      : failedRefresh("launchpad-restart-unrecordable");
+  }
+}
+
 const transactionOf = (folder: string) =>
   join(folder, ".lazurio", "transaction");
 
-async function exists(path: string): Promise<boolean> {
+/** Whether the Folder still has a transaction directory; one that cannot be
+ * told apart counts as pending. */
+async function transactionPending(folder: string): Promise<boolean> {
   try {
-    await lstat(path);
+    await lstat(transactionOf(folder));
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
   }
 }
 

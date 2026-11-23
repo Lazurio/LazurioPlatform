@@ -87,6 +87,7 @@ import {
 import {
   type FolderRefreshOutcome,
   refreshFolderWhenBehind,
+  resumePreparedTransaction,
 } from "./folder-refresh";
 import {
   embeddedFixture,
@@ -441,6 +442,16 @@ export async function updateEnvironment(
         base,
         folder: refreshed,
         product,
+        env: context.env,
+        operatorFolder: context.hostedFolder,
+        run: context.run,
+      }),
+    resumeFolder: (resumed) =>
+      resumePreparedTransaction({
+        base,
+        folder: resumed,
+        // The recovery renders nothing; the revision is the refresh's input.
+        product: "",
         env: context.env,
         operatorFolder: context.hostedFolder,
         run: context.run,

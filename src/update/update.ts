@@ -92,6 +92,13 @@ export type UpdateEnvironment = Readonly<{
         product: string,
       ) => Promise<FolderRefreshOutcome | null>)
     | undefined;
+  /** Before a newer release is staged, under the update lock: the active
+   * version finishes a prepared transaction an interrupted change of `folder`
+   * left (`resumePreparedTransaction`, #1205), because the candidate's
+   * Launchpad probe refuses a pending one. Absent: nothing is resumed. */
+  resumeFolder?:
+    | ((folder: string) => Promise<FolderRefreshOutcome | null>)
+    | undefined;
   /** After a successful run: converge the installer's entry units of a
    * supervised hosted base (`convergeEntryUnits`, decision F29); undefined
    * when there is nothing to converge. Absent: nothing is converged. */
@@ -504,6 +511,17 @@ const updateOnce = (
           ),
           ...(await foreignEntriesReport(environment)),
         });
+      // A prepared transaction an interrupted change left would make the
+      // candidate's Launchpad probe refuse: the active version finishes it
+      // first. Whatever it answers, the update goes on; a refusal stays for
+      // the probe and the refresh to name.
+      if (
+        environment.folder !== undefined &&
+        environment.resumeFolder !== undefined
+      )
+        await environment
+          .resumeFolder(environment.folder)
+          .catch(() => undefined);
       const artifact = manifest.targets[identity.target];
       if (!artifact) throw new UpdateFailure("internal");
       // Scratch is a directory nobody else may use while the lock is held:

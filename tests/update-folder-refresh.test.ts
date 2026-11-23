@@ -12,7 +12,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { initializeFolder } from "../src/folder/initialize-folder";
-import { withFolderOperationLock } from "../src/folder/lock";
+import {
+  FolderOperationBusyError,
+  withFolderOperationLock,
+} from "../src/folder/lock";
 import { executionOs } from "../src/folder/platform";
 import {
   folderRefreshNeeded,
@@ -22,7 +25,10 @@ import { instructionTemplateRevision } from "../src/folder/render";
 import { updateProfile } from "../src/folder/update-profile";
 import { initializeMachineFolder } from "../src/machine/cli";
 import { type CliContext, runUpdateCommand } from "../src/update/cli";
-import { refreshFolderWhenBehind } from "../src/update/folder-refresh";
+import {
+  refreshFolderWhenBehind,
+  resumePreparedTransaction,
+} from "../src/update/folder-refresh";
 import { layout, readSelector } from "../src/update/layout";
 import { type ProcessRunner, runProcess } from "../src/update/self-check";
 import {
@@ -646,7 +652,7 @@ test.skipIf(process.platform === "win32")(
         run,
         retry: { attempts: 2, delayMs: 0 },
       }),
-    ).toBeNull();
+    ).toEqual({ state: "refreshed" });
     expect(calls.map((call) => call.command[0])).toEqual(["profile-resume"]);
     expect(calls[0]?.command).toEqual([
       "profile-resume",
@@ -701,20 +707,36 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "the refresh is held, not killed, while its Folder has a transaction",
+  "past its bound the refresh is killed only under the Folder's lock, never while the child holds it",
   async () => {
     const root = await temporary();
     const folder = join(root, "Lazurio");
     const base = join(root, "base");
     await initializeFolder(folder, profile);
     await renderedBy(folder, "base-instructions-8");
-    const holds: boolean[] = [];
-    const run: ProcessRunner = async (_argv, _timeoutMs, _env, hold) => {
-      holds.push((await hold?.()) ?? false);
-      await mkdir(join(folder, ".lazurio", "transaction"));
-      holds.push((await hold?.()) ?? false);
-      await rm(join(folder, ".lazurio", "transaction"), { recursive: true });
-      return { exitCode: 0, stdout: '{"kind":"updated","revision":2}' };
+    const state = join(folder, ".lazurio");
+    const decisions: string[] = [];
+    // The child's change holds the Folder's lock when the bound runs out (it
+    // is inside its transaction): not killed. Then it has left it: killed,
+    // and while the kill runs the parent holds the lock, so the child could
+    // not have entered a transaction between the decision and the kill.
+    const run: ProcessRunner = async (_argv, _timeoutMs, _env, onTimeout) => {
+      let killedWhileInside = false;
+      await withFolderOperationLock(state, async () => {
+        killedWhileInside = (await onTimeout?.(async () => {})) ?? false;
+      });
+      decisions.push(killedWhileInside ? "killed" : "held");
+      let lockedDuringKill = false;
+      const killed = await onTimeout?.(async () => {
+        lockedDuringKill = await withFolderOperationLock(
+          state,
+          async () => false,
+          0,
+        ).catch((error) => error instanceof FolderOperationBusyError);
+      });
+      decisions.push(killed ? "killed" : "held");
+      expect(lockedDuringKill).toBe(true);
+      return "timeout";
     };
     expect(
       await refreshFolderWhenBehind({
@@ -725,25 +747,161 @@ test.skipIf(process.platform === "win32")(
         run,
         retry: { attempts: 1, delayMs: 0 },
       }),
-    ).toEqual({ state: "refreshed" });
-    expect(holds).toEqual([false, true]);
+    ).toEqual({ state: "failed", reason: "timeout" });
+    expect(decisions).toEqual(["held", "killed"]);
   },
 );
 
 test.skipIf(process.platform === "win32")(
-  "a child past its bound is killed unless the caller holds it",
+  "a real child past its bound is killed unless the caller keeps it, and is gone when the kill resolves",
   async () => {
     const child = ["sh", "-c", 'sleep 0.6; printf "{}"'];
     expect(await runProcess(child, 150, {})).toBe("timeout");
-    expect(await runProcess(child, 150, {}, async () => false)).toBe("timeout");
-    let asked = 0;
+    let kept = 0;
     expect(
       await runProcess(child, 150, {}, async () => {
-        asked += 1;
-        return true;
+        kept += 1;
+        return false;
       }),
     ).toEqual({ exitCode: 0, stdout: "{}" });
-    expect(asked).toBeGreaterThan(0);
+    expect(kept).toBeGreaterThan(0);
+    const started = Date.now();
+    expect(
+      await runProcess(child, 150, {}, async (kill) => {
+        await kill();
+        return true;
+      }),
+    ).toBe("timeout");
+    expect(Date.now() - started).toBeLessThan(550);
+    // A caller that fails to answer keeps the child: it may not be safe to
+    // cut it off.
+    expect(
+      await runProcess(child, 150, {}, async () => {
+        throw new Error("cannot tell");
+      }),
+    ).toEqual({ exitCode: 0, stdout: "{}" });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "lazurio update finishes a prepared transaction with the active version before it checks a newer release",
+  async () => {
+    world = await createWorld();
+    const folder = join(world.root, "Lazurio");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    await expect(
+      updateProfile(folder, 1, { profile }, async (step) => {
+        if (step === "prepared") throw new Error("cut off");
+      }),
+    ).rejects.toThrow("cut off");
+    const { run, calls } = refreshRunner(world.base);
+    await world.release("1.1.0", {
+      templateRevision: instructionTemplateRevision,
+    });
+
+    const updated = await updater("1.0.0", run)(["--folder", folder]);
+    expect(updated.code).toBe(0);
+    // The recovery ran first, by the version that was active before the
+    // switch, at the marker's revision; nothing else was left to refresh.
+    expect(calls).toEqual([
+      {
+        command: [
+          "profile-resume",
+          "--folder",
+          folder,
+          "--target-revision",
+          "2",
+        ],
+        active: "1.0.0",
+      },
+    ]);
+    expect(await readSelector(world.base)).toBe("1.1.0");
+    expect(await readdir(join(folder, ".lazurio"))).not.toContain(
+      "transaction",
+    );
+    expect(await recordedRevisions(folder)).toEqual({
+      template: instructionTemplateRevision,
+      revision: 2,
+    });
+  },
+);
+
+test.skipIf(process.platform === "win32")(
+  "on the hosted operator's Folder the restart is owed before the transaction is finished, and survives an updater that dies right after",
+  async () => {
+    const root = await temporary();
+    const folder = join(root, "Lazurio");
+    const base = join(root, "base");
+    await initializeFolder(folder, profile);
+    await renderedBy(folder, "base-instructions-8");
+    await expect(
+      updateProfile(folder, 1, { profile }, async (step) => {
+        if (step === "prepared") throw new Error("cut off");
+      }),
+    ).rejects.toThrow("cut off");
+    const owedFile = layout(base).launchpadRestartOwed;
+    let owedAtResume: string | null = null;
+    // The recovery finishes the transaction, and its answer never reaches
+    // the updater (cut off as an updater that dies is): the Folder says it
+    // is finished, and the restart stays owed.
+    const dying = refreshRunner(base, async (command) => {
+      if (command[0] === "profile-resume")
+        owedAtResume = await readFile(owedFile, "utf8").catch(() => null);
+      return undefined;
+    });
+    const died = async () => {
+      const result = await dying.run(
+        [
+          layout(base).selector,
+          "profile-resume",
+          "--folder",
+          folder,
+          "--target-revision",
+          "2",
+        ],
+        1_000,
+      );
+      throw Object.assign(new Error("updater died"), { result });
+    };
+    await expect(
+      resumePreparedTransaction({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+        run: async () => died(),
+      }),
+    ).resolves.toEqual({ state: "refreshed" });
+    // Owed before the recovery ran, and still owed after the updater died
+    // with the transaction finished.
+    expect(JSON.parse(owedAtResume ?? "{}")).toEqual({ folder });
+    expect(await readdir(join(folder, ".lazurio"))).not.toContain(
+      "transaction",
+    );
+    expect(JSON.parse(await readFile(owedFile, "utf8"))).toEqual({ folder });
+    // The next run finds a current Folder and the debt: its refresh restarts
+    // the Launchpad.
+    const next = refreshRunner(base, async (command) =>
+      command[0] === "machine"
+        ? { exitCode: 0, stdout: '{"kind":"unchanged"}' }
+        : undefined,
+    );
+    expect(
+      await refreshFolderWhenBehind({
+        base,
+        folder,
+        product: instructionTemplateRevision,
+        env: {},
+        operatorFolder: async () => folder,
+        run: next.run,
+        retry: { attempts: 1, delayMs: 0 },
+      }),
+    ).toEqual({ state: "unchanged" });
+    expect(next.calls.map((call) => call.command.slice(0, 2))).toEqual([
+      ["machine", "folder-refresh"],
+    ]);
   },
 );
 
