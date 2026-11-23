@@ -559,3 +559,47 @@ describe("Executor's server Brain", () => {
     expect(urlOf(servers.get("someone"))).toBe("https://example.invalid/mcp");
   });
 });
+
+// #1214: an update restarts the Launchpad and then refreshes the Folder. A
+// setup at the start that cannot read the Folder's state meanwhile waits for
+// it and runs again after the pause, instead of giving up until the next
+// start; the memory then moves to its pin.
+describe("a Folder that cannot be read right now is waited for", () => {
+  test("waits-folder, then the move: setup runs again after the pause", async () => {
+    let runs = 0;
+    const pauses: number[] = [];
+    const answers: BrainSetupLabels[] = [
+      { server: "waits-folder" },
+      { server: "moved", move: "moved", meaning: "on" },
+    ];
+    expect(
+      await brainSetupAtStart({
+        run: async () => answers[runs++] ?? null,
+        handover: async () => true,
+        signal: new AbortController().signal,
+        fillMs: 300_000,
+        sleep: async (ms: number) => {
+          pauses.push(ms);
+        },
+      }),
+    ).toEqual({ server: "moved", move: "moved", meaning: "on" });
+    expect(runs).toBe(2);
+    expect(pauses).toEqual([300_000]);
+  });
+
+  test("unsupported stays final: setup is not run again", async () => {
+    let runs = 0;
+    expect(
+      await brainSetupAtStart({
+        run: async () => {
+          runs++;
+          return { server: "unsupported" };
+        },
+        handover: async () => true,
+        signal: new AbortController().signal,
+        sleep: async () => {},
+      }),
+    ).toEqual({ server: "unsupported" });
+    expect(runs).toBe(1);
+  });
+});

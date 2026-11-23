@@ -38,6 +38,11 @@ export const archiveWaits = (labels: BrainSetupLabels | null) =>
   labels?.archive?.startsWith("waits:") === true ||
   labels?.archive?.startsWith("failed:") === true;
 
+/** Whether setup could not read the Folder's state right now (an update's
+ * refresh may be writing it, #1214): another run after the pause. */
+export const folderWaits = (labels: BrainSetupLabels | null) =>
+  labels?.server === "waits-folder";
+
 /** How long the Launchpad lets one setup run: longer than its longest
  * supported step, a move or one window of search by meaning (gbrain's
  * `embed` with its budget and one batch, `meaningEmbedLimitMs`), with the
@@ -130,7 +135,8 @@ export async function brainSetupAtStart(
       if (lost > lostRunsInARow) break;
     } else {
       if (labels.server !== "busy")
-        waiting = meaningWaits(labels) || archiveWaits(labels);
+        waiting =
+          meaningWaits(labels) || archiveWaits(labels) || folderWaits(labels);
       if (!waiting) break;
       input.report?.(labels);
     }

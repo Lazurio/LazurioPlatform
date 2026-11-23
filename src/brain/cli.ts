@@ -60,6 +60,8 @@ const reasons = {
   "not-operator": "this account is not the Environment's declared operator",
   "not-personal":
     "the person's memory belongs to a Personal Environment, and this one is not",
+  "folder-unreadable":
+    "the Folder's state cannot be read right now (an update or another change may be writing it); run it again in a moment",
 } as const;
 
 const megabytes = (bytes: number | null) =>

@@ -154,7 +154,10 @@ export function processBrainHost(
           return unsupported("not-personal");
         generation = buddyGeneration(preferences.machine?.entry);
       } catch {
-        return unsupported("not-personal");
+        // Not a verdict on the Environment: the Folder may be in the middle
+        // of an update's refresh (#1214). The Launchpad's start runs setup
+        // again after a pause.
+        return unsupported("folder-unreadable");
       }
       return Object.freeze({ kind: "supported" });
     },
