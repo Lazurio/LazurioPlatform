@@ -62,19 +62,19 @@ const keyA =
 const keyB =
   "AAAAC3NzaC1lZDI1NTE5AAAAIIFygZVmr1cFYx//JrQ0yWhRLdAwCbc1XS4H6ktOFDTx";
 const origin = "http://example-conglomerate-host.tailnet.example.invalid:8444";
-const sister = "pablo-01.sister";
+const sister = "carol-01.sister";
 
 const { team: _team, ...owner } = organization.owner;
 const sisterPeer = (environment = sister) => ({
-  name: "sister-pablo-01-vm",
+  name: "sister-carol-01-vm",
   kind: "workspace-vm",
   zone: "work",
   organization: "sister",
   environment,
   access: "assigned",
   ssh: {
-    host: "sister-pablo-01-vm.tailnet.example.invalid",
-    user: "pablo",
+    host: "sister-carol-01-vm.tailnet.example.invalid",
+    user: "carol",
     direction: "outbound",
     host_keys: [{ type: "ssh-ed25519", key: keyA }],
   },
@@ -144,8 +144,8 @@ test("a Work Environment's handover routes are its assigned peers; the Folder's 
     {
       environment: sister,
       organization: "sister",
-      host: "sister-pablo-01-vm.tailnet.example.invalid",
-      user: "pablo",
+      host: "sister-carol-01-vm.tailnet.example.invalid",
+      user: "carol",
       hostKeys: [{ type: "ssh-ed25519", key: keyA }],
     },
   ]);
@@ -187,7 +187,7 @@ test("without a declared service a Work Environment writes Host <id> for its ass
   const written = await readFile(conf(path), "utf8");
   expect(written).toContain(`\nHost ${sister}\n`);
   expect(written).toContain(
-    "  HostName sister-pablo-01-vm.tailnet.example.invalid\n  User pablo\n",
+    "  HostName sister-carol-01-vm.tailnet.example.invalid\n  User carol\n",
   );
   expect(written).toContain("  StrictHostKeyChecking yes\n");
   expect(await readFile(knownHosts(path), "utf8")).toBe(
@@ -257,7 +257,7 @@ test("with a declared service a Work Environment writes the service's targets an
       "example-alice-vm.tailnet.example.invalid",
       "2026-11-24T02:03:30Z",
     ],
-    [sister, "sister-pablo-01-vm.tailnet.example.invalid", null],
+    [sister, "sister-carol-01-vm.tailnet.example.invalid", null],
   ]);
   // The service names the same Environment: its target is the one written.
   const both = await syncEnvironmentRoutes(
@@ -266,13 +266,13 @@ test("with a declared service a Work Environment writes the service's targets an
     seams([
       target({
         environment: sister,
-        host: "served-pablo-01-vm.tailnet.example.invalid",
+        host: "served-carol-01-vm.tailnet.example.invalid",
       }),
     ]),
   );
   expect(both.ssh).toEqual({ kind: "written", environments: [sister] });
   expect((await recordedRoutes(location)).map((route) => route.host)).toEqual([
-    "served-pablo-01-vm.tailnet.example.invalid",
+    "served-carol-01-vm.tailnet.example.invalid",
   ]);
   // An unreachable service adds nothing and keeps its unexpired routes; the
   // handover's own route stays, as it never depended on the service.
@@ -296,7 +296,7 @@ test("a live handover whose own routes changed supersedes the write, and nothing
   const location = { home: path, uid };
   const service = declaredServiceOf(workAssignedServed);
   if (service === null) throw new Error("no service");
-  const moved = work([laptop, sisterPeer("pablo-02.sister")], true);
+  const moved = work([laptop, sisterPeer("carol-02.sister")], true);
   const result = await syncEnvironmentRoutes(location, service, {
     run: runTool,
     now: () => now,
