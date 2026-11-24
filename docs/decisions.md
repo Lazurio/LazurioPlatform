@@ -26421,6 +26421,15 @@ and its lockfile in its own pull request, and a template adopts the release in a
 release of its own. `2027.01` is taken, so this release is `2027.02`. The table
 of `2027.01` stays in [stack-profiles.md](stack-profiles.md#202701).
 
+**Addendum: release 2027.03 (2026-11-24; asked for by the templates thread GEN4 ŠABLONY under the coordinating agent APLIKACE ORGANIZACE, for the unique write revision of the Module Standard's data port).**
+`app-data` pins `@lazurio/repository-db` v3.4.0 instead of v3.2.6, which
+treats `record.revision` as audit metadata, so concurrent edits of different
+fields that both store a new revision merge without a conflict on
+`/record/revision`. Nothing else changes. `lazurio module create` follows:
+`stackProfilesRelease` `2027.03` and `defaultScaffoldVersions.repositoryDb`
+`3.4.0`. `2027.02` is taken, so this release is `2027.03`. The table of
+`2027.02` stays in [stack-profiles.md](stack-profiles.md#202702).
+
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
