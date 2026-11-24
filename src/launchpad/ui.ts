@@ -1,5 +1,15 @@
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
+import {
+  browserStore,
+  pageAccountJson,
+  pageReentry,
+  sessionRefused,
+} from "../shell/account";
+import {
+  browserNoticesSeams,
+  enableBuddyNotices,
+  readLaunchpadNoticesChoice,
+} from "../shell/buddy-notice";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
   currentEnvironment,
@@ -40,7 +50,12 @@ import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyIntroduction } from "./buddy-introduction";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
-import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
+import {
+  type BuddyStepFacts,
+  buddyFact,
+  meetStart,
+  readGuideNoticesState,
+} from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -961,6 +976,23 @@ const startPanel = createStartPanel({
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
 const buddyAvatar = () => buddyAvatarSource(entry?.buddyOrigin);
+/** His notices as the guide shows them (`readGuideNoticesState`). */
+const guideNotices = () =>
+  readGuideNoticesState(
+    browserNoticesSeams(null).permission,
+    async () => (await readLaunchpadNoticesChoice()).choice,
+  );
+/** His own address on the web, as the person types it on a phone
+ * (`buddy.<slug>.lazurio.io`); null without one. */
+const buddyHost = (): string | null => {
+  const origin = entry?.buddyOrigin;
+  if (origin === undefined) return null;
+  try {
+    return new URL(origin).host;
+  } catch {
+    return null;
+  }
+};
 // "Připojit Telegram" (decision F66): his own bot from BotFather, from
 // Nastavení → Buddy → Kanály and the last screen of "Seznamte se s Buddym".
 const telegramDialog = createTelegramDialog({
@@ -999,6 +1031,17 @@ const buddyDialog = createBuddyDialog({
   finished: () => meetingFinished(),
   closed: () => firstRun(),
   introduced: () => keepBuddyIntroduced(),
+  buddyHost,
+  // His notices under his signs (Matěj, 2026-11-21): the shell's one
+  // function that turns them on, called right in the click, and the guide's
+  // reading, which says it does not know where the choice cannot be read.
+  notices: {
+    state: () => guideNotices(),
+    enable: () =>
+      enableBuddyNotices(browserNoticesSeams(browserStore())).then(() =>
+        guideNotices(),
+      ),
+  },
   telegram: () => telegramDialog.open(undefined, "meeting"),
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog

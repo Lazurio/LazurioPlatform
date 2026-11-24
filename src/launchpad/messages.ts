@@ -1532,10 +1532,22 @@ const en = {
   buddyPlaceTy: "I'm on every page and know where you are.",
   buddySignsVy: "When I need you, you'll see it here.",
   buddySignsTy: "When I need you, you'll see it here.",
+  buddyOnPhoneVy: "You'll find me on your phone too, at this address.",
+  buddyOnPhoneTy: "You'll find me on your phone too, at this address.",
   buddySignWaiting: "Buddy is waiting for you",
   buddySignAnswered: "Buddy has answered",
   buddySignFailed: "Buddy: something went wrong",
   buddyTourOpen: "Open Buddy",
+  // His notices under his signs (Matěj, 2026-11-21): on from the start, and
+  // how to turn them off. The blocked line is the shell's buddyNoticesBlocked.
+  buddyNoticesTurnOn: "Turn on notifications",
+  buddyNoticesHowOff:
+    "You can turn them off at any time in the menu at his figure (Show notifications).",
+  buddyNoticesAreOn:
+    "Notifications are on. You can turn them off in the menu at his figure (Show notifications).",
+  buddyNoticesBlockedHere: "The browser blocks notifications",
+  buddyNoticesUnknown:
+    "Could not find out whether notifications are on. You can check in the menu at his figure (Show notifications).",
   buddyTourAgain: "Watch the introduction",
   buddyWhereVy: "You'll find me here, bottom right, in every app.",
   buddyWhereTy: "You'll find me here, bottom right, in every app.",
@@ -3954,10 +3966,20 @@ const cs: Record<MessageKey, string> = {
   buddyPlaceTy: "Jsem na každé stránce a vím, kde jsi.",
   buddySignsVy: "Když vás potřebuji, uvidíte to tady.",
   buddySignsTy: "Když tě potřebuju, uvidíš to tady.",
+  buddyOnPhoneVy: "Najdete mě i v telefonu, na této adrese.",
+  buddyOnPhoneTy: "Najdeš mě i v telefonu, na této adrese.",
   buddySignWaiting: "Buddy na vás čeká",
   buddySignAnswered: "Buddy odpověděl",
   buddySignFailed: "Buddy: něco se nepovedlo",
   buddyTourOpen: "Otevřít Buddyho",
+  buddyNoticesTurnOn: "Zapnout oznámení",
+  buddyNoticesHowOff:
+    "Vypnout je můžete kdykoli v nabídce u postavičky (Zobrazovat oznámení).",
+  buddyNoticesAreOn:
+    "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky (Zobrazovat oznámení).",
+  buddyNoticesBlockedHere: "Oznámení prohlížeč blokuje",
+  buddyNoticesUnknown:
+    "Nepodařilo se zjistit, jestli jsou oznámení zapnutá. Ověříte to v nabídce u postavičky (Zobrazovat oznámení).",
   buddyTourAgain: "Přehrát představení",
   buddyWhereVy: "Najdete mě tady vpravo dole, v každé aplikaci.",
   buddyWhereTy: "Najdeš mě tady vpravo dole, v každé aplikaci.",
