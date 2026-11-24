@@ -215,9 +215,18 @@ export function createShellState(options: ShellStateOptions) {
      * page); null otherwise. The rail draws the logo and the sign-in key
      * from it. */
     signedOut: (): ShellSignedOut | null => signedOut,
-    /** The person's account as read, or null; its `identity` decides
-     * whose Environment a page is (`<lazurio-frame>`, env-frame.ts). */
-    account: (): ShellAccount | null => account,
+    /** The account verified for whoever views this page now, or null: this
+     * origin's fresh answer, or the one a host's page provided. Never the
+     * account this origin remembered: that is the Environment operator's,
+     * and someone else may be viewing (review of #1244). Its `identity`
+     * decides whose Environment a page is (env-frame.ts). */
+    viewer: (): ShellAccount | null =>
+      sourceNow() === "host" ? account : freshRead === "account" ? fresh : null,
+    /** True when this page reads its own document and that read ended
+     * without one: the page is an Environment's whose owner is not known,
+     * which is framed, never left out (env-frame.ts). */
+    documentMissing: (): boolean =>
+      documentMissing && local === null && signedOut === null,
     /** The account's last visit per space of the drawn document. */
     lastBySpace: (): ReadonlyMap<string, AccountVisit> => lastBySpace,
     /** Calls `listener` after every change; returns its removal. */

@@ -1626,7 +1626,9 @@ test("the launcher's corner follows the host's `hidden` too: hidden, the clearan
   // `launcherOnPage` with its host on every draw.
   const elements = await readFile("src/shell/elements.ts", "utf8");
   const view = await readFile("src/shell/buddy-element.ts", "utf8");
-  expect(elements).toContain('static observedAttributes = ["lang", "hidden"];');
+  expect(elements).toContain(
+    'static observedAttributes = ["lang", "hidden", "version"];',
+  );
   expect(view).toContain("onPage = launcherOnPage(model, host);");
   expect(view).toContain('clearance(onPage && place === "home");');
 });

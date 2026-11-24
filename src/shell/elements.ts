@@ -1425,6 +1425,9 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (before !== null && before !== this) before.follow();
     this.unfollow ??= state.listen(() => this.follow());
     this.unframe ??= state.listen(() => this.drawFrame());
+    // The frame needs the viewer's identity, so this element reads the
+    // account even where it stands alone (review of #1244).
+    state.requestAccount();
     guide.attach(this);
     this.follow();
     this.drawFrame();
@@ -1461,9 +1464,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     frameLayer().draw(
       versionFrame(
         here,
-        state.account()?.identity ?? null,
+        state.viewer()?.identity ?? null,
         appVersionOf(this.getAttribute("version")),
         locale,
+        state.documentMissing(),
       ),
     );
   }

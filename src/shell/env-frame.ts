@@ -149,7 +149,19 @@ export function versionFrame(
   viewer: ShellIdentity | null,
   version: AppVersion | null,
   locale: KindLocale,
+  /** The page is an Environment's, but its document could not be read: whose
+   * it is is not known, so it is framed red without a label (review of
+   * #1244). False on a page that is no Environment's, such as a production
+   * Application, which is never framed. */
+  environmentUnknown = false,
 ): VersionFrame | null {
+  if (environment === undefined && environmentUnknown)
+    return {
+      tone: "red",
+      dashed: version === "dev",
+      version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
+      environment: null,
+    };
   const frame = envFrame(environment, viewer);
   if (version === null && frame === null) return null;
   return {
