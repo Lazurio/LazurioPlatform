@@ -441,7 +441,7 @@ test("after a sign-in with the hosted Folder the Chat defaults are applied again
       options: Parameters<typeof chatDefaults>[1],
     ): Promise<ChatDefaults> => {
       applied.push({ home: tools.home, ...options });
-      return { kind: "chat-defaults", state: "managed" };
+      return { kind: "chat-defaults", state: "managed", ai: "claude" };
     };
     const input = {
       tool: "claude" as const,
@@ -455,7 +455,7 @@ test("after a sign-in with the hosted Folder the Chat defaults are applied again
     };
     expect(await reloadAiServices({ ...input, folder: "/folder" })).toEqual({
       t3: { state: "not-installed" },
-      chat: { state: "managed" },
+      chat: { state: "managed", ai: "claude" },
     });
     expect(applied).toEqual([
       { home: scratch.directory, apply: true, folder: "/folder" },

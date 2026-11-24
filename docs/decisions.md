@@ -18584,9 +18584,11 @@ fallback of T3's) is not known.
    Chat defaults are applied again. T3 still keeps a model the person chose; it
    changes only an unset model or its own last write. A workstation, which has no
    managed Chat, is never written. The sign-in's answer says what became of the
-   model (`chat`): a model not set to follow the sign-in leaves the sign-in
-   standing but not complete, and both `lazurio tools login` and Začínáme say so
-   with the next step.
+   model (`chat`) and whose model the Platform recommends there (`ai`), which is
+   not always the AI just signed in: with Codex signed in, a Claude sign-in keeps
+   Codex's. `lazurio tools login` names it. A recommended model that was not set
+   leaves the sign-in standing but not complete, and both `lazurio tools login`
+   and Začínáme say which model could not be set and the next step.
 4. **Not covered.** A thread made before the sign-in keeps the model it was made
    on. That includes Buddy's first thread if it was opened before the sign-in.
    Following the sign-in there belongs to T3 Code.

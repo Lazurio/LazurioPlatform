@@ -261,6 +261,13 @@ export async function reloadAiServices(
   return Object.freeze({
     ...(appServer === undefined ? {} : { appServer }),
     t3,
-    ...(chat === undefined ? {} : { chat: { state: chat.state } }),
+    ...(chat === undefined
+      ? {}
+      : {
+          chat: {
+            state: chat.state,
+            ...(chat.ai === undefined ? {} : { ai: chat.ai }),
+          },
+        }),
   });
 }

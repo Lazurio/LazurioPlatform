@@ -52,6 +52,9 @@ type Selection = Readonly<{
 export type ChatDefaults = Readonly<{
   kind: "chat-defaults";
   state: "managed" | "custom" | "outdated" | "unavailable";
+  /** Whose model the Platform recommends here, once that is known: Codex's
+   * (ChatGPT) or Claude's (F51's addendum of 2026-11-24). */
+  ai?: "codex" | "claude";
   reason?:
     | "t3-launcher-missing"
     | "t3-defaults-unavailable"
@@ -203,6 +206,11 @@ export async function chatDefaults(
     );
     if (recommended === undefined)
       return { ...unavailable, reason: "codex-config-unreadable" };
+    const ai =
+      recommended.instanceId === recommendedClaudeModel.instanceId
+        ? ("claude" as const)
+        : ("codex" as const);
+    const known = { ...unavailable, ai };
     const command = [
       executable,
       "lazurio",
@@ -223,20 +231,20 @@ export async function chatDefaults(
       { HOME: tools.home, ...(tools.path ? { PATH: tools.path } : {}) },
       { maxBytes: 32 * 1024 },
     );
-    if (result === "timeout" || result.exitCode !== 0) return unavailable;
+    if (result === "timeout" || result.exitCode !== 0) return known;
     const body = t3Answer(result.stdout);
-    if (body === undefined)
-      return { ...unavailable, reason: "t3-answer-unreadable" };
+    if (body === undefined) return { ...known, reason: "t3-answer-unreadable" };
     if (
       body.version !== 1 ||
       !(body.current === null || selection(body.current)) ||
       !(body.lastManaged === null || selection(body.lastManaged))
     )
-      return unavailable;
+      return known;
     const current = body.current as Selection | null;
     const managed = body.lastManaged as Selection | null;
     return {
       kind: "chat-defaults",
+      ai,
       state: same(current, recommended)
         ? "managed"
         : current !== null && !same(current, managed)

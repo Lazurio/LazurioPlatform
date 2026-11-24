@@ -212,7 +212,11 @@ function aiServicesWarning(signIn: AiSignIn, copy: Copy): string | undefined {
     signIn.services.appServer?.state !== "failed" &&
     !chatModelReady(signIn.services)
   )
-    return copy.startAiChatModel;
+    return signIn.services.chat?.ai === undefined
+      ? copy.startAiChatModel
+      : fill(copy.startAiChatModelOf, {
+          ai: aiProviderName[signIn.services.chat.ai],
+        });
   const named = (cli: AiProvider) => (cli === "codex" ? "Codex" : "Claude");
   if (t3.state === "driver-mismatch")
     return fill(copy.startAiChatMismatch, { provider: named(signIn.tool) });

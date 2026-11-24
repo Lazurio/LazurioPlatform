@@ -97,7 +97,11 @@ test("each answer of the login routes, only in its known shape", () => {
       tool: "claude",
       services: {
         t3: { state: "not-supported" },
-        chat: { state: "unavailable", reason: "t3-defaults-unavailable" },
+        chat: {
+          state: "unavailable",
+          reason: "t3-defaults-unavailable",
+          ai: "claude",
+        },
       },
     }),
   ).toEqual({
@@ -105,8 +109,23 @@ test("each answer of the login routes, only in its known shape", () => {
     tool: "claude",
     services: {
       t3: { state: "not-supported" },
-      chat: { state: "unavailable" },
+      chat: { state: "unavailable", ai: "claude" },
     },
+  });
+  // An AI the page does not know is left out; the state stays.
+  expect(
+    aiSignInAnswer("claude", {
+      kind: "signed-in",
+      tool: "claude",
+      services: {
+        t3: { state: "not-supported" },
+        chat: { state: "managed", ai: "gemini" },
+      },
+    }),
+  ).toEqual({
+    kind: "signed-in",
+    tool: "claude",
+    services: { t3: { state: "not-supported" }, chat: { state: "managed" } },
   });
   expect(
     aiSignInAnswer("claude", {

@@ -86,10 +86,14 @@ export type T3Reload =
     }>;
 
 /** Chat's default model after the sign-in (F51's addendum of 2026-11-24):
- * following it (`managed`), the person's own (`custom`), or not set to
- * follow it (`outdated`, `unavailable`). Only on a hosted Environment. */
+ * the Platform's recommended model (`managed`), the person's own (`custom`),
+ * or the recommended one not set (`outdated`, `unavailable`). `ai`: whose
+ * model the Platform recommends here, which is not always the AI just
+ * signed in (Codex stays recommended where it works), once that is known.
+ * Only on a hosted Environment. */
 export type ChatModelAfterSignIn = Readonly<{
   state: "managed" | "custom" | "outdated" | "unavailable";
+  ai?: AiProvider;
 }>;
 
 export type AiServices = Readonly<{

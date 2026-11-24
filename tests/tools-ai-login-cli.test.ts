@@ -562,32 +562,52 @@ posixTest(
   20_000,
 );
 
-// F51's addendum of 2026-11-24 (Pablo's review of #1232): Chat's default
-// model after the sign-in is said in the command's answer, and a model that
-// was not set to follow the sign-in makes the login incomplete, while the
-// sign-in itself stands.
-test("the command says what became of Chat's default model, and one not set to follow the sign-in leaves the login incomplete", () => {
+// F51's addendum of 2026-11-24 (Pablo's reviews of #1232): Chat's default
+// model after the sign-in is said in the command's answer, naming whose model
+// it is, which is not always the AI just signed in; a model that was not set
+// makes the login incomplete, while the sign-in itself stands.
+test("the command says whose model new threads start on, and one not set leaves the login incomplete", () => {
   const base: AiServices = { t3: { state: "not-supported" } };
   const line = (services: AiServices) =>
     aiServicesLines("claude", services).filter((text) =>
-      text.includes("default model"),
+      /default model|New threads/.test(text),
     );
   expect(line(base)).toEqual([]);
-  expect(line({ ...base, chat: { state: "managed" } })).toEqual([
-    "Chat's default model follows this sign-in.",
+  // Only Claude can work: Claude's model.
+  expect(line({ ...base, chat: { state: "managed", ai: "claude" } })).toEqual([
+    "New threads in Chat start on Claude's model.",
   ]);
-  expect(line({ ...base, chat: { state: "custom" } })).toEqual([
+  // Codex already signed in: a Claude sign-in keeps Codex's model.
+  expect(line({ ...base, chat: { state: "managed", ai: "codex" } })).toEqual([
+    "New threads in Chat start on ChatGPT's model.",
+  ]);
+  expect(line({ ...base, chat: { state: "managed" } })).toEqual([
+    "New threads in Chat start on the Platform's recommended model.",
+  ]);
+  expect(line({ ...base, chat: { state: "custom", ai: "claude" } })).toEqual([
     "Chat keeps the default model chosen in Chat.",
   ]);
   for (const state of ["unavailable", "outdated"] as const)
-    expect(line({ ...base, chat: { state } })).toEqual([
-      "Chat's default model could NOT be set to follow this sign-in: new threads may still start on the earlier model. Run `lazurio chat defaults --apply`, or pick the model in Chat.",
+    expect(line({ ...base, chat: { state, ai: "claude" } })).toEqual([
+      "Chat's default model could NOT be set to Claude's model: new threads may start on another model. Run `lazurio chat defaults --apply`, or pick the model in Chat.",
     ]);
+  expect(
+    line({ ...base, chat: { state: "unavailable", ai: "codex" } }),
+  ).toEqual([
+    "Chat's default model could NOT be set to ChatGPT's model: new threads may start on another model. Run `lazurio chat defaults --apply`, or pick the model in Chat.",
+  ]);
+  expect(line({ ...base, chat: { state: "unavailable" } })).toEqual([
+    "Chat's default model could NOT be set: new threads may start on another model. Run `lazurio chat defaults --apply`, or pick the model in Chat.",
+  ]);
   const signedIn = (services: AiServices) =>
     loginComplete({ kind: "signed-in", tool: "claude", services });
   expect(signedIn(base)).toBe(true);
-  expect(signedIn({ ...base, chat: { state: "managed" } })).toBe(true);
+  expect(signedIn({ ...base, chat: { state: "managed", ai: "codex" } })).toBe(
+    true,
+  );
   expect(signedIn({ ...base, chat: { state: "custom" } })).toBe(true);
   expect(signedIn({ ...base, chat: { state: "unavailable" } })).toBe(false);
-  expect(signedIn({ ...base, chat: { state: "outdated" } })).toBe(false);
+  expect(signedIn({ ...base, chat: { state: "outdated", ai: "claude" } })).toBe(
+    false,
+  );
 });

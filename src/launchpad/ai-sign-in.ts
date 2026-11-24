@@ -161,6 +161,9 @@ function servicesOf(value: unknown): AiServices | undefined {
             | "custom"
             | "outdated"
             | "unavailable",
+          ...(typeof value.chat.ai === "string" && isAiProvider(value.chat.ai)
+            ? { ai: value.chat.ai }
+            : {}),
         }
       : undefined;
   return {

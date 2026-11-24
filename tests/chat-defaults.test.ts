@@ -79,6 +79,8 @@ test("read-only Chat status and apply use T3's native owner; custom choices surv
       kind: "chat-defaults",
       state: "unavailable",
       reason: "t3-defaults-unavailable",
+      // Whose model was recommended is known by then (F51's addendum).
+      ai: "codex",
     });
     expect((await chatDefaults({ ...tools, path: "" })).reason).toBe(
       "t3-launcher-missing",
@@ -384,7 +386,7 @@ test("a log line before T3's answer is read through; no answer is t3-answer-unre
         folder: home,
         converse,
       }),
-    ).toEqual({ kind: "chat-defaults", state: "managed" });
+    ).toEqual({ kind: "chat-defaults", state: "managed", ai: "codex" });
     for (const stdout of ["", `${warning}\n`, "[1,2]", "null"])
       expect(
         await chatDefaults(with_(stdout), {
@@ -396,6 +398,7 @@ test("a log line before T3's answer is read through; no answer is t3-answer-unre
         kind: "chat-defaults",
         state: "unavailable",
         reason: "t3-answer-unreadable",
+        ai: "codex",
       });
   } finally {
     await rm(home, { recursive: true, force: true });
@@ -452,6 +455,9 @@ test("with only Claude signed in the Platform's model is Claude's, without askin
     ).toBe("managed");
     expect(env.written).toEqual([recommendedClaudeModel]);
     expect(codex.asked).toEqual([]);
+    expect(
+      (await chatDefaults(env.tools, { converse: codex.converse, ai })).ai,
+    ).toBe("claude");
     // Once Codex is signed in, the Platform's model is Codex's again.
     const signedIn = reading("signed-in", "signed-in");
     expect(
@@ -465,6 +471,15 @@ test("with only Claude signed in the Platform's model is Claude's, without askin
       ).state,
     ).toBe("managed");
     expect(env.written.at(-1)).toEqual(recommendedChatModel);
+    // Both signed in: Codex's model, and the answer says whose it is.
+    expect(
+      (
+        await chatDefaults(env.tools, {
+          converse: codex.converse,
+          ai: signedIn,
+        })
+      ).ai,
+    ).toBe("codex");
   } finally {
     await env.done();
   }

@@ -17,6 +17,7 @@ import {
   type VaultPageModel,
   type VaultPagePerson,
 } from "../src/launchpad/vault-page-view";
+import type { AiServices } from "../src/tools/ai";
 import type { VaultStatus } from "../src/vault/flow";
 
 // Nastavení → Začínáme (root decision 0201 points 1-3; the wireframe's
@@ -420,44 +421,38 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       aiSignIn: { kind: "failed", tool: "codex", reason: "provider-unknown" },
     })?.steps[0]?.status,
   ).toBe("Přihlášení se nespustilo. Zkuste to prosím znovu.");
-  // Chat's default model did not switch to the AI just signed in (F51's
-  // addendum of 2026-11-24, Pablo's review of #1232): the sign-in stands,
-  // and the step says what to do.
+  // Chat's default model could not be set after the sign-in (F51's addendum
+  // of 2026-11-24, Pablo's reviews of #1232): the sign-in stands, and the
+  // step names whose model it was meant to be, which is not always the AI
+  // just signed in.
+  const chatAfter = (chat: NonNullable<AiServices["chat"]>) => ({
+    ...connected,
+    aiSignIn: {
+      kind: "signed-in" as const,
+      tool: "claude" as const,
+      services: { t3: { state: "refreshed" as const, providers: [] }, chat },
+    },
+  });
   for (const state of ["unavailable", "outdated"] as const)
-    expect(
-      view({
-        ...connected,
-        aiSignIn: {
-          kind: "signed-in",
-          tool: "claude",
-          services: {
-            t3: { state: "refreshed", providers: [] },
-            chat: { state },
-          },
-        },
-      })?.steps[0],
-    ).toMatchObject({
+    expect(view(chatAfter({ state, ai: "claude" }))?.steps[0]).toMatchObject({
       mark: "done",
       warning:
-        "Přihlášení proběhlo, ale výchozí model Chatu se na tuto AI nepřepnul. Nová vlákna můžou začínat na předchozím; model vyberte v Chatu.",
+        "Přihlášení proběhlo, ale výchozí model Chatu se nepodařilo nastavit na Claude. Nová vlákna můžou začínat na jiném modelu; model vyberte v Chatu.",
     });
+  // Codex already signed in: the model meant was ChatGPT's, said as such.
   expect(
-    view(
-      {
-        ...connected,
-        aiSignIn: {
-          kind: "signed-in",
-          tool: "claude",
-          services: {
-            t3: { state: "refreshed", providers: [] },
-            chat: { state: "unavailable" },
-          },
-        },
-      },
-      en,
-    )?.steps[0]?.warning,
+    view(chatAfter({ state: "unavailable", ai: "codex" }))?.steps[0]?.warning,
   ).toBe(
-    "You are signed in, but Chat's default model did not switch to this AI. New threads may still start on the earlier one; pick the model in Chat.",
+    "Přihlášení proběhlo, ale výchozí model Chatu se nepodařilo nastavit na ChatGPT. Nová vlákna můžou začínat na jiném modelu; model vyberte v Chatu.",
+  );
+  expect(view(chatAfter({ state: "unavailable" }))?.steps[0]?.warning).toBe(
+    "Přihlášení proběhlo, ale výchozí model Chatu se nepodařilo nastavit. Nová vlákna můžou začínat na jiném modelu; model vyberte v Chatu.",
+  );
+  expect(
+    view(chatAfter({ state: "unavailable", ai: "claude" }), en)?.steps[0]
+      ?.warning,
+  ).toBe(
+    "You are signed in, but Chat's default model could not be set to Claude. New threads may start on another model; pick the model in Chat.",
   );
   // A Chat that did not turn the provider on says that first.
   expect(
@@ -468,26 +463,18 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
         tool: "claude",
         services: {
           t3: { state: "failed", reason: "not-enabled", providers: ["claude"] },
-          chat: { state: "unavailable" },
+          chat: { state: "unavailable", ai: "claude" },
         },
       },
     })?.steps[0]?.warning,
   ).toBe("Chat nezapnul Claude. Zkontrolujte poskytovatele v Nastavení Chatu.");
-  // Following the sign-in, or the person's own model: nothing to say.
-  for (const state of ["managed", "custom"] as const)
-    expect(
-      view({
-        ...connected,
-        aiSignIn: {
-          kind: "signed-in",
-          tool: "claude",
-          services: {
-            t3: { state: "refreshed", providers: [] },
-            chat: { state },
-          },
-        },
-      })?.steps[0],
-    ).not.toHaveProperty("warning");
+  // The recommended model set, or the person's own: nothing to say.
+  for (const chat of [
+    { state: "managed", ai: "codex" },
+    { state: "managed", ai: "claude" },
+    { state: "custom" },
+  ] as const)
+    expect(view(chatAfter(chat))?.steps[0]).not.toHaveProperty("warning");
   // Services that read it, or will by themselves: nothing to say.
   expect(
     view({
