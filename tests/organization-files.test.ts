@@ -130,10 +130,30 @@ posix(
     });
     let reading = true;
     let reads = 0;
+    // The reader holds the contract of the module comment: on macOS an open
+    // through `current` while the link is replaced may fail with EINVAL, and
+    // the reader tries it again (accepted in #1211; on the macOS runners it
+    // failed twice, the cause is not confirmed). A missing file, any other
+    // error or a copy that does not parse still fails the test, and Linux
+    // stays strict.
+    const open = async (file: string) => {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          return await readFile(join(copy, file), "utf8");
+        } catch (error) {
+          if (
+            process.platform !== "darwin" ||
+            (error as NodeJS.ErrnoException).code !== "EINVAL" ||
+            attempt >= 20
+          )
+            throw error;
+        }
+      }
+    };
     const reader = (async () => {
       while (reading) {
-        JSON.parse(await readFile(join(copy, "revision.json"), "utf8"));
-        await readFile(join(copy, "modules.manifest.json"), "utf8");
+        JSON.parse(await open("revision.json"));
+        await open("modules.manifest.json");
         reads++;
         await Bun.sleep(0);
       }
