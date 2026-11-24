@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test";
+import { afterEach, expect, spyOn, test } from "bun:test";
 import { lstat, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -355,4 +355,128 @@ test("the doctor expects a Work Environment's assigned peer with or without the 
       .filter((check) => check.id === "environment-route")
       .map((check) => [check.outcome, check.context]),
   ).toEqual([["ok", { environment: sister, at: "2026-11-24T02:00:00Z" }]]);
+});
+
+test("while the service does not answer the doctor still reports the handover's own route, and not one an unexpired service route holds", async () => {
+  const path = await home();
+  const location = { home: path, uid };
+  const ssh = routeSsh(path);
+  const observe = () =>
+    observeRoutes({
+      home: path,
+      uid,
+      machine: workAssignedServed,
+      routes: true,
+      run: ssh.run,
+      now: () => now,
+      fetch: fakeService(null),
+    });
+  const rows = async () =>
+    routeChecks(await observe()).map((check) => [
+      check.id,
+      check.outcome,
+      check.reason ?? "",
+      check.context ?? {},
+    ]);
+  // Never written: the missing route is named beside the service's failure.
+  expect(await rows()).toEqual([
+    ["access-service", "warn", "access-service-unreachable", {}],
+    [
+      "environment-route",
+      "warn",
+      "route-not-configured",
+      { environment: sister },
+    ],
+  ]);
+  expect(ssh.tried).toEqual([]);
+  // Written: tried and reported.
+  await writeEnvironmentRoutes(location, handoverRoutes(workAssigned));
+  expect(await rows()).toEqual([
+    ["access-service", "warn", "access-service-unreachable", {}],
+    [
+      "environment-route",
+      "ok",
+      "",
+      { environment: sister, at: "2026-11-24T02:00:00Z" },
+    ],
+  ]);
+  expect(ssh.tried).toEqual([sister]);
+  // An unexpired route the service gave under the same id keeps it: the
+  // handover's copy is not expected, and nothing is blamed or tried.
+  ssh.tries.length = 0;
+  await writeEnvironmentRoutes(location, [
+    {
+      environment: sister,
+      host: "served-carol-01-vm.tailnet.example.invalid",
+      user: "carol",
+      hostKeys: [{ type: "ssh-ed25519", key: keyB }],
+      validUntil: "2026-11-24T02:03:30Z",
+    },
+  ]);
+  expect(await rows()).toEqual([
+    ["access-service", "warn", "access-service-unreachable", {}],
+  ]);
+  expect(ssh.tried).toEqual([]);
+});
+
+test("a first synchronization while the service is down writes the handover's own route and says so", async () => {
+  const path = await home();
+  const location = { home: path, uid };
+  const said: string[] = [];
+  const error = spyOn(console, "error").mockImplementation((line: unknown) => {
+    said.push(String(line));
+  });
+  try {
+    const result = (await withEnvironmentSsh(
+      { kind: "initialized", revision: 1 },
+      workAssignedServed,
+      location,
+      undefined,
+      {
+        run: runTool,
+        now: () => now,
+        current: async () => routesSourceOf(workAssignedServed),
+        fetch: fakeService(null),
+      },
+    )) as unknown as {
+      environmentRoutes?: { targets: string; ssh: unknown };
+    };
+    expect(result.environmentRoutes?.targets).toBe("unreachable");
+    expect(result.environmentRoutes?.ssh).toEqual({
+      kind: "written",
+      environments: [sister],
+    });
+  } finally {
+    error.mockRestore();
+  }
+  expect(said).toEqual([
+    "The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline. The routes this Environment's handover declares itself are written as declared.",
+  ]);
+  // A Personal Environment, which has no own routes beside the service, is
+  // told only about the service's.
+  said.length = 0;
+  const personal = spyOn(console, "error").mockImplementation(
+    (line: unknown) => {
+      said.push(String(line));
+    },
+  );
+  try {
+    await withEnvironmentSsh(
+      { kind: "initialized", revision: 1 },
+      personalServed,
+      { home: await home(), uid },
+      undefined,
+      {
+        run: runTool,
+        now: () => now,
+        current: async () => routesSourceOf(personalServed),
+        fetch: fakeService(null),
+      },
+    );
+  } finally {
+    personal.mockRestore();
+  }
+  expect(said).toEqual([
+    "The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline.",
+  ]);
 });

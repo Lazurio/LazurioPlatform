@@ -786,7 +786,7 @@ export async function withEnvironmentSsh<
       console.error(supersededText);
     else if (environmentRoutes.targets !== "answered")
       console.error(
-        `The access service did not give this Environment its routes (${environmentRoutes.targets}); no route was added, and the recorded ones end at their deadline.`,
+        `The access service did not give this Environment its routes (${environmentRoutes.targets}); none of its routes was added, and those it gave earlier end at their deadline.${service.own?.length ? " The routes this Environment's handover declares itself are written as declared." : ""}`,
       );
     return { ...result, environmentRoutes };
   }

@@ -26657,7 +26657,12 @@ route.
 4. **The commit guard** (point 5 of the amendment of 2026-11-03) compares the handover's
    own routes too, so a live handover that moved or removed the peer supersedes the write.
 5. **The doctor** expects the service's targets with the handover's own routes added the
-   same way, and the handover's own routes alone while the service does not answer.
+   same way. While the service does not answer it reports that, as before, and beside it
+   each of the handover's own routes, tried and named like any other: they never
+   depended on the service. An own route under an id that an unexpired route of the
+   service still holds is not expected then, as the write keeps the service's route.
+   The command says the same: none of the service's routes was added, and the
+   handover's own are written as declared.
 
 When the access service derives these routes itself, the handover's copy becomes a
 duplicate under the same id and the service's target is the one written; nothing else
