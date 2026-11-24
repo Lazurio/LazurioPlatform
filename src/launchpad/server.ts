@@ -1221,6 +1221,9 @@ export async function startLaunchpad(
         tool,
         signedIn,
         env: process.env,
+        // A hosted Environment's Chat defaults follow the sign-in (F51's
+        // addendum of 2026-11-24); a workstation has no managed Chat.
+        ...(entry === null ? {} : { folder }),
       }),
     ...curatedOptions.login,
     refused: async (tool, action) =>

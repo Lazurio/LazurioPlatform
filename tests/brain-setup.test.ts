@@ -898,3 +898,25 @@ describe("what a dead run left, before the brain starts", () => {
     expect(await endStrayWriters(paths, { proc, graceMs: 10 })).toBe(true);
   });
 });
+
+// #1214: a Folder whose state cannot be read right now (an update's refresh
+// writing it) is a wait, not a verdict on the Environment; a preset that
+// rules the memory out stays unsupported.
+describe("setup where the Folder's state cannot be read right now", () => {
+  test("folder-unreadable answers waits-folder; not-personal stays unsupported", async () => {
+    const { setupHost } = await host();
+    const waiting = await brainSetup({
+      ...setupHost,
+      context: async () => ({
+        kind: "unsupported",
+        reason: "folder-unreadable",
+      }),
+    });
+    expect(waiting.server).toBe("waits-folder");
+    const ruledOut = await brainSetup({
+      ...setupHost,
+      context: async () => ({ kind: "unsupported", reason: "not-personal" }),
+    });
+    expect(ruledOut.server).toBe("unsupported");
+  });
+});

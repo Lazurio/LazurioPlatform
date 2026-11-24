@@ -31,6 +31,11 @@ import { ORGANIZATION_FILES } from "./runtime";
 // place. The version before stays until the next copy, for a reader that
 // resolved the link just before the switch.
 //
+// One limit is accepted (Anna 2026-11-23, #1211): on macOS an open through
+// the path while the link is being replaced can fail with EINVAL, and a
+// reader tries that open again. The path still never resolves to a missing
+// or partial copy.
+//
 // The App runs under the same account, so the Platform cannot keep it from
 // changing its own files on purpose; on the application host a separate
 // account owns the copy. Here the place, each version and each file are

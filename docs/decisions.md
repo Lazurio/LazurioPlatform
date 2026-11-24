@@ -18559,6 +18559,40 @@ Fresh startup, repeated startup, custom model preservation and direct command
 refusals are the acceptance boundaries. Upstream standalone T3 stays unchanged
 when the managed Folder configuration is absent.
 
+### F51 addendum of 2026-11-24: the recommended model follows the AI signed in
+
+**Implemented (Lazurio/LazurioPlatform#1197).** The recommendation was always
+Codex's, whichever AI the person connected. Buddy GEN4's first thread is made on
+the Folder project's model, so where only Claude was signed in it was made on a
+Codex model. Without a Codex sign-in that thread is not expected to answer, but
+no turn was run on one: what the person sees there (an error, nothing, or a
+fallback of T3's) is not known.
+
+1. **Which model.** Where Codex answers that it cannot work (signed out or not
+   installed) and Claude Code answers signed in, the recommendation is T3's Claude
+   instance with its default chat model and effort (`claudeAgent`,
+   `claude-opus-5-5`, `effort: medium`; T3's model manifest). Codex provided by the
+   Organization, signed in, or not known keeps Codex's recommendation exactly as
+   before. Claude Code is read first and Codex's sign-in only where Claude is
+   signed in, so the usual reading starts Codex once, for its configuration.
+2. **One rule for every reader.** `lazurio chat defaults` (Machines' apply after
+   installation and the doctor's reading) decides with the same rule, so a reading
+   after a Claude-only sign-in never calls Claude's model outdated and never writes
+   Codex's back.
+3. **When it is applied.** After every confirmed sign-in of Codex or Claude
+   (`lazurio tools login`, the Launchpad's sign-in), on a hosted Environment, the
+   Chat defaults are applied again. T3 still keeps a model the person chose; it
+   changes only an unset model or its own last write. A workstation, which has no
+   managed Chat, is never written. The sign-in's answer says what became of the
+   model (`chat`) and whose model the Platform recommends there (`ai`), which is
+   not always the AI just signed in: with Codex signed in, a Claude sign-in keeps
+   Codex's. `lazurio tools login` names it. A recommended model that was not set
+   leaves the sign-in standing but not complete, and both `lazurio tools login`
+   and Začínáme say which model could not be set and the next step.
+4. **Not covered.** A thread made before the sign-in keeps the model it was made
+   on. That includes Buddy's first thread if it was opened before the sign-in.
+   Following the sign-in there belongs to T3 Code.
+
 ## F52 — One module generator in the Platform; a person's own modules in their Personalspace
 
 **Decided by the Operator 2026-10-13 (root decision 0171, addendum of 2026-10-13;
@@ -26387,6 +26421,15 @@ and its lockfile in its own pull request, and a template adopts the release in a
 release of its own. `2027.01` is taken, so this release is `2027.02`. The table
 of `2027.01` stays in [stack-profiles.md](stack-profiles.md#202701).
 
+**Addendum: release 2027.03 (2026-11-24; asked for by the templates thread GEN4 ŠABLONY under the coordinating agent APLIKACE ORGANIZACE, for the unique write revision of the Module Standard's data port).**
+`app-data` pins `@lazurio/repository-db` v3.4.0 instead of v3.2.6, which
+treats `record.revision` as audit metadata, so concurrent edits of different
+fields that both store a new revision merge without a conflict on
+`/record/revision`. Nothing else changes. `lazurio module create` follows:
+`stackProfilesRelease` `2027.03` and `defaultScaffoldVersions.repositoryDb`
+`3.4.0`. `2027.02` is taken, so this release is `2027.03`. The table of
+`2027.02` stays in [stack-profiles.md](stack-profiles.md#202702).
+
 ## F70 — A source Environment's routes come from its home access service: its own key, registered; targets pinned and with their deadline
 
 **Proposed 2026-11-03 (root decision 0224, plan DEV-6687 M7 step 4; Lazurio/LazurioPlatform#766).
@@ -26628,6 +26671,47 @@ record of the last try between runs. Tests: `tests/environment-routes-doctor.tes
 and after `ssh -G`),
 `tests/access-service-routes.test.ts` (the commands' tries, and a route replaced between
 its write and its try), `tests/doctor.test.ts`.
+
+### F70 addendum of 2026-11-24: a Work Environment's assigned peers beside the service
+
+**Implemented (Lazurio/LazurioPlatform#1227).** The Owner's sister-organization exception
+(2026-11-17; Machines `workloads/conglomerate-host/SISTER-ORGANIZATION-ENVIRONMENT-SOURCE.md`)
+projects a peer of another Organization with `access: "assigned"` into a Work
+Environment's handover, with its Environment id and pinned host key, and that contract
+says the Platform writes `Host <id>` for it. Until now only a personal Machine read its
+assigned peers (point 6), and a Work Environment with a declared service wrote only the
+service's targets, which derive nothing for such a peer. So the Work Environment got no
+route.
+
+1. **Which peers.** `handoverRoutes` reads the handover's assigned peers on a personal
+   Machine (as before) and on a Work Environment; on any other Machine none. The Folder's
+   lists of the person's assigned Work Environments (AGENTS.md, the manual, the T3 links)
+   stay personal-only (`assignedEnvironments`): a Work Folder does not present them as the
+   person's own.
+2. **Without a declared service** a Work Environment writes exactly these routes, as a
+   personal Machine does (point 6, amendment of 2026-11-03).
+3. **With a declared service** a Work Environment writes the service's targets and, beside
+   them, its handover's assigned peers under ids the service did not give: the service's
+   target wins for the same Environment id. Without an answer the service's recorded
+   routes stay until their deadline (point 5) and the handover's own routes stay as the
+   handover declares them, because they never depended on the service. This narrows
+   point 6's "the service where declared, the handover otherwise" for this one case; a
+   personal Machine with a declared service keeps only the service's routes.
+4. **The commit guard** (point 5 of the amendment of 2026-11-03) compares the handover's
+   own routes too, so a live handover that moved or removed the peer supersedes the write.
+5. **The doctor** expects the service's targets with the handover's own routes added the
+   same way. While the service does not answer it reports that, as before, and beside it
+   each of the handover's own routes, tried and named like any other: they never
+   depended on the service. An own route under an id that an unexpired route of the
+   service still holds is not expected then, as the write keeps the service's route.
+   The command says the same: none of the service's routes was added, and of each of the
+   handover's own routes what the files now record: written as declared, held by the
+   service's earlier route until its deadline, or not written because the write was
+   refused or failed.
+
+When the access service derives these routes itself, the handover's copy becomes a
+duplicate under the same id and the service's target is the one written; nothing else
+changes. Tests: `tests/work-environment-assigned-routes.test.ts`.
 
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 

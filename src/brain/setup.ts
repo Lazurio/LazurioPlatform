@@ -95,6 +95,8 @@ export type SetupResult = Readonly<{
   /** What setup did with the server. */
   server:
     | "unsupported"
+    /** The Folder's state could not be read right now (#1214). */
+    | "waits-folder"
     | "installed"
     | "started"
     | "running"
@@ -231,9 +233,13 @@ export async function brainSetup(
     options.consent === undefined
       ? host
       : { ...host, consent: options.consent };
-  if ((await host.context()).kind === "unsupported")
+  const context = await host.context();
+  if (context.kind === "unsupported")
     return Object.freeze({
-      server: "unsupported",
+      // A Folder that cannot be read right now is waited for, not a reason
+      // to give up until the next start (#1214).
+      server:
+        context.reason === "folder-unreadable" ? "waits-folder" : "unsupported",
       status: await brainStatus(host),
     });
   let lock: FileLock;
