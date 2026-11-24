@@ -68,7 +68,10 @@ export const shellElementInterface = Object.freeze({
     ]),
     // Where the guide draws (decision F56) and Buddy's bubble stands
     // (decision F60): the language of the guide.
-    "lazurio-buddy": Object.freeze(["lang"]),
+    // Since decision 0249's addendum of 2026-11-22 (additive in v1) it also
+    // draws the page's frame (0248's addendum): `version` names a Module's
+    // app ("staging" or "dev"; absent on any other page).
+    "lazurio-buddy": Object.freeze(["lang", "version"]),
     // Nová karta (decision F47 point 2): the strip the tab is for, the app's
     // tools as JSON (`[{id, label, key?, icon?}]`), whether the address bar
     // takes the keys, and the language.
@@ -81,10 +84,6 @@ export const shellElementInterface = Object.freeze({
     // One Environment named as the shell names it (F39's addendum of
     // 2026-10-12): its id (absent: the page's own) and the language.
     "lazurio-environment": Object.freeze(["environment", "lang", "space"]),
-    // The frame of decision 0248's addendum and of 0249's addendum of
-    // 2026-11-22 (additive in v1): the version of a Module's app ("staging"
-    // or "dev"; absent on any other page) and the language.
-    "lazurio-frame": Object.freeze(["version", "lang"]),
   }),
   /** Values of `active` on `<lazurio-column-head>`: the app the head sits
    * in, or `settings` inside the Settings its gear opens. */

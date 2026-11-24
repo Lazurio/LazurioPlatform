@@ -54,11 +54,9 @@ test("the promised interface v1 is exactly this", () => {
     elements: {
       "lazurio-rail": ["lang", "app", "space"],
       "lazurio-column-head": ["active", "lang", "settings", "space"],
-      "lazurio-buddy": ["lang"],
+      "lazurio-buddy": ["lang", "version"],
       "lazurio-new-tab": ["strip", "tools", "focus-address", "lang"],
       "lazurio-environment": ["environment", "lang", "space"],
-      // The frame of 0248's addendum and 0249's of 2026-11-22 (additive).
-      "lazurio-frame": ["version", "lang"],
     },
     active: ["chat", "apps", "automate", "settings"],
     events: [

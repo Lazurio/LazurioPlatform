@@ -1,31 +1,20 @@
 import type { VersionFrame } from "./env-frame";
 import { frameCss } from "./frame-styles";
 
-// `<lazurio-frame>` (interface v1, additive): the frame of a page of an
-// Environment that is not the person's own (decision 0248's addendum of
-// 2026-11-15) and of a Module's app in an Environment (0249's addendum of
-// 2026-11-22), drawn by the shell the page loads, as the overlay with Buddy
-// (0180). `version`: "staging" or "dev" on a Module's app; absent on any
-// other page, which takes 0248's frame alone. `lang` as on the other
-// elements. Whose the Environment is comes from the page's shell document
-// and the account, never from the page (env-frame.ts). It never takes a
-// click and does not move: the frame is a state, seen at once. No events.
+// The frame that `<lazurio-buddy>` draws (decision 0248's addendum of
+// 2026-11-15 and 0249's of 2026-11-22): one element carries Buddy and the
+// frame, as the overlay of 0180 does, so whoever delivers Buddy to a page
+// (the Environment's gateway for STAGING, the module kit's development
+// server for DEV, the application host's gateway for PROD, where nothing is
+// framed) delivers the frame with him and nothing else decides it. Whether
+// and which frame is drawn is the pure rule of env-frame.ts, from the page's
+// shell document and the account, never from the page.
 //
-// Built by a factory, as `<lazurio-environment>` is, so it draws from
-// whatever the page knows (elements.ts).
+// The frame lives in a layer of its own on the document, not inside the
+// element: the element may be hidden (its launcher, F60's addendum of
+// 2026-10-25), the frame never is. It never takes a click and does not move.
 
-export type FrameElementSeams = Readonly<{
-  /** The frame for the element's `version` and `lang` attributes (null
-   * where absent); null for none. */
-  frame: (version: string | null, lang: string | null) => VersionFrame | null;
-  /** Calls `changed` after every change of what the page knows; returns
-   * its removal. */
-  listen: (changed: () => void) => () => void;
-  /** Reads what the page needs, once, unless the host provides it. */
-  request: () => void;
-}>;
-
-/** What the element draws: the frame's box with its label, or nothing. */
+/** What the layer draws: the frame's box with its label, or nothing. */
 export function frameNodes(frame: VersionFrame | null): HTMLElement[] {
   if (frame === null) return [];
   const box = document.createElement("div");
@@ -50,59 +39,39 @@ export function frameNodes(frame: VersionFrame | null): HTMLElement[] {
   return [box];
 }
 
-export function frameElement(
-  seams: FrameElementSeams,
-): CustomElementConstructor {
-  let sheet: CSSStyleSheet | null = null;
-  return class LazurioFrame extends HTMLElement {
-    static observedAttributes = ["version", "lang"];
-    private readonly root: ShadowRoot;
-    private unlisten: (() => void) | null = null;
-    private drawn: string | undefined = undefined;
-
-    constructor() {
-      super();
-      this.root = this.attachShadow({ mode: "open" });
-      if (sheet === null) {
-        sheet = new CSSStyleSheet();
+/** The one frame layer of a document: drawn again only when the frame
+ * changes, removed when nothing is framed. */
+export function createFrameLayer(target: Document) {
+  let host: HTMLElement | null = null;
+  let root: ShadowRoot | null = null;
+  let drawn: string | undefined;
+  return {
+    draw(frame: VersionFrame | null): void {
+      const key = JSON.stringify(frame);
+      if (key === drawn) return;
+      drawn = key;
+      if (frame === null) {
+        host?.remove();
+        host = null;
+        root = null;
+        return;
+      }
+      if (host === null || root === null) {
+        host = target.createElement("div");
+        host.dataset.lazurioFrame = "";
+        root = host.attachShadow({ mode: "open" });
+        const sheet = new CSSStyleSheet();
         sheet.replaceSync(frameCss);
+        root.adoptedStyleSheets = [sheet];
+        target.documentElement.append(host);
       }
-      this.root.adoptedStyleSheets = [sheet];
-    }
-
-    connectedCallback() {
-      this.unlisten ??= seams.listen(() => this.render());
-      seams.request();
-      this.render();
-    }
-
-    disconnectedCallback() {
-      this.unlisten?.();
-      this.unlisten = null;
-    }
-
-    attributeChangedCallback() {
-      if (this.isConnected) this.render();
-    }
-
-    private render() {
-      const frame = seams.frame(
-        this.getAttribute("version"),
-        this.getAttribute("lang"),
-      );
-      const drawn = JSON.stringify(frame);
-      if (drawn === this.drawn) return;
-      this.drawn = drawn;
       // A screen reader hears whose page it is once, as a note.
-      if (frame === null) this.removeAttribute("role");
-      else {
-        this.setAttribute("role", "note");
-        this.setAttribute(
-          "aria-label",
-          [frame.version, frame.environment].filter(Boolean).join(" · "),
-        );
-      }
-      this.root.replaceChildren(...frameNodes(frame));
-    }
+      host.setAttribute("role", "note");
+      host.setAttribute(
+        "aria-label",
+        [frame.version, frame.environment].filter(Boolean).join(" · "),
+      );
+      root.replaceChildren(...frameNodes(frame));
+    },
   };
 }
