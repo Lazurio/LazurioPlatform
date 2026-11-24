@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ChatDefaults, chatDefaults } from "../src/chat/defaults";
 import { type AiServices, aiServicesReady } from "../src/tools/ai";
 import {
   refreshT3Providers,
@@ -424,4 +425,63 @@ test("the services read the sign-in, or will by themselves, unless one clearly f
   for (const services of ready) expect(aiServicesReady(services)).toBe(true);
   for (const services of notReady)
     expect(aiServicesReady(services)).toBe(false);
+});
+
+// F51's addendum of 2026-11-24 (LazurioPlatform#1197): after a confirmed
+// sign-in on a hosted Environment, the Chat defaults are applied again, so
+// the recommended model follows the AI signed in now; a workstation, which
+// passes no Folder, has no managed Chat.
+test("after a sign-in with the hosted Folder the Chat defaults are applied again; without it they are not touched", async () => {
+  const scratch = await home(false);
+  try {
+    const asked = runner(() => ok());
+    const applied: unknown[] = [];
+    const chat = async (
+      tools: Parameters<typeof chatDefaults>[0],
+      options: Parameters<typeof chatDefaults>[1],
+    ): Promise<ChatDefaults> => {
+      applied.push({ home: tools.home, ...options });
+      return { kind: "chat-defaults", state: "managed" };
+    };
+    const input = {
+      tool: "claude" as const,
+      signedIn: ["claude"] as const,
+      path: scratch.path,
+      home: scratch.directory,
+      platform: "linux",
+      run: asked.run,
+      env: { HOME: scratch.directory },
+      chat,
+    };
+    expect(await reloadAiServices({ ...input, folder: "/folder" })).toEqual({
+      t3: { state: "not-installed" },
+      chat: { kind: "chat-defaults", state: "managed" },
+    });
+    expect(applied).toEqual([
+      { home: scratch.directory, apply: true, folder: "/folder" },
+    ]);
+    expect(await reloadAiServices(input)).toEqual({
+      t3: { state: "not-installed" },
+    });
+    expect(applied).toHaveLength(1);
+    // A failing step is reported, never thrown into the sign-in.
+    expect(
+      await reloadAiServices({
+        ...input,
+        folder: "/folder",
+        chat: async () => {
+          throw new Error("t3 refused");
+        },
+      }),
+    ).toEqual({
+      t3: { state: "not-installed" },
+      chat: {
+        kind: "chat-defaults",
+        state: "unavailable",
+        reason: "t3-defaults-unavailable",
+      },
+    });
+  } finally {
+    await scratch.close();
+  }
 });
