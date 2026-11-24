@@ -1,13 +1,6 @@
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
-import { type AiReading, aiState } from "../tools/ai";
-import {
-  askCodex,
-  type Converse,
-  converse,
-  readClaude,
-  readCodex,
-} from "../tools/ai-probe";
+import { askCodex, type Converse, converse } from "../tools/ai-probe";
 import type { ToolsEnvironment } from "../tools/overview";
 import { resolveOnPath } from "../tools/status";
 
@@ -20,30 +13,6 @@ export const recommendedChatModel = Object.freeze({
   options: [{ id: "reasoningEffort", value: "medium" }],
 });
 
-/** Chat's model where Codex cannot work here and Claude Code is signed in
- * (F51's addendum of 2026-11-24, LazurioPlatform#1197): T3 Code's Claude
- * instance with its default chat model and effort (T3's model manifest,
- * `claudeAgent.defaults.chat`). */
-export const recommendedClaudeModel = Object.freeze({
-  instanceId: "claudeAgent",
-  model: "claude-opus-5-5",
-  options: [{ id: "effort", value: "medium" }],
-});
-
-/** Whether the AI as read says Chat should run on Claude: Codex answered
- * that it cannot work (signed out or not installed) and Claude Code is
- * signed in. Codex provided by the Organization, signed in, or not known
- * keeps Codex, as before. */
-export function claudeOnly(ai: AiReading): boolean {
-  const state = (provider: string) =>
-    ai.providers.find((reading) => reading.provider === provider)?.state;
-  const codex = state("codex");
-  return (
-    (codex === "signed-out" || codex === "not-installed") &&
-    state("claude") === "signed-in"
-  );
-}
-
 type Selection = Readonly<{
   instanceId: string;
   model: string;
@@ -52,9 +21,6 @@ type Selection = Readonly<{
 export type ChatDefaults = Readonly<{
   kind: "chat-defaults";
   state: "managed" | "custom" | "outdated" | "unavailable";
-  /** Whose model the Platform recommends here, once that is known: Codex's
-   * (ChatGPT) or Claude's (F51's addendum of 2026-11-24). */
-  ai?: "codex" | "claude";
   reason?:
     | "t3-launcher-missing"
     | "t3-defaults-unavailable"
@@ -107,24 +73,6 @@ export function configuredCodexModel(
     : undefined;
 }
 
-/** The AI as Chat's model needs it: Claude Code first, and Codex's sign-in
- * only where Claude is signed in, so the usual reading starts Codex once,
- * for its configuration. */
-async function aiForChat(
-  tools: ToolsEnvironment,
-  talk: Converse,
-): Promise<AiReading> {
-  const claude = await readClaude(tools, 10_000).catch(
-    () => ({ provider: "claude", state: "unknown" }) as const,
-  );
-  if (claude.state !== "signed-in")
-    return { state: aiState([claude]), providers: [claude] };
-  const codex = await readCodex(tools, talk, 10_000).catch(
-    () => ({ provider: "codex", state: "unknown" }) as const,
-  );
-  return { state: aiState([codex, claude]), providers: [codex, claude] };
-}
-
 /** Chat's model (root decision 0209, 0204's addendum of 2026-10-19): the one
  * this Environment's Codex configuration pins, as Codex itself resolves its
  * layers (a system file Machines writes, the operator's own), never by
@@ -132,17 +80,11 @@ async function aiForChat(
  * own when Codex answers that it pins none. Same effort either way.
  * Undefined when Codex could not be asked or gave no usable answer: the
  * model is then not known, and a gateway that admits only the pinned model
- * would refuse the Platform's own, so nothing may be written.
- * Where Codex cannot work and Claude Code is signed in (`claudeOnly`), the
- * model is Claude's (F51's addendum of 2026-11-24): a Chat on Codex would
- * not answer there. */
+ * would refuse the Platform's own, so nothing may be written. */
 export async function recommendedChatSelection(
   tools: ToolsEnvironment,
   talk: Converse = converse,
-  reading?: AiReading,
 ): Promise<Selection | undefined> {
-  if (claudeOnly(reading ?? (await aiForChat(tools, talk))))
-    return recommendedClaudeModel;
   const answer = await askCodex(tools, talk, 10_000, "config/read", {
     includeLayers: false,
   }).catch(() => "no-answer" as const);
@@ -184,8 +126,6 @@ export async function chatDefaults(
     folder?: string;
     /** Tests only: the conversation with Codex's app-server. */
     converse?: Converse;
-    /** Tests only: the AI as read, instead of asking both CLIs. */
-    ai?: AiReading;
   }> = {},
 ): Promise<ChatDefaults> {
   const unavailable = {
@@ -199,18 +139,9 @@ export async function chatDefaults(
   if (!tools.home || (options.apply && !options.folder)) return unavailable;
   try {
     // Without Codex's answer T3 is neither asked nor changed.
-    const recommended = await recommendedChatSelection(
-      tools,
-      options.converse,
-      options.ai,
-    );
+    const recommended = await recommendedChatSelection(tools, options.converse);
     if (recommended === undefined)
       return { ...unavailable, reason: "codex-config-unreadable" };
-    const ai =
-      recommended.instanceId === recommendedClaudeModel.instanceId
-        ? ("claude" as const)
-        : ("codex" as const);
-    const known = { ...unavailable, ai };
     const command = [
       executable,
       "lazurio",
@@ -231,20 +162,20 @@ export async function chatDefaults(
       { HOME: tools.home, ...(tools.path ? { PATH: tools.path } : {}) },
       { maxBytes: 32 * 1024 },
     );
-    if (result === "timeout" || result.exitCode !== 0) return known;
+    if (result === "timeout" || result.exitCode !== 0) return unavailable;
     const body = t3Answer(result.stdout);
-    if (body === undefined) return { ...known, reason: "t3-answer-unreadable" };
+    if (body === undefined)
+      return { ...unavailable, reason: "t3-answer-unreadable" };
     if (
       body.version !== 1 ||
       !(body.current === null || selection(body.current)) ||
       !(body.lastManaged === null || selection(body.lastManaged))
     )
-      return known;
+      return unavailable;
     const current = body.current as Selection | null;
     const managed = body.lastManaged as Selection | null;
     return {
       kind: "chat-defaults",
-      ai,
       state: same(current, recommended)
         ? "managed"
         : current !== null && !same(current, managed)

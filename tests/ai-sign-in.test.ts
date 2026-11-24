@@ -89,55 +89,6 @@ test("each answer of the login routes, only in its known shape", () => {
     tool: "claude",
     services: { t3: { state: "driver-mismatch", mismatches: [] } },
   });
-  // Chat's default model after the sign-in, in its known states only (F51's
-  // addendum of 2026-11-24).
-  expect(
-    aiSignInAnswer("claude", {
-      kind: "signed-in",
-      tool: "claude",
-      services: {
-        t3: { state: "not-supported" },
-        chat: {
-          state: "unavailable",
-          reason: "t3-defaults-unavailable",
-          ai: "claude",
-        },
-      },
-    }),
-  ).toEqual({
-    kind: "signed-in",
-    tool: "claude",
-    services: {
-      t3: { state: "not-supported" },
-      chat: { state: "unavailable", ai: "claude" },
-    },
-  });
-  // An AI the page does not know is left out; the state stays.
-  expect(
-    aiSignInAnswer("claude", {
-      kind: "signed-in",
-      tool: "claude",
-      services: {
-        t3: { state: "not-supported" },
-        chat: { state: "managed", ai: "gemini" },
-      },
-    }),
-  ).toEqual({
-    kind: "signed-in",
-    tool: "claude",
-    services: { t3: { state: "not-supported" }, chat: { state: "managed" } },
-  });
-  expect(
-    aiSignInAnswer("claude", {
-      kind: "signed-in",
-      tool: "claude",
-      services: { t3: { state: "not-supported" }, chat: { state: "other" } },
-    }),
-  ).toEqual({
-    kind: "signed-in",
-    tool: "claude",
-    services: { t3: { state: "not-supported" } },
-  });
   // T3 Code answered without an enabled instance (Pablo's review of #441).
   expect(
     aiSignInAnswer("codex", {

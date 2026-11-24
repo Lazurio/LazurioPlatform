@@ -8,18 +8,9 @@ import {
 import type { BuddyMenuItem } from "./buddy-element";
 import { type BuddyBubbleView, createBuddyBubbleView } from "./buddy-element";
 import {
-  browserNoticesSeams,
   buddyNoticePath,
-  buddyNoticesAskedKey,
   buddyViewingEveryMs,
   createBuddyNotifier,
-  createNoticesChoiceCache,
-  deliverBuddyNotice,
-  enableBuddyNotices,
-  parseBuddyClaimAnswer,
-  readLaunchpadNoticesChoice,
-  shouldAskBuddyNotices,
-  writeLaunchpadNoticesChoice,
 } from "./buddy-notice";
 import { type BuddyTheme, buddyAvatarSource } from "./buddy-protocol";
 import {
@@ -1348,21 +1339,19 @@ function pageTheme(element: Element): BuddyTheme {
  * to only while the frame exists. */
 // The person's choice of the browser's notices of Buddy GEN4's sign, on
 // this origin (each origin has its own permission).
-/** Whether this origin already asked the browser for notices once. */
-const noticesAsked = (): boolean => {
+const noticesKey = "lazurio.buddy.notices";
+const noticesOn = (): boolean => {
   try {
-    return browserStore()?.getItem(buddyNoticesAskedKey) != null;
+    return browserStore()?.getItem(noticesKey) === "on";
   } catch {
-    return true;
+    return false;
   }
 };
-/** A name for this page among the tabs that say they view Buddy's window. */
-const pageTabName = (): string => {
+const setNoticesOn = (on: boolean): void => {
   try {
-    return crypto.randomUUID();
-  } catch {
-    return `${Date.now()}-${Math.random()}`.slice(0, 64);
-  }
+    if (on) browserStore()?.setItem(noticesKey, "on");
+    else browserStore()?.removeItem(noticesKey);
+  } catch {}
 };
 /** The browser's permission for notices; null where it has none. */
 const notificationPermission = (): NotificationPermission | null =>
@@ -1381,30 +1370,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
   private signalSource: EventSource | null = null;
   private liveSignal: ShellBuddySignal | null = null;
   private notifier: ReturnType<typeof createBuddyNotifier> | null = null;
-  // The person's choice for the Environment, as the Launchpad last said:
-  // read again whenever this page comes to the front (notices-choice.ts).
-  private readonly noticesChoice = createNoticesChoiceCache(
-    readLaunchpadNoticesChoice,
-    writeLaunchpadNoticesChoice,
-  );
   // While Buddy's window is in view here, the Launchpad hears so every
-  // `buddyViewingEveryMs`, and no tab on any origin tells a notice; this
-  // page's own name for it, so that leaving lets go of this view only.
+  // `buddyViewingEveryMs`, and no tab on any origin tells a notice.
   private viewingTimer: ReturnType<typeof setInterval> | null = null;
-  private readonly tab = pageTabName();
-  private viewingSeq = 0;
-  // The last change the person saw in Buddy's window here.
-  private seenKey: string | null = null;
-  // Read once the browser settled the focus: a blur while the focus moves
-  // into Buddy's frame still leaves this page focused.
-  private readonly viewingChanged = () => {
-    setTimeout(() => {
-      if (document.visibilityState === "visible")
-        void this.noticesChoice.refresh();
-      this.followViewing();
-      this.bubble?.viewingChanged();
-    }, 0);
-  };
+  private readonly viewingChanged = () => this.followViewing();
 
   connectedCallback() {
     const before = bubbleHost;
@@ -1541,10 +1510,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         if (model !== null)
           this.view ??= createBuddyBubbleView(this, {
             logo,
-            toggle: () => {
-              this.askNoticesOnce();
-              this.bubble?.toggle();
-            },
+            toggle: () => this.bubble?.toggle(),
             escape: () => this.bubble?.escape() ?? false,
             follow: (href, event) => this.followMeeting(href, event),
             store: browserStore(),
@@ -1559,8 +1525,6 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
         }
       },
       focus: (target) => this.view?.focus(target),
-      viewing: () =>
-        document.visibilityState === "visible" && document.hasFocus(),
       guide: {
         known: guide.known,
         playing: guide.attention.playing,
@@ -1596,10 +1560,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
       this.bubble?.update();
     };
     this.notifier ??= createBuddyNotifier({
-      // The choice is the Launchpad's to apply at the claim: a page that
-      // last heard it off still claims, and hears it on there.
-      enabled: () => notificationPermission() === "granted",
-      inView: () => this.windowInView(),
+      enabled: () => noticesOn() && notificationPermission() === "granted",
+      inView: () =>
+        document.visibilityState === "visible" &&
+        (this.bubble?.windowShown() ?? false),
       claim: async (key) => {
         const answer = await fetch(buddyNoticePath, {
           method: "POST",
@@ -1607,16 +1571,16 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ key }),
         });
-        return parseBuddyClaimAnswer(
-          answer.ok ? await answer.json().catch(() => null) : null,
+        if (!answer.ok) return false;
+        const value: unknown = await answer.json().catch(() => null);
+        return (
+          typeof value === "object" &&
+          value !== null &&
+          "notify" in value &&
+          value.notify === true
         );
       },
       show: (signal) => this.notice(signal),
-      // Said at once, and again with every view and its release.
-      seen: (key) => {
-        this.seenKey = key;
-        void deliverBuddyNotice(() => this.tell({ seen: key }));
-      },
     });
     // The stream's own events, never the window's messages.
     source.onmessage = (event) => {
@@ -1631,9 +1595,6 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     source.onerror = () => show(unavailableSignal);
     this.signalSource = source;
     document.addEventListener("visibilitychange", this.viewingChanged);
-    window.addEventListener("focus", this.viewingChanged);
-    window.addEventListener("blur", this.viewingChanged);
-    void this.noticesChoice.refresh();
   }
 
   private stopSignal(): void {
@@ -1642,152 +1603,61 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     this.liveSignal = null;
     this.notifier = null;
     document.removeEventListener("visibilitychange", this.viewingChanged);
-    window.removeEventListener("focus", this.viewingChanged);
-    window.removeEventListener("blur", this.viewingChanged);
     this.followViewing();
   }
 
-  /** Whether the person is looking at Buddy's window here: the tab shows,
-   * the window is open, and this page or Buddy's frame in it has the focus.
-   * A window merely on screen behind another one holds no notice back
-   * (Lazurio/LazurioPlatform#1151). */
-  private windowInView(): boolean {
-    return (
-      document.visibilityState === "visible" &&
-      document.hasFocus() &&
-      (this.bubble?.windowShown() ?? false)
-    );
-  }
-
-  /** Tells the Launchpad `body` on Buddy's notices; true where it answered. */
-  private async tell(
-    body: Readonly<Record<string, unknown>>,
-    keepalive = false,
-  ): Promise<boolean> {
-    try {
-      const answer = await fetch(buddyNoticePath, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-        keepalive,
-      });
-      return answer.ok;
-    } catch {
-      return false;
-    }
-  }
-
   /** Says to the Launchpad that Buddy's window is in view here, at once and
-   * then on a beat, while it is and a sign is followed, and that it no
-   * longer is the moment the person leaves it. */
+   * then on a beat, while it is and a sign is followed. */
   private followViewing(): void {
-    const inView = this.signalSource !== null && this.windowInView();
-    // The beat may miss one; the release is retried on the delivery pauses,
-    // as the beat that would carry what this tab saw has stopped. That is
-    // best effort: a release lost on every try lets the hold run out
-    // (`buddyViewingHoldMs`, the accepted limit of #1235).
-    const say = (viewing: boolean) => {
-      this.viewingSeq += 1;
-      const body = {
-        viewing,
-        tab: this.tab,
-        seq: this.viewingSeq,
-        ...(this.seenKey === null ? {} : { seen: this.seenKey }),
-      };
-      if (viewing) void this.tell(body);
-      else void deliverBuddyNotice(() => this.tell(body, true));
-    };
+    const inView =
+      this.signalSource !== null &&
+      document.visibilityState === "visible" &&
+      (this.bubble?.windowShown() ?? false);
     if (inView && this.viewingTimer === null) {
-      say(true);
-      this.viewingTimer = setInterval(() => say(true), buddyViewingEveryMs);
+      const say = () =>
+        void fetch(buddyNoticePath, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ viewing: true }),
+        }).catch(() => undefined);
+      say();
+      this.viewingTimer = setInterval(say, buddyViewingEveryMs);
     } else if (!inView && this.viewingTimer !== null) {
       clearInterval(this.viewingTimer);
       this.viewingTimer = null;
-      say(false);
     }
   }
 
   /** The launcher's menu where Buddy GEN4's sign is followed and the
-   * browser has notices: the Environment's choice, which the person can
-   * always turn off and on here, and this origin's permission beside it. */
-  private noticeMenu(): readonly BuddyMenuItem[] {
-    if (this.signalSource === null) return [];
+   * browser has notices: the person's choice on this origin. */
+  private noticeMenu(): BuddyMenuItem | null {
+    if (this.signalSource === null) return null;
     const permission = notificationPermission();
-    if (permission === null) return [];
+    if (permission === null) return null;
     const copy = shellMessages(this.pageLang());
-    const on = this.noticesChoice.current() === "on";
-    const items: BuddyMenuItem[] = [
-      Object.freeze({
-        label: copy.buddyNotices,
-        checked: on,
-        disabled: false,
-        select: () => {
-          if (on) void this.noticesChoice.set("off");
-          else void this.enableNotices();
-        },
-      }),
-    ];
-    // On, but the browser has not been asked on this origin yet.
-    if (on && permission === "default")
-      items.push(
-        Object.freeze({
-          label: copy.buddyNoticesAllow,
-          checked: null,
-          disabled: false,
-          select: () => void this.enableNotices(),
-        }),
-      );
     if (permission === "denied")
-      items.push(
-        Object.freeze({
-          label: copy.buddyNoticesBlocked,
-          checked: null,
-          disabled: true,
-          select: () => {},
-        }),
-      );
-    return items;
-  }
-
-  /** The person's click turns the notices on: the browser asks on this
-   * origin where it has not, and the choice is on for the Environment. */
-  private enableNotices(): Promise<boolean> {
-    return enableBuddyNotices({
-      ...browserNoticesSeams(browserStore()),
-      choose: async (choice) => {
-        if (!(await this.noticesChoice.set(choice)))
-          throw new Error("The choice was not saved");
+      return Object.freeze({
+        label: copy.buddyNoticesBlocked,
+        checked: false,
+        disabled: true,
+        select: () => {},
+      });
+    const on = noticesOn() && permission === "granted";
+    return Object.freeze({
+      label: copy.buddyNotices,
+      checked: on,
+      disabled: false,
+      select: () => {
+        if (on) {
+          setNoticesOn(false);
+          return;
+        }
+        // The browser asks the person, on this choice of theirs.
+        void Notification.requestPermission().then((answer) => {
+          if (answer === "granted") setNoticesOn(true);
+        });
       },
-    });
-  }
-
-  /** The launcher's click that opens Buddy's window asks the browser for
-   * notices once on this origin, where the person met him and the choice is
-   * on: the click is the gesture the browser needs. */
-  private askNoticesOnce(): void {
-    if (this.signalSource === null || (this.bubble?.windowShown() ?? true))
-      return;
-    if (
-      !shouldAskBuddyNotices({
-        permission: notificationPermission(),
-        choice: this.noticesChoice.known()
-          ? this.noticesChoice.current()
-          : null,
-        asked: noticesAsked(),
-        met:
-          buddyMeeting(
-            state.drawn(),
-            this.origin(),
-            this.getAttribute("lang"),
-          ) === null,
-      })
-    )
-      return;
-    // Opening Buddy is no choice: the browser is asked, the choice stays.
-    void enableBuddyNotices({
-      ...browserNoticesSeams(browserStore()),
-      choose: async () => undefined,
     });
   }
 

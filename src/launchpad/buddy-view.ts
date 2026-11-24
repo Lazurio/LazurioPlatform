@@ -1,10 +1,5 @@
 import { namesConfirmed } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
-import {
-  type BuddyNoticesChoice,
-  type BuddyNoticesState,
-  buddyNoticesState,
-} from "../shell/buddy-notice";
 import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
 import { namesFromInput, type PersonNames } from "./buddy-names";
@@ -872,7 +867,6 @@ export function said(
     | "buddyChats"
     | "buddyPlace"
     | "buddySigns"
-    | "buddyOnPhone"
     | "buddyWhere"
     | "buddyWhereTelegram"
     | "buddyAskName"
@@ -924,14 +918,7 @@ export const gen4Beats = Object.freeze([
   "memory",
   "signs",
 ] as const);
-/** His beat on the person's phone (the product owner confirmed it works
- * there, 2026-11-21): after his signs, only where the page knows his own
- * address. */
-export const phoneBeat = "phone";
-export type MeetBeat =
-  | (typeof meetBeats)[number]
-  | (typeof gen4Beats)[number]
-  | typeof phoneBeat;
+export type MeetBeat = (typeof meetBeats)[number] | (typeof gen4Beats)[number];
 
 /** Whether Buddy GEN4's introduction opens by itself now, as a tour, for a
  * person who met him before it existed (moved over from the older Buddy):
@@ -992,72 +979,9 @@ export function keepIntroduced(
   }
 }
 
-/** Buddy's notices on this page's origin, as the shell reads them
- * (`readBuddyNoticesState`): `on` only where the browser allows them and the
- * person's choice is on; `off` where a click is still to turn them on;
- * `blocked` by the browser; `unsupported` without notices. */
-export type { BuddyNoticesState };
-
-/** What the guide knows of his notices: the shell's state, or `unknown`
- * where the Environment's choice could not be read. The shell's own reading
- * takes an unreadable choice as on (`readBuddyNoticesState`), which is right
- * for sending notices but would let the guide claim they are on: the guide
- * says it does not know instead (review of #1166). */
-export type GuideNoticesState = BuddyNoticesState | "unknown";
-
-/** The guide's reading: the browser's permission first (no notices, or
- * blocked, needs no choice), then the Environment's choice; a choice that
- * cannot be read is `unknown`, never on. */
-export async function readGuideNoticesState(
-  permission: () => NotificationPermission | null,
-  readChoice: () => Promise<BuddyNoticesChoice>,
-): Promise<GuideNoticesState> {
-  const allowed = permission();
-  if (allowed === null) return "unsupported";
-  if (allowed === "denied") return "blocked";
-  try {
-    return buddyNoticesState(allowed, await readChoice());
-  } catch {
-    return "unknown";
-  }
-}
-
-/** The notices' row under his signs (Matěj, 2026-11-21: notices on from
- * the start, and in the guide how to turn them off): one click asks the
- * browser where it is still to ask; how to turn them off is said whether
- * they are on or about to be. Lazurio's words, in vy. Nothing where the
- * browser has no notices. */
-export type BuddyNoticesView = Readonly<{
-  button: string | null;
-  line: string | null;
-}>;
-
-export function buddyNoticesView(
-  state: GuideNoticesState,
-  copy: Copy,
-): BuddyNoticesView {
-  switch (state) {
-    // Not known: no claim either way, and the click that turns them on
-    // (it saves the choice again and reads it after).
-    case "unknown":
-      return {
-        button: copy.buddyNoticesTurnOn,
-        line: copy.buddyNoticesUnknown,
-      };
-    case "off":
-      return { button: copy.buddyNoticesTurnOn, line: copy.buddyNoticesHowOff };
-    case "on":
-      return { button: null, line: copy.buddyNoticesAreOn };
-    case "blocked":
-      return { button: null, line: copy.buddyNoticesBlockedHere };
-    case "unsupported":
-      return { button: null, line: null };
-  }
-}
-
 /** The beats of his introduction: Buddy GEN4's, or the older Buddy's. */
-export const beatsOf = (gen4: boolean, phone = false): readonly MeetBeat[] =>
-  gen4 ? (phone ? [...gen4Beats, phoneBeat] : gen4Beats) : meetBeats;
+export const beatsOf = (gen4: boolean): readonly MeetBeat[] =>
+  gen4 ? gen4Beats : meetBeats;
 
 /** On the introduction screen of the older Buddy: a beat (`0` to `4`), then
  * his questions. Buddy GEN4's questions come at `beatsOf(true).length`. */
@@ -1113,11 +1037,6 @@ export type BeatDrawing =
       apps: readonly string[];
     }>
   | Readonly<{
-      /** He is on the person's phone too, at his own address. */
-      kind: "phone";
-      host: string;
-    }>
-  | Readonly<{
       /** His signs at his figure, with the words his figure says. */
       kind: "signs";
       signs: readonly Readonly<{
@@ -1162,9 +1081,7 @@ export function helloLine(
 /** One beat of his introduction, in his address (vy before the person
  * chose). `apps` names the Environment's apps as its switch does, the ones
  * it has; `automate` is the switch's name of the app where his bots work;
- * `telegram` is false for Buddy GEN4, who has no Telegram of his own;
- * `buddyHost` is his own address on the web (`buddy.<slug>.lazurio.io`),
- * which brings his phone beat, null or absent where the page has none. */
+ * `telegram` is false for Buddy GEN4, who has no Telegram of his own. */
 export function beatView(
   index: number,
   input: Readonly<{
@@ -1173,13 +1090,11 @@ export function beatView(
     apps: readonly string[];
     automate: string;
     telegram?: boolean;
-    buddyHost?: string | null;
   }>,
   copy: Copy,
 ): BeatView {
   // Buddy GEN4 is the one without a Telegram of his own.
-  const host = input.buddyHost ?? null;
-  const beats = beatsOf(input.telegram === false, host !== null);
+  const beats = beatsOf(input.telegram === false);
   const at = Math.max(0, Math.min(beats.length - 1, Math.floor(index)));
   const beat = beats[at] as MeetBeat;
   const { address } = input;
@@ -1239,12 +1154,6 @@ export function beatView(
         ...base,
         lines: [said(copy, "buddyPlace", address)],
         drawing: { kind: "place", apps: input.apps },
-      };
-    case "phone":
-      return {
-        ...base,
-        lines: [said(copy, "buddyOnPhone", address)],
-        drawing: { kind: "phone", host: host ?? "" },
       };
     case "signs":
       return {
@@ -1360,9 +1269,9 @@ export function introduceNav(
   at: number,
   draft: PersonaDraft,
   locale: "cs" | "en",
-  how: Readonly<{ gen4?: boolean; tour?: boolean; phone?: boolean }> = {},
+  how: Readonly<{ gen4?: boolean; tour?: boolean }> = {},
 ): IntroduceNav {
-  const beats = beatsOf(how.gen4 === true, how.phone === true);
+  const beats = beatsOf(how.gen4 === true);
   const last = beats.length - 1;
   if (how.tour === true)
     return {

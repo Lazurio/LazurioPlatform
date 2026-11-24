@@ -461,23 +461,6 @@ export function aiServicesLines(tool: string, services: AiServices): string[] {
     case "not-installed":
       break;
   }
-  // Chat's default model (F51's addendum of 2026-11-24), where it was asked:
-  // whose it is, which is not always the AI just signed in.
-  const chat = services.chat;
-  const whose =
-    chat?.ai === undefined ? undefined : `${aiProviderName[chat.ai]}'s model`;
-  if (chat?.state === "managed")
-    lines.push(
-      whose === undefined
-        ? "New threads in Chat start on the Platform's recommended model."
-        : `New threads in Chat start on ${whose}.`,
-    );
-  if (chat?.state === "custom")
-    lines.push("Chat keeps the default model chosen in Chat.");
-  if (chat?.state === "outdated" || chat?.state === "unavailable")
-    lines.push(
-      `Chat's default model could NOT be set${whose === undefined ? "" : ` to ${whose}`}: new threads may start on another model. Run \`lazurio chat defaults --apply\`, or pick the model in Chat.`,
-    );
   return lines;
 }
 

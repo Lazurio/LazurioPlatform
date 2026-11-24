@@ -141,19 +141,15 @@ function file(result: ModuleScaffoldPlan, path: string): string {
 // and name 2027.02; before it they were 68f06ccb… (vite-react), a7b32d90…
 // (astro), 4b57e3cf… (astro-starlight), b1d07a62… (bun-service) and
 // d79d8624… (python-uv).
-// Since the stack profiles' release 2027.03 (repository-db v3.4.0 in app-data)
-// every Bun stack names 2027.03; before it they were 7d9bac72… (vite-react),
-// e4745a5d… (astro), b16be9b7… (astro-starlight) and 6c2386ba…
-// (bun-service). python-uv names no profile release and keeps its hash.
 const rootTreeHashes: Readonly<Record<string, string>> = {
   "vite-react":
-    "sha256:232b011f06f35826e546b19252624078e7aff4128b751d761725872c2fcce7c7",
+    "sha256:7d9bac72875f61cdd08308d93f17b828875d425224e7d03678f1265be1bfc5bd",
   astro:
-    "sha256:23417becf3291d81d5fc26b32e79f66996841f3eec35995de0108c7d38d6e3ea",
+    "sha256:e4745a5d53f70d5765b3615ceb0c8fcfc9bcea3fa276c5a5be40ac1442b63ee6",
   "astro-starlight":
-    "sha256:07fa36e6b6ca0d47c907c7e0255bba600a058109b8894e08b5d80e84833f9083",
+    "sha256:b16be9b71b4fbb8dec6485558085ed15297534862505b609908e53c6450749a7",
   "bun-service":
-    "sha256:0db66850d61509a94024c3e3433655226f89d09a3ddc62faf08fa345ab249f71",
+    "sha256:6c2386ba9672730c563e2404ebdecd14cc5b062ca298ba1bfe21483244d8f01a",
   "python-uv":
     "sha256:446af188a3d78c683e8e5b31058a44382ac9be246328eff9a5c8aa3e436811ad",
   none: "sha256:3b74e3ee30ce43eba0122a216fa9076c5bd6883cf0617cf8c2acab93458babba",
@@ -168,7 +164,7 @@ describe("planModuleScaffold, the Organization form", () => {
     expect(
       plan({ displayName: "Zákaznický portál", teams: ["web"] }).treeHash,
     ).toBe(
-      "sha256:71f9359d2631976e2e27129d296d51a68fd5f314e6ecaa71d4c23e1755863abd",
+      "sha256:9827693776332e819d7ec3945b8cffe2d4cc73cf7d07ad26f34d7e1ea3a5670c",
     );
   });
 
@@ -907,7 +903,7 @@ describe("a new module and its stack profile", () => {
     const pkg = JSON.parse(file(result, "app/v3/package.json"));
     expect(pkg.dependencies.zod).toBe(scaffoldZodVersion);
     expect(pkg.dependencies["@lazurio/repository-db"]).toBe(
-      "github:Lazurio/repository-db#v3.4.0",
+      "github:Lazurio/repository-db#v3.2.6",
     );
     expect(file(result, "README.md")).toContain(stackProfileUrl("app-data"));
     expect(file(result, "AGENTS.md")).toContain(stackProfileUrl("app-data"));

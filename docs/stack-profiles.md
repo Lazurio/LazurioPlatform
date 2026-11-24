@@ -2,7 +2,7 @@
 
 **Decided by Matěj (Operator) on 2026-11-03, decision
 [F69](decisions.md#f69--stack-profiles-the-exact-tools-a-module-is-built-with-changed-only-by-a-generation-transition-or-a-profile-release).
-Current release: `2027.03`.** A stack profile names the exact tools a kind of
+Current release: `2027.02`.** A stack profile names the exact tools a kind of
 Module is built with and why. A Module is born in one profile release, and its
 tools change only in one of two planned ways: a transition to the next App
 generation or a new release of its profile. Nothing else moves them, so a
@@ -145,7 +145,7 @@ Applications whose records live in repository-db. Generation `app/v3`. It is
 
 | Tool | Exact pin | Why |
 | --- | --- | --- |
-| `@lazurio/repository-db` | `github:Lazurio/repository-db#v3.4.0` | The engine: `createSyncHost`, Draft & Publish, the Review Surface and `DraftPublishPanel` from `@lazurio/repository-db/ui`. |
+| `@lazurio/repository-db` | `github:Lazurio/repository-db#v3.2.6` | The engine: `createSyncHost`, Draft & Publish, the Review Surface and `DraftPublishPanel` from `@lazurio/repository-db/ui`. |
 | `zod` | `4.6.7` | **The one source of the shape of the data.** A Zod schema is directly the engine's `DocumentParser`, the types come from it (`z.infer`), and `z.toJSONSchema()` derives the JSON Schema (Draft 2020-12) for CI, other languages and documentation. |
 | `yaml` | `2.9.1` | Only when the App reads YAML outside the engine, for an import; the engine reads and writes the records. |
 | Server | `Bun.serve` and module-kit | All access to the data runs in the App's server; the interface talks only to the Module's own HTTP API. |
@@ -334,90 +334,32 @@ release.
 
 ### Earlier releases
 
-Every earlier release pins `@lazurio/repository-db` at
-`github:Lazurio/repository-db#v3.2.6` in `app-data`.
-
-#### 2027.02
-
-Decided on 2026-11-23 (F69, addendum). Every table on this page holds for
-`2027.02` except one pin of `app-data`:
-
-| Tool | Exact pin in `2027.02` |
-| --- | --- |
-| `@lazurio/repository-db` | `github:Lazurio/repository-db#v3.2.6` |
-
 #### 2027.01
 
 Decided on 2026-11-22 (F69, addendum). Every table on this page holds for
-`2027.01` except these pins:
+`2027.01` except one pin of the common base:
 
 | Tool | Exact pin in `2027.01` |
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.5.0` |
-| `@lazurio/repository-db` (`app-data`) | `github:Lazurio/repository-db#v3.2.6` |
 
 #### 2026.12
 
 Decided on 2026-11-17 (F69, addendum). Every table on this page holds for
-`2026.12` except these pins:
+`2026.12` except one pin of the common base:
 
 | Tool | Exact pin in `2026.12` |
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.4.0` |
-| `@lazurio/repository-db` (`app-data`) | `github:Lazurio/repository-db#v3.2.6` |
 
 #### 2026.11
 
 Decided on 2026-11-03 (F69). Every table on this page holds for `2026.11`
-except these pins:
+except one pin of the common base:
 
 | Tool | Exact pin in `2026.11` |
 | --- | --- |
 | `@lazurio/module-kit` | `github:Lazurio/module-kit#v0.2.0` |
-| `@lazurio/repository-db` (`app-data`) | `github:Lazurio/repository-db#v3.2.6` |
-
-## Release 2027.03
-
-One change, in `app-data`: `@lazurio/repository-db` moves from v3.2.6 to
-v3.4.0. The common base and the profiles `content`, `app` and
-`app-database` do not change.
-
-- **Why.** The Module Standard ("One data port under the tools") asks every
-  write to store a new unique `record.revision`, which the port compares
-  together with the content. With v3.2.6 two concurrent edits of different
-  fields of a record that both carry a new revision end in a conflict on
-  `/record/revision`. v3.4.0 treats `record.revision` as audit metadata beside
-  `record.updatedAt` and `record.updatedBy*`, so the semantic merge keeps the
-  later bundle, and a merged record gets a new revision of its own. The
-  templates with data move to such revisions on this release.
-- **What changes for a Module.** v3.3.0 adds only `REPOSITORY_DB_TRANSPORT`, a
-  transport for a host without credentials; unset, the engine behaves as
-  3.2.6. In v3.4.0 records without `revision` behave as in 3.3.0. A record
-  that carries a revision written by one side and kept or dropped by the other
-  (a writer that does not store a new revision per write) is refused on
-  `/record/revision` instead of merged. So a Module that starts writing a new
-  revision per write does so in every writer at once, and its Environments
-  run that version before their writes meet.
-- **What an existing Module changes.** In its own pull request: its pin,
-  `"@lazurio/repository-db": "github:Lazurio/repository-db#v3.4.0"`, then
-  `bun install` to refresh `bun.lock`, then `bun run check` and its store
-  contract tests.
-- **A template** adopts it in a release of its own, as every release.
-- **The name.** `2027.02` is taken, so it takes the next free month,
-  `2027.03` ([Releases](#releases)).
-
-## Verification of release 2027.03
-
-On 2026-11-24 on Linux x64 with Bun 1.4.4, the plans of `lazurio module create`
-(`planModuleScaffold` with this release's pins) were written out for
-`vite-react`, `vite-react --data`, `astro`, `astro-starlight` and `bun-service`.
-The data module installed `@lazurio/repository-db` 3.4.0 from its tag, and
-`bun install` and `bun run check` passed in each (type check, Biome and the
-tests; the data module also validated its empty seed). `bun run build` passed
-for the three static stacks. The `python-uv` plan names no profile release and
-did not change. Not verified: macOS and Windows, `bun-service --data`, and the
-existing Modules and templates, which adopt the release in their own pull
-requests.
 
 ## Release 2027.02
 

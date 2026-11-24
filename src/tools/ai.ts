@@ -85,46 +85,20 @@ export type T3Reload =
       providers: readonly AiProvider[];
     }>;
 
-/** Chat's default model after the sign-in (F51's addendum of 2026-11-24):
- * the Platform's recommended model (`managed`), the person's own (`custom`),
- * or the recommended one not set (`outdated`, `unavailable`). `ai`: whose
- * model the Platform recommends here, which is not always the AI just
- * signed in (Codex stays recommended where it works), once that is known.
- * Only on a hosted Environment. */
-export type ChatModelAfterSignIn = Readonly<{
-  state: "managed" | "custom" | "outdated" | "unavailable";
-  ai?: AiProvider;
-}>;
-
 export type AiServices = Readonly<{
   /** codex only: the Codex app-server unit, restarted, not Lazurio's here,
    * or failed. */
   appServer?: Readonly<{ state: "restarted" | "not-managed" | "failed" }>;
   t3: T3Reload;
-  chat?: ChatModelAfterSignIn;
 }>;
 
-/** Whether Chat's default model follows the sign-in or is the person's own;
- * true where it was not asked (a workstation, an older answer). */
-export function chatModelReady(services: AiServices): boolean {
-  return (
-    services.chat === undefined ||
-    services.chat.state === "managed" ||
-    services.chat.state === "custom"
-  );
-}
-
 /** Whether the services read the sign-in, or will by themselves: false for a
- * failed restart, a refused or failed refresh, a driver mismatch and a Chat
- * model that was not set to follow the sign-in, which the person or the
- * Operator must see. The sign-in itself stands either way. */
+ * failed restart, a refused or failed refresh and a driver mismatch, which
+ * the person or the Operator must see. */
 export function aiServicesReady(services: AiServices): boolean {
   return (
     services.appServer?.state !== "failed" &&
-    ["refreshed", "not-installed", "not-supported"].includes(
-      services.t3.state,
-    ) &&
-    chatModelReady(services)
+    ["refreshed", "not-installed", "not-supported"].includes(services.t3.state)
   );
 }
 

@@ -13,7 +13,6 @@ import {
   beatView,
   buddyFact,
   buddyIntroductionDue,
-  buddyNoticesView,
   buddySignInRow,
   buddySignInStep,
   buddyStateView,
@@ -35,7 +34,6 @@ import {
   parseBuddyReading,
   parseTelegram,
   personaBody,
-  readGuideNoticesState,
   saveLine,
   secondsLeft,
   signInScreen,
@@ -1511,113 +1509,4 @@ test("the introduction's mark: kept only when it reads back, so a full or refuse
   };
   expect(introducedIn(blocked, "env")).toBeNull();
   expect(keepIntroduced(blocked, "env")).toBe(false);
-});
-
-test("his notices under his signs: one click where the browser is still to ask, and how to turn them off, in Lazurio's vy (Matěj, 2026-11-21)", () => {
-  expect(buddyNoticesView("off", cs)).toEqual({
-    button: "Zapnout oznámení",
-    line: "Vypnout je můžete kdykoli v nabídce u postavičky (Zobrazovat oznámení).",
-  });
-  expect(buddyNoticesView("on", cs)).toEqual({
-    button: null,
-    line: "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky (Zobrazovat oznámení).",
-  });
-  // The menu's item is named as the shell names it.
-  for (const line of [cs.buddyNoticesHowOff, cs.buddyNoticesAreOn])
-    expect(line).toContain(shellMessages("cs").buddyNotices);
-  for (const line of [en.buddyNoticesHowOff, en.buddyNoticesAreOn])
-    expect(line).toContain(shellMessages("en").buddyNotices);
-  // Blocked: the shell's own words, which its menu says too.
-  expect(buddyNoticesView("blocked", cs).line).toBe(
-    shellMessages("cs").buddyNoticesBlocked,
-  );
-  expect(buddyNoticesView("blocked", en).line).toBe(
-    shellMessages("en").buddyNoticesBlocked,
-  );
-  expect(buddyNoticesView("unsupported", cs)).toEqual({
-    button: null,
-    line: null,
-  });
-  expect(buddyNoticesView("off", en).button).toBe("Turn on notifications");
-});
-
-test("Buddy GEN4's phone beat: after his signs, only where the page knows his address, which it shows as it is (the product owner, 2026-11-21)", () => {
-  const input = {
-    buddyName: "Buddy",
-    address: null,
-    apps: ["Chat"],
-    automate: "Automatizace",
-    telegram: false,
-    buddyHost: "buddy.example.lazurio.io",
-  } as const;
-  expect(beatsOf(true, true)).toEqual([
-    "hello",
-    "chats",
-    "does",
-    "place",
-    "memory",
-    "signs",
-    "phone",
-  ]);
-  expect(beatsOf(true)).not.toContain("phone");
-  const phone = beatView(6, input, cs);
-  expect(phone).toMatchObject({
-    beat: "phone",
-    progress: "7 z 7",
-    lines: ["Najdete mě i v telefonu, na této adrese."],
-    drawing: { kind: "phone", host: "buddy.example.lazurio.io" },
-  });
-  expect(beatView(6, { ...input, address: "ty" }, cs).lines).toEqual([
-    "Najdeš mě i v telefonu, na této adrese.",
-  ]);
-  // Without his address: six beats, the last is his signs.
-  expect(beatView(6, { ...input, buddyHost: null }, cs).beat).toBe("signs");
-  expect(beatView(6, { ...input, buddyHost: null }, cs).progress).toBe("6 z 6");
-  const draft = { ...draftOf(null, "cs"), address: "vy" as const };
-  // A tour ends on the phone; his launcher still rises on his signs.
-  expect(
-    introduceNav(6, draft, "cs", { gen4: true, tour: true, phone: true }),
-  ).toMatchObject({ next: "finish", spotlight: false });
-  expect(
-    introduceNav(5, draft, "cs", { gen4: true, tour: true, phone: true }),
-  ).toMatchObject({ next: "beat", spotlight: true });
-  // The meeting asks his questions after seven beats.
-  expect(introduceNav(7, draft, "cs", { gen4: true, phone: true }).next).toBe(
-    "confirm",
-  );
-});
-
-test("the guide's notices reading never takes an unreadable choice as on (review of #1166): it says it does not know and offers the click again", async () => {
-  const fail = async (): Promise<"on" | "off"> => {
-    throw new Error("The choice was not read");
-  };
-  const reads: string[] = [];
-  const read = (choice: "on" | "off") => async () => {
-    reads.push(choice);
-    return choice;
-  };
-  // The browser allows them, the choice cannot be read: not "on".
-  expect(await readGuideNoticesState(() => "granted", fail)).toBe("unknown");
-  expect(await readGuideNoticesState(() => "default", fail)).toBe("unknown");
-  // Read: the shell's own rule.
-  expect(await readGuideNoticesState(() => "granted", read("on"))).toBe("on");
-  expect(await readGuideNoticesState(() => "granted", read("off"))).toBe("off");
-  expect(await readGuideNoticesState(() => "default", read("on"))).toBe("off");
-  // No notices, or blocked: no choice needed.
-  reads.length = 0;
-  expect(await readGuideNoticesState(() => null, read("on"))).toBe(
-    "unsupported",
-  );
-  expect(await readGuideNoticesState(() => "denied", read("on"))).toBe(
-    "blocked",
-  );
-  expect(reads).toEqual([]);
-  // Unknown: no claim either way, the menu named, and the click again.
-  expect(buddyNoticesView("unknown", cs)).toEqual({
-    button: "Zapnout oznámení",
-    line: "Nepodařilo se zjistit, jestli jsou oznámení zapnutá. Ověříte to v nabídce u postavičky (Zobrazovat oznámení).",
-  });
-  expect(cs.buddyNoticesUnknown).toContain(shellMessages("cs").buddyNotices);
-  expect(en.buddyNoticesUnknown).toContain(shellMessages("en").buddyNotices);
-  expect(cs.buddyNoticesUnknown).not.toContain(cs.buddyNoticesAreOn);
 });

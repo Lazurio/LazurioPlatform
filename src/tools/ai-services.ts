@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { type ChatDefaults, chatDefaults } from "../chat/defaults";
 import { restartCodexAppServer } from "../update/codex-app-server";
 import {
   type AiProvider,
@@ -198,11 +197,7 @@ export async function refreshT3Providers(
 }
 
 /** After a confirmed sign-in of `tool`: the Codex app-server unit restarted
- * (codex only), then T3 Code asked about every AI CLI signed in now, and
- * with the hosted Folder the Chat defaults applied again (F51's addendum of
- * 2026-11-24): the recommended model follows the AI signed in now, and T3
- * keeps a model the person chose. Not on a workstation, which has no
- * managed Chat. */
+ * (codex only), then T3 Code asked about every AI CLI signed in now. */
 export async function reloadAiServices(
   input: Readonly<{
     tool: AiProvider;
@@ -214,11 +209,6 @@ export async function reloadAiServices(
     /** The process environment `systemctl --user` needs (its runtime
      * directory and bus). */
     env: Readonly<Record<string, string | undefined>>;
-    /** The hosted Folder whose Chat defaults follow the sign-in; none on a
-     * workstation. */
-    folder?: string | undefined;
-    /** Tests only: the Chat defaults' step. */
-    chat?: typeof chatDefaults;
   }>,
 ): Promise<AiServices> {
   const appServer =
@@ -240,34 +230,8 @@ export async function reloadAiServices(
   }).catch(() =>
     Object.freeze({ state: "failed" as const, reason: "refused" as const }),
   );
-  const chat =
-    input.folder === undefined
-      ? undefined
-      : await (input.chat ?? chatDefaults)(
-          {
-            path: input.path,
-            home: input.home,
-            platform: input.platform,
-            run: input.run,
-          },
-          { apply: true, folder: input.folder },
-        ).catch(
-          (): ChatDefaults => ({
-            kind: "chat-defaults",
-            state: "unavailable",
-            reason: "t3-defaults-unavailable",
-          }),
-        );
   return Object.freeze({
     ...(appServer === undefined ? {} : { appServer }),
     t3,
-    ...(chat === undefined
-      ? {}
-      : {
-          chat: {
-            state: chat.state,
-            ...(chat.ai === undefined ? {} : { ai: chat.ai }),
-          },
-        }),
   });
 }

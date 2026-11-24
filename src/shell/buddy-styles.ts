@@ -104,7 +104,7 @@ const bubbleCss = `
 .badge[hidden] { display: none; }
 .menu { position: fixed; inset: auto; left: 0; top: 0; z-index: ${buddyLayer}; padding: 4px; border: 1px solid var(--shell-line); border-radius: var(--lz-radius-sm); background: var(--shell-raised); box-shadow: var(--lz-shadow-float); }
 .menu[hidden] { display: none; }
-.menu button { display: flex; width: 100%; min-height: 36px; padding: 0 12px 0 32px; align-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: var(--shell-ink); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; position: relative; }
+.menu button { display: flex; min-height: 36px; padding: 0 12px 0 32px; align-items: center; border: 0; border-radius: var(--lz-radius-sm); background: transparent; color: var(--shell-ink); font: inherit; font-size: 14px; white-space: nowrap; cursor: pointer; position: relative; }
 .menu button:hover:not(:disabled), .menu button:focus-visible { background: var(--shell-hover); outline: none; }
 .menu button[aria-checked="true"]::before { position: absolute; left: 12px; content: "✓"; }
 .menu button:disabled { color: var(--shell-ink-muted); cursor: default; }

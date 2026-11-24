@@ -36,7 +36,7 @@ const templateAppDirectory = "app/v1";
  * (`docs/stack-profiles.md`, decision F69). The templates' exact pins are this
  * release's; changing one is a new release of the profiles, never a quiet
  * bump. */
-export const stackProfilesRelease = "2027.03";
+export const stackProfilesRelease = "2027.02";
 
 /** The Bun version a new module pins: the common base of the stack profiles
  * (`docs/stack-profiles.md`), not this repository's own toolchain. The
@@ -49,7 +49,7 @@ export const scaffoldBunVersion = "1.4.4";
 export const defaultScaffoldVersions = Object.freeze({
   moduleKit: "0.6.0",
   uv: "0.11.6",
-  repositoryDb: "3.4.0",
+  repositoryDb: "3.2.6",
 });
 
 /** The schema library of a module with data (`--data`): Zod is the one

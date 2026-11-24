@@ -4,12 +4,10 @@ import {
   type BuddyStepFacts,
   beatsOf,
   beatView,
-  buddyNoticesView,
   buddyOwnSignIn,
   type Countdown,
   countdownText,
   draftOf,
-  type GuideNoticesState,
   type IntroduceScreen,
   introduceNav,
   introduceScreen,
@@ -269,17 +267,6 @@ export function createBuddyDialog(
     /** Buddy GEN4's introduction was shown to the end of its first beat:
      * the page keeps that the person has seen it. */
     introduced: () => void;
-    /** His notices on this origin (the guide's `readGuideNoticesState` and the shell's
-     * `enableBuddyNotices`); without it his signs beat says nothing of
-     * them. `enable` is called right in the click, as the browser asks, and
-     * gives the state after it. */
-    /** His own address on the web (`buddy.<slug>.lazurio.io`), shown on
-     * his phone beat; null where the page has none (no phone beat). */
-    buddyHost?: () => string | null;
-    notices?: Readonly<{
-      state: () => Promise<GuideNoticesState>;
-      enable: () => Promise<GuideNoticesState>;
-    }>;
     /** "Připojit Telegram": this dialog closes and that one opens; its
      * close ends the meeting. */
     telegram: () => void;
@@ -307,8 +294,7 @@ export function createBuddyDialog(
   /** Buddy GEN4: his own beats; the older Buddy's while not read. */
   const gen4 = () => !buddyOwnSignIn(options.facts().reading);
   /** Where his questions stand: after the beats; a tour has none. */
-  const host = () => options.buddyHost?.() ?? null;
-  const questionsAt = () => beatsOf(gen4(), host() !== null).length;
+  const questionsAt = () => beatsOf(gen4()).length;
   // Where the introduction stands: a beat, then his questions.
   let beat = 0;
   let draft: PersonaDraft = draftOf(null, "cs");
@@ -485,7 +471,6 @@ export function createBuddyDialog(
         ...options.apps(),
         // Buddy GEN4 has no sign-in and no Telegram of his own (#1137).
         telegram: buddyOwnSignIn(options.facts().reading),
-        buddyHost: host(),
       },
       copy,
     );
@@ -511,7 +496,7 @@ export function createBuddyDialog(
     const progress = element("span", "buddy-beat-progress");
     progress.setAttribute("role", "img");
     progress.setAttribute("aria-label", view.progress);
-    beatsOf(gen4(), host() !== null).forEach((_, n) => {
+    beatsOf(gen4()).forEach((_, n) => {
       const bar = element("i");
       if (n === view.index) bar.dataset.state = "on";
       else if (n < view.index) bar.dataset.state = "done";
@@ -695,44 +680,7 @@ export function createBuddyDialog(
           );
           list.append(item);
         });
-        const notices = noticesNode();
-        if (notices === null) return list;
-        const box = element("div", "buddy-beat-signs-box");
-        box.append(list, notices);
-        return box;
-      }
-      case "phone": {
-        // His window on a phone: his address at the top, as the phone's
-        // browser shows it, then his chat.
-        const phone = element("div", "buddy-beat-handset");
-        const bar = element("span", "buddy-beat-handset-address");
-        // A long address breaks after its dots, never inside a word.
-        const words = element("span", "buddy-beat-handset-host");
-        drawing.host.split(".").forEach((part, n) => {
-          if (n > 0) words.append(".", element("wbr"));
-          words.append(part);
-        });
-        bar.append(icon("lock"), words);
-        const head = element("span", "buddy-beat-handset-head");
-        const avatar = options.avatar();
-        if (avatar !== null) {
-          const picture = element("img");
-          picture.alt = "";
-          picture.decoding = "async";
-          picture.addEventListener("error", () => picture.remove(), {
-            once: true,
-          });
-          picture.src = avatar;
-          head.append(picture);
-        }
-        const chat = element("span", "buddy-beat-handset-chat");
-        chat.append(
-          element("span", "buddy-beat-msg buddy-beat-msg-mine"),
-          element("span", "buddy-beat-msg"),
-          element("span", "buddy-beat-msg buddy-beat-msg-short"),
-        );
-        phone.append(bar, head, chat);
-        return phone;
+        return list;
       }
       case "where": {
         const tiles = element("ul", "buddy-beat-where");
@@ -778,38 +726,6 @@ export function createBuddyDialog(
         return tiles;
       }
     }
-  }
-
-  /** The notices' row under his signs: Zapnout oznámení where the browser
-   * is still to ask, and how to turn them off; drawn again in place after
-   * the click. */
-  function noticesNode(): HTMLElement | null {
-    const notices = options.notices;
-    if (notices === undefined) return null;
-    const row = element("div", "buddy-beat-notices");
-    const draw = (state: GuideNoticesState) => {
-      const view = buddyNoticesView(state, options.copy());
-      const nodes: HTMLElement[] = [];
-      if (view.button !== null) {
-        const turnOn = button(view.button, () => {
-          turnOn.disabled = true;
-          void notices
-            .enable()
-            .catch(() => notices.state())
-            .then(draw, () => draw("unknown"));
-        });
-        nodes.push(turnOn);
-      }
-      if (view.line !== null)
-        nodes.push(element("p", "buddy-beat-notices-line", view.line));
-      row.replaceChildren(...nodes);
-      row.hidden = nodes.length === 0;
-    };
-    row.setAttribute("aria-live", "polite");
-    // Nothing until the state is read: no button that might be wrong.
-    row.hidden = true;
-    void notices.state().then(draw, () => draw("unknown"));
-    return row;
   }
 
   /** His questions after the beats, built once per visit: typing changes
@@ -1030,11 +946,7 @@ export function createBuddyDialog(
     // Pokračovat, which waits for the names and for ty or vy.
     const way =
       screen === "introduce"
-        ? introduceNav(beat, draft, options.locale(), {
-            gen4: gen4(),
-            tour,
-            phone: host() !== null,
-          })
+        ? introduceNav(beat, draft, options.locale(), { gen4: gen4(), tour })
         : null;
     if (way !== null) {
       if (way.back)
