@@ -38,7 +38,7 @@ import {
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
-  assignedEnvironments,
+  handoverRoutes,
   isEnvironmentId,
   type MachineBinding,
   machineIdentity,
@@ -99,7 +99,6 @@ import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
 import {
   type AccessServiceFetch,
   type AccessServiceLocation,
-  accessServiceOf,
   askTargets,
   type TargetsAnswer,
   utcInstant,
@@ -108,7 +107,13 @@ import {
   type EnvironmentRoute,
   recordedRoutes,
 } from "../ssh-access/environments";
-import { type RouteTest, routeCauses, testRoutes } from "../ssh-access/routes";
+import {
+  declaredServiceOf,
+  type RouteTest,
+  routeCauses,
+  testRoutes,
+  withOwnRoutes,
+} from "../ssh-access/routes";
 import {
   type ActivatableTool,
   activatableTools,
@@ -1288,7 +1293,7 @@ export async function observeRoutes(
   const { home, machine } = input;
   const hosted = machine !== null && home !== undefined;
   const service =
-    input.service !== undefined ? input.service : accessServiceOf(machine);
+    input.service !== undefined ? input.service : declaredServiceOf(machine);
   const configured =
     home === undefined || !hosted
       ? []
@@ -1301,10 +1306,10 @@ export async function observeRoutes(
   const expected: readonly EnvironmentRoute[] = !hosted
     ? []
     : service === null
-      ? assignedEnvironments(machine)
+      ? handoverRoutes(machine)
       : targets?.kind === "answered"
-        ? targets.targets
-        : [];
+        ? withOwnRoutes(targets.targets, service.own)
+        : (service.own ?? []);
   // Each route is tried as the expected route it was compared as, so a
   // replacement written meanwhile never lends it its result.
   const toTry = expected.filter(

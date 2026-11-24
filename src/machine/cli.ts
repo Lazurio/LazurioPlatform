@@ -12,10 +12,7 @@ import {
   FolderOperationBusyError,
   withFolderOperationLock,
 } from "../folder/lock";
-import {
-  assignedEnvironments,
-  type MachineBinding,
-} from "../folder/machine-binding";
+import { handoverRoutes, type MachineBinding } from "../folder/machine-binding";
 import { executionOs } from "../folder/platform";
 import {
   allowedPresets,
@@ -27,16 +24,14 @@ import {
   workspacePreset,
 } from "../folder/presets";
 import { refreshFolder } from "../folder/update-profile";
-import {
-  type AccessServiceLocation,
-  accessServiceOf,
-} from "../ssh-access/access-service";
+import type { AccessServiceLocation } from "../ssh-access/access-service";
 import {
   type EnvironmentSshLocation,
   writeEnvironmentRoutes,
 } from "../ssh-access/environments";
 import {
   commitRoutes,
+  declaredServiceOf,
   liveRoutesSource,
   type RoutesSeams,
   type RoutesWrite,
@@ -747,10 +742,13 @@ async function refreshAndRestart(
 //   0224, `accessServiceOf`), on any Machine: one synchronization with it
 //   (`syncEnvironmentRoutes`: the source key, its registration, the
 //   targets) and a try of each route it wrote (`testRoutes`),
-//   reported as `environmentRoutes`.
+//   reported as `environmentRoutes`. On a Work Environment the
+//   handover's own assigned peers are written beside its targets (decision
+//   F70, addendum of 2026-11-24; LazurioPlatform#1227).
 // - Otherwise the binding's own routes, exactly (decision F70, amendment of
-//   2026-11-03, point 6): a personal Machine's assigned peers (root decision
-//   0192, addendum of 2026-10-26), and on any other Machine none, so the
+//   2026-11-03, point 6): the assigned peers of a personal Machine (root
+//   decision 0192, addendum of 2026-10-26) or of a Work Environment (the
+//   sister-organization exception), and on any other Machine none, so the
 //   routes of a service whose declaration was removed go at once. Reported
 //   as `environmentSsh`; on a Machine other than a personal one only when
 //   there was something to remove or say.
@@ -772,7 +770,7 @@ export async function withEnvironmentSsh<
   result: Result,
   machine: MachineBinding,
   location: EnvironmentSshLocation,
-  service: AccessServiceLocation | null = accessServiceOf(machine),
+  service: AccessServiceLocation | null = declaredServiceOf(machine),
   seams: RoutesSeams,
 ) {
   if (!recordsThisBinding.has(result.kind)) return result;
@@ -793,10 +791,10 @@ export async function withEnvironmentSsh<
     return { ...result, environmentRoutes };
   }
   const personal = machine.kind === "personal-vm";
-  // The binding's own routes (a personal Machine's assigned peers, none on
-  // any other), written only while the live handover declares exactly these
+  // The binding's own routes (the assigned peers of a personal Machine or a
+  // Work Environment, none on any other), written only while the live handover declares exactly these
   // (`RoutesSource`, point 5).
-  const own = assignedEnvironments(machine);
+  const own = handoverRoutes(machine);
   const environmentSsh: RoutesWrite = await commitRoutes(
     location,
     own,

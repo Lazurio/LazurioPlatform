@@ -1,10 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import {
-  assignedEnvironments,
-  type MachineBinding,
-} from "../folder/machine-binding";
+import { handoverRoutes, type MachineBinding } from "../folder/machine-binding";
 import { machineBinding } from "../machine/binding";
 import {
   type MachineContextSource,
@@ -71,7 +68,35 @@ export type RoutesSource = AccessServiceLocation | readonly EnvironmentRoute[];
 
 export const routesSourceOf = (
   machine: MachineBinding | null | undefined,
-): RoutesSource => accessServiceOf(machine) ?? assignedEnvironments(machine);
+): RoutesSource => {
+  const service = accessServiceOf(machine);
+  if (service === null) return handoverRoutes(machine);
+  // A Work Environment keeps its own routes from the handover next to the
+  // service's (#1227); a personal Machine with a service takes the service's
+  // only, as before.
+  const own = machine?.kind === "workspace-vm" ? handoverRoutes(machine) : [];
+  return own.length === 0 ? service : Object.freeze({ ...service, own });
+};
+
+/** The service a binding declares, with its own routes alongside, or null. */
+export const declaredServiceOf = (
+  machine: MachineBinding | null | undefined,
+): AccessServiceLocation | null => {
+  const source = routesSourceOf(machine);
+  return Array.isArray(source) ? null : (source as AccessServiceLocation);
+};
+
+/** The service's routes and the Environment's own, the service's first and
+ * each Environment id once: a route the service gives wins over the same id
+ * from the handover. */
+export const withOwnRoutes = (
+  routes: readonly EnvironmentRoute[],
+  own: readonly EnvironmentRoute[] | undefined,
+): readonly EnvironmentRoute[] => {
+  if (own === undefined || own.length === 0) return routes;
+  const ids = new Set(routes.map((route) => route.environment));
+  return [...routes, ...own.filter((route) => !ids.has(route.environment))];
+};
 
 /** Reads the live handover's `RoutesSource`. Throws when the handover cannot
  * be read. */
@@ -156,7 +181,13 @@ const sameSource = (declared: RoutesSource, live: RoutesSource) =>
       JSON.stringify(declared.map(ownRoute)) ===
         JSON.stringify(live.map(ownRoute))
     : (declared as AccessServiceLocation).origin ===
-      (live as AccessServiceLocation).origin;
+        (live as AccessServiceLocation).origin &&
+      JSON.stringify(
+        ((declared as AccessServiceLocation).own ?? []).map(ownRoute),
+      ) ===
+        JSON.stringify(
+          ((live as AccessServiceLocation).own ?? []).map(ownRoute),
+        );
 const ownRoute = (route: EnvironmentRoute) => [
   route.environment,
   route.host,
@@ -216,10 +247,14 @@ export async function syncEnvironmentRoutes(
       ? await registerSourceKey(service, sourceKey.publicKey, seams.fetch)
       : { kind: "skipped" };
   const targets = await askTargets(service, seams.now, seams.fetch);
+  const written =
+    targets.kind === "answered"
+      ? withOwnRoutes(targets.targets, service.own)
+      : [];
   const ssh = await commitRoutes(location, service, seams.current, () =>
     targets.kind === "answered"
-      ? writeEnvironmentRoutes(location, targets.targets)
-      : pruneEnvironmentRoutes(location, seams.now()),
+      ? writeEnvironmentRoutes(location, written)
+      : pruneEnvironmentRoutes(location, seams.now(), service.own),
   );
   const synced = { sourceKey, registration, targets: targets.kind, ssh };
   if (
@@ -231,9 +266,7 @@ export async function syncEnvironmentRoutes(
   return {
     ...synced,
     tests: await testRoutes(
-      targets.targets.filter((route) =>
-        ssh.environments.includes(route.environment),
-      ),
+      written.filter((route) => ssh.environments.includes(route.environment)),
       location.home,
       seams.run,
       seams.now,
