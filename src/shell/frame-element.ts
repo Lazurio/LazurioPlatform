@@ -58,7 +58,7 @@ export function createFrameLayer(target: Document) {
       }
       if (host === null || root === null) {
         host = target.createElement("div");
-        host.dataset.lazurioFrame = "";
+        host.dataset.lazurioPageFrame = "";
         root = host.attachShadow({ mode: "open" });
         const sheet = new CSSStyleSheet();
         sheet.replaceSync(frameCss);
