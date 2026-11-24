@@ -1372,6 +1372,10 @@ const en = {
     "Chat did not turn {provider} on. Check the providers in Chat's Settings.",
   startAiChatOff:
     "Chat did not turn {provider} on. Check the providers in Chat's Settings.",
+  startAiChatModel:
+    "You are signed in, but Chat's default model could not be set. New threads may start on another model; pick the model in Chat.",
+  startAiChatModelOf:
+    "You are signed in, but Chat's default model could not be set to {ai}. New threads may start on another model; pick the model in Chat.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Connected as @{login}",
   startGithubConnectedPlain: "Connected",
@@ -3814,6 +3818,10 @@ const cs: Record<MessageKey, string> = {
     "Chat nezapnul {provider}. Zkontrolujte poskytovatele v Nastavení Chatu.",
   startAiChatOff:
     "Chat nezapnul {provider}. Zkontrolujte poskytovatele v Nastavení Chatu.",
+  startAiChatModel:
+    "Přihlášení proběhlo, ale výchozí model Chatu se nepodařilo nastavit. Nová vlákna můžou začínat na jiném modelu; model vyberte v Chatu.",
+  startAiChatModelOf:
+    "Přihlášení proběhlo, ale výchozí model Chatu se nepodařilo nastavit na {ai}. Nová vlákna můžou začínat na jiném modelu; model vyberte v Chatu.",
   startGithubTitle: "GitHub",
   startGithubConnected: "Připojeno jako @{login}",
   startGithubConnectedPlain: "Připojeno",

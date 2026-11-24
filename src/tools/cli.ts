@@ -353,9 +353,16 @@ export async function runToolsCommand(
       login: {
         ...base,
         // codex and claude (F19's addendum of 2026-10-15): the running
-        // services that read a new sign-in.
-        reload: (tool, signedIn) =>
-          reloadAiServices({ ...tools, tool, signedIn, env: context.env }),
+        // services that read a new sign-in, and on a hosted Environment
+        // the Chat defaults that follow it (F51's addendum of 2026-11-24).
+        reload: async (tool, signedIn) =>
+          reloadAiServices({
+            ...tools,
+            tool,
+            signedIn,
+            env: context.env,
+            folder: await context.hostedFolder?.().catch(() => undefined),
+          }),
         ...context.login,
       },
       write: context.write ?? ((line) => console.log(line)),

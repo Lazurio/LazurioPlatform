@@ -18559,6 +18559,40 @@ Fresh startup, repeated startup, custom model preservation and direct command
 refusals are the acceptance boundaries. Upstream standalone T3 stays unchanged
 when the managed Folder configuration is absent.
 
+### F51 addendum of 2026-11-24: the recommended model follows the AI signed in
+
+**Implemented (Lazurio/LazurioPlatform#1197).** The recommendation was always
+Codex's, whichever AI the person connected. Buddy GEN4's first thread is made on
+the Folder project's model, so where only Claude was signed in it was made on a
+Codex model. Without a Codex sign-in that thread is not expected to answer, but
+no turn was run on one: what the person sees there (an error, nothing, or a
+fallback of T3's) is not known.
+
+1. **Which model.** Where Codex answers that it cannot work (signed out or not
+   installed) and Claude Code answers signed in, the recommendation is T3's Claude
+   instance with its default chat model and effort (`claudeAgent`,
+   `claude-opus-5-5`, `effort: medium`; T3's model manifest). Codex provided by the
+   Organization, signed in, or not known keeps Codex's recommendation exactly as
+   before. Claude Code is read first and Codex's sign-in only where Claude is
+   signed in, so the usual reading starts Codex once, for its configuration.
+2. **One rule for every reader.** `lazurio chat defaults` (Machines' apply after
+   installation and the doctor's reading) decides with the same rule, so a reading
+   after a Claude-only sign-in never calls Claude's model outdated and never writes
+   Codex's back.
+3. **When it is applied.** After every confirmed sign-in of Codex or Claude
+   (`lazurio tools login`, the Launchpad's sign-in), on a hosted Environment, the
+   Chat defaults are applied again. T3 still keeps a model the person chose; it
+   changes only an unset model or its own last write. A workstation, which has no
+   managed Chat, is never written. The sign-in's answer says what became of the
+   model (`chat`) and whose model the Platform recommends there (`ai`), which is
+   not always the AI just signed in: with Codex signed in, a Claude sign-in keeps
+   Codex's. `lazurio tools login` names it. A recommended model that was not set
+   leaves the sign-in standing but not complete, and both `lazurio tools login`
+   and Začínáme say which model could not be set and the next step.
+4. **Not covered.** A thread made before the sign-in keeps the model it was made
+   on. That includes Buddy's first thread if it was opened before the sign-in.
+   Following the sign-in there belongs to T3 Code.
+
 ## F52 — One module generator in the Platform; a person's own modules in their Personalspace
 
 **Decided by the Operator 2026-10-13 (root decision 0171, addendum of 2026-10-13;

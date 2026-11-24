@@ -150,7 +150,27 @@ function servicesOf(value: unknown): AiServices | undefined {
       reason: t3.reason as "not-running" | "refused" | "unreadable" | "timeout",
     };
   if (reload === undefined) return undefined;
-  return { ...(appServer === undefined ? {} : { appServer }), t3: reload };
+  const chat =
+    isRecord(value.chat) &&
+    ["managed", "custom", "outdated", "unavailable"].includes(
+      value.chat.state as string,
+    )
+      ? {
+          state: value.chat.state as
+            | "managed"
+            | "custom"
+            | "outdated"
+            | "unavailable",
+          ...(typeof value.chat.ai === "string" && isAiProvider(value.chat.ai)
+            ? { ai: value.chat.ai }
+            : {}),
+        }
+      : undefined;
+  return {
+    ...(appServer === undefined ? {} : { appServer }),
+    t3: reload,
+    ...(chat === undefined ? {} : { chat }),
+  };
 }
 
 /** What one answer of the login routes means for the step: the next state,
