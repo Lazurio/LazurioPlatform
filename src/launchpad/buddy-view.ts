@@ -1,6 +1,10 @@
 import { namesConfirmed } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
-import type { BuddyNoticesState } from "../shell/buddy-notice";
+import {
+  type BuddyNoticesChoice,
+  type BuddyNoticesState,
+  buddyNoticesState,
+} from "../shell/buddy-notice";
 import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
 import { namesFromInput, type PersonNames } from "./buddy-names";
@@ -994,6 +998,30 @@ export function keepIntroduced(
  * `blocked` by the browser; `unsupported` without notices. */
 export type { BuddyNoticesState };
 
+/** What the guide knows of his notices: the shell's state, or `unknown`
+ * where the Environment's choice could not be read. The shell's own reading
+ * takes an unreadable choice as on (`readBuddyNoticesState`), which is right
+ * for sending notices but would let the guide claim they are on: the guide
+ * says it does not know instead (review of #1166). */
+export type GuideNoticesState = BuddyNoticesState | "unknown";
+
+/** The guide's reading: the browser's permission first (no notices, or
+ * blocked, needs no choice), then the Environment's choice; a choice that
+ * cannot be read is `unknown`, never on. */
+export async function readGuideNoticesState(
+  permission: () => NotificationPermission | null,
+  readChoice: () => Promise<BuddyNoticesChoice>,
+): Promise<GuideNoticesState> {
+  const allowed = permission();
+  if (allowed === null) return "unsupported";
+  if (allowed === "denied") return "blocked";
+  try {
+    return buddyNoticesState(allowed, await readChoice());
+  } catch {
+    return "unknown";
+  }
+}
+
 /** The notices' row under his signs (Matěj, 2026-11-21: notices on from
  * the start, and in the guide how to turn them off): one click asks the
  * browser where it is still to ask; how to turn them off is said whether
@@ -1005,10 +1033,17 @@ export type BuddyNoticesView = Readonly<{
 }>;
 
 export function buddyNoticesView(
-  state: BuddyNoticesState,
+  state: GuideNoticesState,
   copy: Copy,
 ): BuddyNoticesView {
   switch (state) {
+    // Not known: no claim either way, and the click that turns them on
+    // (it saves the choice again and reads it after).
+    case "unknown":
+      return {
+        button: copy.buddyNoticesTurnOn,
+        line: copy.buddyNoticesUnknown,
+      };
     case "off":
       return { button: copy.buddyNoticesTurnOn, line: copy.buddyNoticesHowOff };
     case "on":

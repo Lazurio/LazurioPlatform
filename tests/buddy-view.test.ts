@@ -35,6 +35,7 @@ import {
   parseBuddyReading,
   parseTelegram,
   personaBody,
+  readGuideNoticesState,
   saveLine,
   secondsLeft,
   signInScreen,
@@ -1584,4 +1585,39 @@ test("Buddy GEN4's phone beat: after his signs, only where the page knows his ad
   expect(introduceNav(7, draft, "cs", { gen4: true, phone: true }).next).toBe(
     "confirm",
   );
+});
+
+test("the guide's notices reading never takes an unreadable choice as on (review of #1166): it says it does not know and offers the click again", async () => {
+  const fail = async (): Promise<"on" | "off"> => {
+    throw new Error("The choice was not read");
+  };
+  const reads: string[] = [];
+  const read = (choice: "on" | "off") => async () => {
+    reads.push(choice);
+    return choice;
+  };
+  // The browser allows them, the choice cannot be read: not "on".
+  expect(await readGuideNoticesState(() => "granted", fail)).toBe("unknown");
+  expect(await readGuideNoticesState(() => "default", fail)).toBe("unknown");
+  // Read: the shell's own rule.
+  expect(await readGuideNoticesState(() => "granted", read("on"))).toBe("on");
+  expect(await readGuideNoticesState(() => "granted", read("off"))).toBe("off");
+  expect(await readGuideNoticesState(() => "default", read("on"))).toBe("off");
+  // No notices, or blocked: no choice needed.
+  reads.length = 0;
+  expect(await readGuideNoticesState(() => null, read("on"))).toBe(
+    "unsupported",
+  );
+  expect(await readGuideNoticesState(() => "denied", read("on"))).toBe(
+    "blocked",
+  );
+  expect(reads).toEqual([]);
+  // Unknown: no claim either way, the menu named, and the click again.
+  expect(buddyNoticesView("unknown", cs)).toEqual({
+    button: "Zapnout oznámení",
+    line: "Nepodařilo se zjistit, jestli jsou oznámení zapnutá. Ověříte to v nabídce u postavičky (Zobrazovat oznámení).",
+  });
+  expect(cs.buddyNoticesUnknown).toContain(shellMessages("cs").buddyNotices);
+  expect(en.buddyNoticesUnknown).toContain(shellMessages("en").buddyNotices);
+  expect(cs.buddyNoticesUnknown).not.toContain(cs.buddyNoticesAreOn);
 });

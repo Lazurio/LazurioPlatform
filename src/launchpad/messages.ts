@@ -1546,6 +1546,8 @@ const en = {
   buddyNoticesAreOn:
     "Notifications are on. You can turn them off in the menu at his figure (Show notifications).",
   buddyNoticesBlockedHere: "The browser blocks notifications",
+  buddyNoticesUnknown:
+    "Could not find out whether notifications are on. You can check in the menu at his figure (Show notifications).",
   buddyTourAgain: "Watch the introduction",
   buddyWhereVy: "You'll find me here, bottom right, in every app.",
   buddyWhereTy: "You'll find me here, bottom right, in every app.",
@@ -3976,6 +3978,8 @@ const cs: Record<MessageKey, string> = {
   buddyNoticesAreOn:
     "Oznámení jsou zapnutá. Vypnout je můžete v nabídce u postavičky (Zobrazovat oznámení).",
   buddyNoticesBlockedHere: "Oznámení prohlížeč blokuje",
+  buddyNoticesUnknown:
+    "Nepodařilo se zjistit, jestli jsou oznámení zapnutá. Ověříte to v nabídce u postavičky (Zobrazovat oznámení).",
   buddyTourAgain: "Přehrát představení",
   buddyWhereVy: "Najdete mě tady vpravo dole, v každé aplikaci.",
   buddyWhereTy: "Najdeš mě tady vpravo dole, v každé aplikaci.",

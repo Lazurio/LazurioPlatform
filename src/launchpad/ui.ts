@@ -8,7 +8,7 @@ import {
 import {
   browserNoticesSeams,
   enableBuddyNotices,
-  readBuddyNoticesState,
+  readLaunchpadNoticesChoice,
 } from "../shell/buddy-notice";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
@@ -50,7 +50,12 @@ import { createBuddyDialog, tickCountdowns } from "./buddy-dialog";
 import { createBuddyIntroduction } from "./buddy-introduction";
 import { createBuddyPanel } from "./buddy-panel";
 import { createTelegramDialog } from "./buddy-telegram-dialog";
-import { type BuddyStepFacts, buddyFact, meetStart } from "./buddy-view";
+import {
+  type BuddyStepFacts,
+  buddyFact,
+  meetStart,
+  readGuideNoticesState,
+} from "./buddy-view";
 import { createCatalogPanel, type NewModuleOutcome } from "./catalog-panel";
 import type { PublicEntry } from "./chat";
 import {
@@ -971,6 +976,12 @@ const startPanel = createStartPanel({
 });
 // The dialog "Seznamte se s Buddym" and Nastavení → Buddy (decision F65).
 const buddyAvatar = () => buddyAvatarSource(entry?.buddyOrigin);
+/** His notices as the guide shows them (`readGuideNoticesState`). */
+const guideNotices = () =>
+  readGuideNoticesState(
+    browserNoticesSeams(null).permission,
+    async () => (await readLaunchpadNoticesChoice()).choice,
+  );
 /** His own address on the web, as the person types it on a phone
  * (`buddy.<slug>.lazurio.io`); null without one. */
 const buddyHost = (): string | null => {
@@ -1021,13 +1032,14 @@ const buddyDialog = createBuddyDialog({
   closed: () => firstRun(),
   introduced: () => keepBuddyIntroduced(),
   buddyHost,
-  // His notices under his signs (Matěj, 2026-11-21): the shell's own state
-  // and its one function that turns them on, called right in the click.
+  // His notices under his signs (Matěj, 2026-11-21): the shell's one
+  // function that turns them on, called right in the click, and the guide's
+  // reading, which says it does not know where the choice cannot be read.
   notices: {
-    state: () => readBuddyNoticesState(),
+    state: () => guideNotices(),
     enable: () =>
       enableBuddyNotices(browserNoticesSeams(browserStore())).then(() =>
-        readBuddyNoticesState(),
+        guideNotices(),
       ),
   },
   telegram: () => telegramDialog.open(undefined, "meeting"),

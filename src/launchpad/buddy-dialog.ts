@@ -1,6 +1,5 @@
 import {
   type BeatDrawing,
-  type BuddyNoticesState,
   type BuddyPart,
   type BuddyStepFacts,
   beatsOf,
@@ -10,6 +9,7 @@ import {
   type Countdown,
   countdownText,
   draftOf,
+  type GuideNoticesState,
   type IntroduceScreen,
   introduceNav,
   introduceScreen,
@@ -269,7 +269,7 @@ export function createBuddyDialog(
     /** Buddy GEN4's introduction was shown to the end of its first beat:
      * the page keeps that the person has seen it. */
     introduced: () => void;
-    /** His notices on this origin (the shell's `readBuddyNoticesState` and
+    /** His notices on this origin (the guide's `readGuideNoticesState` and the shell's
      * `enableBuddyNotices`); without it his signs beat says nothing of
      * them. `enable` is called right in the click, as the browser asks, and
      * gives the state after it. */
@@ -277,8 +277,8 @@ export function createBuddyDialog(
      * his phone beat; null where the page has none (no phone beat). */
     buddyHost?: () => string | null;
     notices?: Readonly<{
-      state: () => Promise<BuddyNoticesState>;
-      enable: () => Promise<BuddyNoticesState>;
+      state: () => Promise<GuideNoticesState>;
+      enable: () => Promise<GuideNoticesState>;
     }>;
     /** "Připojit Telegram": this dialog closes and that one opens; its
      * close ends the meeting. */
@@ -787,7 +787,7 @@ export function createBuddyDialog(
     const notices = options.notices;
     if (notices === undefined) return null;
     const row = element("div", "buddy-beat-notices");
-    const draw = (state: BuddyNoticesState) => {
+    const draw = (state: GuideNoticesState) => {
       const view = buddyNoticesView(state, options.copy());
       const nodes: HTMLElement[] = [];
       if (view.button !== null) {
@@ -796,7 +796,7 @@ export function createBuddyDialog(
           void notices
             .enable()
             .catch(() => notices.state())
-            .then(draw, () => draw("unsupported"));
+            .then(draw, () => draw("unknown"));
         });
         nodes.push(turnOn);
       }
@@ -808,7 +808,7 @@ export function createBuddyDialog(
     row.setAttribute("aria-live", "polite");
     // Nothing until the state is read: no button that might be wrong.
     row.hidden = true;
-    void notices.state().then(draw, () => draw("unsupported"));
+    void notices.state().then(draw, () => draw("unknown"));
     return row;
   }
 
