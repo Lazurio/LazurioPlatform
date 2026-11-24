@@ -1,5 +1,6 @@
 import { namesConfirmed } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
+import type { BuddyNoticesState } from "../shell/buddy-notice";
 import { keepTogether } from "../shell/messages";
 import { codexDeviceCode, codexDevicePage } from "../tools/ai";
 import { namesFromInput, type PersonNames } from "./buddy-names";
@@ -988,11 +989,10 @@ export function keepIntroduced(
 }
 
 /** Buddy's notices on this page's origin, as the shell reads them
- * (`readBuddyNoticesState`, Lazurio/LazurioPlatform#1167): `on` only where
- * the browser allows them and the person's choice is on; `off` where a
- * click is still to turn them on (the browser to ask, or the choice turned
- * off); `blocked` by the browser; `unsupported` without notices. */
-export type BuddyNoticesState = "on" | "off" | "blocked" | "unsupported";
+ * (`readBuddyNoticesState`): `on` only where the browser allows them and the
+ * person's choice is on; `off` where a click is still to turn them on;
+ * `blocked` by the browser; `unsupported` without notices. */
+export type { BuddyNoticesState };
 
 /** The notices' row under his signs (Matěj, 2026-11-21: notices on from
  * the start, and in the guide how to turn them off): one click asks the

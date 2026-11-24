@@ -1,5 +1,15 @@
 import { catalogOrganizationKey } from "../organizations/catalog-selection";
-import { pageAccountJson, pageReentry, sessionRefused } from "../shell/account";
+import {
+  browserStore,
+  pageAccountJson,
+  pageReentry,
+  sessionRefused,
+} from "../shell/account";
+import {
+  browserNoticesSeams,
+  enableBuddyNotices,
+  readBuddyNoticesState,
+} from "../shell/buddy-notice";
 import { buddyAvatarSource } from "../shell/buddy-protocol";
 import {
   currentEnvironment,
@@ -1011,6 +1021,15 @@ const buddyDialog = createBuddyDialog({
   closed: () => firstRun(),
   introduced: () => keepBuddyIntroduced(),
   buddyHost,
+  // His notices under his signs (Matěj, 2026-11-21): the shell's own state
+  // and its one function that turns them on, called right in the click.
+  notices: {
+    state: () => readBuddyNoticesState(),
+    enable: () =>
+      enableBuddyNotices(browserNoticesSeams(browserStore())).then(() =>
+        readBuddyNoticesState(),
+      ),
+  },
   telegram: () => telegramDialog.open(undefined, "meeting"),
 });
 /** The meeting with Buddy is over ("Teď ne", Hotovo, or Telegram's dialog
