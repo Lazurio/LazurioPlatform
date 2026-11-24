@@ -38,7 +38,7 @@ import {
 } from "../executor/flow";
 import { processExecutorHost } from "../executor/host";
 import {
-  assignedEnvironments,
+  handoverRoutes,
   isEnvironmentId,
   type MachineBinding,
   machineIdentity,
@@ -99,7 +99,6 @@ import { collectRecovery, type RecoveryEnvironment } from "../recover/recover";
 import {
   type AccessServiceFetch,
   type AccessServiceLocation,
-  accessServiceOf,
   askTargets,
   type TargetsAnswer,
   utcInstant,
@@ -108,7 +107,13 @@ import {
   type EnvironmentRoute,
   recordedRoutes,
 } from "../ssh-access/environments";
-import { type RouteTest, routeCauses, testRoutes } from "../ssh-access/routes";
+import {
+  declaredServiceOf,
+  type RouteTest,
+  routeCauses,
+  testRoutes,
+  withOwnRoutes,
+} from "../ssh-access/routes";
 import {
   type ActivatableTool,
   activatableTools,
@@ -1155,8 +1160,10 @@ export type RouteFacts = Readonly<{
   /** The service's answer, when it was asked. */
   targets: TargetsAnswer | null;
   /** The routes this Environment should have now: the service's targets
-   * when it answered, else (no declared service) the handover's assigned
-   * Work Environments; empty when neither is known. */
+   * when it answered, with the handover's own routes under ids it did not
+   * give; else (no declared service) the handover's assigned Work
+   * Environments; while a declared service does not answer, the handover's
+   * own routes under ids no unexpired service route holds. */
   expected: readonly EnvironmentRoute[];
   /** The routes the managed config records now, in full. */
   configured: readonly EnvironmentRoute[];
@@ -1249,9 +1256,13 @@ export function routeChecks(facts: RouteFacts): DoctorCheck[] {
       check("access-service", "skipped", "routes-not-tested"),
       ...untested(facts.configured.length),
     ];
+  // The service's own routes are not blamed while it does not answer; the
+  // handover's own routes (a Work Environment's assigned peers, decision
+  // F70's addendum of 2026-11-24) never depended on it and are checked.
   if (facts.targets.kind !== "answered")
     return [
       check("access-service", "warn", `access-service-${facts.targets.kind}`),
+      ...facts.expected.map(each),
     ];
   return [
     check("access-service", "ok", undefined, {
@@ -1282,13 +1293,33 @@ export type RouteObservation = Readonly<{
  * without `--routes`; with it, one `GET /v1/targets` and one try of each
  * expected route that is configured as expected (`testRoutes`: what
  * `ssh <id>` resolves to, then that exact route). Never writes. */
+// While the service does not answer, an unexpired route it gave earlier
+// keeps its id (`pruneEnvironmentRoutes`), so the handover's own route under
+// that id is not the one expected.
+function ownWithoutService(
+  own: readonly EnvironmentRoute[] | undefined,
+  configured: readonly EnvironmentRoute[],
+  now: number,
+): readonly EnvironmentRoute[] {
+  const held = new Set(
+    configured
+      .filter((route) => {
+        const until =
+          route.validUntil === undefined ? null : utcInstant(route.validUntil);
+        return until !== null && until > now;
+      })
+      .map((route) => route.environment),
+  );
+  return (own ?? []).filter((route) => !held.has(route.environment));
+}
+
 export async function observeRoutes(
   input: RouteObservation,
 ): Promise<RouteFacts> {
   const { home, machine } = input;
   const hosted = machine !== null && home !== undefined;
   const service =
-    input.service !== undefined ? input.service : accessServiceOf(machine);
+    input.service !== undefined ? input.service : declaredServiceOf(machine);
   const configured =
     home === undefined || !hosted
       ? []
@@ -1301,10 +1332,10 @@ export async function observeRoutes(
   const expected: readonly EnvironmentRoute[] = !hosted
     ? []
     : service === null
-      ? assignedEnvironments(machine)
+      ? handoverRoutes(machine)
       : targets?.kind === "answered"
-        ? targets.targets
-        : [];
+        ? withOwnRoutes(targets.targets, service.own)
+        : ownWithoutService(service.own, configured, input.now());
   // Each route is tried as the expected route it was compared as, so a
   // replacement written meanwhile never lends it its result.
   const toTry = expected.filter(

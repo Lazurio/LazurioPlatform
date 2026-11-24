@@ -3,7 +3,7 @@ import { constants } from "node:fs";
 import { lstat, mkdir, open, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  assignedEnvironments,
+  handoverRoutes,
   type MachineBinding,
   type MachinePeerHostKey,
 } from "../folder/machine-binding";
@@ -15,7 +15,9 @@ import { utcInstant } from "./access-service";
 // points (c) to (e), plan DEV-6676 P2). The routes come from one of two
 // sources, never both: the access service's `GET /v1/targets` when the
 // handover declares the service (`access-service.ts`, `routes.ts`), else a
-// personal Machine's assigned peers in the recorded binding. This module
+// personal Machine's assigned peers in the recorded binding; a Work
+// Environment's assigned peers of the sister-organization exception stand
+// next to the service's (#1227). This module
 // writes them, and only them, into the account's SSH configuration:
 //
 // - `~/.ssh/config.d/lazurio-environments.conf` (0600), one `Host` block per
@@ -300,15 +302,18 @@ function includesGlobally(config: Buffer): boolean {
   return false;
 }
 
-/** Writes the person's SSH config for the assigned peers of this personal
- * Machine's binding, or removes it when there are none. Any other Machine is
- * left alone: its routes come only from the access service. */
+/** Writes the SSH config for the handover's own routes of this binding (a
+ * personal Machine's assigned peers, a Work Environment's assigned peers of
+ * the sister-organization exception, #1227), or removes it when there are
+ * none. Any other Machine is left alone: its routes come only from the
+ * access service. */
 export async function writeEnvironmentSsh(
   location: EnvironmentSshLocation,
   machine: MachineBinding,
 ): Promise<EnvironmentSshResult> {
-  if (machine.kind !== "personal-vm") return { kind: "none" };
-  return writeEnvironmentRoutes(location, assignedEnvironments(machine));
+  if (machine.kind !== "personal-vm" && machine.kind !== "workspace-vm")
+    return { kind: "none" };
+  return writeEnvironmentRoutes(location, handoverRoutes(machine));
 }
 
 /** Writes the SSH config for exactly these routes, or removes it when there
@@ -536,18 +541,26 @@ async function readRecordedRoutes(
 }
 
 /** Without an answer of the service: keeps only the recorded routes whose
- * deadline is still ahead, and adds nothing. A route without a deadline
- * (written from the handover) is not the service's and goes too. */
+ * deadline is still ahead, and adds nothing of the service's. A recorded
+ * route without a deadline (written from the handover) is not the service's
+ * and goes too; a Work Environment's own routes from the current handover
+ * (`own`, #1227) are written again next to what is kept, the kept service
+ * route winning for the same id. */
 export async function pruneEnvironmentRoutes(
   location: EnvironmentSshLocation,
   now: number,
+  own: readonly EnvironmentRoute[] = [],
 ): Promise<EnvironmentSshResult> {
   const kept = (await recordedRoutes(location)).filter((route) => {
     const until =
       route.validUntil === undefined ? null : utcInstant(route.validUntil);
     return until !== null && until > now;
   });
-  return writeEnvironmentRoutes(location, kept);
+  const ids = new Set(kept.map((route) => route.environment));
+  return writeEnvironmentRoutes(location, [
+    ...kept,
+    ...own.filter((route) => !ids.has(route.environment)),
+  ]);
 }
 
 /** Without a declared service (decision F70, amendment of 2026-11-03,

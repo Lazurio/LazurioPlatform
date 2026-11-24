@@ -7,6 +7,7 @@ import {
   isEnvironmentId,
   isHostname,
 } from "../folder/machine-binding";
+import type { EnvironmentRoute } from "./environments";
 
 // The source side of root decision 0224: the access service on the home
 // Conglomerate Host (`lazurio-access-service`, Machines
@@ -29,7 +30,12 @@ import {
 
 /** Where this Environment's home access service answers: `http://`, a
  * tailnet DNS name and a port, from the handover only. */
-export type AccessServiceLocation = Readonly<{ origin: string }>;
+export type AccessServiceLocation = Readonly<{
+  origin: string;
+  /** A Work Environment's own routes from the handover, written next to the
+   * service's (`handoverRoutes`, #1227); absent or empty elsewhere. */
+  own?: readonly EnvironmentRoute[];
+}>;
 
 export { isAccessServiceOrigin };
 

@@ -179,6 +179,30 @@ export function assignedEnvironments(
   machine: MachineBinding | null | undefined,
 ): readonly AssignedEnvironment[] {
   if (machine?.kind !== "personal-vm") return [];
+  return assignedPeersOf(machine);
+}
+
+/** The handover's own SSH routes of this Machine: a personal Machine's
+ * assigned peers (`assignedEnvironments`), and a Work Environment's assigned
+ * peers, which Machines projects only for the source of the Owner's named
+ * `sister-organization-environment` exception (Machines
+ * `SISTER-ORGANIZATION-ENVIRONMENT-SOURCE.md`, "The source's handover":
+ * "the Platform writes `Host <id>` with the pinned host key"; #1227). The
+ * access service derives nothing for that kind, so on a Work Environment
+ * these routes stand next to the service's (`routesSourceOf`). Empty on any
+ * other Machine. Only for SSH routes: the Folder's texts and T3 links keep
+ * `assignedEnvironments`. */
+export function handoverRoutes(
+  machine: MachineBinding | null | undefined,
+): readonly AssignedEnvironment[] {
+  if (machine?.kind !== "personal-vm" && machine?.kind !== "workspace-vm")
+    return [];
+  return assignedPeersOf(machine);
+}
+
+function assignedPeersOf(
+  machine: MachineBinding,
+): readonly AssignedEnvironment[] {
   const seen = new Set<string>();
   const found: AssignedEnvironment[] = [];
   for (const peer of machine.relationships?.peers ?? []) {

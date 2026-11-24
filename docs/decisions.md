@@ -26629,6 +26629,47 @@ and after `ssh -G`),
 `tests/access-service-routes.test.ts` (the commands' tries, and a route replaced between
 its write and its try), `tests/doctor.test.ts`.
 
+### F70 addendum of 2026-11-24: a Work Environment's assigned peers beside the service
+
+**Implemented (Lazurio/LazurioPlatform#1227).** The Owner's sister-organization exception
+(2026-11-17; Machines `workloads/conglomerate-host/SISTER-ORGANIZATION-ENVIRONMENT-SOURCE.md`)
+projects a peer of another Organization with `access: "assigned"` into a Work
+Environment's handover, with its Environment id and pinned host key, and that contract
+says the Platform writes `Host <id>` for it. Until now only a personal Machine read its
+assigned peers (point 6), and a Work Environment with a declared service wrote only the
+service's targets, which derive nothing for such a peer. So the Work Environment got no
+route.
+
+1. **Which peers.** `handoverRoutes` reads the handover's assigned peers on a personal
+   Machine (as before) and on a Work Environment; on any other Machine none. The Folder's
+   lists of the person's assigned Work Environments (AGENTS.md, the manual, the T3 links)
+   stay personal-only (`assignedEnvironments`): a Work Folder does not present them as the
+   person's own.
+2. **Without a declared service** a Work Environment writes exactly these routes, as a
+   personal Machine does (point 6, amendment of 2026-11-03).
+3. **With a declared service** a Work Environment writes the service's targets and, beside
+   them, its handover's assigned peers under ids the service did not give: the service's
+   target wins for the same Environment id. Without an answer the service's recorded
+   routes stay until their deadline (point 5) and the handover's own routes stay as the
+   handover declares them, because they never depended on the service. This narrows
+   point 6's "the service where declared, the handover otherwise" for this one case; a
+   personal Machine with a declared service keeps only the service's routes.
+4. **The commit guard** (point 5 of the amendment of 2026-11-03) compares the handover's
+   own routes too, so a live handover that moved or removed the peer supersedes the write.
+5. **The doctor** expects the service's targets with the handover's own routes added the
+   same way. While the service does not answer it reports that, as before, and beside it
+   each of the handover's own routes, tried and named like any other: they never
+   depended on the service. An own route under an id that an unexpired route of the
+   service still holds is not expected then, as the write keeps the service's route.
+   The command says the same: none of the service's routes was added, and of each of the
+   handover's own routes what the files now record: written as declared, held by the
+   service's earlier route until its deadline, or not written because the write was
+   refused or failed.
+
+When the access service derives these routes itself, the handover's copy becomes a
+duplicate under the same id and the service's target is the one written; nothing else
+changes. Tests: `tests/work-environment-assigned-routes.test.ts`.
+
 ## F71 — Phone through ChatGPT: Settings → Connections pairs the ChatGPT app with the Codex app-server's remote control
 
 **Proposed 2026-11-03 (root decision 0215; Lazurio/LazurioPlatform#657, #720).
