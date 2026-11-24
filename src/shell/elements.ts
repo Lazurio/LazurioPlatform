@@ -38,7 +38,9 @@ import {
   shellSchema,
 } from "./contract";
 import { createDocumentReads, readShellDocumentJson } from "./document-read";
+import { appVersionOf, versionFrame } from "./env-frame";
 import { installShellFonts } from "./fonts";
+import { frameElement } from "./frame-element";
 import {
   createGuide,
   type GuideBuddy,
@@ -1963,6 +1965,30 @@ export function defineShellElements(): void {
     );
   if (!customElements.get("lazurio-buddy"))
     customElements.define("lazurio-buddy", LazurioBuddy);
+  if (!customElements.get("lazurio-frame"))
+    customElements.define(
+      "lazurio-frame",
+      frameElement({
+        // The page's own Environment from its document, the viewer from the
+        // account (0248's addendum): a Module's app is framed even before the
+        // document arrives, with its version alone.
+        frame: (version, lang) => {
+          const shell = state.drawn();
+          const here = shell?.environments.find(
+            (environment) => environment.id === shell.current,
+          );
+          const locale = (lang ?? shell?.locale ?? "cs") === "en" ? "en" : "cs";
+          return versionFrame(
+            here,
+            state.account()?.identity ?? null,
+            appVersionOf(version),
+            locale,
+          );
+        },
+        listen: (changed) => state.listen(changed),
+        request: requestDocument,
+      }),
+    );
   if (!customElements.get("lazurio-environment"))
     customElements.define(
       "lazurio-environment",

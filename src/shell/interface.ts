@@ -81,6 +81,10 @@ export const shellElementInterface = Object.freeze({
     // One Environment named as the shell names it (F39's addendum of
     // 2026-10-12): its id (absent: the page's own) and the language.
     "lazurio-environment": Object.freeze(["environment", "lang", "space"]),
+    // The frame of decision 0248's addendum and of 0249's addendum of
+    // 2026-11-22 (additive in v1): the version of a Module's app ("staging"
+    // or "dev"; absent on any other page) and the language.
+    "lazurio-frame": Object.freeze(["version", "lang"]),
   }),
   /** Values of `active` on `<lazurio-column-head>`: the app the head sits
    * in, or `settings` inside the Settings its gear opens. */
