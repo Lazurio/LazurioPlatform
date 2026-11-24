@@ -215,6 +215,9 @@ export function createShellState(options: ShellStateOptions) {
      * page); null otherwise. The rail draws the logo and the sign-in key
      * from it. */
     signedOut: (): ShellSignedOut | null => signedOut,
+    /** The person's account as read, or null; its `identity` decides
+     * whose Environment a page is (`<lazurio-frame>`, env-frame.ts). */
+    account: (): ShellAccount | null => account,
     /** The account's last visit per space of the drawn document. */
     lastBySpace: (): ReadonlyMap<string, AccountVisit> => lastBySpace,
     /** Calls `listener` after every change; returns its removal. */

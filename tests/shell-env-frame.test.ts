@@ -7,7 +7,13 @@ import {
   type ShellEnvironment,
   type ShellIdentity,
 } from "../src/shell/contract";
-import { envFrame, sameIdentity } from "../src/shell/env-frame";
+import {
+  appVersionOf,
+  envFrame,
+  sameIdentity,
+  versionFrame,
+} from "../src/shell/env-frame";
+import { frameCss } from "../src/shell/frame-styles";
 import { bindings } from "./fixtures/machine-bindings";
 
 // The frame of decision 0248's addendum of 2026-11-15 and 0180's: a page of
@@ -338,5 +344,104 @@ describe("the identity the Launchpad writes (ownerIdentity)", () => {
       envFrame(environment, { subject: matejSubject, githubId: 12345 })?.tone,
     ).toBe("person");
     expect(envFrame(environment, null)?.tone).toBe("person");
+  });
+});
+
+// The version's frame (0249's addendum of 2026-11-22, decided 2026-11-23),
+// as the approved prototype draws it (LazurioDevelopment
+// prototypes-lazurio#149): a Module's app blue with "STAGING" solid or
+// "DEV" dashed; a shared Environment blue with its label; another person's
+// red with its label; the person's own page outside an app nothing.
+describe("versionFrame", () => {
+  const own = env({
+    assignee: "matej",
+    assigneeName: "Matěj Example",
+    ownerIdentity: matej,
+  });
+  const janas = env({
+    id: "jana-env",
+    assignee: "jana",
+    assigneeName: "Jana Example",
+    ownerIdentity: jana,
+  });
+  const team = env({
+    id: "team-env",
+    kind: "team",
+    label: "Výroba",
+    name: "Výroba",
+  });
+
+  test("STAGING and DEV on the person's own Environment: blue, the version alone", () => {
+    expect(versionFrame(own, matej, "staging", "cs")).toEqual({
+      tone: "blue",
+      dashed: false,
+      version: "STAGING",
+      environment: null,
+    });
+    expect(versionFrame(own, matej, "dev", "cs")).toEqual({
+      tone: "blue",
+      dashed: true,
+      version: "DEV",
+      environment: null,
+    });
+  });
+
+  test("a shared Environment stays blue and its label says so; another person's is red", () => {
+    expect(versionFrame(team, matej, "staging", "cs")).toEqual({
+      tone: "blue",
+      dashed: false,
+      version: "STAGING",
+      environment: "Týmové Prostředí · Výroba",
+    });
+    expect(versionFrame(janas, matej, "dev", "cs")).toEqual({
+      tone: "red",
+      dashed: true,
+      version: "DEV",
+      environment: "Jana Example · Pracovní Prostředí",
+    });
+    expect(versionFrame(janas, matej, "staging", "en")?.environment).toBe(
+      "Jana Example · Work Environment",
+    );
+  });
+
+  test("outside a Module's app only 0248's frame: none on the person's own", () => {
+    expect(versionFrame(own, matej, null, "cs")).toBeNull();
+    expect(versionFrame(team, matej, null, "cs")).toEqual({
+      tone: "blue",
+      dashed: false,
+      version: null,
+      environment: "Týmové Prostředí · Výroba",
+    });
+    expect(versionFrame(janas, matej, null, "cs")?.tone).toBe("red");
+  });
+
+  test("an unknown page or viewer is framed, never left out", () => {
+    // No document yet: a Module's app still shows its version.
+    expect(versionFrame(undefined, null, "staging", "cs")).toEqual({
+      tone: "blue",
+      dashed: false,
+      version: "STAGING",
+      environment: null,
+    });
+    // The viewer not known: the person's own work Environment is framed red.
+    expect(versionFrame(own, null, "staging", "cs")?.tone).toBe("red");
+  });
+
+  test("the attribute names only the two versions", () => {
+    expect(appVersionOf("staging")).toBe("staging");
+    expect(appVersionOf("dev")).toBe("dev");
+    expect(appVersionOf("prod")).toBeNull();
+    expect(appVersionOf(null)).toBeNull();
+  });
+
+  test("the frame never takes a click, DEV is dashed, the version never gives way", () => {
+    expect(frameCss).toContain("pointer-events: none");
+    expect(frameCss).toMatch(
+      /\.frame\[data-dashed\] \{\s*border-style: dashed;/,
+    );
+    expect(frameCss).toMatch(/\.version \{[^}]*flex: none;/);
+    expect(frameCss).toMatch(/\.environment \{[^}]*text-overflow: ellipsis;/);
+    expect(frameCss).toContain('.frame[data-tone="red"]');
+    expect(frameCss).toMatch(/@media print/);
   });
 });
