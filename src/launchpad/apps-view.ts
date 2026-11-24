@@ -270,7 +270,7 @@ export type AppsTile =
       favorite: boolean;
       /** Where the tile opens the Module's Application (decision 0249), this
        * Environment's app from `main`: its development version, offered in
-       * the menu ("STAGING"). Null where the tile opens that app
+       * the menu ("Vývojová verze"). Null where the tile opens that app
        * itself. */
       development: Extract<
         TileTarget,
@@ -282,6 +282,11 @@ export type AppsTile =
        * Environment's agents, filled in, which the person confirms by signing
        * in ("Připojit k agentům"). Null without the hint. */
       agents: Readonly<{ origin: string; path: string }> | null;
+      /** Whether this Environment's app opens as the Module's built version
+       * from `main` (`display.built`, decision F58): the frame's STAGING
+       * (decision 0249). Otherwise it runs the Module's development script,
+       * and no word calls it STAGING. */
+      staging: boolean;
     }>
   /** A production repository: read-only, no app, no page of its own
    * (decision F32's final addendum); its menu leads to its GitHub page. A
@@ -496,6 +501,7 @@ export function appsTiles(
           ? target
           : null,
       agents: agentsOf(application),
+      staging: item.module.display?.built === true,
     };
   };
   const modules =

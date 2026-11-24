@@ -552,6 +552,7 @@ export function createCatalogPanel(
     >,
     name: string,
     className: string,
+    staging = false,
   ): HTMLAnchorElement {
     const copy = options.copy();
     const link = element("a", className);
@@ -565,8 +566,16 @@ export function createCatalogPanel(
       return link;
     }
     const mode = openMode();
+    // The built version from `main` is the frame's STAGING (decision 0249);
+    // a development script is not, so it keeps the plain words.
     link.title = (
-      mode === "same" ? copy.appsOpenAppNamedSame : copy.appsOpenAppNamed
+      staging
+        ? mode === "same"
+          ? copy.appsOpenStagingNamedSame
+          : copy.appsOpenStagingNamed
+        : mode === "same"
+          ? copy.appsOpenAppNamedSame
+          : copy.appsOpenAppNamed
     ).replace("{name}", name);
     if (target.kind === "hosted") {
       link.href = target.href;
@@ -660,7 +669,12 @@ export function createCatalogPanel(
   // says why there is nothing to open.
   function actionNode(item: AppsTile, className: string): HTMLElement {
     if (item.action.kind === "open")
-      return openLink(item.action.target, item.name, className);
+      return openLink(
+        item.action.target,
+        item.name,
+        className,
+        item.kind === "module" && item.staging,
+      );
     if (item.action.kind === "service")
       return serviceLink(item.action, className);
     if (item.action.kind === "route")
@@ -832,10 +846,16 @@ export function createCatalogPanel(
         item.development,
         item.name,
         "tile-menu-item",
+        item.staging,
       );
-      development.title = copy.appsDevelopmentHint;
+      development.title = item.staging
+        ? copy.appsStagingHint
+        : copy.appsDevelopmentHint;
       development.setAttribute("role", "menuitem");
-      development.append(svg("external"), copy.appsDevelopment);
+      development.append(
+        svg("external"),
+        item.staging ? copy.appsStaging : copy.appsDevelopment,
+      );
       development.addEventListener("click", close);
       list.append(development);
     }
