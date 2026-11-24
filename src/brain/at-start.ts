@@ -38,6 +38,11 @@ export const archiveWaits = (labels: BrainSetupLabels | null) =>
   labels?.archive?.startsWith("waits:") === true ||
   labels?.archive?.startsWith("failed:") === true;
 
+/** Whether setup could not read the Folder's state right now (an update's
+ * refresh may be writing it, #1214): another run after the pause. */
+export const folderWaits = (labels: BrainSetupLabels | null) =>
+  labels?.server === "waits-folder";
+
 /** How long the Launchpad lets one setup run: longer than its longest
  * supported step, a move or one window of search by meaning (gbrain's
  * `embed` with its budget and one batch, `meaningEmbedLimitMs`), with the
@@ -94,20 +99,27 @@ export async function brainSetupAtStart(
     if (!signal.aborted) await input.settled?.(labels).catch(() => undefined);
     return labels;
   };
-  let labels = await run();
-  if (labels?.server === "waits-machines" && !signal.aborted) {
-    input.report?.(labels);
+  // Machines mark the handover only after the start's apply: setup waits for
+  // the mark and runs again once it appears, whichever run first answered
+  // `waits-machines` (also one after a Folder that could not be read,
+  // #1214), and once per start.
+  let handoverAwaited = false;
+  const awaitHandover = async (current: BrainSetupLabels) => {
+    handoverAwaited = true;
+    input.report?.(current);
     for (let i = 0; i < (input.waits ?? 720); i++) {
       await sleep(input.waitMs ?? 60_000, signal);
-      if (signal.aborted) return labels;
+      if (signal.aborted) return current;
       const marked = await input.handover().catch(() => false);
-      if (signal.aborted) return labels;
-      if (marked) {
-        labels = await run();
-        break;
-      }
+      if (signal.aborted) return current;
+      if (marked) return run();
     }
-  }
+    return current;
+  };
+  let labels = await run();
+  if (labels?.server === "waits-machines" && !signal.aborted)
+    labels = await awaitHandover(labels);
+  if (signal.aborted) return labels;
   // Search by meaning that waits (windows left, Buddy working before a
   // window, a window that failed and is tried again, the model not ready
   // yet): the next run after a pause, while this start lasts and at most
@@ -130,7 +142,8 @@ export async function brainSetupAtStart(
       if (lost > lostRunsInARow) break;
     } else {
       if (labels.server !== "busy")
-        waiting = meaningWaits(labels) || archiveWaits(labels);
+        waiting =
+          meaningWaits(labels) || archiveWaits(labels) || folderWaits(labels);
       if (!waiting) break;
       input.report?.(labels);
     }
@@ -138,6 +151,14 @@ export async function brainSetupAtStart(
     if (signal.aborted) break;
     labels = await run();
     lost = labels === null ? lost + 1 : 0;
+    if (
+      labels?.server === "waits-machines" &&
+      !handoverAwaited &&
+      !signal.aborted
+    ) {
+      labels = await awaitHandover(labels);
+      lost = labels === null ? 1 : 0;
+    }
   }
   return labels;
 }
