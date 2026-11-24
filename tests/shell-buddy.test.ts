@@ -758,6 +758,7 @@ function fakeBubble(
     playing: null as string | null,
     meeting: null as BuddyMeeting | null,
     signal: null as ShellBuddySignal | null,
+    viewing: true,
   };
   const frame = windowOf(log.posted);
   const session = options.session ?? memory();
@@ -781,6 +782,7 @@ function fakeBubble(
     focus: (target) => {
       log.focus.push(target);
     },
+    viewing: () => page.viewing,
     guide: {
       known: () => options.known ?? principleIds,
       playing: () => page.playing,
@@ -869,6 +871,35 @@ test("the frame hears whether his window shows it: after its ready, on every ope
   });
   expect(star.ready()).toBe(false);
   expect(none).toEqual([]);
+});
+
+test("the frame hears it is shown only while the person looks at the page: blur, another tab and focus coming back (#1151)", () => {
+  const { bubble, fromFrame, log, page } = fakeBubble();
+  const shown = () =>
+    log.posted
+      .map(({ message }) => message as { type: string; shown?: boolean })
+      .filter((message) => message.type === "lazurio.buddy.shown")
+      .map((message) => message.shown);
+  bubble.update();
+  bubble.toggle();
+  fromFrame({ type: "lazurio.buddy.ready", v: 1 });
+  expect(shown()).toEqual([true]);
+  // The person moves to another window: the open window shows nothing.
+  page.viewing = false;
+  bubble.viewingChanged();
+  expect(shown()).toEqual([true, false]);
+  // Said again without a change: nothing new.
+  bubble.viewingChanged();
+  expect(shown()).toEqual([true, false]);
+  // Back, or into Buddy's frame (the page still has the focus): shown.
+  page.viewing = true;
+  bubble.viewingChanged();
+  expect(shown()).toEqual([true, false, true]);
+  // Closed while the person looks: not shown, and looking away adds nothing.
+  bubble.toggle();
+  page.viewing = false;
+  bubble.viewingChanged();
+  expect(shown()).toEqual([true, false, true, false]);
 });
 
 test("a frame hidden behind his hello hears it is not shown: the frame exists, the meeting returns, the hello opens, the meeting ends", () => {

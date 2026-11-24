@@ -184,6 +184,9 @@ export type BuddyBubbleSeams = Readonly<{
   draw: (model: BuddyBubbleModel | null) => void;
   /** Moves the focus to the launcher or into the frame. */
   focus: (target: "launcher" | "frame") => void;
+  /** Whether the person looks at this page now: the tab shows and it, or
+   * Buddy's frame in it, has the focus. Absent, always. */
+  viewing?: () => boolean;
   /** The page's guide (guide.ts). */
   guide: Readonly<{
     known: () => readonly string[];
@@ -395,7 +398,12 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             frame: seams.frameWindow,
             // The window shows the frame only after the meeting: before it
             // the window holds his hello and the frame stays hidden.
-            shown: () => layout !== "closed" && meeting === null,
+            // And only while the person looks at it: a window behind
+            // another one or in a hidden tab shows nothing (#1151).
+            shown: () =>
+              layout !== "closed" &&
+              meeting === null &&
+              (seams.viewing?.() ?? true),
           });
     layoutSender =
       next === null
@@ -456,6 +464,11 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
      * dialog shows where Buddy is (true), and lets it back (false). */
     /** Whether his window shows (the panel or full screen). */
     windowShown: (): boolean => layout !== "closed",
+    /** The person looked at this page or away (focus, blur, the tab shown
+     * or hidden): the frame hears whether it shows. */
+    viewingChanged(): void {
+      shownSender?.changed();
+    },
     spotlight(on: boolean): void {
       if (on === spot) return;
       spot = on;

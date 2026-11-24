@@ -242,7 +242,22 @@ async function hosted(machineOf: typeof gen4) {
       },
       body: JSON.stringify({ key: "waiting:" }),
     });
-  return { app, parent, lines, ask, claim };
+  const notices = (choice?: "on" | "off") =>
+    fetch(`http://127.0.0.1:${entry.listenPort}${buddyNoticePath}`, {
+      method: choice === undefined ? "GET" : "POST",
+      headers: {
+        host: new URL(entry.externalOrigin).host,
+        cookie: "__Secure-lazurio-workspace=valid",
+        origin: entry.externalOrigin,
+        "sec-fetch-site": "same-origin",
+        "content-type": "application/json",
+      },
+      ...(choice === undefined ? {} : { body: JSON.stringify({ choice }) }),
+    }).then(async (answer) => ({
+      status: answer.status,
+      body: (await answer.json()) as unknown,
+    }));
+  return { app, parent, lines, ask, claim, notices };
 }
 
 test("only an entry that names Buddy GEN4 gets a follower, and only where the service says how to start it", () => {
@@ -272,8 +287,10 @@ posix(
       expect(gen3Launchpad.lines).toHaveLength(0);
       expect((await gen3Launchpad.ask({ cookie: "" })).status).toBe(401);
       expect((await gen3Launchpad.ask()).status).toBe(404);
-      // Nor anything to claim a notice of.
+      // Nor anything to claim a notice of, nor a choice of notices.
       expect((await gen3Launchpad.claim()).status).toBe(404);
+      expect((await gen3Launchpad.notices()).status).toBe(404);
+      expect((await gen3Launchpad.notices("off")).status).toBe(404);
     } finally {
       await gen3Launchpad.app.close();
       await rm(gen3Launchpad.parent, { recursive: true, force: true });

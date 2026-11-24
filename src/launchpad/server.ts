@@ -32,6 +32,10 @@ import { createFirstMeeting } from "../buddy/first-meeting";
 import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
 import { namesConfirmed } from "../buddy/names-confirmed";
+import {
+  createNoticesChoiceHolder,
+  isBuddyNoticesChoice,
+} from "../buddy/notices-choice";
 import { readPersona } from "../buddy/persona";
 import { buddyPersona as applyBuddyPersona } from "../buddy/persona-apply";
 import { buddyFolderOwed } from "../buddy/persona-folder";
@@ -141,7 +145,9 @@ import { withGuestAccess } from "../organizations/guest-access";
 import { readOrganizationApplications } from "../organizations/read-applications";
 import type { RecoveryResult } from "../recover/recover";
 import {
+  buddyNoticeAnswer,
   buddyNoticePath,
+  buddyNoticeTold,
   createBuddyNoticeClaims,
 } from "../shell/buddy-notice";
 import type { ShellSetup } from "../shell/contract";
@@ -1628,8 +1634,17 @@ export async function startLaunchpad(
   );
   const buddySignalStreams = new Set<() => void>();
   // Which one tab, on any origin of the shell, tells a change of the sign.
+  // The person's choice of notices, one for the Environment: a claim while
+  // it is off loses, whichever page made it.
+  const buddyNoticesChoice = createNoticesChoiceHolder(toolsEnvironment.home);
   const buddyNoticeClaims =
-    buddySignal === null ? null : createBuddyNoticeClaims(buddySignal.current);
+    buddySignal === null
+      ? null
+      : createBuddyNoticeClaims(
+          buddySignal.current,
+          Date.now,
+          () => buddyNoticesChoice.current() === "on",
+        );
   // His Telegram (decision F66): his own bot from BotFather, connected
   // through Hermes's own writers and read live from Hermes; the restart that
   // brings a change in is F64's, made once he is idle, at most once in two
@@ -2373,11 +2388,15 @@ export async function startLaunchpad(
         // A tab that would tell a change of Buddy GEN4's sign in a browser
         // notice claims it first (buddy-notice.ts): the first claim of the
         // current change wins, on whichever origin of the shell it comes.
-        if (request.method !== "POST")
+        // The person's choice of notices is one for the Environment
+        // (notices-choice.ts): read with GET, set with `{choice}`.
+        if (request.method !== "POST" && request.method !== "GET")
           return response({ error: "method-not-allowed" }, 405);
         if (closing) return response({ error: "closing" }, 503);
         if (buddyNoticeClaims === null)
           return response({ error: "not-found" }, 404);
+        if (request.method === "GET")
+          return response(await buddyNoticesChoice.read());
         const text = await request.text().catch(() => "");
         let value: unknown = null;
         try {
@@ -2387,12 +2406,28 @@ export async function startLaunchpad(
           typeof value === "object" && value !== null
             ? (value as Record<string, unknown>)
             : {};
-        // A tab with Buddy's window in view holds every notice back.
-        if (body.viewing === true) {
-          buddyNoticeClaims.viewing();
-          return response({ viewing: true });
+        const choice = body.choice;
+        if (isBuddyNoticesChoice(choice)) {
+          if (toolsEnvironment.home === undefined)
+            return response({ error: "no-home" }, 503);
+          // A change of the version the page read: one made on an older
+          // view is refused, and the page hears the newer choice.
+          if (typeof body.version !== "number")
+            return response({ error: "version-required" }, 400);
+          try {
+            return response(
+              await buddyNoticesChoice.write(choice, body.version),
+            );
+          } catch {
+            return response({ error: "not-saved" }, 500);
+          }
         }
-        return response({ notify: buddyNoticeClaims.claim(body.key) });
+        // A tab's view, its release, what it saw, and a claim
+        // (buddy-notice.ts); a claim once the choice is read.
+        const told = buddyNoticeTold(buddyNoticeClaims, body);
+        if (told !== null) return response(told);
+        await buddyNoticesChoice.read();
+        return response(buddyNoticeAnswer(buddyNoticeClaims, body.key));
       }
       if (url.pathname === buddyGatePath) {
         // Buddy's gate (F60's addendum of 2026-11-09, buddy-gate.ts): the
