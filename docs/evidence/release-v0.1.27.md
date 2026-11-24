@@ -44,8 +44,8 @@ release commit does not.
   its two earlier `unknown` checks stayed open.
 - **Not in this record:** the release owner's own Personal Environment, and the member test account's Personal
   Environment. The member's Personal Environment was read at both edges: `healthy`, all five `recover` checks `ok`, but
-  running and active **`0.1.24`**, because no lane moves it to a candidate, as for `v0.1.25` and `v0.1.26`. Its two
-  readings are failed optional steps of the stage.
+  running and active **`0.1.24`**, with `/health` answering `0.1.24`, because no lane moves it to a candidate, as for
+  `v0.1.25` and `v0.1.26`. Its two readings (11:34:31Z and 11:40:22Z) are failed optional steps of the stage.
 
 ## The stage
 
@@ -53,7 +53,11 @@ By one thread, read-only except the smoke tests and the real work on a Machine. 
 were held by this thread from the end of the apply to the end of the stage.
 
 1. **R1, 11:33:39–11:34:41Z.** Every Machine through its own Launchpad, as the test accounts: `/api/recovery`, which is
-   the use case of `lazurio recover --json`, and `/api/update/status`. 12 of 12 required steps passed.
+   the use case of `lazurio recover --json`, and `/api/update/status`. The `launchpad-health` check of `/api/recovery`
+   carries the `version` that the Launchpad's own `GET /health` answered on its health socket at that moment
+   (`src/recover/observe.ts`, `askHealth`). A step passes only when `recover` is healthy, `running` and `active` are the
+   candidate, and that `/health` version is the candidate. No Launchpad was in recovery mode: none of the readings was
+   entered. 12 of 12 required steps passed.
 2. **Real work on the Owner's Work Environment, 11:34:48–11:34:58Z,** a Machine this lane updated, over its operator
    SSH entry:
    - `lazurio --version`: `0.1.27-rc.2`, commit `659c1d42`;
@@ -71,24 +75,25 @@ were held by this thread from the end of the apply to the end of the stage.
    - the tiles on every Environment each account lists, from 11:37:56Z: 12 of 12 required and 10 of 10 optional passed.
      Both accounts' sign-out went through the realm's confirmation page in about 2.3 s, and the session answered 401
      afterwards.
-4. **R2, 11:39:37–11:40:32Z.** The same readings, 12 of 12 required steps passed.
+4. **R2, 11:39:37–11:40:32Z.** The same readings, `/health` included, 12 of 12 required steps passed.
 5. **Recovery issues:** none open with the label `recovery` (11:40Z).
 6. **End:** `2026-11-24T11:40:39Z`, the green light.
 
 ### Per Machine
 
 At both edges, `recover` answered `healthy` with all five checks `ok`, `update status` answered running and active
-`0.1.27-rc.2`, and the Launchpad unit's `NRestarts` was 0. On the Owner's Work Environment this is the count after its
-restart in step 2. T3 Code is not part of this candidate; its version is recorded only so that a change can be told
-apart.
+`0.1.27-rc.2`, the Launchpad's own `GET /health` answered `0.1.27-rc.2` in normal mode, and the Launchpad unit's
+`NRestarts` was 0. On the Owner's Work Environment this is the count after its restart in step 2. The `/health` column
+is that answer at each edge. T3 Code is not part of this candidate; its version is recorded only so that a change can be
+told apart.
 
-| Machine | Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 | Modules started and opened | T3 Code |
-|---|---|---|---|---|---|---|---|
-| `4cb47f16810a7edb` | work (Owner) | 11:34:03Z | 11:39:56Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | Knowledgebase and Design system, each started from its tile and opened on its own origin with HTTP 200 and its heading; the chat answered | 0.1.10-preview.20261121.1 |
-| `7d3f2189170e39ea` | work (services) | 11:34:08Z | 11:40:00Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: its one tile is the Organization's AI pool service, a service page and not a module | 0.1.2-lazurio.6 |
-| `9289bc065828421b` | work (team) | 11:34:37Z | 11:40:27Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: Apps shows 0 module tiles | 0.1.2-lazurio.6 |
-| `c04fe553256c9e52` | work (member) | 11:34:41Z | 11:40:32Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | Knowledgebase, started from its tile and opened on its own origin with HTTP 200 and its heading; the chat answered | 0.1.9-lazurio.2 |
-| `bce5a5489ecd7010` | personal (Owner) | 11:33:58Z | 11:39:51Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: Apps shows 0 module tiles | 0.1.10-preview.20261121.1 |
+| Machine | Kind | R1 | R2 | `recover` R1 / R2 | `active` R1 / R2 | `/health` R1 / R2 | Modules started and opened | T3 Code |
+|---|---|---|---|---|---|---|---|---|
+| `4cb47f16810a7edb` | work (Owner) | 11:34:03Z | 11:39:56Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | 0.1.27-rc.2 / 0.1.27-rc.2 | Knowledgebase and Design system, each started from its tile and opened on its own origin with HTTP 200 and its heading; the chat answered | 0.1.10-preview.20261121.1 |
+| `7d3f2189170e39ea` | work (services) | 11:34:08Z | 11:40:00Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: its one tile is the Organization's AI pool service, a service page and not a module | 0.1.2-lazurio.6 |
+| `9289bc065828421b` | work (team) | 11:34:37Z | 11:40:27Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: Apps shows 0 module tiles | 0.1.2-lazurio.6 |
+| `c04fe553256c9e52` | work (member) | 11:34:41Z | 11:40:32Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | 0.1.27-rc.2 / 0.1.27-rc.2 | Knowledgebase, started from its tile and opened on its own origin with HTTP 200 and its heading; the chat answered | 0.1.9-lazurio.2 |
+| `bce5a5489ecd7010` | personal (Owner) | 11:33:58Z | 11:39:51Z | healthy / healthy | 0.1.27-rc.2 / 0.1.27-rc.2 | 0.1.27-rc.2 / 0.1.27-rc.2 | none to start: Apps shows 0 module tiles | 0.1.10-preview.20261121.1 |
 
 The Team Environment is listed as `work`, because the record's kinds are `work` and `personal`.
 
