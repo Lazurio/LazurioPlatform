@@ -220,7 +220,7 @@ export async function reloadAiServices(
     /** Tests only: the Chat defaults' step. */
     chat?: typeof chatDefaults;
   }>,
-): Promise<AiServices & Readonly<{ chat?: ChatDefaults }>> {
+): Promise<AiServices> {
   const appServer =
     input.tool === "codex"
       ? await restartCodexAppServer({
@@ -261,6 +261,6 @@ export async function reloadAiServices(
   return Object.freeze({
     ...(appServer === undefined ? {} : { appServer }),
     t3,
-    ...(chat === undefined ? {} : { chat }),
+    ...(chat === undefined ? {} : { chat: { state: chat.state } }),
   });
 }

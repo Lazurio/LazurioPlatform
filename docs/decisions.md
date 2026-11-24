@@ -18564,7 +18564,9 @@ when the managed Folder configuration is absent.
 **Implemented (Lazurio/LazurioPlatform#1197).** The recommendation was always
 Codex's, whichever AI the person connected. Buddy GEN4's first thread is made on
 the Folder project's model, so where only Claude was signed in it was made on a
-Codex model that cannot answer there.
+Codex model. Without a Codex sign-in that thread is not expected to answer, but
+no turn was run on one: what the person sees there (an error, nothing, or a
+fallback of T3's) is not known.
 
 1. **Which model.** Where Codex answers that it cannot work (signed out or not
    installed) and Claude Code answers signed in, the recommendation is T3's Claude
@@ -18581,7 +18583,10 @@ Codex model that cannot answer there.
    (`lazurio tools login`, the Launchpad's sign-in), on a hosted Environment, the
    Chat defaults are applied again. T3 still keeps a model the person chose; it
    changes only an unset model or its own last write. A workstation, which has no
-   managed Chat, is never written.
+   managed Chat, is never written. The sign-in's answer says what became of the
+   model (`chat`): a model not set to follow the sign-in leaves the sign-in
+   standing but not complete, and both `lazurio tools login` and Začínáme say so
+   with the next step.
 4. **Not covered.** A thread made before the sign-in keeps the model it was made
    on. That includes Buddy's first thread if it was opened before the sign-in.
    Following the sign-in there belongs to T3 Code.

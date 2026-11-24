@@ -461,6 +461,18 @@ export function aiServicesLines(tool: string, services: AiServices): string[] {
     case "not-installed":
       break;
   }
+  // Chat's default model (F51's addendum of 2026-11-24), where it was asked.
+  if (services.chat?.state === "managed")
+    lines.push("Chat's default model follows this sign-in.");
+  if (services.chat?.state === "custom")
+    lines.push("Chat keeps the default model chosen in Chat.");
+  if (
+    services.chat?.state === "outdated" ||
+    services.chat?.state === "unavailable"
+  )
+    lines.push(
+      "Chat's default model could NOT be set to follow this sign-in: new threads may still start on the earlier model. Run `lazurio chat defaults --apply`, or pick the model in Chat.",
+    );
   return lines;
 }
 

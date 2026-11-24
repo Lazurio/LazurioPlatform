@@ -455,7 +455,7 @@ test("after a sign-in with the hosted Folder the Chat defaults are applied again
     };
     expect(await reloadAiServices({ ...input, folder: "/folder" })).toEqual({
       t3: { state: "not-installed" },
-      chat: { kind: "chat-defaults", state: "managed" },
+      chat: { state: "managed" },
     });
     expect(applied).toEqual([
       { home: scratch.directory, apply: true, folder: "/folder" },
@@ -475,11 +475,7 @@ test("after a sign-in with the hosted Folder the Chat defaults are applied again
       }),
     ).toEqual({
       t3: { state: "not-installed" },
-      chat: {
-        kind: "chat-defaults",
-        state: "unavailable",
-        reason: "t3-defaults-unavailable",
-      },
+      chat: { state: "unavailable" },
     });
   } finally {
     await scratch.close();

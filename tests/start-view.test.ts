@@ -420,6 +420,74 @@ test("Připojit AI that did not finish, and a connected one: Zkusit znovu, the a
       aiSignIn: { kind: "failed", tool: "codex", reason: "provider-unknown" },
     })?.steps[0]?.status,
   ).toBe("Přihlášení se nespustilo. Zkuste to prosím znovu.");
+  // Chat's default model did not switch to the AI just signed in (F51's
+  // addendum of 2026-11-24, Pablo's review of #1232): the sign-in stands,
+  // and the step says what to do.
+  for (const state of ["unavailable", "outdated"] as const)
+    expect(
+      view({
+        ...connected,
+        aiSignIn: {
+          kind: "signed-in",
+          tool: "claude",
+          services: {
+            t3: { state: "refreshed", providers: [] },
+            chat: { state },
+          },
+        },
+      })?.steps[0],
+    ).toMatchObject({
+      mark: "done",
+      warning:
+        "Přihlášení proběhlo, ale výchozí model Chatu se na tuto AI nepřepnul. Nová vlákna můžou začínat na předchozím; model vyberte v Chatu.",
+    });
+  expect(
+    view(
+      {
+        ...connected,
+        aiSignIn: {
+          kind: "signed-in",
+          tool: "claude",
+          services: {
+            t3: { state: "refreshed", providers: [] },
+            chat: { state: "unavailable" },
+          },
+        },
+      },
+      en,
+    )?.steps[0]?.warning,
+  ).toBe(
+    "You are signed in, but Chat's default model did not switch to this AI. New threads may still start on the earlier one; pick the model in Chat.",
+  );
+  // A Chat that did not turn the provider on says that first.
+  expect(
+    view({
+      ...connected,
+      aiSignIn: {
+        kind: "signed-in",
+        tool: "claude",
+        services: {
+          t3: { state: "failed", reason: "not-enabled", providers: ["claude"] },
+          chat: { state: "unavailable" },
+        },
+      },
+    })?.steps[0]?.warning,
+  ).toBe("Chat nezapnul Claude. Zkontrolujte poskytovatele v Nastavení Chatu.");
+  // Following the sign-in, or the person's own model: nothing to say.
+  for (const state of ["managed", "custom"] as const)
+    expect(
+      view({
+        ...connected,
+        aiSignIn: {
+          kind: "signed-in",
+          tool: "claude",
+          services: {
+            t3: { state: "refreshed", providers: [] },
+            chat: { state },
+          },
+        },
+      })?.steps[0],
+    ).not.toHaveProperty("warning");
   // Services that read it, or will by themselves: nothing to say.
   expect(
     view({

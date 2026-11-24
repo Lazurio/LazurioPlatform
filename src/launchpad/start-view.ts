@@ -5,6 +5,7 @@ import {
   type AiReading,
   aiProviderName,
   aiServicesReady,
+  chatModelReady,
 } from "../tools/ai";
 import { type AiSignIn, type AiSignInPlace, idleAiSignIn } from "./ai-sign-in";
 import { moduleName } from "./apps-view";
@@ -203,6 +204,15 @@ function aiServicesWarning(signIn: AiSignIn, copy: Copy): string | undefined {
   if (aiServicesReady(signIn.services)) return undefined;
   // Chat names its providers after the CLIs.
   const t3 = signIn.services.t3;
+  const t3Ready = ["refreshed", "not-installed", "not-supported"].includes(
+    t3.state,
+  );
+  if (
+    t3Ready &&
+    signIn.services.appServer?.state !== "failed" &&
+    !chatModelReady(signIn.services)
+  )
+    return copy.startAiChatModel;
   const named = (cli: AiProvider) => (cli === "codex" ? "Codex" : "Claude");
   if (t3.state === "driver-mismatch")
     return fill(copy.startAiChatMismatch, { provider: named(signIn.tool) });
