@@ -1424,7 +1424,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     // One bubble a page: the element connected before lets go of it.
     if (before !== null && before !== this) before.follow();
     this.unfollow ??= state.listen(() => this.follow());
-    this.unframe ??= state.listen(() => this.drawFrame());
+    this.unframe ??= state.listenFrame(() => this.drawFrame());
     // The frame needs the viewer's identity, so this element reads the
     // account even where it stands alone (review of #1244).
     state.requestAccount();

@@ -99,6 +99,14 @@ export function createShellState(options: ShellStateOptions) {
   let drawn: Shell | null = null;
   let lastBySpace: ReadonlyMap<string, AccountVisit> = new Map();
   const listeners = new Set<() => void>();
+  /** The frame's listeners (elements.ts): called after every redraw and
+   * whenever what decides the frame changes without one, the viewer
+   * verified or the page's document found missing (review of #1244). Kept
+   * apart so those changes do not make the rails report again. */
+  const frameListeners = new Set<() => void>();
+  function frameChanged(): void {
+    for (const listener of frameListeners) listener();
+  }
   const log = options.log ?? ((message: string) => console.debug(message));
   let source: AccountSource | null = null;
   const sourceNow = (): AccountSource => {
@@ -140,6 +148,7 @@ export function createShellState(options: ShellStateOptions) {
     lastBySpace =
       drawn === null ? new Map() : accountLastBySpace(drawn, account);
     for (const listener of listeners) listener();
+    frameChanged();
   }
 
   let requested = false;
@@ -186,6 +195,8 @@ export function createShellState(options: ShellStateOptions) {
         redraw();
         freshRead = "account";
         flushReport();
+        // The viewer is verified only now, after the redraw above.
+        frameChanged();
         return;
       }
       freshRead = "none";
@@ -236,6 +247,14 @@ export function createShellState(options: ShellStateOptions) {
         listeners.delete(listener);
       };
     },
+    /** Calls `listener` whenever the frame may change (`frameListeners`);
+     * returns its removal. */
+    listenFrame(listener: () => void): () => void {
+      frameListeners.add(listener);
+      return () => {
+        frameListeners.delete(listener);
+      };
+    },
     /** Gives the elements the page's document, which replaces the one
      * before; they redraw. A person's is merged with their account once
      * there is one; the signed-out one is drawn alone. */
@@ -280,7 +299,11 @@ export function createShellState(options: ShellStateOptions) {
      * Environment. Nothing once the page has a document. */
     documentUnavailable(): void {
       if (local !== null || signedOut !== null) return;
+      const first = !documentMissing;
       documentMissing = true;
+      // The page is now framed as an Environment's whose owner is not
+      // known, whatever the account read answers (review of #1244).
+      if (first) frameChanged();
       startRead();
     },
     /** The report of the last Environment for an element that names its
