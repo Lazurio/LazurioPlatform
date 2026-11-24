@@ -26661,8 +26661,10 @@ route.
    each of the handover's own routes, tried and named like any other: they never
    depended on the service. An own route under an id that an unexpired route of the
    service still holds is not expected then, as the write keeps the service's route.
-   The command says the same: none of the service's routes was added, and the
-   handover's own are written as declared.
+   The command says the same: none of the service's routes was added, and of each of the
+   handover's own routes what the files now record: written as declared, held by the
+   service's earlier route until its deadline, or not written because the write was
+   refused or failed.
 
 When the access service derives these routes itself, the handover's copy becomes a
 duplicate under the same id and the service's target is the one written; nothing else

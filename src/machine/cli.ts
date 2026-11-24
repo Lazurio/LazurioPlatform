@@ -26,7 +26,9 @@ import {
 import { refreshFolder } from "../folder/update-profile";
 import type { AccessServiceLocation } from "../ssh-access/access-service";
 import {
+  type EnvironmentRoute,
   type EnvironmentSshLocation,
+  recordedRoutes,
   writeEnvironmentRoutes,
 } from "../ssh-access/environments";
 import {
@@ -757,6 +759,44 @@ async function refreshAndRestart(
 // still declares what this binding declares (`commitRoutes`, point 5): a
 // handover rewritten meanwhile is `superseded`, and its own refresh or the
 // Launchpad's next tick writes its routes.
+// While the service does not answer, what became of the routes the handover
+// declares itself (a Work Environment's assigned peers), read from what the
+// write did and what the files now record: a route without a deadline is the
+// handover's, one with a deadline the service's, which keeps its id until
+// then (`pruneEnvironmentRoutes`).
+async function ownRoutesOutcome(
+  own: readonly EnvironmentRoute[],
+  ssh: RoutesWrite,
+  location: EnvironmentSshLocation,
+): Promise<string> {
+  if (own.length === 0) return "";
+  if (ssh.kind === "blocked")
+    return ` The routes this Environment's handover declares itself were not written either: ${ssh.path} is ${ssh.reason === "file-foreign" ? "not Lazurio's file" : "not a plain file or directory of this account"}. Nothing was changed; move it away and refresh again.`;
+  if (ssh.kind !== "written" && ssh.kind !== "unchanged")
+    return " The routes this Environment's handover declares itself could not be written.";
+  const recorded = await recordedRoutes(location).catch(() => null);
+  if (recorded === null)
+    return " Whether the routes this Environment's handover declares itself were written could not be read back.";
+  const byId = new Map(recorded.map((route) => [route.environment, route]));
+  const ids = own.map((route) => route.environment);
+  const declared = ids.filter(
+    (id) => byId.has(id) && byId.get(id)?.validUntil === undefined,
+  );
+  const held = ids.filter((id) => byId.get(id)?.validUntil !== undefined);
+  const missing = ids.filter((id) => !byId.has(id));
+  return [
+    declared.length === 0
+      ? ""
+      : ` The routes this Environment's handover declares itself are written as declared: ${declared.join(", ")}.`,
+    held.length === 0
+      ? ""
+      : ` For ${held.join(", ")} the route the access service gave earlier stays until its deadline, in place of the handover's.`,
+    missing.length === 0
+      ? ""
+      : ` These routes of the handover were not written: ${missing.join(", ")}.`,
+  ].join("");
+}
+
 const recordsThisBinding: ReadonlySet<string> = new Set([
   "initialized",
   "refreshed",
@@ -786,7 +826,7 @@ export async function withEnvironmentSsh<
       console.error(supersededText);
     else if (environmentRoutes.targets !== "answered")
       console.error(
-        `The access service did not give this Environment its routes (${environmentRoutes.targets}); none of its routes was added, and those it gave earlier end at their deadline.${service.own?.length ? " The routes this Environment's handover declares itself are written as declared." : ""}`,
+        `The access service did not give this Environment its routes (${environmentRoutes.targets}); none of its routes was added, and those it gave earlier end at their deadline.${await ownRoutesOutcome(service.own ?? [], environmentRoutes.ssh, location)}`,
       );
     return { ...result, environmentRoutes };
   }

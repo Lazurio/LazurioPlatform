@@ -1,5 +1,12 @@
 import { afterEach, expect, spyOn, test } from "bun:test";
-import { lstat, mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { observeRoutes, routeChecks } from "../src/doctor/doctor";
@@ -450,7 +457,7 @@ test("a first synchronization while the service is down writes the handover's ow
     error.mockRestore();
   }
   expect(said).toEqual([
-    "The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline. The routes this Environment's handover declares itself are written as declared.",
+    `The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline. The routes this Environment's handover declares itself are written as declared: ${sister}.`,
   ]);
   // A Personal Environment, which has no own routes beside the service, is
   // told only about the service's.
@@ -478,5 +485,65 @@ test("a first synchronization while the service is down writes the handover's ow
   }
   expect(said).toEqual([
     "The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline.",
+  ]);
+});
+
+const outage =
+  "The access service did not give this Environment its routes (unreachable); none of its routes was added, and those it gave earlier end at their deadline.";
+async function saidOnOutage(location: {
+  home: string;
+  uid: number | undefined;
+}) {
+  const said: string[] = [];
+  const error = spyOn(console, "error").mockImplementation((line: unknown) => {
+    said.push(String(line));
+  });
+  try {
+    await withEnvironmentSsh(
+      { kind: "unchanged" },
+      workAssignedServed,
+      location,
+      undefined,
+      {
+        run: runTool,
+        now: () => now,
+        current: async () => routesSourceOf(workAssignedServed),
+        fetch: fakeService(null),
+      },
+    );
+  } finally {
+    error.mockRestore();
+  }
+  return said;
+}
+
+test("while the service is down the message never claims a handover route the write refused or a service route still holds", async () => {
+  // A file of the person's at the Platform's path: nothing is written, and
+  // the message says so.
+  const refused = await home();
+  await mkdir(join(refused, ".ssh", "config.d"), { recursive: true });
+  await writeFile(conf(refused), "Host mine\n");
+  expect(await saidOnOutage({ home: refused, uid })).toEqual([
+    `${outage} The routes this Environment's handover declares itself were not written either: ~/.ssh/config.d/lazurio-environments.conf is not Lazurio's file. Nothing was changed; move it away and refresh again.`,
+  ]);
+  expect(await readFile(conf(refused), "utf8")).toBe("Host mine\n");
+  // An unexpired route the service gave under the same id keeps it until its
+  // deadline; the message names that instead of the handover's route.
+  const held = await home();
+  const location = { home: held, uid };
+  await writeEnvironmentRoutes(location, [
+    {
+      environment: sister,
+      host: "served-carol-01-vm.tailnet.example.invalid",
+      user: "carol",
+      hostKeys: [{ type: "ssh-ed25519", key: keyB }],
+      validUntil: "2026-11-24T02:03:30Z",
+    },
+  ]);
+  expect(await saidOnOutage(location)).toEqual([
+    `${outage} For ${sister} the route the access service gave earlier stays until its deadline, in place of the handover's.`,
+  ]);
+  expect((await recordedRoutes(location)).map((route) => route.host)).toEqual([
+    "served-carol-01-vm.tailnet.example.invalid",
   ]);
 });
