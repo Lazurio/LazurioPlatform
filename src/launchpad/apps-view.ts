@@ -270,7 +270,7 @@ export type AppsTile =
       favorite: boolean;
       /** Where the tile opens the Module's Application (decision 0249), this
        * Environment's app from `main`: its development version, offered in
-       * the menu ("Vývojová verze"). Null where the tile opens that app
+       * the menu ("STAGING"). Null where the tile opens that app
        * itself. */
       development: Extract<
         TileTarget,

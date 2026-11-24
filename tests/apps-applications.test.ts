@@ -253,6 +253,16 @@ test("without the account's Applications, or without the group's slug, every til
   expect(tile(before, "deals").development).toBeNull();
 });
 
+test("the frame's names (decision 0249): a tile without an Application opens STAGING, and beside an Application the menu's item is STAGING", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale);
+    expect(copy.appsDevelopment).toBe("STAGING");
+    expect(copy.appsOpenAppNamed).toContain("STAGING");
+    expect(copy.appsOpenAppNamedSame).toContain("STAGING");
+    expect(copy.appsOpenApplicationNamed).not.toContain("STAGING");
+  }
+});
+
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {
   const tiles = tilesWith({
     slug: "example",
