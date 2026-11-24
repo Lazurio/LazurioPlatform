@@ -1683,8 +1683,10 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
    * longer is the moment the person leaves it. */
   private followViewing(): void {
     const inView = this.signalSource !== null && this.windowInView();
-    // The beat may miss one; the release is tried until it arrives, as the
-    // beat that would carry what this tab saw has stopped.
+    // The beat may miss one; the release is retried on the delivery pauses,
+    // as the beat that would carry what this tab saw has stopped. That is
+    // best effort: a release lost on every try lets the hold run out
+    // (`buddyViewingHoldMs`, the accepted limit of #1235).
     const say = (viewing: boolean) => {
       this.viewingSeq += 1;
       const body = {

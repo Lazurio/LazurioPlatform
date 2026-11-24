@@ -124,11 +124,17 @@ export function parseBuddyClaimAnswer(value: unknown): BuddyClaimAnswer {
 
 /** How often a tab with Buddy's window in view says so, and how long the
  * Launchpad holds every notice back after it last did, where the tab never
- * said the person left. The hold outlasts a missed beat and then every try
- * of the tab's word that it saw a change or that the person left
- * (`buddyDeliveryPausesMs`), so a change seen just before the hold would
- * have ended is still said before another tab can tell it. A release ends
- * the hold at once, so it is this long only after a tab went silent. */
+ * said the person left: 40 seconds from the last beat received, not from
+ * when the person saw a change. A release ends the hold at once, so it is
+ * this long only after a tab went silent.
+ *
+ * The tab's word that it saw a change or that the person left is retried
+ * (`buddyDeliveryPausesMs`) on a best-effort basis; nothing guarantees that
+ * it arrives before the hold ends. Where the beats stop, a change is seen
+ * just before the hold ends and that word is then lost or delayed, another
+ * tab may claim the change and tell it although the person already saw it.
+ * The Owner accepted that limit (#1167, recorded in #1235): no finite hold
+ * or retry schedule can rule it out without losing notices instead. */
 export const buddyViewingEveryMs = 10_000;
 export const buddyViewingHoldMs = 40_000;
 
@@ -212,14 +218,16 @@ export function createBuddyNoticeClaims(
   });
 }
 
-/** The pauses between tries of a word that must reach the Launchpad (that
- * the person saw a change, that they left the window): all of them end
- * well before a view's hold does, so the word arrives while the view still
- * holds every other tab's claim back. */
+/** The pauses between tries of a word the Launchpad should get (that the
+ * person saw a change, that they left the window): together they fit within
+ * a view's hold when the word is sent early in it. A word sent just before
+ * the hold ends, or a send that fails or stalls, can still reach the
+ * Launchpad after the hold, when another tab may already have claimed the
+ * change (`buddyViewingHoldMs`; the accepted limit of #1235). */
 export const buddyDeliveryPausesMs = [500, 1_000, 2_000, 4_000, 8_000] as const;
 
-/** Sends a word to the Launchpad until it answers, with the pauses above;
- * true once it did. */
+/** Sends a word to the Launchpad until it answers or the pauses above run
+ * out (six tries at most); true once it answered, false when none did. */
 export async function deliverBuddyNotice(
   send: () => Promise<boolean>,
   wait: (ms: number) => Promise<void> = (ms) =>
