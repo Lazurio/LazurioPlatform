@@ -738,41 +738,100 @@ function takesPrecedence(
   return a.allow && !b.allow;
 }
 
+/** Whether a policy must block `url` for a browser that maps `base`
+ * (Machines `environmentBrowserPolicy`): any page of the sign-in service and
+ * the Dashboard; under `lazurio.io` any page but the Environment's own names,
+ * and of those its Launchpad, T3 Code, Lazurio MausBot and view, and its bare
+ * host's `/oauth2`. Buddy's T3 is blocked only where it is routed. */
+function mustBlock(url: URL, base: string): boolean {
+  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
+  const under = (domain: string) =>
+    host === domain || host.endsWith(`.${domain}`);
+  if (under("auth.lazurio.ai") || under("dashboard.lazurio.ai")) return true;
+  if (!under("lazurio.io")) return false;
+  if (host === base) return url.pathname.startsWith("/oauth2");
+  if (!host.endsWith(`.${base}`)) return true;
+  const label =
+    host
+      .slice(0, -(base.length + 1))
+      .split(".")
+      .pop() ?? "";
+  return ["launchpad", "t3code", "mausbot", "browser"].includes(label);
+}
+
+/** An allow rule for a colleague's application origin that Auth handed to
+ * the Environment's agents (Machines `browser-policy.py`): its exact host,
+ * `<module>.<Environment>.<zone>.lazurio.io` or longer, no session label
+ * first, and the same host's `/oauth2` blocked beside it. It is granted on
+ * purpose and ends with the agent's session, so it is no gap. */
+function grantedAgentOrigin(
+  filter: UrlFilter,
+  blocked: readonly UrlFilter[],
+): boolean {
+  const labels = filter.host.split(".");
+  return (
+    !filter.subdomains &&
+    filter.scheme === null &&
+    filter.port === null &&
+    filter.path === "" &&
+    filter.host.endsWith(".lazurio.io") &&
+    labels.length >= 5 &&
+    !["launchpad", "t3code", "mausbot", "browser", "buddy"].includes(
+      labels[0] ?? "",
+    ) &&
+    blocked.some(
+      (block) =>
+        !block.subdomains &&
+        block.host === filter.host &&
+        block.path === "/oauth2",
+    )
+  );
+}
+
 /** How a policy's text holds up for a browser that maps `base` (F39's
  * addendum of 2026-11-25, Machines#1589): `missing` without a file,
- * `unreadable` for a text that is no policy (no JSON, no URLBlocklist of
- * texts, an URLAllowlist that is no list of texts), else the required pages
- * (`requiredBrowserPolicyBlocks`) it lets through, none when it blocks them
- * all. A filter of the allowlist this reader does not take counts as letting
- * every page through, so doctor never calls a policy complete it cannot
- * read. */
+ * `unreadable` for a text that is no policy (no JSON, no object, no
+ * URLBlocklist of texts, an URLAllowlist that is no list of texts), else the
+ * pages it must block (`mustBlock`) that it lets through, none when it blocks
+ * them all. Chrome decides each page by its most specific filter
+ * (`takesPrecedence`), so a block is checked where it could lose: at every
+ * required page (`requiredBrowserPolicyBlocks`) and at the most general page
+ * of every allow rule, which catches an allow rule for a path or a subdomain
+ * inside a blocked range (Pablo's review of #1262). An allow rule this reader
+ * does not take counts as letting every page through, so doctor never calls a
+ * policy complete it cannot read. */
 export function browserPolicyGaps(
   text: string | null,
   base: string,
 ): "missing" | "unreadable" | readonly string[] {
   if (text === null) return "missing";
-  let policy: { URLBlocklist?: unknown; URLAllowlist?: unknown };
+  let policy: unknown;
   try {
-    policy = JSON.parse(text) as typeof policy;
+    policy = JSON.parse(text);
   } catch {
     return "unreadable";
   }
+  if (typeof policy !== "object" || policy === null || Array.isArray(policy))
+    return "unreadable";
+  const { URLBlocklist: blockedTexts, URLAllowlist: allowedTexts = [] } =
+    policy as { URLBlocklist?: unknown; URLAllowlist?: unknown };
   const texts = (value: unknown): value is string[] =>
     Array.isArray(value) && value.every((entry) => typeof entry === "string");
-  const allowed = policy.URLAllowlist ?? [];
-  if (!texts(policy.URLBlocklist) || !texts(allowed)) return "unreadable";
+  if (!texts(blockedTexts) || !texts(allowedTexts)) return "unreadable";
   // An allow rule this reader does not take may let any page through.
-  if (allowed.some((entry) => urlFilter(entry) === null))
+  if (allowedTexts.some((entry) => urlFilter(entry) === null))
     return requiredBrowserPolicyBlocks(base);
-  const filters = [
-    ...policy.URLBlocklist.map((entry) => ({ entry, allow: false })),
-    ...allowed.map((entry) => ({ entry, allow: true })),
-  ].flatMap(({ entry, allow }) => {
-    const filter = urlFilter(entry);
-    return filter === null ? [] : [{ ...filter, allow }];
-  });
-  return requiredBrowserPolicyBlocks(base).filter((page) => {
-    const url = new URL(page);
+  const read = (entries: string[], allow: boolean) =>
+    entries.flatMap((entry) => {
+      const filter = urlFilter(entry);
+      return filter === null ? [] : [{ ...filter, allow }];
+    });
+  const blocks = read(blockedTexts, false);
+  const allows = read(allowedTexts, true).filter(
+    (filter) => !grantedAgentOrigin(filter, blocks),
+  );
+  const filters = [...blocks, ...allows];
+  const blocked = (url: URL) => {
     let winner: (UrlFilter & { allow: boolean }) | null = null;
     for (const filter of filters)
       if (
@@ -780,8 +839,27 @@ export function browserPolicyGaps(
         (winner === null || takesPrecedence(filter, winner))
       )
         winner = filter;
-    return winner === null || winner.allow;
-  });
+    return winner !== null && !winner.allow;
+  };
+  const gaps = requiredBrowserPolicyBlocks(base).filter(
+    (page) => !blocked(new URL(page)),
+  );
+  for (const allow of allows) {
+    if (allow.host === "") continue;
+    const scheme = allow.scheme ?? "https";
+    if (scheme !== "http" && scheme !== "https") continue;
+    let url: URL;
+    try {
+      url = new URL(
+        `${scheme}://${allow.host}${allow.port === null ? "" : `:${allow.port}`}${allow.path === "" ? "/" : allow.path}`,
+      );
+    } catch {
+      continue;
+    }
+    if (mustBlock(url, base) && !blocked(url) && !gaps.includes(url.href))
+      gaps.push(url.href);
+  }
+  return gaps;
 }
 
 /** The resolver rule's argument anywhere in a command line, after its start,

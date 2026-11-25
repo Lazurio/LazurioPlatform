@@ -5225,6 +5225,10 @@ test("doctor: a browser that maps the local entry without a complete policy is a
   // A policy that is no JSON, one without its list, one that cannot be read.
   for (const policy of [
     "{",
+    "null",
+    "[]",
+    "5",
+    '"policy"',
     JSON.stringify({ URLAllowlist: [base] }),
     JSON.stringify({ URLBlocklist: [1] }),
     Object.assign(new Error("EACCES"), { code: "EACCES" }),
@@ -5282,16 +5286,55 @@ test("doctor: a browser that maps the local entry without a complete policy is a
       ", ",
     ),
   ).toHaveLength(9);
-  // Allow rules that lose to the blocks: `*`, the Environment's own names,
-  // an application's own `/oauth2` under them, another scheme.
+  // Allow rules that lose to the blocks or allow nothing the policy must
+  // block: `*`, the Environment's own names, an application's own `/oauth2`
+  // under them.
   expect(
-    await incomplete([
-      "*",
-      `.forecast.${base}`,
-      `.forecast.${base}/oauth2`,
-      "http://dashboard.lazurio.ai",
-    ]),
+    await incomplete(["*", `.forecast.${base}`, `.forecast.${base}/oauth2`]),
   ).toEqual({ outcome: "ok" });
+  // An allow rule for a part of a blocked range (Pablo's review of #1262):
+  // a path of the Dashboard, a name under lazurio.io, the Dashboard over
+  // http. Each is the page it lets through.
+  expect(
+    await incomplete(["dashboard.lazurio.ai/login", ".secret.lazurio.io"]),
+  ).toMatchObject({
+    reason: "browser-policy-incomplete",
+    context: {
+      missing: "https://dashboard.lazurio.ai/login, https://secret.lazurio.io/",
+    },
+  });
+  expect(await incomplete(["http://dashboard.lazurio.ai"])).toMatchObject({
+    reason: "browser-policy-incomplete",
+    context: { missing: "http://dashboard.lazurio.ai/" },
+  });
+  // A colleague's application origin that Auth handed to the agents comes
+  // with its own `/oauth2` blocked (Machines browser-policy.py): no gap.
+  // Without that block, or for a shell origin, it is one.
+  const colleague = "forecast.team-01.example.lazurio.io";
+  const withAgents = (block: string[], allow: string[]) =>
+    observeWith({
+      ...mapped,
+      [browserPolicyPath]: JSON.stringify({
+        URLBlocklist: [...complete.URLBlocklist, ...block],
+        URLAllowlist: [...complete.URLAllowlist, ...allow],
+      }),
+    });
+  expect(await withAgents([`.${colleague}/oauth2`], [`.${colleague}`])).toEqual(
+    { outcome: "ok" },
+  );
+  expect(await withAgents([], [`.${colleague}`])).toMatchObject({
+    reason: "browser-policy-incomplete",
+    context: { missing: `https://${colleague}/` },
+  });
+  expect(
+    await withAgents(
+      [".launchpad.team-01.example.lazurio.io/oauth2"],
+      [".launchpad.team-01.example.lazurio.io"],
+    ),
+  ).toMatchObject({
+    reason: "browser-policy-incomplete",
+    context: { missing: "https://launchpad.team-01.example.lazurio.io/" },
+  });
   // A complete policy, with Buddy's T3 or without it: ok.
   expect(
     await observeWith({
