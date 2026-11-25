@@ -13422,8 +13422,9 @@ addendum adds to point 1 of the addendum of 2026-10-18; the rest of F39 stands.
    that falls inside a range it must block, such as a path of the Dashboard or a name under
    `lazurio.io`. Of the filters that match a page the most specific wins: an exact host
    before one with its subdomains, then the longer host, then the longer path, and the
-   allowlist on a tie. A colleague's application origin that Auth handed to the agents, an
-   exact host with its own `/oauth2` blocked, is no gap. An allow rule it cannot read counts as
+   allowlist on a tie. A colleague's application origin that Auth handed to the agents is no
+   gap: an exact host of another Environment's application, with no session label anywhere in
+   it, and its whole `/oauth2` blocked beside it on every scheme and port. An allow rule it cannot read counts as
    letting every page through, and a text that is no JSON object is unreadable. A page let
    through is `browser-policy-incomplete` with the `missing` pages (Pablo's review of #1262: a
    block is no block where an allow rule wins). Never `fail`, as for the rest of the check.

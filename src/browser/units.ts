@@ -760,13 +760,17 @@ function mustBlock(url: URL, base: string): boolean {
 }
 
 /** An allow rule for a colleague's application origin that Auth handed to
- * the Environment's agents (Machines `browser-policy.py`): its exact host,
- * `<module>.<Environment>.<zone>.lazurio.io` or longer, no session label
- * first, and the same host's `/oauth2` blocked beside it. It is granted on
- * purpose and ends with the agent's session, so it is no gap. */
+ * the Environment's agents (Machines `browser-policy.py`): an exact host of
+ * `<module>.<Environment>.<zone>.lazurio.io` or longer, never under this
+ * Environment's own names and with no session label anywhere in it, and that
+ * host's whole `/oauth2` blocked beside it on every scheme and port. It is
+ * granted on purpose and ends with the agent's session, so it is no gap.
+ * Anything short of that is checked as any allow rule (Pablo's review of
+ * #1262). */
 function grantedAgentOrigin(
   filter: UrlFilter,
   blocked: readonly UrlFilter[],
+  base: string,
 ): boolean {
   const labels = filter.host.split(".");
   return (
@@ -776,14 +780,18 @@ function grantedAgentOrigin(
     filter.path === "" &&
     filter.host.endsWith(".lazurio.io") &&
     labels.length >= 5 &&
-    !["launchpad", "t3code", "mausbot", "browser", "buddy"].includes(
-      labels[0] ?? "",
+    filter.host !== base &&
+    !filter.host.endsWith(`.${base}`) &&
+    !labels.some((label) =>
+      ["launchpad", "t3code", "mausbot", "browser", "buddy"].includes(label),
     ) &&
     blocked.some(
       (block) =>
         !block.subdomains &&
         block.host === filter.host &&
-        block.path === "/oauth2",
+        block.path === "/oauth2" &&
+        block.scheme === null &&
+        block.port === null,
     )
   );
 }
@@ -828,7 +836,7 @@ export function browserPolicyGaps(
     });
   const blocks = read(blockedTexts, false);
   const allows = read(allowedTexts, true).filter(
-    (filter) => !grantedAgentOrigin(filter, blocks),
+    (filter) => !grantedAgentOrigin(filter, blocks, base),
   );
   const filters = [...blocks, ...allows];
   const blocked = (url: URL) => {

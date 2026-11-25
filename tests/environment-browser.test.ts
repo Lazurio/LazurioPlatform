@@ -5326,6 +5326,26 @@ test("doctor: a browser that maps the local entry without a complete policy is a
     reason: "browser-policy-incomplete",
     context: { missing: `https://${colleague}/` },
   });
+  // Pablo's review of 64a1e72: no exception for a host under this
+  // Environment's own names or with a session label anywhere, and none
+  // where the `/oauth2` block covers only one scheme.
+  expect(
+    await withAgents(
+      [`.foo.launchpad.${base}/oauth2`],
+      [`.foo.launchpad.${base}`],
+    ),
+  ).toMatchObject({
+    reason: "browser-policy-incomplete",
+    context: { missing: `https://foo.launchpad.${base}/` },
+  });
+  for (const block of [
+    `http://.${colleague}/oauth2`,
+    `https://.${colleague}/oauth2`,
+  ])
+    expect(await withAgents([block], [`.${colleague}`])).toMatchObject({
+      reason: "browser-policy-incomplete",
+      context: { missing: `https://${colleague}/` },
+    });
   expect(
     await withAgents(
       [".launchpad.team-01.example.lazurio.io/oauth2"],
