@@ -24,10 +24,13 @@ import {
 import {
   clockTime,
   connectionLine,
+  createLimitRefresh,
   curatedActions,
+  limitRefreshDelay,
 } from "../src/launchpad/tools-view";
 import { findTool } from "../src/tools/catalog";
 import {
+  checkFailure,
   ghStatus,
   rateLimited,
   readGhJsonStatus,
@@ -428,4 +431,127 @@ test("the content waits for the limit and starts by itself once GitHub answers a
     false,
   );
   expect(reset.start).toBe(true);
+});
+
+// Pablo's review of #1224 (3): a check that never reached GitHub says
+// nothing about the sign-in, so it is unknown and offers no sign-in; only
+// GitHub's 4xx other than the limit is signed out.
+test("gh's check that never reached GitHub is unknown, a 4xx answer is signed out, the limit is limited", async () => {
+  expect(
+    checkFailure(
+      'Get "https://api.github.com/": dial tcp: lookup api.github.com: no such host',
+    ),
+  ).toBe("unreachable");
+  expect(checkFailure("HTTP 502: Bad Gateway (https://api.github.com/)")).toBe(
+    "unreachable",
+  );
+  expect(
+    checkFailure("error connecting to api.github.com: dial tcp: i/o timeout"),
+  ).toBe("unreachable");
+  expect(
+    checkFailure("HTTP 401: Bad credentials (https://api.github.com/)"),
+  ).toBe("rejected");
+  expect(checkFailure("HTTP 403: API rate limit exceeded for user ID 1.")).toBe(
+    "limited",
+  );
+  expect(
+    readGhJsonStatus(
+      entry({
+        state: "error",
+        error: "error connecting to api.github.com: dial tcp: i/o timeout",
+      }),
+    ),
+  ).toEqual({ signIn: { state: "unknown" }, scopes: undefined });
+  const opened = await home();
+  try {
+    await opened.flag("gh.unreachable");
+    expect((await ghStatus(opened.run, opened.gh, 10_000)).signIn).toEqual({
+      state: "unknown",
+    });
+    await opened.unflag("gh.unreachable");
+    await opened.flag("gh.unauthorized");
+    expect((await ghStatus(opened.run, opened.gh, 10_000)).signIn).toEqual({
+      state: "signed-out",
+    });
+  } finally {
+    await opened.close();
+  }
+});
+
+// Pablo's review of #1224 (2): a run stopped while GitHub refused requests
+// for its limit waits on Začínáme, and runs once more when GitHub answers;
+// a stop GitHub's limit did not hold is never started again by itself.
+test("a run the limit stopped runs once more when GitHub answers again; another stop does not", () => {
+  const failed = {
+    state: "failed",
+    item: personalspace,
+    job: { state: "failed", steps: [] },
+  } as never;
+  const limited = facts({ content: failed });
+  const seen = autoStartStep(
+    { ai: true, github: true, armed: false },
+    limited,
+    false,
+  );
+  expect(seen.start).toBe(false);
+  expect(seen.state.limitStop).toBe(true);
+  // Still limited on the next reading, and while a run is under way.
+  const still = autoStartStep(seen.state, limited, false);
+  expect(still.start).toBe(false);
+  const answered = {
+    ...facts({ content: failed }),
+    github: "connected" as const,
+  };
+  expect(autoStartStep(still.state, answered, true).start).toBe(false);
+  const reset = autoStartStep(still.state, answered, false);
+  expect(reset.start).toBe(true);
+  expect(reset.state.limitStop).toBeUndefined();
+  // Once: the same stop afterwards is not started again.
+  expect(autoStartStep(reset.state, answered, false).start).toBe(false);
+  // A stop seen only with GitHub connected is never retried by itself.
+  expect(
+    autoStartStep({ ai: true, github: true, armed: true }, answered, false)
+      .start,
+  ).toBe(false);
+});
+
+// Pablo's review of #1224 (1): a page left open reads GitHub again at the
+// reset, without a manual refresh.
+test("the page reads GitHub again at the limit's reset, a minute without one, and stops once GitHub answers", () => {
+  const at = Date.parse(resetIso);
+  expect(limitRefreshDelay(undefined, at)).toBeNull();
+  expect(limitRefreshDelay(null, at)).toBe(60_000);
+  expect(limitRefreshDelay(resetIso, at - 10 * 60_000)).toBe(
+    10 * 60_000 + 2000,
+  );
+  // A page clock ahead of the reset asks again in 15 s, not at once.
+  expect(limitRefreshDelay(resetIso, at + 60_000)).toBe(15_000);
+  expect(limitRefreshDelay(resetIso, at - 5 * 60 * 60_000)).toBe(60 * 60_000);
+
+  const timers: { run: () => void; ms: number; cleared: boolean }[] = [];
+  let refreshed = 0;
+  const refresh = createLimitRefresh({
+    refresh: () => {
+      refreshed += 1;
+    },
+    now: () => at - 60_000,
+    setTimer: (run, ms) => {
+      const timer = { run, ms, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer: (timer) => {
+      (timer as { cleared: boolean }).cleared = true;
+    },
+  });
+  refresh.observe(resetIso);
+  expect(timers.map((timer) => timer.ms)).toEqual([62_000]);
+  // Another reading of the same limit replaces the timer: one at most.
+  refresh.observe(resetIso);
+  expect(timers.map((timer) => timer.cleared)).toEqual([true, false]);
+  timers[1]?.run();
+  expect(refreshed).toBe(1);
+  // GitHub answers: no timer any more.
+  refresh.observe(undefined);
+  expect(timers.length).toBe(2);
 });

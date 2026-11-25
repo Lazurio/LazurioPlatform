@@ -112,6 +112,11 @@ auth)
         printf '{"hosts":{"github.com":[{"state":"error","error":"HTTP 403: API rate limit exceeded for user ID 583231. If you reach out to GitHub Support for help, please include the request ID 82E2:159193:66F69F:6C4BD8:6AEB0B8A and timestamp 2026-11-23 21:05:00 UTC. (https://api.github.com/)","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
         exit 0
       fi
+      # $HOME/gh.unreachable: gh's check of the token never reached GitHub.
+      if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.unreachable" ]; then
+        printf '{"hosts":{"github.com":[{"state":"error","error":"Get \\"https://api.github.com/\\": dial tcp: lookup api.github.com: no such host","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
+        exit 0
+      fi
       if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.unauthorized" ]; then
         printf '{"hosts":{"github.com":[{"state":"error","error":"HTTP 401: Bad credentials (https://api.github.com/)","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
         exit 0

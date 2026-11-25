@@ -6064,8 +6064,10 @@ the limit.
 1. **The reading.** `gh auth status --json hosts` with `state: "error"` whose `error` is
    GitHub's rate limit (HTTP 403 or 429 with "rate limit", primary or secondary;
    `rateLimited`) is signed in, with the login gh names and `limit`. An older gh's text
-   form with the same error reads the same. Any other error, a 401 included, stays
-   signed out, and only that offers "Připojit".
+   form with the same error reads the same. Another 4xx, a 401 included, stays signed
+   out, and only that offers "Připojit". A check that got no HTTP answer at all (a
+   network error, a timeout) or a 5xx is `unknown`: GitHub out of reach says nothing
+   about the sign-in (`checkFailure`, Pablo's review of #1224).
 2. **When it ends.** `gh api rate_limit`, which GitHub answers without counting it, gives
    `limit.reset` when `core` is at zero; a secondary limit, which leaves core requests,
    has no reset.
@@ -6078,7 +6080,12 @@ the limit.
    the next basic is the content, the shell's `setup.github` is `connected`, and nothing
    opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
    no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
-   itself once the limit resets and GitHub reads connected.
+   itself once the limit resets and GitHub reads connected. A run that stopped while
+   GitHub read limited (`AutoStart.limitStop`) runs once more then; any other stop is
+   still never started by itself. A page left open reads the tools again, with their
+   sign-ins, at the reset plus two seconds (a minute without a reset, never under 15 s
+   nor over an hour; `createLimitRefresh`), since nothing else would read them and the
+   page would keep saying the content waits (Pablo's review of #1224).
 5. **Wording.** Začínáme's GitHub step keeps its done mark and says "Připojeno jako
    @{login}. GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se
    v {time}, nic znovu nepřipojujte." ("… It resets at {time}; there is nothing to
@@ -6098,7 +6105,8 @@ Not in this addendum:
 
 The tests are `tests/github-rate-limit.test.ts` (the reading, the reset, the memory and
 its forget, the older gh, the tools' sign-in without proof, the shell's GitHub, 401 still
-signed out, Začínáme, the content, Apps, Nástroje) and `tests/doctor.test.ts`
+signed out and an unreachable check unknown, Začínáme, the content, Apps, Nástroje, the
+start after the reset and after a stopped run, the page's reading at the reset) and `tests/doctor.test.ts`
 (`github-rate-limited` without any further gh API request or ssh).
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release

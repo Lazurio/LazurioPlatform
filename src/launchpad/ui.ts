@@ -146,6 +146,7 @@ import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
 import {
   clockTime,
+  createLimitRefresh,
   organizationChoices,
   organizationRule,
   type ToolGuideTargets,
@@ -2209,6 +2210,11 @@ function whenIdle(task: () => void) {
     requestIdleCallback(() => task(), { timeout: 2000 });
   else setTimeout(task, 300);
 }
+// GitHub read again at its rate limit's reset (#1223); `tools` is defined
+// below and is there by the time the timer runs.
+const limitRefresh = createLimitRefresh({
+  refresh: () => void tools.refresh({ signIn: true }),
+});
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
@@ -2229,6 +2235,9 @@ const tools = createToolsPanel({
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
+    // GitHub refusing requests for its rate limit: read again at its reset,
+    // so a page left open sees GitHub answer and the content start (#1223).
+    limitRefresh.observe(githubLimitReset(overview));
     // Začínáme shown: Composio's organization for its sign-in as it is now.
     const route = shell.route();
     if (route.view === "settings" && route.section === "start")

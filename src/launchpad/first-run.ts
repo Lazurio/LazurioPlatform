@@ -793,6 +793,10 @@ export type AutoStart = Readonly<{
   ai: boolean | null;
   github: boolean | null;
   armed: boolean;
+  /** The content stopped while GitHub refused requests for its rate limit
+   * (#1223): Začínáme says it waits for the reset, so it runs once more
+   * when GitHub answers again (Pablo's review of #1224). */
+  limitStop?: boolean;
 }>;
 
 export const idleAutoStart: AutoStart = Object.freeze({
@@ -828,14 +832,33 @@ export function autoStartStep(
   const arrived =
     (state.ai === false && ai === true) ||
     (state.github === false && github === true);
-  const next = (armed: boolean): AutoStart =>
-    Object.freeze({ ai, github, armed });
-  if (!basicsOnboarding(facts)) return { state: next(false), start: false };
-  const armed = state.armed || arrived;
-  if (!armed) return { state: next(false), start: false };
   const content = facts.content.state;
-  if (content === "ready" || content === "none" || content === "failed")
+  // A stop seen while GitHub refused requests for its rate limit, kept
+  // while the content stays stopped.
+  const limitStop =
+    content === "failed" &&
+    (state.limitStop === true || facts.github === "limited");
+  const next = (armed: boolean, stopped = limitStop): AutoStart =>
+    Object.freeze({
+      ai,
+      github,
+      armed,
+      ...(stopped ? { limitStop: true } : {}),
+    });
+  if (!basicsOnboarding(facts))
+    return { state: next(false, false), start: false };
+  const armed = state.armed || arrived || limitStop;
+  if (!armed) return { state: next(false), start: false };
+  if (content === "ready" || content === "none")
     return { state: next(false), start: false };
+  if (content === "failed") {
+    // Any other stop is never started again by itself; one the limit
+    // caused runs once more as soon as GitHub answers again.
+    if (!limitStop) return { state: next(false), start: false };
+    if (running || contentBlockedBy(facts) !== null)
+      return { state: next(true), start: false };
+    return { state: next(false, false), start: true };
+  }
   if (content !== "missing" || running || contentBlockedBy(facts) !== null)
     return { state: next(true), start: false };
   return { state: next(false), start: true };

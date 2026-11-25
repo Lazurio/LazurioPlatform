@@ -83,6 +83,56 @@ const identities: readonly GhIdentity[] = [
   "unknown",
 ];
 
+/** How long a page waits before it reads GitHub again while its rate limit
+ * is used up (#1223): until the reset GitHub gave plus two seconds, a
+ * minute when it gave none; never under 15 s (a clock ahead of the
+ * Launchpad's asks again soon, not in a loop) nor over an hour. Null when
+ * GitHub is not limited. */
+export function limitRefreshDelay(
+  reset: string | null | undefined,
+  now: number,
+): number | null {
+  if (reset === undefined) return null;
+  if (reset === null) return 60_000;
+  const at = Date.parse(reset);
+  if (!Number.isFinite(at)) return 60_000;
+  return Math.min(Math.max(at - now + 2000, 15_000), 60 * 60_000);
+}
+
+/** The page's own reading of GitHub at its rate limit's reset (Pablo's
+ * review of #1224): nothing else reads the tools again on a page left
+ * open, so without it Začínáme would keep saying the content waits. Each
+ * reading of the tools passes its reset (`githubLimitReset`); one timer at
+ * most, replaced by every reading and cleared once GitHub is not limited. */
+export function createLimitRefresh(
+  options: Readonly<{
+    refresh: () => void;
+    now?: () => number;
+    setTimer?: (run: () => void, ms: number) => unknown;
+    clearTimer?: (timer: unknown) => void;
+  }>,
+) {
+  const now = options.now ?? Date.now;
+  const setTimer =
+    options.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
+  const clearTimer =
+    options.clearTimer ??
+    ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+  return Object.freeze({
+    observe(reset: string | null | undefined): void {
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+      const wait = limitRefreshDelay(reset, now());
+      if (wait === null) return;
+      timer = setTimer(() => {
+        timer = null;
+        options.refresh();
+      }, wait);
+    },
+  });
+}
+
 /** An ISO time as this page's clock reads it, hours and minutes ("21:34"),
  * for when GitHub's rate limit resets (#1223). */
 export function clockTime(iso: string, locale: string): string {

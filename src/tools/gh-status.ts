@@ -74,7 +74,16 @@ export function readGhJsonStatus(stdout: string): GhStatus | undefined {
   // is used up (HTTP 403 or 429, "API rate limit exceeded"): gh calls that
   // an invalid token, but the sign-in is there (#1223).
   const error = own(active, "error");
-  if (state === "error" && typeof error === "string" && rateLimited(error))
+  const failure =
+    state === "error" && typeof error === "string"
+      ? checkFailure(error)
+      : undefined;
+  // gh could not reach GitHub to check the token (a network error, a 5xx):
+  // nothing is known about the sign-in, so nothing offers to sign in again
+  // (Pablo's review of #1224).
+  if (failure === "unreachable")
+    return { signIn: { state: "unknown" }, scopes: undefined };
+  if (failure === "limited")
     return {
       signIn: {
         state: "signed-in",
@@ -115,6 +124,18 @@ export function readGhJsonStatus(stdout: string): GhStatus | undefined {
  * invalid token) is not. */
 export function rateLimited(error: string): boolean {
   return /\b(?:403|429)\b/.test(error) && /rate limit/i.test(error);
+}
+
+/** Why GitHub did not accept gh's check of its token: `limited` (its rate
+ * limit, `rateLimited`), `rejected` (GitHub answered with another 4xx, such
+ * as 401 for a revoked or invalid token: signed out), or `unreachable`
+ * (no HTTP answer at all, a timeout or a 5xx: GitHub out of reach, which
+ * says nothing about the sign-in). */
+export function checkFailure(
+  error: string,
+): "limited" | "rejected" | "unreachable" {
+  if (rateLimited(error)) return "limited";
+  return /\bHTTP 4\d\d\b/.test(error) ? "rejected" : "unreachable";
 }
 
 /** GitHub's used-up rate limit, kept by the process that reads gh's sign-in
@@ -204,7 +225,13 @@ async function readGhStatus(
     // An older gh's text form: "Failed to log in to github.com account
     // octocat (…)" and, last, GitHub's rate-limit error.
     const printed = `${text.stdout}\n${text.stderr}`;
-    if (rateLimited(printed)) {
+    // A check of the token that failed: unreachable says nothing about the
+    // sign-in, a 4xx other than the limit is signed out (`readSignIn`).
+    const failed = /Failed to log in to|Timeout trying to log in/.test(printed)
+      ? checkFailure(printed)
+      : undefined;
+    if (failed === "unreachable") return unknown;
+    if (failed === "limited") {
       const named = /account (\S+) \(/.exec(printed)?.[1];
       const account =
         named !== undefined && login.test(named) ? named : undefined;

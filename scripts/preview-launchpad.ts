@@ -118,8 +118,9 @@
 // GitHub is connected badly; `gh-refused` starts signed in as octocat with a
 // key the account lists, which ssh offers and GitHub refuses on every
 // connection, as in an incident of GitHub's (#851); `gh-limited` starts
-// signed in as octocat whose API rate limit is used up for the next 40
-// minutes, so GitHub answers its token check with 403 (#1223). Without any, the
+// signed in as octocat whose API rate limit is used up for the next three
+// minutes, so GitHub answers its token check with 403 (#1223), and then
+// answers again, as at the reset. Without any, the
 // stand-in gh is signed in as
 // example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
 // keys, the greeting answered by the preview), so GitHub reads connected.
@@ -763,13 +764,20 @@ if (ghFake !== null) {
   }
   // GitHub in an incident (#851): the account lists this home's key, ssh
   // offers it and GitHub refuses every connection.
-  if (ghFake === "limited")
-    await writeFile(
-      join(home, "gh.limited"),
-      `${Math.floor(Date.now() / 1000) + 40 * 60}\n`,
-    );
-  if (ghFake === "refused") {
-    if (realSshKeygen === null) throw new Error("gh-refused needs ssh-keygen");
+  if (ghFake === "limited") {
+    const reset = Math.floor(Date.now() / 1000) + 3 * 60;
+    await writeFile(join(home, "gh.limited"), `${reset}\n`);
+    // GitHub answers again at the reset.
+    setTimeout(
+      () => void rm(join(home, "gh.limited"), { force: true }),
+      reset * 1000 - Date.now(),
+    ).unref?.();
+  }
+  // A key the account lists: GitHub refuses it (`gh-refused`), or greets
+  // it once the rate limit resets (`gh-limited`).
+  if (ghFake === "refused" || ghFake === "limited") {
+    if (realSshKeygen === null)
+      throw new Error(`gh-${ghFake} needs ssh-keygen`);
     const ssh = join(home, ".ssh");
     await mkdir(ssh, { recursive: true, mode: 0o700 });
     const key = join(ssh, "id_ed25519");
@@ -799,7 +807,8 @@ if (ghFake !== null) {
       join(ssh, "known_hosts"),
       `${githubHostKeys.map((entry) => `github.com ${entry}`).join("\n")}\n`,
     );
-    await writeFile(join(home, "ssh.refusals"), "1000000\n");
+    if (ghFake === "refused")
+      await writeFile(join(home, "ssh.refusals"), "1000000\n");
   }
   if (ghSlow)
     for (const step of ["ssh-key-add", "api-meta", "ssh"])
