@@ -13373,13 +13373,17 @@ served from the Environment's loopback. ChatGPT Desktop's right panel was not ch
 **Addendum 2026-11-25: a page that only the person's own browser opens never ends on a dead
 page** (decided by Matěj on 2026-11-25, plan LZD-0025 step B11, Machines#1589: "Tento edgecase
 bychom měli vyřešil lépe, než touto hláškou. Protože to jen mate lidi." Of the choices offered
-he took all three layers). A colleague clicked a link to an Integration's card in the
-Launchpad that an agent had sent into the chat. Web T3 Code opened it in its right panel,
-that is in the Environment browser, and the tab showed the local entry's page "Otevřete to ve
-svém prohlížeči" with no way out. The addendum of 2026-10-18 meant the policy to block such a
-page, and the view to offer it in the person's own browser (C18). That works only where the
-policy is there. On the colleague's Environment and on a developer's it was not: Chrome writes its main process's command line in
-`/proc` as one text joined by spaces, and Machines' role looked for the mapping argument
+he took all three layers). A colleague's right panel in web T3 Code, that is the Environment
+browser, showed an Integration's card in the Launchpad as the local entry's page "Otevřete to
+ve svém prohlížeči", with no way out; the agent of the thread had asked what they saw after
+opening it. A link the person clicks in web T3 Code's chat does not lead there: a Lazurio
+Environment declares T3 Code no server preview browser, so such a link opens in a new tab of
+the person's own browser (checked on 2026-11-25). The page comes into the Environment browser
+by an agent's browser tool, the panel's address bar or Nová karta, or a page's own navigation.
+The addendum of 2026-10-18 meant the policy to block such a page, and the view to offer it in
+the person's own browser (C18). That works only where the policy is there. On the
+colleague's Environment and on a developer's it was not: Chrome writes its main process's
+command line in `/proc` as one text joined by spaces, and Machines' role looked for the mapping argument
 among NUL-separated ones, so it removed the policy instead of writing it (Machines#1589).
 Without the policy the Dashboard's sign-in loads inside the Environment browser too. This
 addendum adds to point 1 of the addendum of 2026-10-18; the rest of F39 stands.
@@ -13420,9 +13424,9 @@ addendum adds to point 1 of the addendum of 2026-10-18; the rest of F39 stands.
    through. A page let through is `browser-policy-incomplete` with the `missing` pages (Pablo's
    review of #1262: a block is no block when an allow rule wins). Never `fail`, as for the
    rest of the check.
-5. **What else belongs to this step.** T3 Code sends a link to such an address straight to
-   the person's own browser and refuses it to its agents' browser tools (Lazurio/t3code, B11b
-   of the plan). Machines writes the policy whenever the browser maps the local entry and
+5. **What else belongs to this step.** T3 Code's agents' browser tools (`preview_open`,
+   `preview_navigate`) refuse such an address and tell the agent to give the person the link
+   (Lazurio/t3code, B11b of the plan). Machines writes the policy whenever the browser maps the local entry and
    rewrites the local entry's page (Machines#1589, B11c). The policy stays the safety: the
    hub learns of a page only after it has loaded.
 
@@ -18611,7 +18615,8 @@ export, within v1 (point 3):
   the root's dot and the default port; null for any other address and anything that is no
   address.
 
-The hub, the `lazurio browser` CLI and, with B11b, T3 Code read it. The vectors' file is
+The hub, the `lazurio browser` CLI and, with B11b, T3 Code's server for its agents' browser
+tools read it. The vectors' file is
 `own-browser.json` (C20); the module's exported names gain the one. The table of contracts in
 [The Environment browser](environment-browser.md) gains the row C20.
 
