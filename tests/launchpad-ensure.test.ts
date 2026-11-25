@@ -1006,3 +1006,171 @@ posixTest(
   },
   60_000,
 );
+
+// Plan LZD-0039 `task-2026-11-25-101`, part A: the Launchpad delivers a
+// Module app's page in STAGING with Lazurio's element, after its own
+// admission, from the app's loopback address the catalog names, with who
+// came as its admission says and the app's own cookies only.
+posixTest(
+  "a STAGING page through the Launchpad: admitted, from the app's own port, with the element and who came, never the session cookie",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "module-page-")));
+    const { folder, entry } = await hostedFolder(parent);
+    await runnable(folder, "gamma", "notes");
+    const [server] = await Array.fromAsync(
+      new Bun.Glob("**/notes/app/server.ts").scan({
+        cwd: folder,
+        absolute: true,
+        dot: true,
+      }),
+    );
+    if (server === undefined) throw new Error("fixture");
+    await Bun.write(
+      server,
+      [
+        "Bun.serve({ hostname: process.env.LAZURIO_RUNTIME_LISTENER_WEB_HOST, port: Number(process.env.LAZURIO_RUNTIME_LISTENER_WEB_PORT), fetch: (r) => {",
+        "  const seen = { host: r.headers.get('host'), user: r.headers.get('x-auth-request-user'), name: r.headers.get('x-auth-request-preferred-username'), entry: r.headers.get('x-lazurio-entry'), role: r.headers.get('x-lazurio-app-role'), cookie: r.headers.get('cookie'), path: new URL(r.url).pathname + new URL(r.url).search };",
+        "  return new Response('<html><body><pre>' + JSON.stringify(seen) + '</pre></body></html>', { headers: { 'content-type': 'text/html' } });",
+        "} });",
+      ].join("\n"),
+    );
+    const home = join(parent, "home");
+    await mkdir(home);
+    const subject = "0f8fad5b-d9cb-469f-a165-70867728950e";
+    const named: AuthFetcher = async (_url, init) =>
+      new Headers(init.headers).get("cookie") === `${cookieName}=valid`
+        ? new Response("ok", {
+            headers: {
+              "x-auth-request-user": subject,
+              "x-auth-request-preferred-username": "ada-lovelace",
+            },
+          })
+        : new Response("no", { status: 401 });
+    const host: ModuleHost = {
+      platform: "darwin",
+      home,
+      path: "/usr/bin:/bin",
+      runtimeDirectory: undefined,
+      platformExecutable: binary,
+      bunExecutable: process.execPath,
+      runnerKind: async () => "session",
+      createRunner: () => createSessionRunner(binary),
+      readJournal: async () => {
+        throw new Error("A session app has no journal");
+      },
+    };
+    const app = await startLaunchpad(
+      folder,
+      undefined,
+      undefined,
+      undefined,
+      { fetcher: named, ensureWaitMs: 15_000 },
+      undefined,
+      {},
+      undefined,
+      host,
+    );
+    // As the gateway asks (its `ensure` subrequest's same-origin proof),
+    // never as a browser could.
+    const gatewayHeaders = {
+      host: launchpadHost,
+      origin: `https://${launchpadHost}`,
+      "sec-fetch-site": "same-origin",
+    };
+    const page = (path: string, headers: Record<string, string> = {}) =>
+      fetch(
+        `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/module-page/notes${path}`,
+        {
+          headers: { ...gatewayHeaders, ...headers },
+        },
+      );
+    try {
+      // Not admitted: refused before anything of the app.
+      expect((await page("/")).status).toBe(401);
+      // Admitted, but the app is not running: not ready, as `ensure` says.
+      const session = `${cookieName}=valid`;
+      expect((await page("/", { cookie: session })).status).toBe(503);
+      expect(await gateway(entry)("notes", { cookie: session })).toMatchObject({
+        code: 204,
+      });
+      // A browser's own navigation to the path on the Launchpad's origin
+      // (no same-origin proof) gets nothing of the app (review of #1254);
+      // the earlier public path is no page of the app either.
+      const direct = await fetch(
+        `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/module-page/notes/`,
+        {
+          headers: {
+            host: launchpadHost,
+            cookie: session,
+            "sec-fetch-site": "none",
+            "sec-fetch-dest": "document",
+          },
+        },
+      );
+      expect(direct.status).toBe(401);
+      expect(await direct.text()).not.toContain("<pre>");
+      const old = await fetch(
+        `http://127.0.0.1:${entry.listenPort}/.lazurio/module-page/notes/`,
+        { headers: { host: launchpadHost, cookie: session } },
+      );
+      expect(await old.text()).not.toContain("<pre>");
+      const answer = await page("/reports?tab=a", {
+        cookie: `${session}; app=1`,
+        "x-auth-request-user": "11111111-1111-4111-8111-111111111111",
+        "x-lazurio-app-role": "admin",
+        // A page the browser cached before the delivery: never a 304.
+        "if-none-match": '"cached-before"',
+        "if-modified-since": "Mon, 01 Jan 2024 00:00:00 GMT",
+      });
+      expect(answer.status).toBe(200);
+      const html = await answer.text();
+      expect(html).toContain(
+        '<lazurio-buddy version="staging"></lazurio-buddy></body>',
+      );
+      const seen = JSON.parse(
+        html.slice(html.indexOf("<pre>") + 5, html.indexOf("</pre>")),
+      );
+      expect(seen).toMatchObject({
+        user: subject,
+        name: "ada-lovelace",
+        entry: "environment",
+        role: null,
+        cookie: "app=1",
+        path: "/reports?tab=a",
+      });
+      expect(seen.host).not.toBe(launchpadHost);
+      // An app the catalog does not know.
+      expect(
+        (
+          await fetch(
+            `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/module-page/nothing/`,
+            {
+              headers: { ...gatewayHeaders, cookie: session },
+            },
+          )
+        ).status,
+      ).toBe(404);
+      // Only a page is delivered: a write is refused before it, by the
+      // admission (not same-origin) or by the route itself.
+      expect(
+        (
+          await fetch(
+            `http://127.0.0.1:${entry.listenPort}/api/internal/hosted/module-page/notes/`,
+            {
+              method: "POST",
+              headers: {
+                host: launchpadHost,
+                cookie: session,
+                origin: `https://${launchpadHost}`,
+              },
+            },
+          )
+        ).status,
+      ).not.toBe(200);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  90_000,
+);
