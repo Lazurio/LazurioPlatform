@@ -665,47 +665,123 @@ export const environmentBrowserReasons = [
 export const browserPolicyPath =
   "/etc/opt/chrome_for_testing/policies/managed/lazurio-environment-browser.json";
 
-/** The filters a policy for a browser that maps `base` to the local entry
- * must block (Machines `environmentBrowserPolicy`): every Lazurio account
- * page, this Environment's Launchpad, T3 Code, Lazurio MausBot and view, and
- * the sign-in of its bare host. Buddy's T3 is blocked only where it is
- * routed, so it is not asked for. */
-export function requiredBrowserPolicyFilters(base: string): string[] {
+/** The pages a policy for a browser that maps `base` to the local entry must
+ * block (Machines `environmentBrowserPolicy`): the Lazurio account pages
+ * (`lazurio.io`, another Environment, the sign-in service, the Dashboard),
+ * this Environment's Launchpad, T3 Code, Lazurio MausBot and view, and the
+ * sign-in of its bare host. Buddy's T3 is blocked only where it is routed,
+ * so it is not asked for. */
+export function requiredBrowserPolicyBlocks(base: string): string[] {
   return [
-    "lazurio.io",
-    "auth.lazurio.ai",
-    "dashboard.lazurio.ai",
-    `launchpad.${base}`,
-    `t3code.${base}`,
-    `mausbot.${base}`,
-    `browser.${base}`,
-    `.${base}/oauth2`,
+    "https://lazurio.io/",
+    "https://launchpad.another-environment.lazurio.io/",
+    "https://auth.lazurio.ai/",
+    "https://dashboard.lazurio.ai/",
+    `https://launchpad.${base}/`,
+    `https://t3code.${base}/`,
+    `https://mausbot.${base}/`,
+    `https://browser.${base}/`,
+    `https://${base}/oauth2/sign_in`,
   ];
+}
+
+/** A filter of URLBlocklist or URLAllowlist as Chrome reads it,
+ * `[scheme://][.]host[:port][/path]` or `*`; null for one with a query or
+ * anything else this reader does not take. */
+type UrlFilter = Readonly<{
+  scheme: string | null;
+  host: string;
+  subdomains: boolean;
+  port: string | null;
+  path: string;
+}>;
+function urlFilter(text: string): UrlFilter | null {
+  if (text === "*")
+    return { scheme: null, host: "", subdomains: true, port: null, path: "" };
+  const written =
+    /^(?:([a-z][a-z0-9+.-]*):\/\/)?(\.?)([^/:?@#\s]+)(?::(\d{1,5}))?(\/[^?@#\s]*)?$/i.exec(
+      text,
+    );
+  if (written === null) return null;
+  return {
+    scheme: written[1]?.toLowerCase() ?? null,
+    host: (written[3] ?? "").toLowerCase().replace(/\.+$/, ""),
+    subdomains: written[2] !== ".",
+    port: written[4] ?? null,
+    path: written[5] ?? "",
+  };
+}
+function filterMatches(filter: UrlFilter, url: URL): boolean {
+  const scheme = url.protocol.slice(0, -1);
+  const port = url.port || (scheme === "https" ? "443" : "80");
+  const host = url.hostname.replace(/\.+$/, "");
+  return (
+    (filter.scheme === null || filter.scheme === scheme) &&
+    (filter.port === null || filter.port === port) &&
+    (filter.host === "" ||
+      host === filter.host ||
+      (filter.subdomains && host.endsWith(`.${filter.host}`))) &&
+    url.pathname.startsWith(filter.path)
+  );
+}
+/** Whether `a` takes precedence over `b`, as Chrome decides between the
+ * filters that match one URL (components/url_matcher `url_util.cc`,
+ * `FilterTakesPrecedence`): an exact host before one with its subdomains,
+ * then the longer host, then the longer path; on a tie the allowlist. */
+function takesPrecedence(
+  a: UrlFilter & { allow: boolean },
+  b: UrlFilter & { allow: boolean },
+): boolean {
+  if (a.subdomains !== b.subdomains) return !a.subdomains;
+  if (a.host.length !== b.host.length) return a.host.length > b.host.length;
+  if (a.path.length !== b.path.length) return a.path.length > b.path.length;
+  return a.allow && !b.allow;
 }
 
 /** How a policy's text holds up for a browser that maps `base` (F39's
  * addendum of 2026-11-25, Machines#1589): `missing` without a file,
  * `unreadable` for a text that is no policy (no JSON, no URLBlocklist of
- * texts), else the required filters it lacks, none when it is complete. */
+ * texts, an URLAllowlist that is no list of texts), else the required pages
+ * (`requiredBrowserPolicyBlocks`) it lets through, none when it blocks them
+ * all. A filter of the allowlist this reader does not take counts as letting
+ * every page through, so doctor never calls a policy complete it cannot
+ * read. */
 export function browserPolicyGaps(
   text: string | null,
   base: string,
 ): "missing" | "unreadable" | readonly string[] {
   if (text === null) return "missing";
-  let blocked: unknown;
+  let policy: { URLBlocklist?: unknown; URLAllowlist?: unknown };
   try {
-    blocked = (JSON.parse(text) as { URLBlocklist?: unknown }).URLBlocklist;
+    policy = JSON.parse(text) as typeof policy;
   } catch {
     return "unreadable";
   }
-  if (
-    !Array.isArray(blocked) ||
-    !blocked.every((filter) => typeof filter === "string")
-  )
-    return "unreadable";
-  return requiredBrowserPolicyFilters(base).filter(
-    (filter) => !blocked.includes(filter),
-  );
+  const texts = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((entry) => typeof entry === "string");
+  const allowed = policy.URLAllowlist ?? [];
+  if (!texts(policy.URLBlocklist) || !texts(allowed)) return "unreadable";
+  // An allow rule this reader does not take may let any page through.
+  if (allowed.some((entry) => urlFilter(entry) === null))
+    return requiredBrowserPolicyBlocks(base);
+  const filters = [
+    ...policy.URLBlocklist.map((entry) => ({ entry, allow: false })),
+    ...allowed.map((entry) => ({ entry, allow: true })),
+  ].flatMap(({ entry, allow }) => {
+    const filter = urlFilter(entry);
+    return filter === null ? [] : [{ ...filter, allow }];
+  });
+  return requiredBrowserPolicyBlocks(base).filter((page) => {
+    const url = new URL(page);
+    let winner: (UrlFilter & { allow: boolean }) | null = null;
+    for (const filter of filters)
+      if (
+        filterMatches(filter, url) &&
+        (winner === null || takesPrecedence(filter, winner))
+      )
+        winner = filter;
+    return winner === null || winner.allow;
+  });
 }
 
 /** The resolver rule's argument anywhere in a command line, after its start,

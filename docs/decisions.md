@@ -13402,16 +13402,24 @@ addendum adds to point 1 of the addendum of 2026-10-18; the rest of F39 stands.
    an active page" while a navigation to another site swaps the page's process at its commit
    (Chrome for Testing 156), so the hub asks a few times, a little later each time. With the
    policy the navigation fails as before and the error page is handed off as before, so the
-   person sees exactly one bar. A subframe hands off nothing.
+   person sees exactly one bar; where its address carries credentials, which C18 never
+   offers, a page of C20 is still handed off, without them. A subframe hands off nothing.
 3. **`lazurio browser` refuses such an address.** `open`, `window --url` and `link --url`
    end with the usage exit (2) and a line that gives the link for the user, without
-   credentials; nothing reaches the hub.
+   credentials; nothing reaches the hub. They ask C20 first, so a view, which is such a page
+   too, gets its link rather than the bare refusal of F50 point 2.
 4. **Doctor says when the policy is missing.** Where the running browser maps the local entry
    (its main process's command line, in Chrome's spelling or NUL-separated), doctor reads the
    managed policy (`browserPolicyPath`). No file is `warn browser-policy-missing`, one it
-   cannot read or that holds no list of filters `browser-policy-unreadable`, one without a
-   required filter `browser-policy-incomplete` with the `missing` filters. Never `fail`, as
-   for the rest of the check.
+   cannot read or that holds no list of filters `browser-policy-unreadable`. Otherwise doctor
+   decides, as Chrome does, whether the policy blocks each page it must: the Lazurio account
+   pages and the Environment's Launchpad, T3 Code, Lazurio MausBot, view and bare host's
+   sign-in (`requiredBrowserPolicyBlocks`). Of the filters that match a page the most specific
+   wins: an exact host before one with its subdomains, then the longer host, then the longer
+   path, and the allowlist on a tie. An allow rule it cannot read counts as letting every page
+   through. A page let through is `browser-policy-incomplete` with the `missing` pages (Pablo's
+   review of #1262: a block is no block when an allow rule wins). Never `fail`, as for the
+   rest of the check.
 5. **What else belongs to this step.** T3 Code sends a link to such an address straight to
    the person's own browser and refuses it to its agents' browser tools (Lazurio/t3code, B11b
    of the plan). Machines writes the policy whenever the browser maps the local entry and

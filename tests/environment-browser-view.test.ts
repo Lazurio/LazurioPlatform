@@ -1393,6 +1393,25 @@ test("a navigation the browser's policy blocks is offered to the viewer's own br
   expect(view.of("hand-off")).toEqual([
     { t: "hand-off", url: "https://auth.lazurio.ai/realms/lazurio/account" },
   ]);
+  // Blocked with credentials in the address: C18 offers no such address,
+  // but a page of C20 is still handed off, without them (Pablo's review of
+  // #1262); a blocked page outside C20 with credentials stays as C18 says.
+  failAndCommit(
+    "L4",
+    "https://user:secret@Dashboard.lazurio.ai/x",
+    "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+  );
+  failAndCommit(
+    "L5",
+    "https://user:secret@github.com/login",
+    "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+  );
+  await until(() => view.of("hand-off").length > 1);
+  await settle();
+  expect(view.of("hand-off")).toEqual([
+    { t: "hand-off", url: "https://auth.lazurio.ai/realms/lazurio/account" },
+    { t: "hand-off", url: "https://dashboard.lazurio.ai/x" },
+  ]);
   // The hub navigated nowhere for it.
   expect(browser.called("Page.navigate")).toEqual([]);
   expect(browser.called("Target.createTarget")).toEqual([]);

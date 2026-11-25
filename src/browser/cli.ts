@@ -876,15 +876,16 @@ async function openDefault(
   copy: (typeof text)[keyof typeof text],
   context: BrowserContext,
 ): Promise<CommandOutput> {
-  // Never the view host of an Environment browser (F50 point 2).
+  // A page only the user's own browser opens (C20), a view among them, says
+  // so with its link; any other view host is refused (F50 point 2).
+  const refused = ownBrowserRefusal(given, browser, copy);
+  if (refused !== null) return refused;
   const address = navigableAddress(given);
   if (address === null)
     return Object.freeze({
       code: browserCliExit.usage,
       stderr: copy["invalid-address"],
     });
-  const refused = ownBrowserRefusal(address, browser, copy);
-  if (refused !== null) return refused;
   const caller = threadSession(undefined, context.env);
   const thread = showsBoundTab(caller) ? caller : null;
   const opened = await (context.openTab ?? openTab)(browser, address, thread);
@@ -1238,8 +1239,14 @@ export async function runBrowserCommand(
         code: browserCliExit.usage,
         stderr: copy["no-session"],
       });
-    // No address on a view host of an Environment browser (F50 point 2),
-    // for a window's first page as for the person's page.
+    // No page only the user's own browser opens (C20), and no other address
+    // on a view host of an Environment browser (F50 point 2), for a window's
+    // first page as for the person's page.
+    const refused =
+      values.url === undefined
+        ? null
+        : ownBrowserRefusal(values.url, browser, copy);
+    if (refused !== null) return refused;
     const address =
       values.url === undefined ? undefined : navigableAddress(values.url);
     if (address === null)
@@ -1247,9 +1254,6 @@ export async function runBrowserCommand(
         code: browserCliExit.usage,
         stderr: copy["invalid-address"],
       });
-    const refused =
-      address === undefined ? null : ownBrowserRefusal(address, browser, copy);
-    if (refused !== null) return refused;
     if (action === "link" && address !== undefined) {
       // A page for the person that nobody holds (0191 point 29): the hub
       // opens it on its loopback request, without a strip.

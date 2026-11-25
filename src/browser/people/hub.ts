@@ -8,6 +8,7 @@ import type {
 } from "../contract/platform";
 import {
   type BootTime,
+  blockedNavigationError,
   browserBounds,
   browserTimes,
   handOffAddress,
@@ -2444,10 +2445,18 @@ export class BrowserHub {
           typeof frame?.loaderId === "string" &&
           frame.unreachableUrl !== undefined
         ) {
-          const url = handOffAddress(
-            tab.failed.get(frame.loaderId),
-            frame.unreachableUrl,
-          );
+          const failed = tab.failed.get(frame.loaderId);
+          // C18 hands off no address with credentials; a blocked page of
+          // C20 is still offered, without them (F39's addendum of
+          // 2026-11-25).
+          const url =
+            handOffAddress(failed, frame.unreachableUrl) ??
+            (failed === blockedNavigationError
+              ? ownBrowserAddress(
+                  frame.unreachableUrl,
+                  this.seams.environment ?? null,
+                )
+              : null);
           if (url !== null) this.broadcast(tab, { t: "hand-off", url });
         } else if (typeof frame?.url === "string") {
           // A page that only the person's own browser opens (C20), which the
