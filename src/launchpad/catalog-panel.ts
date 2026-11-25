@@ -50,6 +50,7 @@ import {
   moduleName,
   moduleStone,
   type NewModuleOffer,
+  newestReading,
   type PersonalStart,
   type ServedBuilds,
   type SharedApplicationTile,
@@ -320,13 +321,18 @@ export function createCatalogPanel(
     served = next;
     if (changed) render();
   };
-  const readServed = () =>
-    options
-      .get("/api/new-tab/overview")
-      .then(({ value, ok }) =>
-        settle(ok ? servedBuildsOf(parseOverview(value)?.modules) : new Set()),
-      )
-      .catch(() => settle(new Set()));
+  // Only the newest reading settles (`newestReading`): a late older answer
+  // never replaces a newer one, nor a newer failure.
+  const readServed = newestReading(
+    async () => {
+      const { value, ok } = await options.get("/api/new-tab/overview");
+      return ok
+        ? servedBuildsOf(parseOverview(value)?.modules)
+        : new Set<string>();
+    },
+    () => new Set<string>(),
+    settle,
+  );
   void readServed();
   if (typeof document !== "undefined") {
     document.addEventListener("visibilitychange", () => {

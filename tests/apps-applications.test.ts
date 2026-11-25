@@ -7,6 +7,7 @@ import {
   connectAgentsPath,
   favoriteTiles,
   moduleApplication,
+  newestReading,
   servedBuildsOf,
   type TileApplications,
 } from "../src/launchpad/apps-view";
@@ -338,6 +339,47 @@ test("STAGING fails closed: only a running, clean build made on main counts, and
     false,
   );
   expect(staging(servedBuildsOf(null))).toBe(false);
+});
+
+test("only the newest reading of what runs settles: a late older answer never brings STAGING back", async () => {
+  const answers: ((value: ReadonlySet<string>) => void)[] = [];
+  const failures: (() => void)[] = [];
+  const settled: string[][] = [];
+  const read = newestReading<ReadonlySet<string>>(
+    () =>
+      new Promise((resolve, reject) => {
+        answers.push(resolve);
+        failures.push(() => reject(new Error("unreachable")));
+      }),
+    () => new Set(),
+    (value) => settled.push([...value]),
+  );
+  // Two readings in flight; the newer says a development run, the older a build.
+  const older = read();
+  const newer = read();
+  answers[1]?.(
+    servedBuildsOf([{ org: "Example", module: "deals", mode: "dev" }]),
+  );
+  await newer;
+  answers[0]?.(
+    servedBuildsOf([
+      { org: "Example", module: "deals", mode: "built", branch: "main" },
+    ]),
+  );
+  await older;
+  expect(settled).toEqual([[]]);
+  // A newer failure is not replaced by an older success either.
+  const before = read();
+  const failing = read();
+  failures[3]?.();
+  await failing;
+  answers[2]?.(
+    servedBuildsOf([
+      { org: "Example", module: "deals", mode: "built", branch: "main" },
+    ]),
+  );
+  await before;
+  expect(settled).toEqual([[], []]);
 });
 
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {

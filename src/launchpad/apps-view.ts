@@ -492,6 +492,27 @@ export function servedBuildsOf(
   );
 }
 
+/** A reader of which only the newest call settles: an older answer that
+ * arrives late is dropped, so it never replaces a newer answer or a newer
+ * failure. A failed read settles as `failed`. */
+export function newestReading<T>(
+  read: () => Promise<T>,
+  failed: () => T,
+  settle: (value: T) => void,
+): () => Promise<void> {
+  let newest = 0;
+  return async () => {
+    const mine = ++newest;
+    let value: T;
+    try {
+      value = await read();
+    } catch {
+      value = failed();
+    }
+    if (mine === newest) settle(value);
+  };
+}
+
 /** Whether a Module's app runs here as a clean built version from `main`. */
 export function servedAsStaging(
   catalog: Catalog,
