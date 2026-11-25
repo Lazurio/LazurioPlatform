@@ -1518,3 +1518,16 @@ The ten open points above are settled thus: approved releases are chosen per Mod
 **Left open,** each for a decision of its own: whether Lazurio manages the GitHub Organization's Teams as derived access; the fixed windows; and, for an old state not yet moved, what happens when its person leaves an Organization to a Personal Environment that still runs on that Organization's servers from before 0245, until it moves to Lazurio's servers for Personal Environments as 0245 requires. 0245's rule itself is unchanged.
 
 **What runs today.** Lazurio Auth decides for all Organizations together, and membership mirrors the GitHub Organization for accounts linked to GitHub. A removal ends on its own only the browser session at gateways that refresh it every two minutes. Device keys, SSH keys, vault sessions, the Chat pairing on the old entry and a Team Environment gateway that never refreshes its session last until they are revoked or their own timers end. No directory is connected. Nothing of this entry is built.
+
+### 0253 — In what people see, the Personal Environment's memory is „Dlouhodobá Paměť“; „Brain“ („Firemní Mozek“) is reserved for the Organization's GitHub Organization
+
+- **Status:** decided, not yet deployed; the English name, the capitalisation in running text and whether agents' wording follows are open · **Applies to:** GEN4 · **Decided:** 2026-11-22
+- **Related:** 0046, 0170, 0207, 0210, 0251
+
+**The Owner's words.** Matěj, 2026-11-22 14:07:49 UTC, in his Buddy's thread, about the page „Brain“ in his Lazurio (Apps → Brain, `/memory`): „Tohle musíme přejmenovat na Dlouhodobá Paměť. Protože Paměť více sedí s koncepty, co lidé už znají. Jako Brain budeme označovat Lazurio Github Organizaci do bucoudna. Jako "Firemní Mozek"“
+
+**The person's memory.** What Lazurio today calls the Brain toward people is the memory of the user of a Personal Environment, GBrain, which Lazurio installs, updates and watches (0046, 0210's addendum of 2026-11-17). Toward people it is named **„Dlouhodobá Paměť“** (Czech). That covers the item in the Apps column, the page's title, the guide and every text a person reads. Names in code, commands (`lazurio brain …`), units, files, paths and the MCP tools (`get_brain_identity` and others) do not change by this entry.
+
+**„Brain“ is reserved.** In the future „Brain“, in Czech **„Firemní Mozek“**, names an Organization's GitHub Organization in Lazurio: its company-wide store of knowledge and work, rooted in its root repository (0251). Until a later decision gives that meaning a shape in the product, „Brain“ is used toward people for nothing else, and the person's memory no longer carries it.
+
+**Open, for the Owner:** the English name (proposed: „Long-term Memory“); capitals (proposed: „Dlouhodobá Paměť“ as the name of the page and app, „dlouhodobá paměť“ in a running sentence); and whether agents' instructions (Buddy's section „Paměť: Brain“, the skill `buddy-brain`, the Folder's glossary) say „Dlouhodobá Paměť (GBrain)“ or keep „Brain“ as the agents' technical name.
