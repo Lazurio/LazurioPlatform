@@ -90,6 +90,9 @@ export function launcherClearance(
 }
 
 export type BuddyBubbleView = Readonly<{
+  /** Checks now whether the page reaches Buddy's origin; the answer goes to
+   * the `reachability` option with the same `probe` (review of #1253). */
+  probe(probe: number): void;
   /** Draws the model; null removes the bubble (the shadow root stays, as
    * the guide's). */
   draw(model: BuddyBubbleModel | null): void;
@@ -160,6 +163,10 @@ function sway(figure: HTMLElement): void {
   );
 }
 
+/** How long his picture may take before the page counts Buddy's origin as
+ * unreachable (root decision 0210, addendum of 2026-11-25). */
+export const buddyReachMs = 3_000;
+
 export function createBuddyBubbleView(
   host: HTMLElement,
   options: Readonly<{
@@ -179,6 +186,10 @@ export function createBuddyBubbleView(
     /** This app's memory (`localStorage`), where his place is kept; null
      * keeps it for this page only. */
     store: Store | null;
+    /** Whether the page reaches Buddy's origin, as his picture tells it:
+     * loaded, or failed or not there within `buddyReachMs` (root decision
+     * 0210, addendum of 2026-11-25). Absent, nobody listens. */
+    reachability?: (ok: boolean, probe?: number) => void;
     /** The launcher's menu (right click, long press, the menu key): its
      * choices now; none for no menu. */
     menu?: () => readonly BuddyMenuItem[];
@@ -188,6 +199,16 @@ export function createBuddyBubbleView(
   let parts: ReturnType<typeof build> | null = null;
   let frame: HTMLIFrameElement | null = null;
   let avatar: string | null = null;
+  // Whether his picture said the page reaches his origin, told once per
+  // answer; the bound of the picture's wait.
+  let reachTimer: ReturnType<typeof setTimeout> | undefined;
+  let told: boolean | null = null;
+  const reached = (ok: boolean): void => {
+    clearTimeout(reachTimer);
+    if (told === ok) return;
+    told = ok;
+    options.reachability?.(ok);
+  };
   const clearance = launcherClearance(host.ownerDocument.documentElement.style);
   const win = host.ownerDocument.defaultView;
   const size = Object.freeze({
@@ -428,8 +449,12 @@ export function createBuddyBubbleView(
     picture.draggable = false;
     picture.addEventListener("error", () => {
       if (picture.src === logoUrl) return;
+      reached(false);
       launcher.dataset.fallback = "";
       picture.src = logoUrl;
+    });
+    picture.addEventListener("load", () => {
+      if (picture.src !== logoUrl) reached(true);
     });
     // Before the meeting his "1", after it Buddy GEN4's sign; the label
     // says either in words.
@@ -633,6 +658,41 @@ export function createBuddyBubbleView(
   }
 
   return Object.freeze({
+    /** Checks again whether the page reaches Buddy's origin (review of
+     * #1253): a fresh load of his picture, past the browser's cache, within
+     * `buddyReachMs`. Its answer goes to `reachability` every time, and a
+     * reached origin brings his picture back to the launcher. */
+    probe(probe: number): void {
+      if (avatar === null || avatar === "") {
+        options.reachability?.(false, probe);
+        return;
+      }
+      let url: URL;
+      try {
+        url = new URL(avatar, host.ownerDocument.baseURI);
+      } catch {
+        options.reachability?.(false, probe);
+        return;
+      }
+      url.searchParams.set("lazurio-reach", String(Date.now()));
+      const image = new Image();
+      let settled = false;
+      const settle = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        told = ok;
+        if (ok && parts !== null && avatar !== null) {
+          delete parts.launcher.dataset.fallback;
+          parts.picture.src = avatar;
+        }
+        options.reachability?.(ok, probe);
+      };
+      const timer = setTimeout(() => settle(false), buddyReachMs);
+      image.addEventListener("load", () => settle(true));
+      image.addEventListener("error", () => settle(false));
+      image.src = url.href;
+    },
     draw(model: BuddyBubbleModel | null): void {
       onPage = launcherOnPage(model, host);
       clearance(onPage && place === "home");
@@ -650,6 +710,13 @@ export function createBuddyBubbleView(
         delete launcher.dataset.fallback;
         picture.src = avatar;
         meet.face.src = avatar;
+        // A picture that neither loads nor fails within the bound (a
+        // tailnet's address the page cannot reach) counts as unreachable.
+        told = null;
+        clearTimeout(reachTimer);
+        reachTimer = setTimeout(() => {
+          if (!picture.complete || picture.naturalWidth === 0) reached(false);
+        }, buddyReachMs);
       }
       launcher.setAttribute("aria-label", model.launcher.label);
       launcher.setAttribute("aria-expanded", String(model.launcher.expanded));
@@ -681,6 +748,8 @@ export function createBuddyBubbleView(
         meet.line.textContent = model.meeting.line;
         meet.action.textContent = model.meeting.action;
         meet.action.href = model.meeting.href;
+        // Off the tailnet there is nothing to click: only his words.
+        meet.action.hidden = model.meeting.href === "";
         meet.close.setAttribute("aria-label", model.meeting.close);
         meet.close.title = model.meeting.close;
       }

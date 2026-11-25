@@ -126,6 +126,7 @@ export type ShellCopy = Readonly<{
   buddySignIn: string;
   buddyMeet: string;
   buddyClose: string;
+  buddyOffTailnet: string;
 }>;
 
 /** One word per kind of `lazurio.shell.v1`. */
@@ -209,6 +210,7 @@ const en: ShellCopy = {
   buddySignIn: "Sign Buddy in",
   buddyMeet: "Meet Buddy",
   buddyClose: "Close",
+  buddyOffTailnet: "Turn on your tailnet to reach Buddy.",
 };
 
 const cs: ShellCopy = {
@@ -282,6 +284,7 @@ const cs: ShellCopy = {
   buddySignIn: "Přihlásit Buddyho",
   buddyMeet: "Seznámit se",
   buddyClose: "Zavřít",
+  buddyOffTailnet: "Zapněte si tailnet, abyste měli přístup k Buddymu.",
 };
 
 export const shellMessages = (locale: KindLocale): ShellCopy =>

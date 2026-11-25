@@ -130,6 +130,8 @@ const bubbleCss = `
 .meet-line { max-width: 85%; margin: 0; padding: 9px 12px; border: 1px solid var(--shell-line); border-radius: 12px 12px 12px 4px; background: var(--shell-raised); color: var(--shell-ink); font-size: 14px; line-height: 1.45; }
 .meet-action { display: flex; min-height: 36px; margin: auto 12px 12px; padding: 0 14px; align-items: center; justify-content: center; border-radius: var(--lz-radius-sm); background: var(--lz-accent-button); color: var(--lz-on-accent); font-size: 14px; font-weight: var(--lz-weight-akce); text-decoration: none; }
 .meet-action:hover { background: var(--lz-accent-button-hover); }
+/* Off the tailnet his window has no action: the attribute hides it, which display flex above would not. */
+.meet-action[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .launcher::before, .figure, .launcher[data-drag] .figure { transition: none; } .launcher:hover .figure, .launcher[data-drag] .figure { transform: none; } .launcher img, .figure[data-landed], .launcher[data-calling] .figure, .figure[data-sway], .launcher[data-spot], .launcher[data-spot]::after { animation: none; } }
 `;
 
