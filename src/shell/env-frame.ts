@@ -107,6 +107,12 @@ export function envFrame(
 /** The version of a Module's app a page is: null on a page that is no
  * Module's app (the Launchpad, Chat), which takes 0248's frame alone. */
 export type AppVersion = "staging" | "dev";
+/** The version a page's `<lazurio-buddy version>` names: a Module's app in
+ * STAGING or DEV, or "production" for a page that is no Environment's (an
+ * Application on an application host), which is never framed. Whoever
+ * delivers the element names it: the Environment's gateway, the module kit,
+ * the application host's gateway. */
+export type PageVersion = AppVersion | "production";
 
 export type VersionFrame = Readonly<{
   /** Red on another person's Environment, blue on every other framed page. */
@@ -147,7 +153,7 @@ export function envFrameLabel(frame: EnvFrame, locale: KindLocale): string {
 export function versionFrame(
   environment: ShellEnvironment | undefined,
   viewer: ShellIdentity | null,
-  version: AppVersion | null,
+  version: PageVersion | null,
   locale: KindLocale,
   /** The page is an Environment's, but its document could not be read: whose
    * it is is not known, so it is framed red without a label (review of
@@ -155,6 +161,9 @@ export function versionFrame(
    * Application, which is never framed. */
   environmentUnknown = false,
 ): VersionFrame | null {
+  // A production Application is no Environment's page: never framed, even
+  // without a document (its host serves none).
+  if (version === "production") return null;
   if (environment === undefined && environmentUnknown)
     return {
       tone: "red",
@@ -172,8 +181,10 @@ export function versionFrame(
   };
 }
 
-/** The `version` attribute of `<lazurio-frame>`: "staging" or "dev";
- * anything else is no Module's app. */
-export function appVersionOf(value: string | null): AppVersion | null {
-  return value === "staging" || value === "dev" ? value : null;
+/** The `version` attribute of `<lazurio-buddy>`: "staging", "dev" or
+ * "production"; anything else, or none, names no version. */
+export function appVersionOf(value: string | null): PageVersion | null {
+  return value === "staging" || value === "dev" || value === "production"
+    ? value
+    : null;
 }

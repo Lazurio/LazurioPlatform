@@ -427,11 +427,22 @@ describe("versionFrame", () => {
     expect(versionFrame(own, null, "staging", "cs")?.tone).toBe("red");
   });
 
-  test("the attribute names only the two versions", () => {
+  test("the attribute names the two versions and production", () => {
     expect(appVersionOf("staging")).toBe("staging");
     expect(appVersionOf("dev")).toBe("dev");
+    expect(appVersionOf("production")).toBe("production");
     expect(appVersionOf("prod")).toBeNull();
     expect(appVersionOf(null)).toBeNull();
+  });
+
+  // The application host's gateway delivers `<lazurio-buddy
+  // version="production">` and serves no document (Machines#1578): the page
+  // is no Environment's and is never framed, though its document is missing.
+  test("a production Application is never framed, even without its document", () => {
+    expect(versionFrame(undefined, null, "production", "cs", true)).toBeNull();
+    expect(versionFrame(undefined, null, "production", "en", false)).toBeNull();
+    // Without the attribute, a page whose document is missing stays framed.
+    expect(versionFrame(undefined, null, null, "cs", true)?.tone).toBe("red");
   });
 
   test("the frame never takes a click, DEV is dashed, the version never gives way", () => {

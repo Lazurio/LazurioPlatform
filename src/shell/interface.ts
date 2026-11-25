@@ -70,7 +70,9 @@ export const shellElementInterface = Object.freeze({
     // (decision F60): the language of the guide.
     // Since decision 0249's addendum of 2026-11-22 (additive in v1) it also
     // draws the page's frame (0248's addendum): `version` names a Module's
-    // app ("staging" or "dev"; absent on any other page).
+    // app ("staging" or "dev"), or "production" for an Application on an
+    // application host, which is never framed; absent on any other page.
+    // Whoever delivers the element names it.
     "lazurio-buddy": Object.freeze(["lang", "version"]),
     // Nová karta (decision F47 point 2): the strip the tab is for, the app's
     // tools as JSON (`[{id, label, key?, icon?}]`), whether the address bar
