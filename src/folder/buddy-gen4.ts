@@ -204,7 +204,11 @@ const reach: readonly Text[] = [
 // The Brain (Matěj 2026-11-17, citations 5 and 4.11 of plan LZD-0033): the
 // one place that holds the truth of what the user and Buddy agree on; first
 // write, then work. The line of what belongs there is the coordinator's
-// proposal within 0180 and 0246, verified in the pilot.
+// proposal within 0180 and 0246, verified in the pilot. The tool's own
+// memory is a notebook, not the truth (plan LZD-0033 R11d, decided
+// 2026-11-25): what is only there, another tool or agent never gets, so the
+// Brain holds every agreement and the tool's memory at most a pointer to it.
+// The tool's memory stays on; Lazurio does not switch it off.
 const brain: readonly Text[] = [
   t("## Paměť: Brain", "## Memory: the Brain"),
   t(
@@ -212,12 +216,16 @@ const brain: readonly Text[] = [
     "The Brain (GBrain) is the one place that holds the truth of what you and the user agree on. The conversation is summarised over time or starts again; what lives only in it is lost.",
   ),
   t(
-    "- **Nejdřív zapsat, pak dělat.** Když si s uživatelem řeknete seznam priorit, úkol, rozhodnutí nebo slib, zapiš to do Brainu dřív, než na tom začneš pracovat, a tam to průběžně aktualizuj: co je hotové, co se změnilo, co čeká. Priority drž na jedné stránce, kterou přepisuješ.",
-    "- **Write first, then work.** When you and the user name a list of priorities, a task, a decision or a promise, write it into the Brain before you start on it, and keep it current there: what is done, what changed, what waits. Keep the priorities on one page you rewrite.",
+    "- **Nejdřív zapsat, pak dělat.** Když si s uživatelem řeknete seznam priorit, úkol, rozhodnutí nebo slib, zapiš to do Brainu dřív, než na tom začneš pracovat, a tam to průběžně aktualizuj: co je hotové, co se změnilo, co čeká. Kam co patří, říká skill `buddy-brain`.",
+    "- **Write first, then work.** When you and the user name a list of priorities, a task, a decision or a promise, write it into the Brain before you start on it, and keep it current there: what is done, what changed, what waits. The skill `buddy-brain` says where each goes.",
   ),
   t(
-    "- **Na začátku práce číst.** Na začátku dne, po shrnutí rozhovoru a před navázáním na dřívější téma si z Brainu načti priority a to, co k tématu víš. Odpovídej podle něj.",
-    "- **Read at the start of work.** At the start of the day, after the conversation was summarised and before picking up an earlier topic, load the priorities and what you know of the topic from the Brain. Answer from it.",
+    "- **Paměť nástroje je zápisník.** Paměť tvého nástroje (Claude Code, Codex) je pracovní zápisník, ne zdroj pravdy: jiný nástroj ani jiný agent ji nedostane. Rozhodnutí, dohodu, stálou preferenci, prioritu, slib a to, co čeká na uživatele, zapiš do Brainu ve stejném tahu, kdy vznikly; do paměti nástroje smíš uložit nejvýš odkaz na ně. Co v Brainu není, jiný agent neví.",
+    "- **Your tool's memory is a notebook.** The memory of your tool (Claude Code, Codex) is a working notebook, not the source of truth: another tool or another agent never gets it. Write a decision, an agreement, a lasting preference, a priority, a promise and what waits for the user into the Brain in the same turn they arise; into the tool's memory put at most a pointer to them. What is not in the Brain, another agent does not know.",
+  ),
+  t(
+    "- **Na začátku práce číst.** Na začátku dne, po shrnutí rozhovoru, po přepnutí modelu a před navázáním na dřívější téma si z Brainu načti dohody, priority, co čeká na uživatele a co k tématu víš. Odpovídej podle něj, ne podle paměti nástroje.",
+    "- **Read at the start of work.** At the start of the day, after the conversation was summarised, after a switch of the model and before picking up an earlier topic, load the agreements, the priorities, what waits for the user and what you know of the topic from the Brain. Answer from it, not from your tool's memory.",
   ),
   t(
     "- **Co tam patří.** Osobní poznámky a preference uživatele, dohody, priority a rozhodnutí, která spolu uděláte, rozdělaná práce a kdo ji vede, co čeká na uživatele a co jsi slíbil. U práce Organizace jen krátký popis a odkaz na místo v Organizaci (plán, issue, pull request); její obsah, data a stav zůstávají v jejích repozitářích, Knowledgebase a aplikacích (0180, 0246). Tajemství nikdy.",
@@ -474,8 +482,32 @@ const brainSkill: FolderSkill = {
       "- **Visibility:** through Executor `recall` returns `world` facts only. A `world` fact is read by every reader of the source: the Environment's agents, the memory map in Lazurio and anyone GBrain grants access to the source. A `private` fact is found neither by you nor by any other agent. Write ordinary facts the agents should find (agreements, priorities, what is to be done) without `visibility`. Pass `private` only when the person explicitly wants it, and tell them that the agents will not find such a fact. Never widen their choice to `world` yourself.",
     ),
     t(
-      "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `edit_page`, `put_page`. Stránku priorit udržuješ aktuální úpravami; nedělej z ní desítky poznámek.",
-      "- **Pages:** priorities, work in progress and agreements on pages: `get_page`, `edit_page`, `put_page`. You keep the priorities page current by editing it; do not turn it into dozens of notes.",
+      "- **Kam co patří.** Stejná místa v každém Osobním Prostředí, aby na ně navázal kterýkoli agent a kterýkoli nástroj:",
+      "- **Where each goes.** The same places in every Personal Environment, so that any agent on any tool can pick up from them:",
+    ),
+    t(
+      "  - **Stálé dohody a preference:** fakt přes `remember` s `entity` uživatele a krátká stránka `buddy/dohody`. Stránku přepisuješ, nenecháš ji narůstat.",
+      "  - **Lasting agreements and preferences:** a fact through `remember` with the user as `entity`, and the short page `buddy/dohody`. You rewrite the page; do not let it grow.",
+    ),
+    t(
+      "  - **Aktuální priority:** stránka `buddy/priority`, nejvýš na jednu obrazovku. Přepisuješ ji.",
+      "  - **Current priorities:** the page `buddy/priority`, one screen at most. You rewrite it.",
+    ),
+    t(
+      "  - **Co čeká na uživatele:** stránka `buddy/ceka`, jedna položka na věc: přesná věta k rozhodnutí, tvoje doporučení, kdo se ptá, do kdy a stav `otevřená` nebo `rozhodnutá`. U rozhodnuté jeho slova doslova a čas; pak ji přesuneš do deníku.",
+      "  - **What waits for the user:** the page `buddy/ceka`, one item per matter: the exact sentence to decide, your recommendation, who asks, by when, and the state `otevřená` (open) or `rozhodnutá` (decided). A decided one gets their words verbatim and the time; then you move it to the diary.",
+    ),
+    t(
+      "  - **Časová osa:** stránka `buddy/denik/<rok-měsíc>` (třeba `buddy/denik/2026-11`). Jen do ní připisuješ; rozhodnutí v ní stojí doslova s časem.",
+      "  - **Timeline:** the page `buddy/denik/<year-month>` (for example `buddy/denik/2026-11`). You only append to it; a decision stands in it verbatim with its time.",
+    ),
+    t(
+      "  Na začátku práce čti `buddy/dohody`, `buddy/priority` a `buddy/ceka`; deník jen na dotaz. Stránky čteš a měníš přes `get_page`, `edit_page` a `put_page`.",
+      "  At the start of work read `buddy/dohody`, `buddy/priority` and `buddy/ceka`; the diary only when asked. You read and change pages with `get_page`, `edit_page` and `put_page`.",
+    ),
+    t(
+      "- **Dorovnání, jednou:** když stránka `buddy/dohody` ještě neexistuje, projdi paměť svého nástroje v této složce a dřívější stránky priorit v Brainu. Co z nich podle `AGENTS.md` patří do Brainu, zapiš na místa výše a v paměti nástroje a na staré stránce nech jen odkaz. Uživateli řekni, kolik položek jsi zapsal, a nic jiného z paměti nástroje necituj.",
+      "- **Catching up, once:** when the page `buddy/dohody` does not exist yet, go through your tool's memory in this folder and the earlier priority pages in the Brain. What of it belongs in the Brain by `AGENTS.md`, write into the places above, and leave only a pointer in the tool's memory and on the old page. Tell the user how many items you wrote, and quote nothing else from the tool's memory.",
     ),
     t(
       "- **Úprava existující stránky:** vždy `edit_page` s `expected_revision` a `edits: [{ old_text, new_text }]`. `expected_revision` a přesný `old_text` vezmi z `get_page` s `include_content: true`; `new_text` napiš sám jako požadovanou náhradu, bez obalu. Když se `old_text` neshoduje, `edit_page` nic nezmění; přečti stránku znovu, nehádej.",

@@ -294,6 +294,70 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   expect(en).toContain("no proof that nothing is there");
 });
 
+test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the places and the catch-up (LZD-0033 R11d)", () => {
+  for (const locale of locales)
+    for (const profile of ["buddy", "employee"] as const) {
+      const files = renderBuddyFolder(source(locale), profile, persona);
+      const agents = files["AGENTS.md"];
+      const skills = [
+        files[".agents/skills/buddy-brain/SKILL.md"],
+        files[".claude/skills/buddy-brain/SKILL.md"],
+      ];
+      const cs = locale === "cs";
+      // The rule: written in the same turn, the tool's memory a pointer at most.
+      expect(agents).toContain(
+        cs
+          ? "**Paměť nástroje je zápisník.**"
+          : "**Your tool's memory is a notebook.**",
+      );
+      expect(agents).toContain(
+        cs ? "ve stejném tahu, kdy vznikly" : "in the same turn they arise",
+      );
+      expect(agents).toContain(
+        cs
+          ? "Co v Brainu není, jiný agent neví."
+          : "What is not in the Brain, another agent does not know.",
+      );
+      // Read the Brain after a summary and after a switch of the model.
+      expect(agents).toContain(
+        cs ? "po přepnutí modelu" : "after a switch of the model",
+      );
+      // The tool's memory stays on (decided 2026-11-25): nothing switches it off.
+      for (const text of Object.values(files)) {
+        expect(text).not.toContain("autoMemoryEnabled");
+        expect(text).not.toContain("generate_memories");
+      }
+      for (const skill of skills) {
+        // The same four places in every Personal Environment.
+        for (const page of [
+          "`buddy/dohody`",
+          "`buddy/priority`",
+          "`buddy/ceka`",
+          "`buddy/denik/2026-11`",
+        ])
+          expect(skill).toContain(page);
+        expect(skill).toContain(
+          cs ? "deník jen na dotaz" : "the diary only when asked",
+        );
+        // A decided item keeps the user's words verbatim and the time.
+        expect(skill).toContain(
+          cs ? "jeho slova doslova a čas" : "their words verbatim and the time",
+        );
+        // The one catch-up of what is only in the tool's memory today.
+        expect(skill).toContain(
+          cs
+            ? "když stránka `buddy/dohody` ještě neexistuje"
+            : "when the page `buddy/dohody` does not exist yet",
+        );
+        expect(skill).toContain(
+          cs
+            ? "nic jiného z paměti nástroje necituj"
+            : "quote nothing else from the tool's memory",
+        );
+      }
+    }
+});
+
 test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
   const skill = (locale: "cs" | "en") =>
     renderBuddyFolder(source(locale), "buddy", persona)[
