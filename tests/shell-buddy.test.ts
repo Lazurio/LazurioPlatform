@@ -2025,3 +2025,50 @@ test("the launcher's menu stands beside the launcher where it is, moved or not, 
     ).left,
   ).toBe(8);
 });
+
+// Root decision 0210, addendum of 2026-11-25: Buddy's figure stands on every
+// page of a person who has him; where the page does not reach his origin (his
+// picture failed or did not come within the bound), his window says to turn
+// on the tailnet, makes no frame and tells no frame it is shown.
+test("off the tailnet: the launcher stays, his window says so with no action and no frame; reached again, the frame opens", () => {
+  const { bubble, last, page } = fakeBubble();
+  page.shell = { ...page.shell, locale: "cs" };
+  bubble.update();
+  expect(last()?.launcher).toBeDefined();
+  bubble.reachability(false);
+  // The figure is still there.
+  expect(last()?.origin).toBe(page.origin as string);
+  bubble.toggle();
+  const off = last();
+  expect(off?.layout).toBe("panel");
+  expect(off?.frame).toBeNull();
+  expect(off?.meeting).toEqual({
+    step: "off-tailnet",
+    hello: expect.any(String),
+    line: "Zapněte si tailnet, abyste měli přístup k Buddymu.",
+    action: "",
+    href: "",
+    close: "Zavřít",
+  });
+  // Reached: the open window closes, and the next click opens the frame.
+  bubble.reachability(true);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.meeting).toBeNull();
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  expect(last()?.meeting).toBeNull();
+});
+
+test("not known yet is not off the tailnet, and another origin starts unknown again", () => {
+  const { bubble, last, page } = fakeBubble();
+  bubble.update();
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  bubble.toggle();
+  bubble.reachability(false);
+  page.origin = "https://buddy.other.lazurio.io";
+  bubble.update();
+  bubble.toggle();
+  expect(last()?.meeting).toBeNull();
+  expect(last()?.frame).not.toBeNull();
+});

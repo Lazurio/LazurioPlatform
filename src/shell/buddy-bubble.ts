@@ -130,7 +130,9 @@ export function buddyMeeting(
  * action leading to `href`, and the window's close button, in the page's
  * language. */
 export type BuddyMeetingModel = Readonly<{
-  step: BuddyMeeting["step"];
+  /** `off-tailnet`: the page does not reach Buddy's origin (root decision
+   * 0210, addendum of 2026-11-25); his window says so, with no action. */
+  step: BuddyMeeting["step"] | "off-tailnet";
   hello: string;
   line: string;
   action: string;
@@ -231,6 +233,11 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // the Launchpad lifts the launcher over its dialog.
   let meeting: BuddyMeeting | null = null;
   let spot = false;
+  // Whether this page reaches Buddy's origin, as his picture's load told
+  // the view: null while it is not known, false where it failed or took too
+  // long (root decision 0210, addendum of 2026-11-25). Never the frame's.
+  let reachable: boolean | null = null;
+  const offTailnet = () => meeting === null && reachable === false;
   // The explanation the frame asked for while it plays, and the size its
   // window returns to.
   let asked: Readonly<{ explainer: string; restore: BuddyLayout }> | null =
@@ -287,8 +294,19 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         spot,
       }),
       frame,
-      meeting:
-        meeting === null || copy === null
+      meeting: offTailnet()
+        ? (() => {
+            const words = shellMessages(pageLang());
+            return Object.freeze({
+              step: "off-tailnet" as const,
+              hello: keepTogether(words.buddyHello),
+              line: keepTogether(words.buddyOffTailnet),
+              action: "",
+              href: "",
+              close: words.buddyClose,
+            });
+          })()
+        : meeting === null || copy === null
           ? null
           : Object.freeze({
               step: meeting.step,
@@ -321,7 +339,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
    * a frame; after it the frame, made the first time, in the remembered
    * size. */
   function openWindow(): void {
-    if (meeting !== null) {
+    if (meeting !== null || offTailnet()) {
       show("panel", "frame");
       return;
     }
@@ -374,6 +392,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
 
   function reset(next: string | null): void {
     origin = next;
+    reachable = null;
     frame = null;
     layout = "closed";
     asked = null;
@@ -403,6 +422,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             shown: () =>
               layout !== "closed" &&
               meeting === null &&
+              reachable !== false &&
               (seams.viewing?.() ?? true),
           });
     layoutSender =
@@ -567,6 +587,17 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     guideOut(out: boolean): void {
       if (out === away) return;
       away = out;
+      draw();
+    },
+    /** Whether this page reaches Buddy's origin, as the view learned it
+     * from his picture. Where it does not, his window says to turn on the
+     * tailnet instead of loading the frame; a window open as it changes
+     * closes, as at the meeting. */
+    reachability(ok: boolean): void {
+      if (origin === null || reachable === ok) return;
+      const was = offTailnet();
+      reachable = ok;
+      if (was !== offTailnet() && layout !== "closed") layout = "closed";
       draw();
     },
     /** What is drawn now. */

@@ -1549,6 +1549,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             follow: (href, event) => this.followMeeting(href, event),
             store: browserStore(),
             menu: () => this.noticeMenu(),
+            reachability: (ok) => this.bubble?.reachability(ok),
           });
         this.view?.draw(model);
         this.followViewing();
