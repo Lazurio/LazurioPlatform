@@ -253,6 +253,25 @@ test("without the account's Applications, or without the group's slug, every til
   expect(tile(before, "deals").development).toBeNull();
 });
 
+test("the tile's words claim no version they cannot verify (decision 0249): the menu offers this Environment's version, and STAGING is said by the frame on the served page", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const copy = messages(locale);
+    for (const text of [
+      copy.appsDevelopment,
+      copy.appsDevelopmentHint,
+      copy.appsOpenAppNamed,
+      copy.appsOpenAppNamedSame,
+    ]) {
+      expect(text).not.toContain("STAGING");
+      expect(text).not.toContain("main");
+    }
+  }
+  // The kind of the Environment, as every text about it (environment wording).
+  expect(messages("cs", "work").appsDevelopment).toBe(
+    "Verze z tohoto Pracovního Prostředí",
+  );
+});
+
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {
   const tiles = tilesWith({
     slug: "example",
