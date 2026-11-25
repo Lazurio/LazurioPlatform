@@ -36,7 +36,9 @@ import {
 } from "../src/browser/people/extension";
 import {
   browserCdpPort,
+  browserPolicyPath,
   browserProfileDirectory,
+  browserResolverRule,
   browserUnit,
   browserViewUnit,
   displayUnit,
@@ -5053,3 +5055,188 @@ test.skipIf(process.platform === "win32")(
     });
   },
 );
+
+// F39's addendum of 2026-11-25 (C20): a page that only the user's own browser
+// opens never opens in the Environment browser, whichever command asks.
+// `open`, `window --url` and `link --url` refuse it as a usage error and give
+// the link for the user, without credentials; nothing reaches the hub. The
+// view's origin names this Environment (`workspace.example`), whose module
+// still opens.
+test.skipIf(process.platform === "win32")(
+  "lazurio browser open, window --url and link --url refuse a page only the user's own browser opens, and give its link without credentials",
+  async () => {
+    const { home, folder } = await folderWith(bindings.organizationBrowser);
+    const opened: string[] = [];
+    const openTab = async (_entry: { listenPort: number }, url: string) => {
+      opened.push(url);
+      return { kind: "opened", tab: "CD".repeat(16) } as const;
+    };
+    const run = (args: string[]) =>
+      runBrowserCommand([...args, "--folder", folder], {
+        ...context({ HOME: home }),
+        openTab,
+      });
+    const refusal = (address: string) =>
+      `That address opens only in the user's own browser, never in the Environment browser: ${address}. Nothing was opened; give the user this link.`;
+    const launchpad =
+      "https://launchpad.workspace.example.lazurio.io/integrations/app/neon";
+    for (const args of [
+      ["open", launchpad],
+      ["open", launchpad, "--json"],
+      ["link", "--url", launchpad],
+      ["link", "--url", launchpad, "--json"],
+      ["window", "--session", "codex-1", "--url", launchpad],
+    ]) {
+      const refused = await run(args);
+      expect(refused.code).toBe(2);
+      expect(refused.stdout).toBeUndefined();
+      expect(refused.stderr).toBe(refusal(launchpad));
+    }
+    // The bare host on any path, the Dashboard and another Environment.
+    for (const [given, address] of [
+      [
+        "https://workspace.example.lazurio.io/",
+        "https://workspace.example.lazurio.io/",
+      ],
+      [
+        "https://user:secret@Dashboard.lazurio.ai/environments",
+        "https://dashboard.lazurio.ai/environments",
+      ],
+      [
+        "https://launchpad.team-01.example.lazurio.io/",
+        "https://launchpad.team-01.example.lazurio.io/",
+      ],
+    ] as const) {
+      const refused = await run(["open", given]);
+      expect(refused.code).toBe(2);
+      expect(refused.stderr).toBe(refusal(address));
+      expect(refused.stderr).not.toContain("secret");
+    }
+    expect(opened).toEqual([]);
+    // This Environment's module still opens.
+    const module = await run([
+      "open",
+      "https://forecast.workspace.example.lazurio.io/",
+    ]);
+    expect(module.code).toBe(0);
+    expect(opened).toEqual(["https://forecast.workspace.example.lazurio.io/"]);
+  },
+);
+
+// F39's addendum of 2026-11-25 (Machines#1589): where the running browser maps
+// the local entry, doctor reads the managed policy, and a browser without it,
+// with one it cannot read, or with one that lacks a required filter is a
+// warning that names the path and the missing filters. A browser without the
+// mapping, or whose process cannot be read, has nothing to say about it.
+test("doctor: a browser that maps the local entry without a complete policy is a warning", async () => {
+  const base = "vm-01.example.lazurio.io";
+  const mapping = `--host-resolver-rules=${browserResolverRule({ port: 4443, base })}`;
+  const complete = {
+    URLBlocklist: [
+      "lazurio.io",
+      "auth.lazurio.ai",
+      "dashboard.lazurio.ai",
+      `launchpad.${base}`,
+      `t3code.${base}`,
+      `mausbot.${base}`,
+      `browser.${base}`,
+      `.${base}/oauth2`,
+    ],
+    URLAllowlist: [base],
+  };
+  const observeWith = (
+    files: Record<string, string | Error>,
+    mainPid = "4242",
+  ) => {
+    const run: ProcessRunner = async (command) =>
+      command.includes("--property=MainPID")
+        ? { exitCode: 0, stdout: `${mainPid}\n` }
+        : { exitCode: 0, stdout: "LoadState=loaded\nActiveState=active\n" };
+    return observeEnvironmentBrowser({
+      platform: "linux",
+      env: { XDG_RUNTIME_DIR: "/run/user/1000" },
+      supervised: true,
+      hosted: async () => true,
+      entry,
+      run,
+      fetch: answering(),
+      read: async (path) => {
+        const found = files[path];
+        if (found === undefined)
+          throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+        if (found instanceof Error) throw found;
+        return found;
+      },
+    });
+  };
+  // Chrome rewrites its main process's command line into one text joined by
+  // spaces, ending in one NUL (Chrome for Testing 156); a process that keeps
+  // its arguments has them NUL-separated. Doctor reads both.
+  const cmdline = (args: string[]) =>
+    `${["/opt/chrome", ...args, "about:blank"].join(" ")}\0`;
+  const mapped = { "/proc/4242/cmdline": cmdline(["--no-first-run", mapping]) };
+  expect(
+    await observeWith({
+      "/proc/4242/cmdline": ["/opt/chrome", mapping, "about:blank", ""].join(
+        "\0",
+      ),
+    }),
+  ).toEqual({
+    outcome: "warn",
+    reason: "browser-policy-missing",
+    context: { path: browserPolicyPath },
+  });
+  // Mapped, and no policy at all: the case Machines#1589 found.
+  expect(await observeWith(mapped)).toEqual({
+    outcome: "warn",
+    reason: "browser-policy-missing",
+    context: { path: browserPolicyPath },
+  });
+  // A policy that is no JSON, one without its list, one that cannot be read.
+  for (const policy of [
+    "{",
+    JSON.stringify({ URLAllowlist: [base] }),
+    JSON.stringify({ URLBlocklist: [1] }),
+    Object.assign(new Error("EACCES"), { code: "EACCES" }),
+  ])
+    expect(
+      await observeWith({ ...mapped, [browserPolicyPath]: policy }),
+    ).toEqual({
+      outcome: "warn",
+      reason: "browser-policy-unreadable",
+      context: { path: browserPolicyPath },
+    });
+  // A policy that does not block this Environment's Launchpad and sign-in.
+  expect(
+    await observeWith({
+      ...mapped,
+      [browserPolicyPath]: JSON.stringify({
+        ...complete,
+        URLBlocklist: complete.URLBlocklist.filter(
+          (filter) =>
+            filter !== `launchpad.${base}` && filter !== `.${base}/oauth2`,
+        ),
+      }),
+    }),
+  ).toEqual({
+    outcome: "warn",
+    reason: "browser-policy-incomplete",
+    context: {
+      path: browserPolicyPath,
+      missing: `launchpad.${base}, .${base}/oauth2`,
+    },
+  });
+  // A complete policy, with Buddy's T3 or without it: ok.
+  expect(
+    await observeWith({
+      ...mapped,
+      [browserPolicyPath]: JSON.stringify(complete),
+    }),
+  ).toEqual({ outcome: "ok" });
+  // No mapping, no main process, an unreadable one: nothing about the policy.
+  expect(
+    await observeWith({ "/proc/4242/cmdline": cmdline(["--no-first-run"]) }),
+  ).toEqual({ outcome: "ok" });
+  expect(await observeWith(mapped, "0")).toEqual({ outcome: "ok" });
+  expect(await observeWith({})).toEqual({ outcome: "ok" });
+});

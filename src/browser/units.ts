@@ -653,7 +653,99 @@ export const environmentBrowserReasons = [
   "browser-not-answering",
   "browser-view-not-answering",
   "browser-holder-unreadable",
+  "browser-policy-missing",
+  "browser-policy-unreadable",
+  "browser-policy-incomplete",
 ] as const;
+
+/** Where Chrome for Testing, the Environment browser, reads its managed
+ * policy on Linux (Machines `default-browser.ts` BROWSER_POLICY_PATH): the
+ * policy that keeps the pages of a person's Lazurio account out of it (#504),
+ * which Machines writes while the running browser maps the local entry. */
+export const browserPolicyPath =
+  "/etc/opt/chrome_for_testing/policies/managed/lazurio-environment-browser.json";
+
+/** The filters a policy for a browser that maps `base` to the local entry
+ * must block (Machines `environmentBrowserPolicy`): every Lazurio account
+ * page, this Environment's Launchpad, T3 Code, Lazurio MausBot and view, and
+ * the sign-in of its bare host. Buddy's T3 is blocked only where it is
+ * routed, so it is not asked for. */
+export function requiredBrowserPolicyFilters(base: string): string[] {
+  return [
+    "lazurio.io",
+    "auth.lazurio.ai",
+    "dashboard.lazurio.ai",
+    `launchpad.${base}`,
+    `t3code.${base}`,
+    `mausbot.${base}`,
+    `browser.${base}`,
+    `.${base}/oauth2`,
+  ];
+}
+
+/** How a policy's text holds up for a browser that maps `base` (F39's
+ * addendum of 2026-11-25, Machines#1589): `missing` without a file,
+ * `unreadable` for a text that is no policy (no JSON, no URLBlocklist of
+ * texts), else the required filters it lacks, none when it is complete. */
+export function browserPolicyGaps(
+  text: string | null,
+  base: string,
+): "missing" | "unreadable" | readonly string[] {
+  if (text === null) return "missing";
+  let blocked: unknown;
+  try {
+    blocked = (JSON.parse(text) as { URLBlocklist?: unknown }).URLBlocklist;
+  } catch {
+    return "unreadable";
+  }
+  if (
+    !Array.isArray(blocked) ||
+    !blocked.every((filter) => typeof filter === "string")
+  )
+    return "unreadable";
+  return requiredBrowserPolicyFilters(base).filter(
+    (filter) => !blocked.includes(filter),
+  );
+}
+
+/** The resolver rule's argument anywhere in a command line, after its start,
+ * a space or a NUL. Chrome rewrites its main process's command line in
+ * `/proc` into one text, its arguments joined by spaces (measured with Chrome
+ * for Testing 156, 2026-11-25), so the argument is no element
+ * of a NUL-separated list there, and the rule holds spaces of its own. */
+const resolverRuleArgument =
+  /(?:^|[\s\0])--host-resolver-rules=MAP \*\.([a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?) 127\.0\.0\.1:\d{1,5},/;
+
+/** The base the running Environment browser maps to the local entry, read
+ * from its main process's command line (`browserResolverRule`), in Chrome's
+ * own spelling or as NUL-separated arguments; null where it maps none, and
+ * where its process or command line cannot be read. */
+async function mappedBase(
+  run: ProcessRunner,
+  env: Readonly<Record<string, string | undefined>>,
+  read: (path: string) => Promise<string>,
+): Promise<string | null> {
+  const shown = await run(
+    [
+      "systemctl",
+      "--user",
+      "show",
+      "--property=MainPID",
+      "--value",
+      browserUnit,
+    ],
+    serviceCommandTimeoutMs,
+    serviceEnvironment(env),
+  ).catch(() => null);
+  if (shown === null || shown === "timeout" || shown.exitCode !== 0)
+    return null;
+  const pid = Number.parseInt(shown.stdout.trim(), 10);
+  if (!Number.isInteger(pid) || pid < 2 || String(pid) !== shown.stdout.trim())
+    return null;
+  const command = await read(`/proc/${pid}/cmdline`).catch(() => null);
+  if (command === null) return null;
+  return resolverRuleArgument.exec(command)?.[1] ?? null;
+}
 
 const probeTimeoutMs = 3_000;
 
@@ -672,6 +764,9 @@ export async function observeEnvironmentBrowser(
     entry: BrowserEntry | undefined;
     run: ProcessRunner;
     fetch: (url: string, init: RequestInit) => Promise<Response>;
+    /** Reads a file as text: the browser's arguments in `/proc` and its
+     * managed policy (`browserPolicyPath`); tests give their own. */
+    read?: (path: string) => Promise<string>;
   }>,
 ): Promise<EnvironmentBrowserObservation> {
   const skipped = (reason: string) =>
@@ -745,6 +840,28 @@ export async function observeEnvironmentBrowser(
     `http://127.0.0.1:${input.entry.listenPort}/.lazurio/health`,
   );
   if (view === null) return warn("browser-view-not-answering");
+  // F39's addendum of 2026-11-25 (Machines#1589): a browser that maps the
+  // local entry relies on the policy to keep the sign-in, the Dashboard and
+  // every other Environment out of it, and to hand a blocked page off. One
+  // that runs without the policy, or with one that misses a filter, says so.
+  const read = input.read ?? ((path: string) => readFile(path, "utf8"));
+  const base = await mappedBase(input.run, input.env, read);
+  if (base !== null) {
+    const policy = await read(browserPolicyPath).catch((error: unknown) =>
+      (error as { code?: unknown }).code === "ENOENT" ? null : undefined,
+    );
+    const gaps =
+      policy === undefined ? "unreadable" : browserPolicyGaps(policy, base);
+    if (gaps === "missing")
+      return warn("browser-policy-missing", { path: browserPolicyPath });
+    if (gaps === "unreadable")
+      return warn("browser-policy-unreadable", { path: browserPolicyPath });
+    if (gaps.length > 0)
+      return warn("browser-policy-incomplete", {
+        path: browserPolicyPath,
+        missing: gaps.join(", "),
+      });
+  }
   // Root decision 0191 point 32: the tabs such a file held at the hub's last
   // reading of it do not end until it can be read again, and a file the hub
   // has not read since the view started holds none. Doctor cannot tell which.

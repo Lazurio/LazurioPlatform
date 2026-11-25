@@ -13370,6 +13370,68 @@ browser with screenshots in the pull request, and Matěj saw it on 2026-11-16 in
 right panel: the Environment browser opened this change's view page and an app's column head,
 served from the Environment's loopback. ChatGPT Desktop's right panel was not checked.
 
+**Addendum 2026-11-25: a page that only the person's own browser opens never ends on a dead
+page** (decided by Matěj on 2026-11-25, plan LZD-0025 step B11, Machines#1589: "Tento edgecase
+bychom měli vyřešil lépe, než touto hláškou. Protože to jen mate lidi." Of the choices offered
+he took all three layers). A colleague clicked a link to an Integration's card in the
+Launchpad that an agent had sent into the chat. Web T3 Code opened it in its right panel,
+that is in the Environment browser, and the tab showed the local entry's page "Otevřete to ve
+svém prohlížeči" with no way out. The addendum of 2026-10-18 meant the policy to block such a
+page, and the view to offer it in the person's own browser (C18). That works only where the
+policy is there. On the colleague's Environment and on a developer's it was not: Chrome writes its main process's command line in
+`/proc` as one text joined by spaces, and Machines' role looked for the mapping argument
+among NUL-separated ones, so it removed the policy instead of writing it (Machines#1589).
+Without the policy the Dashboard's sign-in loads inside the Environment browser too. This
+addendum adds to point 1 of the addendum of 2026-10-18; the rest of F39 stands.
+
+1. **One rule for every program: C20** (F50's addendum of 2026-11-25). The addresses the
+   Environment browser never opens are those the policy blocks (the whole `lazurio.io`, the
+   sign-in service and the Dashboard, except the Environment's own names; of those its
+   Launchpad, T3 Code, Lazurio MausBot, view and Buddy) and the Environment's bare host on any
+   path, which the local entry answers with its page because it has no twin for it.
+   `ownBrowserAddress` says whether an address is one and gives the address to hand off. It
+   classifies by host and path alone: credentials in the address, its port, letter case and
+   the DNS root's trailing dot change nothing, and the address it gives never carries the
+   credentials (Pablo's review of the plan). An unknown name of the Environment also gets the
+   local entry's page, but no program can know the catalog, so C20 leaves it alone.
+2. **The hub hands such a page off without the policy.** After a navigation of a tab's main
+   frame commits on an address of C20, the hub sends its viewers the hand-off of C18 with that
+   address and takes the tab back: to the latest entry of its history before it that is no
+   such page, else to `about:blank`, and only while the tab is still on such a page, so a
+   person or an agent that went on meanwhile keeps their page. Chrome answers "Not attached to
+   an active page" while a navigation to another site swaps the page's process at its commit
+   (Chrome for Testing 156), so the hub asks a few times, a little later each time. With the
+   policy the navigation fails as before and the error page is handed off as before, so the
+   person sees exactly one bar. A subframe hands off nothing.
+3. **`lazurio browser` refuses such an address.** `open`, `window --url` and `link --url`
+   end with the usage exit (2) and a line that gives the link for the user, without
+   credentials; nothing reaches the hub.
+4. **Doctor says when the policy is missing.** Where the running browser maps the local entry
+   (its main process's command line, in Chrome's spelling or NUL-separated), doctor reads the
+   managed policy (`browserPolicyPath`). No file is `warn browser-policy-missing`, one it
+   cannot read or that holds no list of filters `browser-policy-unreadable`, one without a
+   required filter `browser-policy-incomplete` with the `missing` filters. Never `fail`, as
+   for the rest of the check.
+5. **What else belongs to this step.** T3 Code sends a link to such an address straight to
+   the person's own browser and refuses it to its agents' browser tools (Lazurio/t3code, B11b
+   of the plan). Machines writes the policy whenever the browser maps the local entry and
+   rewrites the local entry's page (Machines#1589, B11c). The policy stays the safety: the
+   hub learns of a page only after it has loaded.
+
+Tests: `tests/browser-contract-vectors.test.ts` (`own-browser.json`, 42 cases),
+`tests/environment-browser-view.test.ts` (the hand-off without the policy, the way back past
+another such page, credentials, a subframe, the Environment's module),
+`tests/environment-browser.test.ts` (the three commands refuse, the module still opens;
+doctor with the mapping and without the policy, an unreadable or incomplete one, a complete
+one, Chrome's spelling and NUL-separated arguments, no mapping). On a developer's Environment
+without the policy on 2026-11-25,
+`lazurio doctor` of this change says `warn browser-policy-missing`, where 0.1.27 says `ok`. The
+same day a headless Chrome for Testing 156 with its own profile and the unit's resolver rule,
+against that Environment's real local entry and without the policy, showed the hub of this change
+hand off the Launchpad's Integrations card, the Dashboard given with credentials (handed off
+without them) and the bare host, take the tab back to its page each time, and leave an
+unknown name alone.
+
 ## F40 — Lazurio-account entry, approved devices and internal Environment sharing
 
 Accepted direction, 2026-10-06, root decision 0192. The complete public
@@ -18531,6 +18593,19 @@ no unverified binding; the hub does not. The vectors' file is `unverified-bindin
 gains `complete`, `taken` and `all` on `browser-tabs`, the kind `browser-take` and the exit
 `confirm` (3). The table of contracts in [The Environment browser](environment-browser.md)
 gains the row C19.
+
+**Addendum 2026-11-25: C20, the pages that open only in the person's own browser** (plan
+LZD-0025 step B11, F39's addendum of 2026-11-25). The contract grows by one section and one
+export, within v1 (point 3):
+- `ownBrowserAddress(url, environment)`: the address to hand to the person's own browser when
+  `url` is a page the Environment browser never opens, `environment` being this Environment's
+  id (C3) or null; the address without credentials, with the host in lower case and without
+  the root's dot and the default port; null for any other address and anything that is no
+  address.
+
+The hub, the `lazurio browser` CLI and, with B11b, T3 Code read it. The vectors' file is
+`own-browser.json` (C20); the module's exported names gain the one. The table of contracts in
+[The Environment browser](environment-browser.md) gains the row C20.
 
 ## F51 — Managed Chat starts in the Folder; Platform owns the model recommendation
 
