@@ -167,6 +167,14 @@ test("the hosted manual names the DEV shell script with this Launchpad's port; a
     ).toContain(
       "`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:20000/.lazurio/shell.js`",
     );
+    // It promises the frame only with versions that draw it (review of #1251).
+    expect(
+      working("hosted-organization-personal", bindings.organizationEntry),
+    ).toMatch(
+      locale === "cs"
+        ? /Dokud tvoje verze module-kitu nebo Lazuria tohle neumí, stránka se od stabilní aplikace neliší/
+        : /Until your module kit or Lazurio can do this, the page looks like the stable application/,
+    );
     // A computer's Launchpad has no known loopback port: nothing to name.
     expect(working("local", null)).not.toContain(shellScriptVariable);
   }

@@ -798,8 +798,8 @@ function workingHere(
     ...(machine?.entry
       ? [
           t(
-            `Modul postavený na module-kitu spusť rozpracovaný s \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`: module-kit pak do stránky vloží prvek Lazuria s přerušovaným rámečkem DEV a stránka hned ukáže, že nejde o stabilní aplikaci. Bez proměnné nevloží nic. Stabilní aplikaci z \`main\` ji Lazurio nikdy nedává a ty ji tam nenastavuj.`,
-            `Start a module built on the module kit in progress with \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`: the module kit then puts Lazurio's element with the dashed DEV frame on the page, which shows at once that this is not the stable application. Without the variable it puts nothing there. Lazurio never gives it to the stable application from \`main\`, and you never set it there.`,
+            `Modul postavený na module-kitu spouštěj rozpracovaný s \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`. Module-kit, který tuto proměnnou zná, pak do stránky vloží prvek Lazuria s verzí DEV, a Lazurio, které rámečky kreslí, kolem stránky ukáže přerušovaný rámeček DEV. Dokud tvoje verze module-kitu nebo Lazuria tohle neumí, stránka se od stabilní aplikace neliší, tak to uživateli neslibuj a rozdíl mu řekni sám. Stabilní aplikaci z \`main\` Lazurio proměnnou nikdy nedává a ty ji tam nenastavuj.`,
+            `Start a module built on the module kit in progress with \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`. A module kit that knows the variable then puts Lazurio's element with the DEV version on the page, and a Lazurio that draws the frames shows the dashed DEV frame around it. Until your module kit or Lazurio can do this, the page looks like the stable application, so do not promise it to the user; tell them the difference yourself. Lazurio never gives the variable to the stable application from \`main\`, and you never set it there.`,
           ),
         ]
       : []),
