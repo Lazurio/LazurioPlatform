@@ -144,8 +144,12 @@ export function checkFailure(
 export type GithubLimitMemo = Readonly<{
   /** The kept reading, while its limit has not reset. */
   githubLimit(): GhStatus | undefined;
-  /** Keep `status` until `untilMs` (this process's clock). */
-  keepGithubLimit(status: GhStatus, untilMs: number): void;
+  /** Which forget the memory is at: a reading keeps its limit only when no
+   * sign-in or sign-out started meanwhile (Pablo's review of #1224). */
+  limitGeneration(): number;
+  /** Keep `status` until `untilMs` (this process's clock), unless a forget
+   * came after `generation`. */
+  keepGithubLimit(status: GhStatus, untilMs: number, generation: number): void;
 }>;
 
 // A limit whose end GitHub does not say is asked again after a minute, and
@@ -189,6 +193,7 @@ export async function ghStatus(
 ): Promise<GhStatus> {
   const kept = limits?.githubLimit();
   if (kept !== undefined) return kept;
+  const started = limits?.limitGeneration() ?? 0;
   const status = await readGhStatus(run, gh, timeoutMs);
   if (status.signIn.limit === undefined) return status;
   const reset = await limitReset(run, gh, timeoutMs);
@@ -203,7 +208,7 @@ export async function ghStatus(
     reset === undefined
       ? now() + unknownResetMs
       : Math.min(Date.parse(reset), now() + longestLimitMs);
-  if (until > now()) limits?.keepGithubLimit(limited, until);
+  if (until > now()) limits?.keepGithubLimit(limited, until, started);
   return limited;
 }
 

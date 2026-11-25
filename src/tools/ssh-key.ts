@@ -519,7 +519,12 @@ export function createSshProofs(
       limit = null;
       return undefined;
     },
-    keepGithubLimit(status: GhStatus, until: number): void {
+    limitGeneration(): number {
+      return generation;
+    },
+    keepGithubLimit(status: GhStatus, until: number, started: number): void {
+      // A reading that a sign-in or sign-out overtook is from before it.
+      if (started !== generation) return;
       limit = { status, until };
     },
     /** A sign-in or sign-out started: nothing kept holds any more. */

@@ -345,7 +345,16 @@ test("Začínáme: a limited GitHub stays done with why and when, offers nothing
         content: {
           state: "failed",
           item: personalspace,
-          job: { state: "failed", steps: [] },
+          job: {
+            state: "failed",
+            steps: [],
+            failure: {
+              item: { kind: "personalspace" },
+              key: "find",
+              code: "github-unavailable",
+              detail: "GitHub did not answer for the Personalspace repository",
+            },
+          },
         } as never,
       }),
       cs,
@@ -485,7 +494,16 @@ test("a run the limit stopped runs once more when GitHub answers again; another 
   const failed = {
     state: "failed",
     item: personalspace,
-    job: { state: "failed", steps: [] },
+    job: {
+      state: "failed",
+      steps: [],
+      failure: {
+        item: { kind: "personalspace" },
+        key: "find",
+        code: "github-unavailable",
+        detail: "GitHub did not answer for the Personalspace repository",
+      },
+    },
   } as never;
   const limited = facts({ content: failed });
   const seen = autoStartStep(
@@ -551,7 +569,168 @@ test("the page reads GitHub again at the limit's reset, a minute without one, an
   expect(timers.map((timer) => timer.cleared)).toEqual([true, false]);
   timers[1]?.run();
   expect(refreshed).toBe(1);
+  // The reading asked keeps another a minute later, in case it never
+  // answers.
+  expect(timers[2]?.ms).toBe(60_000);
   // GitHub answers: no timer any more.
   refresh.observe(undefined);
-  expect(timers.length).toBe(2);
+  expect(timers[2]?.cleared).toBe(true);
+  expect(timers.length).toBe(3);
+});
+
+// Pablo's review of #1224, second round (2): after a limit, a reading that
+// cannot tell or never answers is followed by another a minute later, at
+// most an hour of them, until GitHub is known.
+test("after a limit the page reads again while GitHub is unknown or a reading fails, until GitHub is known", () => {
+  type Timer = { run: () => void; ms: number; done: boolean };
+  const timers: Timer[] = [];
+  let refreshed = 0;
+  const at = Date.parse(resetIso);
+  const refresh = createLimitRefresh({
+    refresh: () => {
+      refreshed += 1;
+    },
+    now: () => at - 60_000,
+    setTimer: (run, ms) => {
+      const timer: Timer = {
+        ms,
+        done: false,
+        run: () => {
+          timer.done = true;
+          run();
+        },
+      };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimer: (timer) => {
+      (timer as Timer).done = true;
+    },
+  });
+  const pending = () => timers.filter((timer) => !timer.done);
+  refresh.observe(resetIso);
+  expect(pending().length).toBe(1);
+  // The reading at the reset fails: nothing observes, the minute's timer
+  // reads again.
+  pending()[0]?.run();
+  expect(refreshed).toBe(1);
+  expect(pending().map((timer) => timer.ms)).toEqual([60_000]);
+  pending()[0]?.run();
+  expect(refreshed).toBe(2);
+  // GitHub out of reach: unknown keeps the one next reading.
+  refresh.observe(undefined, false);
+  expect(pending().map((timer) => timer.ms)).toEqual([60_000]);
+  pending()[0]?.run();
+  expect(refreshed).toBe(3);
+  // Connected: the end.
+  refresh.observe(undefined, true);
+  expect(pending()).toEqual([]);
+  // Bounded: unknown forever stops after the hour of minutes.
+  refresh.observe(resetIso);
+  let rounds = 0;
+  while (pending().length > 0 && rounds < 200) {
+    pending()[0]?.run();
+    refresh.observe(undefined, false);
+    rounds += 1;
+  }
+  expect(pending()).toEqual([]);
+  expect(rounds).toBeLessThanOrEqual(61);
+  // A page that never saw a limit does not read on an unknown GitHub.
+  const quiet = createLimitRefresh({
+    refresh: () => {},
+    setTimer: () => {
+      throw new Error("no timer");
+    },
+  });
+  quiet.observe(undefined, false);
+});
+
+// Pablo's review of #1224, second round (1): a limit reading that a
+// sign-out or a switch of account overtook is not kept.
+test("a limit read overtaken by a sign-out or an account switch is not kept", async () => {
+  let release: () => void = () => {};
+  let login = "octocat";
+  const run = async (command: readonly string[]) => {
+    const args = command.slice(1).join(" ");
+    if (args === "auth status --json hosts")
+      return {
+        exitCode: 0,
+        stdout: entry({
+          state: "error",
+          login,
+          error:
+            "HTTP 403: API rate limit exceeded for user ID 1. (https://api.github.com/)",
+        }),
+        stderr: "",
+      };
+    if (args === "api rate_limit") {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return {
+        exitCode: 0,
+        stdout: JSON.stringify({
+          resources: { core: { remaining: 0, reset: resetSeconds } },
+        }),
+        stderr: "",
+      };
+    }
+    return { exitCode: 1, stdout: "", stderr: "unexpected" };
+  };
+  const now = () => Date.parse(resetIso) - 60_000;
+  const limits = createSshProofs({ now });
+  // Sign-out while the limit is read: nothing kept.
+  const reading = ghStatus(run, "gh", 10_000, limits, now);
+  await Bun.sleep(10);
+  limits.forget();
+  release();
+  expect((await reading).signIn.account).toBe("octocat");
+  expect(limits.githubLimit()).toBeUndefined();
+  // Another account signs in meanwhile: the next reading is its own.
+  const again = ghStatus(run, "gh", 10_000, limits, now);
+  await Bun.sleep(10);
+  limits.forget();
+  login = "hubot";
+  release();
+  await again;
+  expect(limits.githubLimit()).toBeUndefined();
+  const fresh = ghStatus(run, "gh", 10_000, limits, now);
+  await Bun.sleep(10);
+  release();
+  expect((await fresh).signIn.account).toBe("hubot");
+  expect(limits.githubLimit()?.signIn.account).toBe("hubot");
+});
+
+// Pablo's review of #1224, second round (3): a stop with another cause that
+// predates the limit is shown as it is and never retried by itself.
+test("a stop with another cause stays shown while GitHub is limited and is not retried after the reset", () => {
+  const unrelated = {
+    state: "failed",
+    item: personalspace,
+    job: {
+      state: "failed",
+      steps: [],
+      failure: {
+        item: { kind: "personalspace" },
+        key: "create",
+        code: "personalspace-not-private",
+        detail: "the Personalspace repository is not private",
+      },
+    },
+  } as never;
+  const limited = facts({ content: unrelated });
+  expect(contentBlockedBy(limited)).toBeNull();
+  expect(startView(limited, cs)?.steps[2]?.mark).toBe("failed");
+  expect(appsSetupLine(limited, cs)?.tone).toBe("failed");
+  const seen = autoStartStep(
+    { ai: true, github: true, armed: false },
+    limited,
+    false,
+  );
+  expect(seen.state.limitStop).toBeUndefined();
+  const answered = {
+    ...facts({ content: unrelated }),
+    github: "connected" as const,
+  };
+  expect(autoStartStep(seen.state, answered, false).start).toBe(false);
 });

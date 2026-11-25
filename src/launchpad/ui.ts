@@ -2236,8 +2236,17 @@ const tools = createToolsPanel({
     toolSignIns = signIns;
     toolsOverview = overview;
     // GitHub refusing requests for its rate limit: read again at its reset,
-    // so a page left open sees GitHub answer and the content start (#1223).
-    limitRefresh.observe(githubLimitReset(overview));
+    // and while it is unknown after it, so a page left open sees GitHub
+    // answer and the content start (#1223).
+    limitRefresh.observe(
+      githubLimitReset(overview),
+      profileState !== null &&
+        githubFact(
+          overview,
+          profileState.revision,
+          profileState.responsible,
+        ) !== "unknown",
+    );
     // Začínáme shown: Composio's organization for its sign-in as it is now.
     const route = shell.route();
     if (route.view === "settings" && route.section === "start")

@@ -6074,18 +6074,22 @@ the limit.
 3. **No further requests.** The Launchpad keeps the limited reading in the memory of its
    SSH proofs (`createSshProofs`, `GithubLimitMemo`) until the reset, at most an hour,
    or a minute when GitHub did not say; meanwhile a reading runs no gh at all. A gh
-   sign-in or sign-out forgets it. A limited gh's SSH is not proved (the proof reads the
+   sign-in or sign-out forgets it, and a limit reading under way then is not kept
+   (`limitGeneration`), so a former account never comes back from it. A limited gh's SSH is not proved (the proof reads the
    account's keys and GitHub's host keys through the API) and carries no `ssh`.
 4. **What follows.** `githubFact` gains `limited`, which counts as done: the count stays,
    the next basic is the content, the shell's `setup.github` is `connected`, and nothing
    opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
    no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
-   itself once the limit resets and GitHub reads connected. A run that stopped while
-   GitHub read limited (`AutoStart.limitStop`) runs once more then; any other stop is
-   still never started by itself. A page left open reads the tools again, with their
-   sign-ins, at the reset plus two seconds (a minute without a reset, never under 15 s
-   nor over an hour; `createLimitRefresh`), since nothing else would read them and the
-   page would keep saying the content waits (Pablo's review of #1224).
+   itself once the limit resets and GitHub reads connected. Only a stop GitHub's
+   silence caused (`limitFailure`: `github-unavailable`, or a role GitHub did not
+   answer for) waits so, and runs once more then (`AutoStart.limitStop`); a stop with
+   another cause (`personalspace-not-private`, `git-identity-missing`…) stays shown with
+   its own way forward and is never started by itself. A page left open reads the tools
+   again, with their sign-ins, at the reset plus two seconds (a minute without a reset,
+   never under 15 s nor over an hour; `createLimitRefresh`); after a limit, a reading
+   that cannot tell or never answers is followed by another a minute later, at most an
+   hour of them, until GitHub is known (Pablo's review of #1224).
 5. **Wording.** Začínáme's GitHub step keeps its done mark and says "Připojeno jako
    @{login}. GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se
    v {time}, nic znovu nepřipojujte." ("… It resets at {time}; there is nothing to

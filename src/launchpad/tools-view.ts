@@ -88,6 +88,10 @@ const identities: readonly GhIdentity[] = [
  * minute when it gave none; never under 15 s (a clock ahead of the
  * Launchpad's asks again soon, not in a loop) nor over an hour. Null when
  * GitHub is not limited. */
+/** How many readings in a row follow a limit while GitHub stays unknown:
+ * an hour of minutes. */
+export const limitRetries = 60;
+
 export function limitRefreshDelay(
   reset: string | null | undefined,
   now: number,
@@ -102,8 +106,12 @@ export function limitRefreshDelay(
 /** The page's own reading of GitHub at its rate limit's reset (Pablo's
  * review of #1224): nothing else reads the tools again on a page left
  * open, so without it Začínáme would keep saying the content waits. Each
- * reading of the tools passes its reset (`githubLimitReset`); one timer at
- * most, replaced by every reading and cleared once GitHub is not limited. */
+ * reading of the tools passes its reset (`githubLimitReset`) and whether
+ * GitHub's state is known; one timer at most, replaced by every reading.
+ * After a limit, a reading that cannot tell (GitHub out of reach) or does
+ * not come at all (the request failed) is followed by another a minute
+ * later, at most `limitRetries` in a row; only a known GitHub without a
+ * limit ends it. */
 export function createLimitRefresh(
   options: Readonly<{
     refresh: () => void;
@@ -119,16 +127,38 @@ export function createLimitRefresh(
     options.clearTimer ??
     ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
   let timer: unknown = null;
+  // A limit was seen and GitHub has not been known without one since.
+  let waiting = false;
+  let retries = 0;
+  const schedule = (wait: number) => {
+    if (timer !== null) clearTimer(timer);
+    timer = setTimer(fire, wait);
+  };
+  // Each reading asked keeps a later one in case it never answers.
+  function fire() {
+    timer = null;
+    retries += 1;
+    if (retries <= limitRetries) timer = setTimer(fire, 60_000);
+    options.refresh();
+  }
   return Object.freeze({
-    observe(reset: string | null | undefined): void {
+    observe(reset: string | null | undefined, known = true): void {
+      const wait = limitRefreshDelay(reset, now());
+      if (wait !== null) {
+        waiting = true;
+        retries = 0;
+        schedule(wait);
+        return;
+      }
+      // Unknown after a limit: the minute's reading already waits.
+      if (!known && waiting) {
+        if (timer === null && retries < limitRetries) schedule(60_000);
+        return;
+      }
       if (timer !== null) clearTimer(timer);
       timer = null;
-      const wait = limitRefreshDelay(reset, now());
-      if (wait === null) return;
-      timer = setTimer(() => {
-        timer = null;
-        options.refresh();
-      }, wait);
+      waiting = false;
+      retries = 0;
     },
   });
 }

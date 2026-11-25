@@ -769,8 +769,25 @@ export function tourStop(
  * GitHub does. Null: it may start. */
 export type ContentBlock = "ai" | "github" | "github-limit" | "unknown";
 
+/** Whether a stopped run stopped because GitHub did not answer, as it does
+ * while its rate limit is used up (#1223): `github-unavailable`, or a role
+ * GitHub did not answer for. Any other stop (a public Personalspace, no Git
+ * identity…) has its own cause, which the limit's reset does not change
+ * (Pablo's review of #1224). */
+export function limitFailure(content: ContentFact | undefined): boolean {
+  if (content?.state !== "failed") return false;
+  const failure = content.job.failure;
+  if (failure === undefined) return false;
+  return (
+    failure.code === "github-unavailable" ||
+    (failure.code === "role-unverified" &&
+      /GitHub did not answer/i.test(failure.detail))
+  );
+}
+
 export function contentBlockedBy(
-  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
+  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github"> &
+    Readonly<{ content?: ContentFact }>,
 ): ContentBlock | null {
   if (!basicsOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
@@ -779,8 +796,13 @@ export function contentBlockedBy(
   if (githubMissing(facts.github)) return "github";
   if (facts.github === "unknown") return "unknown";
   // Signed in, but GitHub refuses requests until its rate limit resets
-  // (#1223): the content waits and starts by itself after it.
-  if (facts.github === "limited") return "github-limit";
+  // (#1223): the content waits and starts by itself after it. A stop with
+  // another cause is shown as it is (Pablo's review of #1224).
+  if (
+    facts.github === "limited" &&
+    (facts.content?.state !== "failed" || limitFailure(facts.content))
+  )
+    return "github-limit";
   return null;
 }
 
@@ -837,6 +859,7 @@ export function autoStartStep(
   // while the content stays stopped.
   const limitStop =
     content === "failed" &&
+    limitFailure(facts.content) &&
     (state.limitStop === true || facts.github === "limited");
   const next = (armed: boolean, stopped = limitStop): AutoStart =>
     Object.freeze({
