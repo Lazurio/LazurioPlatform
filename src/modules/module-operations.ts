@@ -2350,15 +2350,28 @@ export function createModuleOperations(input: {
     ): Promise<Readonly<{
       mode: "built" | "dev";
       commit: string | null;
+      /** The served build was made from a checkout with uncommitted
+       * changes (decision F58): not the version from `main`. */
+      dirty: boolean;
     }> | null> {
       const prepared = await prepare("status", name, { app });
       if ("kind" in prepared) return null;
       const plan = await builtPlan(prepared.target);
-      if (plan === null) return Object.freeze({ mode: "dev", commit: null });
-      const served = await storeOf(prepared.target, plan).served();
-      return served?.mode === "built"
-        ? Object.freeze({ mode: "built", commit: served.commit })
-        : Object.freeze({ mode: "dev", commit: null });
+      if (plan === null)
+        return Object.freeze({ mode: "dev", commit: null, dirty: false });
+      const store = storeOf(prepared.target, plan);
+      const [served, state] = await Promise.all([
+        store.served(),
+        store.state(),
+      ]);
+      if (served?.mode !== "built")
+        return Object.freeze({ mode: "dev", commit: null, dirty: false });
+      // Unknown provenance counts as dirty: only a build known to be clean
+      // is the version from `main`.
+      const current = state?.current ?? null;
+      const dirty =
+        current === null || current.key !== served.key || current.dirty;
+      return Object.freeze({ mode: "built", commit: served.commit, dirty });
     },
     /** The resolver of the Bun each App pins (decision F62), the one every
      * lifecycle and build of this host shares with its fetches under way:

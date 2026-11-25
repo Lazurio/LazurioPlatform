@@ -282,10 +282,11 @@ export type AppsTile =
        * Environment's agents, filled in, which the person confirms by signing
        * in ("Připojit k agentům"). Null without the hint. */
       agents: Readonly<{ origin: string; path: string }> | null;
-      /** Whether this Environment's app opens as the Module's built version
-       * from `main` (`display.built`, decision F58): the frame's STAGING
-       * (decision 0249). Otherwise it runs the Module's development script,
-       * and no word calls it STAGING. */
+      /** Whether this Environment serves the Module's app right now as a
+       * clean built version from `main` (decision F58): the frame's STAGING
+       * (decision 0249). Read from what runs (`ServedBuilds`), never from the
+       * declaration: a development run, a dirty build or an app that does not
+       * run yet keeps the plain words. */
       staging: boolean;
     }>
   /** A production repository: read-only, no app, no page of its own
@@ -458,6 +459,22 @@ export function moduleAction(
  * those that carry this Environment's services: a Personal Environment's own
  * AI pool (root decision 0181, addendum of 2026-11-05), shown as Služby
  * serveru's are. */
+/** The running Modules this Environment serves as a clean built version
+ * from `main` (`GET /api/new-tab/overview`: mode `built`, not dirty), as
+ * `<organization key>/<module>`; what the words STAGING may name. */
+export type ServedBuilds = ReadonlySet<string>;
+
+/** Whether a Module's app runs here as a clean built version from `main`. */
+export function servedAsStaging(
+  catalog: Catalog,
+  group: CatalogGroupEntry,
+  module: CatalogModule,
+  served: ServedBuilds | undefined,
+): boolean {
+  const key = catalogOrganizationKey(catalog, group.organization);
+  return key !== null && served?.has(`${key}/${module.module}`) === true;
+}
+
 export function appsTiles(
   catalog: Catalog,
   group: CatalogGroupEntry,
@@ -465,6 +482,7 @@ export function appsTiles(
   entry: PublicEntry | null,
   favorites: readonly string[],
   applications?: TileApplications,
+  served?: ServedBuilds | undefined,
 ): Readonly<{
   modules: readonly AppsTile[];
   repositories: readonly AppsTile[];
@@ -501,7 +519,7 @@ export function appsTiles(
           ? target
           : null,
       agents: agentsOf(application),
-      staging: item.module.display?.built === true,
+      staging: servedAsStaging(catalog, group, item.module, served),
     };
   };
   const modules =
@@ -671,8 +689,17 @@ export function appsSections(
   favorites: readonly string[] = [],
   owner = false,
   applications?: TileApplications,
+  served?: ServedBuilds | undefined,
 ): readonly AppsSection[] {
-  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
+  const tiles = appsTiles(
+    catalog,
+    group,
+    copy,
+    entry,
+    favorites,
+    applications,
+    served,
+  );
   const count = (length: number, kind: keyof typeof countKeys) =>
     length === 0 && kind === "modules"
       ? copy.appsModulesNone
@@ -884,6 +911,9 @@ export function appsHomeParts(
     /** The Applications the person may open (decision 0249), joined with
      * the Module tiles; absent while the account is not read. */
     applications?: TileApplications;
+    /** What this Environment serves as a clean built version
+     * (`ServedBuilds`). */
+    served?: ServedBuilds | undefined;
   }>,
 ): readonly AppsHomePart[] {
   const offer = newModuleOffer(group, {
@@ -904,6 +934,7 @@ export function appsHomeParts(
     input.favorites,
     offer !== null,
     input.applications,
+    input.served,
   );
   // A member without a module keeps the plain sentence over it: how to get
   // access stays the first thing said.
@@ -974,8 +1005,17 @@ export function favoriteTiles(
   entry: PublicEntry | null,
   favorites: readonly string[],
   applications?: TileApplications,
+  served?: ServedBuilds | undefined,
 ): readonly AppsTile[] {
-  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
+  const tiles = appsTiles(
+    catalog,
+    group,
+    copy,
+    entry,
+    favorites,
+    applications,
+    served,
+  );
   return favoritesFirst(
     [...tiles.modules, ...tiles.repositories],
     favorites,

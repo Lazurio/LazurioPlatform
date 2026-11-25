@@ -346,11 +346,6 @@ export type AppDisplay = Readonly<{
   /** Its tags, at most 20, each at most 128 characters (a longer one is
    * left out). */
   tags: readonly string[];
-  /** Present when the app declares its built version from `main`
-   * (`build_output` or `start_script`, decision F58): what opens it from
-   * `main` is then that build, the frame's STAGING (decision 0249), not a
-   * development server. */
-  built?: true;
 }>;
 
 function appDisplay(
@@ -359,8 +354,6 @@ function appDisplay(
     title: string;
     tags: readonly string[];
     optional: Readonly<Record<string, string | readonly string[]>>;
-    static?: unknown;
-    server?: unknown;
   }>,
 ): AppDisplay {
   const { description, icon } = runtime.optional;
@@ -377,9 +370,6 @@ function appDisplay(
     tags: Object.freeze(
       runtime.tags.filter((tag) => [...tag].length <= 128).slice(0, 20),
     ),
-    ...((runtime.static ?? null) !== null || (runtime.server ?? null) !== null
-      ? { built: true as const }
-      : {}),
   });
 }
 

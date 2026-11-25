@@ -51,6 +51,7 @@ import {
   moduleStone,
   type NewModuleOffer,
   type PersonalStart,
+  type ServedBuilds,
   type SharedApplicationTile,
   type ShareHere,
   type ShareInput,
@@ -100,6 +101,7 @@ import {
   offersDevelopment,
   parseModuleResult,
 } from "./module-view";
+import { parseOverview } from "./new-tab-view";
 import { createOwnerAnswers } from "./owner-answer";
 import { type PageRoute, servicePath, settingsPath } from "./routes";
 
@@ -301,6 +303,30 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
+  // What this Environment serves as a clean built version from `main` right
+  // now (decision F58): the only apps the words STAGING may name (decision
+  // 0249). Read from the overview of running Modules once, and again after a
+  // start; until it is read, no tile says STAGING.
+  let served: ServedBuilds | undefined;
+  const readServed = () =>
+    options
+      .get("/api/new-tab/overview")
+      .then(({ value }) => {
+        const overview = parseOverview(value);
+        const next = new Set(
+          (overview?.modules ?? [])
+            .filter((module) => module.mode === "built" && !module.dirty)
+            .map((module) => `${module.org}/${module.module}`),
+        );
+        const changed =
+          served === undefined ||
+          next.size !== served.size ||
+          [...next].some((key) => !served?.has(key));
+        served = next;
+        if (changed) render();
+      })
+      .catch(() => undefined);
+  void readServed();
   // The Applications the person may open (decision 0249), matched with this
   // group's Module tiles by its Dashboard slug; none until the account is read.
   const tileApplications = (group: CatalogGroupEntry): TileApplications => ({
@@ -532,6 +558,8 @@ export function createCatalogPanel(
       },
       assign: (href) => location.assign(href),
     });
+    // What runs changed: read again what the words may call STAGING.
+    void readServed();
     if (opened) {
       notice = null;
       if (mode === "tab") render();
@@ -1244,6 +1272,7 @@ export function createCatalogPanel(
       options.entry(),
       favoritesOf(group),
       tileApplications(group),
+      served,
     );
     if (items.length === 0) {
       favoritesBox.replaceChildren(
@@ -1480,6 +1509,7 @@ export function createCatalogPanel(
         { dashboard: options.dashboard, current: options.here()?.id ?? null },
       ),
       applications: tileApplications(group),
+      served,
     }))
       parts.push(
         part.kind === "empty"

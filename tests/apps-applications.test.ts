@@ -253,29 +253,31 @@ test("without the account's Applications, or without the group's slug, every til
   expect(tile(before, "deals").development).toBeNull();
 });
 
-test("the frame's names (decision 0249): only a built version from main is called STAGING, a development script keeps the plain words", () => {
-  const built = { id: "deals", title: "Deals", tags: [], built: true as const };
-  const withBuilt: Catalog = {
-    ...catalog,
-    organizations: catalog.organizations.map((item) => ({
-      ...item,
-      modules: item.modules.map((entry) =>
-        entry.module === "deals" ? { ...entry, display: built } : entry,
-      ),
-    })),
-  };
-  const scope = appsScope(withBuilt, { view: "home" }, cs);
-  if (scope === null || scope.sections === null)
-    throw new Error("The fixture has an Organization");
-  const tiles = (applications?: TileApplications) =>
-    appsSections(withBuilt, scope, cs, entry, [], false, applications).flatMap(
-      (section) => section.tiles,
-    );
-  // Without an Application: the built one opens STAGING, the other its app.
-  expect(tile(tiles(), "deals").staging).toBe(true);
-  expect(tile(tiles(), "planner").staging).toBe(false);
+test("the frame's names (decision 0249): only what runs here as a clean built version from main is called STAGING", () => {
+  const scope = group();
+  const tiles = (
+    served?: ReadonlySet<string>,
+    applications?: TileApplications,
+  ) =>
+    appsSections(
+      catalog,
+      scope,
+      cs,
+      entry,
+      [],
+      false,
+      applications,
+      served,
+    ).flatMap((section) => section.tiles);
+  // Nothing read yet, or the overview says nothing of it: plain words.
+  expect(tile(tiles(), "deals").staging).toBe(false);
+  // The overview lists a clean build of "deals" (a development run, a dirty
+  // build and an app that does not run are not in the set).
+  const served = new Set(["Example/deals"]);
+  expect(tile(tiles(served), "deals").staging).toBe(true);
+  expect(tile(tiles(served), "planner").staging).toBe(false);
   // Beside an Application the menu's item carries the same flag.
-  const both = tiles({
+  const both = tiles(served, {
     slug: "example",
     list: [application("deals"), application("planner")],
   });

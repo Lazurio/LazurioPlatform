@@ -1985,10 +1985,10 @@ test("a running static app is shown as its build and its commit, every other Mod
     modules,
     served: async (module) =>
       module.module === "docs"
-        ? { mode: "built", commit: "c".repeat(40) }
+        ? { mode: "built", commit: "c".repeat(40), dirty: false }
         : module.module === "api"
           ? null
-          : { mode: "dev", commit: null },
+          : { mode: "dev", commit: null, dirty: false },
   });
   const answer = await call("GET", "/api/new-tab/overview");
   expect(answer.status).toBe(200);
@@ -2001,5 +2001,36 @@ test("a running static app is shown as its build and its commit, every other Mod
       source: "main",
     },
     { ...modules[1], memory: null, mode: "dev", source: "main" },
+  ]);
+});
+
+test("a built app's build of a dirty checkout, or of unknown provenance, is marked dirty: it is not the version from main (decisions F58, 0249)", async () => {
+  const hub = standardHub([fact(1)]);
+  const unit = (module: string): ModuleUnit => ({
+    org: "alpha",
+    module,
+    app: "app/package.json",
+    unit: `lazurio-app-${module}.service`,
+  });
+  const modules = [unit("clean"), unit("dirty"), unit("unknown")];
+  const { call } = await routesWorld({
+    hub,
+    modules,
+    served: async (module) =>
+      module.module === "clean"
+        ? { mode: "built", commit: "a".repeat(40), dirty: false }
+        : module.module === "dirty"
+          ? { mode: "built", commit: "b".repeat(40), dirty: true }
+          : { mode: "built", commit: "c".repeat(40) },
+  });
+  const answer = await call("GET", "/api/new-tab/overview");
+  expect(
+    (answer.body.modules as { module: string; dirty?: boolean }[]).map(
+      (item: { module: string; dirty?: boolean }) => [item.module, item.dirty],
+    ),
+  ).toEqual([
+    ["clean", undefined],
+    ["dirty", true],
+    ["unknown", true],
   ]);
 });

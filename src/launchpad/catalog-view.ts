@@ -749,8 +749,7 @@ function isDisplay(value: unknown): boolean {
       (text(entry.icon) && /^[a-z0-9][a-z0-9-]{0,39}$/.test(entry.icon))) &&
     texts(entry.tags) &&
     entry.tags.length <= 20 &&
-    entry.tags.every((tag) => bounded(tag, 128)) &&
-    (entry.built === undefined || entry.built === true)
+    entry.tags.every((tag) => bounded(tag, 128))
   );
 }
 function isRepository(value: unknown): value is CatalogRepository {
