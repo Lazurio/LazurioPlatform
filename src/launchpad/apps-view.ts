@@ -270,7 +270,7 @@ export type AppsTile =
       favorite: boolean;
       /** Where the tile opens the Module's Application (decision 0249), this
        * Environment's app from `main`: its development version, offered in
-       * the menu ("Vývojová verze"). Null where the tile opens that app
+       * the menu ("Verze z tohoto Prostředí"). Null where the tile opens that app
        * itself. */
       development: Extract<
         TileTarget,
@@ -282,12 +282,6 @@ export type AppsTile =
        * Environment's agents, filled in, which the person confirms by signing
        * in ("Připojit k agentům"). Null without the hint. */
       agents: Readonly<{ origin: string; path: string }> | null;
-      /** Whether this Environment serves the Module's app right now as a
-       * clean built version from `main` (decision F58): the frame's STAGING
-       * (decision 0249). Read from what runs (`ServedBuilds`), never from the
-       * declaration: a development run, a dirty build or an app that does not
-       * run yet keeps the plain words. */
-      staging: boolean;
     }>
   /** A production repository: read-only, no app, no page of its own
    * (decision F32's final addendum); its menu leads to its GitHub page. A
@@ -459,71 +453,6 @@ export function moduleAction(
  * those that carry this Environment's services: a Personal Environment's own
  * AI pool (root decision 0181, addendum of 2026-11-05), shown as Služby
  * serveru's are. */
-/** The running Modules this Environment serves as a clean built version
- * from `main` (`GET /api/new-tab/overview`: mode `built`, not dirty), as
- * `<organization key>/<module>`; what the words STAGING may name. */
-export type ServedBuilds = ReadonlySet<string>;
-
-/** What may be called STAGING, from the overview of running Modules: a
- * built app whose build is clean and was made on `main`. A development run,
- * a dirty build, a build of another branch or of an unknown one, and an
- * overview that could not be read give nothing (fail closed). */
-export function servedBuildsOf(
-  modules:
-    | readonly Readonly<{
-        org: string;
-        module: string;
-        mode: string;
-        dirty?: true;
-        branch?: string;
-      }>[]
-    | null
-    | undefined,
-): ServedBuilds {
-  return new Set(
-    (modules ?? [])
-      .filter(
-        (module) =>
-          module.mode === "built" &&
-          module.dirty !== true &&
-          module.branch === "main",
-      )
-      .map((module) => `${module.org}/${module.module}`),
-  );
-}
-
-/** A reader of which only the newest call settles: an older answer that
- * arrives late is dropped, so it never replaces a newer answer or a newer
- * failure. A failed read settles as `failed`. */
-export function newestReading<T>(
-  read: () => Promise<T>,
-  failed: () => T,
-  settle: (value: T) => void,
-): () => Promise<void> {
-  let newest = 0;
-  return async () => {
-    const mine = ++newest;
-    let value: T;
-    try {
-      value = await read();
-    } catch {
-      value = failed();
-    }
-    if (mine === newest) settle(value);
-  };
-}
-
-/** Whether a Module's app runs here as a clean built version from `main`. */
-export function servedAsStaging(
-  catalog: Catalog,
-  group: CatalogGroupEntry,
-  module: CatalogModule,
-  served: ServedBuilds | undefined,
-): boolean {
-  const key = catalogOrganizationKey(catalog, group.organization);
-  return key !== null && served?.has(`${key}/${module.module}`) === true;
-}
-
 export function appsTiles(
   catalog: Catalog,
   group: CatalogGroupEntry,
@@ -531,7 +460,6 @@ export function appsTiles(
   entry: PublicEntry | null,
   favorites: readonly string[],
   applications?: TileApplications,
-  served?: ServedBuilds | undefined,
 ): Readonly<{
   modules: readonly AppsTile[];
   repositories: readonly AppsTile[];
@@ -568,7 +496,6 @@ export function appsTiles(
           ? target
           : null,
       agents: agentsOf(application),
-      staging: servedAsStaging(catalog, group, item.module, served),
     };
   };
   const modules =
@@ -738,17 +665,8 @@ export function appsSections(
   favorites: readonly string[] = [],
   owner = false,
   applications?: TileApplications,
-  served?: ServedBuilds | undefined,
 ): readonly AppsSection[] {
-  const tiles = appsTiles(
-    catalog,
-    group,
-    copy,
-    entry,
-    favorites,
-    applications,
-    served,
-  );
+  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
   const count = (length: number, kind: keyof typeof countKeys) =>
     length === 0 && kind === "modules"
       ? copy.appsModulesNone
@@ -960,9 +878,6 @@ export function appsHomeParts(
     /** The Applications the person may open (decision 0249), joined with
      * the Module tiles; absent while the account is not read. */
     applications?: TileApplications;
-    /** What this Environment serves as a clean built version
-     * (`ServedBuilds`). */
-    served?: ServedBuilds | undefined;
   }>,
 ): readonly AppsHomePart[] {
   const offer = newModuleOffer(group, {
@@ -983,7 +898,6 @@ export function appsHomeParts(
     input.favorites,
     offer !== null,
     input.applications,
-    input.served,
   );
   // A member without a module keeps the plain sentence over it: how to get
   // access stays the first thing said.
@@ -1054,17 +968,8 @@ export function favoriteTiles(
   entry: PublicEntry | null,
   favorites: readonly string[],
   applications?: TileApplications,
-  served?: ServedBuilds | undefined,
 ): readonly AppsTile[] {
-  const tiles = appsTiles(
-    catalog,
-    group,
-    copy,
-    entry,
-    favorites,
-    applications,
-    served,
-  );
+  const tiles = appsTiles(catalog, group, copy, entry, favorites, applications);
   return favoritesFirst(
     [...tiles.modules, ...tiles.repositories],
     favorites,

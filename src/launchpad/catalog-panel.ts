@@ -50,13 +50,10 @@ import {
   moduleName,
   moduleStone,
   type NewModuleOffer,
-  newestReading,
   type PersonalStart,
-  type ServedBuilds,
   type SharedApplicationTile,
   type ShareHere,
   type ShareInput,
-  servedBuildsOf,
   sharedApplicationsSection,
   shareTarget,
   type TileApplications,
@@ -103,7 +100,6 @@ import {
   offersDevelopment,
   parseModuleResult,
 } from "./module-view";
-import { parseOverview } from "./new-tab-view";
 import { createOwnerAnswers } from "./owner-answer";
 import { type PageRoute, servicePath, settingsPath } from "./routes";
 
@@ -305,43 +301,6 @@ export function createCatalogPanel(
     })
     .finally(() => render());
   const openMode = (): OpenApps => account?.openApps ?? "tab";
-  // What this Environment serves as a clean built version from `main` right
-  // now (decision F58): the only apps the words STAGING may name (decision
-  // 0249). Read from the overview of running Modules when the panel opens,
-  // after a start, when the page becomes visible again and every 15 seconds
-  // while it is visible, so a stop or a `--dev` restart outside Apps reaches
-  // the tiles. Until it is read, and whenever it cannot be, nothing is
-  // STAGING (fail closed).
-  let served: ServedBuilds | undefined;
-  const settle = (next: ServedBuilds) => {
-    const changed =
-      served === undefined ||
-      next.size !== served.size ||
-      [...next].some((key) => !served?.has(key));
-    served = next;
-    if (changed) render();
-  };
-  // Only the newest reading settles (`newestReading`): a late older answer
-  // never replaces a newer one, nor a newer failure.
-  const readServed = newestReading(
-    async () => {
-      const { value, ok } = await options.get("/api/new-tab/overview");
-      return ok
-        ? servedBuildsOf(parseOverview(value)?.modules)
-        : new Set<string>();
-    },
-    () => new Set<string>(),
-    settle,
-  );
-  void readServed();
-  if (typeof document !== "undefined") {
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") void readServed();
-    });
-    setInterval(() => {
-      if (document.visibilityState === "visible") void readServed();
-    }, 15_000);
-  }
   // The Applications the person may open (decision 0249), matched with this
   // group's Module tiles by its Dashboard slug; none until the account is read.
   const tileApplications = (group: CatalogGroupEntry): TileApplications => ({
@@ -573,8 +532,6 @@ export function createCatalogPanel(
       },
       assign: (href) => location.assign(href),
     });
-    // What runs changed: read again what the words may call STAGING.
-    void readServed();
     if (opened) {
       notice = null;
       if (mode === "tab") render();
@@ -595,7 +552,6 @@ export function createCatalogPanel(
     >,
     name: string,
     className: string,
-    staging = false,
   ): HTMLAnchorElement {
     const copy = options.copy();
     const link = element("a", className);
@@ -609,16 +565,8 @@ export function createCatalogPanel(
       return link;
     }
     const mode = openMode();
-    // The built version from `main` is the frame's STAGING (decision 0249);
-    // a development script is not, so it keeps the plain words.
     link.title = (
-      staging
-        ? mode === "same"
-          ? copy.appsOpenStagingNamedSame
-          : copy.appsOpenStagingNamed
-        : mode === "same"
-          ? copy.appsOpenAppNamedSame
-          : copy.appsOpenAppNamed
+      mode === "same" ? copy.appsOpenAppNamedSame : copy.appsOpenAppNamed
     ).replace("{name}", name);
     if (target.kind === "hosted") {
       link.href = target.href;
@@ -712,12 +660,7 @@ export function createCatalogPanel(
   // says why there is nothing to open.
   function actionNode(item: AppsTile, className: string): HTMLElement {
     if (item.action.kind === "open")
-      return openLink(
-        item.action.target,
-        item.name,
-        className,
-        item.kind === "module" && item.staging,
-      );
+      return openLink(item.action.target, item.name, className);
     if (item.action.kind === "service")
       return serviceLink(item.action, className);
     if (item.action.kind === "route")
@@ -889,16 +832,10 @@ export function createCatalogPanel(
         item.development,
         item.name,
         "tile-menu-item",
-        item.staging,
       );
-      development.title = item.staging
-        ? copy.appsStagingHint
-        : copy.appsDevelopmentHint;
+      development.title = copy.appsDevelopmentHint;
       development.setAttribute("role", "menuitem");
-      development.append(
-        svg("external"),
-        item.staging ? copy.appsStaging : copy.appsDevelopment,
-      );
+      development.append(svg("external"), copy.appsDevelopment);
       development.addEventListener("click", close);
       list.append(development);
     }
@@ -1287,7 +1224,6 @@ export function createCatalogPanel(
       options.entry(),
       favoritesOf(group),
       tileApplications(group),
-      served,
     );
     if (items.length === 0) {
       favoritesBox.replaceChildren(
@@ -1524,7 +1460,6 @@ export function createCatalogPanel(
         { dashboard: options.dashboard, current: options.here()?.id ?? null },
       ),
       applications: tileApplications(group),
-      served,
     }))
       parts.push(
         part.kind === "empty"

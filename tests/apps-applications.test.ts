@@ -7,8 +7,6 @@ import {
   connectAgentsPath,
   favoriteTiles,
   moduleApplication,
-  newestReading,
-  servedBuildsOf,
   type TileApplications,
 } from "../src/launchpad/apps-view";
 import type { CatalogGroupEntry } from "../src/launchpad/catalog-view";
@@ -255,131 +253,20 @@ test("without the account's Applications, or without the group's slug, every til
   expect(tile(before, "deals").development).toBeNull();
 });
 
-test("the frame's names (decision 0249): only what runs here as a clean built version from main is called STAGING", () => {
-  const scope = group();
-  const tiles = (
-    served?: ReadonlySet<string>,
-    applications?: TileApplications,
-  ) =>
-    appsSections(
-      catalog,
-      scope,
-      cs,
-      entry,
-      [],
-      false,
-      applications,
-      served,
-    ).flatMap((section) => section.tiles);
-  // Nothing read yet, or the overview says nothing of it: plain words.
-  expect(tile(tiles(), "deals").staging).toBe(false);
-  // The overview lists a clean build of "deals" (a development run, a dirty
-  // build and an app that does not run are not in the set).
-  const served = new Set(["Example/deals"]);
-  expect(tile(tiles(served), "deals").staging).toBe(true);
-  expect(tile(tiles(served), "planner").staging).toBe(false);
-  // Beside an Application the menu's item carries the same flag.
-  const both = tiles(served, {
-    slug: "example",
-    list: [application("deals"), application("planner")],
-  });
-  expect(tile(both, "deals").development).not.toBeNull();
-  expect(tile(both, "deals").staging).toBe(true);
-  expect(tile(both, "planner").staging).toBe(false);
+test("the tile's words claim no version they cannot verify (decision 0249): the menu offers this Environment's version, and STAGING is said by the frame on the served page", () => {
   for (const locale of ["cs", "en"] as const) {
     const copy = messages(locale);
-    expect(copy.appsStaging).toBe("STAGING");
-    expect(copy.appsOpenStagingNamed).toContain("STAGING");
-    expect(copy.appsOpenStagingNamedSame).toContain("STAGING");
-    expect(copy.appsDevelopment).not.toContain("STAGING");
-    expect(copy.appsOpenAppNamed).not.toContain("STAGING");
+    for (const text of [
+      copy.appsDevelopment,
+      copy.appsDevelopmentHint,
+      copy.appsOpenAppNamed,
+      copy.appsOpenAppNamedSame,
+    ]) {
+      expect(text).not.toContain("STAGING");
+      expect(text).not.toContain("main");
+    }
   }
-});
-
-test("STAGING fails closed: only a running, clean build made on main counts, and a stop or a --dev restart takes it back", () => {
-  const unit = (module: string, extra: Record<string, unknown>) => ({
-    org: "Example",
-    module,
-    mode: "built",
-    ...extra,
-  });
-  expect([
-    ...servedBuildsOf([
-      unit("clean", { branch: "main" }),
-      unit("dirty", { branch: "main", dirty: true as const }),
-      unit("feature", { branch: "feature/x" }),
-      unit("detached", {}),
-      unit("dev", { mode: "dev", branch: "main" }),
-    ]),
-  ]).toEqual(["Example/clean"]);
-  expect(servedBuildsOf(null).size).toBe(0);
-  expect(servedBuildsOf(undefined).size).toBe(0);
-  // The same tile before and after its app is restarted as a development
-  // run outside Apps: the next reading takes the word back.
-  const scope = group();
-  const staging = (served: ReadonlySet<string>) =>
-    tile(
-      appsSections(
-        catalog,
-        scope,
-        cs,
-        entry,
-        [],
-        false,
-        undefined,
-        served,
-      ).flatMap((section) => section.tiles),
-      "deals",
-    ).staging;
-  expect(staging(servedBuildsOf([unit("deals", { branch: "main" })]))).toBe(
-    true,
-  );
-  expect(staging(servedBuildsOf([unit("deals", { mode: "dev" })]))).toBe(false);
-  expect(staging(servedBuildsOf([unit("deals", { branch: "release" })]))).toBe(
-    false,
-  );
-  expect(staging(servedBuildsOf(null))).toBe(false);
-});
-
-test("only the newest reading of what runs settles: a late older answer never brings STAGING back", async () => {
-  const answers: ((value: ReadonlySet<string>) => void)[] = [];
-  const failures: (() => void)[] = [];
-  const settled: string[][] = [];
-  const read = newestReading<ReadonlySet<string>>(
-    () =>
-      new Promise((resolve, reject) => {
-        answers.push(resolve);
-        failures.push(() => reject(new Error("unreachable")));
-      }),
-    () => new Set(),
-    (value) => settled.push([...value]),
-  );
-  // Two readings in flight; the newer says a development run, the older a build.
-  const older = read();
-  const newer = read();
-  answers[1]?.(
-    servedBuildsOf([{ org: "Example", module: "deals", mode: "dev" }]),
-  );
-  await newer;
-  answers[0]?.(
-    servedBuildsOf([
-      { org: "Example", module: "deals", mode: "built", branch: "main" },
-    ]),
-  );
-  await older;
-  expect(settled).toEqual([[]]);
-  // A newer failure is not replaced by an older success either.
-  const before = read();
-  const failing = read();
-  failures[3]?.();
-  await failing;
-  answers[2]?.(
-    servedBuildsOf([
-      { org: "Example", module: "deals", mode: "built", branch: "main" },
-    ]),
-  );
-  await before;
-  expect(settled).toEqual([[], []]);
+  expect(messages("cs").appsDevelopment).toBe("Verze z tohoto Prostředí");
 });
 
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {

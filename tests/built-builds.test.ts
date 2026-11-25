@@ -208,9 +208,6 @@ test("an output is installed whole under its key; the current and previous build
   }
   const state = await web.store.state();
   expect(state?.current?.key).toBe(commit(3));
-  // The record keeps the branch it was built on (decision 0249: only a
-  // build of main is the version from main).
-  expect(state?.current?.branch).toBe("main");
   expect(state?.previous?.key).toBe(commit(2));
   const kept = (await readdir(web.store.directory)).sort();
   expect(kept).toEqual([commit(2), commit(3), "build.json", "logs"].sort());

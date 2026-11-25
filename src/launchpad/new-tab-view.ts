@@ -559,12 +559,6 @@ export type NewTabModule = Readonly<{
   /** The commit a built app serves (decision F58); null for a development
    * run or when the answer does not name one. */
   commit: string | null;
-  /** A built app's build of a checkout with uncommitted changes, or of
-   * unknown provenance (decision F58): not the version from `main`. */
-  dirty?: true;
-  /** The branch a built app's build was made on; null when the answer does
-   * not name one. */
-  branch?: string;
 }>;
 
 export type NewTabOverview = Readonly<{
@@ -674,10 +668,6 @@ function parseModule(value: unknown): NewTabModule | null {
       typeof value.commit === "string" && /^[0-9a-f]{7,64}$/.test(value.commit)
         ? value.commit
         : null,
-    ...(value.dirty === true ? { dirty: true as const } : {}),
-    ...(typeof value.branch === "string" && value.branch !== ""
-      ? { branch: value.branch }
-      : {}),
   };
 }
 
