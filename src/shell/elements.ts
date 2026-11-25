@@ -1514,6 +1514,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (origin === null && this.bubble === null) return;
     this.bubble ??= createBuddyBubble({
       origin: () => this.origin(),
+      probe: () => this.view?.probe(),
       facts: () => {
         const shell = state.drawn();
         if (shell === null) return null;

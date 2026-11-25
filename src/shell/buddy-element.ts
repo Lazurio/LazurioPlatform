@@ -90,6 +90,9 @@ export function launcherClearance(
 }
 
 export type BuddyBubbleView = Readonly<{
+  /** Checks again whether the page reaches Buddy's origin; the answer goes
+   * to the `reachability` option (review of #1253). */
+  probe(): void;
   /** Draws the model; null removes the bubble (the shadow root stays, as
    * the guide's). */
   draw(model: BuddyBubbleModel | null): void;
@@ -655,6 +658,41 @@ export function createBuddyBubbleView(
   }
 
   return Object.freeze({
+    /** Checks again whether the page reaches Buddy's origin (review of
+     * #1253): a fresh load of his picture, past the browser's cache, within
+     * `buddyReachMs`. Its answer goes to `reachability` every time, and a
+     * reached origin brings his picture back to the launcher. */
+    probe(): void {
+      if (avatar === null || avatar === "") {
+        options.reachability?.(false);
+        return;
+      }
+      let url: URL;
+      try {
+        url = new URL(avatar, host.ownerDocument.baseURI);
+      } catch {
+        options.reachability?.(false);
+        return;
+      }
+      url.searchParams.set("lazurio-reach", String(Date.now()));
+      const image = new Image();
+      let settled = false;
+      const settle = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        told = ok;
+        if (ok && parts !== null && avatar !== null) {
+          delete parts.launcher.dataset.fallback;
+          parts.picture.src = avatar;
+        }
+        options.reachability?.(ok);
+      };
+      const timer = setTimeout(() => settle(false), buddyReachMs);
+      image.addEventListener("load", () => settle(true));
+      image.addEventListener("error", () => settle(false));
+      image.src = url.href;
+    },
     draw(model: BuddyBubbleModel | null): void {
       onPage = launcherOnPage(model, host);
       clearance(onPage && place === "home");

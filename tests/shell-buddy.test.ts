@@ -739,6 +739,8 @@ function fakeBubble(
     known?: readonly string[];
     tour?: boolean;
     plays?: boolean;
+    probe?: () => void;
+    now?: () => number;
   }> = {},
 ) {
   const log = {
@@ -763,6 +765,8 @@ function fakeBubble(
   const frame = windowOf(log.posted);
   const session = options.session ?? memory();
   const bubble = createBuddyBubble({
+    ...(options.probe === undefined ? {} : { probe: options.probe }),
+    ...(options.now === undefined ? {} : { now: options.now }),
     origin: () => page.origin,
     facts: () => ({
       shell: page.shell,
@@ -2071,4 +2075,64 @@ test("not known yet is not off the tailnet, and another origin starts unknown ag
   bubble.toggle();
   expect(last()?.meeting).toBeNull();
   expect(last()?.frame).not.toBeNull();
+});
+
+// Review of #1253: the window opens only once the page knows whether it
+// reaches Buddy, and the answer is asked again on an open after a minute or
+// after a negative one, so a tailnet turned on or lost is noticed there.
+test("a click before the answer opens nothing; the answer opens the frame or the card", () => {
+  let probes = 0;
+  const reachedOk = fakeBubble({ probe: () => probes++ });
+  reachedOk.bubble.update();
+  reachedOk.bubble.toggle();
+  expect(probes).toBe(1);
+  expect(reachedOk.last()?.frame ?? null).toBeNull();
+  expect(reachedOk.last()?.layout).toBe("closed");
+  reachedOk.bubble.reachability(true);
+  expect(reachedOk.last()?.frame).not.toBeNull();
+  expect(reachedOk.last()?.meeting).toBeNull();
+
+  const reachedNot = fakeBubble({ probe: () => probes++ });
+  reachedNot.bubble.update();
+  reachedNot.bubble.toggle();
+  reachedNot.bubble.reachability(false);
+  expect(reachedNot.last()?.frame ?? null).toBeNull();
+  expect(reachedNot.last()?.meeting?.step).toBe("off-tailnet");
+  expect(reachedNot.last()?.layout).toBe("panel");
+});
+
+test("a tailnet turned on is noticed on the next open; a fresh positive answer is not asked again, a stale one is", () => {
+  let probes = 0;
+  let clock = 1_000;
+  const { bubble, last } = fakeBubble({
+    probe: () => probes++,
+    now: () => clock,
+  });
+  bubble.update();
+  bubble.toggle();
+  bubble.reachability(false);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // Turned on: the next open asks again and gets the frame.
+  bubble.toggle();
+  expect(probes).toBe(2);
+  bubble.reachability(true);
+  expect(last()?.frame).not.toBeNull();
+  bubble.toggle(); // closes
+  // Within the bound: opens at once, nothing asked.
+  clock += 30_000;
+  bubble.toggle();
+  expect(probes).toBe(2);
+  expect(last()?.layout).not.toBe("closed");
+  bubble.toggle(); // closes
+  // Past the bound: asked again, and a lost tailnet gives the card.
+  clock += 61_000;
+  bubble.toggle();
+  expect(probes).toBe(3);
+  bubble.reachability(false);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+});
+
+test("the card's missing action is hidden by the stylesheet too", () => {
+  expect(buddyBubbleCss).toContain(".meet-action[hidden] { display: none; }");
 });
