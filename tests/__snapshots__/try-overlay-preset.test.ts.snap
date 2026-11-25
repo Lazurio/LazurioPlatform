@@ -28,7 +28,7 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
       "manual/roles.md": "76ed9cc51249ac3fa781bacadf599302fab4c6144759254d13cf966efda0d8a3",
       "manual/this-machine.md": "08a1f9c0d704b50f45cf8dd089dcb80a1e5ba562408e9d945bfcc9ce1e4aa40a",
       "manual/troubleshooting.md": "ebb6dafd2faaddbd05000fc46823a01374bd3afc6004d9080d8207328ccec025",
-      "manual/working-here.md": "c04ed6c05e14eeb1998be7c5f65ce05d4cdd89f7a0ad6d39ba3881eac29ec55d",
+      "manual/working-here.md": "57a215511c3b2120be8aa1691b70355839a25cd58c0ebac347e9d3c13fd6dea3",
     },
     "en": {
       ".agents/skills/admin-request/SKILL.md": "dd1280dc943c47faf4a33ee75167929be56fb6e0584d6c3ef3f06cab59b6d872",
@@ -49,7 +49,7 @@ exports[`golden: lazurio-bob's Work Environment renders, derives, offers and is 
       "manual/roles.md": "e680a3f59e80c1893e51a34aeb304914aa9583a20018f5bdcf427e03f6c7c824",
       "manual/this-machine.md": "ba979eecd31b782afc87971b445c307ad736b51351b4f87ccf93320144e11493",
       "manual/troubleshooting.md": "68b6577b57699a7be56a70da65aa4a9488573696befde1e8556b35fd48efff70",
-      "manual/working-here.md": "18cac1a4a64db558dfffec753b17ef71f576836d2ecb7c506a0eedf65323dca7",
+      "manual/working-here.md": "3827f182861d1c99a321285f8287f2a9f90f53257ce5d46e5867af4de7f3c229",
     },
   },
   "githubIdentity": "own-sign-in",
