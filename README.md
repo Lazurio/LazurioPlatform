@@ -1,6 +1,48 @@
-# Lazurio Platform
+<p align="center">
+  <img src="./src/shell/vendor/lazurio/symbol-color.svg" width="80" height="80" alt="Lazurio logo" />
+</p>
 
-> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+<h1 align="center">Lazurio</h1>
+
+<p align="center">One place where people and their AI agents work together, on your own computer or on a server.</p>
+
+<p align="center">
+  <a href="#install"><strong>Install</strong></a> ·
+  <a href="#documentation">Docs</a> ·
+  <a href="https://github.com/Lazurio/LazurioPlatform/releases">Releases</a> ·
+  <a href="ARCHITECTURE.md">Architecture</a> ·
+  <a href="LICENSE">License</a>
+</p>
+
+<!--
+  SCREENSHOT (hero), to be added after the current freeze, taken only in the
+  example Organization with invented people and data (no real names, customers,
+  Organizations, Environments or tailnet addresses):
+  ./docs/readme/hero.webp — Lazurio in a browser: the Chat column with a finished
+  agent thread on one side, Buddy's window open beside it, Apps in the frame.
+  A phone frame is added only if it can be taken honestly from a real phone view.
+<p align="center">
+  <img src="./docs/readme/hero.webp" width="100%" alt="Lazurio with a Chat thread and Buddy's window open beside it" />
+</p>
+-->
+
+Lazurio gives each person an **Environment**: a computer of their own, or one hosted for them, where their AI agents run with the person's own sign-ins and where the Organization's apps, files and repositories are at hand. Agents get the same tools a person has, and instructions about how this Organization works, so they can do real work and not only answer.
+
+Every Environment has the same parts: **Chat** for work with coding agents, **Buddy** as the person's own agent who knows them and remembers, **Apps** for the Organization's modules, and the person's **Integrations**. An Organization runs Personal, Work and Team Environments from one reviewed product, and every update goes through one verified path.
+
+## What you get
+
+- **Your agents, your sign-ins.** Chat is Lazurio's build of T3 Code. It drives the agents you are signed in to, such as Codex and Claude Code. Lazurio does not resell tokens.
+- **Buddy.** A personal agent in a window beside your work. Buddy keeps one long conversation with you, knows how you like to be addressed, and works through the same tools and threads as your other agents.
+- **Memory.** Buddy and your agents share a memory that stays in your Environment (Brain, built on GBrain). It is searchable by words and by meaning.
+- **Apps and modules.** The Organization's own applications open in Apps, arranged in the Organization's Workspace tabs. Each module follows one [module standard](docs/module-standard.md).
+- **Integrations.** Mail, calendar, chat and the Organization's company apps are connected once per Environment and used by agents through one route. See [Integrations](docs/integrations.md).
+- **A browser for agents.** Every Remote Environment has its own browser. An agent works in its own window, and the person can watch or take over from theirs. See [Environment browser](docs/environment-browser.md).
+- **Generated instructions.** Each Environment's Folder carries `AGENTS.md` and an agent manual that Lazurio writes and keeps current, so every agent starts from the same rules.
+- **Verified updates.** `lazurio update` checks each release's attestation before it installs it, and it updates the CLI, Launchpad and Folder through one activation path. See [Product update contract](docs/update.md).
+- **Source available.** The product source is public under the [Elastic License 2.0](LICENSE).
+
+## Install
 
 **Install Lazurio with one command** (Linux x64 and arm64, macOS on Apple silicon):
 
@@ -17,8 +59,11 @@ curl --proto '=https' --tlsv1.2 -fsSL https://raw.githubusercontent.com/Lazurio/
 
 It installs the `lazurio` CLI and the Launchpad (one program) for your user, without
 `sudo` and without touching your shell profile, and ends with the next command to run;
-afterwards `lazurio update` keeps it current. How the download is checked: the script
-compares the executable with the SHA-256 in the release manifest before running it;
+afterwards `lazurio update` keeps it current.
+
+### How the download is checked
+
+The script compares the executable with the SHA-256 in the release manifest before running it;
 the executable then verifies the release's Sigstore attestation itself, with the same
 code every later update uses, and refuses to install otherwise; with a signed-in GitHub
 CLI the attestation is also checked independently first. The executable's own check
@@ -27,6 +72,22 @@ installation still rests on HTTPS to lazurio.ai and GitHub, which the script hol
 every redirect; it therefore needs curl (a computer with only wget is told how to
 install curl). Details:
 [First installation](docs/update.md#first-installation).
+
+## Status
+
+**Status: release candidates.** `install.sh` downloads a release from GitHub Releases
+over HTTPS, and the downloaded `lazurio` verifies that release's attestation before it
+installs itself (a signed-in GitHub CLI checks it independently as well); the installed
+`lazurio` verifies the attestation of every later update itself,
+updates through one activation path, initializes or adopts a Lazurio Folder from the
+Machine handover with a workspace preset, re-renders its generated files when Machines
+rewrites that handover (`lazurio machine folder-refresh`), and runs the Launchpad. Hosted Machines still run the legacy resident beside
+it until the hosted entry and content synchronization land; existing installations
+remain on their current implementation until then.
+
+> **Approved target update, 2026-10-06 (root 0192, since 2026-11-14 decisions 0245, 0246 and 0247):** [Account and Environment access](docs/environment-access.md) refines organizational admission: Lazurio membership and full/app grants, optional GitHub for visitors, Organization Admin approval of the exact Headscale device, and delegated same-Organization sharing. Conflicting older target statements below are superseded; implemented behavior and evidence remain baseline only until a qualified migration. No runtime changes in this documentation update.
+
+## How it is built
 
 **Lazurio Platform** is the public, source-available TypeScript product and codebase.
 Its reviewed source produces versioned Lazurio releases; users install those releases
@@ -47,15 +108,15 @@ Dashboard and managed Machine hosting—are not required for a self-hosted Lazur
 Environment. Their private integration belongs to `HumanAndMachineEmpire`, not this
 public codebase.
 
-**Status: release candidates.** `install.sh` downloads a release from GitHub Releases
-over HTTPS, and the downloaded `lazurio` verifies that release's attestation before it
-installs itself (a signed-in GitHub CLI checks it independently as well); the installed
-`lazurio` verifies the attestation of every later update itself,
-updates through one activation path, initializes or adopts a Lazurio Folder from the
-Machine handover with a workspace preset, re-renders its generated files when Machines
-rewrites that handover (`lazurio machine folder-refresh`), and runs the Launchpad. Hosted Machines still run the legacy resident beside
-it until the hosted entry and content synchronization land; existing installations
-remain on their current implementation until then.
+The target includes local and hosted human work, Buddy and AI Colleague environments.
+A hosted workspace is either private, dedicated to one user, or an
+Organization-owned team workspace that several users connect to without personal
+credentials; a personal environment is never shared ad hoc. OS/CPU, purpose and
+collaboration preferences are separate axes; they do not create product forks.
+"Update Lazurio" (product) and "Synchronize content" (Organization repositories) are
+separate operations.
+
+## Documentation
 
 - [Architecture and ownership](ARCHITECTURE.md)
 - [Decisions, alternatives and required amendments](docs/decisions.md)
@@ -76,13 +137,7 @@ remain on their current implementation until then.
 - [Stack profiles of Modules](docs/stack-profiles.md)
 - [Agent contribution contract](AGENTS.md)
 
-The target includes local and hosted human work, Buddy and AI Colleague environments.
-A hosted workspace is either private, dedicated to one user, or an
-Organization-owned team workspace that several users connect to without personal
-credentials; a personal environment is never shared ad hoc. OS/CPU, purpose and
-collaboration preferences are separate axes; they do not create product forks.
-"Update Lazurio" (product) and "Synchronize content" (Organization repositories) are
-separate operations.
+## Public development and license
 
 This repository is public from its foundation, by explicit instruction. Architecture,
 decisions, code, tests and build procedures are openly reviewable. Secrets and private
