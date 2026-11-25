@@ -790,6 +790,19 @@ function workingHere(
       `Stabilní aplikace modulu běží z \`main\`, cílově jako sestavené vydání, a lidé se k její adrese vracejí a pracují v ní. Rozpracovanou verzi proto nikdy nespouštěj místo ní: změnu modulu, prototyp, jinou branch i vývoj aplikace v productionspace spusť z worktree jako samostatný proces na vlastním volném portu na loopbacku (\`http://127.0.0.1:<port>\` nebo \`http://localhost:<port>\`). \`lazurio module start\` dnes spouští primární checkout, ne tvůj worktree. Hlavní aplikaci kvůli náhledu nezastavuj, nepřebírej její port ani službu a nezakládej nový hostname. Pamatuj si, který proces jsi spustil, a po skončení ukonči jen ten. ${machine === null ? "Na tomto počítači náhled otevři přímo v jeho prohlížeči a uživateli dej místní adresu a branch." : "Jak náhled spustit a ukázat uživateli v prohlížeči Prostředí, popisuje `manual/this-machine.md`."}`,
       `A module's stable application runs from \`main\`, ultimately as a built release, and people return to its address to keep working. So never start work in progress in its place: run a module change, a prototype, another branch or application development in productionspace from the worktree as a separate process on a free loopback port of its own (\`http://127.0.0.1:<port>\` or \`http://localhost:<port>\`). Today \`lazurio module start\` starts the primary checkout, not your worktree. For a preview, never stop the main application, take its port or service, or create another hostname. Keep track of the process you started and, when finished, stop only that one. ${machine === null ? "On this computer, open the preview directly in its browser and give the user the local address and branch." : "`manual/this-machine.md` describes how to start the preview and show it to the user in the Environment browser."}`,
     ),
+    // A Module's app in DEV carries the shell element with its dashed frame
+    // when the agent passes the shell script's loopback address (0249's
+    // DEV frame, decided 2026-11-25); the module kit inserts it only
+    // then, and Lazurio never sets it for a STAGING app. Only where the
+    // Launchpad's loopback port is known: a hosted Environment.
+    ...(machine?.entry
+      ? [
+          t(
+            `Modul postavený na module-kitu spusť rozpracovaný s \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`: module-kit pak do stránky vloží prvek Lazuria s přerušovaným rámečkem DEV a stránka hned ukáže, že nejde o stabilní aplikaci. Bez proměnné nevloží nic. Stabilní aplikaci z \`main\` ji Lazurio nikdy nedává a ty ji tam nenastavuj.`,
+            `Start a module built on the module kit in progress with \`LAZURIO_RUNTIME_SHELL_SCRIPT=http://127.0.0.1:${machine.entry.listenPort}/.lazurio/shell.js\`: the module kit then puts Lazurio's element with the dashed DEV frame on the page, which shows at once that this is not the stable application. Without the variable it puts nothing there. Lazurio never gives it to the stable application from \`main\`, and you never set it there.`,
+          ),
+        ]
+      : []),
     blank,
     // "Draft" is no Lazurio term: it collides with GitHub's Draft PR (decision
     // F14's addendum of 2026-10-24). The work is a pull request for code and

@@ -952,3 +952,57 @@ test("a local ensure is only a loopback peer with a loopback Host of this listen
   expect(may({ [localEnsureModeHeader]: "websocket" })).toBe(false);
   expect(may({ "sec-websocket-key": "x" })).toBe(false);
 });
+
+// 0249's DEV frame, decided 2026-11-25: a Module's app in DEV loads the
+// shell's script and fonts straight from the hosted Launchpad's loopback
+// listener, without a session; nothing else is answered that way, and the
+// same paths through the gateway still need its admission.
+posixTest(
+  "the shell's script and fonts answer straight on loopback without a session; the document and the gateway's Host do not",
+  async () => {
+    const parent = await realpath(await mkdtemp(join(root, "shell-loopback-")));
+    const { folder, entry } = await hostedFolder(parent);
+    const app = await startLaunchpad(folder, undefined, undefined, undefined, {
+      fetcher,
+    });
+    const direct = (path: string, headers: Record<string, string> = {}) =>
+      fetch(`http://127.0.0.1:${entry.listenPort}${path}`, {
+        headers: { origin: "http://127.0.0.1:5173", ...headers },
+      });
+    try {
+      const script = await direct("/.lazurio/shell.js");
+      expect(script.status).toBe(200);
+      expect(script.headers.get("access-control-allow-origin")).toBe("*");
+      expect(await script.text()).toContain("lazurio-buddy");
+      const font = await direct(
+        "/.lazurio/fonts/inter-latin-wght-normal.woff2",
+      );
+      expect(font.status).toBe(200);
+      expect(font.headers.get("content-type")).toBe("font/woff2");
+      await font.arrayBuffer();
+      // Nothing else without a session, even straight on loopback.
+      for (const path of [
+        "/.lazurio/shell.json",
+        "/",
+        "/.lazurio/stones/x.png",
+      ])
+        expect((await direct(path)).status).toBe(401);
+      // Through the gateway (its Host), the script still needs a session.
+      expect(
+        (await direct("/.lazurio/shell.js", { host: launchpadHost })).status,
+      ).toBe(401);
+      expect(
+        (
+          await direct("/.lazurio/shell.js", {
+            host: launchpadHost,
+            cookie: `${cookieName}=valid`,
+          })
+        ).status,
+      ).toBe(200);
+    } finally {
+      expect(await app.close()).toEqual({ kind: "closed" });
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+  60_000,
+);
