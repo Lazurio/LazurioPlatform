@@ -308,10 +308,14 @@ test("the script declares in the document what `declares` promises", async () =>
   const define = source.slice(
     source.indexOf("export function defineShellElements"),
   );
-  expect(define).toContain("installShellFonts(document);");
+  // The fonts beside the script where it is a `/.lazurio/shell.js` on
+  // another origin (0249's DEV frame, decided 2026-11-25, fonts.ts).
+  expect(define).toContain(
+    "installShellFonts(document, shellFontBaseOf(scriptUrl));",
+  );
   expect(define).toContain("installShellTokens(document);");
   expect(await readFile("src/shell/index.ts", "utf8")).toContain(
-    "\ndefineShellElements();",
+    "\ndefineShellElements(import.meta.url);",
   );
   // The Environment theme this origin remembers (F36's addendum of
   // 2026-10-18), right after the tokens and before any element is defined,

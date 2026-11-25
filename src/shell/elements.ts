@@ -38,7 +38,7 @@ import {
   shellSchema,
 } from "./contract";
 import { createDocumentReads, readShellDocumentJson } from "./document-read";
-import { installShellFonts } from "./fonts";
+import { installShellFonts, shellFontBaseOf } from "./fonts";
 import {
   createGuide,
   type GuideBuddy,
@@ -1941,8 +1941,10 @@ function answerFramedViews(): void {
  * theme this origin remembers are declared synchronously, before anything
  * waits: `/.lazurio/shell.js` calls this as it evaluates, before the app's
  * own module runs (F36's addendum of 2026-10-18). */
-export function defineShellElements(): void {
-  installShellFonts(document);
+export function defineShellElements(scriptUrl?: string): void {
+  // Beside the script where it is a `/.lazurio/shell.js` on another origin
+  // (a Module's app in DEV), on the page's own origin otherwise.
+  installShellFonts(document, shellFontBaseOf(scriptUrl));
   installShellTokens(document);
   theme.start();
   watchEnvironmentTheme();

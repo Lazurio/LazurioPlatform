@@ -22,4 +22,5 @@ export {
 } from "./contract";
 export { provideAccount, provideGuides, provideShell } from "./elements";
 
-defineShellElements();
+// The script's own address: its fonts are beside it (fonts.ts).
+defineShellElements(import.meta.url);

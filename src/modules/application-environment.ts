@@ -59,6 +59,11 @@ export function buildEnvironment(input: {
     LAZURIO_RUNTIME_APP_ID: input.plan.runtime.id,
   };
 }
+/** The address of `/.lazurio/shell.js` on the Launchpad's loopback listener
+ * for a Module's app in DEV, which the agent sets when it starts the app
+ * from a worktree; the module kit inserts `<lazurio-buddy version="dev">`
+ * only with it. */
+export const shellScriptVariable = "LAZURIO_RUNTIME_SHELL_SCRIPT";
 
 // The environment of a started application (decision F26): the names and
 // values the replaced Launchpad gave a declared runtime, so that a module
@@ -132,6 +137,12 @@ export function applicationEnvironment(input: {
     LAZURIO_RUNTIME_HOST: entrypoint.host,
     LAZURIO_RUNTIME_PORT: String(entrypoint.port),
   };
+  // Every app Lazurio runs is a STAGING one, from `main`, its development
+  // run included: never the DEV page's shell script, so the module kit never
+  // frames a STAGING app as DEV (0249's DEV frame, decided
+  // 2026-11-25). The closed `base` keeps it out already; this keeps it out
+  // should a base ever carry it.
+  delete environment[shellScriptVariable];
   const state = listeners.map((listener) => ({
     id: listener.id,
     role: listener.role,
