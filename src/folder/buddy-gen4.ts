@@ -1,4 +1,5 @@
 import type { Persona } from "../buddy/persona";
+import { ownInstructionsSection } from "./own-instructions";
 import type { FolderProfile } from "./profile";
 import {
   buddyPublicationRules,
@@ -380,9 +381,18 @@ export function renderBuddyAgents(
     ...always(profile).map(pick),
     "",
     ...(context.gen3 === true ? [...gen3Beside.map(pick), ""] : []),
-    // The default voice only, as in Buddy GEN3's layer: a custom voice is the
-    // Folder's text, which this folder does not carry.
-    ...voiceSection(locale),
+    // The person's voice and own instructions, as the Folder renders them
+    // (root decision 0233's addendum of 2026-11-25). Buddy GEN3's layer
+    // renders neither because Hermes blocks a whole context file its
+    // injection scan objects to; Buddy GEN4 runs on Claude Code or Codex,
+    // which read this file as they read the Folder's `AGENTS.md`.
+    ...voiceSection(locale, source.agentVoice),
+    ...ownInstructionsSection(
+      locale,
+      source.preset,
+      source.machine,
+      source.ownInstructions ?? "",
+    ),
     ...speech(names).map(pick),
     "",
   ].join("\n");

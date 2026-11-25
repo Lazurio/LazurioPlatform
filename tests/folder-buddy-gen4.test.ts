@@ -358,6 +358,46 @@ test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the
     }
 });
 
+// Root decision 0233's addendum of 2026-11-25: Buddy GEN4's AGENTS.md
+// carries the person's voice and own instructions as the Folder renders
+// them; where the Environment has no own instructions, neither does Buddy.
+test("Buddy GEN4 renders the person's own voice and own instructions, and none where the Environment has none", () => {
+  const own = "Říkej mi nejdřív výsledek.";
+  const voice = { overrides: { cs: "Piš krátce.", en: "Write briefly." } };
+  for (const locale of locales)
+    for (const profile of ["buddy", "employee"] as const) {
+      const agents = renderBuddyAgents(
+        { ...source(locale), agentVoice: voice, ownInstructions: own },
+        profile,
+        persona,
+      );
+      expect(agents).toContain(
+        locale === "cs" ? "Piš krátce." : "Write briefly.",
+      );
+      expect(agents).toContain(
+        locale === "cs"
+          ? "## Vlastní pokyny uživatele"
+          : "## The user's own instructions",
+      );
+      expect(agents).toContain(own);
+      // The voice comes first, then the own instructions, as in the Folder.
+      expect(agents.indexOf(own)).toBeGreaterThan(
+        agents.indexOf(locale === "cs" ? "Piš krátce." : "Write briefly."),
+      );
+      // Without them the section is absent and the default voice stands.
+      const plain = renderBuddyAgents(source(locale), profile, persona);
+      expect(plain).not.toContain(own);
+      expect(plain).not.toContain(
+        locale === "cs"
+          ? "## Vlastní pokyny uživatele"
+          : "## The user's own instructions",
+      );
+    }
+  // Where an Environment has none (a Team Environment, an Environment with
+  // automations, a public one), `ownInstructionsSection` renders nothing for
+  // the Folder and Buddy alike: the one gate, `ownInstructionsAllowed`.
+});
+
 test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
   const skill = (locale: "cs" | "en") =>
     renderBuddyFolder(source(locale), "buddy", persona)[
