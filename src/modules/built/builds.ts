@@ -354,6 +354,7 @@ export function createBuilds(input: {
           commit: head.commit,
           inputs: context.inputs,
           dirty: head.dirty || after.head.dirty,
+          branch: head.branch === after.head.branch ? head.branch : null,
           at: now().toISOString(),
         });
         state = await record(store, state, {

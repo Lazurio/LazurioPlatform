@@ -55,6 +55,7 @@ import {
   type SharedApplicationTile,
   type ShareHere,
   type ShareInput,
+  servedBuildsOf,
   sharedApplicationsSection,
   shareTarget,
   type TileApplications,
@@ -305,28 +306,36 @@ export function createCatalogPanel(
   const openMode = (): OpenApps => account?.openApps ?? "tab";
   // What this Environment serves as a clean built version from `main` right
   // now (decision F58): the only apps the words STAGING may name (decision
-  // 0249). Read from the overview of running Modules once, and again after a
-  // start; until it is read, no tile says STAGING.
+  // 0249). Read from the overview of running Modules when the panel opens,
+  // after a start, when the page becomes visible again and every 15 seconds
+  // while it is visible, so a stop or a `--dev` restart outside Apps reaches
+  // the tiles. Until it is read, and whenever it cannot be, nothing is
+  // STAGING (fail closed).
   let served: ServedBuilds | undefined;
+  const settle = (next: ServedBuilds) => {
+    const changed =
+      served === undefined ||
+      next.size !== served.size ||
+      [...next].some((key) => !served?.has(key));
+    served = next;
+    if (changed) render();
+  };
   const readServed = () =>
     options
       .get("/api/new-tab/overview")
-      .then(({ value }) => {
-        const overview = parseOverview(value);
-        const next = new Set(
-          (overview?.modules ?? [])
-            .filter((module) => module.mode === "built" && !module.dirty)
-            .map((module) => `${module.org}/${module.module}`),
-        );
-        const changed =
-          served === undefined ||
-          next.size !== served.size ||
-          [...next].some((key) => !served?.has(key));
-        served = next;
-        if (changed) render();
-      })
-      .catch(() => undefined);
+      .then(({ value, ok }) =>
+        settle(ok ? servedBuildsOf(parseOverview(value)?.modules) : new Set()),
+      )
+      .catch(() => settle(new Set()));
   void readServed();
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") void readServed();
+    });
+    setInterval(() => {
+      if (document.visibilityState === "visible") void readServed();
+    }, 15_000);
+  }
   // The Applications the person may open (decision 0249), matched with this
   // group's Module tiles by its Dashboard slug; none until the account is read.
   const tileApplications = (group: CatalogGroupEntry): TileApplications => ({

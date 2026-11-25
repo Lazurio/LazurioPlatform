@@ -562,6 +562,9 @@ export type NewTabModule = Readonly<{
   /** A built app's build of a checkout with uncommitted changes, or of
    * unknown provenance (decision F58): not the version from `main`. */
   dirty?: true;
+  /** The branch a built app's build was made on; null when the answer does
+   * not name one. */
+  branch?: string;
 }>;
 
 export type NewTabOverview = Readonly<{
@@ -672,6 +675,9 @@ function parseModule(value: unknown): NewTabModule | null {
         ? value.commit
         : null,
     ...(value.dirty === true ? { dirty: true as const } : {}),
+    ...(typeof value.branch === "string" && value.branch !== ""
+      ? { branch: value.branch }
+      : {}),
   };
 }
 

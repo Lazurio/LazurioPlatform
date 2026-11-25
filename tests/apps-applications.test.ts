@@ -7,6 +7,7 @@ import {
   connectAgentsPath,
   favoriteTiles,
   moduleApplication,
+  servedBuildsOf,
   type TileApplications,
 } from "../src/launchpad/apps-view";
 import type { CatalogGroupEntry } from "../src/launchpad/catalog-view";
@@ -292,6 +293,51 @@ test("the frame's names (decision 0249): only what runs here as a clean built ve
     expect(copy.appsDevelopment).not.toContain("STAGING");
     expect(copy.appsOpenAppNamed).not.toContain("STAGING");
   }
+});
+
+test("STAGING fails closed: only a running, clean build made on main counts, and a stop or a --dev restart takes it back", () => {
+  const unit = (module: string, extra: Record<string, unknown>) => ({
+    org: "Example",
+    module,
+    mode: "built",
+    ...extra,
+  });
+  expect([
+    ...servedBuildsOf([
+      unit("clean", { branch: "main" }),
+      unit("dirty", { branch: "main", dirty: true as const }),
+      unit("feature", { branch: "feature/x" }),
+      unit("detached", {}),
+      unit("dev", { mode: "dev", branch: "main" }),
+    ]),
+  ]).toEqual(["Example/clean"]);
+  expect(servedBuildsOf(null).size).toBe(0);
+  expect(servedBuildsOf(undefined).size).toBe(0);
+  // The same tile before and after its app is restarted as a development
+  // run outside Apps: the next reading takes the word back.
+  const scope = group();
+  const staging = (served: ReadonlySet<string>) =>
+    tile(
+      appsSections(
+        catalog,
+        scope,
+        cs,
+        entry,
+        [],
+        false,
+        undefined,
+        served,
+      ).flatMap((section) => section.tiles),
+      "deals",
+    ).staging;
+  expect(staging(servedBuildsOf([unit("deals", { branch: "main" })]))).toBe(
+    true,
+  );
+  expect(staging(servedBuildsOf([unit("deals", { mode: "dev" })]))).toBe(false);
+  expect(staging(servedBuildsOf([unit("deals", { branch: "release" })]))).toBe(
+    false,
+  );
+  expect(staging(servedBuildsOf(null))).toBe(false);
 });
 
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {

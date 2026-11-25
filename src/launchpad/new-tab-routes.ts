@@ -137,6 +137,7 @@ export type OverviewModule = ModuleUnit &
     mode: "dev" | "built";
     commit?: string;
     dirty?: true;
+    branch?: string;
     source: "main";
   }>;
 
@@ -239,6 +240,7 @@ export function createNewTabRoutes(
           mode: "built" | "dev";
           commit: string | null;
           dirty?: boolean;
+          branch?: string | null;
         }> | null>)
       | undefined;
     headers: Readonly<Record<string, string>>;
@@ -387,6 +389,11 @@ export function createNewTabRoutes(
                   // unknown provenance (decision F58).
                   ...(served?.mode === "built" && served.dirty !== false
                     ? { dirty: true as const }
+                    : {}),
+                  // The branch its build was made on; absent when unknown.
+                  ...(served?.mode === "built" &&
+                  typeof served.branch === "string"
+                    ? { branch: served.branch }
                     : {}),
                   source: "main" as const,
                 };

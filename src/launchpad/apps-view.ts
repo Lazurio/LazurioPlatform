@@ -464,6 +464,34 @@ export function moduleAction(
  * `<organization key>/<module>`; what the words STAGING may name. */
 export type ServedBuilds = ReadonlySet<string>;
 
+/** What may be called STAGING, from the overview of running Modules: a
+ * built app whose build is clean and was made on `main`. A development run,
+ * a dirty build, a build of another branch or of an unknown one, and an
+ * overview that could not be read give nothing (fail closed). */
+export function servedBuildsOf(
+  modules:
+    | readonly Readonly<{
+        org: string;
+        module: string;
+        mode: string;
+        dirty?: true;
+        branch?: string;
+      }>[]
+    | null
+    | undefined,
+): ServedBuilds {
+  return new Set(
+    (modules ?? [])
+      .filter(
+        (module) =>
+          module.mode === "built" &&
+          module.dirty !== true &&
+          module.branch === "main",
+      )
+      .map((module) => `${module.org}/${module.module}`),
+  );
+}
+
 /** Whether a Module's app runs here as a clean built version from `main`. */
 export function servedAsStaging(
   catalog: Catalog,

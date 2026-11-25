@@ -105,6 +105,10 @@ export type BuildRecord = Readonly<{
   inputs: readonly BuildInput[];
   /** The checkout had changes that were not committed; built as it was. */
   dirty: boolean;
+  /** The branch the checkout was on, the same before and after the build;
+   * null when detached, unknown or changed while it built. Absent in a
+   * record from before it was kept. */
+  branch?: string | null;
   at: string;
 }>;
 

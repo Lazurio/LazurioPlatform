@@ -2018,9 +2018,19 @@ test("a built app's build of a dirty checkout, or of unknown provenance, is mark
     modules,
     served: async (module) =>
       module.module === "clean"
-        ? { mode: "built", commit: "a".repeat(40), dirty: false }
+        ? {
+            mode: "built",
+            commit: "a".repeat(40),
+            dirty: false,
+            branch: "main",
+          }
         : module.module === "dirty"
-          ? { mode: "built", commit: "b".repeat(40), dirty: true }
+          ? {
+              mode: "built",
+              commit: "b".repeat(40),
+              dirty: true,
+              branch: "main",
+            }
           : { mode: "built", commit: "c".repeat(40) },
   });
   const answer = await call("GET", "/api/new-tab/overview");
@@ -2032,5 +2042,15 @@ test("a built app's build of a dirty checkout, or of unknown provenance, is mark
     ["clean", undefined],
     ["dirty", true],
     ["unknown", true],
+  ]);
+  // The branch of the build goes along where it is known.
+  expect(
+    (answer.body.modules as { module: string; branch?: string }[]).map(
+      (item) => [item.module, item.branch],
+    ),
+  ).toEqual([
+    ["clean", "main"],
+    ["dirty", "main"],
+    ["unknown", undefined],
   ]);
 });
