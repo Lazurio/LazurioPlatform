@@ -739,8 +739,7 @@ function fakeBubble(
     known?: readonly string[];
     tour?: boolean;
     plays?: boolean;
-    probe?: () => void;
-    now?: () => number;
+    probe?: (probe: number) => void;
   }> = {},
 ) {
   const log = {
@@ -766,7 +765,6 @@ function fakeBubble(
   const session = options.session ?? memory();
   const bubble = createBuddyBubble({
     ...(options.probe === undefined ? {} : { probe: options.probe }),
-    ...(options.now === undefined ? {} : { now: options.now }),
     origin: () => page.origin,
     facts: () => ({
       shell: page.shell,
@@ -2077,60 +2075,101 @@ test("not known yet is not off the tailnet, and another origin starts unknown ag
   expect(last()?.frame).not.toBeNull();
 });
 
-// Review of #1253: the window opens only once the page knows whether it
-// reaches Buddy, and the answer is asked again on an open after a minute or
-// after a negative one, so a tailnet turned on or lost is noticed there.
-test("a click before the answer opens nothing; the answer opens the frame or the card", () => {
-  let probes = 0;
-  const reachedOk = fakeBubble({ probe: () => probes++ });
+// Review of #1253: every open waits for its own fresh probe, so a tailnet
+// turned on or lost is noticed there; only the answer to that probe opens
+// the window, never an earlier probe's, another origin's or the picture's
+// own load; the page's own opens (`open`) pass the same gate.
+test("a click before the answer opens nothing; its answer opens the frame or the card", () => {
+  const asked: number[] = [];
+  const reachedOk = fakeBubble({ probe: (probe) => asked.push(probe) });
   reachedOk.bubble.update();
   reachedOk.bubble.toggle();
-  expect(probes).toBe(1);
+  expect(asked).toHaveLength(1);
   expect(reachedOk.last()?.frame ?? null).toBeNull();
   expect(reachedOk.last()?.layout).toBe("closed");
-  reachedOk.bubble.reachability(true);
+  reachedOk.bubble.reachability(true, asked[0]);
   expect(reachedOk.last()?.frame).not.toBeNull();
   expect(reachedOk.last()?.meeting).toBeNull();
 
-  const reachedNot = fakeBubble({ probe: () => probes++ });
+  const reachedNot = fakeBubble({ probe: (probe) => asked.push(probe) });
   reachedNot.bubble.update();
   reachedNot.bubble.toggle();
-  reachedNot.bubble.reachability(false);
+  reachedNot.bubble.reachability(false, asked.at(-1));
   expect(reachedNot.last()?.frame ?? null).toBeNull();
   expect(reachedNot.last()?.meeting?.step).toBe("off-tailnet");
   expect(reachedNot.last()?.layout).toBe("panel");
 });
 
-test("a tailnet turned on is noticed on the next open; a fresh positive answer is not asked again, a stale one is", () => {
-  let probes = 0;
-  let clock = 1_000;
-  const { bubble, last } = fakeBubble({
-    probe: () => probes++,
-    now: () => clock,
+test("every open asks afresh: a tailnet turned on or lost right after an answer is noticed", () => {
+  const asked: number[] = [];
+  const { bubble, last } = fakeBubble({ probe: (probe) => asked.push(probe) });
+  bubble.update();
+  bubble.toggle();
+  bubble.reachability(true, asked.at(-1));
+  expect(last()?.frame).not.toBeNull();
+  bubble.toggle(); // closes
+  // Lost a second later: the next open asks again and shows the card.
+  bubble.toggle();
+  expect(asked).toHaveLength(2);
+  bubble.reachability(false, asked.at(-1));
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // Turned on again: the next open asks again and opens his frame.
+  bubble.toggle();
+  expect(asked).toHaveLength(3);
+  bubble.reachability(true, asked.at(-1));
+  expect(last()?.meeting).toBeNull();
+  expect(last()?.layout).not.toBe("closed");
+});
+
+test("only the answer to this open's probe opens the window: not the picture's load, not an earlier probe, not another origin's", () => {
+  const asked: number[] = [];
+  const { bubble, last, page } = fakeBubble({
+    probe: (probe) => asked.push(probe),
   });
   bubble.update();
   bubble.toggle();
-  bubble.reachability(false);
-  expect(last()?.meeting?.step).toBe("off-tailnet");
-  bubble.toggle(); // closes
-  // Turned on: the next open asks again and gets the frame.
-  bubble.toggle();
-  expect(probes).toBe(2);
+  const first = asked.at(-1) as number;
+  // The picture's own (cached) load says yes while the probe is pending.
   bubble.reachability(true);
-  expect(last()?.frame).not.toBeNull();
-  bubble.toggle(); // closes
-  // Within the bound: opens at once, nothing asked.
-  clock += 30_000;
-  bubble.toggle();
-  expect(probes).toBe(2);
-  expect(last()?.layout).not.toBe("closed");
-  bubble.toggle(); // closes
-  // Past the bound: asked again, and a lost tailnet gives the card.
-  clock += 61_000;
-  bubble.toggle();
-  expect(probes).toBe(3);
-  bubble.reachability(false);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.frame ?? null).toBeNull();
+  // The probe's no wins.
+  bubble.reachability(false, first);
   expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // A later open; the earlier probe's late yes changes nothing.
+  bubble.toggle();
+  const second = asked.at(-1) as number;
+  expect(second).not.toBe(first);
+  bubble.reachability(true, first);
+  expect(last()?.layout).toBe("closed");
+  bubble.reachability(false, second);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // Another origin: the earlier origin's probe answers nothing.
+  bubble.toggle();
+  const third = asked.at(-1) as number;
+  page.origin = "https://buddy.other.lazurio.io";
+  bubble.update();
+  bubble.reachability(true, third);
+  expect(last()?.frame ?? null).toBeNull();
+  expect(last()?.layout).toBe("closed");
+});
+
+test("the page's own open (a notice, the end of the meeting) passes the same gate", () => {
+  const asked: number[] = [];
+  const { bubble, last } = fakeBubble({ probe: (probe) => asked.push(probe) });
+  bubble.update();
+  expect(bubble.open()).toBe(true);
+  expect(asked).toHaveLength(1);
+  expect(last()?.frame ?? null).toBeNull();
+  // A second open while it waits asks nothing more.
+  expect(bubble.open()).toBe(true);
+  expect(asked).toHaveLength(1);
+  bubble.reachability(false, asked[0]);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  expect(last()?.frame ?? null).toBeNull();
 });
 
 test("the card's missing action is hidden by the stylesheet too", () => {

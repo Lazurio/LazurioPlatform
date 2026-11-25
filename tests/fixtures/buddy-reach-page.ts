@@ -16,7 +16,7 @@ const view = createBuddyBubbleView(host, {
   escape: () => bubble.escape(),
   follow: () => {},
   store: null,
-  reachability: (ok) => bubble.reachability(ok),
+  reachability: (ok, probe) => bubble.reachability(ok, probe),
 });
 const bubble = createBuddyBubble({
   origin: () => origin,
@@ -35,7 +35,7 @@ const bubble = createBuddyBubble({
   session: null,
   draw: (model) => view.draw(model),
   focus: (target) => view.focus(target),
-  probe: () => view.probe(),
+  probe: (probe) => view.probe(probe),
   guide: {
     known: () => [],
     playing: () => null,

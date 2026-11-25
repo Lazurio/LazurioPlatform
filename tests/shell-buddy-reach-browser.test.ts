@@ -180,7 +180,7 @@ async function until(
 }
 
 test.skipIf(chrome === null || !posix || uid === 0)(
-  "off the tailnet a click opens the card with no action and no frame; once Buddy answers again, the next click opens his frame",
+  "off the tailnet a click opens the card with no action and no frame; once Buddy answers again the next click opens his frame, and once he is lost again the card",
   async () => {
     if (chrome === null) return;
     let reaches = false;
@@ -216,6 +216,18 @@ test.skipIf(chrome === null || !posix || uid === 0)(
       await browser.evaluate("buddyTest.click(), true");
       const on = await until(read, (state) => state.frames === 1, 10_000);
       expect(on.card).toBe(false);
+      // Lost right after (well within a minute): closed, the next click asks
+      // again and shows the card instead of opening the frame.
+      await browser.evaluate("buddyTest.click(), true");
+      await until(read, (state) => state.layout === "closed", 5_000);
+      reaches = false;
+      await browser.evaluate("buddyTest.click(), true");
+      const lost = await until(
+        read,
+        (state) => state.card && state.layout === "panel",
+        10_000,
+      );
+      expect(lost.actionShown).toBe(false);
     } finally {
       await browser.close();
       server.stop(true);

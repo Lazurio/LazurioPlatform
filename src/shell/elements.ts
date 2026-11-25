@@ -1514,7 +1514,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (origin === null && this.bubble === null) return;
     this.bubble ??= createBuddyBubble({
       origin: () => this.origin(),
-      probe: () => this.view?.probe(),
+      probe: (probe) => this.view?.probe(probe),
       facts: () => {
         const shell = state.drawn();
         if (shell === null) return null;
@@ -1550,7 +1550,7 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
             follow: (href, event) => this.followMeeting(href, event),
             store: browserStore(),
             menu: () => this.noticeMenu(),
-            reachability: (ok) => this.bubble?.reachability(ok),
+            reachability: (ok, probe) => this.bubble?.reachability(ok, probe),
           });
         this.view?.draw(model);
         this.followViewing();

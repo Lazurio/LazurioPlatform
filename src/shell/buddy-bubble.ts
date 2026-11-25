@@ -182,12 +182,11 @@ export type BuddyBubbleSeams = Readonly<{
   frameWindow: () => BuddyFrameWindow | null;
   /** This tab's memory (`sessionStorage`), or null. */
   session: Store | null;
-  /** Asks the view to check again whether the page reaches Buddy's origin;
-   * its answer comes back through `reachability` (root decision 0210,
-   * addendum of 2026-11-25). Absent: never asked, the window opens. */
-  probe?: () => void;
-  /** Now, in milliseconds; `Date.now` when absent. */
-  now?: () => number;
+  /** Asks the view to check now whether the page reaches Buddy's origin;
+   * its answer comes back through `reachability` with the same `probe`
+   * (root decision 0210, addendum of 2026-11-25). Absent: never asked, the
+   * window opens. */
+  probe?: (probe: number) => void;
   /** Draws the bubble; null draws nothing. */
   draw: (model: BuddyBubbleModel | null) => void;
   /** Moves the focus to the launcher or into the frame. */
@@ -209,10 +208,6 @@ export type BuddyBubbleSeams = Readonly<{
 /** Buddy's name on the launcher and the frame, and on the guide's card
  * where he presents it: a name, the same in every language. */
 export const buddyName = "Buddy";
-
-/** How long an answer that the page reaches Buddy's origin holds before the
- * next open asks again (review of #1253). */
-export const buddyReachFreshMs = 60_000;
 
 // What the launcher's badge shows for each sign: a question mark while he
 // waits for the person, an exclamation mark when something failed, a dot
@@ -247,13 +242,12 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // the view: null while it is not known, false where it failed or took too
   // long (root decision 0210, addendum of 2026-11-25). Never the frame's.
   let reachable: boolean | null = null;
-  // When the answer came, and whether a click waits for a fresh one: the
-  // window opens only once the page knows (review of #1253), and an answer
-  // older than `buddyReachFreshMs`, or a negative one, is asked again on
-  // the next open, so a tailnet turned on or lost is noticed there.
-  let reachableAt = 0;
-  let waiting = false;
-  const now = () => (seams.now ?? Date.now)();
+  // The probe an open waits for (0: none). Every open asks afresh (review
+  // of #1253), so a tailnet turned on or lost is noticed there; only the
+  // answer to that very probe opens the window, never an earlier probe's,
+  // another origin's or the picture's own load.
+  let probes = 0;
+  let waiting = 0;
   const offTailnet = () => meeting === null && reachable === false;
   // The explanation the frame asked for while it plays, and the size its
   // window returns to.
@@ -352,6 +346,19 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       layout = "closed";
   }
 
+  /** An open the person or the page asked for: before the meeting his hello
+   * at once; otherwise once a fresh probe says whether the page reaches
+   * Buddy (`reachability`). */
+  function requestOpen(): void {
+    if (meeting === null && seams.probe !== undefined) {
+      probes += 1;
+      waiting = probes;
+      seams.probe(waiting);
+      return;
+    }
+    openWindow();
+  }
+
   /** Opens the window: before the meeting his hello in the panel, without
    * a frame; after it the frame, made the first time, in the remembered
    * size. */
@@ -410,8 +417,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   function reset(next: string | null): void {
     origin = next;
     reachable = null;
-    reachableAt = 0;
-    waiting = false;
+    waiting = 0;
     frame = null;
     layout = "closed";
     asked = null;
@@ -489,25 +495,15 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         show("closed", "launcher");
         return;
       }
-      // Before the meeting the hello needs no origin. Otherwise the window
-      // waits for a fresh answer whether the page reaches Buddy.
-      if (
-        meeting === null &&
-        seams.probe !== undefined &&
-        (reachable !== true || now() - reachableAt > buddyReachFreshMs)
-      ) {
-        waiting = true;
-        seams.probe();
-        return;
-      }
-      openWindow();
+      requestOpen();
     },
     /** The Launchpad's end of the meeting (F60's addendum of 2026-10-26):
      * his window opens as the launcher's click opens it, unless it shows
      * already; the frame still never opens it itself. Whether it shows. */
     open(): boolean {
       if (origin === null) return false;
-      if (layout === "closed") openWindow();
+      // The same gate as the launcher's click (review of #1253).
+      if (layout === "closed" && waiting === 0) requestOpen();
       return true;
     },
     /** The Launchpad lifts the launcher over its own dialog while the
@@ -623,20 +619,23 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
      * from his picture. Where it does not, his window says to turn on the
      * tailnet instead of loading the frame; a window open as it changes
      * closes, as at the meeting. */
-    reachability(ok: boolean): void {
+    reachability(ok: boolean, probe?: number): void {
       if (origin === null) return;
-      reachableAt = now();
-      const changed = reachable !== ok;
-      const was = offTailnet();
-      reachable = ok;
-      if (changed && was !== offTailnet() && layout !== "closed")
-        layout = "closed";
-      if (waiting) {
-        waiting = false;
+      // An open waits for its own probe: any other answer (an earlier
+      // probe's, another origin's, the picture's load) changes nothing then.
+      if (waiting !== 0) {
+        if (probe !== waiting) return;
+        waiting = 0;
+        reachable = ok;
         openWindow();
         return;
       }
-      if (changed) draw();
+      if (probe !== undefined) return;
+      if (reachable === ok) return;
+      const was = offTailnet();
+      reachable = ok;
+      if (was !== offTailnet() && layout !== "closed") layout = "closed";
+      draw();
     },
     /** What is drawn now. */
     model,

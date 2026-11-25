@@ -90,9 +90,9 @@ export function launcherClearance(
 }
 
 export type BuddyBubbleView = Readonly<{
-  /** Checks again whether the page reaches Buddy's origin; the answer goes
-   * to the `reachability` option (review of #1253). */
-  probe(): void;
+  /** Checks now whether the page reaches Buddy's origin; the answer goes to
+   * the `reachability` option with the same `probe` (review of #1253). */
+  probe(probe: number): void;
   /** Draws the model; null removes the bubble (the shadow root stays, as
    * the guide's). */
   draw(model: BuddyBubbleModel | null): void;
@@ -189,7 +189,7 @@ export function createBuddyBubbleView(
     /** Whether the page reaches Buddy's origin, as his picture tells it:
      * loaded, or failed or not there within `buddyReachMs` (root decision
      * 0210, addendum of 2026-11-25). Absent, nobody listens. */
-    reachability?: (ok: boolean) => void;
+    reachability?: (ok: boolean, probe?: number) => void;
     /** The launcher's menu (right click, long press, the menu key): its
      * choices now; none for no menu. */
     menu?: () => readonly BuddyMenuItem[];
@@ -662,16 +662,16 @@ export function createBuddyBubbleView(
      * #1253): a fresh load of his picture, past the browser's cache, within
      * `buddyReachMs`. Its answer goes to `reachability` every time, and a
      * reached origin brings his picture back to the launcher. */
-    probe(): void {
+    probe(probe: number): void {
       if (avatar === null || avatar === "") {
-        options.reachability?.(false);
+        options.reachability?.(false, probe);
         return;
       }
       let url: URL;
       try {
         url = new URL(avatar, host.ownerDocument.baseURI);
       } catch {
-        options.reachability?.(false);
+        options.reachability?.(false, probe);
         return;
       }
       url.searchParams.set("lazurio-reach", String(Date.now()));
@@ -686,7 +686,7 @@ export function createBuddyBubbleView(
           delete parts.launcher.dataset.fallback;
           parts.picture.src = avatar;
         }
-        options.reachability?.(ok);
+        options.reachability?.(ok, probe);
       };
       const timer = setTimeout(() => settle(false), buddyReachMs);
       image.addEventListener("load", () => settle(true));
