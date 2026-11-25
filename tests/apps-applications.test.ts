@@ -266,7 +266,10 @@ test("the tile's words claim no version they cannot verify (decision 0249): the 
       expect(text).not.toContain("main");
     }
   }
-  expect(messages("cs").appsDevelopment).toBe("Verze z tohoto Prostředí");
+  // The kind of the Environment, as every text about it (environment wording).
+  expect(messages("cs", "work").appsDevelopment).toBe(
+    "Verze z tohoto Pracovního Prostředí",
+  );
 });
 
 test("a Module whose app cannot start here still opens its Application, without a development version", () => {

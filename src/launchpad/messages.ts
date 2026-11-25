@@ -517,7 +517,7 @@ const en = {
   appsOpenAppNamed: "Open the app of {name} in a new tab",
   appsOpenAppNamedSame: "Open the app of {name}",
   appsOpenApplicationNamed: "Open the Application {name} in a new tab",
-  appsDevelopment: "This Environment's version",
+  appsDevelopment: "The version from {this}",
   appsDevelopmentHint: "The module's app as it runs in {this}",
   appsConnectAgents: "Connect to agents",
   appsConnectAgentsHint:
@@ -3030,7 +3030,7 @@ const cs: Record<MessageKey, string> = {
   appsOpenAppNamed: "Otevřít aplikaci modulu {name} v nové záložce",
   appsOpenAppNamedSame: "Otevřít aplikaci modulu {name}",
   appsOpenApplicationNamed: "Otevřít Aplikaci {name} v nové záložce",
-  appsDevelopment: "Verze z tohoto Prostředí",
+  appsDevelopment: "Verze z {tohoto}",
   appsDevelopmentHint: "Aplikace modulu, jak běží v {tomto}",
   appsConnectAgents: "Připojit k agentům",
   appsConnectAgentsHint: "MCP server Aplikace pro všechny agenty {tohoto}",
