@@ -92,9 +92,8 @@ On the Owner test account's Personal Environment, on this candidate, from 07:03 
   - `lazurio chat defaults --json` answered `outdated`, `ai: "claude"`. The rule of #1232 picks Claude, but a sign-out applies nothing. **Followed up as #1268.**
   - After `lazurio chat defaults --apply`, the step a sign-in runs, it answered `managed`, `ai: "claude"`, and T3 held `claudeAgent` / `claude-opus-5-5` / `effort: medium`.
 - **In a fresh browser profile, as the test account:** `/api/ai` read Claude signed in and Codex signed out, and a new Chat thread showed "Opus 5.5 Medium" and answered in 8 s.
-- **Not verified:**
-  - Buddy GEN4's first thread opened after the Claude sign-in: this Environment's Buddy thread already existed (Lazurio/t3code#258).
-  - The warning in Začínáme after a failed model step: it needs a sign-in by the person.
+- **Buddy GEN4's first thread opened after the Claude sign-in: moved after the release.** This Environment's Buddy thread already existed (Lazurio/t3code#258), and the reference Organization has no Environment whose Buddy thread was never opened. On 2026-11-26 at 07:14 UTC, the release owner's coordinator decided under the release owner's standing mandate (not the release owner himself) to check it on the first real or test Environment with only Claude signed in after the release. The result goes into #1233, which stays open until then.
+- **The warning in Začínáme after a failed model step: open.** It needs a sign-in by the person. Whether it is checked together with the release owner's own ChatGPT sign-in on this Environment waits for his answer.
 
 ## Not verified
 
