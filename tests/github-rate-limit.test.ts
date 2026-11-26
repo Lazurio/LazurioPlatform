@@ -13,7 +13,11 @@ import { join } from "node:path";
 import { ghContentGitHub } from "../src/content/github";
 import { observeLimit } from "../src/content/limit-scope";
 import type { ContentItem } from "../src/launchpad/content-client";
-import { contentView } from "../src/launchpad/content-view";
+import {
+  contentView,
+  prepareContext,
+  preparePrompt,
+} from "../src/launchpad/content-view";
 import {
   appsSetupLine,
   autoStartStep,
@@ -1027,4 +1031,119 @@ test("behind an unrelated stop, the item the limit stopped waits and runs alone 
     start: true,
     items: [{ kind: "personalspace", login: null }],
   });
+});
+
+// Pablo's review of fee0e333: each row's "Vyřešit v Chatu" prepares its own
+// item's stop, also while a run of other items is under way; and a stop the
+// limit caused waits on its row while the limit lasts, without a recovery.
+test("each stopped row resolves its own item, also during a partial run, and a limit stop waits on its row", () => {
+  const organization = {
+    kind: "organization" as const,
+    login: "example",
+    name: "Example Company",
+    state: "absent" as const,
+  };
+  const list = { allowed: true, items: [organization, personalspace] };
+  const organizationStop = {
+    item: { kind: "organization", login: "example" },
+    key: "access",
+    code: "role-unverified",
+    detail: "the account has no write permission on the root repository",
+  } as const;
+  const outage = {
+    item: { kind: "personalspace", login: null },
+    key: "find",
+    code: "github-unavailable",
+    detail: "GitHub did not answer for the Personalspace repository",
+  } as const;
+  const failed = {
+    id: "a",
+    state: "failed",
+    steps: [],
+    failure: organizationStop,
+    failures: [organizationStop, outage],
+  } as const;
+  // The Personalspace's row prepares the Personalspace, the Organization's
+  // the Organization.
+  const ownPrompt = (row: typeof organization | typeof personalspace) => {
+    const context = prepareContext(list, failed as never, cs, row);
+    return context === null
+      ? null
+      : preparePrompt(context.target, context.failure, cs);
+  };
+  expect(
+    prepareContext(list, failed as never, cs, personalspace)?.target,
+  ).toEqual({ kind: "personalspace" });
+  expect(ownPrompt(personalspace)).toContain(outage.detail);
+  expect(ownPrompt(personalspace)).not.toContain(organizationStop.detail);
+  expect(
+    prepareContext(list, failed as never, cs, organization)?.target,
+  ).toMatchObject({ kind: "organization", login: "example" });
+  expect(ownPrompt(organization)).toContain(organizationStop.detail);
+  // Without a row: the stop shown first, as before (the line in Apps).
+  expect(prepareContext(list, failed as never, cs)?.target).toMatchObject({
+    kind: "organization",
+  });
+  // While the Personalspace's retry runs, the carried Organization's row
+  // still prepares its stop.
+  const running = {
+    id: "b",
+    state: "running",
+    steps: [],
+    failures: [organizationStop],
+  } as const;
+  expect(
+    prepareContext(list, running as never, cs, organization),
+  ).toMatchObject({
+    target: { kind: "organization", login: "example" },
+    failure: { detail: organizationStop.detail },
+  });
+  expect(prepareContext(list, running as never, cs, personalspace)).toBeNull();
+  // Each row's own way forward.
+  const view = contentView(list, failed as never, cs, {
+    github: "connected",
+    blockedBy: null,
+    resolve: "chat",
+    resolveOf: (item) => (item.kind === "organization" ? "admin" : "chat"),
+  });
+  expect(view.rows.map((row) => row.failure?.resolve)).toEqual([
+    "admin",
+    "chat",
+  ]);
+
+  // The mixed state: the Organization's unrelated stop, and the
+  // Personalspace stopped by the limit.
+  const limitStop = {
+    ...outage,
+    cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
+  } as const;
+  const mixed = {
+    id: "c",
+    state: "failed",
+    steps: [],
+    failure: organizationStop,
+    failures: [organizationStop, limitStop],
+    waiting: {
+      items: [{ kind: "personalspace", login: null }],
+      cause: limitStop.cause,
+    },
+  } as const;
+  const limited = contentView(list, mixed as never, cs, {
+    github: "limited",
+    blockedBy: null,
+  });
+  expect(limited.rows[0]).toMatchObject({ status: cs.contentStopped });
+  expect(limited.rows[0]?.failure).not.toBeNull();
+  expect(limited.rows[1]).toMatchObject({
+    status: "Čeká, až GitHub znovu přijme požadavky",
+    failure: null,
+  });
+  // Once GitHub answers and it was not run again (a page opened after the
+  // reset): its stop shows with its own recovery.
+  const answered = contentView(list, mixed as never, cs, {
+    github: "connected",
+    blockedBy: null,
+  });
+  expect(answered.rows[1]).toMatchObject({ status: cs.contentStopped });
+  expect(answered.rows[1]?.failure).not.toBeNull();
 });

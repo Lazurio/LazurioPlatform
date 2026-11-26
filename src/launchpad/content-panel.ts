@@ -49,10 +49,11 @@ export function createContentPanel(
     /** The content or its preparation changed: the line, the tour and the
      * catalog follow. */
     changed: () => void;
-    /** Where a stop leads (first-run.ts `resolveOf`). */
-    resolveKind: () => Resolve;
-    /** "Vyřešit v Chatu". */
-    resolve: () => void;
+    /** Where a stop leads (first-run.ts `resolveOf`): an item's own, or the
+     * one shown first. */
+    resolveKind: (item?: ContentRef) => Resolve;
+    /** "Vyřešit v Chatu" for that row's item. */
+    resolve: (item: ContentRef) => void;
     /** "Připojit AI": the AI step of Začínáme. */
     connectAi: () => void;
   }>,
@@ -166,7 +167,7 @@ export function createContentPanel(
         resolve.type = "button";
         resolve.dataset.contentResolve = lead;
         resolve.addEventListener("click", () =>
-          lead === "chat" ? options.resolve() : options.connectAi(),
+          lead === "chat" ? options.resolve(view.item) : options.connectAi(),
         );
         actions.append(resolve);
       }
@@ -201,6 +202,7 @@ export function createContentPanel(
       modules: options.modules,
       pluralModules: options.pluralModules,
       resolve: options.resolveKind(),
+      resolveOf: (item) => options.resolveKind(item),
     });
     for (const place of places) {
       let button: HTMLButtonElement | null = null;

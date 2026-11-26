@@ -262,7 +262,7 @@ export function jobStops(job: ContentJob): readonly ContentFailure[] {
   );
 }
 
-const sameRef = (a: ContentRef, b: ContentRef) =>
+export const sameRef = (a: ContentRef, b: ContentRef) =>
   a.kind === b.kind &&
   (a.kind === "personalspace" ||
     (b.kind === "organization" &&
@@ -369,6 +369,9 @@ export function contentView(
     modules?: (login: string) => number | null;
     pluralModules?: (count: number) => string;
     resolve?: Resolve;
+    /** Where an item's own stop leads, by its row (Pablo's review of
+     * #1224); `resolve` for every row when absent. */
+    resolveOf?: (item: ContentItem) => Resolve;
   }>,
 ): ContentView {
   const resolve = options.resolve ?? "chat";
@@ -391,10 +394,16 @@ export function contentView(
       job === null || present
         ? undefined
         : stops.find((stop) => refersTo(stop.item, item));
+    // A stop GitHub's rate limit caused waits while the limit lasts: the
+    // item runs again once GitHub answers, so its row offers no recovery
+    // (Pablo's review of #1224).
+    const limitWait = own?.cause !== undefined && options.github === "limited";
     const stoppedHere =
       !present &&
+      !limitWait &&
       (own !== undefined || (fact.state === "failed" && failedItem === item));
     const stop = own ?? (stoppedHere ? job?.failure : undefined);
+    const rowResolve = options.resolveOf?.(item) ?? resolve;
     const count =
       present && item.kind === "organization"
         ? (options.modules?.(item.login) ?? null)
@@ -403,23 +412,25 @@ export function contentView(
       ? count === null || options.pluralModules === undefined
         ? copy.contentPresent
         : `${copy.contentPresent} · ${options.pluralModules(count)}`
-      : stoppedHere
-        ? copy.contentStopped
-        : running
-          ? reached.has(item)
-            ? copy.contentRunning
-            : copy.contentWaiting
-          : item.state === "blocked"
-            ? copy.contentBlocked
-            : copy.contentAbsent;
+      : limitWait
+        ? copy.contentLimitWaiting
+        : stoppedHere
+          ? copy.contentStopped
+          : running
+            ? reached.has(item)
+              ? copy.contentRunning
+              : copy.contentWaiting
+            : item.state === "blocked"
+              ? copy.contentBlocked
+              : copy.contentAbsent;
     const showSteps =
       !present &&
       job !== null &&
       (stoppedHere || (running && reached.has(item)));
     const failure = stoppedHere
       ? {
-          sentence: `${contentFailureSentence(item.kind, stop?.key ?? "", copy, stop?.code)} ${copy[resolveSentence[resolve]]}`,
-          resolve,
+          sentence: `${contentFailureSentence(item.kind, stop?.key ?? "", copy, stop?.code)} ${copy[resolveSentence[rowResolve]]}`,
+          resolve: rowResolve,
           details: [
             contentCommand(item),
             ...(stop === undefined
@@ -550,6 +561,9 @@ export function prepareContext(
   list: ContentList | null,
   job: ContentJob | null,
   copy: Copy,
+  /** A row's own item (Pablo's review of #1224): its own stop, also while
+   * a run of other items is under way; absent, the stop shown first. */
+  row?: ContentRef,
 ): Readonly<{
   target: PrepareTarget;
   failure: Readonly<{ step: string; detail: string }> | null;
@@ -557,6 +571,13 @@ export function prepareContext(
    * or the person's for the Personalspace; null when none is known. */
   login: string | null;
 }> | null {
+  if (row !== undefined) {
+    if (job === null) return null;
+    const own = jobStops(job).find((stop) => sameRef(stop.item, row));
+    const listed = list?.items.find((entry) => refersTo(row, entry)) ?? null;
+    if (own === undefined || listed?.state === "present") return null;
+    return contextOf(own, listed, copy);
+  }
   // The same current state as the line in Apps (`contentFact`, Pablo's
   // review of #1098): a stop the list has since overtaken (its item is here
   // now) is no stop to resolve; an Organization here that does not run
@@ -587,6 +608,15 @@ export function prepareContext(
     ref === null || list === null
       ? null
       : (list.items.find((entry) => refersTo(ref, entry)) ?? null);
+  return contextOf(failure, item, copy);
+}
+
+function contextOf(
+  failure: ContentFailure | undefined,
+  item: ContentItem | null,
+  copy: Copy,
+): ReturnType<typeof prepareContext> {
+  const ref = failure?.item ?? null;
   const kind = ref?.kind ?? item?.kind;
   if (kind === undefined) return null;
   const step =

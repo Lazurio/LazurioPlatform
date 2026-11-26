@@ -6103,7 +6103,11 @@ the limit.
    answers, also where an unrelated stop is shown; that stop, an older outage or a role
    GitHub denied, stays shown with its own way forward and is never started by itself.
    A job keeps every unresolved stop, one per item (`failures`), and each shows on its
-   own item's row; `failure` is the one shown first (the first known without the limit).
+   own item's row with its own way forward: "Vyřešit v Chatu" prepares that row's item
+   (`prepareContext` with the row), also while a run of other items is under way, and a
+   stop the limit caused shows "Čeká, až GitHub znovu přijme požadavky" without any
+   recovery while GitHub reads limited; `failure` is the one shown first (the first
+   known without the limit).
    A run of some items only carries the last run's unresolved stops of other items,
    known without the limit, with their steps (`carriedStops`): they show from the
    partial run's start, while it runs and after it ends, whether it succeeded or stopped

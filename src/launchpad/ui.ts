@@ -70,13 +70,19 @@ import {
 import { createComputersPanel } from "./computers-panel";
 import { createConnectionsPanel } from "./connections-panel";
 import { parseConnectionsOverview } from "./connections-view";
-import { type ContentTransport, createContentClient } from "./content-client";
+import {
+  type ContentRef,
+  type ContentTransport,
+  createContentClient,
+} from "./content-client";
 import { createContentPanel } from "./content-panel";
 import {
+  jobStops,
   organizationArrived,
   prepareContext,
   preparePrompt,
   presentOrganizations,
+  sameRef,
 } from "./content-view";
 import { createFilesPanel } from "./files-panel";
 import {
@@ -644,8 +650,13 @@ let rootAccess: Readonly<{ login: string; write: boolean | null }> | null =
   null;
 /** Where a stopped preparation leads now: Chat, the AI step, or the
  * sentence that an Organization Admin prepares the Organization. */
-function resolveKind() {
-  const failure = content.job()?.failure;
+function resolveKind(row?: ContentRef) {
+  // A row's own stop (Pablo's review of #1224), else the one shown first.
+  const job = content.job();
+  const failure =
+    row === undefined || job === null
+      ? job?.failure
+      : jobStops(job).find((stop) => sameRef(stop.item, row));
   const login =
     failure?.item.kind === "organization" ? failure.item.login : null;
   const code = failure?.code ?? null;
@@ -838,8 +849,8 @@ const content = createContentPanel({
     firstRun();
   },
   blockedBy: () => contentBlocked(),
-  resolveKind: () => resolveKind(),
-  resolve: () => resolveInChat(),
+  resolveKind: (item) => resolveKind(item),
+  resolve: (item) => resolveInChat(item),
   connectAi: () => openAiStep(),
 });
 const tour = createTour({
@@ -1466,14 +1477,14 @@ async function probePreparePrompt() {
 // inserted in Chat, never sent. Without AI it leads to Začínáme's AI step
 // instead, and a stop only an Organization Admin fixes has nothing to
 // hand over (root decision 0201 points 3 and 8).
-function resolveInChat() {
-  const lead = resolveKind();
+function resolveInChat(row?: ContentRef) {
+  const lead = resolveKind(row);
   if (lead === "ai") {
     openAiStep();
     return;
   }
   if (lead === "admin") return;
-  const context = prepareContext(content.list(), content.job(), copy);
+  const context = prepareContext(content.list(), content.job(), copy, row);
   if (context === null) return;
   const text = preparePrompt(context.target, context.failure, copy);
   const linked =
