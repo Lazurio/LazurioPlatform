@@ -32,7 +32,7 @@ import {
   sshLinkFailures,
   sshStatusReasons,
 } from "../tools/ssh-key";
-import type { ToolSignIn } from "../tools/status";
+import type { GithubLimit, ToolSignIn } from "../tools/status";
 import { type GhIdentity, githubActionRefused } from "../tools/team-github";
 import type { MessageKey } from "./messages";
 import { fill } from "./update-view";
@@ -83,6 +83,116 @@ const identities: readonly GhIdentity[] = [
   "unknown",
 ];
 
+/** How long a page waits before it reads GitHub again while its rate limit
+ * is used up (#1223): until the reset GitHub gave plus two seconds, a
+ * minute when it gave none; never under 15 s (a clock ahead of the
+ * Launchpad's asks again soon, not in a loop) nor over an hour. Null when
+ * GitHub is not limited. */
+/** How many readings in a row follow a limit while GitHub stays unknown:
+ * an hour of minutes. */
+export const limitRetries = 60;
+
+export function limitRefreshDelay(
+  reset: string | null | undefined,
+  now: number,
+): number | null {
+  if (reset === undefined) return null;
+  if (reset === null) return 60_000;
+  const at = Date.parse(reset);
+  if (!Number.isFinite(at)) return 60_000;
+  return Math.min(Math.max(at - now + 2000, 15_000), 60 * 60_000);
+}
+
+/** The page's own reading of GitHub at its rate limit's reset (Pablo's
+ * review of #1224): nothing else reads the tools again on a page left
+ * open, so without it Začínáme would keep saying the content waits. Each
+ * reading of the tools passes its reset (`githubLimitReset`) and whether
+ * GitHub's state is known; one timer at most, replaced by every reading.
+ * After a limit, a reading that cannot tell (GitHub out of reach) or does
+ * not come at all (the request failed) is followed by another a minute
+ * later, at most `limitRetries` in a row; only a known GitHub without a
+ * limit ends it. */
+export function createLimitRefresh(
+  options: Readonly<{
+    refresh: () => void;
+    now?: () => number;
+    setTimer?: (run: () => void, ms: number) => unknown;
+    clearTimer?: (timer: unknown) => void;
+  }>,
+) {
+  const now = options.now ?? Date.now;
+  const setTimer =
+    options.setTimer ?? ((run: () => void, ms: number) => setTimeout(run, ms));
+  const clearTimer =
+    options.clearTimer ??
+    ((timer: unknown) => clearTimeout(timer as ReturnType<typeof setTimeout>));
+  let timer: unknown = null;
+  // A limit was seen and GitHub has not been known without one since.
+  let waiting = false;
+  let retries = 0;
+  const schedule = (wait: number) => {
+    if (timer !== null) clearTimer(timer);
+    timer = setTimer(fire, wait);
+  };
+  // Each reading asked keeps a later one in case it never answers.
+  function fire() {
+    timer = null;
+    retries += 1;
+    if (retries <= limitRetries) timer = setTimer(fire, 60_000);
+    options.refresh();
+  }
+  return Object.freeze({
+    observe(reset: string | null | undefined, known = true): void {
+      const wait = limitRefreshDelay(reset, now());
+      if (wait !== null) {
+        waiting = true;
+        retries = 0;
+        schedule(wait);
+        return;
+      }
+      // Unknown after a limit: the minute's reading already waits.
+      if (!known && waiting) {
+        if (timer === null && retries < limitRetries) schedule(60_000);
+        return;
+      }
+      if (timer !== null) clearTimer(timer);
+      timer = null;
+      waiting = false;
+      retries = 0;
+    },
+  });
+}
+
+/** An ISO time as this page's clock reads it, hours and minutes ("21:34"),
+ * for when GitHub's rate limit resets (#1223). */
+export function clockTime(iso: string, locale: string): string {
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+// GitHub's used-up rate limit of a signed-in gh (#1223): `reset`, when
+// given, an ISO time.
+function parseLimit(input: unknown): GithubLimit | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return null;
+  const { reset, kind } = input as Record<string, unknown>;
+  if (kind !== undefined && kind !== "hourly" && kind !== "secondary")
+    return null;
+  const named: GithubLimit =
+    kind === undefined ? {} : { kind: kind as "hourly" | "secondary" };
+  if (reset === undefined) return named;
+  return typeof reset === "string" &&
+    /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(reset) &&
+    Number.isFinite(Date.parse(reset))
+    ? { ...named, reset }
+    : null;
+}
+
 function parseSignIn(input: unknown): ToolSignIn | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const value = input as Record<string, unknown>;
@@ -99,8 +209,11 @@ function parseSignIn(input: unknown): ToolSignIn | null {
     return null;
   const ssh = value.ssh === undefined ? undefined : parseSshStatus(value.ssh);
   if (ssh === null) return null;
+  const limit = value.limit === undefined ? undefined : parseLimit(value.limit);
+  if (limit === null) return null;
   return {
     state: value.state,
+    ...(limit === undefined ? {} : { limit }),
     ...(value.account === undefined ? {} : { account: value.account }),
     ...(value.organization === undefined
       ? {}
@@ -416,6 +529,7 @@ export function connectionLine(
   tool: ToolOverview,
   copy: Copy,
   brokered = false,
+  locale = "en",
 ): Readonly<{ text: string; state: string; ssh: string | null }> {
   if (!tool.installed)
     return {
@@ -439,6 +553,26 @@ export function connectionLine(
     text = signInLine({ ...tool, signIn }, copy, brokered);
   }
   const state = tool.signIn?.state ?? "unchecked";
+  // Signed in while GitHub refuses requests for its used-up rate limit
+  // (#1223): the account, in no success colour, and why, never a key to
+  // link.
+  const limit =
+    tool.signIn?.state === "signed-in" ? tool.signIn.limit : undefined;
+  if (tool.name === "gh" && !brokered && limit !== undefined)
+    return {
+      text,
+      state: "limited",
+      ssh:
+        limit.kind === "secondary"
+          ? copy.toolsGithubLimitedSecondary
+          : limit.kind === undefined
+            ? copy.toolsGithubLimitedOther
+            : limit.reset === undefined
+              ? copy.toolsGithubLimited
+              : fill(copy.toolsGithubLimitedUntil, {
+                  time: clockTime(limit.reset, locale),
+                }),
+    };
   // A person's signed-in gh works here only by a passing proof: one whose
   // status has no SSH part (its shape allows that) is not known to work,
   // as one whose proof could not run (Pablo's review of #524).
@@ -747,8 +881,12 @@ export function curatedActions(
       allowWorkflow: false,
     };
   if (tool.signIn?.state === "signed-in") {
-    // Also without an SSH part: only a passing proof is linked.
-    const linkSsh = tool.name === "gh" && tool.signIn.ssh?.state !== "linked";
+    // Also without an SSH part: only a passing proof is linked. Not while
+    // GitHub's rate limit is used up, which no link changes (#1223).
+    const linkSsh =
+      tool.name === "gh" &&
+      tool.signIn.limit === undefined &&
+      tool.signIn.ssh?.state !== "linked";
     return {
       primary: null,
       logout: true,

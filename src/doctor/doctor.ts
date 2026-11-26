@@ -313,6 +313,9 @@ const ownReasons = [
   // gh signed in as the person while this Environment does not reach GitHub
   // over SSH as that account (decision F19, addendum 2026-10-19).
   "ssh-not-linked",
+  // gh signed in, and GitHub refuses its requests until the account's rate
+  // limit resets (#1223): nothing to sign in again, only to wait.
+  "github-rate-limited",
   // The Organization's tools (decision F73).
   "organization-tool-missing",
   "organization-tool-below-minimum",
@@ -834,6 +837,12 @@ function toolCheck(tool: ToolRow, ownGithub: boolean): DoctorCheck {
     tool.signIn.ssh?.state === "not-linked"
   )
     return check("tool", "warn", "ssh-not-linked", context);
+  if (
+    tool.name === "gh" &&
+    tool.signIn?.state === "signed-in" &&
+    tool.signIn.limit !== undefined
+  )
+    return check("tool", "warn", "github-rate-limited", context);
   return check("tool", "ok", undefined, context);
 }
 

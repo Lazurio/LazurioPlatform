@@ -6051,6 +6051,113 @@ The tests are:
   `unknown`;
 - `tests/start-view.test.ts`: the refused text in both locales, without an action.
 
+**Addendum 2026-11-23 (Matěj, Lazurio/LazurioPlatform#1223): GitHub's used-up rate limit
+is not a missing sign-in.** In a Personal Environment on v0.1.26, Začínáme showed GitHub
+as "Nepřipojeno" with "Připojit", the count fell by one and the personal space could not
+be prepared, while gh was signed in. The account had used up its hourly REST limit (the
+Environment's agents work under the same account and share it). gh checks its token with
+one REST request; GitHub answered 403 "API rate limit exceeded", and `gh auth status`
+reports any failed check as an invalid token (`state: "error"`), which `ghStatus` read as
+signed out. Matěj: it must not look as if GitHub were not signed in at all; it must say
+the limit.
+
+1. **The reading.** `gh auth status --json hosts` with `state: "error"` whose `error` is
+   GitHub's rate limit (HTTP 403 or 429 with "rate limit", primary or secondary;
+   `rateLimited`) is signed in, with the login gh names and `limit`. An older gh's text
+   form with the same error reads the same. Another 4xx, a 401 included, stays signed
+   out, and only that offers "Připojit". A check that got no HTTP answer at all (a
+   network error, a timeout) or a 5xx is `unknown`: GitHub out of reach says nothing
+   about the sign-in (`checkFailure`, Pablo's review of #1224).
+2. **Which limit, and when it ends.** `gh api rate_limit`, which GitHub answers without
+   counting it, tells the kind (`parseRateLimit`): `core` at zero is `hourly`, with
+   `limit.reset`; `core` with requests left is GitHub's `secondary` limit (too many at
+   once), which names no reset. Where `rate_limit` does not answer, GitHub's message
+   names `secondary` or nothing; a limit of no known kind is said without a kind.
+3. **No further requests.** The Launchpad keeps the limited reading in the memory of its
+   SSH proofs (`createSshProofs`, `GithubLimitMemo`) until the reset, at most an hour,
+   or a minute when GitHub did not say; meanwhile a reading runs no gh at all. A gh
+   sign-in or sign-out forgets it, and a limit reading under way then is not kept
+   (`limitGeneration`), so a former account never comes back from it. A limited gh's SSH is not proved (the proof reads the
+   account's keys and GitHub's host keys through the API) and carries no `ssh`.
+4. **What follows.** `githubFact` gains `limited`, which counts as done: the count stays,
+   the next basic is the content, the shell's `setup.github` is `connected`, and nothing
+   opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
+   no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
+   itself once the limit resets and GitHub reads connected. Only what the limit stopped
+   waits so, and that is known from the operation that failed, never from a failure's
+   code or text, nor from a refusal elsewhere in the run (Pablo's reviews of #1224):
+   every GitHub operation of a content run whose failure GitHub's silence would cause
+   (the viewer, the root's lookup and read, the membership, the Personalspace's lookup
+   and listing) runs in `observeLimit` (`limit-scope.ts`, server only: never in the page's bundle), and the content's gh notes a request GitHub
+   refused for its rate limit, by the status (403 or 429) and message of GitHub's own
+   answer, on the operations it belongs to (`refusedForLimit`). The step that fails
+   carries `cause: { kind: "github-rate-limit" }` only when its own operation was
+   refused, and a role verdict only when it rests on GitHub not answering alone
+   (`RoleVerification.unanswered`): a lack of write permission known beside an
+   unanswered membership is the verdict's own defect and wins. A run keeps every item
+   the limit stopped (`waiting`) and shows the first stop known without the limit, else
+   the first the limit caused; the job adds the limit `rate_limit` names at its end
+   (`withLimitDetails`). A stop whose recorded reset lies more than GitHub's hour before
+   the limit read now belongs to an earlier limit. The items that wait run once more,
+   those alone (`AutoStart.limitStop`, an install of those items), once GitHub
+   answers, also where an unrelated stop is shown; that stop, an older outage or a role
+   GitHub denied, stays shown with its own way forward and is never started by itself.
+   A job keeps every unresolved stop, one per item (`failures`), and each shows on its
+   own item's row with its own way forward: "Vyřešit v Chatu" prepares that row's item
+   (`prepareContext` with the row), also while a run of other items is under way, and a
+   stop the limit caused shows "Čeká, až GitHub znovu přijme požadavky" without any
+   recovery while GitHub reads limited; `failure` is the one shown first (the first
+   known without the limit). Who may prepare a stopped Organization's root (root
+   decision 0201 point 8) is asked once per Organization and job (`createRootAccess`),
+   and `GET /api/content/root-access` answers for that Organization's own stop also
+   while a run of other items carries it.
+   A run of some items only carries the last run's unresolved stops of other items,
+   known without the limit, with their steps (`carriedStops`): they show from the
+   partial run's start, while it runs and after it ends, whether it succeeded or stopped
+   for another reason, and after a reload, which reads the latest job. A run of
+   everything carries nothing. A page left open reads the tools
+   again, with their sign-ins, at the reset plus two seconds (a minute without a reset,
+   never under 15 s nor over an hour; `createLimitRefresh`); after a limit, a reading
+   that cannot tell or never answers is followed by another a minute later, at most an
+   hour of them, until GitHub is known (Pablo's review of #1224).
+5. **Wording**, saying only what GitHub said. Začínáme's GitHub step keeps its done mark
+   and, for the hourly limit, says "Připojeno jako @{login}. GitHub teď odmítá požadavky,
+   protože je vyčerpaný hodinový limit. Obnoví se v {time}, nic znovu nepřipojujte."
+   ("… It resets at {time}; there is nothing to connect again."), with "Obnoví se sám"
+   where the reset is not known; {time} is the page's clock. For the secondary limit:
+   "GitHub teď dočasně odmítá požadavky, protože jich přišlo příliš mnoho najednou.
+   Obvykle to během pár minut samo přejde, nic znovu nepřipojujte."; for a limit of no
+   known kind: "GitHub teď odmítá požadavky kvůli svému limitu. Přejde to samo, nic
+   znovu nepřipojujte.". The content step says "Čeká, až GitHub znovu přijme
+   požadavky.", its panel "Spustí se samo, až GitHub znovu přijme požadavky.", and Apps'
+   line that GitHub refuses requests for its limit and the preparation starts by itself
+   once it accepts them again: true for every kind. Nástroje says, in no success colour
+   and without "Propojit SSH klíč", "GitHub do {time} odmítá požadavky, hodinový limit je
+   vyčerpaný", "GitHub teď dočasně odmítá požadavky, přišlo jich příliš mnoho najednou"
+   or "GitHub teď odmítá požadavky kvůli svému limitu". `lazurio tools status` names the
+   hourly limit with its reset, the secondary limit, or the limit alone, and `lazurio
+   doctor --sign-in` warns `github-rate-limited`.
+
+Not in this addendum:
+- The content routes still ask `gh api user` and repository reads while the limit lasts;
+  they answer GitHub as unavailable, never signed out.
+- A limit that a signed-out gh meets is not seen: gh checks no token then.
+
+The tests are `tests/github-rate-limit.test.ts` (the reading, the reset, the memory and
+its forget, the older gh, the tools' sign-in without proof, the shell's GitHub, 401 still
+signed out and an unreachable check unknown, Začínáme, the content, Apps, Nástroje, the
+start after the reset and after a stopped run, the page's reading at the reset, the
+content's per-operation refusal, an older outage, a mixed permission and membership stop
+and an earlier limit's stop through a later limit and its reset, the item the limit
+stopped behind an unrelated stop running alone after the reset, the secondary limit on
+Začínáme, Nástroje and in the CLI) and `tests/content-rate-limit.test.ts` (a real run: an
+Organization's missing write permission with the Personalspace stopped by the limit in
+either order, a membership the limit refused beside a known lack of write permission,
+the limit alone, the role's `unanswered`, `observeLimit`, `withLimitDetails`, and the
+Organization's unrelated stop through the Personalspace's retry after the reset: while
+it runs, after it succeeds and after it stops for an outage, each through a reload) and `tests/doctor.test.ts`
+(`github-rate-limited` without any further gh API request or ssh).
+
 ## F20 — One-command first installation; the downloaded executable verifies its own release
 
 **Matěj's decision 2026-09-28, implemented in this revision for Linux and macOS.**

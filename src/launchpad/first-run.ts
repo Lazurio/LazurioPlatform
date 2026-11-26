@@ -10,7 +10,7 @@ import type {
   ToolOverview,
   ToolsOverview,
 } from "../tools/overview";
-import type { ContentJob, ContentList } from "./content-client";
+import type { ContentJob, ContentList, ContentRef } from "./content-client";
 import {
   type ContentFact,
   contentFact,
@@ -136,6 +136,7 @@ export type GithubFact =
   | "incomplete"
   | "own-account"
   | "connected"
+  | "limited"
   | "unknown";
 
 type ToolsReading =
@@ -169,11 +170,36 @@ export function githubFact(
   if (signIn?.state === "signed-out") return "missing";
   if (signIn?.state !== "signed-in") return "unknown";
   if (ownAccount(signIn.account, responsible)) return "own-account";
+  // Signed in while GitHub's rate limit is used up (#1223): there, and
+  // nothing to sign in again; what needs GitHub waits for the reset.
+  if (signIn.limit !== undefined) return "limited";
   return signIn.ssh?.state === "linked"
     ? "connected"
     : signIn.ssh?.state === "not-linked"
       ? "incomplete"
       : "unknown";
+}
+
+/** When GitHub's used-up rate limit resets (an ISO time), null where GitHub
+ * did not say, undefined where gh is not limited (#1223). */
+export function githubLimitReset(
+  overview: ToolsReading,
+): string | null | undefined {
+  const github = overview?.tools.find((tool) => tool.name === "gh");
+  if (github?.signIn?.state !== "signed-in") return undefined;
+  const limit = github.signIn.limit;
+  return limit === undefined ? undefined : (limit.reset ?? null);
+}
+
+/** Which limit GitHub names for a limited gh (`GithubLimit.kind`), undefined
+ * where it names none or gh is not limited. */
+export function githubLimitKind(
+  overview: ToolsReading,
+): "hourly" | "secondary" | undefined {
+  const github = overview?.tools.find((tool) => tool.name === "gh");
+  return github?.signIn?.state === "signed-in"
+    ? github.signIn.limit?.kind
+    : undefined;
 }
 
 /** Whether GitHub itself refuses this Environment's key over SSH while the
@@ -304,6 +330,9 @@ export type TourFacts = Readonly<{
   ai: AiFact;
   github: GithubFact;
   content: ContentFact;
+  /** GitHub's rate limit as read now, while `github` is `limited`: its
+   * reset (an ISO time), null where GitHub names none (#1223). */
+  githubLimitReset?: string | null | undefined;
   /** Buddy's basic where the Environment has Buddy (an Osobní Prostředí
    * whose entry names his origin); absent everywhere else. */
   buddy?: BuddyFact | undefined;
@@ -416,7 +445,7 @@ export function basicState(
         ? "missing"
         : "unknown";
   if (basic === "github")
-    return facts.github === "connected"
+    return facts.github === "connected" || facts.github === "limited"
       ? "done"
       : githubMissing(facts.github)
         ? "missing"
@@ -752,10 +781,58 @@ export function tourStop(
  * Environment, whose basics are the Organization's) and on a public
  * Environment, whose visitors sign in to nothing, only a known missing
  * GitHub does. Null: it may start. */
-export type ContentBlock = "ai" | "github" | "unknown";
+export type ContentBlock = "ai" | "github" | "github-limit" | "unknown";
+
+/** Whether a stopped run stopped for GitHub's rate limit (#1223): only
+ * when the run itself recorded that cause at its stop (`cause` of the
+ * failure, set where GitHub refused one of its requests for the limit),
+ * never guessed from the failure's code or text. Any other stop, an older
+ * outage or a role GitHub denied included, keeps its own way forward
+ * (Pablo's review of #1224). */
+export function limitFailure(
+  content: ContentFact | undefined,
+  limitReset?: string | null | undefined,
+): boolean {
+  if (content?.state !== "failed") return false;
+  const cause = content.job.failure?.cause;
+  return (
+    cause?.kind === "github-rate-limit" && sameLimit(cause.reset, limitReset)
+  );
+}
+
+/** The items GitHub's rate limit stopped in the last run (`waiting` of the
+ * job, each by the cause its own failing operation recorded), tied to the
+ * limit read now; empty when none. They wait and run once more after the
+ * reset, also where another stop of the run is shown (Pablo's review of
+ * #1224). */
+export function limitWaiting(
+  content: ContentFact | undefined,
+  limitReset?: string | null | undefined,
+): readonly ContentRef[] {
+  if (content?.state !== "failed") return [];
+  const waiting = content.job.waiting;
+  return waiting !== undefined && sameLimit(waiting.cause.reset, limitReset)
+    ? waiting.items
+    : [];
+}
+
+// Tied to the limit it hit: a stop whose limit reset before the one read
+// now began (its reset over GitHub's hour of a window earlier) belongs to
+// an earlier limit.
+const sameLimit = (
+  stopped: string | undefined,
+  now: string | null | undefined,
+): boolean =>
+  stopped === undefined ||
+  typeof now !== "string" ||
+  Date.parse(stopped) >= Date.parse(now) - 60 * 60_000;
 
 export function contentBlockedBy(
-  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github">,
+  facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github"> &
+    Readonly<{
+      content?: ContentFact;
+      githubLimitReset?: string | null | undefined;
+    }>,
 ): ContentBlock | null {
   if (!basicsOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
@@ -763,6 +840,15 @@ export function contentBlockedBy(
   if (facts.ai === "loading") return "unknown";
   if (githubMissing(facts.github)) return "github";
   if (facts.github === "unknown") return "unknown";
+  // Signed in, but GitHub refuses requests until its rate limit resets
+  // (#1223): the content waits and starts by itself after it. A stop with
+  // another cause is shown as it is (Pablo's review of #1224).
+  if (
+    facts.github === "limited" &&
+    (facts.content?.state !== "failed" ||
+      limitFailure(facts.content, facts.githubLimitReset))
+  )
+    return "github-limit";
   return null;
 }
 
@@ -775,6 +861,10 @@ export type AutoStart = Readonly<{
   ai: boolean | null;
   github: boolean | null;
   armed: boolean;
+  /** The items GitHub's rate limit stopped, seen while it refused
+   * requests (#1223, `limitWaiting`): they run once more, those alone,
+   * when GitHub answers again (Pablo's review of #1224). */
+  limitStop?: readonly ContentRef[];
 }>;
 
 export const idleAutoStart: AutoStart = Object.freeze({
@@ -796,8 +886,17 @@ export function autoStartStep(
   state: AutoStart,
   facts: TourFacts,
   running: boolean,
-): Readonly<{ state: AutoStart; start: boolean }> {
+): Readonly<{
+  state: AutoStart;
+  start: boolean;
+  /** What to start: the items the limit stopped; absent, everything. */
+  items?: readonly ContentRef[];
+}> {
   const known = (basic: "ai" | "github", before: boolean | null) => {
+    // GitHub refusing requests for its rate limit is not there for the
+    // content yet: its reset arrives as GitHub does, and the content starts
+    // then, as Začínáme says (#1223).
+    if (basic === "github" && facts.github === "limited") return false;
     const now = basicState(facts, basic);
     return now === "unknown" ? before : now === "done";
   };
@@ -806,14 +905,46 @@ export function autoStartStep(
   const arrived =
     (state.ai === false && ai === true) ||
     (state.github === false && github === true);
-  const next = (armed: boolean): AutoStart =>
-    Object.freeze({ ai, github, armed });
-  if (!basicsOnboarding(facts)) return { state: next(false), start: false };
-  const armed = state.armed || arrived;
-  if (!armed) return { state: next(false), start: false };
   const content = facts.content.state;
-  if (content === "ready" || content === "none" || content === "failed")
+  // The items a limit stopped, seen while GitHub refused requests for it,
+  // kept while the content stays stopped.
+  const seen =
+    facts.github === "limited"
+      ? limitWaiting(facts.content, facts.githubLimitReset)
+      : [];
+  const stopped: readonly ContentRef[] =
+    content !== "failed"
+      ? []
+      : seen.length > 0
+        ? seen
+        : (state.limitStop ?? []);
+  const limitStop = stopped.length > 0;
+  const next = (armed: boolean, keep = limitStop): AutoStart =>
+    Object.freeze({
+      ai,
+      github,
+      armed,
+      ...(keep ? { limitStop: stopped } : {}),
+    });
+  if (!basicsOnboarding(facts))
+    return { state: next(false, false), start: false };
+  const armed = state.armed || arrived || limitStop;
+  if (!armed) return { state: next(false), start: false };
+  if (content === "ready" || content === "none")
     return { state: next(false), start: false };
+  if (content === "failed") {
+    // Any other stop is never started again by itself; the items a limit
+    // stopped run once more, those alone, as soon as GitHub answers again,
+    // also where another stop is shown.
+    if (!limitStop) return { state: next(false), start: false };
+    if (
+      running ||
+      facts.github === "limited" ||
+      contentBlockedBy(facts) !== null
+    )
+      return { state: next(true), start: false };
+    return { state: next(false, false), start: true, items: stopped };
+  }
   if (content !== "missing" || running || contentBlockedBy(facts) !== null)
     return { state: next(true), start: false };
   return { state: next(false), start: true };
@@ -856,7 +987,9 @@ export function startDecision(
   if (request === "sign-in-gh") {
     if (facts.github === "unknown" || facts.ai === "loading") return "wait";
     if (facts.ai === "missing") return "open-ai";
-    return facts.github === "connected" || facts.github === "own-account"
+    return facts.github === "connected" ||
+      facts.github === "limited" ||
+      facts.github === "own-account"
       ? "drop"
       : "sign-in-gh";
   }
@@ -865,7 +998,7 @@ export function startDecision(
   const blocked = contentBlockedBy(facts);
   if (blocked === "unknown") return "wait";
   if (blocked === "ai") return "open-ai";
-  if (blocked === "github") return "drop";
+  if (blocked === "github" || blocked === "github-limit") return "drop";
   return content === "missing" || content === "failed" ? "install" : "drop";
 }
 
@@ -989,6 +1122,19 @@ export function appsSetupLine(
         };
   }
   const content = facts.content;
+  // GitHub refuses requests until its rate limit resets (#1223): the
+  // content waits for it, and nothing is to try again or sign in before.
+  if (
+    (content.state === "failed" || content.state === "missing") &&
+    facts.running !== true &&
+    contentBlockedBy(facts) === "github-limit"
+  )
+    return {
+      tone: "info",
+      icon: "key",
+      text: copy.setupGithubLimit,
+      actions: [{ action: "open-start", label: copy.setupShow }],
+    };
   if (content.state === "failed") {
     const resolve = facts.resolve ?? "chat";
     const item = content.item;
@@ -1086,7 +1232,10 @@ export function shellSetup(
       : input.ai === "missing"
         ? { ai: "missing" as const }
         : {}),
-    github: input.github === "connected" ? "connected" : "missing",
+    github:
+      input.github === "connected" || input.github === "limited"
+        ? "connected"
+        : "missing",
   } as const;
   if (
     fact.state === "none" ||

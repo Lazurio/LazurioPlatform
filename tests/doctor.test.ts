@@ -737,6 +737,70 @@ test.skipIf(process.platform === "win32" || realSshKeygen === null)(
   30_000,
 );
 
+// #1223: with --sign-in, gh whose token check GitHub refuses for the
+// account's used-up rate limit is signed in and needs attention as
+// `github-rate-limited`, never as a missing sign-in; no key list, meta or
+// ssh is asked meanwhile.
+test.skipIf(process.platform === "win32")(
+  "--sign-in: gh refused for GitHub's rate limit is signed in and rate-limited",
+  async () => {
+    const world = await createWorld({
+      tools: ["gh", "composio", "ssh", "ssh-keygen"],
+    });
+    const asked: string[] = [];
+    const limited: ToolRunner = async (command) => {
+      const name = command[0]?.split("/").at(-1);
+      const args = command.slice(1).join(" ");
+      if (name === "gh" && args === "auth status --json hosts")
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            hosts: {
+              "github.com": [
+                {
+                  state: "error",
+                  error:
+                    "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)",
+                  active: true,
+                  login: "octo",
+                  tokenSource: "keyring",
+                },
+              ],
+            },
+          }),
+          stderr: "",
+        };
+      if (name === "gh" && args === "api rate_limit")
+        return {
+          exitCode: 0,
+          stdout: JSON.stringify({
+            resources: { core: { remaining: 0, reset: 1_795_471_566 } },
+          }),
+          stderr: "",
+        };
+      if (name === "gh" || name === "ssh") asked.push(`${name} ${args}`);
+      return toolRun(command, 10_000, {});
+    };
+    const answer = await doctor(world, ["--sign-in"], { toolRun: limited });
+    expect(answer.code).toBe(exitAttention);
+    expect(find(answer.json, "tool", "gh")).toMatchObject({
+      outcome: "warn",
+      reason: "github-rate-limited",
+      context: { tool: "gh", signIn: "signed-in" },
+    });
+    expect(
+      asked.filter(
+        (call) =>
+          call.startsWith("gh api") ||
+          call.startsWith("ssh ") ||
+          call === "ssh",
+      ),
+    ).toEqual([]);
+    expectSameAnswer(answer.human, answer.json);
+  },
+  30_000,
+);
+
 test("a module that is not executable needs attention with its typed reason", async () => {
   const world = await createWorld();
   await writeOrganization(world.folder, "alpha", {

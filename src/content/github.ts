@@ -1,7 +1,7 @@
 import { parse } from "node:path";
-import { ghStatus } from "../tools/gh-status";
+import { ghStatus, parseRateLimit, rateLimited } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
-import { resolveOnPath } from "../tools/status";
+import { type GithubLimit, resolveOnPath } from "../tools/status";
 import { githubLoginPattern, repositoryPattern } from "./model";
 import type {
   BranchRules,
@@ -82,6 +82,14 @@ export type DeclarationAnswer =
 export type ContentGitHub = Readonly<{
   /** Who gh works as on this Environment. */
   viewer(): Promise<ViewerAnswer>;
+  /** How many of this adapter's requests GitHub refused for a rate limit
+   * so far (HTTP 403 or 429 whose answer names it, #1223), for diagnostics
+   * only: which operation the limit stopped is `observeLimit`'s
+   * (`limit-scope.ts`). */
+  rateLimitRefusals?(): number;
+  /** The limit GitHub's `rate_limit` names now (which GitHub does not
+   * count), or undefined when it does not answer. */
+  rateLimit?(): Promise<GithubLimit | undefined>;
   /** The OAuth scopes of this sign-in's token (`parseTokenScopes`). */
   tokenScopes(): Promise<readonly string[] | null>;
   repository(owner: string, name: string): Promise<RepositoryAnswer>;
@@ -219,6 +227,26 @@ const record = (value: unknown): Record<string, unknown> | null =>
 
 /** The `status` of a GitHub API error document gh prints on stdout
  * (`{"message":"Not Found",…,"status":"404"}`), when it is one. */
+// Who hears that GitHub refused a request for its rate limit: the
+// operations of a content run (`limit-scope.ts`, which sets it on the
+// server). Nothing here creates an async context, so this module stays safe
+// in the page's bundle, which includes it through the Tools' views.
+let limitRefusal: () => void = () => {};
+
+/** Sets who hears GitHub's refusals for its rate limit (`limit-scope.ts`). */
+export function onLimitRefusal(listener: () => void): void {
+  limitRefusal = listener;
+}
+
+function errorMessage(stdout: string): string {
+  try {
+    const message = record(JSON.parse(stdout))?.message;
+    return typeof message === "string" ? message : "";
+  } catch {
+    return "";
+  }
+}
+
 function errorStatus(stdout: string): string | null {
   try {
     const status = record(JSON.parse(stdout))?.status;
@@ -422,6 +450,8 @@ export function ghContentGitHub(
     options.sleep ??
     ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   let located: Promise<string | undefined> | undefined;
+  // Requests GitHub refused for a rate limit (`rateLimitRefusals`).
+  let refusals = 0;
   const gh = () => {
     located ??= resolveOnPath("gh", environment.path, environment.platform);
     return located;
@@ -458,10 +488,20 @@ export function ghContentGitHub(
       );
       if (result === "timeout") return { kind: "unavailable" };
       if (result.exitCode === 0) return { kind: "ok", stdout: result.stdout };
+      const status = errorStatus(result.stdout);
+      // GitHub's answer itself: its status and its message (gh prints the
+      // body of an API error on stdout).
+      if (
+        (status === "403" || status === "429") &&
+        rateLimited(`${status} ${errorMessage(result.stdout)}`)
+      ) {
+        refusals += 1;
+        limitRefusal();
+      }
       return {
         kind: "error",
         exitCode: result.exitCode,
-        status: errorStatus(result.stdout),
+        status,
         stdout: result.stdout,
         stderr: result.stderr,
       };
@@ -505,6 +545,11 @@ export function ghContentGitHub(
     return `repos/${fullName}`;
   };
   return Object.freeze({
+    rateLimitRefusals: () => refusals,
+    async rateLimit(): Promise<GithubLimit | undefined> {
+      const answer = await run(["api", "rate_limit"]);
+      return answer.kind === "ok" ? parseRateLimit(answer.stdout) : undefined;
+    },
     async viewer(): Promise<ViewerAnswer> {
       const answer = await run(["api", "user"]);
       if (answer.kind === "ok") {

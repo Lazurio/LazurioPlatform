@@ -147,7 +147,22 @@ export function createContentRoutes(
         // Only the Organization of the stop it is asked for; anything else
         // gets the same "no" without a question to GitHub.
         const last = jobs.latest();
-        const failure = last?.state === "failed" ? last.failure : undefined;
+        // That Organization's own stop among the job's (`failures`, one per
+        // item), as it shows on its row.
+        // Also while a run of other items is under way: the stop it
+        // carries shows on its row with its way forward (Pablo's review of
+        // #1224).
+        const failure =
+          last !== undefined && last.state !== "succeeded"
+            ? (
+                last.failures ??
+                (last.failure === undefined ? [] : [last.failure])
+              ).find(
+                (stop) =>
+                  stop.item.kind === "organization" &&
+                  stop.item.login.toLowerCase() === login.toLowerCase(),
+              )
+            : undefined;
         if (
           failure === undefined ||
           failure.item.kind !== "organization" ||
