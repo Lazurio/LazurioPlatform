@@ -219,6 +219,7 @@
     "tests/launchpad-routes.test.ts": 100,
     "tests/launchpad-shell-routes.test.ts": 1400,
     "tests/launchpad-sign-in-switch.test.ts": 1400,
+    "tests/launchpad-silk.test.ts": 100,
     "tests/launchpad-ssh.test.ts": 600,
     "tests/launchpad-theme.test.ts": 1100,
     "tests/launchpad-tools-reading.test.ts": 100,
