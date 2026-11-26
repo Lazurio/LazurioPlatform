@@ -1,4 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
+import { writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   type ContentGitHub,
   observeLimit,
@@ -6,14 +8,16 @@ import {
 } from "../src/content/github";
 import type { ContentHost } from "../src/content/host";
 import { installContent } from "../src/content/install";
-import { withLimitDetails } from "../src/content/jobs";
+import { createContentJobs, withLimitDetails } from "../src/content/jobs";
 import type { ContentFailure, ContentStep } from "../src/content/model";
 import { verifyOrganizationRole } from "../src/content/role";
+import { contentFact } from "../src/launchpad/content-view";
 import {
   alphaRemotes,
   contentHost,
   createWorld,
   presetFolder,
+  remoteRepository,
   stubGitHub,
   type World,
 } from "./fixtures/content-world";
@@ -289,3 +293,114 @@ test("the job adds the limit rate_limit names to the stops' cause, asked only wh
     waiting: { items: [{ kind: "personalspace" }], cause },
   });
 });
+
+// Pablo's review of 0c8f61a1: the partial retry of what the limit stopped
+// must not lose an unrelated stop of the run before it, neither after the
+// retry succeeds nor after a reload (which reads the latest job).
+posixTest(
+  "the Organization's unrelated stop survives the Personalspace's retry after the reset, its success and a reload",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    await remoteRepository(world, "example/example_GEN3", (directory) =>
+      writeFile(join(directory, "README.md"), "mine"),
+    );
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, {
+      repositories: {
+        ...alphaReadable,
+        "Alpha/alpha_GEN3": { permission: "read" },
+        "example/example_GEN3": {
+          owner: { login: "example", databaseId: 12345, kind: "User" },
+        },
+      },
+      membership: { kind: "none" },
+    });
+    let limited = true;
+    const switching: ContentGitHub = {
+      ...github,
+      async repository(owner, name) {
+        if (limited && `${owner}/${name}` === "example/example_GEN3") {
+          refusedForLimit();
+          return { kind: "unavailable" };
+        }
+        return github.repository(owner, name);
+      },
+    };
+    const jobs = createContentJobs({
+      folder,
+      host: () => contentHost(world as World, switching),
+    });
+    await jobs.start({
+      items: [
+        { kind: "organization", login: "Alpha" },
+        { kind: "personalspace" },
+      ],
+      roots: { alpha: "Alpha/alpha_GEN3" },
+    });
+    await jobs.settled();
+    const first = jobs.latest();
+    expect(first?.failure).toMatchObject({
+      item: { kind: "organization", login: "Alpha" },
+      code: "role-unverified",
+    });
+    expect(first?.failure?.cause).toBeUndefined();
+    expect(first?.waiting?.items).toEqual([{ kind: "personalspace" }]);
+
+    // GitHub answers again: the page runs the Personalspace alone.
+    limited = false;
+    await jobs.start({ items: [{ kind: "personalspace" }] });
+    await jobs.settled();
+    // A reload reads the latest job: the Organization's stop is still it,
+    // with its steps, and nothing waits any more.
+    const after = jobs.latest();
+    expect(after?.id).not.toBe(first?.id);
+    expect(after?.state).toBe("failed");
+    expect(after?.failure).toEqual(first?.failure);
+    expect(after?.waiting).toBeUndefined();
+    expect(
+      after?.steps.some(
+        (step) =>
+          step.item.kind === "organization" &&
+          step.state === "failed" &&
+          step.code === "role-unverified",
+      ),
+    ).toBe(true);
+    expect(
+      after?.steps.some(
+        (step) => step.item.kind === "personalspace" && step.state === "failed",
+      ),
+    ).toBe(false);
+    // As the page reads it: the Organization stopped, with its failure.
+    const fact = contentFact(
+      {
+        allowed: true,
+        items: [
+          {
+            kind: "organization",
+            login: "Alpha",
+            name: "Alpha",
+            state: "absent",
+          },
+          { kind: "personalspace", login: "example", state: "present" },
+        ],
+      },
+      after as never,
+    );
+    expect(fact).toMatchObject({
+      state: "failed",
+      item: { kind: "organization", login: "Alpha" },
+    });
+    // A run of everything starts afresh: nothing is carried into it.
+    await jobs.start({
+      items: [
+        { kind: "organization", login: "Alpha" },
+        { kind: "personalspace" },
+      ],
+      roots: { alpha: "Alpha/alpha_GEN3" },
+    });
+    await jobs.settled();
+    expect(jobs.latest()?.failure?.code).toBe("role-unverified");
+  },
+  90_000,
+);

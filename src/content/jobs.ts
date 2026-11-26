@@ -81,6 +81,40 @@ export async function withLimitDetails(
   };
 }
 
+const sameRef = (a: ContentItemRef, b: ContentItemRef) =>
+  a.kind === b.kind &&
+  (a.kind === "personalspace" ||
+    (b.kind === "organization" &&
+      a.login.toLowerCase() === b.login.toLowerCase()));
+
+/** The last job's stop that a run of `items` alone leaves unresolved: one
+ * known without GitHub's rate limit (no `cause`), of an item this run does
+ * not touch, with that item's steps. None for a run of everything. */
+function carriedStop(
+  last:
+    | Readonly<{
+        state: ContentJob["state"];
+        steps: ReadonlyMap<string, ContentStep>;
+        failure?: ContentFailure;
+      }>
+    | undefined,
+  items: readonly ContentItemRef[] | undefined,
+):
+  | Readonly<{ failure: ContentFailure; steps: [string, ContentStep][] }>
+  | undefined {
+  if (items === undefined || last === undefined || last.state !== "failed")
+    return undefined;
+  const failure = last.failure;
+  if (failure === undefined || failure.cause !== undefined) return undefined;
+  if (items.some((item) => sameRef(item, failure.item))) return undefined;
+  return {
+    failure,
+    steps: [...last.steps].filter(([, step]) =>
+      sameRef(step.item, failure.item),
+    ),
+  };
+}
+
 export function createContentJobs(
   input: Readonly<{ folder: string; host: () => ContentHost }>,
 ) {
@@ -119,6 +153,15 @@ export function createContentJobs(
         if (plan.kind === "not-allowed") return plan;
         const lock = await tryContentLock(host.lockDirectory, input.folder);
         if (lock === null) return { kind: "busy" };
+        // A run of some items only (the items GitHub's rate limit stopped,
+        // run again once it answers, #1223): the last run's unresolved stop
+        // of another item, known without the limit, stays this job's to
+        // show, with its steps, so it is not lost behind the partial run,
+        // nor after a reload (Pablo's review of #1224).
+        const carried = carriedStop(
+          [...jobs.values()].at(-1),
+          request.items === undefined ? undefined : plan.items,
+        );
         const id = randomBytes(16).toString("hex");
         const job: NonNullable<ReturnType<typeof jobs.get>> = {
           id,
@@ -164,10 +207,21 @@ export function createContentJobs(
             // that starts the next job on seeing the end is not refused.
             await lock.release().catch(() => undefined);
             running = null;
-            if (end.failure !== undefined) job.failure = end.failure;
+            // The carried stop is shown before one the limit caused, never
+            // over this run's own stop known without it.
+            const failure =
+              carried !== undefined &&
+              (end.failure === undefined ||
+                ("cause" in end.failure && end.failure.cause !== undefined))
+                ? carried.failure
+                : end.failure;
+            if (carried !== undefined)
+              for (const [key, step] of carried.steps)
+                if (!job.steps.has(key)) job.steps.set(key, step);
+            if (failure !== undefined) job.failure = failure;
             if ("waiting" in end && end.waiting !== undefined)
               job.waiting = end.waiting;
-            job.state = end.state;
+            job.state = failure === undefined ? end.state : "failed";
           });
         running = { id, done };
         return { kind: "started", job: id };

@@ -6101,7 +6101,12 @@ the limit.
    the limit read now belongs to an earlier limit. The items that wait run once more,
    those alone (`AutoStart.limitStop`, an install of those items), once GitHub
    answers, also where an unrelated stop is shown; that stop, an older outage or a role
-   GitHub denied, stays shown with its own way forward and is never started by itself. A page left open reads the tools
+   GitHub denied, stays shown with its own way forward and is never started by itself.
+   A run of some items only carries the last run's unresolved stop of another item,
+   known without the limit, with its steps (`carriedStop`): it stays the job's stop to
+   show after the partial run ends, succeeded or not, and after a reload, which reads the
+   latest job; a stop of the partial run's own known without the limit comes first, and
+   a run of everything carries nothing. A page left open reads the tools
    again, with their sign-ins, at the reset plus two seconds (a minute without a reset,
    never under 15 s nor over an hour; `createLimitRefresh`); after a limit, a reading
    that cannot tell or never answers is followed by another a minute later, at most an
@@ -6139,7 +6144,9 @@ stopped behind an unrelated stop running alone after the reset, the secondary li
 Začínáme, Nástroje and in the CLI) and `tests/content-rate-limit.test.ts` (a real run: an
 Organization's missing write permission with the Personalspace stopped by the limit in
 either order, a membership the limit refused beside a known lack of write permission,
-the limit alone, the role's `unanswered`, `observeLimit`, `withLimitDetails`) and `tests/doctor.test.ts`
+the limit alone, the role's `unanswered`, `observeLimit`, `withLimitDetails`, and the
+Organization's unrelated stop through the Personalspace's retry after the reset, its
+success and a reload) and `tests/doctor.test.ts`
 (`github-rate-limited` without any further gh API request or ssh).
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release
