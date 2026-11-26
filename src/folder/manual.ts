@@ -704,6 +704,88 @@ const brainRules: readonly Text[] = [
   ),
 ];
 
+// How to write a report someone can fix without asking back, and offering the
+// user once to file their own bug or idea about Lazurio (Lazurio/LazurioPlatform
+// #1274, decision 2, the issue route only). The examples are public issues of
+// this repository that name no Organization, person or Environment.
+function goodReport(ownInstructions: boolean): readonly Text[] {
+  return [
+    t(
+      "### Hlášení, které jde opravit bez doptávání",
+      "### A report that can be fixed without asking back",
+    ),
+    t(
+      "Hlášení čte člověk nebo agent, který o tvé práci nic neví. Dobré je takové, podle kterého chybu opraví, aniž by se tě musel na něco ptát. Strukturu nepředepisujeme; šablony `Bug` a `Improvement` v `Lazurio/LazurioPlatform` jsou nápověda, ne formulář. Co se osvědčilo:",
+      "A report is read by a person or an agent who knows nothing of your work. A good one lets them fix the problem without having to ask you anything. No structure is prescribed; the `Bug` and `Improvement` templates in `Lazurio/LazurioPlatform` are a hint, not a form. What has worked:",
+    ),
+    t(
+      "- **Název řekne, co je špatně,** ne kde jsi byl: „`lazurio update` po přepnutí verze nevykreslí Folder znovu“, ne „Problém s aktualizací“.",
+      "- **The title says what is wrong,** not where you were: “`lazurio update` does not re-render the Folder after the switch”, not “Update problem”.",
+    ),
+    t(
+      "- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, předchozí verze).",
+      "- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, the previous version).",
+    ),
+    t(
+      "- **Kde:** verze Lazuria (`lazurio update status --json`), revize šablony Folderu (začátek `AGENTS.md`), druh Prostředí a soubor nebo příkaz, když ho znáš.",
+      "- **Where:** the Lazurio version (`lazurio update status --json`), the Folder template revision (the top of `AGENTS.md`), the kind of Environment, and the file or command when you know it.",
+    ),
+    t(
+      "- **Jak to zopakovat,** nejkratší cestou; když to zopakovat nejde, napiš to.",
+      "- **How to reproduce it,** the shortest way; when you cannot, say so.",
+    ),
+    t(
+      "- **Návrh opravy, když ho máš:** příčina s odkazem na soubor a řádek ve zdroji a co by se změnilo; když jsou cesty dvě, pojmenuj obě a jednu doporuč.",
+      "- **A proposed fix when you have one:** the cause with a link to the file and line in the source and what would change; when there are two ways, name both and recommend one.",
+    ),
+    t(
+      "- **Co jsi neověřil,** řekni jednou krátkou větou nebo oddílem „Not verified“. Hypotézu označ jako hypotézu a závěr nestav na jednom běhu.",
+      "- **What you did not verify,** say in one short sentence or a “Not verified” section. Mark a hypothesis as one and do not draw a conclusion from a single run.",
+    ),
+    t(
+      "- **Vynech** celé logy (stačí výňatek s chybou), průběh své práce, plány, jména lidí a kontext Organizace. Jedno issue je jeden problém; komentář přidej jen s novým důkazem, ne jako deník.",
+      "- **Leave out** whole logs (an excerpt with the error is enough), the story of your work, plans, people's names and the Organization's context. One issue is one problem; add a comment only with new evidence, not as a diary.",
+    ),
+    t(
+      "- **Tón** jako zpráva kolegovi: věcně a krátce, bez omluv, bez naléhání a bez superlativů. Ve veřejném repozitáři piš anglicky.",
+      "- **The tone** of a note to a colleague: factual and short, without apologies, urgency or superlatives. In the public repository write in English.",
+    ),
+    t(
+      "Takhle to vypadá v praxi: [#1223](https://github.com/Lazurio/LazurioPlatform/issues/1223) ukazuje vadu v rozhraní s přesnými texty, měřením a poctivým „zdroj jsem nečetl“; [#1030](https://github.com/Lazurio/LazurioPlatform/issues/1030) vadu příkazu se čtyřmi řádky pozorování, místem v kódu, dvěma variantami opravy a oddílem „Not verified“; [#1065](https://github.com/Lazurio/LazurioPlatform/issues/1065) krátké hlášení s pointou v první větě. Všechna tři šla opravit bez jediné otázky.",
+      "This is how it looks in practice: [#1223](https://github.com/Lazurio/LazurioPlatform/issues/1223) shows a bug in the interface with the exact texts, a measurement and an honest “I did not read the source”; [#1030](https://github.com/Lazurio/LazurioPlatform/issues/1030) a command's bug with four lines of observation, the place in the code, two ways to fix it and a “Not verified” section; [#1065](https://github.com/Lazurio/LazurioPlatform/issues/1065) a short report with the point in its first sentence. All three were fixed without a single question.",
+    ),
+    blank,
+    t(
+      "### Když chybu nebo nápad na Lazurio řekne uživatel",
+      "### When the user names a bug in Lazurio or an idea for it",
+    ),
+    t(
+      "Lazurio se zlepšuje i z toho, co jeho uživatelé narazí. Když uživatel při práci řekne, že mu na samotném Lazuriu něco nefunguje nebo chybí (čí je to věc, rozhodne tabulka Kdo za co odpovídá v `manual/lazurio.md`), nabídni mu jednou, že to zapíšeš jako issue do `Lazurio/LazurioPlatform`. Nabídni to až po dokončení úkolu, nebo hned, když ho chyba v úkolu blokuje; práci kvůli tomu nepřerušuj. Zeptej se nástrojem na otázky s volbami „Zapsat do Lazuria“ (Doporučeno) a „Nezapisovat“; po odmítnutí to v tomto vlákně znovu nenabízej.",
+      "Lazurio also improves from what its users run into. When the user says during the work that something in Lazurio itself does not work or is missing (whose matter it is, the table Who is responsible for what in `manual/lazurio.md` decides), offer once to file it as an issue in `Lazurio/LazurioPlatform`. Offer it after the task is done, or right away when the bug blocks the task; do not interrupt the work for it. Ask with the question tool, with the options “Zapsat do Lazuria” (Recommended) and “Nezapisovat”; after a no, do not offer it again in this thread.",
+    ),
+    t(
+      "- **Nejdřív ověř, co ověřit jde.** Hlášení z druhé ruky často skončí jako chyba použití; když se doptáš uživatele nebo si stav přečteš sám, ušetříš správcům otázky. Co ověřit nejde, označ jako hlášené uživatelem.",
+      "- **First verify what can be verified.** A second-hand report often turns out to be a usage error; asking the user or reading the state yourself saves the maintainers their questions. Mark what cannot be verified as reported by the user.",
+    ),
+    t(
+      "- **Před zápisem** mu ukaž název a text: issue ve veřejném repozitáři ponese jeho účet na GitHubu. Po zápisu mu dej odkaz a jednou větou řekni, že na něm uvidí, co se s ním děje.",
+      "- **Before filing** show them the title and text: an issue in a public repository carries their GitHub account. After filing give them the link and say in one sentence that it shows them what happens with it.",
+    ),
+    t(
+      "- **Nález z tvé vlastní práce** zapisuješ jako dosud, bez ptaní (výše); v handoffu uživateli dej odkaz.",
+      "- **A finding from your own work** you file as before, without asking (above); give the user the link in the handoff.",
+    ),
+    ...(ownInstructions
+      ? [
+          t(
+            "- **Kdo nabídky nechce,** vypne si je vlastním pokynem (`lazurio folder instructions add`); ten má přednost.",
+            "- **Whoever does not want these offers** turns them off with their own instruction (`lazurio folder instructions add`); it takes precedence.",
+          ),
+        ]
+      : []),
+  ];
+}
+
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -1104,7 +1186,14 @@ function workingHere(
     // there: it has no identity to do either with.
     ...(isPublic
       ? []
-      : [...readOnlyProposal(preset), blank, ...missingRights, blank]),
+      : [
+          ...goodReport(ownInstructionsAllowed(preset, machine)),
+          blank,
+          ...readOnlyProposal(preset),
+          blank,
+          ...missingRights,
+          blank,
+        ]),
     ...(isPublic ? [] : [productionRequestRule, blank]),
     t(
       "## Poznatky patří tam, kde je najdou ostatní",
