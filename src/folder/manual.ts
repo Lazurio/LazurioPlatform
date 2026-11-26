@@ -723,8 +723,8 @@ function goodReport(ownInstructions: boolean): readonly Text[] {
       "- **The title says what is wrong,** not where you were: “`lazurio update` does not re-render the Folder after the switch”, not “Update problem”.",
     ),
     t(
-      "- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, předchozí verze).",
-      "- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, the previous version).",
+      "- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, dřívější chování).",
+      "- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, how it behaved before).",
     ),
     t(
       "- **Kde:** verze Lazuria (`lazurio update status --json`), revize šablony Folderu (začátek `AGENTS.md`), druh Prostředí a soubor nebo příkaz, když ho znáš.",

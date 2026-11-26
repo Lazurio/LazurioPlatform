@@ -18,7 +18,7 @@ This repository is public. Name no customer Organization, its modules, Environme
 
 ## What should happen
 
-<!-- What you expected, and where that expectation comes from (the manual, a decision, the previous version). -->
+<!-- What you expected, and where that expectation comes from (the manual, a decision, how it behaved before). -->
 
 ## Where
 

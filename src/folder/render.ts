@@ -1437,22 +1437,14 @@ const workingRules = (ownInstructions: boolean): readonly Text[] => [
   },
   rememberRule(ownInstructions),
   {
-    cs: "- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu; předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah, který tam nepatří, a ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Prostředí. Pak pokračuj na všem, co na odpovědi nestojí. Issue bez pokynu uživatele nezavírej, neprioritizuj ani nepřiřazuj, kromě přiřazení při eskalaci chybějících práv (`manual/working-here.md`).",
-    en: "- File an open question, uncertainty or finding you cannot resolve right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff; before that, check for duplicates and remove secrets, Personalspace and content that does not belong there, and in a public repository (`Lazurio/*`) never name a customer Organization, its modules or Environments. Then continue with everything that does not depend on the answer. Never close, prioritize or assign an issue without the user's instruction, except an assignment that escalates missing rights (`manual/working-here.md`).",
+    cs: "- Otevřenou otázku, nejistotu nebo nález, který nejde hned vyřešit, zapiš bez ptaní jako GitHub Issue do přesného owning repozitáře a jeho URL uveď v handoffu; předtím zkontroluj duplicity a odstraň secrets, Personalspace a obsah, který tam nepatří, a ve veřejném repozitáři (`Lazurio/*`) nejmenuj zákaznickou Organizaci, její moduly ani Prostředí. Pak pokračuj na všem, co na odpovědi nestojí. Issue bez pokynu uživatele nezavírej, neprioritizuj ani nepřiřazuj, kromě přiřazení při eskalaci chybějících práv. Chybu Lazuria od uživatele mu jednou nabídni zapsat (`manual/working-here.md`).",
+    en: "- File an open question, uncertainty or finding you cannot resolve right away as a GitHub Issue in the exact owning repository, without asking first, and give its URL in the handoff; before that, check for duplicates and remove secrets, Personalspace and content that does not belong there, and in a public repository (`Lazurio/*`) never name a customer Organization, its modules or Environments. Then continue with everything that does not depend on the answer. Never close, prioritize or assign an issue without the user's instruction, except an assignment that escalates missing rights. Offer once to file the user's Lazurio bug (`manual/working-here.md`).",
   },
   {
     cs: "- Nálezy z review přijímej s úsudkem. Skutečnou vadu oprav hned: špatné chování, rozpor mezi texty, tvrzení bez důkazu, únik citlivého obsahu. Na drobnost bez dopadu, spekulaci o budoucí změně nebo rozšíření záběru PR neodpovídej dalším kolem oprav, ale věcnou námitkou v PR, a pak požádej o verdikt na nezměněném headu přes `--add-reviewer`, ne komentářem. Trvá-li reviewer na svém, předlož obě stanoviska uživateli; review ani branch rules nikdy neobcházej.",
     en: "- Take review findings with judgment. Fix a real defect at once: wrong behavior, a contradiction between texts, a claim without proof, a leak of sensitive content. Answer trivia without impact, speculation about a future change or widening the PR's scope with a factual objection on the PR, not more fixes, then request a verdict on the unchanged head with `--add-reviewer`, not a comment. If the reviewer insists, put both positions to the user; never bypass review or branch rules.",
   },
 ];
-
-// Offering the user once to file their own bug or idea about Lazurio, and
-// what makes a report fixable (Lazurio/LazurioPlatform #1274, the issue route);
-// the full form is in `manual/working-here.md`.
-const contributionLine: Text = {
-  cs: "- Chybu nebo nápad na samotné Lazurio, který řekne uživatel, mu po dokončení úkolu jednou nabídni zapsat jako issue do `Lazurio/LazurioPlatform`; před zápisem mu ukaž text a pak dej odkaz. Hlášení piš tak, aby šlo opravit bez doptávání: co se stalo a co mělo, kde, jak to zopakovat a návrh opravy, když ho máš (`manual/working-here.md`, Hlášení, které jde opravit bez doptávání).",
-  en: "- When the user names a bug in Lazurio itself or an idea for it, offer once, after the task, to file it as an issue in `Lazurio/LazurioPlatform`; show them the text before filing, then give the link. Write a report that can be fixed without asking back: what happened and what should have, where, how to reproduce it and a proposed fix when you have one (`manual/working-here.md`, A report that can be fixed without asking back).",
-};
 
 // Resolve the person's meaning before choosing a tool. Organization knowledge
 // stays in its own checkout; the product supplies the route to it, not a copy.
@@ -1693,12 +1685,7 @@ export function renderInstructions(input: unknown): string {
     // and merges nothing: it has no identity to do any of it with.
     ...(isPublic
       ? []
-      : [
-          pick(proposalLine(preset)),
-          pick(rightsLine),
-          pick(gitLine),
-          pick(contributionLine),
-        ]),
+      : [pick(proposalLine(preset)), pick(rightsLine), pick(gitLine)]),
     `${pick(newModuleLine)}${pick(uiCraftLine)}`,
     pick({
       cs: "- Před prací v Organizaci načti její aktuální AGENTS.md v `organizations/<org>/`; pravidla Organizace platí uvnitř jejího checkoutu a tenhle dokument je nenahrazuje. Z rootu Folderu se v konkrétní Organizaci nepracuje a její skilly odtud harness nenačte: projdi `organizations/<org>/.agents/skills/` (`manual/working-here.md`).",

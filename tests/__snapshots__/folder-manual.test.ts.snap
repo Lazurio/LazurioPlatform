@@ -1052,7 +1052,7 @@ When your work runs into an open technical problem, an uncertainty or a finding 
 ### A report that can be fixed without asking back
 A report is read by a person or an agent who knows nothing of your work. A good one lets them fix the problem without having to ask you anything. No structure is prescribed; the \`Bug\` and \`Improvement\` templates in \`Lazurio/LazurioPlatform\` are a hint, not a form. What has worked:
 - **The title says what is wrong,** not where you were: “\`lazurio update\` does not re-render the Folder after the switch”, not “Update problem”.
-- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, the previous version).
+- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, how it behaved before).
 - **Where:** the Lazurio version (\`lazurio update status --json\`), the Folder template revision (the top of \`AGENTS.md\`), the kind of Environment, and the file or command when you know it.
 - **How to reproduce it,** the shortest way; when you cannot, say so.
 - **A proposed fix when you have one:** the cause with a link to the file and line in the source and what would change; when there are two ways, name both and recommend one.
@@ -1297,7 +1297,7 @@ Když při práci narazíš na otevřený technický problém, nejistotu nebo n�
 ### Hlášení, které jde opravit bez doptávání
 Hlášení čte člověk nebo agent, který o tvé práci nic neví. Dobré je takové, podle kterého chybu opraví, aniž by se tě musel na něco ptát. Strukturu nepředepisujeme; šablony \`Bug\` a \`Improvement\` v \`Lazurio/LazurioPlatform\` jsou nápověda, ne formulář. Co se osvědčilo:
 - **Název řekne, co je špatně,** ne kde jsi byl: „\`lazurio update\` po přepnutí verze nevykreslí Folder znovu“, ne „Problém s aktualizací“.
-- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, předchozí verze).
+- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, dřívější chování).
 - **Kde:** verze Lazuria (\`lazurio update status --json\`), revize šablony Folderu (začátek \`AGENTS.md\`), druh Prostředí a soubor nebo příkaz, když ho znáš.
 - **Jak to zopakovat,** nejkratší cestou; když to zopakovat nejde, napiš to.
 - **Návrh opravy, když ho máš:** příčina s odkazem na soubor a řádek ve zdroji a co by se změnilo; když jsou cesty dvě, pojmenuj obě a jednu doporuč.
