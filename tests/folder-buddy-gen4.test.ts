@@ -472,7 +472,9 @@ test("buddy-control-plane: the tool, the order of the queue, the record of an an
   );
   expect(cs).toContain("kdy jsi ho zařadil");
   expect(cs).toContain("Stránka nic neodesílá ani neschvaluje");
-  expect(cs).toContain("ber z fronty její Mission Control");
-  expect(cs).toContain("Pořadí a počty z ní přeber, nepočítej je sám");
-  expect(cs).toContain("počet odblokovaných kroků chybí");
+  expect(cs).toContain("a jen pokud k ní máš přístup");
+  expect(cs).toContain("Nic z toho nepočítej ani neodhaduj sám");
+  expect(cs).toContain(
+    "Pole, které fronta neuvádí, na stránce označ jako chybějící",
+  );
 });
