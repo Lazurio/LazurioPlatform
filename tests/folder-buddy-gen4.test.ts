@@ -55,6 +55,8 @@ test("the folder holds AGENTS.md and each skill in both harness directories, and
     ".claude/skills/buddy-vlakna/SKILL.md",
     ".agents/skills/buddy-brain/SKILL.md",
     ".claude/skills/buddy-brain/SKILL.md",
+    ".agents/skills/buddy-control-plane/SKILL.md",
+    ".claude/skills/buddy-control-plane/SKILL.md",
   ]);
   for (const locale of locales)
     for (const profile of ["buddy", "employee"] as const) {
@@ -447,4 +449,27 @@ test("a thread Buddy started takes its task from him; his main thread takes turn
     "the task from that parent is your task, within the scope it gave you",
   );
   expect(cs).not.toContain("Tahy bereš jen od svého uživatele.");
+});
+
+test("buddy-control-plane: the tool, the order of the queue, the record of an answer, and a page that sends nothing", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const files = renderBuddyFolder(source(locale), "buddy", persona);
+    const skill = files[".agents/skills/buddy-control-plane/SKILL.md"];
+    expect(files[".claude/skills/buddy-control-plane/SKILL.md"]).toBe(skill);
+    expect(skill).toContain("`control_plane_publish`");
+    expect(skill).toContain("`tool_search`");
+    expect(skill).toContain("`t3-thread://…`");
+    expect(files["AGENTS.md"]).toContain("`buddy-control-plane`");
+  }
+  const cs = renderBuddyFolder(source("cs"), "buddy", persona)[
+    ".agents/skills/buddy-control-plane/SKILL.md"
+  ];
+  expect(cs).toContain(
+    "seřazená podle nejbližšího pevného termínu a potom podle počtu kroků, které rozhodnutí odblokuje",
+  );
+  expect(cs).toContain(
+    "kdo (uživatel), kdy (čas jeho tahu) a jeho přesnou větu",
+  );
+  expect(cs).toContain("kdy jsi ho zařadil");
+  expect(cs).toContain("Stránka nic neodesílá ani neschvaluje");
 });

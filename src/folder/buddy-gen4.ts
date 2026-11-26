@@ -45,6 +45,7 @@ const blank = t("", "");
 export const buddyFolderSkillNames = Object.freeze([
   "buddy-vlakna",
   "buddy-brain",
+  "buddy-control-plane",
 ] as const);
 export type BuddyFolderSkillName = (typeof buddyFolderSkillNames)[number];
 export const buddyFolderSkillRoots = Object.freeze([
@@ -181,6 +182,10 @@ const reach: readonly Text[] = [
   t(
     "- **Pracovní Prostředí:** když je propojení T3 Code zapnuté (`t3_environment_links` vypíše propojená Prostředí), použij nástroje T3 Code s `environmentId`. Jinak a pro opravy jdi po SSH spravovanými cestami (`ssh <id>`, seznam v `~/Lazurio/manual/this-machine.md`) a tam použij `t3`, `gh` a soubory. V cizím Prostředí platí jeho `AGENTS.md`; data jedné Organizace nenos do jiné ani sem (rozhodnutí 0180 a 0246).",
     "- **Work Environments:** when the T3 Code link is on (`t3_environment_links` lists the linked Environments), use the T3 Code tools with `environmentId`. Otherwise, and for fixes, go over SSH along the managed paths (`ssh <id>`, listed in `~/Lazurio/manual/this-machine.md`) and use `t3`, `gh` and files there. In another Environment its `AGENTS.md` applies; never carry one Organization's data into another or here (decisions 0180 and 0246).",
+  ),
+  t(
+    "- **Control Plane:** jedna stránka v pravém panelu tvého vlákna, ze které uživatel vidí, co běží a co čeká na něj, a rozhoduje. Přepisuješ ji nástrojem `control_plane_publish`; podrobnosti ve skillu `buddy-control-plane`.",
+    "- **Control Plane:** one page in your thread's right panel from which the user sees what runs and what waits for them, and decides. You rewrite it with the tool `control_plane_publish`; details in the skill `buddy-control-plane`.",
   ),
   t(
     "- **Aplikace:** přes Executor (MCP server `executor`) a nástroje Prostředí (`gh`, `composio`). Co je připojené, řekne `lazurio integrations list --json`. Nic nepřipojuj sám; přihlášení dělá uživatel.",
@@ -504,9 +509,76 @@ const brainSkill: FolderSkill = {
   ],
 };
 
+// The Control Plane (Matěj 2026-11-26, plan LZD-0051): the measure of success is how quickly and
+// easily the user decides; the page shows and links, Buddy records, the user sends.
+const controlPlaneSkill: FolderSkill = {
+  description: t(
+    "Control Plane: přehled v pravém panelu, fronta rozhodnutí uživatele a zápis jeho odpovědí",
+    "The Control Plane: the overview in the right panel, the user's queue of decisions and the record of their answers",
+  ),
+  title: t("Control Plane", "Control Plane"),
+  body: [
+    t(
+      "Control Plane je jedna stránka v pravém panelu tvého vlákna. Přepisuješ ji celou nástrojem `control_plane_publish` (`html`, `title`) ze serveru `t3-code`; když ho nevidíš, najdi ho přes `tool_search`. Panel novou verzi ukáže sám, bez nového řádku v rozhovoru. Má ji jen tvoje vlákno.",
+      "The Control Plane is one page in your thread's right panel. You rewrite it whole with the tool `control_plane_publish` (`html`, `title`) of the `t3-code` server; when you do not see it, find it with `tool_search`. The panel shows the new version by itself, without a new row in the conversation. Only your thread has one.",
+    ),
+    t(
+      "Hlavní měřítko je, jak rychle a snadno uživatel rozhoduje. Stránka má ukázat, co se děje a co stojí na něm, a dát mu jedním klepnutím odpověď a odkaz na podrobnosti.",
+      "The measure that counts is how quickly and easily the user decides. The page shows what is going on and what waits for them, and gives them an answer in one tap and a link to the details.",
+    ),
+    blank,
+    t("**Obsah, v tomto pořadí:**", "**Content, in this order:**"),
+    t(
+      "1. **Čeká na tebe:** rozhodnutí seřazená podle nejbližšího pevného termínu a potom podle počtu kroků, které rozhodnutí odblokuje. Pevný termín je jen datum, které určil uživatel nebo člověk mimo vaši práci. U každé položky: rozhodnutí jednou větou, termín, doporučení (nebo kdo ho dodá), věta k odpovědi a odkaz na místo, kde si přečte víc: vlákno T3 jako `t3-thread://…`, komentář na GitHubu nebo soubor.",
+      "1. **Waits for you:** decisions sorted by the nearest fixed deadline, then by the number of steps a decision unblocks. A fixed deadline is only a date set by the user or by a person outside your work. For every item: the decision in one sentence, the deadline, the recommendation (or who will give it), the sentence to answer with and a link to where they read more: a T3 thread as `t3-thread://…`, a comment on GitHub or a file.",
+    ),
+    t(
+      "2. **Rozhodl jsem sám, pro informaci:** vratná rozhodnutí, která jsi udělal podle mandátu uživatele, každé s větou, kterou ho uživatel jednou odpovědí vrátí.",
+      "2. **I decided, for your information:** reversible decisions you made under the user's mandate, each with the sentence by which the user reverses it in one answer.",
+    ),
+    t(
+      "3. **Co běží, rizika, hotovo:** krátce, s odkazy. Žádné dlouhé texty; podrobnosti jsou za odkazem.",
+      "3. **What runs, risks, done:** briefly, with links. No long texts; the details are behind the link.",
+    ),
+    t(
+      "4. **Fronta v číslech:** kolik rozhodnutí čeká, kolik kroků drží a jak dlouho čekají (nejstarší a medián).",
+      "4. **The queue in numbers:** how many decisions wait, how many steps they hold and how long they wait (the oldest and the median).",
+    ),
+    blank,
+    t("**Odpověď a zápis:**", "**The answer and its record:**"),
+    t(
+      "- **Věta k odpovědi** je přesně to, co uživatel pošle: krátká, jednoznačná a pochopitelná i bez stránky. Stránka nic neodesílá ani neschvaluje; odpověď je vždy tah uživatele ve vlákně.",
+      "- **The sentence to answer with** is exactly what the user sends: short, unambiguous and clear without the page. The page sends and approves nothing; the answer is always the user's turn in the thread.",
+    ),
+    t(
+      "- **Zařazení:** když položku poprvé ukážeš, zapiš do Brainu k rozhodnutí, kdy jsi ho zařadil.",
+      "- **Queueing:** when you first show an item, write into the Brain with the decision when you queued it.",
+    ),
+    t(
+      "- **Odpověď:** když uživatel odpoví, zapiš do Brainu k rozhodnutí kdo (uživatel), kdy (čas jeho tahu) a jeho přesnou větu, a podle ní jednej. Pak Control Plane přepiš: položka se přesune mezi vyřízené. Z času zařazení a odpovědi počítáš, jak dlouho rozhodnutí čekají.",
+      "- **The answer:** when the user answers, write into the Brain with the decision who (the user), when (the time of their turn) and their exact sentence, and act on it. Then rewrite the Control Plane: the item moves to the settled ones. From the times of queueing and answer you compute how long decisions wait.",
+    ),
+    blank,
+    t("**Zdroje a hranice:**", "**Sources and boundaries:**"),
+    t(
+      "- **Zdroje:** osobní rozhodnutí a dohody z Brainu, stav práce Organizací z jejich Mission Control a repozitářů. Stránka nic nevymýšlí; co nevíš, tam nepiš.",
+      "- **Sources:** personal decisions and agreements from the Brain, the state of Organizations' work from their Mission Control and repositories. The page invents nothing; what you do not know does not go there.",
+    ),
+    t(
+      "- **Hranice:** u práce Organizace jen krátký popis a odkaz na její místo, nikdy kopie dat. Tajemství nikdy. Stránka běží v izolovaném rámu bez přístupu k aplikaci; nepiš do ní nic, co by tvrdilo opak.",
+      "- **Boundaries:** for an Organization's work only a short description and a link to its place, never a copy of its data. Never secrets. The page runs in an isolated frame without access to the application; write nothing into it that claims otherwise.",
+    ),
+    t(
+      "- **Kdy přepsat:** když se změní fronta nebo stav práce, ne v každém tahu. Stránka je samostatná: `<style>` a `<script>` uvnitř, bez vzdálených skriptů. Název `Control Plane` v každém jazyce.",
+      "- **When to rewrite:** when the queue or the state of work changes, not on every turn. The page is self-contained: `<style>` and `<script>` inside, no remote scripts. The name `Control Plane` in every language.",
+    ),
+  ],
+};
+
 const folderSkills: Readonly<Record<BuddyFolderSkillName, FolderSkill>> = {
   "buddy-vlakna": threadsSkill,
   "buddy-brain": brainSkill,
+  "buddy-control-plane": controlPlaneSkill,
 };
 
 export function buddyFolderSkillDocument(
