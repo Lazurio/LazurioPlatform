@@ -14,10 +14,10 @@ import {
   anonymousGitHub,
   type ContentGitHub,
   type GitHubViewer,
-  observeLimit,
   type ViewerAnswer,
 } from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
+import { observeLimit } from "./limit-scope";
 import { tryContentLock } from "./lock";
 import {
   ensureCheckoutDirectories,

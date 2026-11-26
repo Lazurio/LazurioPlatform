@@ -6088,7 +6088,7 @@ the limit.
    code or text, nor from a refusal elsewhere in the run (Pablo's reviews of #1224):
    every GitHub operation of a content run whose failure GitHub's silence would cause
    (the viewer, the root's lookup and read, the membership, the Personalspace's lookup
-   and listing) runs in `observeLimit`, and the content's gh notes a request GitHub
+   and listing) runs in `observeLimit` (`limit-scope.ts`, server only: never in the page's bundle), and the content's gh notes a request GitHub
    refused for its rate limit, by the status (403 or 429) and message of GitHub's own
    answer, on the operations it belongs to (`refusedForLimit`). The step that fails
    carries `cause: { kind: "github-rate-limit" }` only when its own operation was

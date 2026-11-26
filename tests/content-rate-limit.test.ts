@@ -1,14 +1,11 @@
 import { afterEach, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  type ContentGitHub,
-  observeLimit,
-  refusedForLimit,
-} from "../src/content/github";
+import type { ContentGitHub } from "../src/content/github";
 import type { ContentHost } from "../src/content/host";
 import { installContent } from "../src/content/install";
 import { createContentJobs, withLimitDetails } from "../src/content/jobs";
+import { observeLimit, refusedForLimit } from "../src/content/limit-scope";
 import type { ContentFailure, ContentStep } from "../src/content/model";
 import { verifyOrganizationRole } from "../src/content/role";
 import { contentFact, contentView } from "../src/launchpad/content-view";
@@ -531,3 +528,19 @@ posixTest(
   },
   90_000,
 );
+
+// The page's bundle includes `src/content/github.ts` through the Tools'
+// views; the async scope of the limit's operations is the server's alone
+// (`limit-scope.ts`). One `new AsyncLocalStorage()` there at load stopped
+// the page from drawing in CI.
+test("the page's bundle holds no async context of the limit's operations", async () => {
+  const built = await Bun.build({
+    entrypoints: [new URL("../src/launchpad/ui.ts", import.meta.url).pathname],
+    target: "browser",
+  });
+  expect(built.success).toBe(true);
+  const text = (
+    await Promise.all(built.outputs.map((output) => output.text()))
+  ).join("\n");
+  expect(text).not.toMatch(/AsyncLocalStorage|async_hooks/);
+}, 60_000);

@@ -10,7 +10,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ghContentGitHub, observeLimit } from "../src/content/github";
+import { ghContentGitHub } from "../src/content/github";
+import { observeLimit } from "../src/content/limit-scope";
 import type { ContentItem } from "../src/launchpad/content-client";
 import { contentView } from "../src/launchpad/content-view";
 import {
