@@ -1,4 +1,9 @@
-import type { ContentClient, ContentJob, ContentList } from "./content-client";
+import type {
+  ContentClient,
+  ContentJob,
+  ContentList,
+  ContentRef,
+} from "./content-client";
 import {
   type ContentFact,
   type ContentRow,
@@ -260,7 +265,9 @@ export function createContentPanel(
 
   /** Starts the installation of everything missing, or follows the one
    * already running. */
-  async function start() {
+  /** Starts the installation: of everything here, or of `items` alone (the
+   * items GitHub's rate limit stopped, once it answers again, #1223). */
+  async function start(items?: readonly ContentRef[]) {
     if (starting || following !== null) return;
     // Every start waits for its turn, whichever way it was asked for.
     if (options.blockedBy() !== null) {
@@ -271,7 +278,7 @@ export function createContentPanel(
     starting = true;
     message = null;
     render();
-    const answer = await options.client.install();
+    const answer = await options.client.install(items);
     starting = false;
     if (answer.kind === "started" || answer.kind === "running") {
       job = null;

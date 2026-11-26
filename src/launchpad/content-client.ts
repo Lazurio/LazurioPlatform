@@ -77,6 +77,12 @@ export type ContentJob = Readonly<{
   state: "running" | "succeeded" | "failed";
   steps: readonly ContentStep[];
   failure?: ContentFailure;
+  /** The items GitHub's rate limit stopped, also behind another stop that
+   * `failure` shows (#1223): what runs again once GitHub answers. */
+  waiting?: Readonly<{
+    items: readonly ContentRef[];
+    cause: NonNullable<ContentFailure["cause"]>;
+  }>;
 }>;
 
 /** What `POST /api/content/install` answered. */
@@ -266,11 +272,26 @@ export function parseContentJob(value: unknown): ContentJob | null {
       ...(cause === undefined ? {} : { cause }),
     });
   }
+  let waiting: ContentJob["waiting"];
+  if (value.waiting !== undefined && value.waiting !== null) {
+    const raw = value.waiting;
+    if (!isRecord(raw) || !Array.isArray(raw.items) || raw.items.length > 32)
+      return null;
+    const items = raw.items.map(parseContentRef);
+    const cause = parseCause(raw.cause);
+    if (items.some((item) => item === null) || cause === null || !cause)
+      return null;
+    waiting = Object.freeze({
+      items: Object.freeze(items as ContentRef[]),
+      cause,
+    });
+  }
   return Object.freeze({
     id: value.id,
     state: value.state,
     steps: Object.freeze(steps),
     ...(failure === undefined ? {} : { failure }),
+    ...(waiting === undefined ? {} : { waiting }),
   });
 }
 
@@ -363,10 +384,20 @@ export function createContentClient(transport: ContentTransport) {
      * the items named. */
     async install(items?: readonly ContentRef[]): Promise<InstallAnswer> {
       try {
+        // The route's items: an Organization by its login, the
+        // Personalspace by its kind alone.
         const { status, value } = await transport(
           "POST",
           "/api/content/install",
-          items === undefined ? {} : { items },
+          items === undefined
+            ? {}
+            : {
+                items: items.map((item) =>
+                  item.kind === "personalspace"
+                    ? { kind: "personalspace" }
+                    : { kind: "organization", login: item.login },
+                ),
+              },
         );
         return installAnswer(status, value);
       } catch {

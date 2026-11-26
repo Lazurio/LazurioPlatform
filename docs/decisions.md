@@ -6083,16 +6083,25 @@ the limit.
    the next basic is the content, the shell's `setup.github` is `connected`, and nothing
    opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
    no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
-   itself once the limit resets and GitHub reads connected. Only a stop the limit
-   caused waits so and runs once more then (`AutoStart.limitStop`), and that is known
-   from the run, never from the failure's code or text: the content's gh counts the
-   requests GitHub refused for its rate limit, by the status (403 or 429) and message of
-   GitHub's own answer (`rateLimitRefusals`), and a job that stops after such a refusal
-   records `cause: { kind: "github-rate-limit", limit, reset }` on its failure with the
-   limit `rate_limit` names at the stop (`withLimitCause`). A stop whose recorded reset
-   lies more than GitHub's hour before the limit read now belongs to an earlier limit.
-   Any other stop, an older outage or a role GitHub denied included, stays shown with
-   its own way forward and is never started by itself. A page left open reads the tools
+   itself once the limit resets and GitHub reads connected. Only what the limit stopped
+   waits so, and that is known from the operation that failed, never from a failure's
+   code or text, nor from a refusal elsewhere in the run (Pablo's reviews of #1224):
+   every GitHub operation of a content run whose failure GitHub's silence would cause
+   (the viewer, the root's lookup and read, the membership, the Personalspace's lookup
+   and listing) runs in `observeLimit`, and the content's gh notes a request GitHub
+   refused for its rate limit, by the status (403 or 429) and message of GitHub's own
+   answer, on the operations it belongs to (`refusedForLimit`). The step that fails
+   carries `cause: { kind: "github-rate-limit" }` only when its own operation was
+   refused, and a role verdict only when it rests on GitHub not answering alone
+   (`RoleVerification.unanswered`): a lack of write permission known beside an
+   unanswered membership is the verdict's own defect and wins. A run keeps every item
+   the limit stopped (`waiting`) and shows the first stop known without the limit, else
+   the first the limit caused; the job adds the limit `rate_limit` names at its end
+   (`withLimitDetails`). A stop whose recorded reset lies more than GitHub's hour before
+   the limit read now belongs to an earlier limit. The items that wait run once more,
+   those alone (`AutoStart.limitStop`, an install of those items), once GitHub
+   answers, also where an unrelated stop is shown; that stop, an older outage or a role
+   GitHub denied, stays shown with its own way forward and is never started by itself. A page left open reads the tools
    again, with their sign-ins, at the reset plus two seconds (a minute without a reset,
    never under 15 s nor over an hour; `createLimitRefresh`); after a limit, a reading
    that cannot tell or never answers is followed by another a minute later, at most an
@@ -6124,9 +6133,13 @@ The tests are `tests/github-rate-limit.test.ts` (the reading, the reset, the mem
 its forget, the older gh, the tools' sign-in without proof, the shell's GitHub, 401 still
 signed out and an unreachable check unknown, Začínáme, the content, Apps, Nástroje, the
 start after the reset and after a stopped run, the page's reading at the reset, the
-content's count of refusals and the recorded cause, an older outage, a mixed permission
-and membership stop and an earlier limit's stop through a later limit and its reset, the
-secondary limit on Začínáme, Nástroje and in the CLI) and `tests/doctor.test.ts`
+content's per-operation refusal, an older outage, a mixed permission and membership stop
+and an earlier limit's stop through a later limit and its reset, the item the limit
+stopped behind an unrelated stop running alone after the reset, the secondary limit on
+Začínáme, Nástroje and in the CLI) and `tests/content-rate-limit.test.ts` (a real run: an
+Organization's missing write permission with the Personalspace stopped by the limit in
+either order, a membership the limit refused beside a known lack of write permission,
+the limit alone, the role's `unanswered`, `observeLimit`, `withLimitDetails`) and `tests/doctor.test.ts`
 (`github-rate-limited` without any further gh API request or ssh).
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release

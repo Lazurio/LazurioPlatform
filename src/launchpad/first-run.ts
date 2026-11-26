@@ -10,7 +10,7 @@ import type {
   ToolOverview,
   ToolsOverview,
 } from "../tools/overview";
-import type { ContentJob, ContentList } from "./content-client";
+import type { ContentJob, ContentList, ContentRef } from "./content-client";
 import {
   type ContentFact,
   contentFact,
@@ -795,18 +795,37 @@ export function limitFailure(
 ): boolean {
   if (content?.state !== "failed") return false;
   const cause = content.job.failure?.cause;
-  if (cause?.kind !== "github-rate-limit") return false;
-  // Tied to the limit it hit: a stop whose limit reset before the one read
-  // now began (its reset over GitHub's hour of a window earlier) belongs to
-  // an earlier limit, and is shown as it is.
-  if (
-    cause.reset !== undefined &&
-    typeof limitReset === "string" &&
-    Date.parse(cause.reset) < Date.parse(limitReset) - 60 * 60_000
-  )
-    return false;
-  return true;
+  return (
+    cause?.kind === "github-rate-limit" && sameLimit(cause.reset, limitReset)
+  );
 }
+
+/** The items GitHub's rate limit stopped in the last run (`waiting` of the
+ * job, each by the cause its own failing operation recorded), tied to the
+ * limit read now; empty when none. They wait and run once more after the
+ * reset, also where another stop of the run is shown (Pablo's review of
+ * #1224). */
+export function limitWaiting(
+  content: ContentFact | undefined,
+  limitReset?: string | null | undefined,
+): readonly ContentRef[] {
+  if (content?.state !== "failed") return [];
+  const waiting = content.job.waiting;
+  return waiting !== undefined && sameLimit(waiting.cause.reset, limitReset)
+    ? waiting.items
+    : [];
+}
+
+// Tied to the limit it hit: a stop whose limit reset before the one read
+// now began (its reset over GitHub's hour of a window earlier) belongs to
+// an earlier limit.
+const sameLimit = (
+  stopped: string | undefined,
+  now: string | null | undefined,
+): boolean =>
+  stopped === undefined ||
+  typeof now !== "string" ||
+  Date.parse(stopped) >= Date.parse(now) - 60 * 60_000;
 
 export function contentBlockedBy(
   facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github"> &
@@ -842,10 +861,10 @@ export type AutoStart = Readonly<{
   ai: boolean | null;
   github: boolean | null;
   armed: boolean;
-  /** The content stopped while GitHub refused requests for its rate limit
-   * (#1223): Začínáme says it waits for the reset, so it runs once more
+  /** The items GitHub's rate limit stopped, seen while it refused
+   * requests (#1223, `limitWaiting`): they run once more, those alone,
    * when GitHub answers again (Pablo's review of #1224). */
-  limitStop?: boolean;
+  limitStop?: readonly ContentRef[];
 }>;
 
 export const idleAutoStart: AutoStart = Object.freeze({
@@ -867,7 +886,12 @@ export function autoStartStep(
   state: AutoStart,
   facts: TourFacts,
   running: boolean,
-): Readonly<{ state: AutoStart; start: boolean }> {
+): Readonly<{
+  state: AutoStart;
+  start: boolean;
+  /** What to start: the items the limit stopped; absent, everything. */
+  items?: readonly ContentRef[];
+}> {
   const known = (basic: "ai" | "github", before: boolean | null) => {
     // GitHub refusing requests for its rate limit is not there for the
     // content yet: its reset arrives as GitHub does, and the content starts
@@ -882,18 +906,25 @@ export function autoStartStep(
     (state.ai === false && ai === true) ||
     (state.github === false && github === true);
   const content = facts.content.state;
-  // A stop seen while GitHub refused requests for its rate limit, kept
-  // while the content stays stopped.
-  const limitStop =
-    content === "failed" &&
-    limitFailure(facts.content, facts.githubLimitReset) &&
-    (state.limitStop === true || facts.github === "limited");
-  const next = (armed: boolean, stopped = limitStop): AutoStart =>
+  // The items a limit stopped, seen while GitHub refused requests for it,
+  // kept while the content stays stopped.
+  const seen =
+    facts.github === "limited"
+      ? limitWaiting(facts.content, facts.githubLimitReset)
+      : [];
+  const stopped: readonly ContentRef[] =
+    content !== "failed"
+      ? []
+      : seen.length > 0
+        ? seen
+        : (state.limitStop ?? []);
+  const limitStop = stopped.length > 0;
+  const next = (armed: boolean, keep = limitStop): AutoStart =>
     Object.freeze({
       ai,
       github,
       armed,
-      ...(stopped ? { limitStop: true } : {}),
+      ...(keep ? { limitStop: stopped } : {}),
     });
   if (!basicsOnboarding(facts))
     return { state: next(false, false), start: false };
@@ -902,12 +933,17 @@ export function autoStartStep(
   if (content === "ready" || content === "none")
     return { state: next(false), start: false };
   if (content === "failed") {
-    // Any other stop is never started again by itself; one the limit
-    // caused runs once more as soon as GitHub answers again.
+    // Any other stop is never started again by itself; the items a limit
+    // stopped run once more, those alone, as soon as GitHub answers again,
+    // also where another stop is shown.
     if (!limitStop) return { state: next(false), start: false };
-    if (running || contentBlockedBy(facts) !== null)
+    if (
+      running ||
+      facts.github === "limited" ||
+      contentBlockedBy(facts) !== null
+    )
       return { state: next(true), start: false };
-    return { state: next(false, false), start: true };
+    return { state: next(false, false), start: true, items: stopped };
   }
   if (content !== "missing" || running || contentBlockedBy(facts) !== null)
     return { state: next(true), start: false };

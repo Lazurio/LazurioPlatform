@@ -715,7 +715,7 @@ function startByItself() {
   if (facts === null) return;
   const step = autoStartStep(autoStart, facts, content.running());
   autoStart = step.state;
-  if (step.start) void content.start();
+  if (step.start) void content.start(step.items);
 }
 async function readAi(fresh = false) {
   const mine = aiReadings.ask(fresh);

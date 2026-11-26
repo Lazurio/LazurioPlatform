@@ -8,6 +8,7 @@ import {
 import { tryContentLock } from "./lock";
 import type {
   ContentFailure,
+  ContentFailureCause,
   ContentItemRef,
   ContentRefusal,
   ContentStep,
@@ -26,6 +27,12 @@ export type ContentJob = Readonly<{
   /** The latest state of each step, in the order the steps began. */
   steps: readonly ContentStep[];
   failure?: ContentFailure;
+  /** The items GitHub's rate limit stopped (`InstallResult.waiting`), with
+   * the limit `rate_limit` names at the end of the run (#1223). */
+  waiting?: Readonly<{
+    items: readonly ContentItemRef[];
+    cause: ContentFailureCause;
+  }>;
 }>;
 
 export type JobStart =
@@ -38,25 +45,40 @@ const kept = 16;
 const stepKey = (item: ContentItemRef, key: string) =>
   `${item.kind === "organization" ? `organization:${item.login.toLowerCase()}` : "personalspace"}:${key}`;
 
-/** A stop of a run during which GitHub refused a request for its rate
- * limit carries that cause, with the limit `rate_limit` names now; any
- * other stop is as the run left it. */
-export async function withLimitCause(
-  failure: ContentFailure,
+/** The end of a run as a job keeps it: the stop to show, and the items
+ * GitHub's rate limit stopped. The cause itself was set by the failing
+ * operation (`observeLimit`); this only adds the limit `rate_limit` names
+ * now (which GitHub does not count) to that cause, asked only when a stop
+ * carries it. */
+export async function withLimitDetails(
+  result: Readonly<{
+    failure?: ContentFailure | undefined;
+    waiting?: readonly ContentItemRef[] | undefined;
+  }>,
   host: ContentHost,
-  refusedBefore: number,
-): Promise<ContentFailure> {
-  const refused = host.github.rateLimitRefusals?.() ?? 0;
-  if (refused <= refusedBefore) return failure;
+): Promise<
+  Readonly<{ failure?: ContentFailure; waiting?: ContentJob["waiting"] }>
+> {
+  const { failure, waiting } = result;
+  if (waiting === undefined || waiting.length === 0)
+    return failure === undefined ? {} : { failure };
   const limit = await host.github.rateLimit?.().catch(() => undefined);
-  return Object.freeze({
-    ...failure,
-    cause: Object.freeze({
-      kind: "github-rate-limit" as const,
-      ...(limit?.kind === undefined ? {} : { limit: limit.kind }),
-      ...(limit?.reset === undefined ? {} : { reset: limit.reset }),
-    }),
+  const cause: ContentFailureCause = Object.freeze({
+    kind: "github-rate-limit" as const,
+    ...(limit?.kind === undefined ? {} : { limit: limit.kind }),
+    ...(limit?.reset === undefined ? {} : { reset: limit.reset }),
   });
+  return {
+    ...(failure === undefined
+      ? {}
+      : {
+          failure:
+            failure.cause === undefined
+              ? failure
+              : Object.freeze({ ...failure, cause }),
+        }),
+    waiting: Object.freeze({ items: waiting, cause }),
+  };
 }
 
 export function createContentJobs(
@@ -69,6 +91,7 @@ export function createContentJobs(
       state: ContentJob["state"];
       steps: Map<string, ContentStep>;
       failure?: ContentFailure;
+      waiting?: ContentJob["waiting"];
     }
   >();
   // Set synchronously before the first await of a start, so two requests
@@ -82,6 +105,7 @@ export function createContentJobs(
       state: job.state,
       steps: Object.freeze([...job.steps.values()]),
       ...(job.failure === undefined ? {} : { failure: job.failure }),
+      ...(job.waiting === undefined ? {} : { waiting: job.waiting }),
     });
 
   return Object.freeze({
@@ -107,9 +131,6 @@ export function createContentJobs(
           if (oldest === undefined) break;
           jobs.delete(oldest);
         }
-        // GitHub's refusals for its rate limit before this run: one during
-        // it is the run's stop's cause (#1223, Pablo's review of #1224).
-        const refusedBefore = host.github.rateLimitRefusals?.() ?? 0;
         const done = runContentInstall(
           input.folder,
           plan,
@@ -118,13 +139,16 @@ export function createContentJobs(
         )
           .then(async (result) => ({
             state: result.state,
-            failure:
-              result.failure === undefined
-                ? undefined
-                : await withLimitCause(result.failure, host, refusedBefore),
+            ...(await withLimitDetails(result, host)),
           }))
           .then(
-            (result) => result,
+            (
+              result,
+            ): {
+              state: ContentJob["state"];
+              failure?: ContentFailure;
+              waiting?: ContentJob["waiting"];
+            } => result,
             () => ({
               state: "failed" as const,
               failure: Object.freeze({
@@ -141,6 +165,8 @@ export function createContentJobs(
             await lock.release().catch(() => undefined);
             running = null;
             if (end.failure !== undefined) job.failure = end.failure;
+            if ("waiting" in end && end.waiting !== undefined)
+              job.waiting = end.waiting;
             job.state = end.state;
           });
         running = { id, done };

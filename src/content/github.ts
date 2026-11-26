@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { parse } from "node:path";
 import { ghStatus, parseRateLimit, rateLimited } from "../tools/gh-status";
 import type { ToolsEnvironment } from "../tools/overview";
@@ -83,8 +84,8 @@ export type ContentGitHub = Readonly<{
   /** Who gh works as on this Environment. */
   viewer(): Promise<ViewerAnswer>;
   /** How many of this adapter's requests GitHub refused for a rate limit
-   * so far (HTTP 403 or 429 whose answer names it, #1223): a run compares
-   * it before and after to know that the limit stopped it. */
+   * so far (HTTP 403 or 429 whose answer names it, #1223), for diagnostics
+   * only: which operation the limit stopped is `observeLimit`'s. */
   rateLimitRefusals?(): number;
   /** The limit GitHub's `rate_limit` names now (which GitHub does not
    * count), or undefined when it does not answer. */
@@ -226,6 +227,32 @@ const record = (value: unknown): Record<string, unknown> | null =>
 
 /** The `status` of a GitHub API error document gh prints on stdout
  * (`{"message":"Not Found",…,"status":"404"}`), when it is one. */
+// The operations under way in this async context (`observeLimit`): each
+// knows whether GitHub refused one of its own requests for a rate limit.
+type LimitScope = { limited: boolean; parent: LimitScope | undefined };
+const limitScopes = new AsyncLocalStorage<LimitScope>();
+
+/** Runs one GitHub operation and says whether GitHub refused one of its
+ * own requests for its rate limit (#1223): the cause a failure of that
+ * operation carries, never a refusal of another operation of the run
+ * (Pablo's review of #1224). Nested operations each see their own
+ * requests, and an enclosing one sees them too. */
+export async function observeLimit<T>(
+  operation: () => Promise<T>,
+): Promise<Readonly<{ value: T; limited: boolean }>> {
+  const scope: LimitScope = { limited: false, parent: limitScopes.getStore() };
+  const value = await limitScopes.run(scope, operation);
+  return { value, limited: scope.limited };
+}
+
+/** Notes that GitHub refused the request under way for its rate limit:
+ * every `observeLimit` operation it belongs to sees it. The gh adapter
+ * calls it from GitHub's own answer; any other adapter may too. */
+export function refusedForLimit(): void {
+  for (let scope = limitScopes.getStore(); scope; scope = scope.parent)
+    scope.limited = true;
+}
+
 function errorMessage(stdout: string): string {
   try {
     const message = record(JSON.parse(stdout))?.message;
@@ -482,8 +509,10 @@ export function ghContentGitHub(
       if (
         (status === "403" || status === "429") &&
         rateLimited(`${status} ${errorMessage(result.stdout)}`)
-      )
+      ) {
         refusals += 1;
+        refusedForLimit();
+      }
       return {
         kind: "error",
         exitCode: result.exitCode,

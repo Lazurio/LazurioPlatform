@@ -153,14 +153,18 @@ export type ContentStep = Readonly<{
   /** Only on a failed step: a `contentFailureCodes` member, or for the
    * Organization `check` the catalog's reason (`organization-conflict`, …). */
   code?: string;
+  /** Only on a failed step that GitHub's rate limit stopped: the operation
+   * that failed had a request of its own refused for the limit. */
+  cause?: ContentFailureCause;
 }>;
 
-/** Why a run stopped, where the run itself saw it: GitHub refused one of
- * its requests for a rate limit (#1223), recorded at the stop with the
- * limit GitHub's `rate_limit` names then (`kind`, `reset`). Začínáme waits
- * for that limit and runs the content once more after it only for a stop
- * that carries it, never by reading the failure's text (Pablo's review of
- * #1224). */
+/** Why a step stopped, where the run saw it: GitHub refused a request of
+ * the very operation that failed for a rate limit (#1223, `observeLimit`),
+ * with the limit GitHub's `rate_limit` names at the end of the run (`limit`,
+ * `reset`). A step whose failure is also known without GitHub (no write
+ * permission, a public Personalspace…) carries none. Začínáme waits for the
+ * limit and runs the stopped items once more after it only by this cause,
+ * never by reading a failure's text (Pablo's review of #1224). */
 export type ContentFailureCause = Readonly<{
   kind: "github-rate-limit";
   limit?: "hourly" | "secondary";

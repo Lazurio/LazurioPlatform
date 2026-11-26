@@ -10,10 +10,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ghContentGitHub } from "../src/content/github";
-import type { ContentHost } from "../src/content/host";
-import { withLimitCause } from "../src/content/jobs";
-import type { ContentFailure } from "../src/content/model";
+import { ghContentGitHub, observeLimit } from "../src/content/github";
 import type { ContentItem } from "../src/launchpad/content-client";
 import { contentView } from "../src/launchpad/content-view";
 import {
@@ -548,6 +545,10 @@ test("a run the limit stopped runs once more when GitHub answers again; another 
         detail: "GitHub did not answer for the Personalspace repository",
         cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
       },
+      waiting: {
+        items: [{ kind: "personalspace", login: null }],
+        cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
+      },
     },
   } as never;
   const limited = facts({ content: failed });
@@ -557,7 +558,9 @@ test("a run the limit stopped runs once more when GitHub answers again; another 
     false,
   );
   expect(seen.start).toBe(false);
-  expect(seen.state.limitStop).toBe(true);
+  expect(seen.state.limitStop).toEqual([
+    { kind: "personalspace", login: null },
+  ]);
   // Still limited on the next reading, and while a run is under way.
   const still = autoStartStep(seen.state, limited, false);
   expect(still.start).toBe(false);
@@ -568,6 +571,7 @@ test("a run the limit stopped runs once more when GitHub answers again; another 
   expect(autoStartStep(still.state, answered, true).start).toBe(false);
   const reset = autoStartStep(still.state, answered, false);
   expect(reset.start).toBe(true);
+  expect(reset.items).toEqual([{ kind: "personalspace", login: null }]);
   expect(reset.state.limitStop).toBeUndefined();
   // Once: the same stop afterwards is not started again.
   expect(autoStartStep(reset.state, answered, false).start).toBe(false);
@@ -819,20 +823,11 @@ esac
       reset: resetIso,
     });
 
-    const failure: ContentFailure = {
-      item: { kind: "personalspace" },
-      key: "find",
-      code: "github-unavailable",
-      detail: "GitHub did not answer for the Personalspace repository",
-    };
-    const host = { github } as unknown as ContentHost;
-    // Refused during the run: the stop carries the limit it hit.
-    expect(await withLimitCause(failure, host, 0)).toEqual({
-      ...failure,
-      cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
-    });
-    // No refusal during the run (an outage, a permission): as it was.
-    expect(await withLimitCause(failure, host, 1)).toEqual(failure);
+    // The refusal belongs to the operation whose request GitHub refused:
+    // another operation of the same run sees none.
+    expect((await observeLimit(() => github.viewer())).limited).toBe(true);
+    await rm(join(parent, "limited"));
+    expect((await observeLimit(() => github.viewer())).limited).toBe(false);
   } finally {
     await rm(parent, { recursive: true, force: true });
   }
@@ -856,6 +851,15 @@ test("an older outage and a mixed permission/membership stop stay shown through 
           detail,
           ...(cause === undefined ? {} : { cause }),
         },
+        // The job keeps what the limit stopped, as the run recorded it.
+        ...(cause === undefined
+          ? {}
+          : {
+              waiting: {
+                items: [{ kind: "personalspace", login: null }],
+                cause,
+              },
+            }),
       },
     }) as never;
   for (const content of [
@@ -970,4 +974,56 @@ test("the secondary limit with core requests left is said as such on Začínáme
   } finally {
     await opened.close();
   }
+});
+
+// Pablo's third review of #1224: an unrelated stop is shown and never
+// retried, while the item the limit stopped in the same run waits behind it
+// and runs alone once GitHub answers.
+test("behind an unrelated stop, the item the limit stopped waits and runs alone after the reset", () => {
+  const cause = {
+    kind: "github-rate-limit",
+    limit: "hourly",
+    reset: resetIso,
+  } as const;
+  const content = {
+    state: "failed",
+    item: personalspace,
+    job: {
+      state: "failed",
+      steps: [],
+      failure: {
+        item: { kind: "organization", login: "example" },
+        key: "access",
+        code: "role-unverified",
+        detail:
+          "no Organization role of octocat in example could not be verified: the account is neither an Organization Owner, nor has write permission on the root repository, nor is an active Organization Member who reads it",
+      },
+      waiting: { items: [{ kind: "personalspace", login: null }], cause },
+    },
+  } as never;
+  const limited = facts({ content, githubLimitReset: resetIso });
+  // The unrelated stop is shown with its way forward, never as waiting.
+  expect(contentBlockedBy(limited)).toBeNull();
+  expect(startView(limited, cs)?.steps[2]?.mark).toBe("failed");
+  expect(appsSetupLine(limited, cs)?.tone).toBe("failed");
+  // While GitHub is limited nothing starts, the waiting item is kept.
+  const seen = autoStartStep(
+    { ai: true, github: true, armed: false },
+    limited,
+    false,
+  );
+  expect(seen.start).toBe(false);
+  expect(seen.state.limitStop).toEqual([
+    { kind: "personalspace", login: null },
+  ]);
+  // Once GitHub answers: the Personalspace alone, not the Organization.
+  const answered = autoStartStep(
+    seen.state,
+    { ...facts({ content }), github: "connected" },
+    false,
+  );
+  expect(answered).toMatchObject({
+    start: true,
+    items: [{ kind: "personalspace", login: null }],
+  });
 });

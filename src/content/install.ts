@@ -14,6 +14,7 @@ import {
   anonymousGitHub,
   type ContentGitHub,
   type GitHubViewer,
+  observeLimit,
   type ViewerAnswer,
 } from "./github";
 import { type ContentHost, catalogOf, readFolderKind } from "./host";
@@ -25,6 +26,7 @@ import {
 } from "./materialize";
 import {
   type ContentFailure,
+  type ContentFailureCause,
   type ContentItemRef,
   type ContentRefusal,
   type ContentScope,
@@ -148,7 +150,13 @@ export type InstallResult =
       kind: "content-install";
       state: "succeeded" | "failed";
       items: readonly ItemOutcome[];
+      /** The stop to show: the first one known without GitHub's rate limit,
+       * else the first one the limit caused. */
       failure?: ContentFailure;
+      /** Every item GitHub's rate limit stopped (#1223), also behind an
+       * unrelated stop that `failure` shows: what runs again once GitHub
+       * answers. */
+      waiting?: readonly ContentItemRef[];
     }>
   | Readonly<{ kind: "not-allowed"; reason: ContentRefusal }>
   | Readonly<{ kind: "busy" }>;
@@ -236,30 +244,46 @@ export async function runContentInstall(
   onStep: StepListener,
   host: ContentHost,
 ): Promise<Extract<InstallResult, { kind: "content-install" }>> {
-  let viewer: Promise<ViewerAnswer> | undefined;
+  let viewer:
+    | Promise<Readonly<{ value: ViewerAnswer; limited: boolean }>>
+    | undefined;
+  const observedViewer = () => {
+    viewer ??= observeLimit(() => host.github.viewer());
+    return viewer as NonNullable<typeof viewer>;
+  };
   const context: RunContext = {
     folder,
     host,
     scope: plan.scope,
     roots: plan.roots,
     roles: plan.roles,
-    viewer: () => {
-      viewer ??= host.github.viewer();
-      return viewer;
-    },
+    viewer: async () => (await observedViewer()).value,
+    viewerLimited: async () => (await observedViewer()).limited,
     anonymous: plan.scope.github === "anonymous",
   };
   const outcomes: ItemOutcome[] = [];
+  // The first stop known without the limit, the first the limit caused,
+  // and every item the limit stopped: none of them is lost behind another.
   let failure: ContentFailure | undefined;
+  let limited: ContentFailure | undefined;
+  const waiting: ContentItemRef[] = [];
   for (const item of plan.items) {
     const steps = stepper(item, (step) => {
-      if (step.state === "failed" && failure === undefined)
-        failure = Object.freeze({
+      if (step.state === "failed") {
+        const stop = Object.freeze({
           item: step.item,
           key: step.key,
           code: step.code ?? "operation-failed",
           detail: step.detail ?? "",
+          ...(step.cause === undefined ? {} : { cause: step.cause }),
         });
+        if (stop.cause === undefined) failure ??= stop;
+        else {
+          limited ??= stop;
+          if (!waiting.some((entry) => sameItem(entry, step.item)))
+            waiting.push(step.item);
+        }
+      }
       onStep(step);
     });
     let outcome: ItemOutcome;
@@ -276,13 +300,20 @@ export async function runContentInstall(
     }
     outcomes.push(outcome);
   }
+  const shown = failure ?? limited;
   return Object.freeze({
     kind: "content-install",
-    state: failure === undefined ? "succeeded" : "failed",
+    state: shown === undefined ? "succeeded" : "failed",
     items: Object.freeze(outcomes),
-    ...(failure === undefined ? {} : { failure }),
+    ...(shown === undefined ? {} : { failure: shown }),
+    ...(waiting.length === 0 ? {} : { waiting: Object.freeze(waiting) }),
   });
 }
+
+/** The cause a failure carries when GitHub's rate limit stopped the very
+ * operation that failed. */
+const limitCause = (limited: boolean): ContentFailureCause | undefined =>
+  limited ? { kind: "github-rate-limit" } : undefined;
 
 type RunContext = Readonly<{
   folder: string;
@@ -291,6 +322,8 @@ type RunContext = Readonly<{
   roots: Readonly<Record<string, string>>;
   roles: Readonly<Record<string, OrganizationRole>>;
   viewer: () => Promise<ViewerAnswer>;
+  /** Whether GitHub refused the viewer's own request for its rate limit. */
+  viewerLimited: () => Promise<boolean>;
   /** A public Environment's run (`scope.github` anonymous): `host.github` is
    * never asked; every clone goes through `anonymousGitHub`. */
   anonymous: boolean;
@@ -313,6 +346,7 @@ function stepper(item: ContentItemRef, emit: (step: ContentStep) => void) {
     state: ContentStep["state"],
     detail?: string,
     code?: string,
+    cause?: ContentFailureCause,
   ) => {
     current = key;
     emit(
@@ -322,6 +356,7 @@ function stepper(item: ContentItemRef, emit: (step: ContentStep) => void) {
         state,
         ...(detail === undefined ? {} : { detail }),
         ...(code === undefined ? {} : { code }),
+        ...(cause === undefined ? {} : { cause }),
       }),
     );
   };
@@ -330,8 +365,13 @@ function stepper(item: ContentItemRef, emit: (step: ContentStep) => void) {
     running: (key: StepKey) => event(key, "running"),
     done: (key: StepKey, detail?: string) => event(key, "done", detail),
     skipped: (key: StepKey, detail?: string) => event(key, "skipped", detail),
-    fail: (key: StepKey, code: string, detail: string): ItemOutcome => {
-      event(key, "failed", detail, code);
+    fail: (
+      key: StepKey,
+      code: string,
+      detail: string,
+      cause?: ContentFailureCause,
+    ): ItemOutcome => {
+      event(key, "failed", detail, code, cause);
       return { item, state: "failed" };
     },
   };
@@ -355,6 +395,7 @@ async function signedIn(
         key,
         "github-unavailable",
         "gh could not reach GitHub or is not installed",
+        limitCause(await context.viewerLimited()),
       );
 }
 
@@ -653,6 +694,7 @@ function unusableRoot(
     { kind: "ambiguous-in-folder" | "failed" }
   >,
   steps: Stepper,
+  limited = false,
 ): ItemOutcome {
   return resolution.kind === "ambiguous-in-folder"
     ? steps.fail(
@@ -660,7 +702,16 @@ function unusableRoot(
         "organization-ambiguous",
         `more than one directory in organizations/ binds ${login}: ${resolution.directories.join(", ")}`,
       )
-    : steps.fail("access", resolution.code, resolution.detail);
+    : steps.fail(
+        "access",
+        resolution.code,
+        resolution.detail,
+        // Only GitHub not answering the lookup, and only when the limit
+        // refused one of its requests.
+        resolution.code === "github-unavailable"
+          ? limitCause(limited)
+          : undefined,
+      );
 }
 
 /** How the root was found, for the access step's line. */
@@ -721,27 +772,37 @@ async function accountAccess(
   const { folder, host } = context;
   const viewer = await signedIn(context, steps, "access");
   if (isOutcome(viewer)) return viewer;
-  const resolution = await resolveOrganizationRootRepository({
-    folder,
-    login,
-    catalog: await catalogOf(host, folder),
-    git: host.git,
-    github: host.github,
-    root: context.roots[login.toLowerCase()],
-  });
+  const catalog = await catalogOf(host, folder);
+  const looked = await observeLimit(() =>
+    resolveOrganizationRootRepository({
+      folder,
+      login,
+      catalog,
+      git: host.git,
+      github: host.github,
+      root: context.roots[login.toLowerCase()],
+    }),
+  );
+  const resolution = looked.value;
   if (resolution.kind === "ambiguous-in-folder" || resolution.kind === "failed")
-    return unusableRoot(login, resolution, steps);
+    return unusableRoot(login, resolution, steps, looked.limited);
   let rootRepository = resolution.repository;
+  let accessLimited = false;
   let rootPermission: RepositoryPermission | null = null;
   let branchRules: BranchRules = "unknown";
   if (rootRepository !== null) {
     const [owner, name] = rootRepository.split("/") as [string, string];
-    const access = await host.github.repository(owner, name);
+    const observed = await observeLimit(() =>
+      host.github.repository(owner, name),
+    );
+    const access = observed.value;
+    accessLimited = observed.limited;
     if (access.kind === "unavailable")
       return steps.fail(
         "access",
         "github-unavailable",
         "GitHub did not answer for the root repository",
+        limitCause(accessLimited),
       );
     if (access.kind === "missing" || !access.repository.readable)
       return steps.fail(
@@ -769,10 +830,11 @@ async function accountAccess(
   // permission alone; an Organization Admin, a Module Reader and a live
   // resolution also need the membership.
   const requested = context.roles[login.toLowerCase()] ?? null;
-  const membership =
+  const asked =
     requested === "module-maintainer" || requested === "module-contributor"
-      ? ({ kind: "none" } as const)
-      : await host.github.membership(login);
+      ? { value: { kind: "none" } as const, limited: false }
+      : await observeLimit(() => host.github.membership(login));
+  const membership = asked.value;
   const role = verifyOrganizationRole({
     requested,
     membership,
@@ -787,6 +849,10 @@ async function accountAccess(
       "access",
       "role-unverified",
       `${requested === null ? "no Organization role" : `the role ${requested}`} of ${viewer.login} in ${login} could not be verified: ${role.detail}${requested === "organization-admin" ? "; without --role this is the Organization Admin's installation: name the role GitHub confirms with --role module-maintainer, --role module-contributor or --role module-reader" : ""}`,
+      // The limit's only where the verdict rests on GitHub not answering
+      // alone, never beside a defect known without it (no write
+      // permission), and only when the limit refused that very request.
+      limitCause(role.unanswered === true && (asked.limited || accessLimited)),
     );
   steps.done(
     "access",
@@ -1058,12 +1124,14 @@ async function findOnGitHub(
   steps: Stepper,
 ): Promise<{ repository: string; create: boolean } | ItemOutcome> {
   const name = personalspaceRepositoryName(viewer.login);
-  const answer = await github.repository(viewer.login, name);
+  const found = await observeLimit(() => github.repository(viewer.login, name));
+  const answer = found.value;
   if (answer.kind === "unavailable")
     return steps.fail(
       "find",
       "github-unavailable",
       "GitHub did not answer for the Personalspace repository",
+      limitCause(found.limited),
     );
   if (answer.kind === "observed") {
     const repository = answer.repository;
@@ -1085,12 +1153,16 @@ async function findOnGitHub(
   // Absent under its name: before creating one, make sure no repository of
   // the person was created from the template under another name (a renamed
   // repository, or a login renamed after it was created).
-  const derived = await github.templateDerived(personalspaceTemplate);
+  const listed = await observeLimit(() =>
+    github.templateDerived(personalspaceTemplate),
+  );
+  const derived = listed.value;
   if (derived === "unavailable")
     return steps.fail(
       "find",
       "github-unavailable",
       "GitHub did not list the account's repositories",
+      limitCause(listed.limited),
     );
   if (derived.length > 0)
     return steps.fail(
