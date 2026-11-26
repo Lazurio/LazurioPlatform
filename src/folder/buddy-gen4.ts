@@ -565,6 +565,10 @@ const controlPlaneSkill: FolderSkill = {
       "- **Sources:** personal decisions and agreements from the Brain, the state of Organizations' work from their Mission Control and repositories. The page invents nothing; what you do not know does not go there.",
     ),
     t(
+      "- **Pořadí a počty:** rozhodnutí, která drží práci Organizace, ber z fronty její Mission Control: z položek, které čekají na uživatele, i s pevnými termíny, počtem kroků, které rozhodnutí odblokuje, a časem zařazení. Pořadí a počty z ní přeber, nepočítej je sám; vychází ze stejného grafu návazností jako zbytek práce. Kde Organizace frontu ještě nevede, seřaď jen podle termínů a na stránce napiš, že počet odblokovaných kroků chybí.",
+      "- **Order and counts:** take the decisions that hold an Organization's work from its Mission Control queue: the items that wait for the user, with their fixed deadlines, the number of steps a decision unblocks and when it was queued. Take the order and the counts from it, do not compute them yourself; they come from the same dependency graph as the rest of the work. Where an Organization keeps no queue yet, sort by deadlines only and say on the page that the number of unblocked steps is missing.",
+    ),
+    t(
       "- **Hranice:** u práce Organizace jen krátký popis a odkaz na její místo, nikdy kopie dat. Tajemství nikdy. Stránka běží v izolovaném rámu bez přístupu k aplikaci; nepiš do ní nic, co by tvrdilo opak.",
       "- **Boundaries:** for an Organization's work only a short description and a link to its place, never a copy of its data. Never secrets. The page runs in an isolated frame without access to the application; write nothing into it that claims otherwise.",
     ),
