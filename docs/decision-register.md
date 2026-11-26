@@ -1466,7 +1466,7 @@ The ten open points above are settled thus: approved releases are chosen per Mod
 
 1. **Two views in Apps instead of the ⋯ menu.** Apps of an Organization that has Applications has two views, named in the product **Pracovat** and **Stavět**:
    - **Pracovat** shows the Organization's Applications. Clicking a tile opens PROD, as point 8 says.
-   - **Stavět** shows the Organization's Modules in this Environment. Clicking a tile opens STAGING, with its frame (point 4).
+   - **Stavět** shows the Organization's Modules in this Environment. Clicking the tile of a Module with an app opens its STAGING, with its frame (point 4). A Module without an app (V0) has no STAGING; what its tile does is not settled here.
 
    STAGING is no longer opened from the ⋯ menu of a tile; the menu keeps the settings.
 2. **Who builds nothing sees no switch.** A person who builds none of the Organization's Modules has Pracovat only and sees no switch between the views.
