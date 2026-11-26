@@ -67,7 +67,14 @@ export type RoleVerification =
        * Admin. */
       restricted: "include" | "exclude";
     }>
-  | Readonly<{ kind: "unverified"; detail: string }>;
+  | Readonly<{
+      kind: "unverified";
+      detail: string;
+      /** The verdict rests on GitHub not answering alone: nothing known
+       * without it already decides against the role (#1223, Pablo's review
+       * of #1224). Absent: a defect known without GitHub's silence. */
+      unanswered?: true;
+    }>;
 
 const rank: Readonly<Record<RepositoryPermission, number>> = {
   read: 1,
@@ -162,6 +169,9 @@ export function verifyOrganizationRole(
             membership.kind === "unavailable"
               ? "GitHub did not answer the Organization membership"
               : "the account is not an active Organization Owner",
+          ...(membership.kind === "unavailable"
+            ? { unanswered: true as const }
+            : {}),
         };
   if (requested === "module-maintainer")
     return live === "module-maintainer"
@@ -197,6 +207,11 @@ export function verifyOrganizationRole(
               ? "GitHub did not answer the Organization membership"
               : "the account is not an active member of the Organization"
             : "the account has no read permission on the root repository",
+          // A permission known below `read` decides without the membership.
+          ...(membership.kind === "unavailable" &&
+          (rootPermission === null || atLeast(rootPermission, "read"))
+            ? { unanswered: true as const }
+            : {}),
         };
   if (admin) return verified("organization-admin");
   if (live !== null) return verified(live);
@@ -204,6 +219,11 @@ export function verifyOrganizationRole(
     return verified("module-reader");
   return {
     kind: "unverified",
+    // Only where neither the membership nor the permission is known: with
+    // the permission known below `write`, that defect is the verdict's own.
+    ...(membership.kind === "unavailable" && rootPermission === null
+      ? { unanswered: true as const }
+      : {}),
     detail:
       membership.kind === "unavailable" && rootPermission === null
         ? "GitHub did not answer the membership or the root repository's permission"

@@ -70,13 +70,20 @@ import {
 import { createComputersPanel } from "./computers-panel";
 import { createConnectionsPanel } from "./connections-panel";
 import { parseConnectionsOverview } from "./connections-view";
-import { type ContentTransport, createContentClient } from "./content-client";
+import {
+  type ContentRef,
+  type ContentTransport,
+  createContentClient,
+} from "./content-client";
 import { createContentPanel } from "./content-panel";
 import {
+  createRootAccess,
+  jobStops,
   organizationArrived,
   prepareContext,
   preparePrompt,
   presentOrganizations,
+  sameRef,
 } from "./content-view";
 import { createFilesPanel } from "./files-panel";
 import {
@@ -89,6 +96,8 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  githubLimitKind,
+  githubLimitReset,
   githubRefused,
   hasOnboarding,
   idleAutoStart,
@@ -144,6 +153,8 @@ import { createThemePanel } from "./theme-panel";
 import { withAppsTheme } from "./theme-view";
 import { createToolsPanel } from "./tools-panel";
 import {
+  clockTime,
+  createLimitRefresh,
   organizationChoices,
   organizationRule,
   type ToolGuideTargets,
@@ -600,6 +611,20 @@ function readBuddy(again = false) {
   buddyAsked = true;
   void buddyClient.read();
 }
+// GitHub's used-up rate limit for Začínáme (#1223): its reset as this
+// page's clock says it, null where GitHub did not say; nothing otherwise.
+function githubLimitFact(): {
+  githubLimitTime?: string | null;
+  githubLimitKind?: "hourly" | "secondary";
+} {
+  const reset = githubLimitReset(toolsOverview);
+  if (reset === undefined) return {};
+  const kind = githubLimitKind(toolsOverview);
+  return {
+    githubLimitTime: reset === null ? null : clockTime(reset, locale),
+    ...(kind === undefined ? {} : { githubLimitKind: kind }),
+  };
+}
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
   return {
@@ -613,6 +638,7 @@ function firstRunFacts(): TourFacts | null {
       profileState.responsible,
     ),
     content: content.fact(),
+    githubLimitReset: githubLimitReset(toolsOverview),
     ...(buddyHere()
       ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
       : {}),
@@ -621,49 +647,60 @@ function firstRunFacts(): TourFacts | null {
 // Whether this Environment's GitHub identity can prepare the Organization
 // of a stop that only its root's writers fix (root decision 0201 point 8),
 // as `GET /api/content/root-access` answered for that login.
-let rootAccess: Readonly<{ login: string; write: boolean | null }> | null =
-  null;
+// One answer per Organization, asked once per job (`createRootAccess`):
+// several stopped rows each have theirs (Pablo's review of #1224).
+const rootAccess = createRootAccess({
+  read: async (login) => {
+    try {
+      const { value, ok } = await get(
+        `/api/content/root-access?org=${encodeURIComponent(login)}`,
+      );
+      return (
+        ok &&
+        (value as { kind?: unknown; write?: unknown } | null)?.kind ===
+          "root-access" &&
+        (value as { write?: unknown }).write === true
+      );
+    } catch {
+      return false;
+    }
+  },
+  changed: () => {
+    content.render();
+    firstRun();
+  },
+});
+let rootAccessJob: string | null = null;
 /** Where a stopped preparation leads now: Chat, the AI step, or the
  * sentence that an Organization Admin prepares the Organization. */
-function resolveKind() {
-  const failure = content.job()?.failure;
+function resolveKind(row?: ContentRef) {
+  // A row's own stop (Pablo's review of #1224), else the one shown first.
+  const job = content.job();
+  // Who may prepare a root is asked again for each job.
+  if ((job?.id ?? null) !== rootAccessJob) {
+    rootAccess.forget();
+    rootAccessJob = job?.id ?? null;
+  }
+  const failure =
+    row === undefined || job === null
+      ? job?.failure
+      : jobStops(job).find((stop) => sameRef(stop.item, row));
   const login =
     failure?.item.kind === "organization" ? failure.item.login : null;
   const code = failure?.code ?? null;
-  if (
-    login !== null &&
-    code !== null &&
-    unpreparedCode(code) &&
-    rootAccess?.login !== login
-  )
-    void readRootAccess(login);
+  const write =
+    login !== null && code !== null && unpreparedCode(code)
+      ? rootAccess.get(login)
+      : null;
   return resolveOf({
     ai: aiFact(),
     code,
-    rootAccess: rootAccess?.login === login ? rootAccess.write : null,
+    rootAccess: write,
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
   });
 }
 function unpreparedCode(code: string): boolean {
   return code === "root-not-found" || code === "organization-unreadable";
-}
-async function readRootAccess(login: string) {
-  rootAccess = { login, write: null };
-  let write = false;
-  try {
-    const { value, ok } = await get(
-      `/api/content/root-access?org=${encodeURIComponent(login)}`,
-    );
-    write =
-      ok &&
-      (value as { kind?: unknown; write?: unknown } | null)?.kind ===
-        "root-access" &&
-      (value as { write?: unknown }).write === true;
-  } catch {}
-  if (rootAccess?.login !== login) return;
-  rootAccess = { login, write };
-  content.render();
-  firstRun();
 }
 /** The line in Apps now. */
 function setupLineNow() {
@@ -696,7 +733,7 @@ function startByItself() {
   if (facts === null) return;
   const step = autoStartStep(autoStart, facts, content.running());
   autoStart = step.state;
-  if (step.start) void content.start();
+  if (step.start) void content.start(step.items);
 }
 async function readAi(fresh = false) {
   const mine = aiReadings.ask(fresh);
@@ -819,8 +856,8 @@ const content = createContentPanel({
     firstRun();
   },
   blockedBy: () => contentBlocked(),
-  resolveKind: () => resolveKind(),
-  resolve: () => resolveInChat(),
+  resolveKind: (item) => resolveKind(item),
+  resolve: (item) => resolveInChat(item),
   connectAi: () => openAiStep(),
 });
 const tour = createTour({
@@ -914,6 +951,7 @@ const startPanel = createStartPanel({
           aiPlace: aiSignInPlace(entry),
           githubLogin: githubAccount(toolsOverview),
           githubRefused: githubRefused(toolsOverview),
+          ...githubLimitFact(),
           // GitHub's sign-in this page runs, its window closed or not
           // (#516): the step says it runs, and opens it again.
           githubFlow: tools.running("gh") ?? undefined,
@@ -1446,14 +1484,14 @@ async function probePreparePrompt() {
 // inserted in Chat, never sent. Without AI it leads to Začínáme's AI step
 // instead, and a stop only an Organization Admin fixes has nothing to
 // hand over (root decision 0201 points 3 and 8).
-function resolveInChat() {
-  const lead = resolveKind();
+function resolveInChat(row?: ContentRef) {
+  const lead = resolveKind(row);
   if (lead === "ai") {
     openAiStep();
     return;
   }
   if (lead === "admin") return;
-  const context = prepareContext(content.list(), content.job(), copy);
+  const context = prepareContext(content.list(), content.job(), copy, row);
   if (context === null) return;
   const text = preparePrompt(context.target, context.failure, copy);
   const linked =
@@ -2199,6 +2237,11 @@ function whenIdle(task: () => void) {
     requestIdleCallback(() => task(), { timeout: 2000 });
   else setTimeout(task, 300);
 }
+// GitHub read again at its rate limit's reset (#1223); `tools` is defined
+// below and is there by the time the timer runs.
+const limitRefresh = createLimitRefresh({
+  refresh: () => void tools.refresh({ signIn: true }),
+});
 // The tools section (decision F18). A change recorded there moves the Folder
 // revision, so a profile preview made before it is no longer valid.
 const tools = createToolsPanel({
@@ -2219,6 +2262,18 @@ const tools = createToolsPanel({
       void integrations.refresh();
     toolSignIns = signIns;
     toolsOverview = overview;
+    // GitHub refusing requests for its rate limit: read again at its reset,
+    // and while it is unknown after it, so a page left open sees GitHub
+    // answer and the content start (#1223).
+    limitRefresh.observe(
+      githubLimitReset(overview),
+      profileState !== null &&
+        githubFact(
+          overview,
+          profileState.revision,
+          profileState.responsible,
+        ) !== "unknown",
+    );
     // Začínáme shown: Composio's organization for its sign-in as it is now.
     const route = shell.route();
     if (route.view === "settings" && route.section === "start")

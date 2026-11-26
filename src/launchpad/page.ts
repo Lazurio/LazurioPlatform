@@ -27,6 +27,20 @@ const assetHeaders = {
   "Referrer-Policy": "no-referrer",
 };
 
+/** The script and the fonts on another origin too: a Module's app in DEV
+ * loads them from the Launchpad's loopback listener (`isLocalShellAsset`,
+ * 0249's DEV frame, decided 2026-11-25). Both are public, the same for everyone and
+ * carry no credential, so any origin may read them, without cookies. */
+const crossOriginHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Cross-Origin-Resource-Policy": "cross-origin",
+};
+
+/** The paths of the shell's public assets that `isLocalShellAsset` answers
+ * without admission: the script and the fonts, nothing else. */
+export const shellScriptPath = "/.lazurio/shell.js";
+export const shellFontsPrefix = "/.lazurio/fonts/";
+
 // The Lazurio shell's static assets (decision F36): the script with the
 // elements, the brand fonts and the module stones, on every origin of the Environment the
 // Launchpad answers. Like the page's own assets they carry nothing of the
@@ -38,11 +52,12 @@ export const shellRoutes = {
     notModified(request, shellEtag)
       ? new Response(null, {
           status: 304,
-          headers: { ...assetHeaders, ETag: shellEtag },
+          headers: { ...assetHeaders, ...crossOriginHeaders, ETag: shellEtag },
         })
       : new Response(shellSource, {
           headers: {
             ...assetHeaders,
+            ...crossOriginHeaders,
             ETag: shellEtag,
             "Content-Type": "text/javascript; charset=utf-8",
           },
@@ -58,6 +73,7 @@ export const shellRoutes = {
       {
         headers: {
           ...assetHeaders,
+          ...crossOriginHeaders,
           "Cache-Control": "public, max-age=604800, immutable",
           "Content-Type": "font/woff2",
         },
@@ -79,6 +95,20 @@ export const shellRoutes = {
     });
   },
 };
+
+/** The script or a font for a request `isLocalShellAsset` admitted: the same
+ * answer the routes give, for the one path it names. */
+export function localShellAsset(
+  request: Request,
+  pathname: string,
+): Response | Promise<Response> {
+  if (pathname === shellScriptPath)
+    return shellRoutes["/.lazurio/shell.js"](request);
+  const file = pathname.slice(shellFontsPrefix.length);
+  return shellRoutes["/.lazurio/fonts/:file"](
+    Object.assign(request, { params: { file } }),
+  );
+}
 
 /** `Cache-Control` of the bundled pages' content-hashed files (#532): a
  * name that carries a hash of the file's content changes with the content,

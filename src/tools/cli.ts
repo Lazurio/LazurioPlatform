@@ -498,28 +498,41 @@ const sshText = (
   team: boolean,
   isPublic: boolean,
 ): string =>
-  signIn.ssh === undefined
-    ? ""
-    : team || isPublic
-      ? `, ${(isPublic ? publicGithubPhrase : teamGithubPhrase).en}${
-          githubActionRefused({
-            brokered: true,
-            tool: "gh",
-            action: "logout",
-            signIn,
-          })
-            ? ""
-            : "; a personal account is signed in here: lazurio tools logout gh"
-        }`
-      : signIn.ssh.state === "linked"
-        ? ", SSH key linked"
-        : signIn.ssh.state === "not-linked"
-          ? ", SSH key not linked: lazurio tools login gh --ssh-key"
-          : signIn.ssh.reason === "refused"
-            ? ", SSH key linked, GitHub refuses it now (likely a GitHub outage, githubstatus.com)"
-            : ", SSH key not verified";
+  // GitHub refuses requests until the rate limit resets (#1223).
+  signIn.limit !== undefined
+    ? `, GitHub refuses requests for now: ${
+        signIn.limit.kind === "secondary"
+          ? "its secondary rate limit (too many requests at once), which usually passes within minutes"
+          : signIn.limit.kind === "hourly"
+            ? `the hourly rate limit is used up${
+                signIn.limit.reset === undefined
+                  ? ""
+                  : ` (resets at ${signIn.limit.reset})`
+              }`
+            : "its rate limit"
+      }; nothing to sign in again`
+    : signIn.ssh === undefined
+      ? ""
+      : team || isPublic
+        ? `, ${(isPublic ? publicGithubPhrase : teamGithubPhrase).en}${
+            githubActionRefused({
+              brokered: true,
+              tool: "gh",
+              action: "logout",
+              signIn,
+            })
+              ? ""
+              : "; a personal account is signed in here: lazurio tools logout gh"
+          }`
+        : signIn.ssh.state === "linked"
+          ? ", SSH key linked"
+          : signIn.ssh.state === "not-linked"
+            ? ", SSH key not linked: lazurio tools login gh --ssh-key"
+            : signIn.ssh.reason === "refused"
+              ? ", SSH key linked, GitHub refuses it now (likely a GitHub outage, githubstatus.com)"
+              : ", SSH key not verified";
 
-const signInText = (
+export const signInText = (
   signIn: ToolSignIn,
   team: boolean,
   isPublic = false,

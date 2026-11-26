@@ -1764,3 +1764,98 @@ export function parseUnverifiedBinding(
     before: targetIdOf(value.before),
   });
 }
+
+// ---- Pages that open only in the person's own browser (C20) ------------------
+//
+// The Environment browser never holds a Lazurio session (root decision 0191's
+// addendum of 2026-10-18, #504). Two things keep the pages that carry a
+// person's account out of it: Machines' policy, which blocks the whole
+// `lazurio.io`, the sign-in service and the Dashboard except this
+// Environment's own names, and of those its shell origins and the browser's
+// view; and the gateway's local entry, which has no twin for those shell
+// origins, the view or the Environment's bare host and answers them with its
+// page "Otevřete to ve svém prohlížeči". C20 names exactly the addresses one
+// of the two keeps out (F39's addendum of 2026-11-25), so the programs that
+// meet in the browser decide alike, with or without the policy: an app sends
+// a link to such a page to the person's own browser rather than into the
+// Environment browser, the hub hands a tab that ended on one off as C18 does,
+// and the `lazurio browser` CLI refuses one. An unknown name of the
+// Environment also gets the local entry's page, but no program can know the
+// catalog, so C20 leaves it alone.
+//
+// It classifies by host and path alone: credentials in the address, its port,
+// letters in upper case and the DNS root's trailing dot change nothing, as
+// none of them changes what Chrome's policy matches (Pablo's review of
+// LZD-0025 B11). The address it gives is the one to hand off, and never
+// carries the credentials.
+
+/** The services whose every page needs the person's Lazurio account, each
+ * with all the names under it: the hosted Environments (`lazurio.io`), the
+ * sign-in service and the Dashboard (Machines `LAZURIO_ACCOUNT_FILTERS`). */
+const accountDomains = Object.freeze([
+  "lazurio.io",
+  "auth.lazurio.ai",
+  "dashboard.lazurio.ai",
+]);
+
+/** The labels of this Environment's own names that act with the person's
+ * session or show the browser itself (Machines `environmentBrowserPolicy`:
+ * the Launchpad, T3 Code, Lazurio MausBot, the view, Buddy's T3), each with
+ * all the names under it. */
+const ownSessionLabels = Object.freeze([
+  "launchpad",
+  "t3code",
+  "mausbot",
+  "browser",
+  "buddy",
+]);
+
+/** The address to hand to the person's own browser when `url` is a page the
+ * Environment browser never opens (C20), `environment` being this
+ * Environment's id (C3), or null where it is not known: then none of the
+ * Environment's names counts as its own. Such a page is an http or https
+ * address on `lazurio.io`, `auth.lazurio.ai` or `dashboard.lazurio.ai` or a
+ * name under one, except this Environment's own names (`<environment>.
+ * lazurio.io` and the names under it); of those, a name directly under it
+ * labelled `launchpad`, `t3code`, `mausbot`, `browser` or `buddy`, any name
+ * under such a name, and the bare `<environment>.lazurio.io` on any path.
+ * The address comes back as the URL parser writes it, with the host in lower
+ * case and without the DNS root's trailing dot, the default port and any
+ * credentials. Null for every other address and for anything that is no
+ * address. */
+export function ownBrowserAddress(
+  url: unknown,
+  environment: string | null,
+): string | null {
+  if (typeof url !== "string") return null;
+  let address: URL;
+  try {
+    address = new URL(url);
+  } catch {
+    return null;
+  }
+  if (address.protocol !== "http:" && address.protocol !== "https:")
+    return null;
+  const host = address.hostname.toLowerCase().replace(/\.+$/, "");
+  const under = (domain: string) =>
+    host === domain || host.endsWith(`.${domain}`);
+  if (!accountDomains.some(under)) return null;
+  const own =
+    environment !== null && isEnvironmentId(environment)
+      ? `${environment}${hostedDomain}`
+      : null;
+  if (own !== null && host !== own && host.endsWith(`.${own}`)) {
+    const label =
+      host
+        .slice(0, -(own.length + 1))
+        .split(".")
+        .pop() ?? "";
+    if (!ownSessionLabels.includes(label)) return null;
+  }
+  // Written anew without the credentials, from the parts the URL parser
+  // already made canonical; the pure part only reads a URL (no setters).
+  const port = address.port === "" ? "" : `:${address.port}`;
+  return new URL(
+    `${address.protocol}//${host}${port}${address.pathname}${address.search}${address.hash}`,
+  ).href;
+}

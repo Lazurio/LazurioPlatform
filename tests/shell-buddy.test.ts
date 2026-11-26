@@ -739,6 +739,7 @@ function fakeBubble(
     known?: readonly string[];
     tour?: boolean;
     plays?: boolean;
+    probe?: (probe: number) => void;
   }> = {},
 ) {
   const log = {
@@ -763,6 +764,7 @@ function fakeBubble(
   const frame = windowOf(log.posted);
   const session = options.session ?? memory();
   const bubble = createBuddyBubble({
+    ...(options.probe === undefined ? {} : { probe: options.probe }),
     origin: () => page.origin,
     facts: () => ({
       shell: page.shell,
@@ -2024,4 +2026,152 @@ test("the launcher's menu stands beside the launcher where it is, moved or not, 
       },
     ).left,
   ).toBe(8);
+});
+
+// Root decision 0210, addendum of 2026-11-25: Buddy's figure stands on every
+// page of a person who has him; where the page does not reach his origin (his
+// picture failed or did not come within the bound), his window says to turn
+// on the tailnet, makes no frame and tells no frame it is shown.
+test("off the tailnet: the launcher stays, his window says so with no action and no frame; reached again, the frame opens", () => {
+  const { bubble, last, page } = fakeBubble();
+  page.shell = { ...page.shell, locale: "cs" };
+  bubble.update();
+  expect(last()?.launcher).toBeDefined();
+  bubble.reachability(false);
+  // The figure is still there.
+  expect(last()?.origin).toBe(page.origin as string);
+  bubble.toggle();
+  const off = last();
+  expect(off?.layout).toBe("panel");
+  expect(off?.frame).toBeNull();
+  expect(off?.meeting).toEqual({
+    step: "off-tailnet",
+    hello: expect.any(String),
+    line: "Zapněte si tailnet, abyste měli přístup k Buddymu.",
+    action: "",
+    href: "",
+    close: "Zavřít",
+  });
+  // Reached: the open window closes, and the next click opens the frame.
+  bubble.reachability(true);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.meeting).toBeNull();
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  expect(last()?.meeting).toBeNull();
+});
+
+test("not known yet is not off the tailnet, and another origin starts unknown again", () => {
+  const { bubble, last, page } = fakeBubble();
+  bubble.update();
+  bubble.toggle();
+  expect(last()?.frame).not.toBeNull();
+  bubble.toggle();
+  bubble.reachability(false);
+  page.origin = "https://buddy.other.lazurio.io";
+  bubble.update();
+  bubble.toggle();
+  expect(last()?.meeting).toBeNull();
+  expect(last()?.frame).not.toBeNull();
+});
+
+// Review of #1253: every open waits for its own fresh probe, so a tailnet
+// turned on or lost is noticed there; only the answer to that probe opens
+// the window, never an earlier probe's, another origin's or the picture's
+// own load; the page's own opens (`open`) pass the same gate.
+test("a click before the answer opens nothing; its answer opens the frame or the card", () => {
+  const asked: number[] = [];
+  const reachedOk = fakeBubble({ probe: (probe) => asked.push(probe) });
+  reachedOk.bubble.update();
+  reachedOk.bubble.toggle();
+  expect(asked).toHaveLength(1);
+  expect(reachedOk.last()?.frame ?? null).toBeNull();
+  expect(reachedOk.last()?.layout).toBe("closed");
+  reachedOk.bubble.reachability(true, asked[0]);
+  expect(reachedOk.last()?.frame).not.toBeNull();
+  expect(reachedOk.last()?.meeting).toBeNull();
+
+  const reachedNot = fakeBubble({ probe: (probe) => asked.push(probe) });
+  reachedNot.bubble.update();
+  reachedNot.bubble.toggle();
+  reachedNot.bubble.reachability(false, asked.at(-1));
+  expect(reachedNot.last()?.frame ?? null).toBeNull();
+  expect(reachedNot.last()?.meeting?.step).toBe("off-tailnet");
+  expect(reachedNot.last()?.layout).toBe("panel");
+});
+
+test("every open asks afresh: a tailnet turned on or lost right after an answer is noticed", () => {
+  const asked: number[] = [];
+  const { bubble, last } = fakeBubble({ probe: (probe) => asked.push(probe) });
+  bubble.update();
+  bubble.toggle();
+  bubble.reachability(true, asked.at(-1));
+  expect(last()?.frame).not.toBeNull();
+  bubble.toggle(); // closes
+  // Lost a second later: the next open asks again and shows the card.
+  bubble.toggle();
+  expect(asked).toHaveLength(2);
+  bubble.reachability(false, asked.at(-1));
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // Turned on again: the next open asks again and opens his frame.
+  bubble.toggle();
+  expect(asked).toHaveLength(3);
+  bubble.reachability(true, asked.at(-1));
+  expect(last()?.meeting).toBeNull();
+  expect(last()?.layout).not.toBe("closed");
+});
+
+test("only the answer to this open's probe opens the window: not the picture's load, not an earlier probe, not another origin's", () => {
+  const asked: number[] = [];
+  const { bubble, last, page } = fakeBubble({
+    probe: (probe) => asked.push(probe),
+  });
+  bubble.update();
+  bubble.toggle();
+  const first = asked.at(-1) as number;
+  // The picture's own (cached) load says yes while the probe is pending.
+  bubble.reachability(true);
+  expect(last()?.layout).toBe("closed");
+  expect(last()?.frame ?? null).toBeNull();
+  // The probe's no wins.
+  bubble.reachability(false, first);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // A later open; the earlier probe's late yes changes nothing.
+  bubble.toggle();
+  const second = asked.at(-1) as number;
+  expect(second).not.toBe(first);
+  bubble.reachability(true, first);
+  expect(last()?.layout).toBe("closed");
+  bubble.reachability(false, second);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  bubble.toggle(); // closes
+  // Another origin: the earlier origin's probe answers nothing.
+  bubble.toggle();
+  const third = asked.at(-1) as number;
+  page.origin = "https://buddy.other.lazurio.io";
+  bubble.update();
+  bubble.reachability(true, third);
+  expect(last()?.frame ?? null).toBeNull();
+  expect(last()?.layout).toBe("closed");
+});
+
+test("the page's own open (a notice, the end of the meeting) passes the same gate", () => {
+  const asked: number[] = [];
+  const { bubble, last } = fakeBubble({ probe: (probe) => asked.push(probe) });
+  bubble.update();
+  expect(bubble.open()).toBe(true);
+  expect(asked).toHaveLength(1);
+  expect(last()?.frame ?? null).toBeNull();
+  // A second open while it waits asks nothing more.
+  expect(bubble.open()).toBe(true);
+  expect(asked).toHaveLength(1);
+  bubble.reachability(false, asked[0]);
+  expect(last()?.meeting?.step).toBe("off-tailnet");
+  expect(last()?.frame ?? null).toBeNull();
+});
+
+test("the card's missing action is hidden by the stylesheet too", () => {
+  expect(buddyBubbleCss).toContain(".meet-action[hidden] { display: none; }");
 });

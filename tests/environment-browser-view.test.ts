@@ -128,6 +128,14 @@ class FakeBrowser {
    * hub asks a page to close: an agent can come at that very moment. */
   onUnsavedRead: ((target: string) => void) | null = null;
   onPageClose: ((target: string) => void) | null = null;
+  /** How many times `Page.getNavigationHistory` fails first, as Chrome's
+   * does while a navigation swaps the page's process. */
+  historyFailures = 0;
+  /** What `Page.getNavigationHistory` answers, where a test names it. */
+  history: {
+    currentIndex: number;
+    entries: { id: number; url?: string }[];
+  } | null = null;
 
   /** Chrome's first window (the unit starts it with `about:blank`), which
    * the hub keeps as its own blank window unless `blank` is false. */
@@ -276,7 +284,18 @@ class FakeBrowser {
       case "Page.getFrameTree":
         return { frameTree: { frame: { id: `F-${sessionId}` } } };
       case "Page.getNavigationHistory":
-        return { currentIndex: 1, entries: [{ id: 1 }, { id: 2 }, { id: 3 }] };
+        if (this.historyFailures > 0) {
+          this.historyFailures -= 1;
+          throw new Error(
+            "Page.getNavigationHistory: Not attached to an active page",
+          );
+        }
+        return (
+          this.history ?? {
+            currentIndex: 1,
+            entries: [{ id: 1 }, { id: 2 }, { id: 3 }],
+          }
+        );
       case "Page.captureScreenshot":
         return { data: jpeg.toString("base64") };
       case "Page.getLayoutMetrics":
@@ -1374,12 +1393,142 @@ test("a navigation the browser's policy blocks is offered to the viewer's own br
   expect(view.of("hand-off")).toEqual([
     { t: "hand-off", url: "https://auth.lazurio.ai/realms/lazurio/account" },
   ]);
+  // Blocked with credentials in the address: C18 offers no such address,
+  // but a page of C20 is still handed off, without them (Pablo's review of
+  // #1262); a blocked page outside C20 with credentials stays as C18 says.
+  failAndCommit(
+    "L4",
+    "https://user:secret@Dashboard.lazurio.ai/x",
+    "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+  );
+  failAndCommit(
+    "L5",
+    "https://user:secret@github.com/login",
+    "net::ERR_BLOCKED_BY_ADMINISTRATOR",
+  );
+  await until(() => view.of("hand-off").length > 1);
+  await settle();
+  expect(view.of("hand-off")).toEqual([
+    { t: "hand-off", url: "https://auth.lazurio.ai/realms/lazurio/account" },
+    { t: "hand-off", url: "https://dashboard.lazurio.ai/x" },
+  ]);
   // The hub navigated nowhere for it.
   expect(browser.called("Page.navigate")).toEqual([]);
   expect(browser.called("Target.createTarget")).toEqual([]);
   // Once nobody views the tab, the Network domain goes off again.
   view.socket.close();
   await until(() => browser.called("Network.disable").length > 0);
+});
+
+// F39's addendum of 2026-11-25 (C20, Machines#1589): without the policy a page
+// that only the person's own browser opens still loads, the local entry's
+// "Otevřete to ve svém prohlížeči" or the page itself. The hub offers it to
+// the viewer's own browser as C18 does, without credentials, and takes the
+// tab back to the latest entry before it that is no such page, or to
+// about:blank. The view's origin names this Environment (`pilot.example`).
+test("without the policy, a page only the person's own browser opens is handed off and the tab goes back", async () => {
+  const browser = new FakeBrowser([tab(1)]);
+  const { base } = await serve(browser);
+  const session = `S-${id(1)}`;
+  const view = await person(base, id(1));
+  await until(() => browser.called("Network.enable").length > 0);
+  const commit = (url: string, parentId?: string) =>
+    browser.emit(
+      "Page.frameNavigated",
+      {
+        frame: {
+          id: parentId === undefined ? `F-${session}` : "child",
+          ...(parentId === undefined ? {} : { parentId }),
+          loaderId: `L-${url}`,
+          url,
+        },
+        type: "Navigation",
+      },
+      session,
+    );
+  const launchpad =
+    "https://launchpad.pilot.example.lazurio.io/integrations/app/neon";
+  // This Environment's module, another web and a subframe on the Launchpad:
+  // nothing, and the hub navigates nowhere.
+  commit("https://forecast.pilot.example.lazurio.io/");
+  commit("https://example.com/");
+  commit(launchpad, `F-${session}`);
+  await settle();
+  expect(view.of("hand-off")).toEqual([]);
+  expect(browser.called("Page.navigateToHistoryEntry")).toEqual([]);
+  // The Launchpad after the module and the Dashboard: handed off once, and
+  // back past the Dashboard to the module.
+  browser.history = {
+    currentIndex: 2,
+    entries: [
+      { id: 11, url: "https://forecast.pilot.example.lazurio.io/" },
+      { id: 12, url: "https://dashboard.lazurio.ai/" },
+      { id: 13, url: launchpad },
+    ],
+  };
+  commit(launchpad);
+  await until(() => browser.called("Page.navigateToHistoryEntry").length > 0);
+  expect(view.of("hand-off")).toEqual([{ t: "hand-off", url: launchpad }]);
+  expect(browser.called("Page.navigateToHistoryEntry")).toEqual([
+    {
+      method: "Page.navigateToHistoryEntry",
+      params: { entryId: 11 },
+      sessionId: session,
+    },
+  ]);
+  // The Dashboard with credentials in the address, with no history before
+  // it: handed off without them, and the tab goes to about:blank.
+  browser.history = {
+    currentIndex: 0,
+    entries: [{ id: 21, url: "https://dashboard.lazurio.ai/x" }],
+  };
+  commit("https://user:secret@Dashboard.lazurio.ai/x");
+  await until(() => browser.called("Page.navigate").length > 0);
+  expect(view.of("hand-off")).toEqual([
+    { t: "hand-off", url: launchpad },
+    { t: "hand-off", url: "https://dashboard.lazurio.ai/x" },
+  ]);
+  expect(browser.called("Page.navigate")).toEqual([
+    {
+      method: "Page.navigate",
+      params: { url: "about:blank" },
+      sessionId: session,
+    },
+  ]);
+  // Back on the module: nothing more.
+  commit("https://forecast.pilot.example.lazurio.io/");
+  await settle();
+  expect(view.of("hand-off")).toHaveLength(2);
+  expect(browser.called("Page.navigate")).toHaveLength(1);
+  expect(browser.called("Page.navigateToHistoryEntry")).toHaveLength(1);
+  // While the commit swaps the page's process Chrome answers "Not attached
+  // to an active page": asked again, the tab still goes back.
+  browser.historyFailures = 2;
+  browser.history = {
+    currentIndex: 1,
+    entries: [
+      { id: 31, url: "https://forecast.pilot.example.lazurio.io/" },
+      { id: 32, url: "https://pilot.example.lazurio.io/oauth2/sign_in" },
+    ],
+  };
+  commit("https://pilot.example.lazurio.io/oauth2/sign_in");
+  await until(() => browser.called("Page.navigateToHistoryEntry").length > 1);
+  expect(browser.called("Page.navigateToHistoryEntry").at(-1)?.params).toEqual({
+    entryId: 31,
+  });
+  // A tab that went on before the hub could take it back keeps its page.
+  browser.history = {
+    currentIndex: 1,
+    entries: [
+      { id: 41, url: "https://launchpad.pilot.example.lazurio.io/" },
+      { id: 42, url: "https://forecast.pilot.example.lazurio.io/" },
+    ],
+  };
+  commit("https://launchpad.pilot.example.lazurio.io/");
+  await until(() => view.of("hand-off").length > 3);
+  await settle();
+  expect(browser.called("Page.navigateToHistoryEntry")).toHaveLength(2);
+  expect(browser.called("Page.navigate")).toHaveLength(1);
 });
 
 // #504: the view sweeps the browser's cookies each time it reaches it, before
