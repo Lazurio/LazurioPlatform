@@ -38,6 +38,27 @@ const kept = 16;
 const stepKey = (item: ContentItemRef, key: string) =>
   `${item.kind === "organization" ? `organization:${item.login.toLowerCase()}` : "personalspace"}:${key}`;
 
+/** A stop of a run during which GitHub refused a request for its rate
+ * limit carries that cause, with the limit `rate_limit` names now; any
+ * other stop is as the run left it. */
+export async function withLimitCause(
+  failure: ContentFailure,
+  host: ContentHost,
+  refusedBefore: number,
+): Promise<ContentFailure> {
+  const refused = host.github.rateLimitRefusals?.() ?? 0;
+  if (refused <= refusedBefore) return failure;
+  const limit = await host.github.rateLimit?.().catch(() => undefined);
+  return Object.freeze({
+    ...failure,
+    cause: Object.freeze({
+      kind: "github-rate-limit" as const,
+      ...(limit?.kind === undefined ? {} : { limit: limit.kind }),
+      ...(limit?.reset === undefined ? {} : { reset: limit.reset }),
+    }),
+  });
+}
+
 export function createContentJobs(
   input: Readonly<{ folder: string; host: () => ContentHost }>,
 ) {
@@ -86,14 +107,24 @@ export function createContentJobs(
           if (oldest === undefined) break;
           jobs.delete(oldest);
         }
+        // GitHub's refusals for its rate limit before this run: one during
+        // it is the run's stop's cause (#1223, Pablo's review of #1224).
+        const refusedBefore = host.github.rateLimitRefusals?.() ?? 0;
         const done = runContentInstall(
           input.folder,
           plan,
           (step) => job.steps.set(stepKey(step.item, step.key), step),
           host,
         )
+          .then(async (result) => ({
+            state: result.state,
+            failure:
+              result.failure === undefined
+                ? undefined
+                : await withLimitCause(result.failure, host, refusedBefore),
+          }))
           .then(
-            (result) => ({ state: result.state, failure: result.failure }),
+            (result) => result,
             () => ({
               state: "failed" as const,
               failure: Object.freeze({

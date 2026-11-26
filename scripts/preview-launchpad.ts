@@ -120,7 +120,9 @@
 // connection, as in an incident of GitHub's (#851); `gh-limited` starts
 // signed in as octocat whose API rate limit is used up for the next three
 // minutes, so GitHub answers its token check with 403 (#1223), and then
-// answers again, as at the reset. Without any, the
+// answers again, as at the reset; `gh-secondary` is GitHub's secondary
+// limit instead (core requests left, no reset), lifted after two minutes.
+// Without any, the
 // stand-in gh is signed in as
 // example-user and reaches GitHub over SSH (a stand-in key, GitHub's host
 // keys, the greeting answered by the preview), so GitHub reads connected.
@@ -279,7 +281,9 @@ const ghFake = process.argv.slice(3).includes("gh-signed-out")
       ? "refused"
       : process.argv.slice(3).includes("gh-limited")
         ? "limited"
-        : null;
+        : process.argv.slice(3).includes("gh-secondary")
+          ? "secondary"
+          : null;
 const ghSlow = process.argv.slice(3).includes("gh-slow");
 // The fake codex and claude signed out: Začínáme's AI step with ChatGPT's
 // sign-in by code (root decision 0201 point 10).
@@ -755,7 +759,12 @@ if (ghFake !== null) {
     await fakeAiClis(home, ["codex"]);
     await writeFile(join(home, "codex.provided"), "");
   }
-  if (ghFake === "no-ssh" || ghFake === "refused" || ghFake === "limited") {
+  if (
+    ghFake === "no-ssh" ||
+    ghFake === "refused" ||
+    ghFake === "limited" ||
+    ghFake === "secondary"
+  ) {
     await writeFile(join(home, "gh.state"), "octocat\n");
     await writeFile(
       join(home, "gh.scopes"),
@@ -764,6 +773,13 @@ if (ghFake !== null) {
   }
   // GitHub in an incident (#851): the account lists this home's key, ssh
   // offers it and GitHub refuses every connection.
+  if (ghFake === "secondary") {
+    await writeFile(join(home, "gh.limited"), "");
+    setTimeout(
+      () => void rm(join(home, "gh.limited"), { force: true }),
+      2 * 60_000,
+    ).unref?.();
+  }
   if (ghFake === "limited") {
     const reset = Math.floor(Date.now() / 1000) + 3 * 60;
     await writeFile(join(home, "gh.limited"), `${reset}\n`);
@@ -775,7 +791,7 @@ if (ghFake !== null) {
   }
   // A key the account lists: GitHub refuses it (`gh-refused`), or greets
   // it once the rate limit resets (`gh-limited`).
-  if (ghFake === "refused" || ghFake === "limited") {
+  if (ghFake === "refused" || ghFake === "limited" || ghFake === "secondary") {
     if (realSshKeygen === null)
       throw new Error(`gh-${ghFake} needs ssh-keygen`);
     const ssh = join(home, ".ssh");

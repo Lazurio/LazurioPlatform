@@ -1,7 +1,19 @@
 import { expect, test } from "bun:test";
-import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ghContentGitHub } from "../src/content/github";
+import type { ContentHost } from "../src/content/host";
+import { withLimitCause } from "../src/content/jobs";
+import type { ContentFailure } from "../src/content/model";
 import type { ContentItem } from "../src/launchpad/content-client";
 import { contentView } from "../src/launchpad/content-view";
 import {
@@ -29,6 +41,7 @@ import {
   limitRefreshDelay,
 } from "../src/launchpad/tools-view";
 import { findTool } from "../src/tools/catalog";
+import { signInText } from "../src/tools/cli";
 import {
   checkFailure,
   ghStatus,
@@ -71,17 +84,25 @@ const entry = (fields: Record<string, unknown>) =>
   });
 
 test("gh's JSON status: GitHub's rate limit is signed in with `limit`, a revoked token is signed out", () => {
-  for (const error of [
-    "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)",
-    "HTTP 403: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (https://api.github.com/)",
-    "HTTP 429: rate limit exceeded (https://api.github.com/)",
-  ])
+  // The kind only where GitHub's message names it; `rate_limit` tells the
+  // rest (ghStatus).
+  for (const [error, limit] of [
+    [
+      "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)",
+      {},
+    ],
+    [
+      "HTTP 403: You have exceeded a secondary rate limit. Please wait a few minutes before you try again. (https://api.github.com/)",
+      { kind: "secondary" },
+    ],
+    ["HTTP 429: rate limit exceeded (https://api.github.com/)", {}],
+  ] as const)
     expect(readGhJsonStatus(entry({ state: "error", error }))).toEqual({
       signIn: {
         state: "signed-in",
         account: "octocat",
         identity: "person",
-        limit: {},
+        limit,
       },
       scopes: undefined,
     });
@@ -144,7 +165,7 @@ test("ghStatus reads the reset from `gh api rate_limit` and keeps the limit unti
       state: "signed-in",
       account: "octocat",
       identity: "person",
-      limit: { reset: resetIso },
+      limit: { kind: "hourly", reset: resetIso },
     });
     expect(await opened.calls()).toEqual([
       "auth status --json hosts",
@@ -181,7 +202,7 @@ test("ghStatus reads the reset from `gh api rate_limit` and keeps the limit unti
       limits,
       now,
     );
-    expect(secondary.signIn.limit).toEqual({});
+    expect(secondary.signIn.limit).toEqual({ kind: "secondary" });
     clock += 59_000;
     await ghStatus(opened.run, opened.gh, 10_000, limits, now);
     expect((await opened.calls()).length).toBe(9);
@@ -202,7 +223,7 @@ test("an older gh without --json: its text form with GitHub's rate-limit error i
     expect(status.signIn).toMatchObject({
       state: "signed-in",
       account: "octocat",
-      limit: { reset: resetIso },
+      limit: { kind: "hourly", reset: resetIso },
     });
   } finally {
     await opened.close();
@@ -233,7 +254,7 @@ test("the tools' sign-in and the shell's GitHub: a limited gh is signed in, and 
       state: "signed-in",
       account: "octocat",
       identity: "person",
-      limit: { reset: resetIso },
+      limit: { kind: "hourly", reset: resetIso },
     });
     // Only gh's own status and the free rate_limit: no key list, no meta,
     // no ssh.
@@ -278,7 +299,7 @@ const limitedIn: ToolSignIn = {
   state: "signed-in",
   account: "octocat",
   identity: "person",
-  limit: { reset: resetIso },
+  limit: { kind: "hourly", reset: resetIso },
 };
 const reading = (signIn: ToolSignIn) => ({
   revision: 1,
@@ -298,6 +319,7 @@ const facts = (overrides: Partial<StartFacts> = {}): StartFacts => ({
   github: "limited",
   githubLogin: "octocat",
   githubLimitTime: "22:06",
+  githubLimitKind: "hourly",
   content: { state: "missing", item: personalspace },
   list: { allowed: true, items: [personalspace] },
   ...overrides,
@@ -323,7 +345,7 @@ test("Začínáme: a limited GitHub stays done with why and when, offers nothing
   expect(view?.steps[2]).toMatchObject({
     basic: "content",
     mark: "later",
-    status: "Čeká, až GitHub obnoví hodinový limit.",
+    status: "Čeká, až GitHub znovu přijme požadavky.",
   });
   // The count does not drop: AI and GitHub are done.
   expect(view?.done).toBe(2);
@@ -353,6 +375,11 @@ test("Začínáme: a limited GitHub stays done with why and when, offers nothing
               key: "find",
               code: "github-unavailable",
               detail: "GitHub did not answer for the Personalspace repository",
+              cause: {
+                kind: "github-rate-limit",
+                limit: "hourly",
+                reset: resetIso,
+              },
             },
           },
         } as never,
@@ -372,12 +399,12 @@ test("Začínáme: a limited GitHub stays done with why and when, offers nothing
     }),
   ).toMatchObject({
     action: null,
-    note: "Spustí se samo, až GitHub obnoví hodinový limit.",
+    note: "Spustí se samo, až GitHub znovu přijme požadavky.",
   });
   expect(appsSetupLine(facts(), cs)).toEqual({
     tone: "info",
     icon: "key",
-    text: "GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Příprava se spustí sama, až se limit obnoví.",
+    text: "GitHub teď kvůli svému limitu odmítá požadavky. Příprava se spustí sama, až je zase přijme.",
     actions: [{ action: "open-start", label: cs.setupShow }],
   });
   expect(
@@ -413,9 +440,26 @@ test("Nástroje: a limited gh shows its account and why, in no success colour, a
     ssh: `GitHub do ${time} odmítá požadavky, hodinový limit je vyčerpaný`,
   });
   expect(
-    connectionLine({ ...gh, signIn: { ...limitedIn, limit: {} } }, en),
+    connectionLine(
+      { ...gh, signIn: { ...limitedIn, limit: { kind: "hourly" } } },
+      en,
+    ),
   ).toMatchObject({
     ssh: "GitHub refuses requests for now: the hourly limit is used up",
+  });
+  // The secondary limit, with core requests left: never "hourly".
+  expect(
+    connectionLine(
+      { ...gh, signIn: { ...limitedIn, limit: { kind: "secondary" } } },
+      cs,
+    ),
+  ).toMatchObject({
+    ssh: "GitHub teď dočasně odmítá požadavky, přišlo jich příliš mnoho najednou",
+  });
+  expect(
+    connectionLine({ ...gh, signIn: { ...limitedIn, limit: {} } }, en),
+  ).toMatchObject({
+    ssh: "GitHub refuses requests for now because of its rate limit",
   });
   expect(curatedActions(gh, cs)).toMatchObject({
     primary: null,
@@ -502,6 +546,7 @@ test("a run the limit stopped runs once more when GitHub answers again; another 
         key: "find",
         code: "github-unavailable",
         detail: "GitHub did not answer for the Personalspace repository",
+        cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
       },
     },
   } as never;
@@ -733,4 +778,196 @@ test("a stop with another cause stays shown while GitHub is limited and is not r
     github: "connected" as const,
   };
   expect(autoStartStep(seen.state, answered, false).start).toBe(false);
+});
+
+// Pablo's review of #1224, third round (1): the cause of a stop is recorded
+// where GitHub refused the run for its rate limit, never read from the
+// failure's text.
+test("the content's gh counts GitHub's rate-limit refusals from its answer, and a stop during them carries the cause", async () => {
+  const parent = await realpath(
+    await mkdtemp(join(tmpdir(), "gh-limit-content-")),
+  );
+  try {
+    const bin = join(parent, "bin");
+    const home = join(parent, "home");
+    await mkdir(bin);
+    await mkdir(home);
+    await writeFile(
+      join(bin, "gh"),
+      `#!/bin/sh
+case "$*" in
+  "api rate_limit") echo '{"resources":{"core":{"remaining":0,"reset":${resetSeconds}}}}'; exit 0;;
+  "api user") [ -f "${join(parent, "limited")}" ] && { echo '{"message":"API rate limit exceeded for user ID 583231.","documentation_url":"https://docs.github.com/rest","status":"403"}'; echo "gh: API rate limit exceeded for user ID 583231. (HTTP 403)" >&2; exit 1; }
+    echo '{"message":"Not Found","status":"404"}'; echo "gh: Not Found (HTTP 404)" >&2; exit 1;;
+  *) echo '{"message":"Requires authentication","status":"401"}'; exit 1;;
+esac
+`,
+    );
+    await chmod(join(bin, "gh"), 0o755);
+    const github = ghContentGitHub(
+      { path: bin, home, platform: process.platform, run: runTool },
+      { sleep: async () => {} },
+    );
+    // A 404 or a 401 is not the limit.
+    await github.viewer();
+    expect(github.rateLimitRefusals?.()).toBe(0);
+    await writeFile(join(parent, "limited"), "");
+    expect((await github.viewer()).kind).toBe("unavailable");
+    expect(github.rateLimitRefusals?.()).toBe(1);
+    expect(await github.rateLimit?.()).toEqual({
+      kind: "hourly",
+      reset: resetIso,
+    });
+
+    const failure: ContentFailure = {
+      item: { kind: "personalspace" },
+      key: "find",
+      code: "github-unavailable",
+      detail: "GitHub did not answer for the Personalspace repository",
+    };
+    const host = { github } as unknown as ContentHost;
+    // Refused during the run: the stop carries the limit it hit.
+    expect(await withLimitCause(failure, host, 0)).toEqual({
+      ...failure,
+      cause: { kind: "github-rate-limit", limit: "hourly", reset: resetIso },
+    });
+    // No refusal during the run (an outage, a permission): as it was.
+    expect(await withLimitCause(failure, host, 1)).toEqual(failure);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+// Pablo's review of #1224, third round (1): an older outage and a mixed
+// permission and membership stop, each through a later limit and its
+// reset, stay shown with their own way forward and are never retried.
+test("an older outage and a mixed permission/membership stop stay shown through a later limit and its reset", () => {
+  const stop = (code: string, detail: string, cause?: unknown) =>
+    ({
+      state: "failed",
+      item: personalspace,
+      job: {
+        state: "failed",
+        steps: [],
+        failure: {
+          item: { kind: "personalspace" },
+          key: "access",
+          code,
+          detail,
+          ...(cause === undefined ? {} : { cause }),
+        },
+      },
+    }) as never;
+  for (const content of [
+    stop(
+      "github-unavailable",
+      "GitHub did not answer while the root repository was looked up",
+    ),
+    stop(
+      "role-unverified",
+      "no Organization role of octocat in example could not be verified: no write permission on the root, and GitHub did not answer the Organization membership",
+    ),
+    // A limit stop of an earlier limit, whose reset passed before this one
+    // began.
+    stop("github-unavailable", "GitHub did not answer", {
+      kind: "github-rate-limit",
+      limit: "hourly",
+      reset: new Date(Date.parse(resetIso) - 3 * 60 * 60_000).toISOString(),
+    }),
+  ]) {
+    const limited = facts({ content, githubLimitReset: resetIso });
+    expect(contentBlockedBy(limited)).toBeNull();
+    expect(startView(limited, cs)?.steps[2]?.mark).toBe("failed");
+    expect(appsSetupLine(limited, cs)?.tone).toBe("failed");
+    const seen = autoStartStep(
+      { ai: true, github: true, armed: false },
+      limited,
+      false,
+    );
+    expect(seen.state.limitStop).toBeUndefined();
+    const reset = autoStartStep(
+      seen.state,
+      { ...facts({ content }), github: "connected" },
+      false,
+    );
+    expect(reset.start).toBe(false);
+  }
+  // The stop this limit caused: waits, and runs once after the reset.
+  const own = stop("github-unavailable", "GitHub did not answer", {
+    kind: "github-rate-limit",
+    limit: "hourly",
+    reset: resetIso,
+  });
+  const waiting = facts({ content: own, githubLimitReset: resetIso });
+  expect(contentBlockedBy(waiting)).toBe("github-limit");
+  const seen = autoStartStep(
+    { ai: true, github: true, armed: false },
+    waiting,
+    false,
+  );
+  expect(
+    autoStartStep(
+      seen.state,
+      { ...facts({ content: own }), github: "connected" },
+      false,
+    ).start,
+  ).toBe(true);
+});
+
+// Pablo's review of #1224, third round (2): the secondary limit, with core
+// requests left, is never said to be the hourly one.
+test("the secondary limit with core requests left is said as such on Začínáme and in the CLI, and an unknown kind truthfully", async () => {
+  expect(
+    startView(
+      facts({ githubLimitKind: "secondary", githubLimitTime: null }),
+      cs,
+    )?.steps[1]?.status,
+  ).toBe(
+    "Připojeno jako @octocat. GitHub teď dočasně odmítá požadavky, protože jich přišlo příliš mnoho najednou. Obvykle to během pár minut samo přejde, nic znovu nepřipojujte.",
+  );
+  expect(
+    startView(
+      facts({ githubLimitKind: "secondary", githubLimitTime: null }),
+      en,
+    )?.steps[1]?.status,
+  ).toBe(
+    "Connected as @octocat. GitHub is refusing requests for a while because too many came at once. It usually passes within a few minutes; there is nothing to connect again.",
+  );
+  const other = facts({ githubLimitTime: null });
+  const { githubLimitKind: _, ...unknownKind } = other;
+  expect(startView(unknownKind, cs)?.steps[1]?.status).toBe(
+    "Připojeno jako @octocat. GitHub teď odmítá požadavky kvůli svému limitu. Přejde to samo, nic znovu nepřipojujte.",
+  );
+  // Nothing on any surface says "hourly" for the secondary limit.
+  for (const copy of [cs, en])
+    for (const key of [
+      "startGithubLimitSecondary",
+      "toolsGithubLimitedSecondary",
+      "startContentGithubLimit",
+      "contentNeedsGithubLimit",
+      "setupGithubLimit",
+    ] as const)
+      expect(copy[key]).not.toMatch(/hodinov|hourly/i);
+
+  // The CLI, from a real reading: rate_limit with core requests left.
+  const opened = await home();
+  try {
+    await opened.flag("gh.limited", "");
+    const status = await ghStatus(opened.run, opened.gh, 10_000);
+    expect(status.signIn.limit).toEqual({ kind: "secondary" });
+    const line = signInText(status.signIn, false);
+    expect(line).toContain("secondary rate limit");
+    expect(line).not.toContain("hourly");
+    expect(
+      signInText(
+        { ...status.signIn, limit: { kind: "hourly", reset: resetIso } },
+        false,
+      ),
+    ).toContain(`the hourly rate limit is used up (resets at ${resetIso})`);
+    expect(signInText({ ...status.signIn, limit: {} }, false)).toContain(
+      "GitHub refuses requests for now: its rate limit",
+    );
+  } finally {
+    await opened.close();
+  }
 });

@@ -163,7 +163,9 @@ api)
       if [ -n "$reset" ]; then printf '{"resources":{"core":{"limit":5000,"used":5000,"remaining":0,"reset":%s}}}\n' "$reset"; else echo '{"resources":{"core":{"limit":5000,"used":12,"remaining":4988,"reset":1795000000}}}'; fi
       exit 0
     fi
-    echo "HTTP 403: API rate limit exceeded for user ID 583231. (https://api.github.com/)" >&2; exit 1
+    # gh prints the body of an API error on stdout, its line on stderr.
+    echo '{"message":"API rate limit exceeded for user ID 583231.","documentation_url":"https://docs.github.com/rest/overview/resources-in-the-rest-api#rate-limiting","status":"403"}'
+    echo "gh: API rate limit exceeded for user ID 583231. (HTTP 403)" >&2; exit 1
   fi
   case "$2" in
   meta)

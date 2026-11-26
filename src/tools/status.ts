@@ -310,10 +310,15 @@ export async function toolsStatus(
 /** Whether a tool is signed in, and as whom when the tool can tell (decision
  * F18, addendum 2026-09-27). `unknown`: not installed, no probe, a timeout, a
  * failure to run, or output the probe cannot read. */
-/** GitHub refusing a signed-in gh's requests for now: the account's API
- * rate limit is used up (#1223). `reset`: when GitHub says it ends (an ISO
- * time), absent when it does not say (a secondary limit). */
-export type GithubLimit = Readonly<{ reset?: string }>;
+/** GitHub refusing a signed-in gh's requests for now for a rate limit
+ * (#1223). `kind`, where GitHub's own `rate_limit` or its message tells it:
+ * `hourly` (the account's core requests are used up, `reset` when they come
+ * back, an ISO time) or `secondary` (too many requests at once while core
+ * requests remain; GitHub names no reset). Absent when neither tells. */
+export type GithubLimit = Readonly<{
+  kind?: "hourly" | "secondary";
+  reset?: string;
+}>;
 
 export type ToolSignIn = Readonly<{
   state: "signed-in" | "signed-out" | "unknown";

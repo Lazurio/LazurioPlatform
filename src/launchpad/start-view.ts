@@ -152,6 +152,9 @@ export type StartFacts = TourFacts &
      * clock says its reset ("21:34"); null where GitHub did not say when.
      * Absent where gh is not limited (#1223). */
     githubLimitTime?: string | null;
+    /** Which limit GitHub names (`GithubLimit.kind`): the hourly one, the
+     * secondary one (too many at once), or absent where it does not say. */
+    githubLimitKind?: "hourly" | "secondary";
     /** GitHub's sign-in this page runs, its window open or closed (#516):
      * waiting for the person's code, or finishing (the SSH key). Absent
      * when none runs. */
@@ -427,10 +430,17 @@ function githubStep(facts: StartFacts, copy: Copy): [StartStep, GithubAction] {
       facts.githubLogin === null
         ? copy.startGithubConnectedPlain
         : fill(copy.startGithubConnected, { login: facts.githubLogin });
+    // Only what GitHub said: the hourly limit and its reset, the secondary
+    // one, or a limit of an unknown kind (Pablo's review of #1224).
     const limit =
-      facts.githubLimitTime === undefined || facts.githubLimitTime === null
-        ? copy.startGithubLimit
-        : fill(copy.startGithubLimitUntil, { time: facts.githubLimitTime });
+      facts.githubLimitKind === "secondary"
+        ? copy.startGithubLimitSecondary
+        : facts.githubLimitKind === undefined
+          ? copy.startGithubLimitOther
+          : facts.githubLimitTime === undefined ||
+              facts.githubLimitTime === null
+            ? copy.startGithubLimit
+            : fill(copy.startGithubLimitUntil, { time: facts.githubLimitTime });
     return [{ ...base, mark: "done", status: `${connected}. ${limit}` }, null];
   }
   if (facts.github === "connected")

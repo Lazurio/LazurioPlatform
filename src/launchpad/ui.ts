@@ -89,6 +89,7 @@ import {
   createComposioOrganizationReader,
   githubAccount,
   githubFact,
+  githubLimitKind,
   githubLimitReset,
   githubRefused,
   hasOnboarding,
@@ -605,10 +606,17 @@ function readBuddy(again = false) {
 }
 // GitHub's used-up rate limit for Začínáme (#1223): its reset as this
 // page's clock says it, null where GitHub did not say; nothing otherwise.
-function githubLimitFact(): { githubLimitTime?: string | null } {
+function githubLimitFact(): {
+  githubLimitTime?: string | null;
+  githubLimitKind?: "hourly" | "secondary";
+} {
   const reset = githubLimitReset(toolsOverview);
   if (reset === undefined) return {};
-  return { githubLimitTime: reset === null ? null : clockTime(reset, locale) };
+  const kind = githubLimitKind(toolsOverview);
+  return {
+    githubLimitTime: reset === null ? null : clockTime(reset, locale),
+    ...(kind === undefined ? {} : { githubLimitKind: kind }),
+  };
 }
 function firstRunFacts(): TourFacts | null {
   if (profileState === null) return null;
@@ -623,6 +631,7 @@ function firstRunFacts(): TourFacts | null {
       profileState.responsible,
     ),
     content: content.fact(),
+    githubLimitReset: githubLimitReset(toolsOverview),
     ...(buddyHere()
       ? { buddy: buddyFact(buddyClient.reading(), buddyClient.refused()) }
       : {}),

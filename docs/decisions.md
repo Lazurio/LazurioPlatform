@@ -6068,9 +6068,11 @@ the limit.
    out, and only that offers "Připojit". A check that got no HTTP answer at all (a
    network error, a timeout) or a 5xx is `unknown`: GitHub out of reach says nothing
    about the sign-in (`checkFailure`, Pablo's review of #1224).
-2. **When it ends.** `gh api rate_limit`, which GitHub answers without counting it, gives
-   `limit.reset` when `core` is at zero; a secondary limit, which leaves core requests,
-   has no reset.
+2. **Which limit, and when it ends.** `gh api rate_limit`, which GitHub answers without
+   counting it, tells the kind (`parseRateLimit`): `core` at zero is `hourly`, with
+   `limit.reset`; `core` with requests left is GitHub's `secondary` limit (too many at
+   once), which names no reset. Where `rate_limit` does not answer, GitHub's message
+   names `secondary` or nothing; a limit of no known kind is said without a kind.
 3. **No further requests.** The Launchpad keeps the limited reading in the memory of its
    SSH proofs (`createSshProofs`, `GithubLimitMemo`) until the reset, at most an hour,
    or a minute when GitHub did not say; meanwhile a reading runs no gh at all. A gh
@@ -6081,26 +6083,37 @@ the limit.
    the next basic is the content, the shell's `setup.github` is `connected`, and nothing
    opens a sign-in. `contentBlockedBy` is `github-limit`: the content waits (no download,
    no "Zkusit znovu", no start request), also after a run the limit stopped, and starts by
-   itself once the limit resets and GitHub reads connected. Only a stop GitHub's
-   silence caused (`limitFailure`: `github-unavailable`, or a role GitHub did not
-   answer for) waits so, and runs once more then (`AutoStart.limitStop`); a stop with
-   another cause (`personalspace-not-private`, `git-identity-missing`…) stays shown with
+   itself once the limit resets and GitHub reads connected. Only a stop the limit
+   caused waits so and runs once more then (`AutoStart.limitStop`), and that is known
+   from the run, never from the failure's code or text: the content's gh counts the
+   requests GitHub refused for its rate limit, by the status (403 or 429) and message of
+   GitHub's own answer (`rateLimitRefusals`), and a job that stops after such a refusal
+   records `cause: { kind: "github-rate-limit", limit, reset }` on its failure with the
+   limit `rate_limit` names at the stop (`withLimitCause`). A stop whose recorded reset
+   lies more than GitHub's hour before the limit read now belongs to an earlier limit.
+   Any other stop, an older outage or a role GitHub denied included, stays shown with
    its own way forward and is never started by itself. A page left open reads the tools
    again, with their sign-ins, at the reset plus two seconds (a minute without a reset,
    never under 15 s nor over an hour; `createLimitRefresh`); after a limit, a reading
    that cannot tell or never answers is followed by another a minute later, at most an
    hour of them, until GitHub is known (Pablo's review of #1224).
-5. **Wording.** Začínáme's GitHub step keeps its done mark and says "Připojeno jako
-   @{login}. GitHub teď odmítá požadavky, protože je vyčerpaný hodinový limit. Obnoví se
-   v {time}, nic znovu nepřipojujte." ("… It resets at {time}; there is nothing to
-   connect again."), with "Obnoví se sám" where the reset is not known; {time} is the
-   page's clock. The content step says "Čeká, až GitHub obnoví hodinový limit.", its
-   panel "Spustí se samo, až GitHub obnoví hodinový limit.", and Apps' line says GitHub
-   refuses requests and the preparation starts by itself. Nástroje says "Připojeno jako
-   {account} · GitHub do {time} odmítá požadavky, hodinový limit je vyčerpaný" in no
-   success colour and offers no "Propojit SSH klíč". `lazurio tools status` says GitHub
-   refuses requests with the reset, and `lazurio doctor --sign-in` warns
-   `github-rate-limited`.
+5. **Wording**, saying only what GitHub said. Začínáme's GitHub step keeps its done mark
+   and, for the hourly limit, says "Připojeno jako @{login}. GitHub teď odmítá požadavky,
+   protože je vyčerpaný hodinový limit. Obnoví se v {time}, nic znovu nepřipojujte."
+   ("… It resets at {time}; there is nothing to connect again."), with "Obnoví se sám"
+   where the reset is not known; {time} is the page's clock. For the secondary limit:
+   "GitHub teď dočasně odmítá požadavky, protože jich přišlo příliš mnoho najednou.
+   Obvykle to během pár minut samo přejde, nic znovu nepřipojujte."; for a limit of no
+   known kind: "GitHub teď odmítá požadavky kvůli svému limitu. Přejde to samo, nic
+   znovu nepřipojujte.". The content step says "Čeká, až GitHub znovu přijme
+   požadavky.", its panel "Spustí se samo, až GitHub znovu přijme požadavky.", and Apps'
+   line that GitHub refuses requests for its limit and the preparation starts by itself
+   once it accepts them again: true for every kind. Nástroje says, in no success colour
+   and without "Propojit SSH klíč", "GitHub do {time} odmítá požadavky, hodinový limit je
+   vyčerpaný", "GitHub teď dočasně odmítá požadavky, přišlo jich příliš mnoho najednou"
+   or "GitHub teď odmítá požadavky kvůli svému limitu". `lazurio tools status` names the
+   hourly limit with its reset, the secondary limit, or the limit alone, and `lazurio
+   doctor --sign-in` warns `github-rate-limited`.
 
 Not in this addendum:
 - The content routes still ask `gh api user` and repository reads while the limit lasts;
@@ -6110,7 +6123,10 @@ Not in this addendum:
 The tests are `tests/github-rate-limit.test.ts` (the reading, the reset, the memory and
 its forget, the older gh, the tools' sign-in without proof, the shell's GitHub, 401 still
 signed out and an unreachable check unknown, Začínáme, the content, Apps, Nástroje, the
-start after the reset and after a stopped run, the page's reading at the reset) and `tests/doctor.test.ts`
+start after the reset and after a stopped run, the page's reading at the reset, the
+content's count of refusals and the recorded cause, an older outage, a mixed permission
+and membership stop and an earlier limit's stop through a later limit and its reset, the
+secondary limit on Začínáme, Nástroje and in the CLI) and `tests/doctor.test.ts`
 (`github-rate-limited` without any further gh API request or ssh).
 
 ## F20 — One-command first installation; the downloaded executable verifies its own release

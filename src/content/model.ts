@@ -155,11 +155,24 @@ export type ContentStep = Readonly<{
   code?: string;
 }>;
 
+/** Why a run stopped, where the run itself saw it: GitHub refused one of
+ * its requests for a rate limit (#1223), recorded at the stop with the
+ * limit GitHub's `rate_limit` names then (`kind`, `reset`). Začínáme waits
+ * for that limit and runs the content once more after it only for a stop
+ * that carries it, never by reading the failure's text (Pablo's review of
+ * #1224). */
+export type ContentFailureCause = Readonly<{
+  kind: "github-rate-limit";
+  limit?: "hourly" | "secondary";
+  reset?: string;
+}>;
+
 export type ContentFailure = Readonly<{
   item: ContentItemRef;
   key: StepKey;
   code: string;
   detail: string;
+  cause?: ContentFailureCause;
 }>;
 
 /** What the Folder's recorded preset admits. */

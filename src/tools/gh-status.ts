@@ -1,6 +1,7 @@
 import { findTool } from "./catalog";
 import { ghTokenScopes } from "./ssh-key";
 import {
+  type GithubLimit,
   readSignIn,
   signInLabel,
   type ToolProcessResult,
@@ -92,7 +93,7 @@ export function readGhJsonStatus(stdout: string): GhStatus | undefined {
           account === undefined
             ? "unknown"
             : ghIdentityOf(account, typeof source === "string" ? source : ""),
-        limit: {},
+        limit: limitOfMessage(error as string),
       },
       scopes: undefined,
     };
@@ -160,24 +161,42 @@ const longestLimitMs = 60 * 60_000;
 /** When the account's core rate limit resets, by `gh api rate_limit`, which
  * GitHub answers without counting it: an ISO time while `core` is used up,
  * undefined otherwise (a secondary limit, an unreadable answer). */
-async function limitReset(
-  run: GhRunner,
-  gh: string,
-  timeoutMs: number,
-): Promise<string | undefined> {
+/** Which limit `gh api rate_limit` says, from its `core` resource: used up
+ * (`hourly`, with its reset) or requests remaining (`secondary`, GitHub's
+ * limit on too many at once, which it does not list); undefined when the
+ * answer is not that document. */
+export function parseRateLimit(stdout: string): GithubLimit | undefined {
   try {
-    const answer = await run([gh, "api", "rate_limit"], timeoutMs);
-    if (answer === "timeout") return undefined;
-    const core = own(own(JSON.parse(answer.stdout), "resources"), "core");
+    const core = own(own(JSON.parse(stdout), "resources"), "core");
     const remaining = own(core, "remaining");
     const reset = own(core, "reset");
-    if (remaining !== 0 || typeof reset !== "number" || !(reset > 0))
-      return undefined;
-    return new Date(reset * 1000).toISOString();
+    if (typeof remaining !== "number") return undefined;
+    if (remaining > 0) return { kind: "secondary" };
+    return typeof reset === "number" && reset > 0
+      ? { kind: "hourly", reset: new Date(reset * 1000).toISOString() }
+      : { kind: "hourly" };
   } catch {
     return undefined;
   }
 }
+
+async function readRateLimit(
+  run: GhRunner,
+  gh: string,
+  timeoutMs: number,
+): Promise<GithubLimit | undefined> {
+  try {
+    const answer = await run([gh, "api", "rate_limit"], timeoutMs);
+    return answer === "timeout" ? undefined : parseRateLimit(answer.stdout);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The kind GitHub's own message names, for when `rate_limit` does not
+ * answer. */
+const limitOfMessage = (error: string): GithubLimit =>
+  /secondary rate limit/i.test(error) ? { kind: "secondary" } : {};
 
 /** gh's sign-in as described above. Each command is bounded by `timeoutMs`;
  * a timeout or a failure to run is `unknown`. A sign-in GitHub refuses for
@@ -196,13 +215,12 @@ export async function ghStatus(
   const started = limits?.limitGeneration() ?? 0;
   const status = await readGhStatus(run, gh, timeoutMs);
   if (status.signIn.limit === undefined) return status;
-  const reset = await limitReset(run, gh, timeoutMs);
+  const read = await readRateLimit(run, gh, timeoutMs);
+  const limit = read ?? status.signIn.limit;
+  const reset = limit.reset;
   const limited: GhStatus = {
     ...status,
-    signIn: {
-      ...status.signIn,
-      limit: reset === undefined ? {} : { reset },
-    },
+    signIn: { ...status.signIn, limit },
   };
   const until =
     reset === undefined
@@ -245,7 +263,7 @@ async function readGhStatus(
           state: "signed-in",
           ...(account === undefined ? {} : { account }),
           identity: account === undefined ? "unknown" : ghIdentity(printed),
-          limit: {},
+          limit: limitOfMessage(printed),
         },
         scopes: undefined,
       };

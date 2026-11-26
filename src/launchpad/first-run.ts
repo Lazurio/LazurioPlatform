@@ -191,6 +191,17 @@ export function githubLimitReset(
   return limit === undefined ? undefined : (limit.reset ?? null);
 }
 
+/** Which limit GitHub names for a limited gh (`GithubLimit.kind`), undefined
+ * where it names none or gh is not limited. */
+export function githubLimitKind(
+  overview: ToolsReading,
+): "hourly" | "secondary" | undefined {
+  const github = overview?.tools.find((tool) => tool.name === "gh");
+  return github?.signIn?.state === "signed-in"
+    ? github.signIn.limit?.kind
+    : undefined;
+}
+
 /** Whether GitHub itself refuses this Environment's key over SSH while the
  * signed-in account lists it (`refused` of the SSH status): the fact stays
  * `unknown`, nothing here being known broken, and Začínáme says GitHub
@@ -319,6 +330,9 @@ export type TourFacts = Readonly<{
   ai: AiFact;
   github: GithubFact;
   content: ContentFact;
+  /** GitHub's rate limit as read now, while `github` is `limited`: its
+   * reset (an ISO time), null where GitHub names none (#1223). */
+  githubLimitReset?: string | null | undefined;
   /** Buddy's basic where the Environment has Buddy (an Osobní Prostředí
    * whose entry names his origin); absent everywhere else. */
   buddy?: BuddyFact | undefined;
@@ -769,25 +783,37 @@ export function tourStop(
  * GitHub does. Null: it may start. */
 export type ContentBlock = "ai" | "github" | "github-limit" | "unknown";
 
-/** Whether a stopped run stopped because GitHub did not answer, as it does
- * while its rate limit is used up (#1223): `github-unavailable`, or a role
- * GitHub did not answer for. Any other stop (a public Personalspace, no Git
- * identity…) has its own cause, which the limit's reset does not change
+/** Whether a stopped run stopped for GitHub's rate limit (#1223): only
+ * when the run itself recorded that cause at its stop (`cause` of the
+ * failure, set where GitHub refused one of its requests for the limit),
+ * never guessed from the failure's code or text. Any other stop, an older
+ * outage or a role GitHub denied included, keeps its own way forward
  * (Pablo's review of #1224). */
-export function limitFailure(content: ContentFact | undefined): boolean {
+export function limitFailure(
+  content: ContentFact | undefined,
+  limitReset?: string | null | undefined,
+): boolean {
   if (content?.state !== "failed") return false;
-  const failure = content.job.failure;
-  if (failure === undefined) return false;
-  return (
-    failure.code === "github-unavailable" ||
-    (failure.code === "role-unverified" &&
-      /GitHub did not answer/i.test(failure.detail))
-  );
+  const cause = content.job.failure?.cause;
+  if (cause?.kind !== "github-rate-limit") return false;
+  // Tied to the limit it hit: a stop whose limit reset before the one read
+  // now began (its reset over GitHub's hour of a window earlier) belongs to
+  // an earlier limit, and is shown as it is.
+  if (
+    cause.reset !== undefined &&
+    typeof limitReset === "string" &&
+    Date.parse(cause.reset) < Date.parse(limitReset) - 60 * 60_000
+  )
+    return false;
+  return true;
 }
 
 export function contentBlockedBy(
   facts: Pick<TourFacts, "preset" | "audience" | "ai" | "github"> &
-    Readonly<{ content?: ContentFact }>,
+    Readonly<{
+      content?: ContentFact;
+      githubLimitReset?: string | null | undefined;
+    }>,
 ): ContentBlock | null {
   if (!basicsOnboarding(facts))
     return facts.github === "missing" ? "github" : null;
@@ -800,7 +826,8 @@ export function contentBlockedBy(
   // another cause is shown as it is (Pablo's review of #1224).
   if (
     facts.github === "limited" &&
-    (facts.content?.state !== "failed" || limitFailure(facts.content))
+    (facts.content?.state !== "failed" ||
+      limitFailure(facts.content, facts.githubLimitReset))
   )
     return "github-limit";
   return null;
@@ -859,7 +886,7 @@ export function autoStartStep(
   // while the content stays stopped.
   const limitStop =
     content === "failed" &&
-    limitFailure(facts.content) &&
+    limitFailure(facts.content, facts.githubLimitReset) &&
     (state.limitStop === true || facts.github === "limited");
   const next = (armed: boolean, stopped = limitStop): AutoStart =>
     Object.freeze({

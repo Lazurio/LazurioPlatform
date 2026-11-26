@@ -180,12 +180,16 @@ export function clockTime(iso: string, locale: string): string {
 // given, an ISO time.
 function parseLimit(input: unknown): GithubLimit | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
-  const reset = (input as Record<string, unknown>).reset;
-  if (reset === undefined) return {};
+  const { reset, kind } = input as Record<string, unknown>;
+  if (kind !== undefined && kind !== "hourly" && kind !== "secondary")
+    return null;
+  const named: GithubLimit =
+    kind === undefined ? {} : { kind: kind as "hourly" | "secondary" };
+  if (reset === undefined) return named;
   return typeof reset === "string" &&
     /^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(reset) &&
     Number.isFinite(Date.parse(reset))
-    ? { reset }
+    ? { ...named, reset }
     : null;
 }
 
@@ -559,11 +563,15 @@ export function connectionLine(
       text,
       state: "limited",
       ssh:
-        limit.reset === undefined
-          ? copy.toolsGithubLimited
-          : fill(copy.toolsGithubLimitedUntil, {
-              time: clockTime(limit.reset, locale),
-            }),
+        limit.kind === "secondary"
+          ? copy.toolsGithubLimitedSecondary
+          : limit.kind === undefined
+            ? copy.toolsGithubLimitedOther
+            : limit.reset === undefined
+              ? copy.toolsGithubLimited
+              : fill(copy.toolsGithubLimitedUntil, {
+                  time: clockTime(limit.reset, locale),
+                }),
     };
   // A person's signed-in gh works here only by a passing proof: one whose
   // status has no SSH part (its shape allows that) is not known to work,

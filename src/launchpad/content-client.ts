@@ -63,6 +63,13 @@ export type ContentFailure = Readonly<{
   key: string;
   code: string;
   detail: string;
+  /** The run saw GitHub refuse it for a rate limit (`ContentFailureCause`
+   * of the content core, #1223). */
+  cause?: Readonly<{
+    kind: "github-rate-limit";
+    limit?: "hourly" | "secondary";
+    reset?: string;
+  }>;
 }>;
 
 export type ContentJob = Readonly<{
@@ -249,11 +256,14 @@ export function parseContentJob(value: unknown): ContentJob | null {
     const ref = parseContentRef(raw.item);
     if (ref === null || typeof raw.key !== "string" || !stepKey.test(raw.key))
       return null;
+    const cause = parseCause(raw.cause);
+    if (cause === null) return null;
     failure = Object.freeze({
       item: ref,
       key: raw.key,
       code: line(raw.code, 80) ?? "",
       detail: contentDetail(raw.detail) ?? "",
+      ...(cause === undefined ? {} : { cause }),
     });
   }
   return Object.freeze({
@@ -261,6 +271,27 @@ export function parseContentJob(value: unknown): ContentJob | null {
     state: value.state,
     steps: Object.freeze(steps),
     ...(failure === undefined ? {} : { failure }),
+  });
+}
+
+// A stop's cause: absent, or GitHub's rate limit with its kind and reset;
+// null for anything else.
+function parseCause(value: unknown): ContentFailure["cause"] | null {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value) || value.kind !== "github-rate-limit") return null;
+  const limit = value.limit;
+  if (limit !== undefined && limit !== "hourly" && limit !== "secondary")
+    return null;
+  const reset = value.reset;
+  if (
+    reset !== undefined &&
+    (typeof reset !== "string" || !Number.isFinite(Date.parse(reset)))
+  )
+    return null;
+  return Object.freeze({
+    kind: "github-rate-limit" as const,
+    ...(limit === undefined ? {} : { limit }),
+    ...(reset === undefined ? {} : { reset }),
   });
 }
 
