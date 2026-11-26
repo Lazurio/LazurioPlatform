@@ -183,10 +183,10 @@ export function sourceChatgptApps(
   );
 }
 
-// The person's own instructions reach AGENTS.md only. Buddy GEN4's folder
-// renders from the same source without them and without a custom voice
-// (`renderBuddyAgents` in buddy-gen4.ts): the person's own instructions
-// reach Buddy's thread through the harness itself.
+// The one source of the Folder's AGENTS.md and of Buddy GEN4's folder: both
+// render the person's voice and own instructions from it, with the same gate
+// (`renderBuddyAgents` in buddy-gen4.ts; root decision 0233's addendum of
+// 2026-11-25). Buddy GEN3's layer renders neither.
 export function instructionSource(
   preferences: FolderPreferences,
 ): InstructionSource {

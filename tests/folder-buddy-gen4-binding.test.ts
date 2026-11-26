@@ -187,6 +187,49 @@ test("the Folder's AGENTS.md says where Buddy GEN4 lives only for a converted pe
   ).not.toContain("`~/Buddy`");
 });
 
+// The manual promises Buddy the own instructions only where Buddy GEN4's
+// folder renders them (root decision 0233's addendum of 2026-11-25): a person
+// not yet converted has Buddy GEN3's layer, and a Work Environment no Buddy.
+test("the manual says Buddy gets the own instructions only for a converted person, and names no Buddy on a Work Environment", () => {
+  const manual = (
+    preset: "hosted-personal" | "hosted-organization-personal",
+    machine: ReturnType<typeof binding>,
+    locale: "cs" | "en",
+  ) =>
+    renderOutputs({
+      preset,
+      machine,
+      profile: presetProfile(preset, "linux", { locale }),
+    })["manual/working-here.md"];
+  const gets = {
+    cs: "Buddy je dostane spolu s tónem komunikace ve vlastní složce",
+    en: "Buddy gets them, with the communication voice, in the `AGENTS.md` of Buddy's own folder",
+  };
+  const notYet = {
+    cs: "Buddy v tomto Prostředí je zatím nedostává",
+    en: "Buddy in this Environment does not get them yet",
+  };
+  for (const locale of ["cs", "en"] as const) {
+    const gen4 = manual("hosted-personal", converted(), locale);
+    expect(gen4).toContain(gets[locale]);
+    expect(gen4).not.toContain(notYet[locale]);
+    const gen3 = manual(
+      "hosted-personal",
+      binding({ ...personal, entry: entries.personal }),
+      locale,
+    );
+    expect(gen3).toContain(notYet[locale]);
+    expect(gen3).not.toContain(gets[locale]);
+    const work = manual(
+      "hosted-organization-personal",
+      binding({ ...organization, entry: entries.organization }),
+      locale,
+    );
+    expect(work).not.toContain(gets[locale]);
+    expect(work).not.toContain(notYet[locale]);
+  }
+});
+
 posix(
   "the folder is exactly Buddy of a canonical home of this account: another home, a nested path or a symlinked ancestor is refused",
   async () => {
