@@ -6107,7 +6107,10 @@ the limit.
    (`prepareContext` with the row), also while a run of other items is under way, and a
    stop the limit caused shows "Čeká, až GitHub znovu přijme požadavky" without any
    recovery while GitHub reads limited; `failure` is the one shown first (the first
-   known without the limit).
+   known without the limit). Who may prepare a stopped Organization's root (root
+   decision 0201 point 8) is asked once per Organization and job (`createRootAccess`),
+   and `GET /api/content/root-access` answers for that Organization's own stop also
+   while a run of other items carries it.
    A run of some items only carries the last run's unresolved stops of other items,
    known without the limit, with their steps (`carriedStops`): they show from the
    partial run's start, while it runs and after it ends, whether it succeeded or stopped

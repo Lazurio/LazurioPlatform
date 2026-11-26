@@ -15,6 +15,7 @@ import { observeLimit } from "../src/content/limit-scope";
 import type { ContentItem } from "../src/launchpad/content-client";
 import {
   contentView,
+  createRootAccess,
   prepareContext,
   preparePrompt,
 } from "../src/launchpad/content-view";
@@ -25,6 +26,7 @@ import {
   contentBlockedBy,
   githubFact,
   githubLimitReset,
+  resolveOf,
   shellSetup,
   startDecision,
 } from "../src/launchpad/first-run";
@@ -1146,4 +1148,86 @@ test("each stopped row resolves its own item, also during a partial run, and a l
   });
   expect(answered.rows[1]).toMatchObject({ status: cs.contentStopped });
   expect(answered.rows[1]?.failure).not.toBeNull();
+});
+
+// Pablo's review of aee0ee5e: two Organizations stopped unprepared each keep
+// their own answer of who may prepare their root, asked once, through
+// asynchronous answers and the renders they cause.
+test("root access is asked once per Organization and kept for each, through asynchronous answers and renders", async () => {
+  const pending = new Map<string, (write: boolean) => void>();
+  const asked: string[] = [];
+  let renders = 0;
+  let access: ReturnType<typeof createRootAccess>;
+  // Every render asks both rows again, as the page's does.
+  const render = () => {
+    renders += 1;
+    return [access.get("Alpha"), access.get("Beta")];
+  };
+  access = createRootAccess({
+    read: (login) =>
+      new Promise<boolean>((resolve) => {
+        asked.push(login);
+        pending.set(login, resolve);
+      }),
+    changed: () => {
+      render();
+    },
+  });
+  expect(render()).toEqual([null, null]);
+  expect(render()).toEqual([null, null]);
+  expect(asked).toEqual(["Alpha", "Beta"]);
+  // Beta answers first: its render keeps Alpha asked, not asked again.
+  pending.get("Beta")?.(true);
+  await Bun.sleep(0);
+  expect(render()).toEqual([null, true]);
+  pending.get("Alpha")?.(false);
+  await Bun.sleep(0);
+  expect(render()).toEqual([false, true]);
+  expect(asked).toEqual(["Alpha", "Beta"]);
+  expect(renders).toBeLessThan(10);
+  // Any spelling of a login is the same Organization.
+  expect(access.get("alpha")).toBe(false);
+  // A new job asks again; an answer from before it is dropped.
+  access.get("Gamma");
+  access.forget();
+  pending.get("Gamma")?.(true);
+  await Bun.sleep(0);
+  expect(access.get("Gamma")).toBeNull();
+  expect(asked.filter((login) => login === "Gamma").length).toBe(2);
+});
+
+// The carried unprepared Organization's row during the partial run: with
+// the writer's answer it leads to Chat and its prompt is its own.
+test("a carried unprepared Organization's row leads a writer to Chat during the partial run", () => {
+  const organization = {
+    kind: "organization" as const,
+    login: "Alpha",
+    name: "Alpha",
+    state: "absent" as const,
+  };
+  const list = { allowed: true, items: [organization, personalspace] };
+  const stop = {
+    item: { kind: "organization", login: "Alpha" },
+    key: "access",
+    code: "root-not-found",
+    detail: "no repository of Alpha declares itself as its root",
+  } as const;
+  const running = {
+    id: "r",
+    state: "running",
+    steps: [],
+    failures: [stop],
+  } as const;
+  const lead = (write: boolean | null) =>
+    contentView(list, running as never, cs, {
+      github: "connected",
+      blockedBy: null,
+      resolveOf: () =>
+        resolveOf({ ai: "connected", code: stop.code, rootAccess: write }),
+    }).rows[0]?.failure?.resolve;
+  expect(lead(true)).toBe("chat");
+  expect(lead(false)).toBe("admin");
+  expect(
+    prepareContext(list, running as never, cs, organization)?.failure?.detail,
+  ).toBe(stop.detail);
 });

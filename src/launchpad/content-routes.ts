@@ -149,8 +149,11 @@ export function createContentRoutes(
         const last = jobs.latest();
         // That Organization's own stop among the job's (`failures`, one per
         // item), as it shows on its row.
+        // Also while a run of other items is under way: the stop it
+        // carries shows on its row with its way forward (Pablo's review of
+        // #1224).
         const failure =
-          last?.state === "failed"
+          last !== undefined && last.state !== "succeeded"
             ? (
                 last.failures ??
                 (last.failure === undefined ? [] : [last.failure])

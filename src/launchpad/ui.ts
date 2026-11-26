@@ -77,6 +77,7 @@ import {
 } from "./content-client";
 import { createContentPanel } from "./content-panel";
 import {
+  createRootAccess,
   jobStops,
   organizationArrived,
   prepareContext,
@@ -646,13 +647,40 @@ function firstRunFacts(): TourFacts | null {
 // Whether this Environment's GitHub identity can prepare the Organization
 // of a stop that only its root's writers fix (root decision 0201 point 8),
 // as `GET /api/content/root-access` answered for that login.
-let rootAccess: Readonly<{ login: string; write: boolean | null }> | null =
-  null;
+// One answer per Organization, asked once per job (`createRootAccess`):
+// several stopped rows each have theirs (Pablo's review of #1224).
+const rootAccess = createRootAccess({
+  read: async (login) => {
+    try {
+      const { value, ok } = await get(
+        `/api/content/root-access?org=${encodeURIComponent(login)}`,
+      );
+      return (
+        ok &&
+        (value as { kind?: unknown; write?: unknown } | null)?.kind ===
+          "root-access" &&
+        (value as { write?: unknown }).write === true
+      );
+    } catch {
+      return false;
+    }
+  },
+  changed: () => {
+    content.render();
+    firstRun();
+  },
+});
+let rootAccessJob: string | null = null;
 /** Where a stopped preparation leads now: Chat, the AI step, or the
  * sentence that an Organization Admin prepares the Organization. */
 function resolveKind(row?: ContentRef) {
   // A row's own stop (Pablo's review of #1224), else the one shown first.
   const job = content.job();
+  // Who may prepare a root is asked again for each job.
+  if ((job?.id ?? null) !== rootAccessJob) {
+    rootAccess.forget();
+    rootAccessJob = job?.id ?? null;
+  }
   const failure =
     row === undefined || job === null
       ? job?.failure
@@ -660,40 +688,19 @@ function resolveKind(row?: ContentRef) {
   const login =
     failure?.item.kind === "organization" ? failure.item.login : null;
   const code = failure?.code ?? null;
-  if (
-    login !== null &&
-    code !== null &&
-    unpreparedCode(code) &&
-    rootAccess?.login !== login
-  )
-    void readRootAccess(login);
+  const write =
+    login !== null && code !== null && unpreparedCode(code)
+      ? rootAccess.get(login)
+      : null;
   return resolveOf({
     ai: aiFact(),
     code,
-    rootAccess: rootAccess?.login === login ? rootAccess.write : null,
+    rootAccess: write,
     ...(isPublicEnvironment(entry) ? { audience: "public" as const } : {}),
   });
 }
 function unpreparedCode(code: string): boolean {
   return code === "root-not-found" || code === "organization-unreadable";
-}
-async function readRootAccess(login: string) {
-  rootAccess = { login, write: null };
-  let write = false;
-  try {
-    const { value, ok } = await get(
-      `/api/content/root-access?org=${encodeURIComponent(login)}`,
-    );
-    write =
-      ok &&
-      (value as { kind?: unknown; write?: unknown } | null)?.kind ===
-        "root-access" &&
-      (value as { write?: unknown }).write === true;
-  } catch {}
-  if (rootAccess?.login !== login) return;
-  rootAccess = { login, write };
-  content.render();
-  firstRun();
 }
 /** The line in Apps now. */
 function setupLineNow() {

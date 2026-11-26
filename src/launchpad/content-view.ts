@@ -249,6 +249,44 @@ export type ContentFact =
   | Readonly<{ state: "missing"; item: ContentItem }>
   | Readonly<{ state: "failed"; item: ContentItem | null; job: ContentJob }>;
 
+/** Who may prepare each stopped Organization's root, as `GET
+ * /api/content/root-access` answers for its login (root decision 0201 point
+ * 8): one answer per Organization, asked once, kept until `forget` (a new
+ * job). `get` answers null while it is asked; a late answer from before a
+ * `forget` is dropped. Several stopped rows each have their own (Pablo's
+ * review of #1224). */
+export function createRootAccess(
+  options: Readonly<{
+    read: (login: string) => Promise<boolean>;
+    changed: () => void;
+  }>,
+) {
+  const known = new Map<string, boolean | null>();
+  let generation = 0;
+  return Object.freeze({
+    get(login: string): boolean | null {
+      const key = login.toLowerCase();
+      if (!known.has(key)) {
+        known.set(key, null);
+        const asked = generation;
+        void options
+          .read(login)
+          .catch(() => false)
+          .then((write) => {
+            if (asked !== generation || known.get(key) !== null) return;
+            known.set(key, write);
+            options.changed();
+          });
+      }
+      return known.get(key) ?? null;
+    },
+    forget(): void {
+      generation += 1;
+      known.clear();
+    },
+  });
+}
+
 /** A job's unresolved stops, the one shown first first, then each item's
  * own (`failures`, one per item; Pablo's reviews of #1224). */
 export function jobStops(job: ContentJob): readonly ContentFailure[] {
