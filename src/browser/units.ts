@@ -653,7 +653,261 @@ export const environmentBrowserReasons = [
   "browser-not-answering",
   "browser-view-not-answering",
   "browser-holder-unreadable",
+  "browser-policy-missing",
+  "browser-policy-unreadable",
+  "browser-policy-incomplete",
 ] as const;
+
+/** Where Chrome for Testing, the Environment browser, reads its managed
+ * policy on Linux (Machines `default-browser.ts` BROWSER_POLICY_PATH): the
+ * policy that keeps the pages of a person's Lazurio account out of it (#504),
+ * which Machines writes while the running browser maps the local entry. */
+export const browserPolicyPath =
+  "/etc/opt/chrome_for_testing/policies/managed/lazurio-environment-browser.json";
+
+/** The pages a policy for a browser that maps `base` to the local entry must
+ * block (Machines `environmentBrowserPolicy`): the Lazurio account pages
+ * (`lazurio.io`, another Environment, the sign-in service, the Dashboard),
+ * this Environment's Launchpad, T3 Code, Lazurio MausBot and view, and the
+ * sign-in of its bare host. Buddy's T3 is blocked only where it is routed,
+ * so it is not asked for. */
+export function requiredBrowserPolicyBlocks(base: string): string[] {
+  return [
+    "https://lazurio.io/",
+    "https://launchpad.another-environment.lazurio.io/",
+    "https://auth.lazurio.ai/",
+    "https://dashboard.lazurio.ai/",
+    `https://launchpad.${base}/`,
+    `https://t3code.${base}/`,
+    `https://mausbot.${base}/`,
+    `https://browser.${base}/`,
+    `https://${base}/oauth2/sign_in`,
+  ];
+}
+
+/** A filter of URLBlocklist or URLAllowlist as Chrome reads it,
+ * `[scheme://][.]host[:port][/path]` or `*`; null for one with a query or
+ * anything else this reader does not take. */
+type UrlFilter = Readonly<{
+  scheme: string | null;
+  host: string;
+  subdomains: boolean;
+  port: string | null;
+  path: string;
+}>;
+function urlFilter(text: string): UrlFilter | null {
+  if (text === "*")
+    return { scheme: null, host: "", subdomains: true, port: null, path: "" };
+  const written =
+    /^(?:([a-z][a-z0-9+.-]*):\/\/)?(\.?)([^/:?@#\s]+)(?::(\d{1,5}))?(\/[^?@#\s]*)?$/i.exec(
+      text,
+    );
+  if (written === null) return null;
+  return {
+    scheme: written[1]?.toLowerCase() ?? null,
+    host: (written[3] ?? "").toLowerCase().replace(/\.+$/, ""),
+    subdomains: written[2] !== ".",
+    port: written[4] ?? null,
+    path: written[5] ?? "",
+  };
+}
+function filterMatches(filter: UrlFilter, url: URL): boolean {
+  const scheme = url.protocol.slice(0, -1);
+  const port = url.port || (scheme === "https" ? "443" : "80");
+  const host = url.hostname.replace(/\.+$/, "");
+  return (
+    (filter.scheme === null || filter.scheme === scheme) &&
+    (filter.port === null || filter.port === port) &&
+    (filter.host === "" ||
+      host === filter.host ||
+      (filter.subdomains && host.endsWith(`.${filter.host}`))) &&
+    url.pathname.startsWith(filter.path)
+  );
+}
+/** Whether `a` takes precedence over `b`, as Chrome decides between the
+ * filters that match one URL (components/url_matcher `url_util.cc`,
+ * `FilterTakesPrecedence`): an exact host before one with its subdomains,
+ * then the longer host, then the longer path; on a tie the allowlist. */
+function takesPrecedence(
+  a: UrlFilter & { allow: boolean },
+  b: UrlFilter & { allow: boolean },
+): boolean {
+  if (a.subdomains !== b.subdomains) return !a.subdomains;
+  if (a.host.length !== b.host.length) return a.host.length > b.host.length;
+  if (a.path.length !== b.path.length) return a.path.length > b.path.length;
+  return a.allow && !b.allow;
+}
+
+/** Whether a policy must block `url` for a browser that maps `base`
+ * (Machines `environmentBrowserPolicy`): any page of the sign-in service and
+ * the Dashboard; under `lazurio.io` any page but the Environment's own names,
+ * and of those its Launchpad, T3 Code, Lazurio MausBot and view, and its bare
+ * host's `/oauth2`. Buddy's T3 is blocked only where it is routed. */
+function mustBlock(url: URL, base: string): boolean {
+  const host = url.hostname.toLowerCase().replace(/\.+$/, "");
+  const under = (domain: string) =>
+    host === domain || host.endsWith(`.${domain}`);
+  if (under("auth.lazurio.ai") || under("dashboard.lazurio.ai")) return true;
+  if (!under("lazurio.io")) return false;
+  if (host === base) return url.pathname.startsWith("/oauth2");
+  if (!host.endsWith(`.${base}`)) return true;
+  const label =
+    host
+      .slice(0, -(base.length + 1))
+      .split(".")
+      .pop() ?? "";
+  return ["launchpad", "t3code", "mausbot", "browser"].includes(label);
+}
+
+/** An allow rule for a colleague's application origin that Auth handed to
+ * the Environment's agents (Machines `browser-policy.py`): an exact host of
+ * `<module>.<Environment>.<zone>.lazurio.io` or longer, never under this
+ * Environment's own names and with no session label anywhere in it, and that
+ * host's whole `/oauth2` blocked beside it on every scheme and port. It is
+ * granted on purpose and ends with the agent's session, so it is no gap.
+ * Anything short of that is checked as any allow rule (Pablo's review of
+ * #1262). */
+function grantedAgentOrigin(
+  filter: UrlFilter,
+  blocked: readonly UrlFilter[],
+  base: string,
+): boolean {
+  const labels = filter.host.split(".");
+  return (
+    !filter.subdomains &&
+    filter.scheme === null &&
+    filter.port === null &&
+    filter.path === "" &&
+    filter.host.endsWith(".lazurio.io") &&
+    labels.length >= 5 &&
+    filter.host !== base &&
+    !filter.host.endsWith(`.${base}`) &&
+    !labels.some((label) =>
+      ["launchpad", "t3code", "mausbot", "browser", "buddy"].includes(label),
+    ) &&
+    blocked.some(
+      (block) =>
+        !block.subdomains &&
+        block.host === filter.host &&
+        block.path === "/oauth2" &&
+        block.scheme === null &&
+        block.port === null,
+    )
+  );
+}
+
+/** How a policy's text holds up for a browser that maps `base` (F39's
+ * addendum of 2026-11-25, Machines#1589): `missing` without a file,
+ * `unreadable` for a text that is no policy (no JSON, no object, no
+ * URLBlocklist of texts, an URLAllowlist that is no list of texts), else the
+ * pages it must block (`mustBlock`) that it lets through, none when it blocks
+ * them all. Chrome decides each page by its most specific filter
+ * (`takesPrecedence`), so a block is checked where it could lose: at every
+ * required page (`requiredBrowserPolicyBlocks`) and at the most general page
+ * of every allow rule, which catches an allow rule for a path or a subdomain
+ * inside a blocked range (Pablo's review of #1262). An allow rule this reader
+ * does not take counts as letting every page through, so doctor never calls a
+ * policy complete it cannot read. */
+export function browserPolicyGaps(
+  text: string | null,
+  base: string,
+): "missing" | "unreadable" | readonly string[] {
+  if (text === null) return "missing";
+  let policy: unknown;
+  try {
+    policy = JSON.parse(text);
+  } catch {
+    return "unreadable";
+  }
+  if (typeof policy !== "object" || policy === null || Array.isArray(policy))
+    return "unreadable";
+  const { URLBlocklist: blockedTexts, URLAllowlist: allowedTexts = [] } =
+    policy as { URLBlocklist?: unknown; URLAllowlist?: unknown };
+  const texts = (value: unknown): value is string[] =>
+    Array.isArray(value) && value.every((entry) => typeof entry === "string");
+  if (!texts(blockedTexts) || !texts(allowedTexts)) return "unreadable";
+  // An allow rule this reader does not take may let any page through.
+  if (allowedTexts.some((entry) => urlFilter(entry) === null))
+    return requiredBrowserPolicyBlocks(base);
+  const read = (entries: string[], allow: boolean) =>
+    entries.flatMap((entry) => {
+      const filter = urlFilter(entry);
+      return filter === null ? [] : [{ ...filter, allow }];
+    });
+  const blocks = read(blockedTexts, false);
+  const allows = read(allowedTexts, true).filter(
+    (filter) => !grantedAgentOrigin(filter, blocks, base),
+  );
+  const filters = [...blocks, ...allows];
+  const blocked = (url: URL) => {
+    let winner: (UrlFilter & { allow: boolean }) | null = null;
+    for (const filter of filters)
+      if (
+        filterMatches(filter, url) &&
+        (winner === null || takesPrecedence(filter, winner))
+      )
+        winner = filter;
+    return winner !== null && !winner.allow;
+  };
+  const gaps = requiredBrowserPolicyBlocks(base).filter(
+    (page) => !blocked(new URL(page)),
+  );
+  for (const allow of allows) {
+    if (allow.host === "") continue;
+    const scheme = allow.scheme ?? "https";
+    if (scheme !== "http" && scheme !== "https") continue;
+    let url: URL;
+    try {
+      url = new URL(
+        `${scheme}://${allow.host}${allow.port === null ? "" : `:${allow.port}`}${allow.path === "" ? "/" : allow.path}`,
+      );
+    } catch {
+      continue;
+    }
+    if (mustBlock(url, base) && !blocked(url) && !gaps.includes(url.href))
+      gaps.push(url.href);
+  }
+  return gaps;
+}
+
+/** The resolver rule's argument anywhere in a command line, after its start,
+ * a space or a NUL. Chrome rewrites its main process's command line in
+ * `/proc` into one text, its arguments joined by spaces (measured with Chrome
+ * for Testing 156, 2026-11-25), so the argument is no element
+ * of a NUL-separated list there, and the rule holds spaces of its own. */
+const resolverRuleArgument =
+  /(?:^|[\s\0])--host-resolver-rules=MAP \*\.([a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?) 127\.0\.0\.1:\d{1,5},/;
+
+/** The base the running Environment browser maps to the local entry, read
+ * from its main process's command line (`browserResolverRule`), in Chrome's
+ * own spelling or as NUL-separated arguments; null where it maps none, and
+ * where its process or command line cannot be read. */
+async function mappedBase(
+  run: ProcessRunner,
+  env: Readonly<Record<string, string | undefined>>,
+  read: (path: string) => Promise<string>,
+): Promise<string | null> {
+  const shown = await run(
+    [
+      "systemctl",
+      "--user",
+      "show",
+      "--property=MainPID",
+      "--value",
+      browserUnit,
+    ],
+    serviceCommandTimeoutMs,
+    serviceEnvironment(env),
+  ).catch(() => null);
+  if (shown === null || shown === "timeout" || shown.exitCode !== 0)
+    return null;
+  const pid = Number.parseInt(shown.stdout.trim(), 10);
+  if (!Number.isInteger(pid) || pid < 2 || String(pid) !== shown.stdout.trim())
+    return null;
+  const command = await read(`/proc/${pid}/cmdline`).catch(() => null);
+  if (command === null) return null;
+  return resolverRuleArgument.exec(command)?.[1] ?? null;
+}
 
 const probeTimeoutMs = 3_000;
 
@@ -672,6 +926,9 @@ export async function observeEnvironmentBrowser(
     entry: BrowserEntry | undefined;
     run: ProcessRunner;
     fetch: (url: string, init: RequestInit) => Promise<Response>;
+    /** Reads a file as text: the browser's arguments in `/proc` and its
+     * managed policy (`browserPolicyPath`); tests give their own. */
+    read?: (path: string) => Promise<string>;
   }>,
 ): Promise<EnvironmentBrowserObservation> {
   const skipped = (reason: string) =>
@@ -745,6 +1002,28 @@ export async function observeEnvironmentBrowser(
     `http://127.0.0.1:${input.entry.listenPort}/.lazurio/health`,
   );
   if (view === null) return warn("browser-view-not-answering");
+  // F39's addendum of 2026-11-25 (Machines#1589): a browser that maps the
+  // local entry relies on the policy to keep the sign-in, the Dashboard and
+  // every other Environment out of it, and to hand a blocked page off. One
+  // that runs without the policy, or with one that misses a filter, says so.
+  const read = input.read ?? ((path: string) => readFile(path, "utf8"));
+  const base = await mappedBase(input.run, input.env, read);
+  if (base !== null) {
+    const policy = await read(browserPolicyPath).catch((error: unknown) =>
+      (error as { code?: unknown }).code === "ENOENT" ? null : undefined,
+    );
+    const gaps =
+      policy === undefined ? "unreadable" : browserPolicyGaps(policy, base);
+    if (gaps === "missing")
+      return warn("browser-policy-missing", { path: browserPolicyPath });
+    if (gaps === "unreadable")
+      return warn("browser-policy-unreadable", { path: browserPolicyPath });
+    if (gaps.length > 0)
+      return warn("browser-policy-incomplete", {
+        path: browserPolicyPath,
+        missing: gaps.join(", "),
+      });
+  }
   // Root decision 0191 point 32: the tabs such a file held at the hub's last
   // reading of it do not end until it can be read again, and a file the hub
   // has not read since the view started holds none. Doctor cannot tell which.

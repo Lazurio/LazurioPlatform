@@ -5,6 +5,7 @@ import {
   browserViewUrl,
   isStrip,
   navigableAddress,
+  viewEnvironmentId,
   viewFrameAncestors,
   viewPath,
   viewPathTab,
@@ -219,7 +220,12 @@ export type ViewService = Readonly<{
 }>;
 
 export function startViewService(options: ViewServiceOptions): ViewService {
-  const hub = new BrowserHub(options.hub);
+  // This Environment's own names (C3) for the pages only the person's own
+  // browser opens (C20), from the view's origin.
+  const hub = new BrowserHub({
+    ...options.hub,
+    environment: options.hub.environment ?? viewEnvironmentId(options.origin),
+  });
   const identity =
     options.identity === undefined
       ? async () => null

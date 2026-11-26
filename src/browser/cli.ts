@@ -30,9 +30,11 @@ import {
   browserCliText,
   browserViewUrl,
   navigableAddress,
+  ownBrowserAddress,
   stripAppOf,
   targetIdOf,
   threadSession,
+  viewEnvironmentId,
 } from "./contract/pure";
 import { browserEntryOf } from "./view";
 import {
@@ -143,7 +145,9 @@ browser link [--session <name> | --url <url>] [--folder <absolute Folder>] [--js
   29); without either, the users' view of a new tab. --json prints
   {schema: "lazurio.browser-cli.v1", kind: "browser-link", session, link},
   with targetId for --url. Neither command opens an address on the view
-  host of an Environment browser (browser.….lazurio.io).
+  host of an Environment browser (browser.….lazurio.io), nor a page that
+  only the user's own browser opens (the Launchpad, T3 Code, the sign-in,
+  the Dashboard, another Environment): give the user its link instead.
 browser done [--session <name>] [--all] [--folder <absolute Folder>] [--json]
   Lets go of the calling thread's window when its work there is done (root
   decision 0191 point 28): its agent-browser daemon stops, and the tab ends
@@ -176,7 +180,8 @@ browser open <http(s) address> [--folder <absolute Folder>] [--json]
   link. In a T3 Code thread (AGENT_BROWSER_SESSION t3-…) the thread's session
   is bound to that tab, so the thread's panel shows it and its agent works
   there next; elsewhere nobody holds the tab, as with link --url. Only http
-  and https, never the view host. --json prints {schema:
+  and https, never the view host nor a page that only the user's own
+  browser opens. --json prints {schema:
   "lazurio.browser-cli.v1", kind: "browser-open", session, targetId, link},
   session null where none is bound. Exit status: 0 opened, 10 this
   Environment has no Environment browser (nothing opened; open the address
@@ -296,6 +301,8 @@ const text = {
     "hub-unreachable":
       "The users' view of the Environment browser did not open the tab. Run lazurio doctor.",
     "invalid-address": "The view does not open that address.",
+    "own-browser":
+      "That address opens only in the user's own browser, never in the Environment browser: {address}. Nothing was opened; give the user this link.",
     stopped:
       "Your window is let go: it ends once nothing holds it and nobody views it. Whoever has it open keeps it.",
     "no-daemon":
@@ -447,6 +454,8 @@ const text = {
     "hub-unreachable":
       "Pohled prohlížeče Prostředí záložku neotevřel. Spusťte lazurio doctor.",
     "invalid-address": "Tuto adresu pohled neotevře.",
+    "own-browser":
+      "Tuto adresu otevře jen uživatel ve svém prohlížeči, prohlížeč Prostředí ji neotevírá: {address}. Nic se neotevřelo; pošli uživateli tento odkaz.",
     stopped:
       "Okno je puštěné: skončí, až ho nic nedrží a nikdo se na něj nedívá. Kdo ho má otevřené, tomu zůstane.",
     "no-daemon": "Tvoje sezení nemá spuštěný agent-browser: není co pustit.",
@@ -838,6 +847,23 @@ const webAddress = (value: string): boolean => {
   }
 };
 
+/** A page that only the person's own browser opens (C20, F39's addendum of
+ * 2026-11-25): refused with the link to give the user, without credentials;
+ * null for any other address. */
+function ownBrowserRefusal(
+  given: string,
+  browser: NonNullable<ReturnType<typeof browserEntryOf>>,
+  copy: (typeof text)[keyof typeof text],
+): CommandOutput | null {
+  const address = ownBrowserAddress(given, viewEnvironmentId(browser.origin));
+  return address === null
+    ? null
+    : Object.freeze({
+        code: browserCliExit.usage,
+        stderr: fill(copy["own-browser"], { address }),
+      });
+}
+
 /** `browser open` (root decision 0201 point 5): a new tab at the address
  * through the view's hub, for the T3 Code thread's strip where the caller is
  * one, and that thread's session bound to it so its panel shows it. The page
@@ -850,7 +876,10 @@ async function openDefault(
   copy: (typeof text)[keyof typeof text],
   context: BrowserContext,
 ): Promise<CommandOutput> {
-  // Never the view host of an Environment browser (F50 point 2).
+  // A page only the user's own browser opens (C20), a view among them, says
+  // so with its link; any other view host is refused (F50 point 2).
+  const refused = ownBrowserRefusal(given, browser, copy);
+  if (refused !== null) return refused;
   const address = navigableAddress(given);
   if (address === null)
     return Object.freeze({
@@ -1210,8 +1239,14 @@ export async function runBrowserCommand(
         code: browserCliExit.usage,
         stderr: copy["no-session"],
       });
-    // No address on a view host of an Environment browser (F50 point 2),
-    // for a window's first page as for the person's page.
+    // No page only the user's own browser opens (C20), and no other address
+    // on a view host of an Environment browser (F50 point 2), for a window's
+    // first page as for the person's page.
+    const refused =
+      values.url === undefined
+        ? null
+        : ownBrowserRefusal(values.url, browser, copy);
+    if (refused !== null) return refused;
     const address =
       values.url === undefined ? undefined : navigableAddress(values.url);
     if (address === null)
