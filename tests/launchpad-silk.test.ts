@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { silk } from "../src/launchpad/silk";
+import { silk, silkId } from "../src/launchpad/silk";
 
 // The blue silk behind an app template's screen (plan DEV-6593, silk.ts): an
 // offer's card folds the same way on every visit, two offers fold differently,
@@ -30,4 +30,11 @@ test("the fabric is painted only with the blue tokens and white", () => {
       .replaceAll(/color-mix\(in srgb,|white|\d+%|[\s,()]/g, "");
     expect(plain).toBe("");
   }
+});
+
+test("two different offers never share their gradients' ids", () => {
+  const seeds = ["a-b", "ab", "a_b", "a_2d_b", "a.b", "A-B", "šablona"];
+  const ids = seeds.map(silkId);
+  expect(new Set(ids).size).toBe(seeds.length);
+  for (const id of ids) expect(id).toMatch(/^shot-silk-[A-Za-z0-9_]+$/);
 });

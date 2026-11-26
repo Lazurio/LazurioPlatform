@@ -102,11 +102,22 @@ export function silk(seed: string): Silk {
   };
 }
 
-/** The fabric as an SVG that fills its parent (`.shot-silk`). Its gradients'
- * ids carry the seed, so two fabrics on one page never borrow each other's. */
+/** The id prefix of a fabric's gradients: the seed with every character
+ * outside a-z and 0-9 written as its code point, so two different seeds
+ * ("a-b" and "ab") never share an id and one card never borrows another's
+ * colours. */
+export function silkId(seed: string): string {
+  const safe = seed.replace(
+    /[^a-z0-9]/gi,
+    (ch) => `_${(ch.codePointAt(0) as number).toString(16)}_`,
+  );
+  return `shot-silk-${safe}`;
+}
+
+/** The fabric as an SVG that fills its parent (`.shot-silk`). */
 export function silkStage(seed: string): SVGSVGElement {
   const art = silk(seed);
-  const id = `shot-silk-${seed.replace(/[^a-z0-9]/gi, "")}`;
+  const id = silkId(seed);
   const node = <K extends keyof SVGElementTagNameMap>(
     tag: K,
     attributes: Readonly<Record<string, string>>,

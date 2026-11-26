@@ -522,7 +522,7 @@ button.access-check[aria-disabled="true"] { cursor: progress; }
 .shot-window-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(9, 9, 9, 0.18); }
 .shot-window-address { overflow: hidden; color: rgba(9, 9, 9, 0.55); font-family: var(--lz-font-mono); font-size: 10px; white-space: nowrap; }
 @media (hover: hover) and (pointer: fine) { .shot-window { transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1); } .market-card:hover .shot-window { transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .shot-window { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .shot-window { transition: none; } .market-card:hover .shot-window { transform: none; } }
 .market-card-body { display: flex; align-items: center; gap: 14px; padding: 14px 18px 16px; }
 .market-card-body .tile-body { flex: 1; }
 .market-stone { display: block; flex: none; width: 44px; height: 44px; }
