@@ -15,7 +15,7 @@ of any other statement the register's paragraph it comes from decides. Each of
 the three ends with "What runs today"; where this document describes today's
 mechanism instead of the target, it says so. The public-DNS mode of
 decision 0213 is retired (0246) and no longer runs anywhere: the reference Organization
-is back in its tailnet (decision 0204, verified 2026-11-26); decision 0196 is in force;
+is back in its tailnet since 2026-11-14 (decision 0204); decision 0196 is in force;
 decision 0231 (application roles and what a Module receives) and decision 0234 (the
 names of access roles) are decided, not yet deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
@@ -260,8 +260,8 @@ repository has no code for it yet, and today's Platform does not accept its name
 
 Entry without a tailnet was retired on 2026-11-12 (decision 0246): no Organization and no
 Personal Environment switches to it, and nothing further is built for it. The
-reference Organization, the last to run it, is back in its tailnet (decision 0204,
-verified 2026-11-26), so it runs nowhere now and decision 0213 describes it as history. The gateways and the
+reference Organization, the last to run it, is back in its tailnet since 2026-11-14
+(decision 0204), so it runs nowhere now and decision 0213 describes it as history. The gateways and the
 server's public entry that carried it belong to Machines; this repository has no code for
 it. The points below record the contract as it ran.
 
