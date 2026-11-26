@@ -343,12 +343,46 @@ test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the
         expect(skill).toContain(
           cs ? "jeho slova doslova a čas" : "their words verbatim and the time",
         );
-        // The one catch-up of what is only in the tool's memory today.
-        expect(skill).toContain(
+        // The one catch-up of what is only in the tool's memory today. Its
+        // completion is its own record, never the existence of a page an
+        // agreement may have created first.
+        expect(skill).not.toContain(
           cs
             ? "když stránka `buddy/dohody` ještě neexistuje"
             : "when the page `buddy/dohody` does not exist yet",
         );
+        expect(skill).toContain("`buddy/dorovnani`");
+        expect(skill).toContain(
+          cs
+            ? "i když `buddy/dohody` už existuje"
+            : "even when `buddy/dohody` already exists",
+        );
+        // Interrupted: done is written only after both sources are processed
+        // and checked, so a half-done catch-up is never marked done.
+        expect(skill).toContain(
+          cs
+            ? "`hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů"
+            : "Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked",
+        );
+        // Repeated: what the Brain holds is not written again, an item leaves
+        // the tool's memory only once checked, and the run starts over safely.
+        expect(skill).toContain(
+          cs
+            ? "nejdřív čtením zjisti, jestli už tam je"
+            : "first check by reading whether it is already there",
+        );
+        expect(skill).toContain(
+          cs
+            ? "ověř čtením a teprve potom ji v paměti nástroje a na staré stránce nahraď odkazem"
+            : "check it by reading, and only then replace it with a pointer",
+        );
+        expect(skill).toContain(
+          cs
+            ? "přerušené dorovnání jde bezpečně zopakovat od začátku"
+            : "an interrupted catch-up can safely start over",
+        );
+        // Nothing to move is a finished catch-up too.
+        expect(skill).toContain(cs ? "i když je to 0" : "also when it is 0");
         expect(skill).toContain(
           cs
             ? "nic jiného z paměti nástroje necituj"
