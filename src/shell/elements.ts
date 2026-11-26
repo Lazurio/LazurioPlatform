@@ -38,7 +38,9 @@ import {
   shellSchema,
 } from "./contract";
 import { createDocumentReads, readShellDocumentJson } from "./document-read";
+import { appVersionOf, versionFrame } from "./env-frame";
 import { installShellFonts, shellFontBaseOf } from "./fonts";
+import { createFrameLayer } from "./frame-element";
 import {
   createGuide,
   type GuideBuddy,
@@ -1368,10 +1370,20 @@ const pageTabName = (): string => {
 const notificationPermission = (): NotificationPermission | null =>
   typeof Notification === "undefined" ? null : Notification.permission;
 
+// The page's one frame layer, made on first use (frame-element.ts).
+let frames: ReturnType<typeof createFrameLayer> | null = null;
+const frameLayer = () => {
+  frames ??= createFrameLayer(document);
+  return frames;
+};
+
 export class LazurioBuddy extends HTMLElement implements GuideElement {
   // `hidden` too: the launcher's corner on the document follows it
-  // (`launcherOnPage`, F60's addendum of 2026-10-25).
-  static observedAttributes = ["lang", "hidden"];
+  // (`launcherOnPage`, F60's addendum of 2026-10-25). `version`: "staging"
+  // or "dev" on a Module's app, whose frame this element draws with Buddy
+  // (decision 0249's addendum of 2026-11-22, frame-element.ts).
+  static observedAttributes = ["lang", "hidden", "version"];
+  private unframe: (() => void) | null = null;
   private bubble: BuddyBubble | null = null;
   private view: BuddyBubbleView | null = null;
   private unfollow: (() => void) | null = null;
@@ -1412,12 +1424,21 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     // One bubble a page: the element connected before lets go of it.
     if (before !== null && before !== this) before.follow();
     this.unfollow ??= state.listen(() => this.follow());
+    this.unframe ??= state.listenFrame(() => this.drawFrame());
+    // The frame needs the viewer's identity, so this element reads the
+    // account even where it stands alone (review of #1244).
+    state.requestAccount();
     guide.attach(this);
     this.follow();
+    this.drawFrame();
   }
   disconnectedCallback() {
     this.unfollow?.();
     this.unfollow = null;
+    this.unframe?.();
+    this.unframe = null;
+    // The frame goes with the element that carried it.
+    if (bubbleHost === this || bubbleHost === null) frameLayer().draw(null);
     this.stopSignal();
     if (bubbleHost === this) bubbleHost = null;
     this.follow();
@@ -1427,6 +1448,28 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     if (!this.isConnected) return;
     guide.changed();
     this.bubble?.changed();
+    this.drawFrame();
+  }
+
+  /** The frame of this page (env-frame.ts): its own Environment from the
+   * page's document, the viewer from the account; a Module's app is framed
+   * even before the document arrives, with its version alone. */
+  private drawFrame(): void {
+    const shell = state.drawn();
+    const here = shell?.environments.find(
+      (environment) => environment.id === shell.current,
+    );
+    const lang = this.getAttribute("lang");
+    const locale = (lang ?? shell?.locale ?? "cs") === "en" ? "en" : "cs";
+    frameLayer().draw(
+      versionFrame(
+        here,
+        state.viewer()?.identity ?? null,
+        appVersionOf(this.getAttribute("version")),
+        locale,
+        state.documentMissing(),
+      ),
+    );
   }
 
   /** Whether this element shows Buddy's bubble now: it follows the origin
