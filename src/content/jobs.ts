@@ -26,7 +26,13 @@ export type ContentJob = Readonly<{
   state: "running" | "succeeded" | "failed";
   /** The latest state of each step, in the order the steps began. */
   steps: readonly ContentStep[];
+  /** The stop to show first: the first known without GitHub's rate limit,
+   * else the first the limit caused. */
   failure?: ContentFailure;
+  /** Every unresolved stop, one per item: this run's own and those a run of
+   * some items carries from the run before it (`carriedStops`), shown from
+   * its start (Pablo's reviews of #1224). */
+  failures?: readonly ContentFailure[];
   /** The items GitHub's rate limit stopped (`InstallResult.waiting`), with
    * the limit `rate_limit` names at the end of the run (#1223). */
   waiting?: Readonly<{
@@ -45,38 +51,42 @@ const kept = 16;
 const stepKey = (item: ContentItemRef, key: string) =>
   `${item.kind === "organization" ? `organization:${item.login.toLowerCase()}` : "personalspace"}:${key}`;
 
-/** The end of a run as a job keeps it: the stop to show, and the items
- * GitHub's rate limit stopped. The cause itself was set by the failing
- * operation (`observeLimit`); this only adds the limit `rate_limit` names
- * now (which GitHub does not count) to that cause, asked only when a stop
- * carries it. */
+/** The end of a run as a job keeps it: its stops, the one to show first
+ * and the items GitHub's rate limit stopped. The cause itself was set by
+ * the failing operation (`observeLimit`); this only adds the limit
+ * `rate_limit` names now (which GitHub does not count) to that cause, asked
+ * only when a stop carries it. */
 export async function withLimitDetails(
   result: Readonly<{
     failure?: ContentFailure | undefined;
     waiting?: readonly ContentItemRef[] | undefined;
+    stops?: readonly ContentFailure[] | undefined;
   }>,
   host: ContentHost,
 ): Promise<
-  Readonly<{ failure?: ContentFailure; waiting?: ContentJob["waiting"] }>
+  Readonly<{
+    failure?: ContentFailure;
+    waiting?: ContentJob["waiting"];
+    stops?: readonly ContentFailure[];
+  }>
 > {
-  const { failure, waiting } = result;
+  const { failure, waiting, stops } = result;
+  const kept = stops === undefined ? {} : { stops };
   if (waiting === undefined || waiting.length === 0)
-    return failure === undefined ? {} : { failure };
+    return failure === undefined ? kept : { failure, ...kept };
   const limit = await host.github.rateLimit?.().catch(() => undefined);
   const cause: ContentFailureCause = Object.freeze({
     kind: "github-rate-limit" as const,
     ...(limit?.kind === undefined ? {} : { limit: limit.kind }),
     ...(limit?.reset === undefined ? {} : { reset: limit.reset }),
   });
+  const detailed = (stop: ContentFailure) =>
+    stop.cause === undefined ? stop : Object.freeze({ ...stop, cause });
   return {
-    ...(failure === undefined
+    ...(failure === undefined ? {} : { failure: detailed(failure) }),
+    ...(stops === undefined
       ? {}
-      : {
-          failure:
-            failure.cause === undefined
-              ? failure
-              : Object.freeze({ ...failure, cause }),
-        }),
+      : { stops: Object.freeze(stops.map(detailed)) }),
     waiting: Object.freeze({ items: waiting, cause }),
   };
 }
@@ -87,32 +97,44 @@ const sameRef = (a: ContentItemRef, b: ContentItemRef) =>
     (b.kind === "organization" &&
       a.login.toLowerCase() === b.login.toLowerCase()));
 
-/** The last job's stop that a run of `items` alone leaves unresolved: one
- * known without GitHub's rate limit (no `cause`), of an item this run does
- * not touch, with that item's steps. None for a run of everything. */
-function carriedStop(
+/** The last job's stops that a run of `items` alone leaves unresolved:
+ * those known without GitHub's rate limit (no `cause`), of items this run
+ * does not touch, with their steps. None for a run of everything. */
+function carriedStops(
   last:
     | Readonly<{
         state: ContentJob["state"];
         steps: ReadonlyMap<string, ContentStep>;
         failure?: ContentFailure;
+        failures?: readonly ContentFailure[];
       }>
     | undefined,
   items: readonly ContentItemRef[] | undefined,
-):
-  | Readonly<{ failure: ContentFailure; steps: [string, ContentStep][] }>
-  | undefined {
+): Readonly<{ failures: ContentFailure[]; steps: [string, ContentStep][] }> {
+  const none = { failures: [], steps: [] };
   if (items === undefined || last === undefined || last.state !== "failed")
-    return undefined;
-  const failure = last.failure;
-  if (failure === undefined || failure.cause !== undefined) return undefined;
-  if (items.some((item) => sameRef(item, failure.item))) return undefined;
+    return none;
+  const failures = (
+    last.failures ?? (last.failure === undefined ? [] : [last.failure])
+  ).filter(
+    (stop) =>
+      stop.cause === undefined &&
+      !items.some((item) => sameRef(item, stop.item)),
+  );
   return {
-    failure,
+    failures,
     steps: [...last.steps].filter(([, step]) =>
-      sameRef(step.item, failure.item),
+      failures.some((stop) => sameRef(step.item, stop.item)),
     ),
   };
+}
+
+/** One stop per item, in their order: the first named wins. */
+function onePerItem(stops: readonly ContentFailure[]): ContentFailure[] {
+  const kept: ContentFailure[] = [];
+  for (const stop of stops)
+    if (!kept.some((entry) => sameRef(entry.item, stop.item))) kept.push(stop);
+  return kept;
 }
 
 export function createContentJobs(
@@ -125,6 +147,7 @@ export function createContentJobs(
       state: ContentJob["state"];
       steps: Map<string, ContentStep>;
       failure?: ContentFailure;
+      failures?: readonly ContentFailure[];
       waiting?: ContentJob["waiting"];
     }
   >();
@@ -139,6 +162,7 @@ export function createContentJobs(
       state: job.state,
       steps: Object.freeze([...job.steps.values()]),
       ...(job.failure === undefined ? {} : { failure: job.failure }),
+      ...(job.failures === undefined ? {} : { failures: job.failures }),
       ...(job.waiting === undefined ? {} : { waiting: job.waiting }),
     });
 
@@ -158,15 +182,20 @@ export function createContentJobs(
         // of another item, known without the limit, stays this job's to
         // show, with its steps, so it is not lost behind the partial run,
         // nor after a reload (Pablo's review of #1224).
-        const carried = carriedStop(
+        const carried = carriedStops(
           [...jobs.values()].at(-1),
           request.items === undefined ? undefined : plan.items,
         );
         const id = randomBytes(16).toString("hex");
+        // The carried stops show from the start, with their steps, also
+        // while the partial run is under way.
         const job: NonNullable<ReturnType<typeof jobs.get>> = {
           id,
           state: "running",
-          steps: new Map(),
+          steps: new Map(carried.steps),
+          ...(carried.failures.length === 0
+            ? {}
+            : { failures: Object.freeze([...carried.failures]) }),
         };
         jobs.set(id, job);
         while (jobs.size > kept) {
@@ -191,6 +220,7 @@ export function createContentJobs(
               state: ContentJob["state"];
               failure?: ContentFailure;
               waiting?: ContentJob["waiting"];
+              stops?: readonly ContentFailure[];
             } => result,
             () => ({
               state: "failed" as const,
@@ -209,16 +239,21 @@ export function createContentJobs(
             running = null;
             // The carried stop is shown before one the limit caused, never
             // over this run's own stop known without it.
+            // Every stop stays: the carried ones and this run's own, one
+            // per item; the first known without the limit is shown first.
+            const own =
+              "stops" in end && end.stops !== undefined
+                ? end.stops
+                : end.failure === undefined
+                  ? []
+                  : [end.failure];
+            const all = onePerItem([...carried.failures, ...own]);
             const failure =
-              carried !== undefined &&
-              (end.failure === undefined ||
-                ("cause" in end.failure && end.failure.cause !== undefined))
-                ? carried.failure
-                : end.failure;
-            if (carried !== undefined)
-              for (const [key, step] of carried.steps)
-                if (!job.steps.has(key)) job.steps.set(key, step);
+              all.find(
+                (stop) => !("cause" in stop) || stop.cause === undefined,
+              ) ?? all[0];
             if (failure !== undefined) job.failure = failure;
+            if (all.length > 0) job.failures = Object.freeze(all);
             if ("waiting" in end && end.waiting !== undefined)
               job.waiting = end.waiting;
             job.state = failure === undefined ? end.state : "failed";

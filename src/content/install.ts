@@ -157,6 +157,9 @@ export type InstallResult =
        * unrelated stop that `failure` shows: what runs again once GitHub
        * answers. */
       waiting?: readonly ContentItemRef[];
+      /** Every stop of the run, the first of each item, in their order:
+       * each item's own stop stays shown (Pablo's review of #1224). */
+      stops?: readonly ContentFailure[];
     }>
   | Readonly<{ kind: "not-allowed"; reason: ContentRefusal }>
   | Readonly<{ kind: "busy" }>;
@@ -267,6 +270,7 @@ export async function runContentInstall(
   let failure: ContentFailure | undefined;
   let limited: ContentFailure | undefined;
   const waiting: ContentItemRef[] = [];
+  const stops: ContentFailure[] = [];
   for (const item of plan.items) {
     const steps = stepper(item, (step) => {
       if (step.state === "failed") {
@@ -277,6 +281,8 @@ export async function runContentInstall(
           detail: step.detail ?? "",
           ...(step.cause === undefined ? {} : { cause: step.cause }),
         });
+        if (!stops.some((entry) => sameItem(entry.item, step.item)))
+          stops.push(stop);
         if (stop.cause === undefined) failure ??= stop;
         else {
           limited ??= stop;
@@ -307,6 +313,7 @@ export async function runContentInstall(
     items: Object.freeze(outcomes),
     ...(shown === undefined ? {} : { failure: shown }),
     ...(waiting.length === 0 ? {} : { waiting: Object.freeze(waiting) }),
+    ...(stops.length === 0 ? {} : { stops: Object.freeze(stops) }),
   });
 }
 

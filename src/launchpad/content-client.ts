@@ -77,6 +77,9 @@ export type ContentJob = Readonly<{
   state: "running" | "succeeded" | "failed";
   steps: readonly ContentStep[];
   failure?: ContentFailure;
+  /** Every unresolved stop, one per item, shown each on its own row (also
+   * while a run of other items is under way). */
+  failures?: readonly ContentFailure[];
   /** The items GitHub's rate limit stopped, also behind another stop that
    * `failure` shows (#1223): what runs again once GitHub answers. */
   waiting?: Readonly<{
@@ -257,20 +260,20 @@ export function parseContentJob(value: unknown): ContentJob | null {
   }
   let failure: ContentFailure | undefined;
   if (value.failure !== undefined && value.failure !== null) {
-    const raw = value.failure;
-    if (!isRecord(raw)) return null;
-    const ref = parseContentRef(raw.item);
-    if (ref === null || typeof raw.key !== "string" || !stepKey.test(raw.key))
+    const parsed = parseFailure(value.failure);
+    if (parsed === null) return null;
+    failure = parsed;
+  }
+  let failures: ContentFailure[] | undefined;
+  if (value.failures !== undefined && value.failures !== null) {
+    if (!Array.isArray(value.failures) || value.failures.length > 32)
       return null;
-    const cause = parseCause(raw.cause);
-    if (cause === null) return null;
-    failure = Object.freeze({
-      item: ref,
-      key: raw.key,
-      code: line(raw.code, 80) ?? "",
-      detail: contentDetail(raw.detail) ?? "",
-      ...(cause === undefined ? {} : { cause }),
-    });
+    failures = [];
+    for (const raw of value.failures) {
+      const parsed = parseFailure(raw);
+      if (parsed === null) return null;
+      failures.push(parsed);
+    }
   }
   let waiting: ContentJob["waiting"];
   if (value.waiting !== undefined && value.waiting !== null) {
@@ -291,7 +294,24 @@ export function parseContentJob(value: unknown): ContentJob | null {
     state: value.state,
     steps: Object.freeze(steps),
     ...(failure === undefined ? {} : { failure }),
+    ...(failures === undefined ? {} : { failures: Object.freeze(failures) }),
     ...(waiting === undefined ? {} : { waiting }),
+  });
+}
+
+function parseFailure(raw: unknown): ContentFailure | null {
+  if (!isRecord(raw)) return null;
+  const ref = parseContentRef(raw.item);
+  if (ref === null || typeof raw.key !== "string" || !stepKey.test(raw.key))
+    return null;
+  const cause = parseCause(raw.cause);
+  if (cause === null) return null;
+  return Object.freeze({
+    item: ref,
+    key: raw.key,
+    code: line(raw.code, 80) ?? "",
+    detail: contentDetail(raw.detail) ?? "",
+    ...(cause === undefined ? {} : { cause }),
   });
 }
 

@@ -11,7 +11,8 @@ import { installContent } from "../src/content/install";
 import { createContentJobs, withLimitDetails } from "../src/content/jobs";
 import type { ContentFailure, ContentStep } from "../src/content/model";
 import { verifyOrganizationRole } from "../src/content/role";
-import { contentFact } from "../src/launchpad/content-view";
+import { contentFact, contentView } from "../src/launchpad/content-view";
+import { messages } from "../src/launchpad/messages";
 import {
   alphaRemotes,
   contentHost,
@@ -401,6 +402,132 @@ posixTest(
     });
     await jobs.settled();
     expect(jobs.latest()?.failure?.code).toBe("role-unverified");
+  },
+  90_000,
+);
+
+// Pablo's review of 685afd23: the Organization's unrelated stop shows
+// throughout the Personalspace's partial retry: while it runs, and when it
+// stops for another reason (an outage), also as a reload reads it.
+posixTest(
+  "the Organization's unrelated stop shows while the Personalspace's retry runs and when that retry stops for another reason, after a reload too",
+  async () => {
+    world = await createWorld();
+    await alphaRemotes(world);
+    const folder = await presetFolder(world, "local");
+    const { github } = stubGitHub(world, {
+      repositories: {
+        ...alphaReadable,
+        "Alpha/alpha_GEN3": { permission: "read" },
+      },
+      membership: { kind: "none" },
+    });
+    let mode: "limited" | "outage" = "limited";
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const switching: ContentGitHub = {
+      ...github,
+      async repository(owner, name) {
+        if (`${owner}/${name}` !== "example/example_GEN3")
+          return github.repository(owner, name);
+        if (mode === "limited") refusedForLimit();
+        // The retry waits here, so the running job can be read.
+        else await held;
+        return { kind: "unavailable" };
+      },
+    };
+    const jobs = createContentJobs({
+      folder,
+      host: () => contentHost(world as World, switching),
+    });
+    await jobs.start({
+      items: [
+        { kind: "organization", login: "Alpha" },
+        { kind: "personalspace" },
+      ],
+      roots: { alpha: "Alpha/alpha_GEN3" },
+    });
+    await jobs.settled();
+    const first = jobs.latest();
+    expect(first?.waiting?.items).toEqual([{ kind: "personalspace" }]);
+    const organizationStop = first?.failure;
+    expect(organizationStop).toMatchObject({ code: "role-unverified" });
+
+    const cs = messages("cs");
+    const list = {
+      allowed: true,
+      items: [
+        {
+          kind: "organization" as const,
+          login: "Alpha",
+          name: "Alpha",
+          state: "absent" as const,
+        },
+        {
+          kind: "personalspace" as const,
+          login: "example",
+          state: "absent" as const,
+        },
+      ],
+    };
+    const row = (job: unknown, login: string | null) =>
+      contentView(list, job as never, cs, {
+        github: "connected",
+        blockedBy: null,
+      }).rows.find((entry) =>
+        login === null
+          ? entry.item.kind === "personalspace"
+          : entry.item.kind === "organization",
+      );
+
+    // The retry after the reset, while it runs: the Organization's row
+    // still shows its stop, the Personalspace's row runs.
+    mode = "outage";
+    await jobs.start({ items: [{ kind: "personalspace" }] });
+    const running = jobs.latest();
+    expect(running?.state).toBe("running");
+    expect(running?.failures).toEqual([organizationStop as ContentFailure]);
+    expect(row(running, "Alpha")).toMatchObject({
+      status: cs.contentStopped,
+    });
+    expect(row(running, "Alpha")?.failure?.details).toContain(
+      "(role-unverified)",
+    );
+    expect(row(running, null)?.failure).toBeNull();
+
+    // The retry stops for an outage (no limit): both stops stay, the
+    // Organization's first, each on its row, as a reload reads it.
+    release();
+    await jobs.settled();
+    const after = jobs.latest();
+    expect(after?.state).toBe("failed");
+    expect(after?.failure).toEqual(organizationStop);
+    expect(after?.failures?.map((stop) => [stop.item.kind, stop.code])).toEqual(
+      [
+        ["organization", "role-unverified"],
+        ["personalspace", "github-unavailable"],
+      ],
+    );
+    expect(after?.failures?.[1]?.cause).toBeUndefined();
+    expect(after?.waiting).toBeUndefined();
+    expect(contentFact(list, after as never)).toMatchObject({
+      state: "failed",
+      item: { kind: "organization", login: "Alpha" },
+    });
+    expect(row(after, "Alpha")?.failure?.details).toContain(
+      "(role-unverified)",
+    );
+    expect(row(after, null)?.failure?.details).toContain(
+      "(github-unavailable)",
+    );
+    // Nothing of an outage runs by itself; the Organization's stop is
+    // carried again by the next partial run.
+    await jobs.start({ items: [{ kind: "personalspace" }] });
+    release();
+    await jobs.settled();
+    expect(jobs.latest()?.failure).toEqual(organizationStop);
   },
   90_000,
 );

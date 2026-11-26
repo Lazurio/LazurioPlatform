@@ -1,4 +1,5 @@
 import type {
+  ContentFailure,
   ContentItem,
   ContentJob,
   ContentList,
@@ -248,6 +249,25 @@ export type ContentFact =
   | Readonly<{ state: "missing"; item: ContentItem }>
   | Readonly<{ state: "failed"; item: ContentItem | null; job: ContentJob }>;
 
+/** A job's unresolved stops, the one shown first first, then each item's
+ * own (`failures`, one per item; Pablo's reviews of #1224). */
+export function jobStops(job: ContentJob): readonly ContentFailure[] {
+  const all = [
+    ...(job.failure === undefined ? [] : [job.failure]),
+    ...(job.failures ?? []),
+  ];
+  return all.filter(
+    (stop, index) =>
+      all.findIndex((entry) => sameRef(entry.item, stop.item)) === index,
+  );
+}
+
+const sameRef = (a: ContentRef, b: ContentRef) =>
+  a.kind === b.kind &&
+  (a.kind === "personalspace" ||
+    (b.kind === "organization" &&
+      a.login.toLowerCase() === b.login.toLowerCase()));
+
 export function contentFact(
   list: ContentList | null | "loading",
   job: ContentJob | null,
@@ -258,13 +278,19 @@ export function contentFact(
   if (!list.allowed || list.items.length === 0) return { state: "none" };
   const missing = list.items.filter((item) => item.state !== "present");
   if (job?.state === "failed") {
-    const failure = job.failure;
-    const stopped =
-      failure === undefined
-        ? (missing[0] ?? null)
-        : (list.items.find((item) => refersTo(failure.item, item)) ?? null);
-    if (stopped === null ? missing.length > 0 : stopped.state !== "present")
-      return { state: "failed", item: stopped, job };
+    // The first stop shown whose item is still not here: the one shown
+    // first, then each item's own (`failures`).
+    const stops = jobStops(job);
+    if (stops.length === 0) {
+      if (missing.length > 0)
+        return { state: "failed", item: missing[0] ?? null, job };
+    } else
+      for (const failure of stops) {
+        const stopped =
+          list.items.find((item) => refersTo(failure.item, item)) ?? null;
+        if (stopped === null ? missing.length > 0 : stopped.state !== "present")
+          return { state: "failed", item: stopped, job };
+      }
   }
   const [first] = missing;
   if (first !== undefined) return { state: "missing", item: first };
@@ -354,10 +380,21 @@ export function contentView(
       list.items.filter((item) => refersTo(step.item, item)),
     ),
   );
+  const stops = job === null ? [] : jobStops(job);
   const rows = list.items.map((item): ContentRow => {
     const name = contentName(item, copy);
-    const stoppedHere = fact.state === "failed" && failedItem === item;
     const present = item.state === "present";
+    // Its own stop among the job's: also one a run of other items carried
+    // from the run before and shows while it runs (Pablo's reviews of
+    // #1224).
+    const own =
+      job === null || present
+        ? undefined
+        : stops.find((stop) => refersTo(stop.item, item));
+    const stoppedHere =
+      !present &&
+      (own !== undefined || (fact.state === "failed" && failedItem === item));
+    const stop = own ?? (stoppedHere ? job?.failure : undefined);
     const count =
       present && item.kind === "organization"
         ? (options.modules?.(item.login) ?? null)
@@ -366,37 +403,33 @@ export function contentView(
       ? count === null || options.pluralModules === undefined
         ? copy.contentPresent
         : `${copy.contentPresent} · ${options.pluralModules(count)}`
-      : running
-        ? reached.has(item)
-          ? copy.contentRunning
-          : copy.contentWaiting
-        : stoppedHere
-          ? copy.contentStopped
+      : stoppedHere
+        ? copy.contentStopped
+        : running
+          ? reached.has(item)
+            ? copy.contentRunning
+            : copy.contentWaiting
           : item.state === "blocked"
             ? copy.contentBlocked
             : copy.contentAbsent;
     const showSteps =
-      !present && job !== null && (running ? reached.has(item) : stoppedHere);
-    const failure =
-      stoppedHere && fact.state === "failed"
-        ? {
-            sentence: `${contentFailureSentence(item.kind, fact.job.failure?.key ?? "", copy, fact.job.failure?.code)} ${copy[resolveSentence[resolve]]}`,
-            resolve,
-            details: [
-              contentCommand(item),
-              ...(fact.job.failure === undefined
-                ? []
-                : [
-                    fact.job.failure.detail,
-                    fact.job.failure.code === ""
-                      ? ""
-                      : `(${fact.job.failure.code})`,
-                  ]),
-            ]
-              .filter((part) => part !== "")
-              .join("\n"),
-          }
-        : null;
+      !present &&
+      job !== null &&
+      (stoppedHere || (running && reached.has(item)));
+    const failure = stoppedHere
+      ? {
+          sentence: `${contentFailureSentence(item.kind, stop?.key ?? "", copy, stop?.code)} ${copy[resolveSentence[resolve]]}`,
+          resolve,
+          details: [
+            contentCommand(item),
+            ...(stop === undefined
+              ? []
+              : [stop.detail, stop.code === "" ? "" : `(${stop.code})`]),
+          ]
+            .filter((part) => part !== "")
+            .join("\n"),
+        }
+      : null;
     return {
       item,
       name,
