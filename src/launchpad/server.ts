@@ -275,6 +275,7 @@ import { mausbotPairingPath, mintMausbotPairing } from "./mausbot";
 import { createMemoryRoutes } from "./memory-routes";
 import { messages } from "./messages";
 import { createMaintainerCheck } from "./module-maintainer";
+import { deliverModulePage, modulePageTarget } from "./module-page";
 import { newModuleDescription } from "./new-module-view";
 import { type LaunchpadHolder, launchpadHolderOf } from "./new-tab/holder";
 import { openTab } from "./new-tab/hub-client";
@@ -298,9 +299,12 @@ import { createOwnerCheck } from "./organization-owner";
 import {
   admitLocal,
   assetCaching,
+  localShellAsset,
   pageRoutes,
   privatePage,
   serveShell,
+  shellFontsPrefix,
+  shellScriptPath,
 } from "./page";
 import {
   briefPromptOf,
@@ -649,6 +653,45 @@ export function isLocalEnsure(
   for (const name of request.headers.keys())
     if (name.toLowerCase().startsWith("sec-fetch-")) return false;
   return true;
+}
+
+/** Whether a request for one of the shell's public assets, the script or a
+ * font (`shellScriptPath`, `shellFontsPrefix`), came straight to this
+ * listener on loopback, which the Launchpad answers without admission (0249's
+ * DEV frame, decided 2026-11-25): a Module's app in DEV, started
+ * from a worktree on its own loopback port, loads them from here. As for a
+ * local `ensure`, only a loopback connection with a loopback `Host` naming
+ * this listener; a request through the gateway sends the Launchpad's own
+ * Host and is never one. Unlike an `ensure` it may carry `Origin` and Fetch
+ * Metadata, since a browser loads them. Only `GET` and `HEAD`; nothing
+ * else of the Launchpad is ever answered this way. */
+export function isLocalShellAsset(
+  request: Readonly<{
+    method: string;
+    pathname: string;
+    headers: Headers;
+    peer: string | null;
+  }>,
+  port: number,
+): boolean {
+  if (request.method !== "GET" && request.method !== "HEAD") return false;
+  if (
+    request.pathname !== shellScriptPath &&
+    !(
+      request.pathname.startsWith(shellFontsPrefix) &&
+      /^[a-z0-9-]+\.woff2$/.test(
+        request.pathname.slice(shellFontsPrefix.length),
+      )
+    )
+  )
+    return false;
+  if (!loopbackPeer(request.peer)) return false;
+  const host = request.headers.get("host");
+  return (
+    host === `127.0.0.1:${port}` ||
+    host === `localhost:${port}` ||
+    host === `[::1]:${port}`
+  );
 }
 
 /** Whether a local `ensure` may start a stopped app: only a navigation, as
@@ -1971,6 +2014,40 @@ export async function startLaunchpad(
   // The gateway's `ensure` (launchpad-parity B5), after its admission or as
   // the loopback entry's readiness call (`isLocalEnsure`): the module's
   // default app runs, or the typed reason why not.
+  /** A Module app's page in STAGING (module-page.ts): the app's address and
+   * public origin from the catalog and the address the Launchpad composes,
+   * never from the request. Not ready is 503, as the gateway's `ensure`
+   * answers it, and an unknown app 404. */
+  async function answerModulePage(
+    request: Request,
+    server: Pick<Server<undefined>, "timeout">,
+    page: Readonly<{ id: string; path: string }>,
+    person: AdmittedPerson,
+  ): Promise<Response> {
+    const response = (body: unknown, status: number) =>
+      Response.json(body, { status, headers });
+    if (trust === null) return response({ error: "not-found" }, 404);
+    server.timeout(request, 30);
+    let status: Awaited<ReturnType<typeof modules.ensure>>;
+    try {
+      status = await modules.ensure(page.id, { mayStart: false });
+    } catch {
+      return response({ error: "operation-failed" }, 503);
+    }
+    if (status.kind !== "module") return response({ error: "not-found" }, 404);
+    if (!status.healthy || status.runtime === null)
+      return response({ error: "not-ready" }, 503);
+    const entry = await modules.entrypoint(page.id);
+    if (entry === null) return response({ error: "not-found" }, 404);
+    return deliverModulePage({
+      request,
+      target: page,
+      origin: new URL(status.runtime.url).origin,
+      entry,
+      cookieName: trust.entry.authCookieName,
+      person,
+    });
+  }
   async function answerEnsure(
     request: Request,
     server: Pick<Server<undefined>, "timeout">,
@@ -2065,6 +2142,21 @@ export async function startLaunchpad(
           ensureRequest[1] as string,
           localEnsureMayStart(request.headers),
         );
+      // The shell's script and fonts for a Module's app in DEV, straight on
+      // loopback (`isLocalShellAsset`): public, so before the admission.
+      if (
+        trust !== null &&
+        isLocalShellAsset(
+          {
+            method: request.method,
+            pathname: url.pathname,
+            headers: request.headers,
+            peer: server.requestIP(request)?.address ?? null,
+          },
+          server.port ?? 0,
+        )
+      )
+        return localShellAsset(request, url.pathname);
       if (trust !== null && shell !== null) {
         // Hosted: the gateway's admission, revalidated here; the request's
         // own URL is loopback and is not evidence of anything.
@@ -2072,6 +2164,15 @@ export async function startLaunchpad(
         if (!admission.ok)
           return response({ error: "denied", reason: admission.reason }, 401);
         person = { subject: admission.subject, username: admission.username };
+        // A Module app's page in STAGING, delivered with Lazurio's element
+        // (module-page.ts): only after this admission, only a page.
+        const page = modulePageTarget(url);
+        if (page !== null) {
+          if (request.method !== "GET" && request.method !== "HEAD")
+            return response({ error: "method-not-allowed" }, 405);
+          if (closing) return response({ error: "closing" }, 503);
+          return answerModulePage(request, server, page, person);
+        }
         if (
           (request.method === "GET" || request.method === "HEAD") &&
           (url.pathname === "/files" || url.pathname.startsWith("/files/"))

@@ -53,6 +53,26 @@ export type ShellFontFile = (typeof shellFonts)[number]["file"];
 /** Where the Launchpad serves the font files. */
 export const shellFontBase = "/.lazurio/fonts/";
 
+/** Where the fonts are for a page that loaded the shell from `scriptUrl`:
+ * beside the script, on its origin, when it is a `/.lazurio/shell.js` (a
+ * Module's app in DEV loads it from the Launchpad's loopback listener, 0249's
+ * DEV frame, decided 2026-11-25); otherwise, as before, the page's
+ * own `/.lazurio/fonts/` (the Launchpad bundles the elements itself). */
+export function shellFontBaseOf(scriptUrl: string | null | undefined): string {
+  if (!scriptUrl) return shellFontBase;
+  try {
+    const url = new URL(scriptUrl);
+    if (
+      (url.protocol !== "http:" && url.protocol !== "https:") ||
+      !url.pathname.endsWith("/.lazurio/shell.js")
+    )
+      return shellFontBase;
+    return new URL("./fonts/", url).href;
+  } catch {
+    return shellFontBase;
+  }
+}
+
 /** The document-level font faces of the shell. */
 export function fontFaceCss(base: string = shellFontBase): string {
   return shellFonts
@@ -63,11 +83,14 @@ export function fontFaceCss(base: string = shellFontBase): string {
     .join("\n");
 }
 
-/** Declares the font faces in the document once. */
-export function installShellFonts(target: Document): void {
+/** Declares the font faces in the document once, from `base`. */
+export function installShellFonts(
+  target: Document,
+  base: string = shellFontBase,
+): void {
   if (target.querySelector("style[data-lazurio-fonts]") !== null) return;
   const style = target.createElement("style");
   style.dataset.lazurioFonts = "";
-  style.textContent = fontFaceCss();
+  style.textContent = fontFaceCss(base);
   target.head.append(style);
 }

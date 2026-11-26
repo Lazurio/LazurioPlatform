@@ -93,8 +93,14 @@ export function createGithubProbe(
       env[name] = value;
     const run = (command: readonly string[], timeoutMs: number) =>
       environment.run(command, timeoutMs, env);
-    const { signIn, scopes } = await ghStatus(run, gh, timeout);
-    if (signIn.state !== "signed-in") return readingOf(signIn);
+    const { signIn, scopes } = await ghStatus(
+      run,
+      gh,
+      timeout,
+      environment.sshProofs,
+    );
+    if (signIn.state !== "signed-in" || signIn.limit !== undefined)
+      return readingOf(signIn);
     const [keygen, ssh] = await Promise.all([
       resolveOnPath("ssh-keygen", environment.path, environment.platform),
       resolveOnPath("ssh", environment.path, environment.platform),
@@ -182,6 +188,9 @@ function readingOf(signIn: ToolSignIn): GithubReading {
   if (signIn.state === "signed-out") return { state: "missing", account: null };
   if (signIn.state !== "signed-in") return unknownReading;
   const account = signIn.account ?? null;
+  // Signed in while GitHub's rate limit is used up (#1223): connected, as
+  // Začínáme counts it; nothing is to sign in again.
+  if (signIn.limit !== undefined) return { state: "connected", account };
   return {
     state:
       signIn.ssh?.state === "linked"

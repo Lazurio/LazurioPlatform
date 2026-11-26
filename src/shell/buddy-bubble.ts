@@ -130,7 +130,9 @@ export function buddyMeeting(
  * action leading to `href`, and the window's close button, in the page's
  * language. */
 export type BuddyMeetingModel = Readonly<{
-  step: BuddyMeeting["step"];
+  /** `off-tailnet`: the page does not reach Buddy's origin (root decision
+   * 0210, addendum of 2026-11-25); his window says so, with no action. */
+  step: BuddyMeeting["step"] | "off-tailnet";
   hello: string;
   line: string;
   action: string;
@@ -180,6 +182,11 @@ export type BuddyBubbleSeams = Readonly<{
   frameWindow: () => BuddyFrameWindow | null;
   /** This tab's memory (`sessionStorage`), or null. */
   session: Store | null;
+  /** Asks the view to check now whether the page reaches Buddy's origin;
+   * its answer comes back through `reachability` with the same `probe`
+   * (root decision 0210, addendum of 2026-11-25). Absent: never asked, the
+   * window opens. */
+  probe?: (probe: number) => void;
   /** Draws the bubble; null draws nothing. */
   draw: (model: BuddyBubbleModel | null) => void;
   /** Moves the focus to the launcher or into the frame. */
@@ -231,6 +238,17 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
   // the Launchpad lifts the launcher over its dialog.
   let meeting: BuddyMeeting | null = null;
   let spot = false;
+  // Whether this page reaches Buddy's origin, as his picture's load told
+  // the view: null while it is not known, false where it failed or took too
+  // long (root decision 0210, addendum of 2026-11-25). Never the frame's.
+  let reachable: boolean | null = null;
+  // The probe an open waits for (0: none). Every open asks afresh (review
+  // of #1253), so a tailnet turned on or lost is noticed there; only the
+  // answer to that very probe opens the window, never an earlier probe's,
+  // another origin's or the picture's own load.
+  let probes = 0;
+  let waiting = 0;
+  const offTailnet = () => meeting === null && reachable === false;
   // The explanation the frame asked for while it plays, and the size its
   // window returns to.
   let asked: Readonly<{ explainer: string; restore: BuddyLayout }> | null =
@@ -287,8 +305,19 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         spot,
       }),
       frame,
-      meeting:
-        meeting === null || copy === null
+      meeting: offTailnet()
+        ? (() => {
+            const words = shellMessages(pageLang());
+            return Object.freeze({
+              step: "off-tailnet" as const,
+              hello: keepTogether(words.buddyHello),
+              line: keepTogether(words.buddyOffTailnet),
+              action: "",
+              href: "",
+              close: words.buddyClose,
+            });
+          })()
+        : meeting === null || copy === null
           ? null
           : Object.freeze({
               step: meeting.step,
@@ -317,11 +346,24 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
       layout = "closed";
   }
 
+  /** An open the person or the page asked for: before the meeting his hello
+   * at once; otherwise once a fresh probe says whether the page reaches
+   * Buddy (`reachability`). */
+  function requestOpen(): void {
+    if (meeting === null && seams.probe !== undefined) {
+      probes += 1;
+      waiting = probes;
+      seams.probe(waiting);
+      return;
+    }
+    openWindow();
+  }
+
   /** Opens the window: before the meeting his hello in the panel, without
    * a frame; after it the frame, made the first time, in the remembered
    * size. */
   function openWindow(): void {
-    if (meeting !== null) {
+    if (meeting !== null || offTailnet()) {
       show("panel", "frame");
       return;
     }
@@ -374,6 +416,8 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
 
   function reset(next: string | null): void {
     origin = next;
+    reachable = null;
+    waiting = 0;
     frame = null;
     layout = "closed";
     asked = null;
@@ -403,6 +447,7 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
             shown: () =>
               layout !== "closed" &&
               meeting === null &&
+              reachable !== false &&
               (seams.viewing?.() ?? true),
           });
     layoutSender =
@@ -450,14 +495,15 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
         show("closed", "launcher");
         return;
       }
-      openWindow();
+      requestOpen();
     },
     /** The Launchpad's end of the meeting (F60's addendum of 2026-10-26):
      * his window opens as the launcher's click opens it, unless it shows
      * already; the frame still never opens it itself. Whether it shows. */
     open(): boolean {
       if (origin === null) return false;
-      if (layout === "closed") openWindow();
+      // The same gate as the launcher's click (review of #1253).
+      if (layout === "closed" && waiting === 0) requestOpen();
       return true;
     },
     /** The Launchpad lifts the launcher over its own dialog while the
@@ -567,6 +613,28 @@ export function createBuddyBubble(seams: BuddyBubbleSeams) {
     guideOut(out: boolean): void {
       if (out === away) return;
       away = out;
+      draw();
+    },
+    /** Whether this page reaches Buddy's origin, as the view learned it
+     * from his picture. Where it does not, his window says to turn on the
+     * tailnet instead of loading the frame; a window open as it changes
+     * closes, as at the meeting. */
+    reachability(ok: boolean, probe?: number): void {
+      if (origin === null) return;
+      // An open waits for its own probe: any other answer (an earlier
+      // probe's, another origin's, the picture's load) changes nothing then.
+      if (waiting !== 0) {
+        if (probe !== waiting) return;
+        waiting = 0;
+        reachable = ok;
+        openWindow();
+        return;
+      }
+      if (probe !== undefined) return;
+      if (reachable === ok) return;
+      const was = offTailnet();
+      reachable = ok;
+      if (was !== offTailnet() && layout !== "closed") layout = "closed";
       draw();
     },
     /** What is drawn now. */

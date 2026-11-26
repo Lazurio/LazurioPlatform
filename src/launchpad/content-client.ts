@@ -63,6 +63,13 @@ export type ContentFailure = Readonly<{
   key: string;
   code: string;
   detail: string;
+  /** The run saw GitHub refuse it for a rate limit (`ContentFailureCause`
+   * of the content core, #1223). */
+  cause?: Readonly<{
+    kind: "github-rate-limit";
+    limit?: "hourly" | "secondary";
+    reset?: string;
+  }>;
 }>;
 
 export type ContentJob = Readonly<{
@@ -70,6 +77,15 @@ export type ContentJob = Readonly<{
   state: "running" | "succeeded" | "failed";
   steps: readonly ContentStep[];
   failure?: ContentFailure;
+  /** Every unresolved stop, one per item, shown each on its own row (also
+   * while a run of other items is under way). */
+  failures?: readonly ContentFailure[];
+  /** The items GitHub's rate limit stopped, also behind another stop that
+   * `failure` shows (#1223): what runs again once GitHub answers. */
+  waiting?: Readonly<{
+    items: readonly ContentRef[];
+    cause: NonNullable<ContentFailure["cause"]>;
+  }>;
 }>;
 
 /** What `POST /api/content/install` answered. */
@@ -244,16 +260,33 @@ export function parseContentJob(value: unknown): ContentJob | null {
   }
   let failure: ContentFailure | undefined;
   if (value.failure !== undefined && value.failure !== null) {
-    const raw = value.failure;
-    if (!isRecord(raw)) return null;
-    const ref = parseContentRef(raw.item);
-    if (ref === null || typeof raw.key !== "string" || !stepKey.test(raw.key))
+    const parsed = parseFailure(value.failure);
+    if (parsed === null) return null;
+    failure = parsed;
+  }
+  let failures: ContentFailure[] | undefined;
+  if (value.failures !== undefined && value.failures !== null) {
+    if (!Array.isArray(value.failures) || value.failures.length > 32)
       return null;
-    failure = Object.freeze({
-      item: ref,
-      key: raw.key,
-      code: line(raw.code, 80) ?? "",
-      detail: contentDetail(raw.detail) ?? "",
+    failures = [];
+    for (const raw of value.failures) {
+      const parsed = parseFailure(raw);
+      if (parsed === null) return null;
+      failures.push(parsed);
+    }
+  }
+  let waiting: ContentJob["waiting"];
+  if (value.waiting !== undefined && value.waiting !== null) {
+    const raw = value.waiting;
+    if (!isRecord(raw) || !Array.isArray(raw.items) || raw.items.length > 32)
+      return null;
+    const items = raw.items.map(parseContentRef);
+    const cause = parseCause(raw.cause);
+    if (items.some((item) => item === null) || cause === null || !cause)
+      return null;
+    waiting = Object.freeze({
+      items: Object.freeze(items as ContentRef[]),
+      cause,
     });
   }
   return Object.freeze({
@@ -261,6 +294,45 @@ export function parseContentJob(value: unknown): ContentJob | null {
     state: value.state,
     steps: Object.freeze(steps),
     ...(failure === undefined ? {} : { failure }),
+    ...(failures === undefined ? {} : { failures: Object.freeze(failures) }),
+    ...(waiting === undefined ? {} : { waiting }),
+  });
+}
+
+function parseFailure(raw: unknown): ContentFailure | null {
+  if (!isRecord(raw)) return null;
+  const ref = parseContentRef(raw.item);
+  if (ref === null || typeof raw.key !== "string" || !stepKey.test(raw.key))
+    return null;
+  const cause = parseCause(raw.cause);
+  if (cause === null) return null;
+  return Object.freeze({
+    item: ref,
+    key: raw.key,
+    code: line(raw.code, 80) ?? "",
+    detail: contentDetail(raw.detail) ?? "",
+    ...(cause === undefined ? {} : { cause }),
+  });
+}
+
+// A stop's cause: absent, or GitHub's rate limit with its kind and reset;
+// null for anything else.
+function parseCause(value: unknown): ContentFailure["cause"] | null {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value) || value.kind !== "github-rate-limit") return null;
+  const limit = value.limit;
+  if (limit !== undefined && limit !== "hourly" && limit !== "secondary")
+    return null;
+  const reset = value.reset;
+  if (
+    reset !== undefined &&
+    (typeof reset !== "string" || !Number.isFinite(Date.parse(reset)))
+  )
+    return null;
+  return Object.freeze({
+    kind: "github-rate-limit" as const,
+    ...(limit === undefined ? {} : { limit }),
+    ...(reset === undefined ? {} : { reset }),
   });
 }
 
@@ -332,10 +404,20 @@ export function createContentClient(transport: ContentTransport) {
      * the items named. */
     async install(items?: readonly ContentRef[]): Promise<InstallAnswer> {
       try {
+        // The route's items: an Organization by its login, the
+        // Personalspace by its kind alone.
         const { status, value } = await transport(
           "POST",
           "/api/content/install",
-          items === undefined ? {} : { items },
+          items === undefined
+            ? {}
+            : {
+                items: items.map((item) =>
+                  item.kind === "personalspace"
+                    ? { kind: "personalspace" }
+                    : { kind: "organization", login: item.login },
+                ),
+              },
         );
         return installAnswer(status, value);
       } catch {

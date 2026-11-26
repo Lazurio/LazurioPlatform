@@ -1,6 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { join } from "node:path";
 import { ContentUsageError, runContentCommand } from "../src/content/cli";
+import type { ContentGitHub } from "../src/content/github";
 import type { ContentHost } from "../src/content/host";
 import { installContent } from "../src/content/install";
 import { createContentJobs } from "../src/content/jobs";
@@ -1114,6 +1115,55 @@ posixTest(
     // Any other Organization: the same no, nothing asked.
     for (const org of ["Beta", "Lazurio"])
       expect(await ask(org)).toEqual({ body: no, asked: [] });
+  },
+  60_000,
+);
+
+// Pablo's review of aee0ee5e: while a run of other items is under way, the
+// stopped Organization it carries keeps its way forward: root access answers
+// for it as for a stopped job.
+posixTest(
+  "root access answers for the stopped Organization a partial run carries, while that run is under way",
+  async () => {
+    world = await createWorld();
+    const stub = stubGitHub(world);
+    let hold = false;
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const github: ContentGitHub = {
+      ...stub.github,
+      async repository(owner, name) {
+        if (hold && name.endsWith("_GEN3") && owner === "example") await held;
+        return stub.github.repository(owner, name);
+      },
+    };
+    const app = await unprepared(await presetFolder(world, "local"), {
+      ...stub,
+      github,
+    });
+    // The Personalspace alone, held while it runs.
+    hold = true;
+    const started = await app.post("/api/content/install", {
+      items: [{ kind: "personalspace" }],
+    });
+    expect(started.status).toBe(202);
+    const { job } = (await started.json()) as { job: string };
+    const running = (await (
+      await app.get(`/api/content/jobs/${job}`)
+    ).json()) as {
+      state: string;
+      failures?: { code: string }[];
+    };
+    expect(running.state).toBe("running");
+    expect(running.failures?.map((stop) => stop.code)).toEqual([
+      "root-not-found",
+    ]);
+    const answer = await app.get("/api/content/root-access?org=Alpha");
+    expect(await answer.json()).toEqual({ kind: "root-access", write: true });
+    release();
+    await untilEnded(app.get, job);
   },
   60_000,
 );

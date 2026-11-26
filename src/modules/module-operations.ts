@@ -2722,6 +2722,28 @@ export function createModuleOperations(input: {
      * none), an app could not be stopped, the service manager does not say
      * what runs, or something runs that no module of the Organization
      * declares, such as an app started before its declaration changed. */
+    /** The loopback address of a Module app's entrypoint, by the id the
+     * gateway ensures it by: where the Launchpad fetches a page it delivers
+     * in STAGING (src/launchpad/module-page.ts). From the catalog and the
+     * app's declaration only, never from a request; null for an unknown id
+     * or a declaration that cannot be read now. */
+    async entrypoint(
+      id: string,
+    ): Promise<Readonly<{ host: string; port: number }> | null> {
+      const target = await resolveId(id, Date.now() + ensureWaitMsDefault);
+      if ("kind" in target) return null;
+      const plan = await readModuleApplication(
+        target.moduleDirectory,
+        target.app,
+      ).catch(() => null);
+      if (plan?.kind !== "declared-runtime-plan") return null;
+      const listener = plan.listeners.find(
+        (candidate) => candidate.role === "entrypoint",
+      );
+      return listener === undefined
+        ? null
+        : Object.freeze({ host: listener.host, port: listener.port });
+    },
     async retire(login: string, path: string): Promise<boolean> {
       if (closing) return false;
       let kind: RunnerKind;

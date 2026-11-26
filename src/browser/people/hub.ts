@@ -8,10 +8,12 @@ import type {
 } from "../contract/platform";
 import {
   type BootTime,
+  blockedNavigationError,
   browserBounds,
   browserTimes,
   handOffAddress,
   navigableAddress,
+  ownBrowserAddress,
   stripAppOf,
 } from "../contract/pure";
 import type { CdpConnection, CdpEvent } from "./cdp";
@@ -118,6 +120,10 @@ export type HubSeams = Readonly<{
    * `sweepCookies`), each time the hub reaches the browser: the view's
    * start, an upgrade, a restarted browser. */
   sweepCookies?: (cdp: CdpConnection) => Promise<CookieSweep>;
+  /** This Environment's id (C3), from the view's origin: which names under
+   * `lazurio.io` are its own when the hub tells a page that only the
+   * person's own browser opens (C20). Absent or null: none is. */
+  environment?: string | null;
   /** Where uploaded files wait until the page reads them. */
   uploadDirectory: string;
   /** The virtual screen; no window grows past it. */
@@ -2426,6 +2432,7 @@ export class BrowserHub {
               id?: string;
               parentId?: string;
               loaderId?: string;
+              url?: string;
               unreachableUrl?: string;
             }
           | undefined;
@@ -2438,11 +2445,35 @@ export class BrowserHub {
           typeof frame?.loaderId === "string" &&
           frame.unreachableUrl !== undefined
         ) {
-          const url = handOffAddress(
-            tab.failed.get(frame.loaderId),
-            frame.unreachableUrl,
-          );
+          const failed = tab.failed.get(frame.loaderId);
+          // C18 hands off no address with credentials; a blocked page of
+          // C20 is still offered, without them (F39's addendum of
+          // 2026-11-25).
+          const url =
+            handOffAddress(failed, frame.unreachableUrl) ??
+            (failed === blockedNavigationError
+              ? ownBrowserAddress(
+                  frame.unreachableUrl,
+                  this.seams.environment ?? null,
+                )
+              : null);
           if (url !== null) this.broadcast(tab, { t: "hand-off", url });
+        } else if (typeof frame?.url === "string") {
+          // A page that only the person's own browser opens (C20), which the
+          // browser reached all the same: the gateway's local entry answers
+          // it with its page "Otevřete to ve svém prohlížeči", and without
+          // the policy the sign-in or the Dashboard loads itself (F39's
+          // addendum of 2026-11-25, Machines#1589). The view offers it in
+          // the person's own browser as C18 does, without the credentials,
+          // and the tab goes back to where it was.
+          const own = ownBrowserAddress(
+            frame.url,
+            this.seams.environment ?? null,
+          );
+          if (own !== null) {
+            this.broadcast(tab, { t: "hand-off", url: own });
+            void this.leaveOwnBrowserPage(tab);
+          }
         }
         tab.world = null;
         tab.document += 1;
@@ -3745,6 +3776,66 @@ export class BrowserHub {
     tab.ackTimer = null;
     if (tab.metaTimer !== null) clearInterval(tab.metaTimer);
     tab.metaTimer = null;
+  }
+
+  /** Takes a tab off a page that only the person's own browser opens (C20):
+   * back to the latest entry of its history before it that is no such page,
+   * or to `about:blank` where there is none. Only while the tab is still on
+   * such a page: a person or an agent that went on meanwhile keeps their
+   * page. Chrome answers "Not attached to an active page" while a navigation
+   * to another site swaps the page's process at its commit (measured with
+   * Chrome for Testing 156), so a call that fails is asked again a little
+   * later, a few times at most. */
+  private async leaveOwnBrowserPage(tab: Tab): Promise<void> {
+    const environment = this.seams.environment ?? null;
+    const attempts = 8;
+    for (let attempt = 1; ; attempt += 1) {
+      const cdp = this.cdp;
+      const session = tab.sessionId;
+      if (
+        cdp === null ||
+        session === null ||
+        this.tabs.get(tab.targetId) !== tab
+      )
+        return;
+      try {
+        const history = await cdp.send(
+          "Page.getNavigationHistory",
+          {},
+          session,
+        );
+        const index = Number(history.currentIndex);
+        const entries = (
+          Array.isArray(history.entries) ? history.entries : []
+        ) as { id?: unknown; url?: unknown }[];
+        if (ownBrowserAddress(entries[index]?.url, environment) === null)
+          return;
+        for (let at = Math.min(index, entries.length) - 1; at >= 0; at -= 1) {
+          const entry = entries[at];
+          if (
+            typeof entry?.id === "number" &&
+            ownBrowserAddress(entry.url, environment) === null
+          ) {
+            await cdp.send(
+              "Page.navigateToHistoryEntry",
+              { entryId: entry.id },
+              session,
+            );
+            return;
+          }
+        }
+        await cdp.send("Page.navigate", { url: "about:blank" }, session);
+        return;
+      } catch (error) {
+        if (attempt >= attempts) {
+          this.seams.log(
+            `leaving a page for the own browser failed: ${String(error)}`,
+          );
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50 * attempt));
+      }
+    }
   }
 
   // ---- To the viewers ------------------------------------------------------
