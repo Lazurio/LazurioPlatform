@@ -1633,6 +1633,8 @@ Whoever gets access gets the module from Lazurio by itself. Content synchronizat
 ### Modules, Files and Integrations
 A module is a shared area of work: it has a history and is shared by access. **Files** (\`~/Documents/\`) are the agents' desk in one Environment: they are not shared with other Environments and are not backed up, so what a team should share or what must outlive the Environment belongs in a module. **An Integration** is someone else's app that the agent uses from outside, without seeing its code. A module of its own pays off when the Organization wants its own process and app; an Integration, when another app is used for most of the work.
 
+A regular off-server backup of Environments does not exist yet. Manual or one-time copies made for single Organizations (for example before a disk replacement) are temporary measures, not a pattern: do not copy them as a procedure or take them for the target state, which Lazurio's development plan will set.
+
 ## Integrations
 Integrations are the applications connected to this Environment (mail, calendar, chat, CRM…). The user connects their own accounts alone in Integrations; each Environment holds its own sign-ins, and in a Team Environment the whole Team uses them. An Integration for the whole Organization (a shared mailbox, the Organization's Composio account, a company MCP server) is the Organization Admin's. A connected application is not consent to Publication. Details are in \`manual/working-here.md\`, section Integrations.
 
@@ -1772,6 +1774,8 @@ Kdo přístup dostane, tomu Lazurio modul doručí samo. Synchronizace obsahu b�
 
 ### Modul, Soubory a Integrace
 Modul je sdílená oblast práce: má historii a sdílí se podle přístupů. **Soubory** (\`~/Documents/\`) jsou pracovní stůl agentů v jednom Prostředí: s dalšími Prostředími se nesdílí a nezálohují se, takže co má sdílet tým nebo přežít Prostředí, patří do modulu. **Integrace** je cizí aplikace, kterou agent používá zvenku a do jejího kódu nevidí. Vlastní modul se vyplatí, když Organizace chce vlastní postup a aplikaci; Integrace, když se cizí aplikace používá z velké části.
+
+Řádná pravidelná záloha Prostředí mimo server zatím není. Ruční nebo jednorázové kopie, které u jednotlivých Organizací vznikly (třeba před výměnou disku), jsou dočasná opatření, ne vzor: nekopíruj je jako postup a neber je jako cílový stav, ten určí plán vývoje Lazuria.
 
 ## Integrace
 Integrace jsou aplikace připojené k tomuto Prostředí (pošta, kalendář, chat, CRM…). Vlastní účty připojuje uživatel sám na stránce Integrace; každé Prostředí drží svá přihlášení a na Týmovém Prostředí je používá celý Team. Integraci pro celou Organizaci (sdílená schránka, účet Organizace v Composiu, firemní MCP server) zařizuje Admin Organizace. Připojená aplikace není souhlas s Publikací. Podrobnosti jsou v \`manual/working-here.md\`, oddíl Integrace.
