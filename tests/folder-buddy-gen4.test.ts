@@ -472,10 +472,9 @@ test("buddy-control-plane: the tool, the order of the queue, the record of an an
   );
   expect(cs).toContain("kdy jsi ho zařadil");
   expect(cs).toContain("Stránka nic neodesílá ani neschvaluje");
-  expect(cs).toContain(
-    'parent.postMessage({ type: "lazurio.control-plane.draft", v: 1, text: "<věta>" }, "*")',
-  );
-  expect(cs).toContain("Zprávu posílej jen z kliknutí");
+  expect(cs).toContain("předej v `answers` nástroje `control_plane_publish`");
+  expect(cs).toContain("Stránka sama tlačítka k odpovědi nemá");
+  expect(cs).not.toContain("postMessage");
   expect(cs).toContain("a jen pokud k ní máš přístup");
   expect(cs).toContain("Nic z toho nepočítej ani neodhaduj sám");
   expect(cs).toContain(
