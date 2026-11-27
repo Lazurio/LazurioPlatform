@@ -1,11 +1,20 @@
 import { expect, test } from "bun:test";
+import { chmod, mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { FolderAdoptionError } from "../src/folder/handover-layout";
 import {
+  type MachineBinding,
   machineIdentity,
   ownerOrganizationCorrection,
 } from "../src/folder/machine-binding";
+import {
+  initializeMachineFolder,
+  refreshMachineFolder,
+} from "../src/machine/cli";
 import schema from "../src/machine/lazurio-machine.v1.schema.json";
 import provenance from "../src/machine/schema-provenance.json";
-import { binding } from "./fixtures/machine-bindings";
+import { assignments, binding } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
@@ -73,3 +82,87 @@ test("a renamed Owner in the handover is the same Environment only by the same i
     ),
   ).toBeNull();
 });
+
+// Through `machine folder-refresh` with the real handover, its
+// `organization_key` present (review of #1282 and #1284).
+const noChoices = {
+  preset: undefined,
+  locale: undefined,
+  detail: undefined,
+  coordination: undefined,
+} as const;
+const { team: _team, ...operatorOwner } = organization.owner;
+const keyed = (login: string, key: string, id?: number) =>
+  binding({
+    ...organization,
+    owner: {
+      ...operatorOwner,
+      assignment: assignments.operator,
+      organization: login,
+      organization_key: key,
+      ...(id === undefined ? {} : { organization_id: id }),
+    },
+  });
+
+async function folderOf(initial: MachineBinding) {
+  const parent = await realpath(await mkdtemp(join(tmpdir(), "org-id-")));
+  const folder = join(parent, "Lazurio");
+  await mkdir(join(folder, "organizations"), { recursive: true, mode: 0o700 });
+  await chmod(folder, 0o700);
+  expect(
+    await initializeMachineFolder(folder, initial, noChoices),
+  ).toMatchObject({ code: 0, result: { kind: "initialized" } });
+  return { parent, folder };
+}
+
+test.skipIf(process.platform === "win32")(
+  "a refresh takes a new login only after the Folder recorded the same id, never by the key alone",
+  async () => {
+    const { parent, folder } = await folderOf(keyed("example", "Example"));
+    try {
+      // A handover with an id and a new login whose key matches it: no
+      // recorded id proves it, so it is another Owner, and nothing changes.
+      await expect(
+        refreshMachineFolder(
+          folder,
+          keyed("renamed", "Renamed", 7001),
+          undefined,
+          "Renamed",
+        ),
+      ).rejects.toEqual(new FolderAdoptionError("binding-changed", ".lazurio"));
+      // The id under the unchanged login: recorded, the same Machine.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          keyed("example", "Example", 7001),
+          undefined,
+          "Example",
+        ),
+      ).toMatchObject({ code: 0, result: { kind: "refreshed" } });
+      // Then the rename by the same id …
+      expect(
+        await refreshMachineFolder(
+          folder,
+          keyed("renamed", "Renamed", 7001),
+          undefined,
+          "Renamed",
+        ),
+      ).toMatchObject({
+        code: 0,
+        result: { kind: "refreshed", bindingCorrected: "owner-renamed" },
+      });
+      // … but never to another id or to none, whatever the key says.
+      for (const live of [
+        keyed("other", "Other", 9009),
+        keyed("other", "Other"),
+      ])
+        await expect(
+          refreshMachineFolder(folder, live, undefined, "Other"),
+        ).rejects.toEqual(
+          new FolderAdoptionError("binding-changed", ".lazurio"),
+        );
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
