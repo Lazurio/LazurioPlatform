@@ -93,7 +93,7 @@ and never mixing owner or host kinds:
 
 | Branch | `machine.kind` | `owner` | `host` | `network` | `relationships` |
 | --- | --- | --- | --- | --- | --- |
-| Organization workspace VM | `workspace-vm` | `{kind: "organization", organization, organization_key?, team?, assignment?}` | `{kind: "virtualization-host", machine_id, custody_repository, provider}` | optional | optional, `zone: "work"` |
+| Organization workspace VM | `workspace-vm` | `{kind: "organization", organization, organization_key?, organization_id?, team?, assignment?}` | `{kind: "virtualization-host", machine_id, custody_repository, provider}` | optional | optional, `zone: "work"` |
 | Personal VM | `personal-vm`; `machine.name` is the DNS slug | `{kind: "principal", github_login, github_id}` | `{kind: "provider-estate", estate_id, custody_repository, record_path}` | required | optional, `zone: "personal"` |
 
 `operator`, `installed` and `account` are shared; `operator.os_user` may differ from
