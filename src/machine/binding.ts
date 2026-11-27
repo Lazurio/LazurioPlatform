@@ -246,6 +246,11 @@ export function machineBinding(
       ...(context.owner.assignment === undefined
         ? {}
         : { assignment: assignment(context.owner.assignment) }),
+      // The Organization's immutable GitHub id, where the handover names
+      // it: what proves a renamed Organization is the same one (#1281).
+      ...(context.owner.organization_id === undefined
+        ? {}
+        : { organizationId: context.owner.organization_id }),
     }),
     network,
     host: Object.freeze({

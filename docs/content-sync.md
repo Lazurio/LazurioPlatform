@@ -318,6 +318,30 @@ replaced) and an `onProgress` listener that hears `checking`, `fetching` and
 answer for each repository as it happens. The Open of one module uses the first;
 `lazurio update` and Aktualizovat the second ([When it runs](#when-it-runs)).
 
+**After a GitHub rename (#1281).** A rename changes an Organization's login; its id and its
+repositories' ids stay. GitHub redirects the old `<owner>/<name>` until someone takes the old
+login and creates a repository of the same name, so a login alone never proves anything here.
+- *Origins.* A checkout whose origin names another owner than expected is pointed to the
+  declared repository (the root: its own name under the login the Organization is kept under)
+  only when GitHub answers the origin and the declared path with the same repository id; the
+  URL keeps its form (SSH or HTTPS) and the entry records `origin: {from, to}`. Any other answer
+  stays `unexpected-checkout`. The origin changes before the checkout's own state is looked at,
+  so a push from a blocked checkout never goes to a namesake.
+- *Which Organization.* A Work Environment keeps its handover's Organization by its login, and
+  by its id where the handover names one (`owner.organization_id`): a root that declares that id
+  in `forge_binding.organization_id` is kept under the login GitHub answers for its repository.
+  Without the id in the handover, a root that declares another login which GitHub confirms for
+  the root's repository with the declared Organization id is `blocked`
+  `organization-renamed` on the root's entry, and nothing changes until the Environment's
+  update. A root whose origin GitHub answers under an Organization of another id than the root
+  declares is `unexpected-checkout`: someone else holds that login now.
+- *The handover.* `machine folder-refresh` records a new Owner login as the same Environment only
+  when the recorded binding and the handover name the same Organization id (`owner-renamed`);
+  the id itself is no part of the identity.
+- *Installation.* `accountAccess` takes a root GitHub answers under another login as this
+  Organization's when a root of the Folder declares one of the two logins with that
+  Organization's id.
+
 ## Access ended — decided 2026-11-06
 
 Matěj's decision of 2026-11-06 ([root decision 0232](decision-register.md#0232--access-to-a-module-has-levels-an-organization-admin-locks-a-module-and-a-lost-grant-removes-the-environments-copy),

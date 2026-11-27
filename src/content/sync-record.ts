@@ -17,6 +17,14 @@ export const syncBlockedReasons = [
   /** Something else at the place: no checkout of the declared repository,
    * a linked worktree, a directory that is no checkout. */
   "unexpected-checkout",
+  /** The Organization was renamed on GitHub and this Environment cannot yet
+   * prove it is the one of its handover: the root declares another login,
+   * GitHub answers the root's repository under that login with the
+   * Organization id the root declares, and the handover names no
+   * Organization id. Nothing is changed until this Environment's update
+   * (its handover) names the Organization by its id or its new login
+   * (#1281). Only on the root's entry. */
+  "organization-renamed",
 ] as const;
 export type SyncBlockedReason = (typeof syncBlockedReasons)[number];
 
@@ -96,6 +104,10 @@ export type SyncEntry = Readonly<{
    * F73); `materialized`: the commit it was cloned at. */
   from?: string;
   to?: string;
+  /** The checkout's `origin` was pointed from the repository's earlier
+   * `<owner>/<name>` to the declared one in this run, because GitHub
+   * answered both with the same repository id: a rename on GitHub (#1281). */
+  origin?: Readonly<{ from: string; to: string }>;
   /** When this answer was given (ISO 8601). */
   at: string;
   /** GitHub refused this identity at the last read of this repository's
@@ -174,6 +186,12 @@ const validRemoved = (value: unknown) => {
   );
 };
 
+const validOrigin = (value: unknown) => {
+  if (value === null || typeof value !== "object") return false;
+  const origin = value as Record<string, unknown>;
+  return text(origin.from) && text(origin.to);
+};
+
 const validEntry = (value: unknown): value is SyncEntry => {
   if (value === null || typeof value !== "object") return false;
   const entry = value as Record<string, unknown>;
@@ -193,7 +211,8 @@ const validEntry = (value: unknown): value is SyncEntry => {
     (entry.unreadable === undefined || entry.unreadable === true) &&
     (entry.since === undefined || text(entry.since)) &&
     (entry.removal === undefined || validMark(entry.removal)) &&
-    (entry.removed === undefined || validRemoved(entry.removed))
+    (entry.removed === undefined || validRemoved(entry.removed)) &&
+    (entry.origin === undefined || validOrigin(entry.origin))
   );
 };
 

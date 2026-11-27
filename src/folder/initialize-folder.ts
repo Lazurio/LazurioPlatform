@@ -431,7 +431,10 @@ export async function adoptedHandoverFolder(
       ? {}
       : {
           bindingCorrection: correction,
-          next: "Run lazurio machine folder-refresh: it records the Owner Organization as the handover now names it, by its GitHub login in lower case.",
+          next:
+            correction === "owner-renamed"
+              ? "Run lazurio machine folder-refresh: it records the Owner Organization's new GitHub login, which the handover names with the same Organization id."
+              : "Run lazurio machine folder-refresh: it records the Owner Organization as the handover now names it, by its GitHub login in lower case.",
         }),
   };
 }

@@ -119,13 +119,18 @@ an older template revision is re-rendered in full when every generated file
 still matches its recorded digest.
 The Environment identity (kind, name, Owner, tailnet node) must be the one the
 Folder was adopted for; the host, assignment, relationships and the document
-digest follow the handover. One correction of the identity is recorded: on a
+digest follow the handover. Two corrections of the identity are recorded: on a
 work Environment whose Folder recorded the Owner Organization by another value,
 a handover that now names it by exactly owner.organization_key in lower case,
 with everything else in the identity the same, is the same Environment; the
 refresh records it and adds "bindingCorrected":"owner-organization" to its
 answer (folder-init on that Folder answers already-adopted with
-"bindingCorrection":"owner-organization" and writes nothing). Prints
+"bindingCorrection":"owner-organization" and writes nothing). The other is a
+rename of the Owner Organization on GitHub: a handover that names it by another
+login with the same owner.organization_id as the Folder recorded, with
+everything else in the identity the same, is the same Environment
+("owner-renamed"). Without a recorded id a new login stays another Owner.
+Prints
 {"kind":"refreshed","revision":<n>} after one
 archived update transaction, or {"kind":"unchanged"} when the Folder already
 records the current handover's digest and it renders the same bytes (nothing

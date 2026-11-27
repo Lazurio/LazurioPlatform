@@ -4,6 +4,7 @@ import type { MachineBinding } from "../folder/machine-binding";
 import type { PresetName } from "../folder/presets";
 import { inspectCanonicalInventory } from "../organizations/canonical-inventory";
 import { parseCanonicalOrganization } from "../organizations/canonical-manifest";
+import type { CatalogOrganization as FolderCatalogOrganization } from "../organizations/catalog";
 import { readFolderCatalog } from "../organizations/catalog";
 import { readOrganizationDocuments } from "../organizations/read-documents";
 import { resolveOrganizationRoot } from "../organizations/root-resolution";
@@ -136,7 +137,12 @@ export const syncTimeoutMs = 60_000;
 export const syncConcurrency = 4;
 
 type Scope = Readonly<{
-  organizations: "folder" | "none" | Readonly<{ only: string }>;
+  /** `only`: the handover's Organization by its login, and by its GitHub
+   * id where the handover names one (`organizationId`, #1281). */
+  organizations:
+    | "folder"
+    | "none"
+    | Readonly<{ only: string; organizationId?: number }>;
   /** How a remote is read: the Environment's own sign-in, git's configured
    * helper (a Team Environment's broker) or anonymously (public). */
   remote: "account" | "configured" | "anonymous";
@@ -151,15 +157,26 @@ export function syncScope(
   machine: MachineBinding | null,
 ): Scope {
   const scope = contentScope(preset, machine);
+  const organizationId =
+    machine?.owner.kind === "organization" &&
+    machine.owner.organizationId !== undefined
+      ? { organizationId: machine.owner.organizationId }
+      : {};
   if (!scope.allowed)
     return machine?.owner.kind === "organization"
       ? {
-          organizations: { only: machine.owner.organization },
+          organizations: {
+            only: machine.owner.organization,
+            ...organizationId,
+          },
           remote: "configured",
         }
       : { organizations: "none", remote: "configured" };
   return {
-    organizations: scope.organizations,
+    organizations:
+      typeof scope.organizations === "object"
+        ? { ...scope.organizations, ...organizationId }
+        : scope.organizations,
     remote: scope.github === "anonymous" ? "anonymous" : "account",
   };
 }
@@ -200,18 +217,56 @@ export async function syncContent(
     const now = request.now ?? (() => new Date());
     const at = now().toISOString();
     const catalog = await (host.readCatalog ?? readFolderCatalog)(folder);
-    const held = catalog.organizations.filter(
-      (entry) =>
-        entry.forgeLogin !== undefined &&
-        entry.reason !== "template-not-runtime" &&
-        admits(scope, entry.forgeLogin) &&
-        (request.organization === undefined ||
-          entry.forgeLogin.toLowerCase() ===
-            request.organization.toLowerCase()),
-    );
+    // The Organizations this run keeps, each by the login it is kept
+    // under now; after a GitHub rename that may differ from what the root
+    // or the handover still says (#1281). A root this Environment cannot
+    // yet prove to be its handover's answers `organization-renamed`.
+    const github = scope.remote === "account" ? host.github : null;
+    const held: { entry: FolderCatalogOrganization; login: string }[] = [];
+    const renamed: SyncEntry[] = [];
+    for (const entry of catalog.organizations) {
+      if (
+        entry.forgeLogin === undefined ||
+        entry.reason === "template-not-runtime"
+      )
+        continue;
+      const admitted = await admission(
+        scope,
+        entry,
+        join(folder, "organizations", entry.directory),
+        host.git,
+        github,
+      );
+      if (admitted === null) continue;
+      const { login } = admitted;
+      if (
+        request.organization !== undefined &&
+        login.toLowerCase() !== request.organization.toLowerCase() &&
+        entry.forgeLogin.toLowerCase() !== request.organization.toLowerCase()
+      )
+        continue;
+      if (admitted.kind === "held") held.push({ entry, login });
+      else
+        renamed.push(
+          Object.freeze({
+            organization: login,
+            root: join("organizations", entry.directory),
+            path: ".",
+            kind: "root",
+            branch: "main",
+            result: "blocked",
+            reason:
+              admitted.kind === "renamed"
+                ? "organization-renamed"
+                : "unexpected-checkout",
+            at,
+          }),
+        );
+    }
     let helper: Promise<string | undefined> | undefined;
     const context: RunContext = {
       git: host.git,
+      github,
       // Who clones a declared module that is not here yet (decision F9's
       // addendum of 2026-11-01): this Environment's own GitHub, or anonymous
       // Git on a public Environment; a Team Environment, whose content the
@@ -247,14 +302,13 @@ export async function syncContent(
       now,
     });
     await ended?.resume().catch(() => {});
-    const entries: SyncEntry[] = [];
+    const entries: SyncEntry[] = [...renamed];
     // A repository filter: that module and the data mounts below it.
     const wanted = (path: string) =>
       request.repository === undefined ||
       path === request.repository ||
       path.startsWith(`${request.repository}/`);
-    for (const organization of held) {
-      const login = organization.forgeLogin as string;
+    for (const { entry: organization, login } of held) {
       const root = join("organizations", organization.directory);
       // One repository: its progress as it goes, then its answer.
       const one = async (
@@ -321,6 +375,9 @@ export async function syncContent(
               repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
             "main",
             progress,
+            // The root keeps its repository's name through a rename of its
+            // owner: the same name under the login it is kept under now.
+            (repository) => `${login}/${repository.split("/")[1]}`,
           ),
       );
       entries.push(rootEntry);
@@ -364,6 +421,7 @@ export async function syncContent(
                 (repository) => sameRepository(repository, child.repository),
                 child.branch,
                 progress,
+                () => child.repository,
               );
               if (outcome.result !== "absent") {
                 const verdict = await access?.judge(child, outcome);
@@ -394,6 +452,7 @@ export async function syncContent(
                       sameRepository(repository, child.repository),
                     child.branch,
                     progress,
+                    () => child.repository,
                   )
                 : cloned;
             }),
@@ -403,7 +462,10 @@ export async function syncContent(
         entries.push(...answered);
       }
     }
-    const organizations = held.map((entry) => entry.forgeLogin as string);
+    const organizations = [
+      ...held.map(({ login }) => login),
+      ...renamed.map((entry) => entry.organization),
+    ];
     const recorded = await recordSync(
       host.lockDirectory,
       folder,
@@ -426,8 +488,85 @@ export async function syncContent(
   }
 }
 
+/** Whether this run keeps a root of the Folder, and under which login:
+ * - `held`: its declared login is the handover's (or the Folder's scope
+ *   admits every Organization), or it declares the handover's Organization
+ *   id (`forge_binding.organization_id`) and the handover names that id: a
+ *   GitHub rename (#1281). Kept under the login GitHub answers for the
+ *   root's repository by that Organization id, else the declared one.
+ * - `renamed`: it declares another login, the handover names no
+ *   Organization id, and GitHub answers this root's repository (its origin,
+ *   still under the handover's login) under the declared login with the
+ *   declared Organization id. The Organization was renamed on GitHub, and
+ *   until the handover names it by its id or its new login nothing here can
+ *   prove it is the same one, because GitHub frees the old login for anyone.
+ * - `foreign`: GitHub answers the root's origin under an Organization of
+ *   another id than the root declares: someone took the login after a
+ *   rename, and the checkout is never read from there.
+ * - null: another Organization's root, left alone as before. */
+async function admission(
+  scope: Scope,
+  entry: FolderCatalogOrganization,
+  directory: string,
+  git: ContentGit,
+  github: RunContext["github"],
+): Promise<
+  | Readonly<{ kind: "held"; login: string }>
+  | Readonly<{ kind: "renamed" | "foreign"; login: string }>
+  | null
+> {
+  const declared = entry.forgeLogin as string;
+  const id = entry.forgeOrganizationId;
+  // The root's origin as GitHub answers it now, by the Organization id the
+  // root declares: `same` (with the owner's login now), `other` (another
+  // Organization's), or undefined when it cannot tell (no id, no GitHub of
+  // this Environment, no checkout, no answer).
+  const probe = async () => {
+    if (github === null || id === undefined) return undefined;
+    const observed = await git.inspect(directory).catch(() => null);
+    if (observed?.kind !== "checkout") return undefined;
+    const [owner, name] = observed.repository.split("/") as [string, string];
+    const answer = await github.repository(owner, name).catch(() => null);
+    if (answer?.kind !== "observed") return undefined;
+    return answer.repository.owner.databaseId === id
+      ? {
+          kind: "same" as const,
+          origin: observed.repository,
+          owner: answer.repository.owner.login,
+        }
+      : { kind: "other" as const };
+  };
+  if (admits(scope, declared)) {
+    if (typeof scope.organizations !== "object")
+      return { kind: "held", login: declared };
+    const now = await probe();
+    return now?.kind === "other"
+      ? { kind: "foreign", login: declared }
+      : { kind: "held", login: declared };
+  }
+  if (typeof scope.organizations !== "object" || id === undefined) return null;
+  const { only, organizationId } = scope.organizations;
+  if (organizationId !== undefined) {
+    if (id !== organizationId) return null;
+    const now = await probe();
+    return now?.kind === "other"
+      ? { kind: "foreign", login: declared }
+      : { kind: "held", login: now?.owner ?? declared };
+  }
+  const now = await probe();
+  return now?.kind === "same" &&
+    now.origin.split("/")[0]?.toLowerCase() === only.toLowerCase() &&
+    now.owner.toLowerCase() === declared.toLowerCase()
+    ? { kind: "renamed", login: only }
+    : null;
+}
+
 type RunContext = Readonly<{
   git: ContentGit;
+  /** This Environment's own GitHub, which proves a rename by repository id
+   * (#1281); null where the run reads through git's configured helper or
+   * anonymously, which then never rewrites an origin. */
+  github: SyncHost["github"] | null;
   /** Who clones an absent declared module: null, nobody. */
   clone: Parameters<typeof provideRepository>[0]["github"] | null;
   timeoutMs: number;
@@ -443,6 +582,7 @@ type Outcome = Readonly<{
   to?: string;
   removal?: RemovalMark;
   removed?: RemovedCopy;
+  origin?: Readonly<{ from: string; to: string }>;
 }>;
 
 type SyncChild = Readonly<{
@@ -609,17 +749,20 @@ async function syncCheckout(
   expected: (repository: string) => boolean,
   branch: string,
   progress: (step: CheckoutStep, to: string) => void = () => {},
+  declared?: (origin: string) => string,
 ): Promise<Outcome> {
   const { git } = context;
   const deadline = Date.now() + context.timeoutMs;
   const remaining = () => Math.max(1_000, deadline - Date.now());
   try {
-    const observed = await git.inspect(directory);
+    let observed = await git.inspect(directory);
     if (observed.kind !== "checkout")
       return (await absentAt(directory))
         ? { result: "absent" }
         : blocked("unexpected-checkout");
-    if (!expected(observed.repository)) return blocked("unexpected-checkout");
+    const misnamed = !expected(observed.repository);
+    if (misnamed && (declared === undefined || context.github === null))
+      return blocked("unexpected-checkout");
     const tree = await git.worktree(directory);
     // A linked worktree is never a primary checkout.
     if (tree === null || tree.gitDir !== tree.commonDir)
@@ -630,6 +773,98 @@ async function syncCheckout(
     if (partial === null)
       return { result: "failed", reason: "status-unreadable" };
     if (partial) return blocked("unexpected-checkout");
+    // An origin that names the repository's earlier `<owner>/<name>` (a
+    // GitHub rename, #1281) is pointed to the declared one only when GitHub
+    // answers both with the same repository id; anything else stays
+    // `unexpected-checkout`. Only the origin's URL changes, before the
+    // checkout's own state is looked at, so that a later push of a blocked
+    // checkout goes to the repository and never to a namesake who took the
+    // earlier name.
+    let origin: Outcome["origin"];
+    if (misnamed && declared !== undefined && context.github !== null) {
+      const moved = await redirect(
+        context.github,
+        git,
+        directory,
+        observed.repository,
+        declared(observed.repository),
+      );
+      if (moved.kind !== "moved") return moved.outcome;
+      origin = Object.freeze({ from: observed.repository, to: moved.to });
+      observed = await git.inspect(directory);
+      if (observed.kind !== "checkout" || !expected(observed.repository))
+        return { ...blocked("unexpected-checkout"), origin };
+    }
+    const withOrigin = (outcome: Outcome): Outcome =>
+      origin === undefined ? outcome : { ...outcome, origin };
+    return withOrigin(
+      await keepCurrent(
+        context,
+        directory,
+        tree,
+        observed,
+        branch,
+        progress,
+        remaining,
+      ),
+    );
+  } catch {
+    return { result: "failed", reason: "operation-failed" };
+  }
+}
+
+/** Whether `from` is the earlier name of the declared repository `to`:
+ * GitHub answers both with the same repository id, the declared one under
+ * its own name. Then the checkout's origin is pointed to it. */
+async function redirect(
+  github: NonNullable<RunContext["github"]>,
+  git: ContentGit,
+  directory: string,
+  from: string,
+  to: string,
+): Promise<
+  | Readonly<{ kind: "moved"; to: string }>
+  | Readonly<{ kind: "refused"; outcome: Outcome }>
+> {
+  const refused = (outcome: Outcome) => ({ kind: "refused" as const, outcome });
+  const ask = (repository: string) => {
+    const [owner, name] = repository.split("/") as [string, string];
+    return github.repository(owner, name);
+  };
+  const [earlier, now] = [await ask(from), await ask(to)];
+  if (earlier.kind === "unavailable" || now.kind === "unavailable")
+    return refused({ result: "unavailable", reason: "remote-unavailable" });
+  const id =
+    earlier.kind === "observed" ? earlier.repository.databaseId : undefined;
+  if (
+    earlier.kind !== "observed" ||
+    now.kind !== "observed" ||
+    id === undefined ||
+    now.repository.databaseId !== id ||
+    !sameRepository(now.repository.fullName, to) ||
+    git.setOrigin === undefined
+  )
+    return refused(blocked("unexpected-checkout"));
+  return (await git.setOrigin(directory, from, now.repository.fullName))
+    ? { kind: "moved", to: now.repository.fullName }
+    : refused({ result: "failed", reason: "origin-update-failed" });
+}
+
+/** A checkout whose identity is verified, kept on `branch`. */
+async function keepCurrent(
+  context: RunContext,
+  directory: string,
+  tree: Readonly<{ gitDir: string }>,
+  observed: Extract<
+    Awaited<ReturnType<ContentGit["inspect"]>>,
+    { kind: "checkout" }
+  >,
+  branch: string,
+  progress: (step: CheckoutStep, to: string) => void,
+  remaining: () => number,
+): Promise<Outcome> {
+  const { git } = context;
+  try {
     const local = await localBlock(
       git,
       directory,
