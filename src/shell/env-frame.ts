@@ -169,9 +169,15 @@ export function versionFrame(
   // A production Application is no Environment's page: never framed, even
   // without a document (its host serves none).
   if (version === "production") return null;
+  // A DEV page runs on the loopback of the Environment whose worktree it is,
+  // reached only through that Environment's own browser; no gateway serves
+  // it, so it never has a document and never reads the account. It is
+  // framed as the version it is, blue and dashed, not as another person's
+  // place (Matěj, 2026-11-27: the frame of DEV and STAGING warns that it is
+  // not PROD). STAGING and a page without a version keep the red frame.
   if (environment === undefined && environmentUnknown)
     return {
-      tone: "red",
+      tone: version === "dev" ? "blue" : "red",
       dashed: version === "dev",
       version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
       environment: null,

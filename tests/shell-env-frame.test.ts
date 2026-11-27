@@ -474,6 +474,27 @@ describe("versionFrame", () => {
     expect(versionFrame(undefined, null, null, "cs", true)?.tone).toBe("red");
   });
 
+  // A DEV page on the loopback of the Environment it is built in has no
+  // document and no account read: it is framed as its version, blue and
+  // dashed, never as an unknown person's place. STAGING without its
+  // document and a page without a version stay red (review of #1244).
+  test("a DEV page without its document is framed blue as DEV, nothing else changes", () => {
+    expect(versionFrame(undefined, null, "dev", "cs", true)).toEqual({
+      tone: "blue",
+      dashed: true,
+      version: "DEV",
+      environment: null,
+    });
+    expect(versionFrame(undefined, null, "staging", "cs", true)).toEqual({
+      tone: "red",
+      dashed: false,
+      version: "STAGING",
+      environment: null,
+    });
+    expect(versionFrame(undefined, null, null, "en", true)?.tone).toBe("red");
+    expect(versionFrame(undefined, null, "production", "cs", true)).toBeNull();
+  });
+
   test("the frame never takes a click, DEV is dashed, the version never gives way", () => {
     expect(frameCss).toContain("pointer-events: none");
     expect(frameCss).toMatch(
