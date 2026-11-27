@@ -261,11 +261,15 @@ export async function syncContent(
             path: ".",
             kind: "root",
             branch: "main",
-            result: "blocked",
-            reason:
-              admitted.kind === "renamed"
-                ? "organization-renamed"
-                : "unexpected-checkout",
+            ...(admitted.kind === "unverified"
+              ? { result: "unavailable", reason: "owner-unverified" }
+              : {
+                  result: "blocked",
+                  reason:
+                    admitted.kind === "renamed"
+                      ? "organization-renamed"
+                      : "unexpected-checkout",
+                }),
             at,
           }),
         );
@@ -519,6 +523,10 @@ export async function syncContent(
  *   Organization id than the handover, or GitHub answers the root's origin
  *   under another id than the root declares (someone took the login after a
  *   rename): never read.
+ * - `unverified`: the root declares an Organization id and GitHub gives no
+ *   answer that names the owner of its origin; git may still reach a
+ *   namesake, so the root is not read and answers `unavailable`
+ *   (`owner-unverified`) until GitHub answers.
  * - null: another Organization's root, left alone as before. */
 async function admission(
   scope: Scope,
@@ -528,22 +536,24 @@ async function admission(
   github: RunContext["github"],
 ): Promise<
   | Readonly<{ kind: "held"; login: string }>
-  | Readonly<{ kind: "renamed" | "foreign"; login: string }>
+  | Readonly<{ kind: "renamed" | "foreign" | "unverified"; login: string }>
   | null
 > {
   const declared = entry.forgeLogin as string;
   const id = entry.forgeOrganizationId;
   // The root's origin as GitHub answers it now, by the Organization id the
   // root declares: `same` (with the owner's login now), `other` (another
-  // Organization's), or undefined when it cannot tell (no id, no GitHub of
-  // this Environment, no checkout, no answer).
+  // Organization's), `unknown` when GitHub gives no answer that names the
+  // owner (unavailable, refused, a failure): git may still reach a namesake,
+  // so the root is not read then. Undefined where there is nothing to check
+  // (no id, no GitHub of this Environment, no checkout yet).
   const probe = async () => {
     if (github === null || id === undefined) return undefined;
     const observed = await git.inspect(directory).catch(() => null);
     if (observed?.kind !== "checkout") return undefined;
     const [owner, name] = observed.repository.split("/") as [string, string];
     const answer = await github.repository(owner, name).catch(() => null);
-    if (answer?.kind !== "observed") return undefined;
+    if (answer?.kind !== "observed") return { kind: "unknown" as const };
     return answer.repository.owner.databaseId === id
       ? {
           kind: "same" as const,
@@ -564,7 +574,9 @@ async function admission(
     const now = await probe();
     return now?.kind === "other"
       ? { kind: "foreign", login: declared }
-      : { kind: "held", login: declared };
+      : now?.kind === "unknown"
+        ? { kind: "unverified", login: declared }
+        : { kind: "held", login: declared };
   }
   if (id === undefined) return null;
   if (organizationId !== undefined) {
@@ -572,7 +584,9 @@ async function admission(
     const now = await probe();
     return now?.kind === "other"
       ? { kind: "foreign", login: declared }
-      : { kind: "held", login: now?.owner ?? declared };
+      : now?.kind === "unknown"
+        ? { kind: "unverified", login: declared }
+        : { kind: "held", login: now?.owner ?? declared };
   }
   // Without the id in the handover: renamed when GitHub answers the root's
   // origin with the root's declared Organization id and either the root was
@@ -580,6 +594,9 @@ async function admission(
   // under the declared one) or the handover was (the answer under the
   // handover's login, the root still declaring the earlier one).
   const now = await probe();
+  // GitHub gives no answer: whether this root is the handover's renamed
+  // Organization stays open, and says so rather than skipping it silently.
+  if (now?.kind === "unknown") return { kind: "unverified", login: only };
   if (now?.kind !== "same") return null;
   const lower = (value: string | undefined) => value?.toLowerCase();
   const rootFirst =

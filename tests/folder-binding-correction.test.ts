@@ -14,6 +14,7 @@ import { FolderAdoptionError } from "../src/folder/handover-layout";
 import {
   type MachineBinding,
   ownerOrganizationCorrection,
+  sameMachine,
 } from "../src/folder/machine-binding";
 import { outputPaths } from "../src/folder/outputs";
 import {
@@ -401,3 +402,60 @@ for (const stop of ["prepared", "applied"] as const)
       }
     },
   );
+
+test.skipIf(process.platform === "win32")(
+  "once the Folder recorded the Organization id, a missing or another id under the same login is another Machine; the first id is recorded",
+  async () => {
+    // A handover that newly names the id is a new document (new digest).
+    const rewritten = (bound: MachineBinding): MachineBinding => ({
+      ...bound,
+      contextDigest: "f".repeat(64),
+    });
+    const { parent, folder } = await setup(binding(workHandover()));
+    try {
+      // The first id under the unchanged login: an ordinary refresh.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          rewritten(withId(binding(workHandover()))),
+          undefined,
+          key,
+        ),
+      ).toMatchObject({ code: 0, result: { kind: "refreshed" } });
+      expect((await preferences(folder)).machine.owner.organizationId).toBe(
+        organizationId,
+      );
+      const settled = await snapshot(folder);
+      // Then another id, or none, under the same login: refused everywhere.
+      for (const live of [
+        withId(binding(workHandover()), 9009),
+        binding(workHandover()),
+      ]) {
+        await expect(
+          refreshMachineFolder(folder, live, undefined, key),
+        ).rejects.toEqual(
+          new FolderAdoptionError("binding-changed", ".lazurio"),
+        );
+        expect(
+          await refreshFolder(folder, live, undefined, undefined, key),
+        ).toEqual({ kind: "blocked", reason: "binding-changed" });
+        await expect(
+          initializeMachineFolder(folder, live, noChoices, false, key),
+        ).rejects.toEqual(
+          new FolderAdoptionError("binding-changed", ".lazurio"),
+        );
+      }
+      expect(await snapshot(folder)).toEqual(settled);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("sameMachine: a recorded id must be named again; a first one is the same Machine", () => {
+  const plain = binding(workHandover());
+  expect(sameMachine(plain, withId(plain))).toBe(true);
+  expect(sameMachine(withId(plain), withId(plain))).toBe(true);
+  expect(sameMachine(withId(plain), plain)).toBe(false);
+  expect(sameMachine(withId(plain), withId(plain, 9009))).toBe(false);
+});

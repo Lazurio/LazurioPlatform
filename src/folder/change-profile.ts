@@ -14,9 +14,9 @@ import {
 import {
   type BindingRebinding,
   type MachineBinding,
-  machineIdentity,
   ownerOrganizationCorrection,
   parseMachineBinding,
+  sameMachine,
 } from "./machine-binding";
 import type { OutputPath } from "./outputs";
 import {
@@ -440,9 +440,7 @@ export async function planFolderChange(
   const tools = parseEnabledTools(change.tools);
   const notes = parseToolNotes(change.notes, tools);
   const settings = parseOrganizationSettingsValues(change.organizationSettings);
-  const sameIdentity =
-    JSON.stringify(machineIdentity(machine)) ===
-    JSON.stringify(machineIdentity(current.machine));
+  const sameIdentity = sameMachine(current.machine, machine);
   const bindingCorrected = sameIdentity
     ? null
     : ownerOrganizationCorrection(

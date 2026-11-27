@@ -17,8 +17,8 @@ import {
 import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import {
   type MachineBinding,
-  machineIdentity,
   ownerOrganizationCorrection,
+  sameMachine,
 } from "./machine-binding";
 import {
   createManualDirectory,
@@ -415,9 +415,7 @@ export async function adoptedHandoverFolder(
     throw new FolderAdoptionError("state-unrecognized", ".lazurio");
   }
   const recorded = current.preferences.machine;
-  const same =
-    JSON.stringify(machineIdentity(recorded)) ===
-    JSON.stringify(machineIdentity(machine));
+  const same = sameMachine(recorded, machine);
   const correction = same
     ? null
     : ownerOrganizationCorrection(recorded, machine, organizationKey);

@@ -908,6 +908,32 @@ export function machineIdentity(machine: MachineBinding | null) {
   };
 }
 
+/** Whether `live` is the Machine the Folder recorded as `recorded`: the
+ * same identity (`machineIdentity`), and, once the Folder recorded the Owner
+ * Organization's id, the same id again (#1281). A first id under an
+ * unchanged identity is the same Machine, and the refresh records it; a
+ * missing or another id after one was recorded is another Owner, so a later
+ * rename could never be proved by an id the Folder took over unproved. */
+export function sameMachine(
+  recorded: MachineBinding | null,
+  live: MachineBinding | null,
+): boolean {
+  if (
+    JSON.stringify(machineIdentity(recorded)) !==
+    JSON.stringify(machineIdentity(live))
+  )
+    return false;
+  const recordedId =
+    recorded?.owner.kind === "organization"
+      ? recorded.owner.organizationId
+      : undefined;
+  if (recordedId === undefined) return true;
+  return (
+    live?.owner.kind === "organization" &&
+    live.owner.organizationId === recordedId
+  );
+}
+
 /** The one correction of the identity a refresh records
  * (`bindingCorrected`, decision F10's addendum of 2026-11-11). */
 export type BindingCorrection = "owner-renamed";

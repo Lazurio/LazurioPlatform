@@ -111,7 +111,7 @@ const writeRoot = (owner: string) => async (directory: string) => {
   await writeFile(join(directory, ".gitignore"), "workspace/\n.worktrees/\n");
 };
 
-type GitHubState = "before" | "renamed" | "namesake";
+type GitHubState = "before" | "renamed" | "namesake" | "unavailable";
 
 /** GitHub as the test has it: before the rename `Old` owns both
  * repositories; after it `New` does and `Old/<name>` redirects to it (same
@@ -141,6 +141,7 @@ function github(world: World, state: () => GitHubState): ContentGitHub {
       const known = repositoryIds[name];
       if (known === undefined) return { kind: "missing" };
       const now = state();
+      if (now === "unavailable") return { kind: "unavailable" };
       const lower = owner.toLowerCase();
       if (now === "before")
         return lower === "old"
@@ -590,3 +591,22 @@ test("a Folder that records an id takes no label correction: a contradicting or 
     JSON.stringify(machineIdentity(machine("old"))),
   );
 });
+
+posixTest(
+  "GitHub not answering who owns the root's origin: the root is not read, even when git still reaches a repository there",
+  async () => {
+    const fixture = await environment();
+    await fixture.renameOnGitHub();
+    // Git still reaches `Old/…`, with a commit that descends from the
+    // root's: a namesake's copy would look exactly like this.
+    await fixture.declareRoot("New");
+    const before = await head(fixture, fixture.root());
+    fixture.state.now = "unavailable";
+    for (const binding of [machine("old", organizationId), machine("old")]) {
+      const run = await fixture.run(binding);
+      expect(byPath(run)).toEqual({ ".": "unavailable:owner-unverified" });
+      expect(await head(fixture, fixture.root())).toBe(before);
+    }
+  },
+  60_000,
+);

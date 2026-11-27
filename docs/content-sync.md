@@ -338,10 +338,13 @@ login and creates a repository of the same name, so a login alone never proves a
   another id than the root declares, or whose declared id contradicts the handover's, is
   `unexpected-checkout`: someone else holds that login, or it is another Organization. A
   synchronization named by the new login (Apps' access check, a module's Open) runs once the id
-  proves the root is the handover's.
+  proves the root is the handover's. A root that declares an id is read only after GitHub names
+  its origin's owner by that id: when GitHub gives no such answer, the root is `unavailable`
+  `owner-unverified` and untouched, because git may still reach a namesake.
 - *The handover.* `machine folder-refresh` records a new Owner login as the same Environment only
   when the recorded binding and the handover name the same Organization id (`owner-renamed`);
-  the id itself is no part of the identity. A Folder that records an id takes no other
+  the id itself is no part of the identity, yet once recorded it must be named again: a handover
+  with no id or another one under the same login is another Machine (`sameMachine`). A Folder that records an id takes no other
   correction: a missing or contradicting live id is another Owner, whatever its
   `organization_key` says.
 - *Installation.* `accountAccess` takes a root GitHub answers under another login as this
