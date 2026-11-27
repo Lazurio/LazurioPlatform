@@ -162,7 +162,10 @@ type Fixture = Readonly<{
   web: () => string;
   state: { now: GitHubState };
   /** One synchronization of the Environment with its handover `binding`. */
-  run: (binding: MachineBinding) => Promise<readonly SyncEntry[]>;
+  run: (
+    binding: MachineBinding,
+    request?: Parameters<typeof syncContent>[2],
+  ) => Promise<readonly SyncEntry[]>;
   origin: (directory: string) => Promise<string>;
   /** GitHub renames `Old` to `New`; `Old/…` then redirects. */
   renameOnGitHub: () => Promise<void>;
@@ -240,19 +243,23 @@ async function environment(): Promise<Fixture> {
     root: () => root,
     web: () => join(root, "workspace", "web"),
     state,
-    async run(binding) {
+    async run(binding, request = {}) {
       const folder = await folderFor(binding);
       const here = join(folder, "organizations", "example_GEN3");
       if (here !== root) {
         await rename(root, here);
         root = here;
       }
-      const run = await syncContent(folder, {
-        git: gitHost,
-        github: github(current, () => state.now),
-        lockDirectory: current.lockDirectory,
-        readCatalog,
-      });
+      const run = await syncContent(
+        folder,
+        {
+          git: gitHost,
+          github: github(current, () => state.now),
+          lockDirectory: current.lockDirectory,
+          readCatalog,
+        },
+        request,
+      );
       if (run.kind !== "content-sync") throw new Error(JSON.stringify(run));
       return run.entries;
     },
@@ -496,5 +503,81 @@ test("a refresh takes a renamed Owner Organization only by the same recorded id"
   // The earlier correction by `organization_key` still holds.
   expect(
     ownerOrganizationCorrection(machine("label"), machine("old"), "Old"),
+  ).toBe("owner-organization");
+});
+
+posixTest(
+  "a root whose declared id contradicts the handover's id is never synchronized, even under the same login",
+  async () => {
+    const fixture = await environment();
+    const before = await head(fixture, fixture.web());
+    const run = await fixture.run(machine("old", namesakeId));
+    expect(byPath(run)).toEqual({ ".": "blocked:unexpected-checkout" });
+    expect(await head(fixture, fixture.web())).toBe(before);
+  },
+  60_000,
+);
+
+posixTest(
+  "the handover first without the id: the root that still declares the earlier login is a finding, not a silent skip",
+  async () => {
+    const fixture = await environment();
+    await fixture.renameOnGitHub();
+    const run = await fixture.run(machine("new"));
+    expect(byPath(run)).toEqual({ ".": "blocked:organization-renamed" });
+    expect(entryAt(run, ".")?.organization).toBe("new");
+    expect(await fixture.origin(fixture.root())).toBe(
+      "git@github.com:Old/example_GEN3.git",
+    );
+  },
+  60_000,
+);
+
+posixTest(
+  "a synchronization named by the new login (Apps' access check, a module's Open) runs once the id proves it is the handover's",
+  async () => {
+    const fixture = await environment();
+    await fixture.renameOnGitHub();
+    await fixture.declareRoot("New");
+    const handover = machine("old", organizationId);
+    await fixture.run(handover);
+    // The Organization as the catalog now names it.
+    expect(
+      byPath(await fixture.run(handover, { organization: "New" })),
+    ).toEqual({
+      ".": "current",
+      "workspace/web": "current",
+    });
+    expect(
+      byPath(
+        await fixture.run(handover, {
+          organization: "New",
+          repository: "workspace/web",
+        }),
+      ),
+    ).toEqual({ ".": "current", "workspace/web": "current" });
+    // Another login stays another Organization.
+    await expect(
+      fixture.run(handover, { organization: "Other" }),
+    ).rejects.toThrow(/not-for-this-environment/);
+  },
+  60_000,
+);
+
+test("a Folder that records an id takes no label correction: a contradicting or a missing live id is another Owner", () => {
+  const recorded = machine("old", organizationId);
+  expect(
+    ownerOrganizationCorrection(recorded, machine("new", namesakeId), "New"),
+  ).toBeNull();
+  expect(
+    ownerOrganizationCorrection(recorded, machine("new"), "New"),
+  ).toBeNull();
+  // Without a recorded id the label correction is as before.
+  expect(
+    ownerOrganizationCorrection(
+      machine("label"),
+      machine("new", organizationId),
+      "New",
+    ),
   ).toBe("owner-organization");
 });

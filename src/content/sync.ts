@@ -206,9 +206,16 @@ export async function syncContent(
   }
   if (request.repository !== undefined && request.organization === undefined)
     throw new Error("A repository is named within its Organization");
+  // A named Organization by another login than the handover's may still be
+  // the handover's, renamed on GitHub: decided below by its id (#1281).
+  const byId =
+    typeof scope.organizations === "object" &&
+    scope.organizations.organizationId !== undefined;
   if (
     scope.organizations === "none" ||
-    (request.organization !== undefined && !admits(scope, request.organization))
+    (request.organization !== undefined &&
+      !byId &&
+      !admits(scope, request.organization))
   )
     return { kind: "not-allowed", reason: "not-for-this-environment" };
   const lock = await tryContentLock(host.lockDirectory, folder);
@@ -302,6 +309,13 @@ export async function syncContent(
       now,
     });
     await ended?.resume().catch(() => {});
+    if (
+      request.organization !== undefined &&
+      !admits(scope, request.organization) &&
+      held.length === 0 &&
+      renamed.length === 0
+    )
+      return { kind: "not-allowed", reason: "not-for-this-environment" };
     const entries: SyncEntry[] = [...renamed];
     // A repository filter: that module and the data mounts below it.
     const wanted = (path: string) =>
@@ -495,14 +509,16 @@ export async function syncContent(
  *   GitHub rename (#1281). Kept under the login GitHub answers for the
  *   root's repository by that Organization id, else the declared one.
  * - `renamed`: it declares another login, the handover names no
- *   Organization id, and GitHub answers this root's repository (its origin,
- *   still under the handover's login) under the declared login with the
- *   declared Organization id. The Organization was renamed on GitHub, and
- *   until the handover names it by its id or its new login nothing here can
- *   prove it is the same one, because GitHub frees the old login for anyone.
- * - `foreign`: GitHub answers the root's origin under an Organization of
- *   another id than the root declares: someone took the login after a
- *   rename, and the checkout is never read from there.
+ *   Organization id, and GitHub answers this root's repository with the
+ *   declared Organization id, either under the declared login (the root
+ *   changed first) or under the handover's (the handover changed first).
+ *   The Organization was renamed on GitHub, and until the handover names it
+ *   by its id nothing here can prove it is the same one, because GitHub
+ *   frees the old login for anyone.
+ * - `foreign`: under the handover's login, yet the root declares another
+ *   Organization id than the handover, or GitHub answers the root's origin
+ *   under another id than the root declares (someone took the login after a
+ *   rename): never read.
  * - null: another Organization's root, left alone as before. */
 async function admission(
   scope: Scope,
@@ -536,16 +552,21 @@ async function admission(
         }
       : { kind: "other" as const };
   };
+  if (typeof scope.organizations !== "object")
+    return admits(scope, declared) ? { kind: "held", login: declared } : null;
+  const { only, organizationId } = scope.organizations;
+  // Two ids that differ are two Organizations, whatever their logins say.
+  if (id !== undefined && organizationId !== undefined && id !== organizationId)
+    return admits(scope, declared)
+      ? { kind: "foreign", login: declared }
+      : null;
   if (admits(scope, declared)) {
-    if (typeof scope.organizations !== "object")
-      return { kind: "held", login: declared };
     const now = await probe();
     return now?.kind === "other"
       ? { kind: "foreign", login: declared }
       : { kind: "held", login: declared };
   }
-  if (typeof scope.organizations !== "object" || id === undefined) return null;
-  const { only, organizationId } = scope.organizations;
+  if (id === undefined) return null;
   if (organizationId !== undefined) {
     if (id !== organizationId) return null;
     const now = await probe();
@@ -553,12 +574,19 @@ async function admission(
       ? { kind: "foreign", login: declared }
       : { kind: "held", login: now?.owner ?? declared };
   }
+  // Without the id in the handover: renamed when GitHub answers the root's
+  // origin with the root's declared Organization id and either the root was
+  // updated first (its origin still under the handover's login, the answer
+  // under the declared one) or the handover was (the answer under the
+  // handover's login, the root still declaring the earlier one).
   const now = await probe();
-  return now?.kind === "same" &&
-    now.origin.split("/")[0]?.toLowerCase() === only.toLowerCase() &&
-    now.owner.toLowerCase() === declared.toLowerCase()
-    ? { kind: "renamed", login: only }
-    : null;
+  if (now?.kind !== "same") return null;
+  const lower = (value: string | undefined) => value?.toLowerCase();
+  const rootFirst =
+    lower(now.origin.split("/")[0]) === lower(only) &&
+    lower(now.owner) === lower(declared);
+  const handoverFirst = lower(now.owner) === lower(only);
+  return rootFirst || handoverFirst ? { kind: "renamed", login: only } : null;
 }
 
 type RunContext = Readonly<{

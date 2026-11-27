@@ -931,7 +931,9 @@ export type BindingRebinding = "handover-digest";
  *   handover names it by its new login, and both the recorded binding and the
  *   live handover name the same Organization id (#1281). Without a recorded
  *   id nothing proves the new login is the same Organization: GitHub frees
- *   the old login and anyone may take it.
+ *   the old login and anyone may take it. A Folder that records an id takes
+ *   no other correction: the label correction below is only for a Folder
+ *   adopted before Machines wrote the id.
  * In both, every other part of the identity (kind, name, the Owner's kind
  * and Team, the tailnet node) must be the same; anything else stays another
  * Machine. Null when the identities are the same, too: nothing to correct. */
@@ -959,12 +961,12 @@ export function ownerOrganizationCorrection(
       }),
     ) === JSON.stringify(machineIdentity(live));
   const recordedId = recordedOwner.organizationId;
-  if (
-    recordedId !== undefined &&
-    recordedId === liveOwner.organizationId &&
-    sameOtherwise()
-  )
-    return "owner-renamed";
+  const liveId = liveOwner.organizationId;
+  // Once the Folder records an id, only that id proves the Owner: a missing
+  // or another live id is another Owner, whatever its key says. Two ids that
+  // differ are never the same Owner either.
+  if (recordedId !== undefined)
+    return recordedId === liveId && sameOtherwise() ? "owner-renamed" : null;
   if (
     organizationKey !== undefined &&
     liveOwner.organization === organizationKey.toLowerCase() &&

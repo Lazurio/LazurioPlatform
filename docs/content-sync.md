@@ -333,11 +333,17 @@ login and creates a repository of the same name, so a login alone never proves a
   Without the id in the handover, a root that declares another login which GitHub confirms for
   the root's repository with the declared Organization id is `blocked`
   `organization-renamed` on the root's entry, and nothing changes until the Environment's
-  update. A root whose origin GitHub answers under an Organization of another id than the root
-  declares is `unexpected-checkout`: someone else holds that login now.
+  update; so is a root that still declares the earlier login while GitHub answers its repository
+  under the handover's new one. A root whose origin GitHub answers under an Organization of
+  another id than the root declares, or whose declared id contradicts the handover's, is
+  `unexpected-checkout`: someone else holds that login, or it is another Organization. A
+  synchronization named by the new login (Apps' access check, a module's Open) runs once the id
+  proves the root is the handover's.
 - *The handover.* `machine folder-refresh` records a new Owner login as the same Environment only
   when the recorded binding and the handover name the same Organization id (`owner-renamed`);
-  the id itself is no part of the identity.
+  the id itself is no part of the identity. A Folder that records an id takes no other
+  correction: a missing or contradicting live id is another Owner, whatever its
+  `organization_key` says.
 - *Installation.* `accountAccess` takes a root GitHub answers under another login as this
   Organization's when a root of the Folder declares one of the two logins with that
   Organization's id.
