@@ -5,8 +5,8 @@ import {
 } from "../src/folder/machine-binding";
 import schema from "../src/machine/lazurio-machine.v1.schema.json";
 import provenance from "../src/machine/schema-provenance.json";
-import organization from "./fixtures/machine-context.json";
 import { binding } from "./fixtures/machine-bindings";
+import organization from "./fixtures/machine-context.json";
 import { vendoredSchemaPullRequest } from "./fixtures/machine-schema-pin";
 
 // Machines#1627: the handover names the Owner Organization by its immutable
@@ -66,6 +66,10 @@ test("a renamed Owner in the handover is the same Environment only by the same i
     ownerOrganizationCorrection(recorded, work("renamed", 9009), undefined),
   ).toBeNull();
   expect(
-    ownerOrganizationCorrection(work("example"), work("renamed", 7001), undefined),
+    ownerOrganizationCorrection(
+      work("example"),
+      work("renamed", 7001),
+      undefined,
+    ),
   ).toBeNull();
 });
