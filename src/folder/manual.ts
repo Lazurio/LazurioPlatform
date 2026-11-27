@@ -761,15 +761,15 @@ function goodReport(ownInstructions: boolean): readonly Text[] {
     ),
     t(
       "Lazurio se zlepšuje i z toho, co jeho uživatelé narazí. Když uživatel při práci řekne, že mu na samotném Lazuriu něco nefunguje nebo chybí (čí je to věc, rozhodne tabulka Kdo za co odpovídá v `manual/lazurio.md`), nabídni mu jednou, že to zapíšeš jako issue do `Lazurio/LazurioPlatform`. Nabídni to až po dokončení úkolu, nebo hned, když ho chyba v úkolu blokuje; práci kvůli tomu nepřerušuj. Zeptej se nástrojem na otázky s volbami „Zapsat do Lazuria“ (Doporučeno) a „Nezapisovat“; po odmítnutí to v tomto vlákně znovu nenabízej.",
-      "Lazurio also improves from what its users run into. When the user says during the work that something in Lazurio itself does not work or is missing (whose matter it is, the table Who is responsible for what in `manual/lazurio.md` decides), offer once to file it as an issue in `Lazurio/LazurioPlatform`. Offer it after the task is done, or right away when the bug blocks the task; do not interrupt the work for it. Ask with the question tool, with the options “Zapsat do Lazuria” (Recommended) and “Nezapisovat”; after a no, do not offer it again in this thread.",
+      "Lazurio also improves from what its users run into. When the user says during the work that something in Lazurio itself does not work or is missing (whose matter it is, the table Who is responsible for what in `manual/lazurio.md` decides), offer once to file it as an issue in `Lazurio/LazurioPlatform`. Offer it after the task is done, or right away when the bug blocks the task; do not interrupt the work for it. Ask with the question tool, with the options “File it in Lazurio” (Recommended) and “Don't file it”; after a no, do not offer it again in this thread.",
     ),
     t(
       "- **Nejdřív ověř, co ověřit jde.** Hlášení z druhé ruky často skončí jako chyba použití; když se doptáš uživatele nebo si stav přečteš sám, ušetříš správcům otázky. Co ověřit nejde, označ jako hlášené uživatelem.",
       "- **First verify what can be verified.** A second-hand report often turns out to be a usage error; asking the user or reading the state yourself saves the maintainers their questions. Mark what cannot be verified as reported by the user.",
     ),
     t(
-      "- **Před zápisem** mu ukaž název a text: issue ve veřejném repozitáři ponese jeho účet na GitHubu. Po zápisu mu dej odkaz a jednou větou řekni, že na něm uvidí, co se s ním děje.",
-      "- **Before filing** show them the title and text: an issue in a public repository carries their GitHub account. After filing give them the link and say in one sentence that it shows them what happens with it.",
+      "- **Před zápisem** mu ukaž název a text: issue bude veřejné a ponese identitu GitHubu, pod kterou tu jednáš (`gh api user`), a tu mu jmenuj. Po zápisu mu dej odkaz a jednou větou řekni, že na něm uvidí, co se s ním děje.",
+      "- **Before filing** show them the title and text: the issue will be public and carry the GitHub identity you act under here (`gh api user`); name it to them. After filing give them the link and say in one sentence that it shows them what happens with it.",
     ),
     t(
       "- **Nález z tvé vlastní práce** zapisuješ jako dosud, bez ptaní (výše); v handoffu uživateli dej odkaz.",
