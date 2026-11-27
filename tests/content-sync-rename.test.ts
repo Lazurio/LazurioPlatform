@@ -166,7 +166,13 @@ type Fixture = Readonly<{
   run: (
     binding: MachineBinding,
     request?: Parameters<typeof syncContent>[2],
-    options?: Readonly<{ failFirstInspect?: boolean }>,
+    options?: Readonly<{
+      failFirstInspect?: boolean;
+      /** Runs before the second reading of a checkout (after the owner
+       * check's first). */
+      betweenInspections?: () => Promise<void>;
+      github?: ContentGitHub;
+    }>,
   ) => Promise<readonly SyncEntry[]>;
   origin: (directory: string) => Promise<string>;
   /** GitHub renames `Old` to `New`; `Old/…` then redirects. */
@@ -255,23 +261,24 @@ async function environment(): Promise<Fixture> {
       // A first reading of a checkout that fails once, as a transient
       // error would; every later one reads it.
       let failing = options.failFirstInspect === true;
-      const host: SyncHost["git"] = failing
-        ? {
-            ...gitHost,
-            inspect: async (directory) => {
-              if (failing) {
-                failing = false;
-                throw new Error("transient");
-              }
-              return gitHost.inspect(directory);
-            },
+      let readings = 0;
+      const host: SyncHost["git"] = {
+        ...gitHost,
+        inspect: async (directory) => {
+          readings += 1;
+          if (failing) {
+            failing = false;
+            throw new Error("transient");
           }
-        : gitHost;
+          if (readings === 2) await options.betweenInspections?.();
+          return gitHost.inspect(directory);
+        },
+      };
       const run = await syncContent(
         folder,
         {
           git: host,
-          github: github(current, () => state.now),
+          github: options.github ?? github(current, () => state.now),
           lockDirectory: current.lockDirectory,
           readCatalog,
         },
@@ -643,6 +650,63 @@ posixTest(
       },
     );
     expect(byPath(run)).toEqual({ ".": "unavailable:owner-unverified" });
+    expect(await head(fixture, fixture.root())).toBe(before);
+  },
+  60_000,
+);
+
+posixTest(
+  "an origin changed between the owner check and the checkout's reading is taken only with the repository id the check verified",
+  async () => {
+    const fixture = await environment();
+    await fixture.renameOnGitHub();
+    await fixture.declareRoot("New");
+    const before = await head(fixture, fixture.root());
+    // GitHub answers the checked origin as another repository of the right
+    // Organization (id 1); the origin it is changed to is repository 999.
+    const answer = (fullName: string, id: number): RepositoryAnswer => ({
+      kind: "observed",
+      repository: {
+        fullName,
+        databaseId: id,
+        owner: {
+          login: fullName.split("/")[0] as string,
+          databaseId: organizationId,
+          kind: "Organization",
+        },
+        private: true,
+        archived: false,
+        readable: true,
+        permission: "admin",
+      },
+    });
+    const swapped: ContentGitHub = {
+      ...stubGitHub(fixture.world).github,
+      async repository(owner, name) {
+        const path = `${owner}/${name}`.toLowerCase();
+        if (path === "old/example_gen3") return answer("New/other", 1);
+        if (path === "new/other") return answer("New/other", 1);
+        if (path === "new/example_gen3") return answer("New/example_GEN3", 999);
+        return { kind: "missing" };
+      },
+    };
+    const run = await fixture.run(
+      machine("new", organizationId),
+      {},
+      {
+        github: swapped,
+        betweenInspections: () =>
+          git(
+            fixture.root(),
+            fixture.world.gitEnv,
+            "remote",
+            "set-url",
+            "origin",
+            "git@github.com:New/example_GEN3.git",
+          ).then(() => {}),
+      },
+    );
+    expect(byPath(run)).toEqual({ ".": "blocked:unexpected-checkout" });
     expect(await head(fixture, fixture.root())).toBe(before);
   },
   60_000,

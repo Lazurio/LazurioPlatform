@@ -232,7 +232,9 @@ export async function syncContent(
     const held: {
       entry: FolderCatalogOrganization;
       login: string;
-      verified?: string | undefined;
+      verified?:
+        | Readonly<{ origin: string; repositoryId?: number }>
+        | undefined;
     }[] = [];
     const renamed: SyncEntry[] = [];
     for (const entry of catalog.organizations) {
@@ -404,17 +406,17 @@ export async function syncContent(
             (repository) =>
               repository.split("/")[0]?.toLowerCase() === login.toLowerCase() &&
               (verifiedOrigin === undefined ||
-                sameRepository(repository, verifiedOrigin) ||
-                // or the redirect target `redirect` proved by repository id
-                sameRepository(
-                  repository,
-                  `${login}/${verifiedOrigin.split("/")[1]}`,
-                )),
+                sameRepository(repository, verifiedOrigin.origin)),
             "main",
             progress,
             // The root keeps its repository's name through a rename of its
             // owner: the same name under the login it is kept under now.
             (repository) => `${login}/${repository.split("/")[1]}`,
+            // Any other origin only with the very repository id the owner
+            // check verified; without that id, none.
+            verifiedOrigin === undefined
+              ? undefined
+              : (verifiedOrigin.repositoryId ?? null),
           ),
       );
       entries.push(rootEntry);
@@ -555,9 +557,14 @@ async function admission(
   github: RunContext["github"],
 ): Promise<
   /** `verified`: the root's origin whose owner GitHub named by the root's
-   * Organization id; the root is synchronized only while its origin is
-   * still exactly that one. */
-  | Readonly<{ kind: "held"; login: string; verified?: string }>
+   * Organization id, with that repository's id; the root is synchronized
+   * only from exactly that origin, or from another one GitHub answers with
+   * the same repository id. */
+  | Readonly<{
+      kind: "held";
+      login: string;
+      verified?: Readonly<{ origin: string; repositoryId?: number }>;
+    }>
   | Readonly<{ kind: "renamed" | "foreign" | "unverified"; login: string }>
   | null> {
   const declared = entry.forgeLogin as string;
@@ -583,6 +590,7 @@ async function admission(
       ? {
           kind: "same" as const,
           origin: observed.repository,
+          repositoryId: answer.repository.databaseId,
           owner: answer.repository.owner.login,
         }
       : { kind: "other" as const };
@@ -597,7 +605,16 @@ async function admission(
       : null;
   const held = (now: Awaited<ReturnType<typeof probe>>, login: string) =>
     now?.kind === "same"
-      ? { kind: "held" as const, login, verified: now.origin }
+      ? {
+          kind: "held" as const,
+          login,
+          verified: {
+            origin: now.origin,
+            ...(now.repositoryId === undefined
+              ? {}
+              : { repositoryId: now.repositoryId }),
+          },
+        }
       : { kind: "held" as const, login };
   if (admits(scope, declared)) {
     const now = await probe();
@@ -824,6 +841,9 @@ async function syncCheckout(
   branch: string,
   progress: (step: CheckoutStep, to: string) => void = () => {},
   declared?: (origin: string) => string,
+  /** The repository id a redirect must also answer with (the root's owner
+   * check verified it); null: no redirect is taken at all. */
+  pinned?: number | null,
 ): Promise<Outcome> {
   const { git } = context;
   const deadline = Date.now() + context.timeoutMs;
@@ -835,7 +855,10 @@ async function syncCheckout(
         ? { result: "absent" }
         : blocked("unexpected-checkout");
     const misnamed = !expected(observed.repository);
-    if (misnamed && (declared === undefined || context.github === null))
+    if (
+      misnamed &&
+      (declared === undefined || context.github === null || pinned === null)
+    )
       return blocked("unexpected-checkout");
     const tree = await git.worktree(directory);
     // A linked worktree is never a primary checkout.
@@ -862,11 +885,16 @@ async function syncCheckout(
         directory,
         observed.repository,
         declared(observed.repository),
+        pinned ?? undefined,
       );
       if (moved.kind !== "moved") return moved.outcome;
       origin = Object.freeze({ from: observed.repository, to: moved.to });
       observed = await git.inspect(directory);
-      if (observed.kind !== "checkout" || !expected(observed.repository))
+      // Exactly the repository `redirect` proved by its id.
+      if (
+        observed.kind !== "checkout" ||
+        !sameRepository(observed.repository, moved.to)
+      )
         return { ...blocked("unexpected-checkout"), origin };
     }
     const withOrigin = (outcome: Outcome): Outcome =>
@@ -896,6 +924,7 @@ async function redirect(
   directory: string,
   from: string,
   to: string,
+  pinned?: number,
 ): Promise<
   | Readonly<{ kind: "moved"; to: string }>
   | Readonly<{ kind: "refused"; outcome: Outcome }>
@@ -915,6 +944,7 @@ async function redirect(
     now.kind !== "observed" ||
     id === undefined ||
     now.repository.databaseId !== id ||
+    (pinned !== undefined && id !== pinned) ||
     !sameRepository(now.repository.fullName, to) ||
     git.setOrigin === undefined
   )
