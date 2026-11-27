@@ -572,12 +572,21 @@ test("a Folder that records an id takes no label correction: a contradicting or 
   expect(
     ownerOrganizationCorrection(recorded, machine("new"), "New"),
   ).toBeNull();
-  // Without a recorded id the label correction is as before.
+  // A handover with an id proves a changed login only by a recorded one:
+  // no label correction stands in for it, key or not.
   expect(
     ownerOrganizationCorrection(
-      machine("label"),
+      machine("old"),
       machine("new", organizationId),
       "New",
     ),
+  ).toBeNull();
+  // Without any id the label correction is as before (Machines#1163).
+  expect(
+    ownerOrganizationCorrection(machine("label"), machine("new"), "New"),
   ).toBe("owner-organization");
+  // The first refresh with an id under the unchanged login records it.
+  expect(JSON.stringify(machineIdentity(machine("old", organizationId)))).toBe(
+    JSON.stringify(machineIdentity(machine("old"))),
+  );
 });
