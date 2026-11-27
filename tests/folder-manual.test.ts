@@ -2781,8 +2781,8 @@ test("the remaining rules of the Root's inventory each have one place in the man
     {
       path: "manual/lazurio.md",
       on: every,
-      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, u referenční Organizace do jejího návratu do tailnetu i z internetu (Kdo rozhoduje o přístupu výše);",
-      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, and for the reference Organization until its return to its tailnet also from the internet (Who decides access above);",
+      cs: "obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu (Kdo rozhoduje o přístupu výše);",
+      en: "serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet (Who decides access above);",
     },
     {
       // Every rewrite of a branch, not only a fork's.
@@ -3052,4 +3052,71 @@ test("the browser section says, right after sign-in, that the user pays by card 
     expect(withoutView).not.toContain(words.card);
     expect(withoutView).not.toContain(words.point);
   }
+});
+
+// Lazurio/LazurioPlatform #1274, the issue route: every Environment with a
+// GitHub identity offers the user once to file their bug or idea about
+// Lazurio and has the guide to a fixable report; a public Environment, which
+// has no identity to file with, offers nothing and has neither. The English
+// text names the options in English, and the attribution is the identity the
+// agent acts under, never "their account".
+test("the offer to file the user's bug and the guide to a fixable report render only where a GitHub identity can file, in each locale's own words (#1274)", () => {
+  const environments = [
+    ...journeys.map((journey) => ({ ...journey, files: true })),
+    {
+      preset: "hosted-organization-team",
+      machine: bindings.teamPublic,
+      os: "linux",
+      files: false,
+    },
+    {
+      preset: "hosted-organization-personal",
+      machine: bindings.organizationPublic,
+      os: "linux",
+      files: false,
+    },
+  ] as const;
+  const offer = {
+    cs: "Chybu Lazuria od uživatele mu jednou nabídni zapsat",
+    en: "Offer once to file the user's Lazurio bug",
+  };
+  const guide = {
+    cs: "### Hlášení, které jde opravit bez doptávání",
+    en: "### A report that can be fixed without asking back",
+  };
+  const asked = {
+    cs: "„Zapsat do Lazuria“ (Doporučeno) a „Nezapisovat“",
+    en: "“File it in Lazurio” (Recommended) and “Don't file it”",
+  };
+  for (const environment of environments)
+    for (const locale of ["cs", "en"] as const) {
+      const outputs = renderOutputs({
+        preset: environment.preset,
+        machine: environment.machine,
+        profile: presetProfile(environment.preset, environment.os, { locale }),
+      });
+      const manual = outputs["manual/working-here.md"];
+      const label = [environment.preset, environment.files, locale];
+      expect([...label, outputs["AGENTS.md"].includes(offer[locale])]).toEqual([
+        ...label,
+        environment.files,
+      ]);
+      expect([...label, manual.includes(guide[locale])]).toEqual([
+        ...label,
+        environment.files,
+      ]);
+      expect([...label, manual.includes(asked[locale])]).toEqual([
+        ...label,
+        environment.files,
+      ]);
+      expect([...label, /their GitHub account/.test(manual)]).toEqual([
+        ...label,
+        false,
+      ]);
+      if (locale === "en")
+        expect([
+          ...label,
+          /Zapsat do Lazuria|Nezapisovat/.test(manual),
+        ]).toEqual([...label, false]);
+    }
 });

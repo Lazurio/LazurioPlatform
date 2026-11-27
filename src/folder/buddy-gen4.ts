@@ -45,6 +45,7 @@ const blank = t("", "");
 export const buddyFolderSkillNames = Object.freeze([
   "buddy-vlakna",
   "buddy-brain",
+  "buddy-control-plane",
 ] as const);
 export type BuddyFolderSkillName = (typeof buddyFolderSkillNames)[number];
 export const buddyFolderSkillRoots = Object.freeze([
@@ -181,6 +182,10 @@ const reach: readonly Text[] = [
   t(
     "- **Pracovní Prostředí:** když je propojení T3 Code zapnuté (`t3_environment_links` vypíše propojená Prostředí), použij nástroje T3 Code s `environmentId`. Jinak a pro opravy jdi po SSH spravovanými cestami (`ssh <id>`, seznam v `~/Lazurio/manual/this-machine.md`) a tam použij `t3`, `gh` a soubory. V cizím Prostředí platí jeho `AGENTS.md`; data jedné Organizace nenos do jiné ani sem (rozhodnutí 0180 a 0246).",
     "- **Work Environments:** when the T3 Code link is on (`t3_environment_links` lists the linked Environments), use the T3 Code tools with `environmentId`. Otherwise, and for fixes, go over SSH along the managed paths (`ssh <id>`, listed in `~/Lazurio/manual/this-machine.md`) and use `t3`, `gh` and files there. In another Environment its `AGENTS.md` applies; never carry one Organization's data into another or here (decisions 0180 and 0246).",
+  ),
+  t(
+    "- **Control Plane:** jedna stránka v pravém panelu tvého vlákna, ze které uživatel vidí, co běží a co čeká na něj, a rozhoduje. Přepisuješ ji nástrojem `control_plane_publish`; podrobnosti ve skillu `buddy-control-plane`.",
+    "- **Control Plane:** one page in your thread's right panel from which the user sees what runs and what waits for them, and decides. You rewrite it with the tool `control_plane_publish`; details in the skill `buddy-control-plane`.",
   ),
   t(
     "- **Aplikace:** přes Executor (MCP server `executor`) a nástroje Prostředí (`gh`, `composio`). Co je připojené, řekne `lazurio integrations list --json`. Nic nepřipojuj sám; přihlášení dělá uživatel.",
@@ -506,8 +511,8 @@ const brainSkill: FolderSkill = {
       "  At the start of work read `buddy/dohody`, `buddy/priority` and `buddy/ceka`; the diary only when asked. You read and change pages with `get_page`, `edit_page` and `put_page`.",
     ),
     t(
-      "- **Dorovnání, jednou:** jestli proběhlo, říká jen stránka `buddy/dorovnani`. Dokud na ní není `hotovo`, dorovnání hotové není, i když `buddy/dohody` už existuje (třeba proto, že na ni padla první dohoda). Pak projdi oba zdroje celé: paměť svého nástroje v této složce a dřívější stránky priorit v Brainu. U každé položky, která podle `AGENTS.md` patří do Brainu, nejdřív čtením zjisti, jestli už tam je; chybějící zapiš na místa výše, ověř čtením a teprve potom ji v paměti nástroje a na staré stránce nahraď odkazem. Co už v Brainu je, nezapisuj znovu, takže přerušené dorovnání jde bezpečně zopakovat od začátku. `hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů, s časem a počtem zapsaných položek, i když je to 0. Uživateli řekni jen ten počet a nic jiného z paměti nástroje necituj.",
-      "- **Catching up, once:** only the page `buddy/dorovnani` says whether it happened. Until it says `hotovo` (done), the catch-up is not done, even when `buddy/dohody` already exists (for example because the first agreement went there). Then go through both sources whole: your tool's memory in this folder and the earlier priority pages in the Brain. For each item that belongs in the Brain by `AGENTS.md`, first check by reading whether it is already there; write a missing one into the places above, check it by reading, and only then replace it with a pointer in the tool's memory and on the old page. Do not write again what the Brain already holds, so an interrupted catch-up can safely start over. Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked, with the time and the number of items written, also when it is 0. Tell the user only that number and quote nothing else from the tool's memory.",
+      "- **Dorovnání, jednou:** jestli proběhlo, říká jen stránka `buddy/dorovnani`. Dokud na ní není `hotovo`, dorovnání hotové není, i když `buddy/dohody` už existuje (třeba proto, že na ni padla první dohoda). Pak projdi oba zdroje celé: paměť svého nástroje v této složce a dřívější stránky priorit v Brainu. U každé položky, která podle `AGENTS.md` patří do Brainu, nejdřív čtením zjisti, jestli už tam je; chybějící zapiš na místa výše, ověř čtením a teprve potom ji v paměti nástroje a na staré stránce nahraď odkazem. Odkaz má vždy stejný tvar, `→ Brain (dorovnání): <stránka nebo fakt>`, a nic jiného z položky nenese. Co už v Brainu je, nezapisuj znovu, jen to ve zdroji nahraď odkazem, pokud tam ještě není; takže přerušené dorovnání jde bezpečně zopakovat od začátku. Průběžný počet nedrž: počet převedených položek je počet odkazů `→ Brain (dorovnání)` v obou zdrojích, takže přežije přerušení a nic se nezapočítá dvakrát. `hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů, s časem a tímto počtem, i když je to 0. Uživateli řekni jen ten počet a nic jiného z paměti nástroje necituj.",
+      "- **Catching up, once:** only the page `buddy/dorovnani` says whether it happened. Until it says `hotovo` (done), the catch-up is not done, even when `buddy/dohody` already exists (for example because the first agreement went there). Then go through both sources whole: your tool's memory in this folder and the earlier priority pages in the Brain. For each item that belongs in the Brain by `AGENTS.md`, first check by reading whether it is already there; write a missing one into the places above, check it by reading, and only then replace it with a pointer in the tool's memory and on the old page. The pointer always has the same form, `→ Brain (dorovnání): <page or fact>`, and carries nothing else of the item. Do not write again what the Brain already holds; only replace it with a pointer in its source if it is not one yet, so an interrupted catch-up can safely start over. Keep no running count: the number of items moved is the number of `→ Brain (dorovnání)` pointers in both sources, so it survives an interruption and nothing is counted twice. Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked, with the time and this number, also when it is 0. Tell the user only that number and quote nothing else from the tool's memory.",
     ),
     t(
       "- **Úprava existující stránky:** vždy `edit_page` s `expected_revision` a `edits: [{ old_text, new_text }]`. `expected_revision` a přesný `old_text` vezmi z `get_page` s `include_content: true`; `new_text` napiš sám jako požadovanou náhradu, bez obalu. Když se `old_text` neshoduje, `edit_page` nic nezmění; přečti stránku znovu, nehádej.",
@@ -536,9 +541,84 @@ const brainSkill: FolderSkill = {
   ],
 };
 
+// The Control Plane (Matěj 2026-11-26, plan LZD-0051): the measure of success is how quickly and
+// easily the user decides; the page shows and links, Buddy records, the user sends.
+const controlPlaneSkill: FolderSkill = {
+  description: t(
+    "Control Plane: přehled v pravém panelu, fronta rozhodnutí uživatele a zápis jeho odpovědí",
+    "The Control Plane: the overview in the right panel, the user's queue of decisions and the record of their answers",
+  ),
+  title: t("Control Plane", "Control Plane"),
+  body: [
+    t(
+      "Control Plane je jedna stránka v pravém panelu tvého vlákna. Přepisuješ ji celou nástrojem `control_plane_publish` (`html`, `title`, volitelně `answers`) ze serveru `t3-code`; když ho nevidíš, najdi ho přes `tool_search`. Panel novou verzi ukáže sám, bez nového řádku v rozhovoru. Má ji jen tvoje vlákno.",
+      "The Control Plane is one page in your thread's right panel. You rewrite it whole with the tool `control_plane_publish` (`html`, `title`, optionally `answers`) of the `t3-code` server; when you do not see it, find it with `tool_search`. The panel shows the new version by itself, without a new row in the conversation. Only your thread has one.",
+    ),
+    t(
+      "Hlavní měřítko je, jak rychle a snadno uživatel rozhoduje. Stránka má ukázat, co se děje a co stojí na něm, a dát mu jedním klepnutím odpověď a odkaz na podrobnosti.",
+      "The measure that counts is how quickly and easily the user decides. The page shows what is going on and what waits for them, and gives them an answer in one tap and a link to the details.",
+    ),
+    blank,
+    t("**Obsah, v tomto pořadí:**", "**Content, in this order:**"),
+    t(
+      "1. **Čeká na tebe:** rozhodnutí seřazená podle nejbližšího pevného termínu a potom podle počtu kroků, které rozhodnutí odblokuje. Pevný termín je jen datum, které určil uživatel nebo člověk mimo vaši práci. U každé položky: rozhodnutí jednou větou, termín, doporučení (nebo kdo ho dodá), věta k odpovědi a odkaz na místo, kde si přečte víc: vlákno T3 jako `t3-thread://…`, komentář na GitHubu nebo soubor.",
+      "1. **Waits for you:** decisions sorted by the nearest fixed deadline, then by the number of steps a decision unblocks. A fixed deadline is only a date set by the user or by a person outside your work. For every item: the decision in one sentence, the deadline, the recommendation (or who will give it), the sentence to answer with and a link to where they read more: a T3 thread as `t3-thread://…`, a comment on GitHub or a file.",
+    ),
+    t(
+      "2. **Rozhodl jsem sám, pro informaci:** vratná rozhodnutí, která jsi udělal podle mandátu uživatele, každé s větou, kterou ho uživatel jednou odpovědí vrátí.",
+      "2. **I decided, for your information:** reversible decisions you made under the user's mandate, each with the sentence by which the user reverses it in one answer.",
+    ),
+    t(
+      "3. **Co běží, rizika, hotovo:** krátce, s odkazy. Žádné dlouhé texty; podrobnosti jsou za odkazem.",
+      "3. **What runs, risks, done:** briefly, with links. No long texts; the details are behind the link.",
+    ),
+    t(
+      "4. **Fronta v číslech:** kolik rozhodnutí čeká, kolik kroků drží a jak dlouho čekají (nejstarší a medián).",
+      "4. **The queue in numbers:** how many decisions wait, how many steps they hold and how long they wait (the oldest and the median).",
+    ),
+    blank,
+    t("**Odpověď a zápis:**", "**The answer and its record:**"),
+    t(
+      "- **Věta k odpovědi** je přesně to, co uživatel pošle: krátká, jednoznačná a pochopitelná i bez stránky. Stránka nic neodesílá ani neschvaluje; odpověď je vždy tah uživatele ve vlákně.",
+      "- **The sentence to answer with** is exactly what the user sends: short, unambiguous and clear without the page. The page sends and approves nothing; the answer is always the user's turn in the thread.",
+    ),
+    t(
+      "- **Odpovědi jako tlačítka aplikace:** věty k odpovědi z oddílu 1 a věty k vrácení z oddílu 2 předej v `answers` nástroje `control_plane_publish`, každou jako `{ label, sentence }`: `label` je krátký popisek tlačítka, ze kterého je poznat položka (třeba „Lumbio: ano“, nejvýš 80 znaků), `sentence` je přesná věta (nejvýš 2 KiB), celkem nejvýš 12 odpovědí v pořadí fronty. Aplikace z nich pod hlavičkou okna vykreslí vlastní tlačítka označená „Návrh z Control Plane“; klik vloží větu do pole chatu a odešle ji uživatel sám. Nová věta nahradí tu, kterou Control Plane vložil předtím, dokud ji uživatel neupravil, a dokud v poli zůstává nedotčená, aplikace ukazuje, odkud je. Stránka sama tlačítka k odpovědi nemá: do aplikace nic poslat nemůže. Každou větu napiš ve stránce viditelně u její položky, ať ji uživatel přečte i bez tlačítka; položkám nad limit dvanácti odpovědí zůstane jen ta viditelná věta.",
+      "- **Answers as the app's buttons:** pass the sentences to answer with from section 1 and the sentences to reverse with from section 2 in `answers` of `control_plane_publish`, each as `{ label, sentence }`: `label` is the button's short label that tells the item (such as \"Lumbio: yes\", at most 80 characters), `sentence` the exact sentence (at most 2 KiB), at most 12 answers in the queue's order. The app draws them under the window's header as its own buttons marked \"Proposal from the Control Plane\"; a click puts the sentence into the chat field and the user sends it. A new sentence replaces the one the Control Plane put there before, as long as the user has not edited it, and while it stands there untouched the app shows where it came from. The page itself has no buttons that answer: it cannot send anything to the app. Write every sentence visibly beside its item on the page, so the user reads it without the button too; items beyond the limit of twelve answers keep only that visible sentence.",
+    ),
+    t(
+      "- **Zařazení:** když položku poprvé ukážeš, zapiš do Brainu k rozhodnutí, kdy jsi ho zařadil.",
+      "- **Queueing:** when you first show an item, write into the Brain with the decision when you queued it.",
+    ),
+    t(
+      "- **Odpověď:** když uživatel odpoví, zapiš do Brainu k rozhodnutí kdo (uživatel), kdy (čas jeho tahu) a jeho přesnou větu, a podle ní jednej. Pak Control Plane přepiš: položka se přesune mezi vyřízené. Z času zařazení a odpovědi počítáš, jak dlouho rozhodnutí čekají.",
+      "- **The answer:** when the user answers, write into the Brain with the decision who (the user), when (the time of their turn) and their exact sentence, and act on it. Then rewrite the Control Plane: the item moves to the settled ones. From the times of queueing and answer you compute how long decisions wait.",
+    ),
+    blank,
+    t("**Zdroje a hranice:**", "**Sources and boundaries:**"),
+    t(
+      "- **Zdroje:** osobní rozhodnutí a dohody z Brainu, stav práce Organizací z jejich Mission Control a repozitářů. Stránka nic nevymýšlí; co nevíš, tam nepiš.",
+      "- **Sources:** personal decisions and agreements from the Brain, the state of Organizations' work from their Mission Control and repositories. The page invents nothing; what you do not know does not go there.",
+    ),
+    t(
+      "- **Pořadí a počty:** rozhodnutí, která drží práci Organizace, ber z její fronty rozhodnutí, kterou vede Mission Control Organizace, a jen pokud k ní máš přístup. Z položky převezmi, co fronta opravdu uvádí: pořadí, pevné termíny, počet kroků, které rozhodnutí odblokuje, a čas zařazení. Nic z toho nepočítej ani neodhaduj sám. Pole, které fronta neuvádí, na stránce označ jako chybějící. Když k frontě přístup nemáš, seřaď jen podle termínů a napiš, že počet odblokovaných kroků a čas zařazení chybí.",
+      "- **Order and counts:** take the decisions that hold an Organization's work from its queue of decisions kept by the Organization's Mission Control, and only when you can reach it. From an item take what the queue actually gives: the order, fixed deadlines, the number of steps the decision unblocks and when it was queued. Compute or estimate none of these yourself. Mark a field the queue does not give as missing on the page. When you cannot reach the queue, sort by deadlines only and say that the number of unblocked steps and the queueing time are missing.",
+    ),
+    t(
+      "- **Hranice:** u práce Organizace jen krátký popis a odkaz na její místo, nikdy kopie dat. Tajemství nikdy. Stránka běží v izolovaném rámu bez přístupu k aplikaci; nepiš do ní nic, co by tvrdilo opak.",
+      "- **Boundaries:** for an Organization's work only a short description and a link to its place, never a copy of its data. Never secrets. The page runs in an isolated frame without access to the application; write nothing into it that claims otherwise.",
+    ),
+    t(
+      "- **Kdy přepsat:** když se změní fronta nebo stav práce, ne v každém tahu. Stránka je samostatná: `<style>` a `<script>` uvnitř, bez vzdálených skriptů. Název `Control Plane` v každém jazyce.",
+      "- **When to rewrite:** when the queue or the state of work changes, not on every turn. The page is self-contained: `<style>` and `<script>` inside, no remote scripts. The name `Control Plane` in every language.",
+    ),
+  ],
+};
+
 const folderSkills: Readonly<Record<BuddyFolderSkillName, FolderSkill>> = {
   "buddy-vlakna": threadsSkill,
   "buddy-brain": brainSkill,
+  "buddy-control-plane": controlPlaneSkill,
 };
 
 export function buddyFolderSkillDocument(

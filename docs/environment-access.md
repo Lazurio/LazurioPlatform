@@ -14,8 +14,8 @@ document marks as "in GEN4" the statements this revision touches; for the scope
 of any other statement the register's paragraph it comes from decides. Each of
 the three ends with "What runs today"; where this document describes today's
 mechanism instead of the target, it says so. The public-DNS mode of
-decision 0213 is retired (0246) and only the reference Organization runs it until its
-return to its tailnet; decision 0196 is in force;
+decision 0213 is retired (0246) and no longer runs anywhere: the reference Organization
+is back in its tailnet since 2026-11-14 (decision 0204); decision 0196 is in force;
 decision 0231 (application roles and what a Module receives) and decision 0234 (the
 names of access roles) are decided, not yet deployed.
 This document is the public model of access to an Environment. The Lazurio Root's
@@ -36,9 +36,9 @@ working logins, integrations and existing remote access. The sharing user
 accepts this risk. Do not require sign-out, profile wiping, credential
 replacement, conversion to a Team/broker mode or another approval of the Organization Admin as
 a prerequisite. Active same-Organization membership and the Organization Admin's approval of
-the recipient's exact device remain mandatory, except in the reference
-Organization's public-DNS mode until its return to its tailnet, which has no device
-approval (decision 0213, below); friends or family are not exceptions. Personalspace is outside this work-sharing
+the recipient's exact device remain mandatory; the reference
+Organization's former public-DNS mode without device approval (decision 0213, below)
+ended with its return to its tailnet; friends or family are not exceptions. Personalspace is outside this work-sharing
 feature.
 
 Explain this scope at the normal sharing action, with a clearly labelled
@@ -88,9 +88,9 @@ An organizational Environment and its apps require all three:
 1. Tailscale against the correct Headscale, with the Organization Admin's approval of the exact
    device before protected reachability. OIDC or another approved device is
    not that approval. There is no public alternative to protected work URLs
-   (decision 0246), except the retired public-DNS mode (below), which only the
-   reference Organization still runs until its return to its tailnet and which
-   drops this condition.
+   (decision 0246); the retired public-DNS mode (below), which dropped this
+   condition, no longer runs anywhere, since the reference Organization is back
+   in its tailnet.
 2. Active Lazurio Organization membership, identified by immutable issuer
    and subject, not email, a GitHub login or the current tailnet user name.
 3. An exact full-Environment or named-app grant in the account authority.
@@ -259,11 +259,11 @@ repository has no code for it yet, and today's Platform does not accept its name
 ## Retired: public-DNS mode (decisions 0213 and 0246)
 
 Entry without a tailnet was retired on 2026-11-12 (decision 0246): no Organization and no
-Personal Environment switches to it, and nothing further is built for it. Only the
-reference Organization still runs it, until its return to its tailnet (decision 0204),
-and until then that entry keeps the contract of decision 0213. The gateways and the
-server's public entry that carry it belong to Machines; this repository has no code for
-it.
+Personal Environment switches to it, and nothing further is built for it. The
+reference Organization, the last to run it, is back in its tailnet since 2026-11-14
+(decision 0204), so it runs nowhere now and decision 0213 describes it as history. The gateways and the
+server's public entry that carried it belong to Machines; this repository has no code for
+it. The points below record the contract as it ran.
 
 - **Entry.** The server's entry reads only the server name from TLS without opening
   the connection, passes only declared Environment names to their gateways and closes

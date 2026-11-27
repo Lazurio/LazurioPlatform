@@ -55,6 +55,8 @@ test("the folder holds AGENTS.md and each skill in both harness directories, and
     ".claude/skills/buddy-vlakna/SKILL.md",
     ".agents/skills/buddy-brain/SKILL.md",
     ".claude/skills/buddy-brain/SKILL.md",
+    ".agents/skills/buddy-control-plane/SKILL.md",
+    ".claude/skills/buddy-control-plane/SKILL.md",
   ]);
   for (const locale of locales)
     for (const profile of ["buddy", "employee"] as const) {
@@ -383,6 +385,36 @@ test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the
         );
         // Nothing to move is a finished catch-up too.
         expect(skill).toContain(cs ? "i když je to 0" : "also when it is 0");
+        // The count survives an interruption: it is the number of pointers
+        // of one fixed form in both sources, never a running tally a new
+        // attempt starts from 0, and an item moved before the interruption
+        // is counted once, by its pointer, not again.
+        expect(skill).toContain("`→ Brain (dorovnání)");
+        expect(skill).toContain(
+          cs
+            ? "počet převedených položek je počet odkazů `→ Brain (dorovnání)` v obou zdrojích, takže přežije přerušení a nic se nezapočítá dvakrát"
+            : "the number of items moved is the number of `→ Brain (dorovnání)` pointers in both sources, so it survives an interruption and nothing is counted twice",
+        );
+        expect(skill).toContain(
+          cs ? "Průběžný počet nedrž" : "Keep no running count",
+        );
+        // A repeat counts an item already in the Brain by giving it its
+        // pointer if it has none yet, and the pointer holds nothing private.
+        expect(skill).toContain(
+          cs
+            ? "jen to ve zdroji nahraď odkazem, pokud tam ještě není"
+            : "only replace it with a pointer in its source if it is not one yet",
+        );
+        expect(skill).toContain(
+          cs
+            ? "a nic jiného z položky nenese"
+            : "and carries nothing else of the item",
+        );
+        expect(skill).not.toContain(
+          cs
+            ? "s časem a počtem zapsaných položek"
+            : "the number of items written",
+        );
         expect(skill).toContain(
           cs
             ? "nic jiného z paměti nástroje necituj"
@@ -545,4 +577,35 @@ test("a thread Buddy started takes its task from him; his main thread takes turn
     "the task from that parent is your task, within the scope it gave you",
   );
   expect(cs).not.toContain("Tahy bereš jen od svého uživatele.");
+});
+
+test("buddy-control-plane: the tool, the order of the queue, the record of an answer, and a page that sends nothing", () => {
+  for (const locale of ["cs", "en"] as const) {
+    const files = renderBuddyFolder(source(locale), "buddy", persona);
+    const skill = files[".agents/skills/buddy-control-plane/SKILL.md"];
+    expect(files[".claude/skills/buddy-control-plane/SKILL.md"]).toBe(skill);
+    expect(skill).toContain("`control_plane_publish`");
+    expect(skill).toContain("`tool_search`");
+    expect(skill).toContain("`t3-thread://…`");
+    expect(files["AGENTS.md"]).toContain("`buddy-control-plane`");
+  }
+  const cs = renderBuddyFolder(source("cs"), "buddy", persona)[
+    ".agents/skills/buddy-control-plane/SKILL.md"
+  ];
+  expect(cs).toContain(
+    "seřazená podle nejbližšího pevného termínu a potom podle počtu kroků, které rozhodnutí odblokuje",
+  );
+  expect(cs).toContain(
+    "kdo (uživatel), kdy (čas jeho tahu) a jeho přesnou větu",
+  );
+  expect(cs).toContain("kdy jsi ho zařadil");
+  expect(cs).toContain("Stránka nic neodesílá ani neschvaluje");
+  expect(cs).toContain("předej v `answers` nástroje `control_plane_publish`");
+  expect(cs).toContain("Stránka sama tlačítka k odpovědi nemá");
+  expect(cs).not.toContain("postMessage");
+  expect(cs).toContain("a jen pokud k ní máš přístup");
+  expect(cs).toContain("Nic z toho nepočítej ani neodhaduj sám");
+  expect(cs).toContain(
+    "Pole, které fronta neuvádí, na stránce označ jako chybějící",
+  );
 });
