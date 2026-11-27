@@ -113,8 +113,10 @@ auth)
         exit 0
       fi
       # $HOME/gh.unreachable: gh's check of the token never reached GitHub.
+      # The message goes in through %s: bash's printf (macOS /bin/sh) turns
+      # a backslash-escaped quote in a format into a bare one, breaking the JSON.
       if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.unreachable" ]; then
-        printf '{"hosts":{"github.com":[{"state":"error","error":"Get \\"https://api.github.com/\\": dial tcp: lookup api.github.com: no such host","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' "$(cat "$HOME/gh.state")"
+        printf '{"hosts":{"github.com":[{"state":"error","error":"%s","active":true,"host":"github.com","login":"%s","tokenSource":"keyring","gitProtocol":"ssh"}]}}\n' 'Get \\"https://api.github.com/\\": dial tcp: lookup api.github.com: no such host' "$(cat "$HOME/gh.state")"
         exit 0
       fi
       if [ -f "$HOME/gh.state" ] && [ -f "$HOME/gh.unauthorized" ]; then
