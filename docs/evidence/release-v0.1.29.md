@@ -12,7 +12,7 @@
 
 `v0.1.29-rc.1` (`ff5576bd`) was released but never applied anywhere. rc.2 replaces it, because 0.1.29 carries the rename fix.
 
-The canary stage ran on 2026-11-27 from 15:02:15Z to 15:57:17Z, including the real work on a Machine (`docs/recovery-mode.md` G.3). It is green.
+The canary stage ran on 2026-11-27 from 15:50:28Z to 15:57:17Z, including the real work on a Machine (`docs/recovery-mode.md` G.3). It is green. It starts with the R1 readings, which give every Machine's start edge (`recover` healthy and the Launchpad's `NRestarts`). It does not start at the end of the last apply (15:02:15Z): a rename test on the pilot Organization held the window in between, and no reading of that time is part of this record.
 
 The record is [`qualification/canary/v0.1.29-rc.2.json`](../../qualification/canary/v0.1.29-rc.2.json), added by the same pull request as this file. Machines are opaque ids under the key of the earlier records, kept only at the station, so every Machine keeps the id it had there.
 
@@ -34,7 +34,7 @@ The record is [`qualification/canary/v0.1.29-rc.2.json`](../../qualification/can
 - **The four Environments of the pilot Organization** on its tailnet host got it from LazurioExampleOrganization/infra#457. These are the Owner's and the member's Work Environments, the Team Environment and the Prostředí služeb.
   - The pull request also declares the Organization's immutable GitHub id (`resident_bootstrap.organization_id`). With this candidate, Machines v0.12.274 writes it to their handover as `owner.organization_id`, which the rename fix uses.
   - It was merged at 14:23:58Z after an independent review on the exact head and a fresh CI Plan (34 actions, 0 deletions, Machines v0.12.274).
-  - Its push run (46015578121) applied it from 14:24:43Z, `success`, `complete`, `healthy` and `conformant` with no failed check, ending at **15:02:15Z**. That was the last time a Machine in scope got the candidate, and it is the start of the stage.
+  - Its push run (46015578121) applied it from 14:24:43Z, `success`, `complete`, `healthy` and `conformant` with no failed check, ending at **15:02:15Z**. That was the last time a Machine in scope got the candidate. The stage starts later, with the R1 readings at 15:50:28Z.
 - **One personal VM**, the Owner test account's Personal Environment, got it from its own lane (LazurioExampleOrganization/infra#452), applied 13:29:40–13:39:33Z from the station, `success` and `conformant`. Only its two earlier `unknown` checks stayed open.
 - **Not in this record:** the release owner's own Personal Environment, and the member test account's Personal Environment.
   - The member's Personal Environment was read at both edges: `healthy`. It runs and has active **`0.1.24`**, with `/health` answering `0.1.24`, because no lane moves it to a candidate, as for `v0.1.25` to `v0.1.28`.
@@ -42,9 +42,9 @@ The record is [`qualification/canary/v0.1.29-rc.2.json`](../../qualification/can
 
 ## The stage
 
-By one thread, read-only except the smoke tests and the real work on a Machine. Both personas were free at the start and were held by this thread for the stage, after a rename test on the pilot Organization had ended and given the window free.
+By one thread, read-only except the smoke tests and the real work on a Machine. Both personas were free at the start and were held by this thread for the stage, after a rename test on the pilot Organization had ended (15:34Z) and given the window free. Between the end of the apply and the stage, that test renamed the pilot Organization and restored its name. No Machine got a new version in that time, and the stage's start edge below is read after it.
 
-1. **R1, readings 15:50:28–15:51:32Z.** Every Machine through its own Launchpad, as the test accounts:
+1. **R1, the start edge, readings 15:50:28–15:51:32Z.** Every Machine through its own Launchpad, as the test accounts:
    - `/api/recovery`, which is the use case of `lazurio recover --json`, and `/api/update/status`;
    - the `launchpad-health` check of `/api/recovery`, which carries the `version` that the Launchpad's own `GET /health` answered on its health socket at that moment.
 
@@ -70,11 +70,11 @@ By one thread, read-only except the smoke tests and the real work on a Machine. 
 
 ### Per Machine
 
-At both edges:
+At both edges, R1 (start) and R2 (end):
 - `recover` answered `healthy` with all five checks `ok`;
 - `update status` answered running and active `0.1.29-rc.2`;
 - the Launchpad's own `GET /health` answered `0.1.29-rc.2` in normal mode;
-- the Launchpad unit's `NRestarts` was 0. On the Owner's Work Environment this is the count after its restart in step 2.
+- the Launchpad unit's `NRestarts` was 0 at both edges, so it did not grow during the stage. On the Owner's Work Environment the count at R2 is the one after its deliberate restart in step 2, which systemd counts as a new start, not as an automatic restart.
 
 T3 Code is not part of this candidate; its version is recorded only so that a change can be told apart.
 
