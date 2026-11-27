@@ -3,6 +3,7 @@ import { processContentGit } from "../src/content/git";
 import type { ContentHost } from "../src/content/host";
 import { contentStatus, organizationsOf } from "../src/content/status";
 import type { MachineBinding } from "../src/folder/machine-binding";
+import { composioOrganizationRule } from "../src/integrations/composio-organization";
 import type {
   Catalog,
   CatalogOrganization,
@@ -68,6 +69,14 @@ test("the owner is selected by the handover's id under another login, never agai
       id,
     ).kind,
   ).toBe("ambiguous");
+  // A root of the handover's id wins over one of its login without an id.
+  expect(
+    selectOwnerOrganization(
+      catalog(entry("Old", undefined, "a_GEN3"), entry("New", id, "b_GEN3")),
+      "old",
+      id,
+    ),
+  ).toMatchObject({ kind: "found", organization: { forgeLogin: "New" } });
   expect(organizationsOf([entry("Old", id)], "new", id)).toHaveLength(1);
   expect(organizationsOf([entry("Old", id)], "new")).toHaveLength(0);
 });
@@ -122,6 +131,20 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
     expect(
       (await contentStatus(withId, host([entry("Old", 9009)]))).items,
     ).toMatchObject([{ kind: "organization", login: "new", state: "absent" }]);
+    // The root of the id, not the one of the login without an id.
+    expect(
+      (
+        await contentStatus(
+          withId,
+          host([
+            entry("New", undefined, "a_GEN3"),
+            { ...entry("Old", id, "b_GEN3"), displayName: "By id" },
+          ]),
+        )
+      ).items,
+    ).toMatchObject([
+      { kind: "organization", login: "new", name: "By id", state: "present" },
+    ]);
     // Without the id in the handover: as before, by login.
     const withoutId = await presetFolder(
       current,
@@ -134,3 +157,30 @@ test.skipIf(!["darwin", "linux"].includes(process.platform))(
   },
   60_000,
 );
+
+test("Composio's organization rule names the Organization of the handover's id, not one of its login without an id", async () => {
+  const rule = await composioOrganizationRule(
+    "/nonexistent-folder",
+    machine("old", id),
+    {
+      readCatalog: async () =>
+        catalog(
+          { ...entry("Old", undefined, "a_GEN3"), displayName: "By login" },
+          { ...entry("New", id, "b_GEN3"), displayName: "By id" },
+        ),
+      wait: async () => {},
+    },
+  );
+  expect(rule).toEqual({ kind: "named", name: "By id" });
+  // Another id only: no owner, and never the login's root of another id.
+  const other = await composioOrganizationRule(
+    "/nonexistent-folder",
+    machine("old", id),
+    {
+      readCatalog: async () =>
+        catalog({ ...entry("Old", 9009), displayName: "Other" }),
+      wait: async () => {},
+    },
+  );
+  expect(other).toMatchObject({ kind: "unverified", reason: "absent" });
+});

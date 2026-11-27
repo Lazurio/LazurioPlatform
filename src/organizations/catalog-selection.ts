@@ -77,7 +77,8 @@ export function selectCatalogOrganization(
  * content sync (#1281, #1287): after a rename on GitHub the root and the
  * handover may name the Organization by different logins for a while, and a
  * root that declares the same id (`forgeOrganizationId`) is the owner under
- * either; a root that declares another id never is, whatever its login.
+ * either, before any root of the login without an id; a root that declares
+ * another id never is, whatever its login.
  *
  * Organization settings (F45) and Composio's organization rule both read
  * the owner through this one rule, so they never disagree on it. Routes and
@@ -111,22 +112,20 @@ export function selectOwnerOrganization(
     : { kind: "found", organization: byDirectory };
 }
 
-/** The owner's candidates by its id: those of its login that declare no
- * other id, else those that declare its id under another login. */
+/** The owner's candidates by its id: the entries that declare the
+ * handover's id, under any login, first; only where none does, those of its
+ * login that declare no id. An entry that declares another id never is
+ * one. */
 export function ownerCandidates(
   organizations: readonly CatalogOrganization[],
   byLogin: readonly CatalogOrganization[],
   organizationId: number,
 ): CatalogOrganization[] {
-  const consistent = byLogin.filter(
-    (entry) =>
-      entry.forgeOrganizationId === undefined ||
-      entry.forgeOrganizationId === organizationId,
-  );
-  if (consistent.length > 0) return consistent;
-  return organizations.filter(
+  const identified = organizations.filter(
     (entry) => entry.forgeOrganizationId === organizationId,
   );
+  if (identified.length > 0) return identified;
+  return byLogin.filter((entry) => entry.forgeOrganizationId === undefined);
 }
 
 /** The name that selects exactly this candidate under the same rule: its slug,
