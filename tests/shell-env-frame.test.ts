@@ -47,23 +47,28 @@ const matej: ShellIdentity = { subject: matejSubject, githubId: 101 };
 const jana: ShellIdentity = { subject: janaSubject, githubId: 202 };
 
 describe("sameIdentity", () => {
-  test("one person only by a member both identities carry", () => {
+  test("the owner by what the Environment records: its subject, else its GitHub id", () => {
     expect(sameIdentity(matej, matej)).toBe(true);
-    // GitHub ids decide only where neither side has a subject: an identity
-    // with a subject is a Lazurio account, and a GitHub id alone does not
-    // prove it is the same one (an account may have relinked GitHub).
     expect(sameIdentity({ githubId: 101 }, { githubId: 101 })).toBe(true);
-    expect(sameIdentity({ githubId: 101 }, matej)).toBe(false);
+    // An Environment that records only the GitHub id (a principal's personal
+    // one, a work one assigned by GitHub id) is the viewer's when their
+    // account is linked to that GitHub id (Matěj, 2026-11-27).
+    expect(sameIdentity({ githubId: 101 }, matej)).toBe(true);
+    expect(sameIdentity({ githubId: 101 }, jana)).toBe(false);
+    expect(sameIdentity({ githubId: 101 }, { subject: matejSubject })).toBe(
+      false,
+    );
+    // An Environment that records a subject asks for that subject.
     expect(sameIdentity(matej, { githubId: 101 })).toBe(false);
     expect(
       sameIdentity({ subject: matejSubject }, { subject: matejSubject }),
     ).toBe(true);
     expect(sameIdentity(matej, jana)).toBe(false);
-    // No member in common: not known to be one person.
     expect(sameIdentity({ subject: matejSubject }, { githubId: 101 })).toBe(
       false,
     );
-    // The subject decides where both have one, whatever the GitHub ids say.
+    // The subject decides where the Environment has one, whatever the GitHub
+    // ids say.
     expect(
       sameIdentity(
         { subject: matejSubject, githubId: 101 },
@@ -72,6 +77,7 @@ describe("sameIdentity", () => {
     ).toBe(false);
     expect(sameIdentity(undefined, matej)).toBe(false);
     expect(sameIdentity(matej, null)).toBe(false);
+    expect(sameIdentity({}, matej)).toBe(false);
   });
 });
 
@@ -119,6 +125,23 @@ describe("envFrame", () => {
       ownerIdentity: { subject: matejSubject, githubId: 999 },
     });
     expect(envFrame(relinked, matej)).toBeNull();
+  });
+
+  test("the person's own Environments that record them by GitHub id alone have no frame, another person's a red one", () => {
+    // A work Environment assigned by GitHub id and a personal one its GitHub
+    // principal owns, viewed by a Lazurio account linked to that GitHub id
+    // (Matěj, 2026-11-27: no frame on one's own Work or Personal Environment).
+    const work = env({ assignee: "matej", ownerIdentity: { githubId: 101 } });
+    const personal = env({
+      kind: "personal",
+      organizations: [],
+      owner: "matej",
+      ownerIdentity: { githubId: 101 },
+    });
+    expect(envFrame(work, matej)).toBeNull();
+    expect(envFrame(personal, matej)).toBeNull();
+    expect(envFrame(work, jana)?.tone).toBe("person");
+    expect(envFrame(personal, jana)?.tone).toBe("person");
   });
 
   test("a login equal to the viewer's username never makes another person's Environment the viewer's", () => {
@@ -338,11 +361,17 @@ describe("the identity the Launchpad writes (ownerIdentity)", () => {
     expect(environment?.ownerIdentity).toEqual({ githubId: 12345 });
     expect(envFrame(environment, { githubId: 12345 })).toBeNull();
     expect(envFrame(environment, { githubId: 54321 })?.tone).toBe("person");
-    // A viewer known by their Lazurio account is not this principal owner by
-    // the GitHub id alone: framed until the Environment records a subject.
+    // The principal signed in with their Lazurio account, linked to that
+    // GitHub id, is the owner: no frame (Matěj, 2026-11-27).
     expect(
-      envFrame(environment, { subject: matejSubject, githubId: 12345 })?.tone,
+      envFrame(environment, { subject: matejSubject, githubId: 12345 }),
+    ).toBeNull();
+    expect(
+      envFrame(environment, { subject: matejSubject, githubId: 54321 })?.tone,
     ).toBe("person");
+    expect(envFrame(environment, { subject: matejSubject })?.tone).toBe(
+      "person",
+    );
     expect(envFrame(environment, null)?.tone).toBe("person");
   });
 });
