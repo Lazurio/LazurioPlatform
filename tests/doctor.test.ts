@@ -1003,11 +1003,11 @@ test.skipIf(process.platform === "win32")(
 );
 
 test.skipIf(process.platform === "win32")(
-  "hosted: an Owner Organization the handover now names by its lower-cased organization_key is the refresh's to record, then the binding is ok",
+  "hosted: an Owner Organization the handover names by another login is another Machine without the same recorded id, whatever its organization_key (F10, addendum 2026-11-27)",
   async () => {
     const world = await createWorld({ hosted: true });
-    // The Folder recorded `example`; the handover now names the
-    // Organization `exampleorg`, its organization_key `ExampleOrg`.
+    // The Folder recorded `example` without an Organization id; the
+    // handover now names `exampleorg`, its organization_key `ExampleOrg`.
     const relabelled = (organizationKey: string) => ({
       ...handoverDocument(),
       owner: {
@@ -1020,23 +1020,19 @@ test.skipIf(process.platform === "win32")(
       context: document as never,
       digest: digestOf(document),
     });
-    const pending = await doctor(world, [], {
-      machineContext: live(relabelled("ExampleOrg")),
-    });
-    expect(find(pending.json, "machine-binding")).toEqual({
-      id: "machine-binding",
-      outcome: "warn",
-      reason: "handover-changed",
-    });
-    const foreign = await doctor(world, [], {
-      machineContext: live(relabelled("AnotherOrg")),
-    });
-    expect(find(foreign.json, "machine-binding")?.reason).toBe(
-      "machine-identity-changed",
-    );
+    const results = [];
+    for (const key of ["ExampleOrg", "AnotherOrg"]) {
+      const result = await doctor(world, [], {
+        machineContext: live(relabelled(key)),
+      });
+      expect(find(result.json, "machine-binding")?.reason).toBe(
+        "machine-identity-changed",
+      );
+      results.push(result);
+    }
     const document = relabelled("ExampleOrg");
-    expect(
-      await refreshMachineFolder(
+    await expect(
+      refreshMachineFolder(
         world.folder,
         machineBinding(
           parseMachineContext(Buffer.from(JSON.stringify(document))),
@@ -1045,19 +1041,8 @@ test.skipIf(process.platform === "win32")(
         undefined,
         "ExampleOrg",
       ),
-    ).toMatchObject({
-      code: 0,
-      result: { kind: "refreshed", bindingCorrected: "owner-organization" },
-    });
-    const corrected = await doctor(world, [], {
-      machineContext: live(document),
-    });
-    expect(find(corrected.json, "machine-binding")).toEqual({
-      id: "machine-binding",
-      outcome: "ok",
-      context: { machineKind: "workspace-vm" },
-    });
-    for (const result of [pending, foreign, corrected]) {
+    ).rejects.toThrow();
+    for (const result of results) {
       expect(result.stdout).not.toContain("exampleorg");
       expectTierOne(result.stdout, world);
       expectSameAnswer(result.human, result.json);

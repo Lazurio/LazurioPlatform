@@ -14,6 +14,7 @@ import { FolderAdoptionError } from "../src/folder/handover-layout";
 import {
   type MachineBinding,
   ownerOrganizationCorrection,
+  sameMachine,
 } from "../src/folder/machine-binding";
 import { outputPaths } from "../src/folder/outputs";
 import {
@@ -30,11 +31,13 @@ import { assignments, binding } from "./fixtures/machine-bindings";
 import organization from "./fixtures/machine-context.json";
 import personal from "./fixtures/machine-context-personal.json";
 
-// Decision F10's addendum of 2026-11-11: a work Environment whose Folder was
-// adopted while its handover named the Owner Organization by a runtime label
-// (`example`), and whose handover now names it by its GitHub login in lower
-// case (`exampleorg`, `organization_key` `ExampleOrg`). Everything else in
-// the identity is the same Machine.
+// Decision F10's addendum of 2026-11-27 (#1281): a work Environment whose
+// handover names its Owner Organization by a new login (`exampleorg`) is the
+// same Machine only when its Folder recorded the same Organization id the
+// handover names; everything else in the identity is the same. The earlier
+// correction by `organization_key` alone (addendum of 2026-11-11) is
+// retired: from the handover alone a relabelled Folder cannot be told from a
+// renamed Organization.
 const key = "ExampleOrg";
 const { team: _, ...owner } = organization.owner;
 const workHandover = (
@@ -69,8 +72,17 @@ const workHandover = (
     },
   };
 };
-const recorded = binding(workHandover());
-const relabelled = binding(workHandover({ organization: "exampleorg" }));
+const organizationId = 7001;
+// The vendored schema of this release reads no `owner.organization_id` yet
+// (Machines#1627), so the bindings carry it as the Folder records it.
+const withId = (bound: MachineBinding, id = organizationId): MachineBinding => {
+  if (bound.owner.kind !== "organization") throw new Error("fixture");
+  return { ...bound, owner: { ...bound.owner, organizationId: id } };
+};
+const recorded = withId(binding(workHandover()));
+const relabelled = withId(
+  binding(workHandover({ organization: "exampleorg" })),
+);
 const noChoices = {
   preset: undefined,
   locale: undefined,
@@ -133,30 +145,39 @@ test("the handover's organization_key is read only from a work Environment's Org
   expect(ownerOrganizationKey(parse(personal))).toBeUndefined();
 });
 
-test("only the Owner Organization, relabelled to exactly the lower-cased organization_key, is a correction", () => {
+test("only the Owner Organization, renamed under the same recorded id, is a correction", () => {
   expect(ownerOrganizationCorrection(recorded, relabelled, key)).toBe(
-    "owner-organization",
+    "owner-renamed",
+  );
+  // The key is not read: the id alone decides.
+  expect(ownerOrganizationCorrection(recorded, relabelled, undefined)).toBe(
+    "owner-renamed",
   );
   // Nothing to correct.
   expect(ownerOrganizationCorrection(recorded, recorded, key)).toBeNull();
   expect(ownerOrganizationCorrection(relabelled, relabelled, key)).toBeNull();
   expect(ownerOrganizationCorrection(null, relabelled, key)).toBeNull();
   expect(ownerOrganizationCorrection(recorded, null, key)).toBeNull();
-  // No organization_key in the handover.
+  // No recorded id (a Folder relabelled before the id existed among them),
+  // no live id or another id: another Owner, whatever the key says.
+  const unidentified = binding(workHandover());
+  expect(ownerOrganizationCorrection(unidentified, relabelled, key)).toBeNull();
   expect(
-    ownerOrganizationCorrection(recorded, relabelled, undefined),
+    ownerOrganizationCorrection(
+      unidentified,
+      binding(workHandover({ organization: "exampleorg" })),
+      key,
+    ),
   ).toBeNull();
-  // The new value is not the key in lower case.
-  for (const other of ["exampleorg-x", "another"])
-    expect(
-      ownerOrganizationCorrection(
-        recorded,
-        binding(workHandover({ organization: other })),
-        key,
-      ),
-    ).toBeNull();
   expect(
-    ownerOrganizationCorrection(recorded, relabelled, "AnotherOrg"),
+    ownerOrganizationCorrection(
+      recorded,
+      binding(workHandover({ organization: "exampleorg" })),
+      key,
+    ),
+  ).toBeNull();
+  expect(
+    ownerOrganizationCorrection(recorded, withId(relabelled, 9009), key),
   ).toBeNull();
   // Any other part of the identity differs as well.
   for (const other of [
@@ -167,7 +188,7 @@ test("only the Owner Organization, relabelled to exactly the lower-cased organiz
     expect(
       ownerOrganizationCorrection(
         recorded,
-        binding(workHandover({ organization: "exampleorg", ...other })),
+        withId(binding(workHandover({ organization: "exampleorg", ...other }))),
         key,
       ),
     ).toBeNull();
@@ -193,9 +214,16 @@ test.skipIf(process.platform === "win32")(
       expect(await admitted(folder)).toBe(false);
       const before = await snapshot(folder);
       const { preset } = await preferences(folder);
-      // Without the handover's key the identity is another Machine's.
+      // Without the Organization id in the handover the identity is another
+      // Machine's, whatever its key.
       await expect(
-        initializeMachineFolder(folder, relabelled, noChoices),
+        initializeMachineFolder(
+          folder,
+          binding(workHandover({ organization: "exampleorg" })),
+          noChoices,
+          false,
+          key,
+        ),
       ).rejects.toEqual(new FolderAdoptionError("binding-changed", ".lazurio"));
       // folder-init on that Folder says what the refresh will do, and writes
       // nothing.
@@ -213,7 +241,7 @@ test.skipIf(process.platform === "win32")(
           kind: "already-adopted",
           revision: 1,
           preset,
-          bindingCorrection: "owner-organization",
+          bindingCorrection: "owner-renamed",
           next: expect.stringContaining("folder-refresh"),
         },
       });
@@ -226,7 +254,7 @@ test.skipIf(process.platform === "win32")(
         result: {
           kind: "refreshed",
           revision: 2,
-          bindingCorrected: "owner-organization",
+          bindingCorrected: "owner-renamed",
         },
       });
       const state = await preferences(folder);
@@ -259,38 +287,44 @@ const refused: readonly Readonly<{
   initial?: MachineBinding;
 }>[] = [
   {
-    label: "the new Organization is not the lower-cased organization_key",
-    live: binding(workHandover({ organization: "another" })),
+    label: "the handover names no Organization id",
+    live: binding(workHandover({ organization: "exampleorg" })),
     key,
   },
   {
-    label: "the organization_key is another Organization's",
-    live: relabelled,
-    key: "AnotherOrg",
+    label: "the handover names another Organization id",
+    live: withId(relabelled, 9009),
+    key,
   },
   {
-    label: "the handover has no organization_key",
-    live: binding(
-      workHandover({ organization: "exampleorg", organizationKey: null }),
-    ),
-    key: undefined,
+    label:
+      "the Folder recorded no Organization id (relabelled by its key alone)",
+    live: relabelled,
+    key,
+    initial: binding(workHandover()),
   },
   {
     label: "the Machine's name differs as well",
-    live: binding(workHandover({ organization: "exampleorg", name: "other" })),
+    live: withId(
+      binding(workHandover({ organization: "exampleorg", name: "other" })),
+    ),
     key,
   },
   {
     label: "the Team differs as well",
-    live: binding(
-      workHandover({ organization: "exampleorg", team: "sample-team" }),
+    live: withId(
+      binding(
+        workHandover({ organization: "exampleorg", team: "sample-team" }),
+      ),
     ),
     key,
   },
   {
     label: "the tailnet node differs as well",
-    live: binding(
-      workHandover({ organization: "exampleorg", hostname: "other-node" }),
+    live: withId(
+      binding(
+        workHandover({ organization: "exampleorg", hostname: "other-node" }),
+      ),
     ),
     key,
   },
@@ -368,3 +402,60 @@ for (const stop of ["prepared", "applied"] as const)
       }
     },
   );
+
+test.skipIf(process.platform === "win32")(
+  "once the Folder recorded the Organization id, a missing or another id under the same login is another Machine; the first id is recorded",
+  async () => {
+    // A handover that newly names the id is a new document (new digest).
+    const rewritten = (bound: MachineBinding): MachineBinding => ({
+      ...bound,
+      contextDigest: "f".repeat(64),
+    });
+    const { parent, folder } = await setup(binding(workHandover()));
+    try {
+      // The first id under the unchanged login: an ordinary refresh.
+      expect(
+        await refreshMachineFolder(
+          folder,
+          rewritten(withId(binding(workHandover()))),
+          undefined,
+          key,
+        ),
+      ).toMatchObject({ code: 0, result: { kind: "refreshed" } });
+      expect((await preferences(folder)).machine.owner.organizationId).toBe(
+        organizationId,
+      );
+      const settled = await snapshot(folder);
+      // Then another id, or none, under the same login: refused everywhere.
+      for (const live of [
+        withId(binding(workHandover()), 9009),
+        binding(workHandover()),
+      ]) {
+        await expect(
+          refreshMachineFolder(folder, live, undefined, key),
+        ).rejects.toEqual(
+          new FolderAdoptionError("binding-changed", ".lazurio"),
+        );
+        expect(
+          await refreshFolder(folder, live, undefined, undefined, key),
+        ).toEqual({ kind: "blocked", reason: "binding-changed" });
+        await expect(
+          initializeMachineFolder(folder, live, noChoices, false, key),
+        ).rejects.toEqual(
+          new FolderAdoptionError("binding-changed", ".lazurio"),
+        );
+      }
+      expect(await snapshot(folder)).toEqual(settled);
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+test("sameMachine: a recorded id must be named again; a first one is the same Machine", () => {
+  const plain = binding(workHandover());
+  expect(sameMachine(plain, withId(plain))).toBe(true);
+  expect(sameMachine(withId(plain), withId(plain))).toBe(true);
+  expect(sameMachine(withId(plain), plain)).toBe(false);
+  expect(sameMachine(withId(plain), withId(plain, 9009))).toBe(false);
+});

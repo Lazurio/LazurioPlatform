@@ -117,7 +117,29 @@ export type ContentGit = Readonly<{
   /** Fast-forwards the checked-out branch to `commit`; never a merge, a
    * stash, a hook or a reset. Whether `HEAD` is `commit` afterwards. */
   fastForward(directory: string, commit: string): Promise<boolean>;
+  /** Points `origin` of the checkout from GitHub's `from` (`<owner>/<name>`)
+   * to `to`, keeping the URL's form (SSH or HTTPS) and its `.git`: only
+   * when the one `remote.origin.url` names `from` now. Whether it names
+   * `to` afterwards. Only a synchronization that proved both name the same
+   * repository by its id calls it (#1281). */
+  setOrigin?(directory: string, from: string, to: string): Promise<boolean>;
 }>;
+
+/** `url` with its GitHub coordinate `from` replaced by `to`, in the same
+ * form; null when `url` is not exactly a github.com URL of `from`. */
+export function rewrittenOrigin(
+  url: string,
+  from: string,
+  to: string,
+): string | null {
+  const match =
+    /^(https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9_.-]+?)(\.git)?$/.exec(
+      url,
+    );
+  if (match === null || !repositoryPattern.test(to)) return null;
+  if ((match[2] as string).toLowerCase() !== from.toLowerCase()) return null;
+  return `${match[1]}${to}${match[3] ?? ""}`;
+}
 
 /** Where a synchronization reads a present checkout's remote:
  * `configured`, its `origin` with git's configuration as it is (a Team
@@ -667,6 +689,35 @@ export function processContentGit(environment: GitEnvironment): ContentGit {
       if (!merged.ok) return false;
       return (
         (await read(directory, ["rev-parse", "--verify", "HEAD"])) === commit
+      );
+    },
+    async setOrigin(directory, from, to) {
+      const urls = await read(directory, [
+        "config",
+        "--local",
+        "--no-includes",
+        "--get-all",
+        "remote.origin.url",
+      ]);
+      if (urls === null || urls.includes("\n")) return false;
+      const next = rewrittenOrigin(urls, from, to);
+      if (next === null) return false;
+      const written = await write(directory, [
+        "remote",
+        "set-url",
+        "--",
+        "origin",
+        next,
+      ]);
+      if (!written.ok) return false;
+      return (
+        (await read(directory, [
+          "config",
+          "--local",
+          "--no-includes",
+          "--get-all",
+          "remote.origin.url",
+        ])) === next
       );
     },
     async clone(request) {

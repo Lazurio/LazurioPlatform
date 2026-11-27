@@ -118,6 +118,11 @@ export type MachineOwner =
       organization: string;
       team: string | null;
       assignment?: MachineAssignment;
+      /** The GitHub Organization's immutable id, where the handover names it
+       * (`owner.organization_id`). Not part of the Machine's identity: a
+       * refresh records it, and it is what proves a renamed Organization is
+       * the same one (`ownerOrganizationCorrection`, #1281). */
+      organizationId?: number;
     }>;
 
 // This Machine's tailnet peers from its own point of view, as Machines derives
@@ -550,16 +555,19 @@ function owner(input: unknown): MachineOwner {
     });
   }
   const assigned = ownDataValue(input, "assignment") !== undefined;
-  const value = stateFields(
-    input,
-    assigned
-      ? ["kind", "organization", "team", "assignment"]
-      : ["kind", "organization", "team"],
-  );
+  const identified = ownDataValue(input, "organizationId") !== undefined;
+  const value = stateFields(input, [
+    "kind",
+    "organization",
+    "team",
+    ...(assigned ? ["assignment"] : []),
+    ...(identified ? ["organizationId"] : []),
+  ]);
   if (
     value.kind !== "organization" ||
     !isSlug(value.organization) ||
-    (value.team !== null && !isSlug(value.team))
+    (value.team !== null && !isSlug(value.team)) ||
+    (identified && !isGithubId(value.organizationId))
   )
     throw new Error("Invalid Machine owner");
   const bound = {
@@ -567,9 +575,12 @@ function owner(input: unknown): MachineOwner {
     organization: value.organization,
     team: value.team,
   };
-  return Object.freeze(
-    assigned ? { ...bound, assignment: assignment(value.assignment) } : bound,
-  );
+  // Members in the recorded order, so a binding reads back with its bytes.
+  return Object.freeze({
+    ...bound,
+    ...(assigned ? { assignment: assignment(value.assignment) } : {}),
+    ...(identified ? { organizationId: value.organizationId as number } : {}),
+  });
 }
 
 // The host keys of an assigned peer, by the wire schema's rule: one to four
@@ -879,8 +890,12 @@ function parseAccessService(input: unknown): Readonly<{ origin: string }> {
 // assignment.
 export function machineIdentity(machine: MachineBinding | null) {
   if (machine === null) return null;
-  const { assignment: _, ...named } = machine.owner as MachineBinding["owner"] &
-    Readonly<{ assignment?: unknown }>;
+  const {
+    assignment: _,
+    organizationId: __,
+    ...named
+  } = machine.owner as MachineBinding["owner"] &
+    Readonly<{ assignment?: unknown; organizationId?: unknown }>;
   const owner =
     named.kind === "account"
       ? { kind: named.kind, username: named.username, subject: named.subject }
@@ -893,9 +908,35 @@ export function machineIdentity(machine: MachineBinding | null) {
   };
 }
 
+/** Whether `live` is the Machine the Folder recorded as `recorded`: the
+ * same identity (`machineIdentity`), and, once the Folder recorded the Owner
+ * Organization's id, the same id again (#1281). A first id under an
+ * unchanged identity is the same Machine, and the refresh records it; a
+ * missing or another id after one was recorded is another Owner, so a later
+ * rename could never be proved by an id the Folder took over unproved. */
+export function sameMachine(
+  recorded: MachineBinding | null,
+  live: MachineBinding | null,
+): boolean {
+  if (
+    JSON.stringify(machineIdentity(recorded)) !==
+    JSON.stringify(machineIdentity(live))
+  )
+    return false;
+  const recordedId =
+    recorded?.owner.kind === "organization"
+      ? recorded.owner.organizationId
+      : undefined;
+  if (recordedId === undefined) return true;
+  return (
+    live?.owner.kind === "organization" &&
+    live.owner.organizationId === recordedId
+  );
+}
+
 /** The one correction of the identity a refresh records
  * (`bindingCorrected`, decision F10's addendum of 2026-11-11). */
-export type BindingCorrection = "owner-organization";
+export type BindingCorrection = "owner-renamed";
 
 /** A refresh whose revision records nothing but the live handover's digest
  * (`bindingRebound`, issue #111, decision F10's addendum of 2026-11-12): the
@@ -904,41 +945,43 @@ export type BindingCorrection = "owner-organization";
 export type BindingRebinding = "handover-digest";
 
 /** Whether the live binding differs from the recorded one only by the one
- * correction a refresh records: a work Environment whose Folder was adopted
- * while its handover named the Owner Organization by another value (an
- * earlier runtime label) and whose handover now names it, as Machines writes
- * it since then, by its GitHub login in lower case. `organizationKey` is the
- * live handover's `owner.organization_key`, which the binding does not
- * record. The live `owner.organization` must be exactly that key in lower
- * case, and every other part of the identity (kind, name, the Owner's kind
- * and Team, the tailnet node) must be the same; anything else stays another
- * Machine. Null when the identities are the same, too: nothing to correct. */
+ * correction a refresh records, `owner-renamed`: the Owner Organization was
+ * renamed on GitHub, so the handover names it by its new login, and both the
+ * recorded binding and the live handover name the same Organization id
+ * (#1281). Nothing else proves a new login is the same Organization: GitHub
+ * frees the old login and anyone may take it. So no correction is taken
+ * without a recorded id, and the earlier correction by `organization_key`
+ * (decision F10, addendum of 2026-11-11) is retired (addendum of
+ * 2026-11-27): from the handover alone a relabelled Folder cannot be told
+ * from a renamed Organization. Every other part of the identity (kind,
+ * name, the Owner's kind and Team, the tailnet node) must be the same;
+ * anything else stays another Machine. Null when the identities are the
+ * same, too: nothing to correct. `_organizationKey` is no longer read. */
 export function ownerOrganizationCorrection(
   recorded: MachineBinding | null,
   live: MachineBinding | null,
-  organizationKey: string | undefined,
+  _organizationKey?: string | undefined,
 ): BindingCorrection | null {
-  if (recorded === null || live === null || organizationKey === undefined)
-    return null;
+  if (recorded === null || live === null) return null;
   if (
     recorded.kind !== "workspace-vm" ||
     live.kind !== "workspace-vm" ||
     recorded.owner.kind !== "organization" ||
-    live.owner.kind !== "organization"
+    live.owner.kind !== "organization" ||
+    recorded.owner.organization === live.owner.organization
   )
     return null;
-  const organization = organizationKey.toLowerCase();
-  if (
-    live.owner.organization !== organization ||
-    recorded.owner.organization === organization
-  )
+  const recordedOwner = recorded.owner;
+  const liveOwner = live.owner;
+  const recordedId = recordedOwner.organizationId;
+  if (recordedId === undefined || recordedId !== liveOwner.organizationId)
     return null;
-  const corrected: MachineBinding = {
-    ...recorded,
-    owner: { ...recorded.owner, organization },
-  };
-  return JSON.stringify(machineIdentity(corrected)) ===
-    JSON.stringify(machineIdentity(live))
-    ? "owner-organization"
+  return JSON.stringify(
+    machineIdentity({
+      ...recorded,
+      owner: { ...recordedOwner, organization: liveOwner.organization },
+    }),
+  ) === JSON.stringify(machineIdentity(live))
+    ? "owner-renamed"
     : null;
 }

@@ -209,12 +209,12 @@ node, a new virtualization host: the first apply after the move answers
 `already-adopted`, then `folder-refresh` records the new host like the rest of the
 handover-derived binding. A handover with another kind, name, Owner or tailnet node
 is another Machine and stays `folder-binding-changed`, with one exception: a work
-Environment whose handover now names the Owner Organization by exactly
-`owner.organization_key` in lower case, where the Folder recorded another value (an earlier
-runtime label), and whose identity is otherwise the same, is the same Machine;
-`folder-refresh` records that Organization and says so with
-`"bindingCorrected":"owner-organization"`
-([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
+Environment whose handover names the Owner Organization by another login with the same
+`owner.organization_id` as the Folder recorded, and whose identity is otherwise the same, is
+the same Machine (a rename on GitHub, #1281); `folder-refresh` records it and says so with
+`"bindingCorrected":"owner-renamed"`
+([F10, addendum 2026-11-27](decisions.md#f10--workspace-presets-and-typed-owner-requests),
+which retires the correction by `owner.organization_key` of the addendum of 2026-11-11).
 A copy of the guest on
 another host with the same name, Owner and tailnet node is not told apart by the
 binding; Machines keeps one Machine on one host (one lane roster per guest, the old
@@ -289,7 +289,7 @@ bumped. It prints one JSON object with `machineContextDigest`:
 | Result | Exit | Meaning |
 | --- | --- | --- |
 | `{"kind":"refreshed","revision":<n>}` | 0 | The rendered files changed; revision `n` records the new binding |
-| `{"kind":"refreshed","revision":<n>,"bindingCorrected":"owner-organization"}` | 0 | Revision `n` records the Owner Organization as the handover now names it, exactly `owner.organization_key` in lower case, on a work Environment whose Folder recorded another value and whose identity is otherwise the same ([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)); `folder-init` on that Folder answers `already-adopted` with `"bindingCorrection":"owner-organization"` and writes nothing |
+| `{"kind":"refreshed","revision":<n>,"bindingCorrected":"owner-renamed"}` | 0 | Revision `n` records the Owner Organization by the new login the handover names, on a work Environment whose Folder recorded the same `owner.organization_id` the handover names and whose identity is otherwise the same: a rename on GitHub ([F10, addendum 2026-11-27](decisions.md#f10--workspace-presets-and-typed-owner-requests), #1281). Without a recorded id, or with a missing or another live id, a new login is `folder-binding-changed`, whatever `owner.organization_key` says. `folder-init` on such a Folder answers `already-adopted` with `"bindingCorrection":"owner-renamed"` and writes nothing |
 | `{"kind":"refreshed","revision":<n>,"bindingRebound":"handover-digest"}` | 0 | The handover was rewritten where the Folder renders and records nothing else (only `installed`, for example): revision `n` records its digest alone, every generated file keeps its bytes, and `doctor`'s `machine-binding` is `ok` after it ([F10, addendum 2026-11-12](decisions.md#f10--workspace-presets-and-typed-owner-requests), issue #111) |
 | `{"kind":"unchanged"}` | 0 | The Folder already records the current handover's digest, and the handover renders the same bytes and declares the same entry and relationships; nothing is written, the recorded binding and revision stay. A changed entry is recorded (`refreshed`) even when no rendered text names the changed value, because the Launchpad acts on it; so are changed relationships, because the binding's relationships follow the handover and an [assigned peer's](#assigned-peers-root-decision-0192-addendum-of-2026-10-26) access and host keys are rendered nowhere in the Folder. On a personal Machine either answer adds `environmentSsh` ([assigned peers](#assigned-peers-root-decision-0192-addendum-of-2026-10-26)) |
 | `{"kind":"blocked","reason":"folder-not-initialized",…}` | 2 | No Folder state: run `folder-init` first; nothing is created |
