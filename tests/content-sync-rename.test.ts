@@ -166,6 +166,7 @@ type Fixture = Readonly<{
   run: (
     binding: MachineBinding,
     request?: Parameters<typeof syncContent>[2],
+    options?: Readonly<{ failFirstInspect?: boolean }>,
   ) => Promise<readonly SyncEntry[]>;
   origin: (directory: string) => Promise<string>;
   /** GitHub renames `Old` to `New`; `Old/…` then redirects. */
@@ -244,17 +245,32 @@ async function environment(): Promise<Fixture> {
     root: () => root,
     web: () => join(root, "workspace", "web"),
     state,
-    async run(binding, request = {}) {
+    async run(binding, request = {}, options = {}) {
       const folder = await folderFor(binding);
       const here = join(folder, "organizations", "example_GEN3");
       if (here !== root) {
         await rename(root, here);
         root = here;
       }
+      // A first reading of a checkout that fails once, as a transient
+      // error would; every later one reads it.
+      let failing = options.failFirstInspect === true;
+      const host: SyncHost["git"] = failing
+        ? {
+            ...gitHost,
+            inspect: async (directory) => {
+              if (failing) {
+                failing = false;
+                throw new Error("transient");
+              }
+              return gitHost.inspect(directory);
+            },
+          }
+        : gitHost;
       const run = await syncContent(
         folder,
         {
-          git: gitHost,
+          git: host,
           github: github(current, () => state.now),
           lockDirectory: current.lockDirectory,
           readCatalog,
@@ -607,6 +623,27 @@ posixTest(
       expect(byPath(run)).toEqual({ ".": "unavailable:owner-unverified" });
       expect(await head(fixture, fixture.root())).toBe(before);
     }
+  },
+  60_000,
+);
+
+posixTest(
+  "a root whose checkout could not be read at the owner check is not read either, though a later reading and git would succeed",
+  async () => {
+    const fixture = await environment();
+    await fixture.renameOnGitHub();
+    await fixture.declareRoot("New");
+    const before = await head(fixture, fixture.root());
+    fixture.state.now = "unavailable";
+    const run = await fixture.run(
+      machine("old", organizationId),
+      {},
+      {
+        failFirstInspect: true,
+      },
+    );
+    expect(byPath(run)).toEqual({ ".": "unavailable:owner-unverified" });
+    expect(await head(fixture, fixture.root())).toBe(before);
   },
   60_000,
 );

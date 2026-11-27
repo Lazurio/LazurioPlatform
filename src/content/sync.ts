@@ -229,7 +229,11 @@ export async function syncContent(
     // or the handover still says (#1281). A root this Environment cannot
     // yet prove to be its handover's answers `organization-renamed`.
     const github = scope.remote === "account" ? host.github : null;
-    const held: { entry: FolderCatalogOrganization; login: string }[] = [];
+    const held: {
+      entry: FolderCatalogOrganization;
+      login: string;
+      verified?: string | undefined;
+    }[] = [];
     const renamed: SyncEntry[] = [];
     for (const entry of catalog.organizations) {
       if (
@@ -252,7 +256,8 @@ export async function syncContent(
         entry.forgeLogin.toLowerCase() !== request.organization.toLowerCase()
       )
         continue;
-      if (admitted.kind === "held") held.push({ entry, login });
+      if (admitted.kind === "held")
+        held.push({ entry, login, verified: admitted.verified });
       else
         renamed.push(
           Object.freeze({
@@ -326,7 +331,11 @@ export async function syncContent(
       request.repository === undefined ||
       path === request.repository ||
       path.startsWith(`${request.repository}/`);
-    for (const { entry: organization, login } of held) {
+    for (const {
+      entry: organization,
+      login,
+      verified: verifiedOrigin,
+    } of held) {
       const root = join("organizations", organization.directory);
       // One repository: its progress as it goes, then its answer.
       const one = async (
@@ -389,8 +398,18 @@ export async function syncContent(
           syncCheckout(
             context,
             directory,
+            // Under the login it is kept under, and where GitHub named the
+            // owner of its origin, still that very origin: a checkout
+            // changed meanwhile is never read without that check.
             (repository) =>
-              repository.split("/")[0]?.toLowerCase() === login.toLowerCase(),
+              repository.split("/")[0]?.toLowerCase() === login.toLowerCase() &&
+              (verifiedOrigin === undefined ||
+                sameRepository(repository, verifiedOrigin) ||
+                // or the redirect target `redirect` proved by repository id
+                sameRepository(
+                  repository,
+                  `${login}/${verifiedOrigin.split("/")[1]}`,
+                )),
             "main",
             progress,
             // The root keeps its repository's name through a rename of its
@@ -535,22 +554,28 @@ async function admission(
   git: ContentGit,
   github: RunContext["github"],
 ): Promise<
-  | Readonly<{ kind: "held"; login: string }>
+  /** `verified`: the root's origin whose owner GitHub named by the root's
+   * Organization id; the root is synchronized only while its origin is
+   * still exactly that one. */
+  | Readonly<{ kind: "held"; login: string; verified?: string }>
   | Readonly<{ kind: "renamed" | "foreign" | "unverified"; login: string }>
-  | null
-> {
+  | null> {
   const declared = entry.forgeLogin as string;
   const id = entry.forgeOrganizationId;
   // The root's origin as GitHub answers it now, by the Organization id the
   // root declares: `same` (with the owner's login now), `other` (another
-  // Organization's), `unknown` when GitHub gives no answer that names the
-  // owner (unavailable, refused, a failure): git may still reach a namesake,
-  // so the root is not read then. Undefined where there is nothing to check
-  // (no id, no GitHub of this Environment, no checkout yet).
+  // Organization's), `unknown` when it cannot be told (the checkout could
+  // not be read, or GitHub gives no answer that names the owner): git may
+  // still reach a namesake, so the root is not read then. `absent` where
+  // nothing is at the place yet; undefined where there is nothing to check
+  // (no id, no GitHub of this Environment).
   const probe = async () => {
     if (github === null || id === undefined) return undefined;
     const observed = await git.inspect(directory).catch(() => null);
-    if (observed?.kind !== "checkout") return undefined;
+    if (observed?.kind !== "checkout")
+      return observed !== null && (await absentAt(directory))
+        ? { kind: "absent" as const }
+        : { kind: "unknown" as const };
     const [owner, name] = observed.repository.split("/") as [string, string];
     const answer = await github.repository(owner, name).catch(() => null);
     if (answer?.kind !== "observed") return { kind: "unknown" as const };
@@ -570,13 +595,17 @@ async function admission(
     return admits(scope, declared)
       ? { kind: "foreign", login: declared }
       : null;
+  const held = (now: Awaited<ReturnType<typeof probe>>, login: string) =>
+    now?.kind === "same"
+      ? { kind: "held" as const, login, verified: now.origin }
+      : { kind: "held" as const, login };
   if (admits(scope, declared)) {
     const now = await probe();
     return now?.kind === "other"
       ? { kind: "foreign", login: declared }
       : now?.kind === "unknown"
         ? { kind: "unverified", login: declared }
-        : { kind: "held", login: declared };
+        : held(now, declared);
   }
   if (id === undefined) return null;
   if (organizationId !== undefined) {
@@ -586,7 +615,7 @@ async function admission(
       ? { kind: "foreign", login: declared }
       : now?.kind === "unknown"
         ? { kind: "unverified", login: declared }
-        : { kind: "held", login: now?.owner ?? declared };
+        : held(now, now?.kind === "same" ? now.owner : declared);
   }
   // Without the id in the handover: renamed when GitHub answers the root's
   // origin with the root's declared Organization id and either the root was

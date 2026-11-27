@@ -340,7 +340,9 @@ login and creates a repository of the same name, so a login alone never proves a
   synchronization named by the new login (Apps' access check, a module's Open) runs once the id
   proves the root is the handover's. A root that declares an id is read only after GitHub names
   its origin's owner by that id: when GitHub gives no such answer, the root is `unavailable`
-  `owner-unverified` and untouched, because git may still reach a namesake.
+  `owner-unverified` and untouched, because git may still reach a namesake; so is a root whose
+  checkout could not be read for that check. The root is then synchronized only while its origin
+  is still the one GitHub answered for (or its redirect target, proved by repository id).
 - *The handover.* `machine folder-refresh` records a new Owner login as the same Environment only
   when the recorded binding and the handover name the same Organization id (`owner-renamed`);
   the id itself is no part of the identity, yet once recorded it must be named again: a handover
