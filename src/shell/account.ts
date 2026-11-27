@@ -15,6 +15,28 @@ import { parseShellAccount, type Shell, type ShellAccount } from "./contract";
 // the same answer (`src/launchpad/account.ts`).
 
 export const accountDocumentPath = "/.lazurio/account/environments";
+
+/** The narrowed read (the coordinator's decision of 2026-11-25 08:31Z, root
+ * decision 0210's addendum of 2026-11-25): who is signed in, their Buddy
+ * and their own Osobní Prostředí, nothing of their Organizations. Read on a
+ * page that runs an Organization's code, a Module's page in STAGING or an
+ * Application on a host, whose gateway relays this path only; the whole
+ * document stays on Lazurio's own origins. */
+export const accountViewerPath = "/.lazurio/account/viewer";
+
+/** Which account read this page makes: the narrowed one where a deliverer
+ * named the page a Module's in STAGING or an Application
+ * (`<lazurio-buddy version="staging|production">`), the whole document on
+ * every other page. */
+export function accountReadPath(
+  target: Pick<Document, "querySelector"> | null,
+): string {
+  return target?.querySelector(
+    'lazurio-buddy[version="staging"], lazurio-buddy[version="production"]',
+  )
+    ? accountViewerPath
+    : accountDocumentPath;
+}
 /** The unchanged deadline for account writes (favourites). */
 export const accountReadMs = 4_000;
 /** Account initialization and the gateway may take longer than an ordinary read. */
@@ -213,6 +235,7 @@ export async function readAccountJson(
   retryDelaysMs: readonly number[] = accountRetryDelaysMs,
   reentry: Reentry = pageReentry(),
   language: AccountLanguage | null = null,
+  path: string = accountDocumentPath,
 ): Promise<unknown> {
   let reason = "unreachable";
   for (let attempt = 0; ; attempt += 1) {
@@ -220,7 +243,7 @@ export async function readAccountJson(
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let retry = false;
     try {
-      const response = await fetcher(accountDocumentPath, {
+      const response = await fetcher(path, {
         credentials: "same-origin",
         cache: "no-store",
         redirect: "error",
@@ -294,6 +317,7 @@ export function pageAccountJson(
     accountRetryDelaysMs,
     pageReentry(),
     language,
+    accountReadPath(typeof document === "undefined" ? null : document),
   );
   return pageRead;
 }

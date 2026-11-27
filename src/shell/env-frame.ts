@@ -1,4 +1,5 @@
 import type { ShellEnvironment, ShellIdentity } from "./contract";
+import { type KindLocale, kindLabel } from "./kind-name";
 
 // The frame of decision 0248's addendum of 2026-11-15 and 0180's: a page of
 // another person's Environment has a red frame, a page of a shared one (a
@@ -90,4 +91,100 @@ export function envFrame(
         kind: "work",
       };
   }
+}
+
+// The version's frame (decision 0249's addendum of 2026-11-22, decided
+// 2026-11-23): a Module's app in an Environment has a blue frame with a
+// label naming its version, solid with "STAGING" for the build from `main`,
+// dashed with "DEV" for a worktree on loopback. A shared Environment's
+// frame stays blue and its label says it is shared, so the label tells them
+// apart, not the colour; another person's Environment stays red with its
+// label. A production Application (PROD) is no Environment and has neither.
+// The same look as the approved prototype (LazurioDevelopment
+// prototypes-lazurio#149): one label at the top, the version first, then
+// whose Environment it is.
+
+/** The version of a Module's app a page is: null on a page that is no
+ * Module's app (the Launchpad, Chat), which takes 0248's frame alone. */
+export type AppVersion = "staging" | "dev";
+/** The version a page's `<lazurio-buddy version>` names: a Module's app in
+ * STAGING or DEV, or "production" for a page that is no Environment's (an
+ * Application on an application host), which is never framed. Whoever
+ * delivers the element names it: the Environment's gateway, the module kit,
+ * the application host's gateway. */
+export type PageVersion = AppVersion | "production";
+
+export type VersionFrame = Readonly<{
+  /** Red on another person's Environment, blue on every other framed page. */
+  tone: "blue" | "red";
+  /** DEV: one agent's change in progress, not on `main` yet. */
+  dashed: boolean;
+  /** "STAGING" or "DEV"; null on a page that is no Module's app. */
+  version: "STAGING" | "DEV" | null;
+  /** Whose Environment it is, as 0248's label says it; null on the
+   * person's own. */
+  environment: string | null;
+}>;
+
+/** 0248's label of a framed Environment: whose it is, or that it is shared. */
+export function envFrameLabel(frame: EnvFrame, locale: KindLocale): string {
+  const join = (...parts: (string | null)[]) =>
+    parts.filter((part): part is string => !!part).join(" · ");
+  if (frame.tone === "person")
+    return join(frame.name ?? frame.login, kindLabel(frame.kind, locale));
+  switch (frame.shared) {
+    case "team":
+      return join(kindLabel("team", locale), frame.name);
+    case "henry":
+      return join("Henry", frame.name);
+    case "services":
+      return join(
+        locale === "en" ? "Server services" : "Služby serveru",
+        frame.name,
+      );
+    case "work":
+      return join(frame.name, kindLabel("work", locale));
+  }
+}
+
+/** The frame of a page of `environment` for `viewer`, as a Module's app in
+ * `version` or, with null, as any other page of it; null for none (the
+ * person's own Environment outside a Module's app). */
+export function versionFrame(
+  environment: ShellEnvironment | undefined,
+  viewer: ShellIdentity | null,
+  version: PageVersion | null,
+  locale: KindLocale,
+  /** The page is an Environment's, but its document could not be read: whose
+   * it is is not known, so it is framed red without a label (review of
+   * #1244). False on a page that is no Environment's, such as a production
+   * Application, which is never framed. */
+  environmentUnknown = false,
+): VersionFrame | null {
+  // A production Application is no Environment's page: never framed, even
+  // without a document (its host serves none).
+  if (version === "production") return null;
+  if (environment === undefined && environmentUnknown)
+    return {
+      tone: "red",
+      dashed: version === "dev",
+      version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
+      environment: null,
+    };
+  const frame = envFrame(environment, viewer);
+  if (version === null && frame === null) return null;
+  return {
+    tone: frame?.tone === "person" ? "red" : "blue",
+    dashed: version === "dev",
+    version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
+    environment: frame === null ? null : envFrameLabel(frame, locale),
+  };
+}
+
+/** The `version` attribute of `<lazurio-buddy>`: "staging", "dev" or
+ * "production"; anything else, or none, names no version. */
+export function appVersionOf(value: string | null): PageVersion | null {
+  return value === "staging" || value === "dev" || value === "production"
+    ? value
+    : null;
 }

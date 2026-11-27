@@ -3578,7 +3578,7 @@ Implemented, with template revision `base-instructions-127`:
   the voice's. There is no section without a text. Buddy GEN3's layer does not render it, as
   it renders no custom voice. Since root decision 0233's addendum of 2026-11-25 Buddy GEN4's
   `AGENTS.md` renders both, the same section after the same voice
-  (`src/folder/buddy-gen4.ts`, template revision `base-instructions-157`).
+  (`src/folder/buddy-gen4.ts`, template revision `base-instructions-159`).
 - **The presets.** `local`, `hosted-personal` and `hosted-organization-personal` have own
   instructions (`ownInstructionsAllowed`); `hosted-organization-team`,
   `hosted-organization-steward` and a public Environment, whatever preset its Folder

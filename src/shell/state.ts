@@ -99,6 +99,14 @@ export function createShellState(options: ShellStateOptions) {
   let drawn: Shell | null = null;
   let lastBySpace: ReadonlyMap<string, AccountVisit> = new Map();
   const listeners = new Set<() => void>();
+  /** The frame's listeners (elements.ts): called after every redraw and
+   * whenever what decides the frame changes without one, the viewer
+   * verified or the page's document found missing (review of #1244). Kept
+   * apart so those changes do not make the rails report again. */
+  const frameListeners = new Set<() => void>();
+  function frameChanged(): void {
+    for (const listener of frameListeners) listener();
+  }
   const log = options.log ?? ((message: string) => console.debug(message));
   let source: AccountSource | null = null;
   const sourceNow = (): AccountSource => {
@@ -140,6 +148,7 @@ export function createShellState(options: ShellStateOptions) {
     lastBySpace =
       drawn === null ? new Map() : accountLastBySpace(drawn, account);
     for (const listener of listeners) listener();
+    frameChanged();
   }
 
   let requested = false;
@@ -186,6 +195,8 @@ export function createShellState(options: ShellStateOptions) {
         redraw();
         freshRead = "account";
         flushReport();
+        // The viewer is verified only now, after the redraw above.
+        frameChanged();
         return;
       }
       freshRead = "none";
@@ -215,6 +226,18 @@ export function createShellState(options: ShellStateOptions) {
      * page); null otherwise. The rail draws the logo and the sign-in key
      * from it. */
     signedOut: (): ShellSignedOut | null => signedOut,
+    /** The account verified for whoever views this page now, or null: this
+     * origin's fresh answer, or the one a host's page provided. Never the
+     * account this origin remembered: that is the Environment operator's,
+     * and someone else may be viewing (review of #1244). Its `identity`
+     * decides whose Environment a page is (env-frame.ts). */
+    viewer: (): ShellAccount | null =>
+      sourceNow() === "host" ? account : freshRead === "account" ? fresh : null,
+    /** True when this page reads its own document and that read ended
+     * without one: the page is an Environment's whose owner is not known,
+     * which is framed, never left out (env-frame.ts). */
+    documentMissing: (): boolean =>
+      documentMissing && local === null && signedOut === null,
     /** The account's last visit per space of the drawn document. */
     lastBySpace: (): ReadonlyMap<string, AccountVisit> => lastBySpace,
     /** Calls `listener` after every change; returns its removal. */
@@ -222,6 +245,14 @@ export function createShellState(options: ShellStateOptions) {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+    /** Calls `listener` whenever the frame may change (`frameListeners`);
+     * returns its removal. */
+    listenFrame(listener: () => void): () => void {
+      frameListeners.add(listener);
+      return () => {
+        frameListeners.delete(listener);
       };
     },
     /** Gives the elements the page's document, which replaces the one
@@ -268,7 +299,11 @@ export function createShellState(options: ShellStateOptions) {
      * Environment. Nothing once the page has a document. */
     documentUnavailable(): void {
       if (local !== null || signedOut !== null) return;
+      const first = !documentMissing;
       documentMissing = true;
+      // The page is now framed as an Environment's whose owner is not
+      // known, whatever the account read answers (review of #1244).
+      if (first) frameChanged();
       startRead();
     },
     /** The report of the last Environment for an element that names its

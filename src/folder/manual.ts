@@ -173,8 +173,8 @@ const lazurio: readonly Text[] = [
   // public-DNS mode of 0213 is retired, Lazurio/LazurioPlatform#757 Medium),
   // one place for the workshop names below too.
   t(
-    "Přístup k repozitářům, review a Publikaci kódu určuje GitHub. Kdo vstoupí do Environmentu a do jeho aplikací, drží Lazurio účet: členství v Organizaci a grant k Environmentu nebo aplikaci (decision 0247); dokud přechod na tyto granty není hotový, může o vstupu rozhodovat i dosavadní cesta, třeba GitHub Team týmového Environmentu. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Do každého Environmentu se vstupuje jen přes tailnet (decision 0246, cílový model; přechod není dokončený): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám. Brána Environmentu přitom dál chce přihlášení Lazurio účtem. Cílově, v GEN4, je každý vstup přes SSH i web krátkodobé povolení, které Lazurio Auth vydá ve chvíli vstupu a zapíše, a nikdo nedostává stálý klíč: běžný vstup do vlastního Prostředí vede přímo a zapisuje se jen vydání povolení a metadata relace a servisní vstup do Prostředí jiného člověka vede jen přes nahrávací vstupní bod držitele hostu. Jedinou výjimkou je nouzový vstup: má ho jen držitel hostu, nikdy role Admina Organizace, jeho povolení Lazurio Auth nevydává a funguje i tehdy, když Lazurio Auth nebo trezor klíčů nejsou dostupné (decision 0247, cílový model; do nasazení platí dosavadní cesty a klíče). Lazurio Machines vstupem není a nikomu nedává interaktivní relaci; párované kanály (aplikace ChatGPT, nativní klient T3, kanál osobního zařízení a Telegram Buddyho) mají vlastní rozhodnutí a Lazurio Auth je nevydává ani nezapisuje. Hranice důvěry Organizace, tedy kdo je člen, kdo je Admin Organizace, Zařízení Organizace a výjimky, drží její repozitář nasazení, jejich používání drží Lazurio Auth a změnu hranic aplikuje jen Lazurio Machines s důkazem schválení (decision 0245, cílový model). Veřejný vstup bez tailnetu (decision 0213) je zrušený a do návratu do svého tailnetu ho má jen referenční Organizace (decision 0204): do jejích Environmentů se do té doby vstupuje z internetu jen branou každého Environmentu, s Lazurio účtem, členstvím a grantem místo schváleného zařízení, a jen její sdílené veřejné Prostředí na vyzkoušení Lazuria pustí kohokoli s Lazurio účtem, dokud není vyřazené. Lidé ze svých zařízení dostanou jen webové rozhraní (Launchpad, chat, Lazurio MausBot, Buddy), ne SSH, desktopové T3 Code ani trezor. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Environment ani agent si z toho nic nekopírují do vlastního ACL a nevedou žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup.",
-    "GitHub decides repository access, review and the Publication of code. Who enters an Environment and its applications is held by the Lazurio account: membership in the Organization and the grant to the Environment or application (decision 0247); until the move to these grants is done, the existing path may still decide entry, a Team Environment's GitHub Team, say. Headscale (Tailscale) or another approved access layer decides network reach. Every Environment is entered only through a tailnet (decision 0246, target model; the transition is not complete): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices. The Environment's gateway still asks for the Lazurio account sign-in. As the target, in GEN4, every entry by SSH or in the browser is a short-lived credential that Lazurio Auth issues at the moment of entry and records, and nobody gets a standing key: a normal entry into a person's own Environment goes straight there and only its issuance and the session's metadata are recorded, and a service entry into another person's Environment goes only through the recording entry point that the holder of the host runs. The one exception is the break-glass entry: it belongs to the holder of the host alone, never to the Organization Admin role, its credential does not come from Lazurio Auth, and it works also when Lazurio Auth or the key vault is unavailable (decision 0247, target model; until it is deployed, entries keep their present ways and keys). Lazurio Machines is not an entry and gives nobody an interactive session; the pairing channels (a ChatGPT app, the native T3 client, the channel a personal device opens and Buddy's Telegram bot) have their own decisions, and Lazurio Auth neither issues nor records them. An Organization's boundaries of trust, who is a member, who is an Organization Admin, the Devices of the Organization and the exceptions, are held by its Deployment Repo and their use by Lazurio Auth, and only Lazurio Machines applies a change of the boundaries, with proof that it was approved (decision 0245, target model). The public entry without a tailnet (decision 0213) is retired, and only the reference Organization keeps it until its return to its tailnet (decision 0204): until then people enter its Environments from the internet only through each Environment's gateway, with the Lazurio account, membership and a grant in place of an approved device, and only its shared public Environment for trying Lazurio admits anyone with a Lazurio account until it is retired. From their devices people get only the web interface (the Launchpad, chat, Lazurio MausBot, Buddy), no SSH, desktop T3 Code or vault. The provider the Environment runs on holds infrastructure ownership and the recovery path. Neither the Environment nor an agent copies any of this into an ACL of its own or keeps a registry of Environments; a local checkout never proves access.",
+    "Přístup k repozitářům, review a Publikaci kódu určuje GitHub. Kdo vstoupí do Environmentu a do jeho aplikací, drží Lazurio účet: členství v Organizaci a grant k Environmentu nebo aplikaci (decision 0247); dokud přechod na tyto granty není hotový, může o vstupu rozhodovat i dosavadní cesta, třeba GitHub Team týmového Environmentu. Síťový dosah určuje Headscale (Tailscale) nebo jiná schválená přístupová vrstva. Do každého Environmentu se vstupuje jen přes tailnet (decision 0246, cílový model; přechod není dokončený): do Environmentů Organizace přes tailnet jejího Conglomerate se zařízením, které schválil Admin Organizace, do Osobního Prostředí mimo Conglomerate přes osobní tailnet Lazuria, kde Admin není a zařízení si cílově schvaluje jeho uživatel sám. Brána Environmentu přitom dál chce přihlášení Lazurio účtem. Cílově, v GEN4, je každý vstup přes SSH i web krátkodobé povolení, které Lazurio Auth vydá ve chvíli vstupu a zapíše, a nikdo nedostává stálý klíč: běžný vstup do vlastního Prostředí vede přímo a zapisuje se jen vydání povolení a metadata relace a servisní vstup do Prostředí jiného člověka vede jen přes nahrávací vstupní bod držitele hostu. Jedinou výjimkou je nouzový vstup: má ho jen držitel hostu, nikdy role Admina Organizace, jeho povolení Lazurio Auth nevydává a funguje i tehdy, když Lazurio Auth nebo trezor klíčů nejsou dostupné (decision 0247, cílový model; do nasazení platí dosavadní cesty a klíče). Lazurio Machines vstupem není a nikomu nedává interaktivní relaci; párované kanály (aplikace ChatGPT, nativní klient T3, kanál osobního zařízení a Telegram Buddyho) mají vlastní rozhodnutí a Lazurio Auth je nevydává ani nezapisuje. Hranice důvěry Organizace, tedy kdo je člen, kdo je Admin Organizace, Zařízení Organizace a výjimky, drží její repozitář nasazení, jejich používání drží Lazurio Auth a změnu hranic aplikuje jen Lazurio Machines s důkazem schválení (decision 0245, cílový model). Veřejný vstup bez tailnetu (decision 0213) je zrušený a neběží nikde: referenční Organizace je od 14. 11. 2026 zpátky ve svém tailnetu (decision 0204) a vstupuje se do ní jako do každé jiné Organizace. Vlastnictví infrastruktury a cestu obnovy drží provider, na kterém Environment běží. Environment ani agent si z toho nic nekopírují do vlastního ACL a nevedou žádný registr Environmentů; lokální checkout nikdy nedokazuje přístup.",
+    "GitHub decides repository access, review and the Publication of code. Who enters an Environment and its applications is held by the Lazurio account: membership in the Organization and the grant to the Environment or application (decision 0247); until the move to these grants is done, the existing path may still decide entry, a Team Environment's GitHub Team, say. Headscale (Tailscale) or another approved access layer decides network reach. Every Environment is entered only through a tailnet (decision 0246, target model; the transition is not complete): an Organization's Environments through its Conglomerate's tailnet with a device the Organization Admin approved, a Personal Environment outside a Conglomerate through Lazurio's personal tailnet, which has no Admin and where, as the target, its user approves their own devices. The Environment's gateway still asks for the Lazurio account sign-in. As the target, in GEN4, every entry by SSH or in the browser is a short-lived credential that Lazurio Auth issues at the moment of entry and records, and nobody gets a standing key: a normal entry into a person's own Environment goes straight there and only its issuance and the session's metadata are recorded, and a service entry into another person's Environment goes only through the recording entry point that the holder of the host runs. The one exception is the break-glass entry: it belongs to the holder of the host alone, never to the Organization Admin role, its credential does not come from Lazurio Auth, and it works also when Lazurio Auth or the key vault is unavailable (decision 0247, target model; until it is deployed, entries keep their present ways and keys). Lazurio Machines is not an entry and gives nobody an interactive session; the pairing channels (a ChatGPT app, the native T3 client, the channel a personal device opens and Buddy's Telegram bot) have their own decisions, and Lazurio Auth neither issues nor records them. An Organization's boundaries of trust, who is a member, who is an Organization Admin, the Devices of the Organization and the exceptions, are held by its Deployment Repo and their use by Lazurio Auth, and only Lazurio Machines applies a change of the boundaries, with proof that it was approved (decision 0245, target model). The public entry without a tailnet (decision 0213) is retired and runs nowhere: the reference Organization has been back in its tailnet since 2026-11-14 (decision 0204) and is entered like every other Organization. The provider the Environment runs on holds infrastructure ownership and the recovery path. Neither the Environment nor an agent copies any of this into an ACL of its own or keeps a registry of Environments; a local checkout never proves access.",
   ),
   blank,
   t(
@@ -195,8 +195,8 @@ const lazurio: readonly Text[] = [
     "- **Organization**: one company = one GitHub organization = one access boundary = one git repository checked out at `organizations/<org>/`. Every Organization has its own `AGENTS.md`; load it before working inside.",
   ),
   t(
-    "- **Workspace moduly**: oblasti práce Organizace, každá s postupem, daty a aplikací (`manual/mechanisms.md`, oddíl Moduly), všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu, u referenční Organizace do jejího návratu do tailnetu i z internetu (Kdo rozhoduje o přístupu výše); produkční aplikace Organizace mají `<modul>.<org>.lazurio.app` (oddíl Produkční aplikace Organizace v `manual/mechanisms.md`). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
-    "- **Workspace modules**: the Organization's areas of work, each with its process, data and app (`manual/mechanisms.md`, section Modules), all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet, and for the reference Organization until its return to its tailnet also from the internet (Who decides access above); an Organization's production applications are `<module>.<org>.lazurio.app` (section Production applications of an Organization in `manual/mechanisms.md`). A workshop is not production: production is a reproducible build from a protected commit or tag.",
+    "- **Workspace moduly**: oblasti práce Organizace, každá s postupem, daty a aplikací (`manual/mechanisms.md`, oddíl Moduly), všechny v jedné ploché složce `workspace/<module>/`. Team je deklarace v manifestu, ne adresář, a modul může patřit do více Teamů (decision 0041). Hostovaná jména: dílna (Remote Environment Organizace) obsluhuje `<app>.<vm>.<org>.lazurio.io` dostupné z tailnetu (Kdo rozhoduje o přístupu výše); produkční aplikace Organizace mají `<modul>.<org>.lazurio.app` (oddíl Produkční aplikace Organizace v `manual/mechanisms.md`). Dílna není produkce: produkce vzniká reprodukovatelným buildem z chráněného commitu nebo tagu.",
+    "- **Workspace modules**: the Organization's areas of work, each with its process, data and app (`manual/mechanisms.md`, section Modules), all in one flat `workspace/<module>/`. A Team is a declaration in the manifest, not a directory, and a module may belong to several Teams (decision 0041). Hosted names: a workshop (an Organization's Remote Environment) serves `<app>.<vm>.<org>.lazurio.io` reachable from the tailnet (Who decides access above); an Organization's production applications are `<module>.<org>.lazurio.app` (section Production applications of an Organization in `manual/mechanisms.md`). A workshop is not production: production is a reproducible build from a protected commit or tag.",
   ),
   t(
     "- **`productionspace/`**: repozitáře na úrovni Organizace mimo workspace moduly (firmware, connect, monorepo). Každý má vlastní branch model a release proces (decision 0041); bez výslovné policy Organizace je z Folderu nespouštěj ani nereleasuj.",
@@ -723,6 +723,88 @@ const brainRules: readonly Text[] = [
   ),
 ];
 
+// How to write a report someone can fix without asking back, and offering the
+// user once to file their own bug or idea about Lazurio (Lazurio/LazurioPlatform
+// #1274, decision 2, the issue route only). The examples are public issues of
+// this repository that name no Organization, person or Environment.
+function goodReport(ownInstructions: boolean): readonly Text[] {
+  return [
+    t(
+      "### Hlášení, které jde opravit bez doptávání",
+      "### A report that can be fixed without asking back",
+    ),
+    t(
+      "Hlášení čte člověk nebo agent, který o tvé práci nic neví. Dobré je takové, podle kterého chybu opraví, aniž by se tě musel na něco ptát. Strukturu nepředepisujeme; šablony `Bug` a `Improvement` v `Lazurio/LazurioPlatform` jsou nápověda, ne formulář. Co se osvědčilo:",
+      "A report is read by a person or an agent who knows nothing of your work. A good one lets them fix the problem without having to ask you anything. No structure is prescribed; the `Bug` and `Improvement` templates in `Lazurio/LazurioPlatform` are a hint, not a form. What has worked:",
+    ),
+    t(
+      "- **Název řekne, co je špatně,** ne kde jsi byl: „`lazurio update` po přepnutí verze nevykreslí Folder znovu“, ne „Problém s aktualizací“.",
+      "- **The title says what is wrong,** not where you were: “`lazurio update` does not re-render the Folder after the switch”, not “Update problem”.",
+    ),
+    t(
+      "- **Co se stalo a co se mělo stát,** s přesnou chybou nebo reason code, a odkud čekáš jiné chování (manuál, rozhodnutí, dřívější chování).",
+      "- **What happened and what should have,** with the exact error or reason code, and where you expect the other behavior from (the manual, a decision, how it behaved before).",
+    ),
+    t(
+      "- **Kde:** verze Lazuria (`lazurio update status --json`), revize šablony Folderu (začátek `AGENTS.md`), druh Prostředí a soubor nebo příkaz, když ho znáš.",
+      "- **Where:** the Lazurio version (`lazurio update status --json`), the Folder template revision (the top of `AGENTS.md`), the kind of Environment, and the file or command when you know it.",
+    ),
+    t(
+      "- **Jak to zopakovat,** nejkratší cestou; když to zopakovat nejde, napiš to.",
+      "- **How to reproduce it,** the shortest way; when you cannot, say so.",
+    ),
+    t(
+      "- **Návrh opravy, když ho máš:** příčina s odkazem na soubor a řádek ve zdroji a co by se změnilo; když jsou cesty dvě, pojmenuj obě a jednu doporuč.",
+      "- **A proposed fix when you have one:** the cause with a link to the file and line in the source and what would change; when there are two ways, name both and recommend one.",
+    ),
+    t(
+      "- **Co jsi neověřil,** řekni jednou krátkou větou nebo oddílem „Not verified“. Hypotézu označ jako hypotézu a závěr nestav na jednom běhu.",
+      "- **What you did not verify,** say in one short sentence or a “Not verified” section. Mark a hypothesis as one and do not draw a conclusion from a single run.",
+    ),
+    t(
+      "- **Vynech** celé logy (stačí výňatek s chybou), průběh své práce, plány, jména lidí a kontext Organizace. Jedno issue je jeden problém; komentář přidej jen s novým důkazem, ne jako deník.",
+      "- **Leave out** whole logs (an excerpt with the error is enough), the story of your work, plans, people's names and the Organization's context. One issue is one problem; add a comment only with new evidence, not as a diary.",
+    ),
+    t(
+      "- **Tón** jako zpráva kolegovi: věcně a krátce, bez omluv, bez naléhání a bez superlativů. Ve veřejném repozitáři piš anglicky.",
+      "- **The tone** of a note to a colleague: factual and short, without apologies, urgency or superlatives. In the public repository write in English.",
+    ),
+    t(
+      "Takhle to vypadá v praxi: [#1223](https://github.com/Lazurio/LazurioPlatform/issues/1223) ukazuje vadu v rozhraní s přesnými texty, měřením a poctivým „zdroj jsem nečetl“; [#1030](https://github.com/Lazurio/LazurioPlatform/issues/1030) vadu příkazu se čtyřmi řádky pozorování, místem v kódu, dvěma variantami opravy a oddílem „Not verified“; [#1065](https://github.com/Lazurio/LazurioPlatform/issues/1065) krátké hlášení s pointou v první větě. Všechna tři šla opravit bez jediné otázky.",
+      "This is how it looks in practice: [#1223](https://github.com/Lazurio/LazurioPlatform/issues/1223) shows a bug in the interface with the exact texts, a measurement and an honest “I did not read the source”; [#1030](https://github.com/Lazurio/LazurioPlatform/issues/1030) a command's bug with four lines of observation, the place in the code, two ways to fix it and a “Not verified” section; [#1065](https://github.com/Lazurio/LazurioPlatform/issues/1065) a short report with the point in its first sentence. All three were fixed without a single question.",
+    ),
+    blank,
+    t(
+      "### Když chybu nebo nápad na Lazurio řekne uživatel",
+      "### When the user names a bug in Lazurio or an idea for it",
+    ),
+    t(
+      "Lazurio se zlepšuje i z toho, co jeho uživatelé narazí. Když uživatel při práci řekne, že mu na samotném Lazuriu něco nefunguje nebo chybí (čí je to věc, rozhodne tabulka Kdo za co odpovídá v `manual/lazurio.md`), nabídni mu jednou, že to zapíšeš jako issue do `Lazurio/LazurioPlatform`. Nabídni to až po dokončení úkolu, nebo hned, když ho chyba v úkolu blokuje; práci kvůli tomu nepřerušuj. Zeptej se nástrojem na otázky s volbami „Zapsat do Lazuria“ (Doporučeno) a „Nezapisovat“; po odmítnutí to v tomto vlákně znovu nenabízej.",
+      "Lazurio also improves from what its users run into. When the user says during the work that something in Lazurio itself does not work or is missing (whose matter it is, the table Who is responsible for what in `manual/lazurio.md` decides), offer once to file it as an issue in `Lazurio/LazurioPlatform`. Offer it after the task is done, or right away when the bug blocks the task; do not interrupt the work for it. Ask with the question tool, with the options “File it in Lazurio” (Recommended) and “Don't file it”; after a no, do not offer it again in this thread.",
+    ),
+    t(
+      "- **Nejdřív ověř, co ověřit jde.** Hlášení z druhé ruky často skončí jako chyba použití; když se doptáš uživatele nebo si stav přečteš sám, ušetříš správcům otázky. Co ověřit nejde, označ jako hlášené uživatelem.",
+      "- **First verify what can be verified.** A second-hand report often turns out to be a usage error; asking the user or reading the state yourself saves the maintainers their questions. Mark what cannot be verified as reported by the user.",
+    ),
+    t(
+      "- **Před zápisem** mu ukaž název a text: issue bude veřejné a ponese identitu GitHubu, pod kterou tu jednáš (`gh api user`), a tu mu jmenuj. Po zápisu mu dej odkaz a jednou větou řekni, že na něm uvidí, co se s ním děje.",
+      "- **Before filing** show them the title and text: the issue will be public and carry the GitHub identity you act under here (`gh api user`); name it to them. After filing give them the link and say in one sentence that it shows them what happens with it.",
+    ),
+    t(
+      "- **Nález z tvé vlastní práce** zapisuješ jako dosud, bez ptaní (výše); v handoffu uživateli dej odkaz.",
+      "- **A finding from your own work** you file as before, without asking (above); give the user the link in the handoff.",
+    ),
+    ...(ownInstructions
+      ? [
+          t(
+            "- **Kdo nabídky nechce,** vypne si je vlastním pokynem (`lazurio folder instructions add`); ten má přednost.",
+            "- **Whoever does not want these offers** turns them off with their own instruction (`lazurio folder instructions add`); it takes precedence.",
+          ),
+        ]
+      : []),
+  ];
+}
+
 function workingHere(
   preset: PresetName,
   machine: MachineBinding | null,
@@ -1123,7 +1205,14 @@ function workingHere(
     // there: it has no identity to do either with.
     ...(isPublic
       ? []
-      : [...readOnlyProposal(preset), blank, ...missingRights, blank]),
+      : [
+          ...goodReport(ownInstructionsAllowed(preset, machine)),
+          blank,
+          ...readOnlyProposal(preset),
+          blank,
+          ...missingRights,
+          blank,
+        ]),
     ...(isPublic ? [] : [productionRequestRule, blank]),
     t(
       "## Poznatky patří tam, kde je najdou ostatní",

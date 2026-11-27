@@ -2,6 +2,8 @@ import { afterEach, expect, test } from "bun:test";
 import {
   accountCacheKey,
   accountDocumentPath,
+  accountReadPath,
+  accountViewerPath,
   cachedAccountFor,
   pageAccountJson,
   readAccountJson,
@@ -1245,4 +1247,63 @@ test("reading keeps nothing; a refusal or no relay removes the remembered accoun
   store.values.set(accountCacheKey, "{not json");
   expect(cachedAccountFor("ada", store)).toBeNull();
   expect(store.values.has(accountCacheKey)).toBe(false);
+});
+
+// The coordinator's decision of 2026-11-25 08:31Z: a page that runs an
+// Organization's code (a deliverer named it STAGING or production) reads the
+// narrowed viewer; every other page the whole document. Failure means: the
+// person's Organizations read on an Organization's page, or Lazurio's own
+// pages losing their rail.
+test("a page a deliverer named STAGING or production reads the narrowed viewer; every other page the whole document", async () => {
+  // A page of these elements, each a tag with its `version` (or none);
+  // `querySelector` reads a list of `tag[version="value"]` selectors.
+  const page = (elements: { tag: string; version?: string }[]) => ({
+    querySelector: (selector: string) =>
+      selector
+        .split(",")
+        .map((part) => /^\s*([a-z-]+)\[version="([^"]*)"\]\s*$/.exec(part))
+        .some(
+          (match) =>
+            match !== null &&
+            elements.some(
+              (element) =>
+                element.tag === match[1] && element.version === match[2],
+            ),
+        )
+        ? ({} as Element)
+        : null,
+  });
+  expect(accountViewerPath).toBe("/.lazurio/account/viewer");
+  expect(
+    accountReadPath(page([{ tag: "lazurio-buddy", version: "staging" }])),
+  ).toBe(accountViewerPath);
+  expect(
+    accountReadPath(
+      page([{ tag: "main" }, { tag: "lazurio-buddy", version: "production" }]),
+    ),
+  ).toBe(accountViewerPath);
+  for (const elements of [
+    [{ tag: "lazurio-buddy" }],
+    [{ tag: "lazurio-buddy", version: "dev" }],
+    [{ tag: "lazurio-buddy", version: "nonsense" }],
+    [{ tag: "lazurio-rail" }],
+    [],
+  ])
+    expect(accountReadPath(page(elements))).toBe(accountDocumentPath);
+  expect(accountReadPath(null)).toBe(accountDocumentPath);
+  const seen: string[] = [];
+  await readAccountJson(
+    async (path) => {
+      seen.push(path);
+      return answer(200, accountDocument());
+    },
+    1_000,
+    () => {},
+    null,
+    [],
+    undefined,
+    null,
+    accountViewerPath,
+  );
+  expect(seen).toEqual([accountViewerPath]);
 });
