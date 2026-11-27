@@ -500,10 +500,10 @@ test("a refresh takes a renamed Owner Organization only by the same recorded id"
   expect(JSON.stringify(machineIdentity(machine("old")))).toBe(
     JSON.stringify(machineIdentity(recorded)),
   );
-  // The earlier correction by `organization_key` still holds.
+  // The retired correction by `organization_key` alone takes nothing.
   expect(
     ownerOrganizationCorrection(machine("label"), machine("old"), "Old"),
-  ).toBe("owner-organization");
+  ).toBe(null);
 });
 
 posixTest(
@@ -581,10 +581,10 @@ test("a Folder that records an id takes no label correction: a contradicting or 
       "New",
     ),
   ).toBeNull();
-  // Without any id the label correction is as before (Machines#1163).
+  // Without any id nothing proves the Owner: the key alone takes nothing.
   expect(
     ownerOrganizationCorrection(machine("label"), machine("new"), "New"),
-  ).toBe("owner-organization");
+  ).toBe(null);
   // The first refresh with an id under the unchanged login records it.
   expect(JSON.stringify(machineIdentity(machine("old", organizationId)))).toBe(
     JSON.stringify(machineIdentity(machine("old"))),

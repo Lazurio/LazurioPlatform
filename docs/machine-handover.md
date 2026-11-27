@@ -209,12 +209,12 @@ node, a new virtualization host: the first apply after the move answers
 `already-adopted`, then `folder-refresh` records the new host like the rest of the
 handover-derived binding. A handover with another kind, name, Owner or tailnet node
 is another Machine and stays `folder-binding-changed`, with one exception: a work
-Environment whose handover now names the Owner Organization by exactly
-`owner.organization_key` in lower case, where the Folder recorded another value (an earlier
-runtime label), and whose identity is otherwise the same, is the same Machine;
-`folder-refresh` records that Organization and says so with
-`"bindingCorrected":"owner-organization"`
-([F10, addendum 2026-11-11](decisions.md#f10--workspace-presets-and-typed-owner-requests)).
+Environment whose handover names the Owner Organization by another login with the same
+`owner.organization_id` as the Folder recorded, and whose identity is otherwise the same, is
+the same Machine (a rename on GitHub, #1281); `folder-refresh` records it and says so with
+`"bindingCorrected":"owner-renamed"`
+([F10, addendum 2026-11-27](decisions.md#f10--workspace-presets-and-typed-owner-requests),
+which retires the correction by `owner.organization_key` of the addendum of 2026-11-11).
 A copy of the guest on
 another host with the same name, Owner and tailnet node is not told apart by the
 binding; Machines keeps one Machine on one host (one lane roster per guest, the old

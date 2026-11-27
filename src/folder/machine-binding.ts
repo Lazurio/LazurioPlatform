@@ -910,7 +910,7 @@ export function machineIdentity(machine: MachineBinding | null) {
 
 /** The one correction of the identity a refresh records
  * (`bindingCorrected`, decision F10's addendum of 2026-11-11). */
-export type BindingCorrection = "owner-organization" | "owner-renamed";
+export type BindingCorrection = "owner-renamed";
 
 /** A refresh whose revision records nothing but the live handover's digest
  * (`bindingRebound`, issue #111, decision F10's addendum of 2026-11-12): the
@@ -918,30 +918,23 @@ export type BindingCorrection = "owner-organization" | "owner-renamed";
  * so doctor's `machine-binding` reads the binding as current again. */
 export type BindingRebinding = "handover-digest";
 
-/** Whether the live binding differs from the recorded one only by one of the
- * corrections a refresh records:
- * - `owner-organization`: a work Environment whose Folder was adopted while
- *   its handover named the Owner Organization by another value (an earlier
- *   runtime label) and whose handover now names it, as Machines writes it
- *   since then, by its GitHub login in lower case. `organizationKey` is the
- *   live handover's `owner.organization_key`, which the binding does not
- *   record; the live `owner.organization` must be exactly that key in lower
- *   case.
- * - `owner-renamed`: the Owner Organization was renamed on GitHub, so the
- *   handover names it by its new login, and both the recorded binding and the
- *   live handover name the same Organization id (#1281). Without a recorded
- *   id nothing proves the new login is the same Organization: GitHub frees
- *   the old login and anyone may take it. A Folder that records an id takes
- *   no other correction, and neither does a handover that names one: the
- *   label correction is only for a handover without an id, as before
- *   Machines wrote it.
- * In both, every other part of the identity (kind, name, the Owner's kind
- * and Team, the tailnet node) must be the same; anything else stays another
- * Machine. Null when the identities are the same, too: nothing to correct. */
+/** Whether the live binding differs from the recorded one only by the one
+ * correction a refresh records, `owner-renamed`: the Owner Organization was
+ * renamed on GitHub, so the handover names it by its new login, and both the
+ * recorded binding and the live handover name the same Organization id
+ * (#1281). Nothing else proves a new login is the same Organization: GitHub
+ * frees the old login and anyone may take it. So no correction is taken
+ * without a recorded id, and the earlier correction by `organization_key`
+ * (decision F10, addendum of 2026-11-11) is retired (addendum of
+ * 2026-11-27): from the handover alone a relabelled Folder cannot be told
+ * from a renamed Organization. Every other part of the identity (kind,
+ * name, the Owner's kind and Team, the tailnet node) must be the same;
+ * anything else stays another Machine. Null when the identities are the
+ * same, too: nothing to correct. `_organizationKey` is no longer read. */
 export function ownerOrganizationCorrection(
   recorded: MachineBinding | null,
   live: MachineBinding | null,
-  organizationKey: string | undefined,
+  _organizationKey?: string | undefined,
 ): BindingCorrection | null {
   if (recorded === null || live === null) return null;
   if (
@@ -954,30 +947,15 @@ export function ownerOrganizationCorrection(
     return null;
   const recordedOwner = recorded.owner;
   const liveOwner = live.owner;
-  const sameOtherwise = () =>
-    JSON.stringify(
-      machineIdentity({
-        ...recorded,
-        owner: { ...recordedOwner, organization: liveOwner.organization },
-      }),
-    ) === JSON.stringify(machineIdentity(live));
   const recordedId = recordedOwner.organizationId;
-  const liveId = liveOwner.organizationId;
-  // Once the Folder records an id, only that id proves the Owner: a missing
-  // or another live id is another Owner, whatever its key says. Two ids that
-  // differ are never the same Owner either.
-  if (recordedId !== undefined)
-    return recordedId === liveId && sameOtherwise() ? "owner-renamed" : null;
-  // A handover that names the id proves a changed login only by it: the
-  // Folder first records the id under the unchanged login, so the label
-  // correction never stands in for an unproven rename there. It remains
-  // for a handover without an id, as before the id existed (Machines#1163).
-  if (liveId !== undefined) return null;
-  if (
-    organizationKey !== undefined &&
-    liveOwner.organization === organizationKey.toLowerCase() &&
-    sameOtherwise()
-  )
-    return "owner-organization";
-  return null;
+  if (recordedId === undefined || recordedId !== liveOwner.organizationId)
+    return null;
+  return JSON.stringify(
+    machineIdentity({
+      ...recorded,
+      owner: { ...recordedOwner, organization: liveOwner.organization },
+    }),
+  ) === JSON.stringify(machineIdentity(live))
+    ? "owner-renamed"
+    : null;
 }
