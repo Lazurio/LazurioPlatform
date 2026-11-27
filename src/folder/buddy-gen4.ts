@@ -551,6 +551,10 @@ const controlPlaneSkill: FolderSkill = {
       "- **The sentence to answer with** is exactly what the user sends: short, unambiguous and clear without the page. The page sends and approves nothing; the answer is always the user's turn in the thread.",
     ),
     t(
+      '- **Tlačítko:** u každé věty dej tlačítko, které ji po kliknutí vloží do pole chatu: v obsluze kliknutí `parent.postMessage({ type: "lazurio.control-plane.draft", v: 1, text: "<věta>" }, "*")`. Nic jiného do zprávy nepřidávej (zpráva s dalším polem se odmítne), text nejvýš 2 KiB. Zprávu posílej jen z kliknutí: Lazurio ji přijme, jen když uživatel právě klikl do stránky, a vloženou větu odešle on sám. Nová věta nahradí tu, kterou Control Plane do pole vložil předtím. Větu napiš i viditelně vedle tlačítka, ať ji uživatel může zkopírovat.',
+      '- **The button:** give every sentence a button that, when clicked, puts it into the chat field: in the click handler `parent.postMessage({ type: "lazurio.control-plane.draft", v: 1, text: "<sentence>" }, "*")`. Put nothing else into the message (a message with another field is refused), and the text is at most 2 KiB. Send the message only from a click: Lazurio takes it only when the user just clicked into the page, and the user sends the inserted sentence. A new sentence replaces the one the Control Plane put there before. Also write the sentence visibly beside the button, so the user can copy it.',
+    ),
+    t(
       "- **Zařazení:** když položku poprvé ukážeš, zapiš do Brainu k rozhodnutí, kdy jsi ho zařadil.",
       "- **Queueing:** when you first show an item, write into the Brain with the decision when you queued it.",
     ),
