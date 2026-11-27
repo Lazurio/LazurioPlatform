@@ -193,6 +193,7 @@ async function ownerName(
   folder: string,
   owner: string,
   readCatalog: (folder: string) => Promise<Catalog>,
+  organizationId?: number,
 ): Promise<
   Readonly<{ name: string }> | Readonly<{ again: boolean; absent: boolean }>
 > {
@@ -202,7 +203,7 @@ async function ownerName(
   } catch {
     return { again: true, absent: false };
   }
-  const selection = selectOwnerOrganization(catalog, owner);
+  const selection = selectOwnerOrganization(catalog, owner, organizationId);
   const name =
     selection.kind === "found" ? selection.organization.displayName : null;
   if (typeof name === "string" && organizationKey(name) !== "") return { name };
@@ -253,6 +254,7 @@ export async function composioOrganizationRule(
       folder,
       machine.owner.organization,
       readCatalog,
+      machine.owner.organizationId,
     );
     if ("name" in found) return { kind: "named", name: found.name };
     if (!found.again || reread >= ownerRereads)
