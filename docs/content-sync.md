@@ -349,6 +349,11 @@ login and creates a repository of the same name, so a login alone never proves a
   with no id or another one under the same login is another Machine (`sameMachine`). A Folder that records an id takes no other
   correction: a missing or contradicting live id is another Owner, whatever its
   `organization_key` says.
+- *The other readers of the Organization* (#1287): content status (`/api/content`), Organization
+  settings, Composio's organization rule and the Organization tools select the handover's
+  Organization by the same id rule (`selectOwnerOrganization`, `organizationsOf`): under another
+  login by the same `forge_binding.organization_id`, never against another id. Without the id in
+  the handover they select by login as before.
 - *Installation.* `accountAccess` takes a root GitHub answers under another login as this
   Organization's when a root of the Folder declares one of the two logins with that
   Organization's id.

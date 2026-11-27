@@ -107,10 +107,18 @@ export async function launchpadSettingsPoller(
     };
   } else if (machine?.owner.kind === "organization") {
     const organization = machine.owner.organization;
+    const organizationId = machine.owner.organizationId;
     const git = operatorGit(input.tools);
     source = {
       kind: "repository",
-      read: () => readRepositorySettings(input.folder, organization, git),
+      read: () =>
+        readRepositorySettings(
+          input.folder,
+          organization,
+          git,
+          undefined,
+          organizationId,
+        ),
     };
   } else return null;
   // The Microsoft 365 company app is applied to Executor once the Folder
