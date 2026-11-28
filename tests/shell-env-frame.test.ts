@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { MachineBinding } from "../src/folder/machine-binding";
 import { ownerIdentity, shellDocument } from "../src/launchpad/shell-document";
 import {
+  isBuddysOwnPage,
   parseShell,
   parseShellAccount,
   type ShellEnvironment,
@@ -10,6 +11,7 @@ import {
 import {
   appVersionOf,
   envFrame,
+  pageFrame,
   sameIdentity,
   versionFrame,
 } from "../src/shell/env-frame";
@@ -157,7 +159,7 @@ describe("envFrame", () => {
     expect(envFrame(personal, matej)?.tone).toBe("person");
   });
 
-  test("an Environment or a viewer without an identity always gets a frame, never none", () => {
+  test("an Environment without an identity is framed for a known viewer; an unknown viewer gets no frame of the place", () => {
     expect(envFrame(env({ assignee: "matej" }), matej)?.tone).toBe("person");
     expect(
       envFrame(
@@ -165,9 +167,11 @@ describe("envFrame", () => {
         matej,
       ),
     ).toEqual({ tone: "person", login: "matej", name: null, kind: "personal" });
+    // A viewer not known yet draws no frame of the place (Matěj,
+    // 2026-11-28): the account decides once it is read.
     expect(
-      envFrame(env({ assignee: "jana", ownerIdentity: jana }), null)?.tone,
-    ).toBe("person");
+      envFrame(env({ assignee: "jana", ownerIdentity: jana }), null),
+    ).toBeNull();
   });
 
   test("Team Environments, Henry and the services Environment of a server are framed blue for everyone", () => {
@@ -372,7 +376,7 @@ describe("the identity the Launchpad writes (ownerIdentity)", () => {
     expect(envFrame(environment, { subject: matejSubject })?.tone).toBe(
       "person",
     );
-    expect(envFrame(environment, null)?.tone).toBe("person");
+    expect(envFrame(environment, null)).toBeNull();
   });
 });
 
@@ -452,8 +456,16 @@ describe("versionFrame", () => {
       version: "STAGING",
       environment: null,
     });
-    // The viewer not known: the person's own work Environment is framed red.
-    expect(versionFrame(own, null, "staging", "cs")?.tone).toBe("red");
+    // The viewer not known (the account still being read, or not readable):
+    // no frame of the place, so the person's own Environment is never framed
+    // as another's while it loads (Matěj, 2026-11-28); a Module's app keeps
+    // its version's frame, blue and without a label.
+    expect(versionFrame(own, null, "staging", "cs")).toEqual({
+      tone: "blue",
+      dashed: false,
+      version: "STAGING",
+      environment: null,
+    });
   });
 
   test("the attribute names the two versions and production", () => {
@@ -504,5 +516,86 @@ describe("versionFrame", () => {
     expect(frameCss).toMatch(/\.environment \{[^}]*text-overflow: ellipsis;/);
     expect(frameCss).toContain('.frame[data-tone="red"]');
     expect(frameCss).toMatch(/@media print/);
+  });
+});
+
+// Matěj, 2026-11-28: on 0.1.29 the person's own Environment flashed red with
+// their own name while the page loaded, because the account (who views) is
+// read after the page's document (whose Environment it is). And his own
+// Buddy's window stayed framed red. Neither may be framed.
+describe("no frame while who views is not known, none on Buddy's own page", () => {
+  const owner = {
+    subject: "https://auth.example/realms/workspace/7",
+    githubId: 7,
+  };
+  const other = {
+    subject: "https://auth.example/realms/workspace/8",
+    githubId: 8,
+  };
+  const work = env({
+    assignee: "ada",
+    assigneeName: "Ada",
+    ownerIdentity: owner,
+  });
+  const personal = env({
+    id: "ada-personal",
+    kind: "personal",
+    owner: "ada",
+    ownerIdentity: owner,
+  });
+  const team = env({
+    id: "team-env",
+    kind: "team",
+    label: "Výroba",
+    name: "Výroba",
+  });
+
+  test("a person's Environment, own or another's, has no frame of the place before the account says who views", () => {
+    expect(envFrame(work, null)).toBeNull();
+    expect(envFrame(personal, null)).toBeNull();
+    expect(versionFrame(work, null, null, "cs")).toBeNull();
+    expect(versionFrame(personal, null, null, "en")).toBeNull();
+  });
+
+  test("once the account says who views: the own has none, another person's is red with its name", () => {
+    expect(versionFrame(work, owner, null, "cs")).toBeNull();
+    expect(versionFrame(personal, owner, null, "cs")).toBeNull();
+    expect(versionFrame(work, other, null, "cs")).toEqual({
+      tone: "red",
+      dashed: false,
+      version: null,
+      environment: "Ada · Pracovní Prostředí",
+    });
+    expect(versionFrame(personal, other, null, "cs")?.tone).toBe("red");
+  });
+
+  test("a shared Environment and a Module's version are framed at once, whoever views", () => {
+    expect(versionFrame(team, null, null, "cs")?.environment).toBe(
+      "Týmové Prostředí · Výroba",
+    );
+    expect(versionFrame(work, null, "dev", "cs")).toEqual({
+      tone: "blue",
+      dashed: true,
+      version: "DEV",
+      environment: null,
+    });
+  });
+
+  test("Buddy's own page draws no frame, whatever it is told", () => {
+    const buddy = "https://buddy.ada.lazurio.io";
+    expect(isBuddysOwnPage(buddy)).toBe(true);
+    expect(
+      pageFrame(isBuddysOwnPage(buddy), personal, other, null, "cs"),
+    ).toBeNull();
+    expect(
+      pageFrame(isBuddysOwnPage(buddy), undefined, null, null, "cs", true),
+    ).toBeNull();
+    expect(
+      pageFrame(isBuddysOwnPage(buddy), personal, null, "staging", "cs"),
+    ).toBeNull();
+    // Any other page draws what versionFrame says.
+    const launchpad = "https://launchpad.ada.lazurio.io";
+    expect(isBuddysOwnPage(launchpad)).toBe(false);
+    expect(pageFrame(false, personal, other, null, "cs")?.tone).toBe("red");
   });
 });

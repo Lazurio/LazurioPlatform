@@ -74,6 +74,11 @@ export function envFrame(
     case "automated":
       return { tone: "shared", shared: "henry", name };
     case "personal":
+      // Who views is not known yet (the account is read after the page's
+      // document) or not at all: no frame of the place, so nobody sees their
+      // own Environment framed as another's, not even while it loads (Matěj,
+      // 2026-11-28). Red appears once the account shows it is not theirs.
+      if (viewer === null) return null;
       if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
@@ -88,6 +93,7 @@ export function envFrame(
       if (environment.assignee === null) {
         return { tone: "shared", shared: "work", name };
       }
+      if (viewer === null) return null;
       if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
@@ -190,6 +196,16 @@ export function versionFrame(
     version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
     environment: frame === null ? null : envFrameLabel(frame, locale),
   };
+}
+
+/** The frame a page draws: none on Buddy's own page (`isBuddysOwnPage`),
+ * which is the person's own Buddy in his window, whatever its document or
+ * its account read says (Matěj, 2026-11-28); otherwise `versionFrame`. */
+export function pageFrame(
+  buddysOwnPage: boolean,
+  ...frame: Parameters<typeof versionFrame>
+): VersionFrame | null {
+  return buddysOwnPage ? null : versionFrame(...frame);
 }
 
 /** The `version` attribute of `<lazurio-buddy>`: "staging", "dev" or

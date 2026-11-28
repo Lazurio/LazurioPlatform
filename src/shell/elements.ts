@@ -38,7 +38,7 @@ import {
   shellSchema,
 } from "./contract";
 import { createDocumentReads, readShellDocumentJson } from "./document-read";
-import { appVersionOf, versionFrame } from "./env-frame";
+import { appVersionOf, pageFrame } from "./env-frame";
 import { installShellFonts, shellFontBaseOf } from "./fonts";
 import { createFrameLayer } from "./frame-element";
 import {
@@ -1462,7 +1462,8 @@ export class LazurioBuddy extends HTMLElement implements GuideElement {
     const lang = this.getAttribute("lang");
     const locale = (lang ?? shell?.locale ?? "cs") === "en" ? "en" : "cs";
     frameLayer().draw(
-      versionFrame(
+      pageFrame(
+        onBuddysOwnPage(),
         here,
         state.viewer()?.identity ?? null,
         appVersionOf(this.getAttribute("version")),
