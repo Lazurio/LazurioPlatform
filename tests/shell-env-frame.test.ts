@@ -448,7 +448,7 @@ describe("versionFrame", () => {
     expect(versionFrame(janas, matej, null, "cs")?.tone).toBe("red");
   });
 
-  test("an unknown page or viewer is framed, never left out", () => {
+  test("an unknown page shows its version; an unknown viewer gets no frame of the place", () => {
     // No document yet: a Module's app still shows its version.
     expect(versionFrame(undefined, null, "staging", "cs")).toEqual({
       tone: "blue",
