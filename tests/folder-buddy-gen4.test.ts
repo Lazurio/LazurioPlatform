@@ -296,111 +296,252 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   expect(en).toContain("no proof that nothing is there");
 });
 
-// The one-time catch-up (LZD-0033 R11d), case by case: what the skill must
-// say for each situation a Buddy can be in, so that the count recorded with
-// `hotovo` is exactly the items this catch-up moved into the Brain.
-type Phrases = Readonly<Record<"cs" | "en", readonly string[]>>;
-const catchUpCases: readonly Readonly<{
-  name: string;
-  says: Phrases;
-  never?: Phrases;
+// The one-time catch-up (LZD-0033 R11d): the rules the skill states, and the
+// table of every state an item can be in, with what the skill does there and
+// what the item adds to the count recorded with `hotovo`. Each row names the
+// rules that decide it; the test requires every one of them in both locales.
+type Locale = "cs" | "en";
+const catchUpRules = {
+  record: {
+    cs: "jestli proběhlo a co přeneslo, drží jen stránka `buddy/dorovnani`",
+    en: "whether it happened and what it moved is held only by the page `buddy/dorovnani`",
+  },
+  notByPage: {
+    cs: "i když `buddy/dohody` už existuje",
+    en: "even when `buddy/dohody` already exists",
+  },
+  afterDone: {
+    cs: "Když je ve stavu `hotovo`, dorovnání znovu nespouštěj",
+    en: "When the status says `hotovo` (done), do not run the catch-up again",
+  },
+  places: {
+    cs: "stálá dohoda nebo preference fakt i `buddy/dohody`",
+    en: "a lasting agreement or preference a fact and `buddy/dohody`",
+  },
+  rowFirst: {
+    cs: "nejdřív čtením zjisti, která povinná místa ji už mají, a teprve potom založ řádek",
+    en: "first check by reading which required places already hold it, and only then create its row",
+  },
+  beforeOnce: {
+    cs: "Ten údaj zapiš jen při založení řádku a už ho neměň",
+    en: "Write that once, when you create the row, and never change it",
+  },
+  noWriteWithoutRow: {
+    cs: "Do Brainu za položku nic nezapisuj, dokud nemá řádek",
+    en: "Write nothing into the Brain for an item before it has a row",
+  },
+  fillEach: {
+    cs: "u každého povinného místa, které podle řádku položku nemá",
+    en: "for each required place the row says does not hold the item",
+  },
+  recheck: {
+    cs: "nejdřív čtením ověř, jestli ji přece jen nemá",
+    en: "first check by reading whether it does after all",
+  },
+  halfNotDone: {
+    cs: "Položka, která je v Brainu jen na jednom ze dvou míst, ještě hotová není",
+    en: "An item that is in the Brain in only one of two places is not done yet",
+  },
+  pointerLast: {
+    cs: "teprve když řádek ukazuje všechna povinná místa, nahraď položku ve zdroji odkazem",
+    en: "only when the row shows every required place, replace the item in its source with the pointer",
+  },
+  noPointerPartial: {
+    cs: "Položce, která nemá všechna povinná místa, odkaz nedávej",
+    en: "Give no pointer to an item that lacks a required place",
+  },
+  restart: {
+    cs: "položky, které řádek mají, pokračují podle něj, ostatní dostanou řádek jako poprvé",
+    en: "items that have a row continue from it, the others get a row as the first time",
+  },
+  count: {
+    cs: "počet řádků s `před během: ne` nebo `částečně`, které mají všechna povinná místa i odkaz",
+    en: "the number of rows with `před během: ne` or `částečně` that have every required place and the pointer",
+  },
+  once: {
+    cs: "takže se počítá jednou, i když má dvě místa",
+    en: "so it counts once even with two places",
+  },
+  wholeNotCounted: {
+    cs: "položka, kterou měl Brain celou už před během (`celá`), dostane jen odkaz a nepočítá se",
+    en: "an item the Brain held whole before the run (`celá`) only gets its pointer and does not count",
+  },
+  partCounted: {
+    cs: "položka, kterou měl jen zčásti, se počítá, protože zbytek přenesl tento běh",
+    en: "an item it held only in part counts, because this run moved the rest",
+  },
+  doneLast: {
+    cs: "`hotovo` zapiš do řádku stavu, až mají všechny řádky všechna místa i odkaz",
+    en: "Write `hotovo` on the status line when every row has every place and the pointer",
+  },
+  zero: {
+    cs: "s časem a tímto počtem, i když je to 0",
+    en: "with the time and this number, also when it is 0",
+  },
+  privacy: {
+    cs: "Řádek nese jen, kde položka je a kam patří, nic z jejího obsahu navíc",
+    en: "A row carries only where the item is and where it belongs, nothing more of its content",
+  },
+  noQuote: {
+    cs: "nic z paměti nástroje necituj",
+    en: "quote nothing from the tool's memory",
+  },
+} as const satisfies Record<string, Readonly<Record<Locale, string>>>;
+type CatchUpRule = keyof typeof catchUpRules;
+
+// An agreement has two required places (fact F, page P); a priority one
+// (page). "Brain" is what the Brain holds for the item when the run reaches
+// it; "row" is the item's row on buddy/dorovnani then (none on a first run,
+// or before the row was created); "counts" is what the item adds to the
+// count once it is done.
+const catchUpStates: readonly Readonly<{
+  state: string;
+  does: string;
+  counts: 0 | 1;
+  rules: readonly CatchUpRule[];
 }>[] = [
+  // First run, no row: whatever the Brain holds was there before the run.
   {
-    name: "done is its own record, not a page an agreement created first",
-    says: {
-      cs: [
-        "jestli proběhlo, říká jen stránka `buddy/dorovnani`",
-        "i když `buddy/dohody` už existuje",
-      ],
-      en: [
-        "only the page `buddy/dorovnani` says whether it happened",
-        "even when `buddy/dohody` already exists",
-      ],
-    },
-    never: {
-      cs: ["když stránka `buddy/dohody` ještě neexistuje"],
-      en: ["when the page `buddy/dohody` does not exist yet"],
-    },
+    state: "agreement · Brain: none · row: none (first run)",
+    does: "row ne; write F and P; pointer",
+    counts: 1,
+    rules: [
+      "rowFirst",
+      "noWriteWithoutRow",
+      "fillEach",
+      "pointerLast",
+      "count",
+      "once",
+    ],
   },
   {
-    name: "a run after hotovo does nothing",
-    says: {
-      cs: ["Když na ní je `hotovo`, dorovnání znovu nespouštěj"],
-      en: ["When it says `hotovo` (done), do not run the catch-up again"],
-    },
+    state: "agreement · Brain: F only, before the run · row: none",
+    does: "row částečně; write P; pointer",
+    counts: 1,
+    rules: ["rowFirst", "beforeOnce", "fillEach", "halfNotDone", "partCounted"],
   },
   {
-    name: "nothing in the tool's memory: done with 0",
-    says: {
-      cs: ["i když je to 0: v paměti nástroje nic nebylo"],
-      en: ["also when it is 0: the tool's memory held nothing"],
-    },
+    state: "agreement · Brain: P only, before the run · row: none",
+    does: "row částečně; write F; pointer",
+    counts: 1,
+    rules: ["rowFirst", "beforeOnce", "fillEach", "halfNotDone", "partCounted"],
   },
   {
-    name: "everything already in the Brain: pointers, nothing written, 0",
-    says: {
-      cs: [
-        "nebo v ní bylo jen to, co už v Brainu je",
-        "znovu ji nezapisuj, jen ji ve zdroji nahraď odkazem, pokud tam ještě není",
-        "Položka, která v Brainu byla už před dorovnáním, značku nemá a nepočítá se",
-      ],
-      en: [
-        "or only what the Brain already holds",
-        "do not write it again; only replace it in its source with the pointer if it is not one yet",
-        "An item that was in the Brain before the catch-up has no mark and is not counted",
-      ],
-    },
+    state: "agreement · Brain: F and P, before the run · row: none",
+    does: "row celá; write nothing; pointer",
+    counts: 0,
+    rules: ["rowFirst", "beforeOnce", "pointerLast", "wholeNotCounted"],
   },
   {
-    name: "part moved, then interrupted: the repeat counts each move once",
-    says: {
-      cs: [
-        "zápis z přerušeného pokusu značku má a počítá se jednou",
-        "přerušené dorovnání jde bezpečně zopakovat od začátku",
-        "Ověř ji čtením a teprve potom ji ve zdroji nahraď odkazem",
-        "`hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů",
-        "Průběžný počet nedrž",
-      ],
-      en: [
-        "a write of an interrupted attempt has the mark and is counted once",
-        "an interrupted catch-up can safely start over",
-        "Check it by reading, and only then replace it in its source with the pointer",
-        "Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked",
-        "Keep no running count",
-      ],
-    },
+    state: "priority · Brain: none · row: none",
+    does: "row ne; write P; pointer",
+    counts: 1,
+    rules: ["places", "rowFirst", "fillEach", "pointerLast", "count"],
+  },
+  // Repeat after an interruption: the row says what was before the run.
+  {
+    state: "agreement · Brain: none · row: ne (interrupted after the row)",
+    does: "write F and P; pointer",
+    counts: 1,
+    rules: ["restart", "fillEach", "pointerLast", "count"],
   },
   {
-    name: "the count is the marked writes, not the pointers",
-    says: {
-      cs: [
-        "zapiš ji na místa výše se značkou `(dorovnání)`",
-        "počet přenesených položek je počet zápisů v Brainu se značkou `(dorovnání)`",
-      ],
-      en: [
-        "write it into the places above with the mark `(dorovnání)`",
-        "the number of items moved is the number of writes in the Brain with the mark `(dorovnání)`",
-      ],
-    },
-    never: {
-      cs: ["počet odkazů `→ Brain (dorovnání)`"],
-      en: ["number of `→ Brain (dorovnání)` pointers"],
-    },
+    state: "agreement · Brain: F written by this run · row: ne, F recorded",
+    does: "write P; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "fillEach",
+      "halfNotDone",
+      "noPointerPartial",
+      "count",
+      "once",
+    ],
   },
   {
-    name: "nothing private leaves the tool's memory",
-    says: {
-      cs: [
-        "Značka ani odkaz nenesou nic z obsahu položky",
-        "nic jiného z paměti nástroje necituj",
-      ],
-      en: [
-        "Neither the mark nor the pointer carries anything of the item",
-        "quote nothing else from the tool's memory",
-      ],
-    },
+    state: "agreement · Brain: P written by this run · row: ne, P recorded",
+    does: "write F; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "fillEach",
+      "halfNotDone",
+      "noPointerPartial",
+      "count",
+      "once",
+    ],
+  },
+  {
+    state:
+      "agreement · Brain: F written by this run · row: ne, F not recorded yet",
+    does: "read F there, record it (no second write); write P; pointer",
+    counts: 1,
+    rules: ["restart", "recheck", "fillEach", "count", "once"],
+  },
+  {
+    state:
+      "agreement · Brain: F and P written by this run · row: ne, no pointer",
+    does: "pointer",
+    counts: 1,
+    rules: ["restart", "pointerLast", "count", "once"],
+  },
+  {
+    state: "agreement · Brain: F and P written by this run · row: ne, pointer",
+    does: "nothing",
+    counts: 1,
+    rules: ["restart", "count", "once"],
+  },
+  {
+    state:
+      "agreement · Brain: F before the run, P written by this run · row: částečně",
+    does: "pointer if missing",
+    counts: 1,
+    rules: ["restart", "beforeOnce", "partCounted"],
+  },
+  {
+    state: "agreement · Brain: F and P before the run · row: celá, no pointer",
+    does: "pointer",
+    counts: 0,
+    rules: ["restart", "beforeOnce", "wholeNotCounted"],
+  },
+  {
+    state: "any item · interrupted before its row was created",
+    does: "as on a first run: nothing was written for it, so the row is true",
+    counts: 1,
+    rules: ["restart", "noWriteWithoutRow", "rowFirst"],
+  },
+  // The whole catch-up.
+  {
+    state: "tool's memory holds nothing to move",
+    does: "no rows; hotovo with 0",
+    counts: 0,
+    rules: ["doneLast", "zero"],
+  },
+  {
+    state: "status says hotovo",
+    does: "nothing, also when buddy/dohody exists",
+    counts: 0,
+    rules: ["record", "afterDone", "notByPage"],
+  },
+  {
+    state: "every row done",
+    does: "hotovo with the count; the user hears only the number",
+    counts: 0,
+    rules: ["doneLast", "zero", "privacy", "noQuote"],
   },
 ];
+const catchUpNever: Readonly<Record<Locale, readonly string[]>> = {
+  cs: [
+    "se značkou `(dorovnání)`",
+    "počet odkazů",
+    "když stránka `buddy/dohody` ještě neexistuje",
+  ],
+  en: [
+    "with the mark `(dorovnání)`",
+    "number of `→ Brain",
+    "when the page `buddy/dohody` does not exist yet",
+  ],
+};
 
 test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the places and the catch-up (LZD-0033 R11d)", () => {
   for (const locale of locales)
@@ -453,18 +594,15 @@ test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the
         );
         // The one catch-up of what is only in the tool's memory today: every
         // row of the case table below, in this locale.
-        for (const row of catchUpCases) {
-          for (const phrase of row.says[locale])
-            expect([row.name, skill.includes(phrase)]).toEqual([
-              row.name,
-              true,
-            ]);
-          for (const phrase of row.never?.[locale] ?? [])
-            expect([row.name, skill.includes(phrase)]).toEqual([
-              row.name,
-              false,
-            ]);
-        }
+        for (const row of catchUpStates)
+          for (const rule of row.rules)
+            expect([
+              row.state,
+              rule,
+              skill.includes(catchUpRules[rule][locale]),
+            ]).toEqual([row.state, rule, true]);
+        for (const phrase of catchUpNever[locale])
+          expect([phrase, skill.includes(phrase)]).toEqual([phrase, false]);
       }
     }
 });
