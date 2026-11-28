@@ -13,9 +13,18 @@ import { type KindLocale, kindLabel } from "./kind-name";
 // account. Both sides are compared only by an identity that survives a
 // rename, the Lazurio Auth subject or the immutable GitHub id, never by a
 // login or a username: a GitHub login can change, and it can equal another
-// person's frozen Lazurio username. Where either side is not known, the
-// frame is drawn: a frame too many costs a glance, a frame too few hides
-// that someone else's Environment is open. Pure: no DOM and no I/O.
+// person's frozen Lazurio username. The two unknowns differ:
+// - an owner not known (an Environment that records no identity, or a page
+//   whose document could not be read) is framed, for a viewer who is known:
+//   a frame too many costs a glance, a frame too few hides that someone
+//   else's Environment is open;
+// - a viewer not known (the account is read after the page's document, or
+//   cannot be read) draws no frame of the place on a person's Environment,
+//   own or another's: nobody sees their own Environment framed as someone
+//   else's, not even while it loads, and red appears once the account shows
+//   the page is not theirs (Matěj, 2026-11-28). Shared Environments and a
+//   Module's version are framed whoever views.
+// Pure: no DOM and no I/O.
 
 export type EnvFrame =
   | Readonly<{
@@ -74,6 +83,11 @@ export function envFrame(
     case "automated":
       return { tone: "shared", shared: "henry", name };
     case "personal":
+      // Who views is not known yet (the account is read after the page's
+      // document) or not at all: no frame of the place, so nobody sees their
+      // own Environment framed as another's, not even while it loads (Matěj,
+      // 2026-11-28). Red appears once the account shows it is not theirs.
+      if (viewer === null) return null;
       if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
@@ -88,6 +102,7 @@ export function envFrame(
       if (environment.assignee === null) {
         return { tone: "shared", shared: "work", name };
       }
+      if (viewer === null) return null;
       if (sameIdentity(environment.ownerIdentity, viewer)) return null;
       return {
         tone: "person",
@@ -190,6 +205,16 @@ export function versionFrame(
     version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
     environment: frame === null ? null : envFrameLabel(frame, locale),
   };
+}
+
+/** The frame a page draws: none on Buddy's own page (`isBuddysOwnPage`),
+ * which is the person's own Buddy in his window, whatever its document or
+ * its account read says (Matěj, 2026-11-28); otherwise `versionFrame`. */
+export function pageFrame(
+  buddysOwnPage: boolean,
+  ...frame: Parameters<typeof versionFrame>
+): VersionFrame | null {
+  return buddysOwnPage ? null : versionFrame(...frame);
 }
 
 /** The `version` attribute of `<lazurio-buddy>`: "staging", "dev" or
