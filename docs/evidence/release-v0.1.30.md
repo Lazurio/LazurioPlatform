@@ -13,7 +13,7 @@ The canary stage ran on 2026-11-28 from 11:39:56Z to 11:48:50Z, including the re
 
 The record is [`qualification/canary/v0.1.30-rc.1.json`](../../qualification/canary/v0.1.30-rc.1.json), added by the same pull request as this file. Machines are opaque ids under the key of the earlier records, kept only at the station, so every Machine keeps the id it had there.
 
-**This record is not a release.** The final `v0.1.30` is tagged only on the release owner's approval in the `release` environment, on a commit whose tree is `8f68a833`'s outside `qualification/` and `docs/evidence/`.
+**This record is not a release.** After this record merges, the final `v0.1.30` is tagged on a commit whose tree is `8f68a833`'s outside `qualification/` and `docs/evidence/`. The tag starts `release.yml`, and its publication waits for the release owner's approval in the `release` environment (`docs/update.md`, "Publishing").
 
 **The Brain transfer test.** It is the release owner's gate for a candidate that changes Buddy. 0.1.30 changes neither Buddy's skill nor his instructions: the frame and Začínáme are the shell's and the Launchpad's. So this record runs no transfer test, as the final 0.1.29 (#1293) did not either, which relied on the release owner's decision of 2026-11-27 19:12Z.
 
