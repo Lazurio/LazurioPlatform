@@ -31,7 +31,7 @@ import { type CdpCall, cdpSeams, ensureThreadWindow } from "../browser/window";
 import { createFirstMeeting } from "../buddy/first-meeting";
 import type { ServiceRun } from "../buddy/gateway-refresh";
 import { createHermesGateway } from "../buddy/hermes-gateway";
-import { namesConfirmed } from "../buddy/names-confirmed";
+import { namesConfirmed, namesStep } from "../buddy/names-confirmed";
 import {
   createNoticesChoiceHolder,
   isBuddyNoticesChoice,
@@ -1870,7 +1870,7 @@ export async function startLaunchpad(
           ]).then(([facts, persona, t3]) => ({
             fact: {
               signIn: buddyStatus(facts).signIn.state,
-              confirmed: namesConfirmed(persona, buddyFolderPersona),
+              confirmed: namesStep(persona, buddyFolderPersona),
             },
             open: buddyOpenOf(
               facts,
