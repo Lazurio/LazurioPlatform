@@ -31,7 +31,11 @@ import { presetProfile } from "../src/folder/presets";
 import { renderOutputs } from "../src/folder/preview";
 import { neededRefresh } from "../src/folder/refresh-needed";
 import { instructionTemplateRevision } from "../src/folder/render";
-import { refreshFolder } from "../src/folder/update-profile";
+import {
+  refreshFolder,
+  updateOwnInstructions,
+  updateProfile,
+} from "../src/folder/update-profile";
 import {
   initializeMachineFolder,
   machineFailureAnswer,
@@ -183,6 +187,49 @@ test("the Folder's AGENTS.md says where Buddy GEN4 lives only for a converted pe
   ).not.toContain("`~/Buddy`");
 });
 
+// The manual promises Buddy the own instructions only where Buddy GEN4's
+// folder renders them (root decision 0233's addendum of 2026-11-25): a person
+// not yet converted has Buddy GEN3's layer, and a Work Environment no Buddy.
+test("the manual says Buddy gets the own instructions only for a converted person, and names no Buddy on a Work Environment", () => {
+  const manual = (
+    preset: "hosted-personal" | "hosted-organization-personal",
+    machine: ReturnType<typeof binding>,
+    locale: "cs" | "en",
+  ) =>
+    renderOutputs({
+      preset,
+      machine,
+      profile: presetProfile(preset, "linux", { locale }),
+    })["manual/working-here.md"];
+  const gets = {
+    cs: "Buddy je dostane spolu s tónem komunikace ve vlastní složce",
+    en: "Buddy gets them, with the communication voice, in the `AGENTS.md` of Buddy's own folder",
+  };
+  const notYet = {
+    cs: "Buddy v tomto Prostředí je zatím nedostává",
+    en: "Buddy in this Environment does not get them yet",
+  };
+  for (const locale of ["cs", "en"] as const) {
+    const gen4 = manual("hosted-personal", converted(), locale);
+    expect(gen4).toContain(gets[locale]);
+    expect(gen4).not.toContain(notYet[locale]);
+    const gen3 = manual(
+      "hosted-personal",
+      binding({ ...personal, entry: entries.personal }),
+      locale,
+    );
+    expect(gen3).toContain(notYet[locale]);
+    expect(gen3).not.toContain(gets[locale]);
+    const work = manual(
+      "hosted-organization-personal",
+      binding({ ...organization, entry: entries.organization }),
+      locale,
+    );
+    expect(work).not.toContain(gets[locale]);
+    expect(work).not.toContain(notYet[locale]);
+  }
+});
+
 posix(
   "the folder is exactly Buddy of a canonical home of this account: another home, a nested path or a symlinked ancestor is refused",
   async () => {
@@ -277,6 +324,65 @@ posix(
       const named = await readFile(join(buddy, "AGENTS.md"), "utf8");
       expect(named).toContain("Jsi Bertík");
       expect(named).toContain("Aleně tykáš");
+    } finally {
+      await rm(parent, { recursive: true, force: true });
+    }
+  },
+);
+
+// Root decision 0233's addendum of 2026-11-25: Buddy GEN4 gets the person's
+// own instructions and voice. Saving either is the Folder's one change path,
+// which writes ~/Buddy after it, so Buddy's folder follows without a refresh
+// of its own; removing the instructions removes the section there too.
+posix(
+  "saving own instructions or a voice rewrites ~/Buddy/AGENTS.md in the same change, and removing them removes the section",
+  async () => {
+    const { parent, folder } = await home();
+    try {
+      const machine = convertedAt(parent);
+      expect(
+        (await initializeMachineFolder(folder, machine, noChoices)).code,
+      ).toBe(0);
+      const buddyAgents = () =>
+        readFile(join(parent, "Buddy", "AGENTS.md"), "utf8");
+      const revision = async () =>
+        JSON.parse(
+          await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+        ).revision as number;
+      const line = "Odpovídej mi nejdřív jednou větou, pak podrobnosti.";
+      expect(await buddyAgents()).not.toContain("## Vlastní pokyny uživatele");
+      const saved = await updateOwnInstructions(folder, await revision(), {
+        text: line,
+      });
+      expect(saved.kind).toBe("updated");
+      expect(saved).not.toHaveProperty("buddyFolder");
+      const withLine = await buddyAgents();
+      expect(withLine).toContain("## Vlastní pokyny uživatele");
+      expect(withLine).toContain(line);
+      // The Folder's own AGENTS.md carries the same text: one source.
+      expect(await readFile(join(folder, "AGENTS.md"), "utf8")).toContain(line);
+      const voice = "Piš mi stručně a bez úvodních frází.";
+      const current = JSON.parse(
+        await readFile(join(folder, ".lazurio", "preferences.json"), "utf8"),
+      );
+      const voiced = await updateProfile(folder, current.revision, {
+        profile: current.profile,
+        voice: { locale: "cs", text: voice },
+      });
+      expect(voiced.kind).toBe("updated");
+      expect(await buddyAgents()).toContain(voice);
+      const removed = await updateOwnInstructions(folder, await revision(), {
+        text: null,
+      });
+      expect(removed.kind).toBe("updated");
+      const without = await buddyAgents();
+      expect(without).not.toContain("## Vlastní pokyny uživatele");
+      expect(without).not.toContain(line);
+      expect(without).toContain(voice);
+      // Nothing is left behind for a later refresh to catch up on.
+      expect(
+        await neededRefresh(folder, instructionTemplateRevision, folder),
+      ).toBeNull();
     } finally {
       await rm(parent, { recursive: true, force: true });
     }

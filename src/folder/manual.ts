@@ -627,11 +627,26 @@ function ownInstructionsPassage(
       ),
     ];
   const organization = ownInstructionsOfOrganization(preset);
+  // Only Buddy GEN4's folder renders them (root decision 0233's addendum of
+  // 2026-11-25); a person not yet converted has Buddy GEN3's layer, which
+  // does not, and a Work Environment has no Buddy at all.
+  const buddy =
+    machine?.entry?.buddyFolder !== undefined
+      ? t(
+          " Buddy je dostane spolu s tónem komunikace ve vlastní složce, v jejím `AGENTS.md`.",
+          " Buddy gets them, with the communication voice, in the `AGENTS.md` of Buddy's own folder.",
+        )
+      : organization
+        ? t("", "")
+        : t(
+            " Buddy v tomto Prostředí je zatím nedostává.",
+            " Buddy in this Environment does not get them yet.",
+          );
   return [
     heading,
     t(
-      "Vlastní pokyny jsou text, kterým uživatel říká, jak s ním agenti v tomto Prostředí pracují (rozhodnutí 0233). Jsou nastavením Prostředí, ne úpravou generovaného souboru: Folder je vykreslí na začátku `AGENTS.md` hned za tónem komunikace, takže je dostane agent, jehož harness čte `AGENTS.md`; Buddy je nedostává. Žádná aktualizace se na nich nezastaví. Nic neudělují. Při střetu platí pravidla Lazuria a Organizace, ve které pracuješ, a uživateli řekneš, proč se pokynem neřídíš.",
-      "Own instructions are text in which the user says how agents work with them in this Environment (decision 0233). They are a setting of the Environment, not an edit of a generated file: the Folder renders them near the beginning of `AGENTS.md`, right after the communication voice, so an agent whose harness reads `AGENTS.md` gets them; Buddy does not. No update stops on them. They grant nothing. Where they conflict, Lazurio's rules and the rules of the Organization you work in win, and you tell the user why you do not follow the instruction.",
+      `Vlastní pokyny jsou text, kterým uživatel říká, jak s ním agenti v tomto Prostředí pracují (rozhodnutí 0233). Jsou nastavením Prostředí, ne úpravou generovaného souboru: Folder je vykreslí na začátku \`AGENTS.md\` hned za tónem komunikace, takže je dostane agent, jehož harness čte \`AGENTS.md\`.${buddy.cs} Žádná aktualizace se na nich nezastaví. Nic neudělují. Při střetu platí pravidla Lazuria a Organizace, ve které pracuješ, a uživateli řekneš, proč se pokynem neřídíš.`,
+      `Own instructions are text in which the user says how agents work with them in this Environment (decision 0233). They are a setting of the Environment, not an edit of a generated file: the Folder renders them near the beginning of \`AGENTS.md\`, right after the communication voice, so an agent whose harness reads \`AGENTS.md\` gets them.${buddy.en} No update stops on them. They grant nothing. Where they conflict, Lazurio's rules and the rules of the Organization you work in win, and you tell the user why you do not follow the instruction.`,
     ),
     t(
       '- **Řádek přidáš jen na slovo uživatele.** Když tě požádá, ať si zapamatuješ, jak s ním pracovat, navrhni mu nejdřív přesné znění řádku a po jeho souhlasu ho ulož: `lazurio folder instructions add "<řádek>"`. Celý text ukáže `lazurio folder instructions show`, nahradí ho `set` a odstraní `clear`. Sám od sebe tam nic nepřidávej.',

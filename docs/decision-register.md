@@ -1116,8 +1116,8 @@ When a hosted Environment has proved that it lost access to a Module, Lazurio re
 
 ### 0233 — On a Work Environment the agents are the person's own: own instructions and a local Personalspace that belongs to the Organization
 
-- **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-06 (amended by 0242 on 2026-11-12; amended 2026-11-15)
-- **Related:** 0046, 0051, 0079, 0091, 0153, 0163, 0169, 0172, 0175, 0202, 0207, 0228, 0242, F10, F14
+- **Status:** decided, not yet deployed · **Applies to:** GEN4 · **Decided:** 2026-11-06 (amended by 0242 on 2026-11-12; amended 2026-11-15 and 2026-11-25)
+- **Related:** 0046, 0051, 0079, 0091, 0153, 0163, 0169, 0172, 0175, 0202, 0207, 0210, 0228, 0242, F10, F14
 
 On a Work Environment assigned to one person the agents are that person's assistant: they work for the person, adapt to how the person works and reach the Organization only through the person's live rights. So that a colleague who works in one Organization needs no Personal Environment to have agents tuned to them, such a Work Environment carries a personal layer of two parts, the person's own instructions for agents and a local Personalspace. Neither widens access, a mandate, Publication, Release, secrets or the separation of Organizations.
 
@@ -1128,6 +1128,8 @@ The local Personalspace is the folder `personalspace/` of the Work Environment's
 The personal layer keeps how to work with this person, never how the Organization works. When the person asks an agent to remember something, the agent decides which of the two it is: a working habit of the person goes into the own instructions or the local Personalspace, while a process, a meaning or knowledge of the Organization goes to the Organization by a pull request or an issue like every other finding (0163), so the agent of the next colleague starts with it.
 
 A person may keep their own files at the top level of their Folder beside the names Lazurio owns there (`AGENTS.md`, `manual/`, `.lazurio/`, `.agents/`, `.claude/`, `organizations/`, `personalspace/`). They never stop an update, and Lazurio names only those that change agents' instructions unseen, such as a `CLAUDE.md`, an `AGENTS.override.md` or a `.codex/` folder. Agents still put their own work products in the person's Documents folder, as a temporary desk; company documents go to the Organization's document storage (0242).
+
+**Addendum of 2026-11-25: Buddy gets the own instructions and the voice too** (Matěj, 2026-11-25: „Vlastní pokyny a tón dostane i Buddy: ano“). Buddy GEN4 (0210's addendum of 2026-11-16) is the person's nearest agent, so the `AGENTS.md` of Buddy's folder renders the person's communication voice and own instructions exactly as the Folder's `AGENTS.md` does: the same text, the same section with its precedence, and none where the Environment has no own instructions. Saving either renders Buddy's folder in the same change, so Buddy follows without a separate step. Buddy's layer rendered neither until now for a reason that held only for Buddy GEN3: Hermes blocks a whole context file in which its injection scan finds anything, and the person's text is not text this product controls. Buddy GEN4 runs on Claude Code or Codex, which read Buddy's `AGENTS.md` as they read the Folder's, so that reason no longer applies. Buddy GEN3's layer stays as it is.
 
 ### 0234 — The names of access roles: one vocabulary for every text, screen and agent
 
