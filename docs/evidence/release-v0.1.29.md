@@ -30,6 +30,7 @@ The record is [`qualification/canary/v0.1.29-rc.4.json`](../../qualification/can
 - linux-x64: sha256 `1d7f1729…`, 103 179 744 B. `lazurio.sigstore.json`: sha256 `05fbba0e…`, 11 553 B.
   - All three binaries were checked on the downloaded files against `manifest.json`.
   - `gh attestation verify` with that bundle, bound to `.github/workflows/release.yml` at the tag, accepts the manifest, each binary, `install.sh` and the shell archive.
+- Qualification `qualify.yml` run 46067682485 (artifact `qualification-v0.1.29-rc.4` for the candidate's published bytes): success.
 - The push run of `bdf86e32` on `main` (46061094262) is green. Its first attempt failed one macOS test on a timing condition, the known flake #1229; the rerun of the failed jobs passed, with both macOS shards.
 
 ## Scope and how each Machine got the candidate
@@ -38,7 +39,7 @@ The record is [`qualification/canary/v0.1.29-rc.4.json`](../../qualification/can
   - The lane also moved this Environment from Machines v0.12.256 to **v0.12.274**. Since the Conglomerate Host's Machine Record names the lane's author, v0.12.256 refuses that record, and no Plan of this lane could be computed without the move. v0.12.274 is what the other lane of this record runs.
   - It was merged at 21:20:51Z after an independent review on the exact head and a fresh Plan-only. It was applied 21:21:01–21:31:15Z from the station, `success` and `conformant`; only its two earlier `unknown` checks stayed open.
 - **The four Environments of the pilot Organization** on its tailnet host got it from LazurioExampleOrganization/infra#463: the Owner's and the member's Work Environments, the Team Environment and the Prostředí služeb.
-  - The pull request was merged at 23:28:49Z after an independent review on the exact head and a fresh CI Plan (34 actions, 0 deletions, Machines v0.12.274).
+  - The pull request was merged at 23:28:19Z after an independent review on the exact head and a fresh CI Plan (34 actions, 0 deletions, Machines v0.12.274).
   - Its push run (46082673076) applied it from 23:28:48Z, `success`, ending at **23:57:40Z**. That was the last time a Machine in scope got the candidate, and it is the start of the stage.
 - **Not in this record:** the release owner's own Personal Environment, and the member test account's Personal Environment.
   - The member's Personal Environment was read at both edges: `healthy`. It runs and has active **`0.1.24`**, with `/health` answering `0.1.24`, because no lane moves it to a candidate, as for `v0.1.25` to `v0.1.28`.
