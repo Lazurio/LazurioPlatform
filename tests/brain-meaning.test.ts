@@ -19,14 +19,22 @@ import {
   type MeaningHost,
   meaningBatchLimitMs,
   meaningEmbedLimitMs,
+  meaningInstallEvery,
   meaningMaxStalled,
   meaningMaxWindows,
   meaningPreviewLimitMs,
   meaningStepLimitMs,
   meaningWindowMs,
   recoverAttempt,
+  windowLabel,
+  windowSince,
 } from "../src/brain/meaning";
-import { meaningPaths, meaningUnit } from "../src/brain/meaning-pin";
+import {
+  meaningPaths,
+  meaningPin,
+  meaningUnit,
+  retriesFilling,
+} from "../src/brain/meaning-pin";
 import {
   brainPaths,
   brainPin,
@@ -589,7 +597,7 @@ describe("switching search by meaning on", () => {
     );
     expect(world.server).toBe(true);
     expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
-    expect(await convergeMeaning(slow)).toBe("restored:embed-limit");
+    expect(await convergeMeaning(slow)).toBe("held:embed-limit");
     expect(await convergeMeaning(slow)).toBe("held");
     // Setup as the Launchpad's child outlasts the one window a run takes, at
     // its process limit, and a migration, the counts and the start around it.
@@ -634,7 +642,7 @@ describe("switching search by meaning on", () => {
     expect(await convergeMeaning(host)).toBe("waits:embed");
     expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
     expect(world.server).toBe(true);
-    expect(await convergeMeaning(host)).toBe("restored:embed");
+    expect(await convergeMeaning(host)).toBe("held:embed");
     expect(await convergeMeaning(host)).toBe("held");
   });
 
@@ -836,9 +844,14 @@ describe("the vectors in short windows, computed by the running server", () => {
     expect(stops(calls)).toBe(1);
     // Each window is bounded by gbrain's budget, and a batch to the local
     // model has longer than gbrain's 60 s.
+    // gbrain installs a page every few chunks, so a budget that stops it in
+    // the middle of a page keeps what it computed (#1298).
     for (const env of envs) {
       expect(env.GBRAIN_EMBED_TIME_BUDGET_MS).toBe(String(meaningWindowMs));
       expect(env.GBRAIN_AI_EMBED_TIMEOUT_MS).toBe(String(meaningBatchLimitMs));
+      expect(env.GBRAIN_EMBED_STALE_INSTALL_EVERY).toBe(
+        String(meaningInstallEvery),
+      );
     }
     expect(meaningEmbedLimitMs).toBeGreaterThan(
       meaningWindowMs + meaningBatchLimitMs,
@@ -913,7 +926,7 @@ describe("the vectors in short windows, computed by the running server", () => {
     });
     // The next failure in a row stops it for this pin.
     expect(meaningMaxStalled).toBe(2);
-    expect(await convergeMeaning(host)).toBe("restored:embed-failures");
+    expect(await convergeMeaning(host)).toBe("held:embed-failures");
     expect(await convergeMeaning(host)).toBe("held");
     expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
     expect(world.server).toBe(true);
@@ -1008,10 +1021,126 @@ describe("the vectors in short windows, computed by the running server", () => {
         windows: meaningMaxWindows,
       },
     });
-    expect(await convergeMeaning(host)).toBe("restored:embed-windows");
+    expect(await convergeMeaning(host)).toBe("held:embed-windows");
     expect(await convergeMeaning(host)).toBe("held");
     expect(world.server).toBe(true);
     expect(await unit(paths, brainUnit)).toContain("LLAMA_SERVER_BASE_URL");
+  });
+
+  // #1298: four windows of 3 minutes on 4 cores, each stopped at its budget
+  // in the middle of a page, installed nothing; the filling gave up with
+  // 385 chunks left and read as `restored`, though nothing came back.
+  test("windows that reach their budget and install nothing give up as held:embed-budget, each window's report kept, nothing brought back", async () => {
+    const budgetOnly = {
+      exit: 11,
+      embedded: 0,
+      remaining: 385,
+      reason: "time_budget",
+    };
+    const { host, paths, world } = await stand({
+      windows: [budgetOnly],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    const first = (await readBrainState(paths)).meaningAttempt;
+    // What setup prints for the window this run ran, and for none.
+    expect(windowSince(undefined, first)).toBe(
+      "exit 11, stop time_budget, embedded 0, remaining 385",
+    );
+    expect(windowSince(first, first)).toBeUndefined();
+    expect(first).toMatchObject({
+      result: "filling",
+      windows: 1,
+      stalled: 1,
+      lastWindow: {
+        exit: 11,
+        stop: "time_budget",
+        embedded: 0,
+        remaining: 385,
+      },
+    });
+    expect(await convergeMeaning(host)).toBe("held:embed-budget");
+    const held = (await readBrainState(paths)).meaningAttempt;
+    expect(held).toMatchObject({
+      result: "restored",
+      reason: "embed-budget",
+      windows: 2,
+      stalled: 2,
+      heldOn: brainPin.version,
+      lastWindow: { exit: 11, stop: "time_budget", embedded: 0 },
+    });
+    // The second window, though the clock may read the same.
+    expect(windowSince(first, held)).toBe(
+      "exit 11, stop time_budget, embedded 0, remaining 385",
+    );
+    expect(windowLabel({ exit: null, embedded: 0 })).toBe(
+      "exit limit, embedded 0",
+    );
+    expect(await convergeMeaning(host)).toBe("held");
+    expect(
+      windowSince(held, (await readBrainState(paths)).meaningAttempt),
+    ).toBeUndefined();
+    // The brain as the server keeps it: no copy came back, the server runs.
+    expect(
+      JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
+    ).toEqual({ brain: "vectors", windows: 2 });
+    expect(world.server).toBe(true);
+  });
+
+  test("a filling given up on another gbrain release is tried again once on this one, from where it stopped and without a copy", async () => {
+    const { host, paths, world, calls } = await stand({
+      windows: [
+        { exit: 11, embedded: 0, remaining: 385, reason: "time_budget" },
+        { exit: 11, embedded: 0, remaining: 385, reason: "time_budget" },
+        { exit: 0, embedded: 385, left: 0 },
+      ],
+    });
+    expect(await convergeMeaning(host)).toBe("waits:filling");
+    expect(await convergeMeaning(host)).toBe("held:embed-budget");
+    expect(await convergeMeaning(host)).toBe("held");
+    const stopsBefore = stops(calls);
+    // As an attempt of an earlier Lazurio records it: no heldOn, given up on
+    // the release before this pin.
+    const state = await readBrainState(paths);
+    const { heldOn: _on, ...earlier } = state.meaningAttempt as NonNullable<
+      typeof state.meaningAttempt
+    >;
+    await writeBrainState(paths, { ...state, meaningAttempt: earlier });
+    expect(retriesFilling(earlier, brainPin.version)).toBe(true);
+    expect(await convergeMeaning(host)).toBe("on");
+    expect(stops(calls)).toBe(stopsBefore);
+    expect(world.server).toBe(true);
+    expect((await readBrainState(paths)).meaning?.provider).toBe(
+      meaningPin.provider,
+    );
+  });
+
+  test("a filling is tried again only once per release, and a brain brought back from its copy stays held", () => {
+    const filling = {
+      provider: meaningPin.provider,
+      result: "restored" as const,
+      at: "2026-11-28T12:47:14.000Z",
+      reason: "embed-budget",
+      windows: 4,
+      stalled: 2,
+    };
+    expect(retriesFilling(filling, "0.60.733.0-lazurio.4")).toBe(true);
+    expect(
+      retriesFilling(
+        { ...filling, heldOn: "0.60.733.0-lazurio.4" },
+        "0.60.733.0-lazurio.4",
+      ),
+    ).toBe(false);
+    const { windows: _w, stalled: _s, ...copiedBack } = filling;
+    expect(
+      retriesFilling(
+        { ...copiedBack, reason: "enable" },
+        "0.60.733.0-lazurio.4",
+      ),
+    ).toBe(false);
+    expect(retriesFilling({ ...filling, provider: "other:model" }, "x")).toBe(
+      false,
+    );
+    expect(retriesFilling(filling, undefined)).toBe(false);
   });
 
   test("a start systemd reports as failed after the switch, though the server runs: the brain is kept, never a copy back", async () => {
@@ -1355,7 +1484,7 @@ describe("the Launchpad goes on by itself while search by meaning waits", () => 
     const start = atStart(host);
     expect(await start.start()).toEqual({
       server: "running",
-      meaning: "restored:embed-failures",
+      meaning: "held:embed-failures",
     });
     // The first window, then two that failed; then nothing more.
     expect(start.runs()).toBe(3);

@@ -28,6 +28,8 @@ export type BrainSetupLabels = Readonly<{
   vault?: string;
   archive?: string;
   meaning?: string;
+  /** What this run's window of search by meaning reported, counts only. */
+  meaningWindow?: string;
 }>;
 
 /** Whether gbrain's conversation archive is not off yet and another run
@@ -205,6 +207,7 @@ export async function runBrainSetup(
       ...label("vault"),
       ...label("archive"),
       ...label("meaning"),
+      ...label("meaningWindow"),
     });
   } catch {
     return null;

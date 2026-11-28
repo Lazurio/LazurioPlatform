@@ -125,6 +125,20 @@ export type BrainState = Readonly<{
     /** Windows run, and the windows in a row that made no progress. */
     windows?: number;
     stalled?: number;
+    /** What the last window reported (`WindowTrace` of `./meaning.ts`)
+     * and when it ended: counts and gbrain's closed labels, never a page. */
+    lastWindow?: Readonly<{
+      at: string;
+      exit: number | null;
+      stop?: string;
+      embedded: number;
+      healed?: number;
+      failures?: number;
+      remaining?: number;
+    }>;
+    /** The gbrain version a filling gave up on (`restored` after windows):
+     * a later release tries the filling again, once (`retriesFilling`). */
+    heldOn?: string;
   }>;
   /** Lazurio's install of a pin, from before its brain is created until its
    * release is recorded: the brain under it is Lazurio's own, and a run

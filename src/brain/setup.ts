@@ -23,6 +23,7 @@ import {
   type MeaningFetch,
   type MeaningResult,
   recoverAttempt,
+  windowSince,
 } from "./meaning";
 import { type MoveResult, moveKeepsDown, moveToPin, unitState } from "./move";
 import {
@@ -137,6 +138,9 @@ export type SetupResult = Readonly<{
   archive?: ArchiveResult;
   /** Search by meaning, where the brain runs the pin. */
   meaning?: MeaningResult;
+  /** What the window of search by meaning this run ran reported
+   * (`windowLabel`): gbrain's exit code, why it stopped, counts only. */
+  meaningWindow?: string;
   /** The refresh timer, where it is enabled and was not running: started
    * (confirmed by systemd) or failed (the next run tries again). */
   timer?: "started" | "failed";
@@ -541,10 +545,18 @@ async function finish(
       : undefined;
   // Search by meaning only on the pin: a brain held on an earlier release
   // moves first.
+  const attemptBefore = (await readBrainState(paths)).meaningAttempt;
   const meaning =
     host.fetch !== undefined && server !== "held" && server !== "waits-move"
       ? await convergeMeaning({ ...moveHost(host), fetch: host.fetch })
       : undefined;
+  const meaningWindow =
+    meaning === undefined
+      ? undefined
+      : windowSince(
+          attemptBefore,
+          (await readBrainState(paths)).meaningAttempt,
+        );
   const timer = await ensureTimer(host);
   return Object.freeze({
     server,
@@ -553,6 +565,7 @@ async function finish(
     ...(vault === undefined ? {} : { vault }),
     ...(archive === undefined ? {} : { archive }),
     ...(meaning === undefined ? {} : { meaning }),
+    ...(meaningWindow === undefined ? {} : { meaningWindow }),
     ...(timer === "running" ? {} : { timer }),
     status: await brainStatus(host),
   });
