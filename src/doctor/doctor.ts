@@ -41,8 +41,8 @@ import {
   handoverRoutes,
   isEnvironmentId,
   type MachineBinding,
-  machineIdentity,
   ownerOrganizationCorrection,
+  sameMachine,
 } from "../folder/machine-binding";
 import { githubIdentity, presetNames } from "../folder/presets";
 import {
@@ -766,8 +766,7 @@ function bindingChecks(
         : check("machine-binding", "warn", "binding-absent")
       : live === null
         ? check("machine-binding", "warn", "handover-unreadable")
-        : JSON.stringify(machineIdentity(recorded)) !==
-              JSON.stringify(machineIdentity(live)) &&
+        : !sameMachine(recorded, live) &&
             (handover === null ||
               ownerOrganizationCorrection(
                 recorded,

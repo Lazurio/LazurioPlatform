@@ -318,6 +318,46 @@ replaced) and an `onProgress` listener that hears `checking`, `fetching` and
 answer for each repository as it happens. The Open of one module uses the first;
 `lazurio update` and Aktualizovat the second ([When it runs](#when-it-runs)).
 
+**After a GitHub rename (#1281).** A rename changes an Organization's login; its id and its
+repositories' ids stay. GitHub redirects the old `<owner>/<name>` until someone takes the old
+login and creates a repository of the same name, so a login alone never proves anything here.
+- *Origins.* A checkout whose origin names another owner than expected is pointed to the
+  declared repository (the root: its own name under the login the Organization is kept under)
+  only when GitHub answers the origin and the declared path with the same repository id; the
+  URL keeps its form (SSH or HTTPS) and the entry records `origin: {from, to}`. Any other answer
+  stays `unexpected-checkout`. The origin changes before the checkout's own state is looked at,
+  so a push from a blocked checkout never goes to a namesake.
+- *Which Organization.* A Work Environment keeps its handover's Organization by its login, and
+  by its id where the handover names one (`owner.organization_id`): a root that declares that id
+  in `forge_binding.organization_id` is kept under the login GitHub answers for its repository.
+  Without the id in the handover, a root that declares another login which GitHub confirms for
+  the root's repository with the declared Organization id is `blocked`
+  `organization-renamed` on the root's entry, and nothing changes until the Environment's
+  update; so is a root that still declares the earlier login while GitHub answers its repository
+  under the handover's new one. A root whose origin GitHub answers under an Organization of
+  another id than the root declares, or whose declared id contradicts the handover's, is
+  `unexpected-checkout`: someone else holds that login, or it is another Organization. A
+  synchronization named by the new login (Apps' access check, a module's Open) runs once the id
+  proves the root is the handover's. A root that declares an id is read only after GitHub names
+  its origin's owner by that id: when GitHub gives no such answer, the root is `unavailable`
+  `owner-unverified` and untouched, because git may still reach a namesake; so is a root whose
+  checkout could not be read for that check. The root is then synchronized only from exactly the origin
+  GitHub answered for; any other origin only when GitHub answers it with that same repository id.
+- *The handover.* `machine folder-refresh` records a new Owner login as the same Environment only
+  when the recorded binding and the handover name the same Organization id (`owner-renamed`);
+  the id itself is no part of the identity, yet once recorded it must be named again: a handover
+  with no id or another one under the same login is another Machine (`sameMachine`). A Folder that records an id takes no other
+  correction: a missing or contradicting live id is another Owner, whatever its
+  `organization_key` says.
+- *The other readers of the Organization* (#1287): content status (`/api/content`), Organization
+  settings, Composio's organization rule and the Organization tools select the handover's
+  Organization by the same id rule (`selectOwnerOrganization`, `organizationsOf`): under another
+  login by the same `forge_binding.organization_id`, never against another id. Without the id in
+  the handover they select by login as before.
+- *Installation.* `accountAccess` takes a root GitHub answers under another login as this
+  Organization's when a root of the Folder declares one of the two logins with that
+  Organization's id.
+
 ## Access ended — decided 2026-11-06
 
 Matěj's decision of 2026-11-06 ([root decision 0232](decision-register.md#0232--access-to-a-module-has-levels-an-organization-admin-locks-a-module-and-a-lost-grant-removes-the-environments-copy),

@@ -37,20 +37,25 @@ export type EnvFrame =
       name: string | null;
     }>;
 
-/** True only when both identities surely name the same person: both carry
- * a Lazurio Auth subject and it is the same, or neither carries a subject
- * and both carry the same GitHub id. A subject on only one side is a
- * Lazurio account the other side does not name, and a GitHub id alone does
- * not prove it is that account (an account may relink GitHub), so it is not
- * known to be one person and the page stays framed. */
+/** True only when the viewer is surely the person the Environment records
+ * as its owner, judged by what the Environment records:
+ * - a Lazurio Auth subject: the viewer's subject is the same, whatever the
+ *   GitHub ids say;
+ * - only the immutable GitHub id (a personal Environment its GitHub
+ *   principal owns, a work one assigned by GitHub id): the viewer's GitHub id
+ *   is the same. The viewer's is the GitHub id their Lazurio account is
+ *   linked to, and the Environment's entry already trusts that GitHub
+ *   identity; an account that relinked GitHub elsewhere sees a frame, never
+ *   the reverse.
+ * Matěj, 2026-11-27: no frame on the person's own Work or Personal
+ * Environment, whichever way it records them. */
 export function sameIdentity(
-  a: ShellIdentity | undefined,
-  b: ShellIdentity | null,
+  owner: ShellIdentity | undefined,
+  viewer: ShellIdentity | null,
 ): boolean {
-  if (a === undefined || b === null) return false;
-  if (a.subject !== undefined || b.subject !== undefined)
-    return a.subject !== undefined && a.subject === b.subject;
-  return a.githubId !== undefined && a.githubId === b.githubId;
+  if (owner === undefined || viewer === null) return false;
+  if (owner.subject !== undefined) return owner.subject === viewer.subject;
+  return owner.githubId !== undefined && owner.githubId === viewer.githubId;
 }
 
 /** The frame of a page of `environment` for `viewer` (the identity of the
@@ -164,9 +169,15 @@ export function versionFrame(
   // A production Application is no Environment's page: never framed, even
   // without a document (its host serves none).
   if (version === "production") return null;
+  // A DEV page runs on the loopback of the Environment whose worktree it is,
+  // reached only through that Environment's own browser; no gateway serves
+  // it, so it never has a document and never reads the account. It is
+  // framed as the version it is, blue and dashed, not as another person's
+  // place (Matěj, 2026-11-27: the frame of DEV and STAGING warns that it is
+  // not PROD). STAGING and a page without a version keep the red frame.
   if (environment === undefined && environmentUnknown)
     return {
-      tone: "red",
+      tone: version === "dev" ? "blue" : "red",
       dashed: version === "dev",
       version: version === null ? null : version === "dev" ? "DEV" : "STAGING",
       environment: null,

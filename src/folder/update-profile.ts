@@ -73,10 +73,11 @@ export async function updateTools(
 // recorded by its digest alone, and the answer says so, `bindingRebound:
 // "handover-digest"` (issue #111). `preset`,
 // when given, is the preset a changed assignment now derives, recorded with
-// the new binding in the same revision (issue #107). `organizationKey`, the
-// live handover's `owner.organization_key`, lets the refresh record the one
-// correction of the identity (`ownerOrganizationCorrection`): the answer then
-// names it, `bindingCorrected: "owner-organization"`.
+// the new binding in the same revision (issue #107). The one correction of
+// the identity, a rename of the Owner Organization under the same recorded
+// id (`ownerOrganizationCorrection`), is recorded and named in the answer,
+// `bindingCorrected: "owner-renamed"`. `organizationKey`, the live
+// handover's `owner.organization_key`, is passed on but no longer decides.
 export async function refreshFolder(
   folder: string,
   machine: MachineBinding,

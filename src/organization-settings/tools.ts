@@ -96,6 +96,7 @@ export async function declaredToolsOf(
     owner.organization,
     git,
     published,
+    owner.organizationId,
   );
   if (read.kind === "invalid")
     return Object.freeze({

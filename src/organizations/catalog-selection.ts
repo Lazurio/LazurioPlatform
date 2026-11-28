@@ -71,19 +71,33 @@ export function selectCatalogOrganization(
  * `organizations/` of an Organization that binds no login, exactly. The
  * Personalspace group is never a Machine's owning Organization.
  *
+ *
+ * Where the handover also names the Organization's GitHub id
+ * (`organizationId`, `owner.organization_id`), the id decides as in the
+ * content sync (#1281, #1287): after a rename on GitHub the root and the
+ * handover may name the Organization by different logins for a while, and a
+ * root that declares the same id (`forgeOrganizationId`) is the owner under
+ * either, before any root of the login without an id; a root that declares
+ * another id never is, whatever its login.
+ *
  * Organization settings (F45) and Composio's organization rule both read
  * the owner through this one rule, so they never disagree on it. Routes and
  * the CLI name an Organization by `selectCatalogOrganization` instead. */
 export function selectOwnerOrganization(
   catalog: Catalog,
   owner: string,
+  organizationId?: number,
 ): CatalogOrganizationSelection {
   const key = owner.toLowerCase();
-  const candidates = catalog.organizations.filter((entry) =>
+  const byLogin = catalog.organizations.filter((entry) =>
     entry.forgeLogin === undefined
       ? entry.organization?.toLowerCase() === key
       : entry.forgeLogin.toLowerCase() === key,
   );
+  const candidates =
+    organizationId === undefined
+      ? byLogin
+      : ownerCandidates(catalog.organizations, byLogin, organizationId);
   if (candidates.length === 1)
     return {
       kind: "found",
@@ -96,6 +110,22 @@ export function selectOwnerOrganization(
   return byDirectory === undefined
     ? { kind: "missing" }
     : { kind: "found", organization: byDirectory };
+}
+
+/** The owner's candidates by its id: the entries that declare the
+ * handover's id, under any login, first; only where none does, those of its
+ * login that declare no id. An entry that declares another id never is
+ * one. */
+export function ownerCandidates(
+  organizations: readonly CatalogOrganization[],
+  byLogin: readonly CatalogOrganization[],
+  organizationId: number,
+): CatalogOrganization[] {
+  const identified = organizations.filter(
+    (entry) => entry.forgeOrganizationId === organizationId,
+  );
+  if (identified.length > 0) return identified;
+  return byLogin.filter((entry) => entry.forgeOrganizationId === undefined);
 }
 
 /** The name that selects exactly this candidate under the same rule: its slug,

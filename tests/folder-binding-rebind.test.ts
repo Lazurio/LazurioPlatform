@@ -298,28 +298,40 @@ for (const change of refused)
     30_000,
   );
 
-// Decision F10's addendum of 2026-11-11 (#931) is unchanged: the corrected
-// Owner Organization is recorded with the handover it came with and the
-// answer names the correction only. A later apply that rewrites only
-// `installed` is then rebound like any other.
+// Decision F10's addenda (#931; of 2026-11-27, #1281): the corrected Owner
+// Organization, renamed under the same recorded id, is recorded with the
+// handover it came with and the answer names the correction only. A later
+// apply that rewrites only `installed` is then rebound like any other.
 test.skipIf(process.platform === "win32")(
   "an Owner Organization correction records its handover's digest and says bindingCorrected only; the next rewrite is rebound",
   async () => {
     const key = "ExampleOrg";
-    const labelled = binding(workHandover({ organizationKey: key }));
-    const corrected = binding(
-      workHandover({
-        organization: "exampleorg",
-        organizationKey: key,
-        installed: laterApply,
-      }),
+    // The vendored schema reads no `owner.organization_id` yet
+    // (Machines#1627): the bindings carry it as the Folder records it.
+    const identified = (bound: MachineBinding): MachineBinding =>
+      bound.owner.kind === "organization"
+        ? { ...bound, owner: { ...bound.owner, organizationId: 7001 } }
+        : bound;
+    const labelled = identified(
+      binding(workHandover({ organizationKey: key })),
     );
-    const reapplied = binding(
-      workHandover({
-        organization: "exampleorg",
-        organizationKey: key,
-        installed: evenLaterApply,
-      }),
+    const corrected = identified(
+      binding(
+        workHandover({
+          organization: "exampleorg",
+          organizationKey: key,
+          installed: laterApply,
+        }),
+      ),
+    );
+    const reapplied = identified(
+      binding(
+        workHandover({
+          organization: "exampleorg",
+          organizationKey: key,
+          installed: evenLaterApply,
+        }),
+      ),
     );
     const { parent, folder } = await setup(labelled);
     try {
@@ -330,7 +342,7 @@ test.skipIf(process.platform === "win32")(
         result: {
           kind: "refreshed",
           revision: 2,
-          bindingCorrected: "owner-organization",
+          bindingCorrected: "owner-renamed",
         },
       });
       expect((await recordedState(folder)).machine).toEqual(

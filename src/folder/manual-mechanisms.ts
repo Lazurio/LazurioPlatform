@@ -272,6 +272,11 @@ export const mechanisms: readonly Text[] = [
     `A module is a shared area of work: it has a history and is shared by access. **${uen.filesTitle}** (\`~/Documents/\`) are the agents' desk in one Environment: they are not shared with other Environments and are not backed up, so what a team should share or what must outlive the Environment belongs in a module. **An Integration** is someone else's app that the agent uses from outside, without seeing its code. A module of its own pays off when the Organization wants its own process and app; an Integration, when another app is used for most of the work.`,
   ),
   blank,
+  t(
+    `Řádná pravidelná záloha Prostředí mimo server zatím není. Ruční nebo jednorázové kopie, které u jednotlivých Organizací vznikly (třeba před výměnou disku), jsou dočasná opatření, ne vzor: nekopíruj je jako postup a neber je jako cílový stav, ten určí plán vývoje Lazuria.`,
+    `A regular off-server backup of Environments does not exist yet. Manual or one-time copies made for single Organizations (for example before a disk replacement) are temporary measures, not a pattern: do not copy them as a procedure or take them for the target state, which Lazurio's development plan will set.`,
+  ),
+  blank,
   t("## Integrace", "## Integrations"),
   t(
     `Integrace jsou aplikace připojené k tomuto Prostředí (pošta, kalendář, chat, CRM…). Vlastní účty připojuje uživatel sám na stránce ${integrationsPath.cs}; každé Prostředí drží svá přihlášení a na Týmovém Prostředí je používá celý Team. Integraci pro celou Organizaci (sdílená schránka, účet Organizace v Composiu, firemní MCP server) zařizuje Admin Organizace. Připojená aplikace není souhlas s Publikací. Podrobnosti jsou v \`manual/working-here.md\`, oddíl Integrace.`,

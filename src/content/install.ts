@@ -817,7 +817,22 @@ async function accountAccess(
         "root-denied",
         `${rootRepository} does not exist or ${viewer.login} cannot read it`,
       );
-    if (access.repository.owner.login.toLowerCase() !== login.toLowerCase())
+    // GitHub answers a renamed Organization's root through a redirect,
+    // under its new login: still this Organization's root when a root of
+    // the Folder declares this login or the new one with that Organization
+    // id (#1281). Never by the login alone, which anyone may take after a
+    // rename.
+    const answeredOwner = access.repository.owner;
+    const sameOrganization =
+      answeredOwner.login.toLowerCase() === login.toLowerCase() ||
+      catalog.organizations.some(
+        (entry) =>
+          entry.forgeOrganizationId === answeredOwner.databaseId &&
+          [login, answeredOwner.login].some(
+            (name) => entry.forgeLogin?.toLowerCase() === name.toLowerCase(),
+          ),
+      );
+    if (!sameOrganization)
       return steps.fail(
         "access",
         "root-owner-mismatch",

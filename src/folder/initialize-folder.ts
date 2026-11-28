@@ -17,8 +17,8 @@ import {
 import { withFolderOperationLock, withFolderReadLock } from "./lock";
 import {
   type MachineBinding,
-  machineIdentity,
   ownerOrganizationCorrection,
+  sameMachine,
 } from "./machine-binding";
 import {
   createManualDirectory,
@@ -385,10 +385,10 @@ export const adoptionReadWaitMs = 30_000;
 // Machine's handover or unrecognized state is refused by name. Only the
 // ephemeral operation lock is written. `null` means no Folder state exists yet.
 // A binding that differs only by the one correction a refresh records (the
-// Owner Organization by the handover's GitHub login in lower case,
-// `ownerOrganizationCorrection` with the handover's `organizationKey`) is the
-// same Machine: it is reported adopted with `bindingCorrection`, and nothing
-// is written here; `machine folder-refresh` records the correction.
+// Owner Organization renamed on GitHub under the same recorded id,
+// `ownerOrganizationCorrection`) is the same Machine: it is reported adopted
+// with `bindingCorrection`, and nothing is written here; `machine
+// folder-refresh` records the correction.
 export async function adoptedHandoverFolder(
   folder: string,
   machine: MachineBinding | null,
@@ -415,9 +415,7 @@ export async function adoptedHandoverFolder(
     throw new FolderAdoptionError("state-unrecognized", ".lazurio");
   }
   const recorded = current.preferences.machine;
-  const same =
-    JSON.stringify(machineIdentity(recorded)) ===
-    JSON.stringify(machineIdentity(machine));
+  const same = sameMachine(recorded, machine);
   const correction = same
     ? null
     : ownerOrganizationCorrection(recorded, machine, organizationKey);
@@ -431,7 +429,7 @@ export async function adoptedHandoverFolder(
       ? {}
       : {
           bindingCorrection: correction,
-          next: "Run lazurio machine folder-refresh: it records the Owner Organization as the handover now names it, by its GitHub login in lower case.",
+          next: "Run lazurio machine folder-refresh: it records the Owner Organization's new GitHub login, which the handover names with the same Organization id.",
         }),
   };
 }

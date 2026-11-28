@@ -1451,6 +1451,28 @@ recorded nothing.
 Authority: Matěj 2026-11-11, the rule exactly as stated in the first point; nothing else of the
 identity follows the handover.
 
+**Addendum 2026-11-27: the Owner Organization's correction only by its id (#1281).** A rename
+of the Owner Organization on GitHub changes its login and frees the old one for anyone, so a
+new login in the handover proves nothing by itself, and neither does `owner.organization_key`,
+which a lane may change with the rename. From the handover alone, a Folder relabelled from a
+runtime label (the addendum of 2026-11-11) cannot be told from a renamed Organization: where the
+old login is also the runtime label, both look the same.
+- Machines writes the Owner Organization's immutable GitHub id as `owner.organization_id`
+  (HumanAndMachine-ai/Machines#1627, only for a Platform that reads it). The binding records
+  it as `owner.organizationId`, outside the identity, so the first refresh with it under the
+  unchanged login is an ordinary refresh.
+- `machine folder-refresh` records exactly one change of the identity, `owner-renamed`: a
+  work Environment whose handover names the Owner Organization by another login with the same
+  `owner.organization_id` the Folder recorded, its identity otherwise the same, through the
+  same planner, archived transaction and `profile-resume` as before. Its answer is
+  `"bindingCorrected":"owner-renamed"`, and `folder-init` answers `already-adopted` with
+  `"bindingCorrection":"owner-renamed"`.
+- The correction by `owner.organization_key` of the addendum of 2026-11-11 is retired. A
+  Folder that still records a runtime label is another Machine (`folder-binding-changed`)
+  until it records the id under its current value. The Environments it was made for have had
+  lane applies since; that each refresh recorded the correction is not verified, and a Folder
+  that did not makes its next apply fail visibly, never silently.
+
 **Addendum 2026-11-12: the refresh records a rewritten handover's digest (issue #111, duplicate
 #193).** The binding's `contextDigest` names the handover the Folder was last checked against,
 and `doctor`'s `machine-binding` compares it with the live one: `handover-changed`, whose next
@@ -3578,7 +3600,7 @@ Implemented, with template revision `base-instructions-127`:
   the voice's. There is no section without a text. Buddy GEN3's layer does not render it, as
   it renders no custom voice. Since root decision 0233's addendum of 2026-11-25 Buddy GEN4's
   `AGENTS.md` renders both, the same section after the same voice
-  (`src/folder/buddy-gen4.ts`, template revision `base-instructions-159`).
+  (`src/folder/buddy-gen4.ts`, template revision `base-instructions-160`).
 - **The presets.** `local`, `hosted-personal` and `hosted-organization-personal` have own
   instructions (`ownInstructionsAllowed`); `hosted-organization-team`,
   `hosted-organization-steward` and a public Environment, whatever preset its Folder

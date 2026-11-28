@@ -128,7 +128,12 @@ organization sync [<github-login>] [--folder <absolute Folder>] [--json]
   is on its branch and no merge, rebase, cherry-pick, revert, bisect or am is
   under way; otherwise it is blocked with its reason (dirty, wrong-branch,
   detached, ahead, diverged, operation-in-progress, unexpected-checkout) and
-  left exactly as it is. A blocked or unreadable root stops its Organization.
+  left exactly as it is. After a GitHub rename a checkout whose origin still
+  names the earlier owner is pointed to the declared repository only when
+  GitHub answers both with the same repository id (origin from and to in its
+  answer); a root that declares another login than this Environment's
+  handover, with no Organization id there to prove it is the same one, is
+  blocked organization-renamed until the Environment's update. A blocked or unreadable root stops its Organization.
   Each repository answers fast-forwarded (from and to), current, materialized
   (a declared module or data mount that was not here, cloned now that this
   Environment's identity can read it), blocked, absent (declared, not in the

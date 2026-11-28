@@ -286,6 +286,11 @@ export type CatalogOrganization = Readonly<{
    * (`organization.forge_binding.locator` with `forge: "github"`), present
    * only when it is one. Never the slug: the two may differ. */
   forgeLogin?: string;
+  /** The GitHub Organization's immutable id the same binding records
+   * (`organization.forge_binding.organization_id`, verified binding only):
+   * what still names the Organization after a GitHub rename changed its
+   * login (#1281). */
+  forgeOrganizationId?: number;
   state: OrganizationRootState | null;
   issues: readonly string[];
   executable: boolean;
@@ -532,14 +537,27 @@ async function moduleReason(
 
 // The GitHub login of the canonical manifest's forge binding, when it is
 // one; the same field the legacy projection and the inventory read.
-function forgeLogin(organization: Data): Readonly<{ forgeLogin?: string }> {
+function forgeLogin(
+  organization: Data,
+): Readonly<{ forgeLogin?: string; forgeOrganizationId?: number }> {
   const binding = organization.forge_binding;
   if (!isRecord(binding) || binding.forge !== "github") return {};
   const locator = binding.locator;
-  return typeof locator === "string" &&
-    /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(locator)
-    ? { forgeLogin: locator }
-    : {};
+  if (
+    typeof locator !== "string" ||
+    !/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$/.test(locator)
+  )
+    return {};
+  const id = binding.organization_id;
+  const number =
+    binding.binding_state === "verified" &&
+    typeof id === "string" &&
+    /^[1-9][0-9]{0,15}$/.test(id)
+      ? Number(id)
+      : undefined;
+  return number !== undefined && Number.isSafeInteger(number)
+    ? { forgeLogin: locator, forgeOrganizationId: number }
+    : { forgeLogin: locator };
 }
 
 /** The issues under which a root's declared identity is still certain: its

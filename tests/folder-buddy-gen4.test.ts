@@ -296,6 +296,112 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   expect(en).toContain("no proof that nothing is there");
 });
 
+// The one-time catch-up (LZD-0033 R11d), case by case: what the skill must
+// say for each situation a Buddy can be in, so that the count recorded with
+// `hotovo` is exactly the items this catch-up moved into the Brain.
+type Phrases = Readonly<Record<"cs" | "en", readonly string[]>>;
+const catchUpCases: readonly Readonly<{
+  name: string;
+  says: Phrases;
+  never?: Phrases;
+}>[] = [
+  {
+    name: "done is its own record, not a page an agreement created first",
+    says: {
+      cs: [
+        "jestli proběhlo, říká jen stránka `buddy/dorovnani`",
+        "i když `buddy/dohody` už existuje",
+      ],
+      en: [
+        "only the page `buddy/dorovnani` says whether it happened",
+        "even when `buddy/dohody` already exists",
+      ],
+    },
+    never: {
+      cs: ["když stránka `buddy/dohody` ještě neexistuje"],
+      en: ["when the page `buddy/dohody` does not exist yet"],
+    },
+  },
+  {
+    name: "a run after hotovo does nothing",
+    says: {
+      cs: ["Když na ní je `hotovo`, dorovnání znovu nespouštěj"],
+      en: ["When it says `hotovo` (done), do not run the catch-up again"],
+    },
+  },
+  {
+    name: "nothing in the tool's memory: done with 0",
+    says: {
+      cs: ["i když je to 0: v paměti nástroje nic nebylo"],
+      en: ["also when it is 0: the tool's memory held nothing"],
+    },
+  },
+  {
+    name: "everything already in the Brain: pointers, nothing written, 0",
+    says: {
+      cs: [
+        "nebo v ní bylo jen to, co už v Brainu je",
+        "znovu ji nezapisuj, jen ji ve zdroji nahraď odkazem, pokud tam ještě není",
+        "Položka, která v Brainu byla už před dorovnáním, značku nemá a nepočítá se",
+      ],
+      en: [
+        "or only what the Brain already holds",
+        "do not write it again; only replace it in its source with the pointer if it is not one yet",
+        "An item that was in the Brain before the catch-up has no mark and is not counted",
+      ],
+    },
+  },
+  {
+    name: "part moved, then interrupted: the repeat counts each move once",
+    says: {
+      cs: [
+        "zápis z přerušeného pokusu značku má a počítá se jednou",
+        "přerušené dorovnání jde bezpečně zopakovat od začátku",
+        "Ověř ji čtením a teprve potom ji ve zdroji nahraď odkazem",
+        "`hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů",
+        "Průběžný počet nedrž",
+      ],
+      en: [
+        "a write of an interrupted attempt has the mark and is counted once",
+        "an interrupted catch-up can safely start over",
+        "Check it by reading, and only then replace it in its source with the pointer",
+        "Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked",
+        "Keep no running count",
+      ],
+    },
+  },
+  {
+    name: "the count is the marked writes, not the pointers",
+    says: {
+      cs: [
+        "zapiš ji na místa výše se značkou `(dorovnání)`",
+        "počet přenesených položek je počet zápisů v Brainu se značkou `(dorovnání)`",
+      ],
+      en: [
+        "write it into the places above with the mark `(dorovnání)`",
+        "the number of items moved is the number of writes in the Brain with the mark `(dorovnání)`",
+      ],
+    },
+    never: {
+      cs: ["počet odkazů `→ Brain (dorovnání)`"],
+      en: ["number of `→ Brain (dorovnání)` pointers"],
+    },
+  },
+  {
+    name: "nothing private leaves the tool's memory",
+    says: {
+      cs: [
+        "Značka ani odkaz nenesou nic z obsahu položky",
+        "nic jiného z paměti nástroje necituj",
+      ],
+      en: [
+        "Neither the mark nor the pointer carries anything of the item",
+        "quote nothing else from the tool's memory",
+      ],
+    },
+  },
+];
+
 test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the places and the catch-up (LZD-0033 R11d)", () => {
   for (const locale of locales)
     for (const profile of ["buddy", "employee"] as const) {
@@ -345,81 +451,20 @@ test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the
         expect(skill).toContain(
           cs ? "jeho slova doslova a čas" : "their words verbatim and the time",
         );
-        // The one catch-up of what is only in the tool's memory today. Its
-        // completion is its own record, never the existence of a page an
-        // agreement may have created first.
-        expect(skill).not.toContain(
-          cs
-            ? "když stránka `buddy/dohody` ještě neexistuje"
-            : "when the page `buddy/dohody` does not exist yet",
-        );
-        expect(skill).toContain("`buddy/dorovnani`");
-        expect(skill).toContain(
-          cs
-            ? "i když `buddy/dohody` už existuje"
-            : "even when `buddy/dohody` already exists",
-        );
-        // Interrupted: done is written only after both sources are processed
-        // and checked, so a half-done catch-up is never marked done.
-        expect(skill).toContain(
-          cs
-            ? "`hotovo` zapiš na `buddy/dorovnani` až po zpracování a ověření obou zdrojů"
-            : "Write `hotovo` on `buddy/dorovnani` only after both sources are processed and checked",
-        );
-        // Repeated: what the Brain holds is not written again, an item leaves
-        // the tool's memory only once checked, and the run starts over safely.
-        expect(skill).toContain(
-          cs
-            ? "nejdřív čtením zjisti, jestli už tam je"
-            : "first check by reading whether it is already there",
-        );
-        expect(skill).toContain(
-          cs
-            ? "ověř čtením a teprve potom ji v paměti nástroje a na staré stránce nahraď odkazem"
-            : "check it by reading, and only then replace it with a pointer",
-        );
-        expect(skill).toContain(
-          cs
-            ? "přerušené dorovnání jde bezpečně zopakovat od začátku"
-            : "an interrupted catch-up can safely start over",
-        );
-        // Nothing to move is a finished catch-up too.
-        expect(skill).toContain(cs ? "i když je to 0" : "also when it is 0");
-        // The count survives an interruption: it is the number of pointers
-        // of one fixed form in both sources, never a running tally a new
-        // attempt starts from 0, and an item moved before the interruption
-        // is counted once, by its pointer, not again.
-        expect(skill).toContain("`→ Brain (dorovnání)");
-        expect(skill).toContain(
-          cs
-            ? "počet převedených položek je počet odkazů `→ Brain (dorovnání)` v obou zdrojích, takže přežije přerušení a nic se nezapočítá dvakrát"
-            : "the number of items moved is the number of `→ Brain (dorovnání)` pointers in both sources, so it survives an interruption and nothing is counted twice",
-        );
-        expect(skill).toContain(
-          cs ? "Průběžný počet nedrž" : "Keep no running count",
-        );
-        // A repeat counts an item already in the Brain by giving it its
-        // pointer if it has none yet, and the pointer holds nothing private.
-        expect(skill).toContain(
-          cs
-            ? "jen to ve zdroji nahraď odkazem, pokud tam ještě není"
-            : "only replace it with a pointer in its source if it is not one yet",
-        );
-        expect(skill).toContain(
-          cs
-            ? "a nic jiného z položky nenese"
-            : "and carries nothing else of the item",
-        );
-        expect(skill).not.toContain(
-          cs
-            ? "s časem a počtem zapsaných položek"
-            : "the number of items written",
-        );
-        expect(skill).toContain(
-          cs
-            ? "nic jiného z paměti nástroje necituj"
-            : "quote nothing else from the tool's memory",
-        );
+        // The one catch-up of what is only in the tool's memory today: every
+        // row of the case table below, in this locale.
+        for (const row of catchUpCases) {
+          for (const phrase of row.says[locale])
+            expect([row.name, skill.includes(phrase)]).toEqual([
+              row.name,
+              true,
+            ]);
+          for (const phrase of row.never?.[locale] ?? [])
+            expect([row.name, skill.includes(phrase)]).toEqual([
+              row.name,
+              false,
+            ]);
+        }
       }
     }
 });
