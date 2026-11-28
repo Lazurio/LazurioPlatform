@@ -1,4 +1,4 @@
-import { namesConfirmed } from "../buddy/names-confirmed";
+import { namesStep } from "../buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../buddy/persona-save";
 import {
   type BuddyNoticesChoice,
@@ -214,13 +214,14 @@ export function buddyFact(
       reading.signIn === "connected" && refused !== undefined
         ? "none"
         : reading.signIn,
-    // Buddy GEN4's names count once ~/Buddy holds them (names-confirmed.ts).
+    // Buddy GEN4's names count once ~/Buddy holds them; confirmed names
+    // still owed there are neither (names-confirmed.ts).
     confirmed:
       reading.persona === null
         ? reading === unknownBuddyReading
           ? null
           : false
-        : namesConfirmed(reading.persona, reading.signIn === "not-needed"),
+        : namesStep(reading.persona, reading.signIn === "not-needed"),
   };
 }
 

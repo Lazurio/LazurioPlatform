@@ -317,7 +317,8 @@ export type BuddyFact =
   | Readonly<{
       /** `not-needed` for Buddy GEN4, who has no sign-in of his own. */
       signIn: "connected" | "none" | "unknown" | "not-needed";
-      /** Null where his reading failed: not known either way. */
+      /** Null where his reading failed, or while confirmed names wait for
+       * `~/Buddy` (`namesStep`): not known either way. */
       confirmed: boolean | null;
     }>;
 
