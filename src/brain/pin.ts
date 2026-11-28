@@ -26,9 +26,9 @@ export type BrainPin = Readonly<{
 
 export const brainPin: BrainPin = Object.freeze({
   repository: "Lazurio/gbrain",
-  tag: "v0.60.733.0-lazurio.3",
-  commit: "69c4e66e4df47accfda441b164737cc03c1b2985",
-  version: "0.60.733.0-lazurio.3",
+  tag: "v0.60.733.0-lazurio.4",
+  commit: "afea4f4ac20ec38cfef06b0b7a636948471805d3",
+  version: "0.60.733.0-lazurio.4",
 });
 
 /** The server's address: loopback only, the port every client of the brain

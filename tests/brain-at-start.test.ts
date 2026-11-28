@@ -262,6 +262,26 @@ describe("lazurio brain setup as the Launchpad's child", () => {
     expect(brainAnswers(labels)).toBe(true);
   });
 
+  test("the window of search by meaning a run ran is read with its counts, for the journal line", async () => {
+    const run: ToolRunner = async () => ({
+      exitCode: 2,
+      stdout: JSON.stringify({
+        server: "running",
+        meaning: "waits:filling",
+        meaningWindow: "exit 11, stop time_budget, embedded 8, remaining 377",
+        status: { state: "running" },
+      }),
+      stderr: "",
+    });
+    expect(
+      await runBrainSetup({ executable: "/opt/lazurio", run, env: {} }),
+    ).toEqual({
+      server: "running",
+      meaning: "waits:filling",
+      meaningWindow: "exit 11, stop time_budget, embedded 8, remaining 377",
+    });
+  });
+
   test("the archive's outcome is read, and one not off yet keeps the Launchpad running setup again", async () => {
     for (const [archive, waits] of [
       ["off", false],

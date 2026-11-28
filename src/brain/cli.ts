@@ -38,6 +38,13 @@ brain setup [--json]
   is taken over in place and, like a brain on an earlier release, moved to
   the pin with a copy first and a way back, only while Buddy is idle. A
   brain Machines run is only reported. Prints closed labels only, never a key.
+  Search by meaning (meaning): waits:filling while windows compute the
+  vectors still missing, one window per run while Buddy is idle, with the
+  server running; meaning-window says what that window reported (gbrain's
+  exit code, why it stopped, chunks installed and left). held:<why> where the
+  filling gave up (then held): what it computed stays, nothing is brought
+  back, and a later GBrain release tries it once more. restored:<why> only
+  where a failed step brought the brain back from its copy.
   Exit status: 0 running the pin, 2 not here, waiting or held on the
   previous release, 1 not finished (a key not minted or an earlier one not
   revoked included) or stopped for a person.
@@ -167,6 +174,9 @@ const labelOf = (result: SetupResult) =>
     ...(result.vault === undefined ? [] : [`vault ${result.vault}`]),
     ...(result.archive === undefined ? [] : [`archive ${result.archive}`]),
     ...(result.meaning === undefined ? [] : [`meaning ${result.meaning}`]),
+    ...(result.meaningWindow === undefined
+      ? []
+      : [`meaning-window ${result.meaningWindow}`]),
     ...(result.timer === undefined ? [] : [`timer ${result.timer}`]),
   ].join("\n");
 
@@ -250,6 +260,7 @@ export async function runBrainCommand(
             vault: result.vault,
             archive: result.archive,
             meaning: result.meaning,
+            meaningWindow: result.meaningWindow,
             timer: result.timer,
             status: result.status,
           })

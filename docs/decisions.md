@@ -16298,6 +16298,28 @@ did not reach it. What follows is Executor's pattern, applied to the memory.
       - **Measured** on a fictional brain with a prototype of the hand-over:
         80 stale chunks in five windows of 60 s with the server never
         stopped, and every page write during them stored.
+    - **Amendment 2026-11-28: every window keeps what it computed**
+      (Lazurio/LazurioPlatform#1298). On a Personal Environment of 4 cores
+      the filling gave up after four windows with 0 of 385 chunks installed,
+      though the model computed throughout.
+      - **The cause.** gbrain installed a page's vectors once, at its end.
+        At the budget it stops at once, also in the middle of a page, and
+        drops what that page computed. The next window starts the same page
+        again, so a page bigger than a window never installed.
+      - **The fix.** The pin `v0.60.733.0-lazurio.4` installs a page every
+        few chunks where `GBRAIN_EMBED_STALE_INSTALL_EVERY` says so, and
+        Lazurio sets it to 4 for every window. The budget then drops at most
+        the slice in flight.
+      - **A filling that gave up** (`held:<why>`, then `held`) is tried again
+        once with a later gbrain release, from where it stopped, with no
+        stop and no copy: it never stopped the server. A switch that failed
+        and brought the copy back (`restored:<why>`) stays held for the model
+        as before. The label of a filling that gave up was `restored:<why>`
+        before, though nothing was brought back.
+      - **What a window reported** (gbrain's exit code, why it stopped,
+        chunks installed and left, never a page) is kept in the attempt and
+        printed by `lazurio brain setup` as `meaningWindow`, so the
+        Launchpad's journal has it for each run.
     - **Without the model.** gbrain falls back to words.
       `lazurio brain status` says so, and doctor warns with
       `brain-keyword-only`.

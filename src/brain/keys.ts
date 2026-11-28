@@ -79,7 +79,16 @@ export type BrainState = Readonly<{
     created?: readonly string[];
   }>;
   /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
-  meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;
+  meaning?: Readonly<{
+    provider: string;
+    dimensions: number;
+    at: string;
+    /** The window that computed the last vectors, as the attempt kept it
+     * (`lastWindow` below), so setup can print the window that finished. */
+    lastWindow?: NonNullable<
+      NonNullable<BrainState["meaningAttempt"]>["lastWindow"]
+    >;
+  }>;
   /** The vectors of the brain's facts, after its pages' (`./meaning.ts`,
    * `convergeFacts`): when the model was recorded in the database's own
    * plane (`plane`, gbrain compares it before it embeds a fact), the windows
@@ -125,6 +134,20 @@ export type BrainState = Readonly<{
     /** Windows run, and the windows in a row that made no progress. */
     windows?: number;
     stalled?: number;
+    /** What the last window reported (`WindowTrace` of `./meaning.ts`)
+     * and when it ended: counts and gbrain's closed labels, never a page. */
+    lastWindow?: Readonly<{
+      at: string;
+      exit: number | null;
+      stop?: string;
+      embedded: number;
+      healed?: number;
+      failures?: number;
+      remaining?: number;
+    }>;
+    /** The gbrain version a filling gave up on (`restored` after windows):
+     * a later release tries the filling again, once (`retriesFilling`). */
+    heldOn?: string;
   }>;
   /** Lazurio's install of a pin, from before its brain is created until its
    * release is recorded: the brain under it is Lazurio's own, and a run
