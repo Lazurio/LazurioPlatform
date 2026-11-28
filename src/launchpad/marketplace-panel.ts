@@ -23,6 +23,7 @@ import {
 } from "./marketplace-refresh";
 import type { MessageKey } from "./messages";
 import type { PageRoute } from "./routes";
+import { silkStage } from "./silk";
 
 type Copy = Readonly<Record<MessageKey, string>>;
 
@@ -275,8 +276,17 @@ export function createMarketplacePanel(
     link.dataset.route = "";
     const first = shotsOf(offer)[0];
     if (first !== undefined) {
+      // The app's window, with the release's first screen, rising out of
+      // blue silk seeded by the offer (prototype, Anna 2026-11-20).
       const shot = element("span", "market-card-shot");
-      shot.append(first.image(""));
+      const frame = element("span", "shot-window");
+      const bar = element("span", "shot-window-bar");
+      bar.setAttribute("aria-hidden", "true");
+      const dots = element("span", "shot-window-dots");
+      dots.append(element("i"), element("i"), element("i"));
+      bar.append(dots, element("span", "shot-window-address", offer.module));
+      frame.append(bar, first.image(""));
+      shot.append(silkStage(offer.id), frame);
       link.append(shot);
     }
     const text = element("span", "market-card-body");
@@ -343,8 +353,8 @@ export function createMarketplacePanel(
     return view;
   }
 
-  /** The app's real screens: one large, the others as thumbnails that
-   * show it instead. */
+  /** The app's real screens: one large, rising out of the card's blue silk,
+   * the others as thumbnails that show it instead. */
   function screens(offer: MarketplaceOffer) {
     const all = shotsOf(offer);
     const first = all[0];
@@ -353,7 +363,7 @@ export function createMarketplacePanel(
     const view = element("div", "market-shots");
     const large = element("div", "market-shot-large");
     const current = all.find((entry) => entry.key === shown) ?? first;
-    large.append(current.image(current.alt));
+    large.append(silkStage(offer.id), current.image(current.alt));
     const thumbs = element("div", "market-thumbs");
     if (all.length > 1)
       for (const { key: name, alt, image } of all) {
