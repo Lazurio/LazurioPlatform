@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { readStateJson } from "../folder/read-state";
 import { parseFolderPreferences } from "../folder/state";
 import type { CatalogOrganization } from "../organizations/catalog";
+import { ownerCandidates } from "../organizations/catalog-selection";
 import {
   locatePersonalspace,
   type PersonalspaceHolder,
@@ -98,10 +99,16 @@ export async function verifyPersonalspaceCheckout(
 export const organizationsOf = (
   organizations: readonly CatalogOrganization[],
   login: string,
-) =>
-  organizations.filter(
+  /** The handover's Organization id: decides after a rename (#1287). */
+  organizationId?: number,
+) => {
+  const byLogin = organizations.filter(
     (entry) => entry.forgeLogin?.toLowerCase() === login.toLowerCase(),
   );
+  return organizationId === undefined
+    ? byLogin
+    : ownerCandidates(organizations, byLogin, organizationId);
+};
 
 function organizationItem(
   login: string,
@@ -339,9 +346,14 @@ export async function contentStatus(
     personalspaceHolder(folder, host),
 ): Promise<ContentStatus> {
   let scope: ContentScope;
+  let organizationId: number | undefined;
   try {
     const kind = await readFolderKind(folder);
     scope = contentScope(kind.preset, kind.machine);
+    organizationId =
+      kind.machine?.owner.kind === "organization"
+        ? kind.machine.owner.organizationId
+        : undefined;
   } catch {
     return Object.freeze({
       allowed: false,
@@ -373,7 +385,10 @@ export async function contentStatus(
     } else {
       const login = scope.organizations.only;
       items.push(
-        organizationItem(login, organizationsOf(catalog.organizations, login)),
+        organizationItem(
+          login,
+          organizationsOf(catalog.organizations, login, organizationId),
+        ),
       );
     }
   }

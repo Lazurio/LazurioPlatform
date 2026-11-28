@@ -182,6 +182,8 @@ const en = {
     "Its main version has unfinished changes, so it does not update by itself",
   updateBlockedBranch:
     "Its main version is on another branch, so it does not update by itself",
+  updateRenamed:
+    "The Organization was renamed on GitHub; it updates again after this Environment's update",
   updateDenied: "GitHub did not let this Environment reach it",
   updateUnreachable: "GitHub is not answering; try again in a moment",
   updateFailed: "It could not be updated",
@@ -388,6 +390,8 @@ const cs: Words = {
     "Hlavní verze má rozpracované změny, a tak se sama neaktualizuje",
   updateBlockedBranch:
     "Hlavní verze je na jiné větvi, a tak se sama neaktualizuje",
+  updateRenamed:
+    "Organizace se na GitHubu přejmenovala; aktualizuje se znovu po aktualizaci tohoto Prostředí",
   updateDenied: "GitHub k němu toto Prostředí nepustil",
   updateUnreachable: "GitHub teď neodpovídá; zkuste to za chvíli znovu",
   updateFailed: "Nepodařilo se aktualizovat",
@@ -1891,7 +1895,9 @@ function contentFinding(
       ? copy.updateBlockedBranch
       : line.reason === "unexpected-checkout"
         ? copy.updateFailed
-        : copy.updateBlockedChanges;
+        : line.reason === "organization-renamed"
+          ? copy.updateRenamed
+          : copy.updateBlockedChanges;
   if (line.result === "denied") return copy.updateDenied;
   if (line.result === "unavailable") return copy.updateUnreachable;
   return copy.updateFailed;

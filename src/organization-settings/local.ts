@@ -70,6 +70,8 @@ export async function readRepositorySettings(
   organization: string,
   git: GitReader,
   published?: ReadonlyMap<string, string>,
+  /** The handover's Organization id: decides after a rename (#1287). */
+  organizationId?: number,
 ): Promise<SourceRead> {
   let directory: string;
   let root: string;
@@ -77,6 +79,7 @@ export async function readRepositorySettings(
     const selection = selectOwnerOrganization(
       await readFolderCatalog(folder),
       organization,
+      organizationId,
     );
     if (selection.kind !== "found") return failed("organization-absent");
     root = join("organizations", selection.organization.directory);

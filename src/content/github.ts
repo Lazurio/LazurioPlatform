@@ -45,6 +45,10 @@ export type ViewerAnswer =
 export type GitHubRepository = Readonly<{
   /** `<owner>/<name>` as GitHub spells it now. */
   fullName: string;
+  /** The repository's immutable id; it stays the same through a rename or
+   * transfer, and a redirect from an old `<owner>/<name>` answers it
+   * (#1281). Absent where an answer did not carry it. */
+  databaseId?: number;
   owner: Readonly<{ login: string; databaseId: number; kind: string }>;
   private: boolean;
   archived: boolean;
@@ -374,8 +378,12 @@ export function parseRepository(stdout: string): GitHubRepository | null {
       typeof value?.archived !== "boolean"
     )
       return null;
+    const id = value?.id;
     return Object.freeze({
       fullName,
+      ...(typeof id === "number" && Number.isSafeInteger(id) && id > 0
+        ? { databaseId: id }
+        : {}),
       owner: Object.freeze({
         login: owner.login,
         databaseId: owner.id,

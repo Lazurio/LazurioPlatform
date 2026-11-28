@@ -202,6 +202,9 @@ export type OrganizationWorkspaceContext = Readonly<{
     kind: "organization";
     organization: string;
     organization_key?: string;
+    /** The GitHub Organization's immutable id (#1281), where Machines
+     * writes it. */
+    organization_id?: number;
     team?: string;
     assignment?: OrganizationAssignment;
   }>;
