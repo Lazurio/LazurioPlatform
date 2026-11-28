@@ -35,6 +35,22 @@ test("only a Personal Remote Environment gets the Brain: one line in AGENTS.md, 
     expect(manual).toContain("`provenance`");
     expect(manual).toContain("T3 thread <UUID>");
     expect(manual).toContain("(0180, 0246)");
+    // The tool's own memory is a notebook (plan LZD-0033 R11d): every agent
+    // of a Personal Environment writes agreements into the Brain, so another
+    // tool or agent finds them; the tool's memory keeps a pointer at most.
+    expect(manual).toContain(
+      cs
+        ? "**Paměť nástroje je zápisník.**"
+        : "**Your tool's memory is a notebook.**",
+    );
+    expect(manual).toContain(
+      cs
+        ? "do paměti nástroje smíš uložit nejvýš odkaz na ně"
+        : "into the tool's memory put at most a pointer to them",
+    );
+    expect(manual).toContain(
+      cs ? "jako fakt s `entity` uživatele" : "with the user as `entity`",
+    );
   }
   expect(personal).toBeGreaterThan(0);
 });

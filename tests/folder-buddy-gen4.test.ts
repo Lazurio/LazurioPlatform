@@ -296,6 +296,376 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
   expect(en).toContain("no proof that nothing is there");
 });
 
+// The one-time catch-up (LZD-0033 R11d): the rules the skill states, and the
+// table of every state an item can be in, with what the skill does there and
+// what the item adds to the count recorded with `hotovo`. Each row names the
+// rules that decide it; the test requires every one of them in both locales.
+type Locale = "cs" | "en";
+const catchUpRules = {
+  record: {
+    cs: "co proběhlo a co se přeneslo, drží jen stránka `buddy/dorovnani`: nahoře jeden řádek stavu na každý zdroj",
+    en: "what happened and what was moved is held only by the page `buddy/dorovnani`: on top one status line per source",
+  },
+  sources: {
+    cs: "Zdroje jsou paměť Claude Code v této složce, paměť Codexu a dřívější stránky priorit v Brainu",
+    en: "The sources are Claude Code's memory in this folder, Codex's memory and the earlier priority pages in the Brain",
+  },
+  missingSource: {
+    cs: "zdroj, který neexistuje, zapiš jako `hotovo` s 0",
+    en: "write a source that does not exist as `hotovo` with 0",
+  },
+  notByPage: {
+    cs: "Dorovnání je hotové, až mají `hotovo` všechny zdroje, i když `buddy/dohody` už existuje",
+    en: "The catch-up is done when every source says `hotovo`, even when `buddy/dohody` already exists",
+  },
+  afterDone: {
+    cs: "Zdroj, který má ve stavu `hotovo`, znovu neprocházej",
+    en: "Do not go through a source whose status says `hotovo` (done) again",
+  },
+  otherTool: {
+    cs: "Každý jiný zdroj, který z tohoto nástroje přečteš, projdi celý, i když je to paměť jiného nástroje",
+    en: "Go through every other source you can read from this tool whole, also when it is another tool's memory",
+  },
+  leaveOpen: {
+    cs: "zdroj, který odsud přečíst nejde, nech otevřený pro Buddyho na tom nástroji",
+    en: "leave a source you cannot read from here open for Buddy on that tool",
+  },
+  recordFound: {
+    cs: "Má-li ji, nic nezapisuj a jen to zapiš do řádku",
+    en: "If it does, write nothing and only record that in the row",
+  },
+  places: {
+    cs: "stálá dohoda nebo preference fakt i `buddy/dohody`",
+    en: "a lasting agreement or preference a fact and `buddy/dohody`",
+  },
+  rowFirst: {
+    cs: "nejdřív čtením zjisti, která povinná místa ji už mají, a teprve potom založ řádek",
+    en: "first check by reading which required places already hold it, and only then create its row",
+  },
+  beforeOnce: {
+    cs: "Ten údaj zapiš jen při založení řádku a už ho neměň",
+    en: "Write that once, when you create the row, and never change it",
+  },
+  noWriteWithoutRow: {
+    cs: "Do Brainu za položku nic nezapisuj, dokud nemá řádek",
+    en: "Write nothing into the Brain for an item before it has a row",
+  },
+  fillEach: {
+    cs: "u každého povinného místa, které podle řádku položku nemá",
+    en: "for each required place the row says does not hold the item",
+  },
+  recheck: {
+    cs: "nejdřív čtením ověř, jestli ji přece jen nemá",
+    en: "first check by reading whether it does after all",
+  },
+  halfNotDone: {
+    cs: "Položka, která je v Brainu jen na jednom ze dvou míst, ještě hotová není",
+    en: "An item that is in the Brain in only one of two places is not done yet",
+  },
+  pointerLast: {
+    cs: "teprve když řádek ukazuje všechna povinná místa, nahraď položku ve zdroji odkazem",
+    en: "only when the row shows every required place, replace the item in its source with the pointer",
+  },
+  noPointerPartial: {
+    cs: "Položce, která nemá všechna povinná místa, odkaz nedávej",
+    en: "Give no pointer to an item that lacks a required place",
+  },
+  restart: {
+    cs: "položky, které řádek mají, pokračují podle něj, ostatní dostanou řádek jako poprvé",
+    en: "items that have a row continue from it, the others get a row as the first time",
+  },
+  count: {
+    cs: "Počet přenesených položek zdroje je počet jeho řádků s `před během: ne` nebo `částečně`, které mají všechna povinná místa i odkaz",
+    en: "The number of items moved from a source is the number of its rows with `před během: ne` or `částečně` that have every required place and the pointer",
+  },
+  once: {
+    cs: "takže se počítá jednou, i když má dvě místa",
+    en: "so it counts once even with two places",
+  },
+  wholeNotCounted: {
+    cs: "položka, kterou měl Brain celou už před během (`celá`), dostane jen odkaz a nepočítá se",
+    en: "an item the Brain held whole before the run (`celá`) only gets its pointer and does not count",
+  },
+  partCounted: {
+    cs: "položka, kterou měl jen zčásti, se počítá, protože zbytek přenesl tento běh",
+    en: "an item it held only in part counts, because this run moved the rest",
+  },
+  doneLast: {
+    cs: "`hotovo` zapiš do řádku stavu zdroje, až mají všechny jeho řádky všechna místa i odkaz",
+    en: "Write `hotovo` on a source's status line when every row of it has every place and the pointer",
+  },
+  zero: {
+    cs: "s časem a tímto počtem, i když je to 0",
+    en: "with the time and this number, also when it is 0",
+  },
+  privacy: {
+    cs: "Řádek nese jen, kde položka je a kam patří, nic z jejího obsahu navíc",
+    en: "A row carries only where the item is and where it belongs, nothing more of its content",
+  },
+  noQuote: {
+    cs: "nic z paměti nástroje necituj",
+    en: "quote nothing from the tool's memory",
+  },
+} as const satisfies Record<string, Readonly<Record<Locale, string>>>;
+type CatchUpRule = keyof typeof catchUpRules;
+
+// An agreement has two required places (fact F, page P); a priority one
+// (page). "Brain" is what the Brain holds for the item when the run reaches
+// it; "row" is the item's row on buddy/dorovnani then (none on a first run,
+// or before the row was created); "counts" is what the item adds to the
+// count once it is done.
+const catchUpStates: readonly Readonly<{
+  state: string;
+  does: string;
+  counts: 0 | 1;
+  rules: readonly CatchUpRule[];
+}>[] = [
+  // First run, no row: whatever the Brain holds was there before the run.
+  {
+    state: "agreement · Brain: none · row: none (first run)",
+    does: "row ne; write F and P; pointer",
+    counts: 1,
+    rules: [
+      "rowFirst",
+      "noWriteWithoutRow",
+      "fillEach",
+      "pointerLast",
+      "count",
+      "once",
+    ],
+  },
+  {
+    state: "agreement · Brain: F only, before the run · row: none",
+    does: "row částečně; write P; pointer",
+    counts: 1,
+    rules: ["rowFirst", "beforeOnce", "fillEach", "halfNotDone", "partCounted"],
+  },
+  {
+    state: "agreement · Brain: P only, before the run · row: none",
+    does: "row částečně; write F; pointer",
+    counts: 1,
+    rules: ["rowFirst", "beforeOnce", "fillEach", "halfNotDone", "partCounted"],
+  },
+  {
+    state: "agreement · Brain: F and P, before the run · row: none",
+    does: "row celá; write nothing; pointer",
+    counts: 0,
+    rules: ["rowFirst", "beforeOnce", "pointerLast", "wholeNotCounted"],
+  },
+  {
+    state: "priority · Brain: none · row: none",
+    does: "row ne; write P; pointer",
+    counts: 1,
+    rules: ["places", "rowFirst", "fillEach", "pointerLast", "count"],
+  },
+  // Repeat after an interruption: the row says what was before the run.
+  {
+    state: "agreement · Brain: none · row: ne (interrupted after the row)",
+    does: "write F and P; pointer",
+    counts: 1,
+    rules: ["restart", "fillEach", "pointerLast", "count"],
+  },
+  {
+    state: "agreement · Brain: F written by this run · row: ne, F recorded",
+    does: "write P; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "fillEach",
+      "halfNotDone",
+      "noPointerPartial",
+      "count",
+      "once",
+    ],
+  },
+  {
+    state: "agreement · Brain: P written by this run · row: ne, P recorded",
+    does: "write F; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "fillEach",
+      "halfNotDone",
+      "noPointerPartial",
+      "count",
+      "once",
+    ],
+  },
+  {
+    state:
+      "agreement · Brain: F written by this run · row: ne, F not recorded yet",
+    does: "re-read finds F: record it in the row, no second write; write P; pointer",
+    counts: 1,
+    rules: ["restart", "recheck", "recordFound", "fillEach", "count", "once"],
+  },
+  {
+    state:
+      "agreement · Brain: F and P written by this run · row: ne, neither recorded",
+    does: "re-read finds both: record both, no write; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "recheck",
+      "recordFound",
+      "pointerLast",
+      "count",
+      "once",
+    ],
+  },
+  {
+    state:
+      "agreement · Brain: F and P written by this run · row: ne, no pointer",
+    does: "pointer",
+    counts: 1,
+    rules: ["restart", "pointerLast", "count", "once"],
+  },
+  {
+    state: "agreement · Brain: F and P written by this run · row: ne, pointer",
+    does: "nothing",
+    counts: 1,
+    rules: ["restart", "count", "once"],
+  },
+  {
+    state:
+      "agreement · Brain: F before the run, P written by this run · row: částečně",
+    does: "pointer if missing",
+    counts: 1,
+    rules: ["restart", "beforeOnce", "partCounted"],
+  },
+  {
+    state: "agreement · Brain: F and P before the run · row: celá, no pointer",
+    does: "pointer",
+    counts: 0,
+    rules: ["restart", "beforeOnce", "wholeNotCounted"],
+  },
+  {
+    state: "any item · interrupted before its row was created",
+    does: "as on a first run: nothing was written for it, so the row is true",
+    counts: 1,
+    rules: ["restart", "noWriteWithoutRow", "rowFirst"],
+  },
+  // Sources and the whole catch-up.
+  {
+    state: "a source holds nothing to move",
+    does: "no rows for it; its status hotovo with 0",
+    counts: 0,
+    rules: ["doneLast", "zero"],
+  },
+  {
+    state: "a source does not exist (that tool was never used)",
+    does: "its status hotovo with 0",
+    counts: 0,
+    rules: ["sources", "missingSource"],
+  },
+  {
+    state: "a source's status says hotovo",
+    does: "that source is not gone through again",
+    counts: 0,
+    rules: ["record", "afterDone"],
+  },
+  {
+    state: "two tools: Buddy on Claude Code, Codex's memory readable from here",
+    does: "both memories and the priority pages in this run; each its status",
+    counts: 0,
+    rules: ["sources", "otherTool", "doneLast"],
+  },
+  {
+    state:
+      "two tools: Buddy on Claude Code finished its sources, Codex's memory not readable from here",
+    does: "Codex's status stays open; Buddy on Codex goes through it later",
+    counts: 0,
+    rules: ["leaveOpen", "afterDone", "notByPage"],
+  },
+  {
+    state: "Buddy on Codex later, Claude Code's sources already hotovo",
+    does: "skips them, goes through Codex's memory, then its status hotovo",
+    counts: 0,
+    rules: ["afterDone", "otherTool", "doneLast"],
+  },
+  {
+    state: "every source hotovo",
+    does: "catch-up done, also when buddy/dohody exists; the user hears only the numbers",
+    counts: 0,
+    rules: ["notByPage", "zero", "privacy", "noQuote"],
+  },
+];
+const catchUpNever: Readonly<Record<Locale, readonly string[]>> = {
+  cs: [
+    "se značkou `(dorovnání)`",
+    "počet odkazů",
+    "když stránka `buddy/dohody` ještě neexistuje",
+  ],
+  en: [
+    "with the mark `(dorovnání)`",
+    "number of `→ Brain",
+    "when the page `buddy/dohody` does not exist yet",
+  ],
+};
+
+test("Buddy's Brain is the truth and the tool's memory a notebook: the rule, the places and the catch-up (LZD-0033 R11d)", () => {
+  for (const locale of locales)
+    for (const profile of ["buddy", "employee"] as const) {
+      const files = renderBuddyFolder(source(locale), profile, persona);
+      const agents = files["AGENTS.md"];
+      const skills = [
+        files[".agents/skills/buddy-brain/SKILL.md"],
+        files[".claude/skills/buddy-brain/SKILL.md"],
+      ];
+      const cs = locale === "cs";
+      // The rule: written in the same turn, the tool's memory a pointer at most.
+      expect(agents).toContain(
+        cs
+          ? "**Paměť nástroje je zápisník.**"
+          : "**Your tool's memory is a notebook.**",
+      );
+      expect(agents).toContain(
+        cs ? "ve stejném tahu, kdy vznikly" : "in the same turn they arise",
+      );
+      expect(agents).toContain(
+        cs
+          ? "Co v Brainu není, jiný agent neví."
+          : "What is not in the Brain, another agent does not know.",
+      );
+      // Read the Brain after a summary and after a switch of the model.
+      expect(agents).toContain(
+        cs ? "po přepnutí modelu" : "after a switch of the model",
+      );
+      // The tool's memory stays on (decided 2026-11-25): nothing switches it off.
+      for (const text of Object.values(files)) {
+        expect(text).not.toContain("autoMemoryEnabled");
+        expect(text).not.toContain("generate_memories");
+      }
+      for (const skill of skills) {
+        // The same four places in every Personal Environment.
+        for (const page of [
+          "`buddy/dohody`",
+          "`buddy/priority`",
+          "`buddy/ceka`",
+          "`buddy/denik/2026-11`",
+        ])
+          expect(skill).toContain(page);
+        expect(skill).toContain(
+          cs ? "deník jen na dotaz" : "the diary only when asked",
+        );
+        // A decided item keeps the user's words verbatim and the time.
+        expect(skill).toContain(
+          cs ? "jeho slova doslova a čas" : "their words verbatim and the time",
+        );
+        // The one catch-up of what is only in the tool's memory today: every
+        // row of the case table below, in this locale.
+        for (const row of catchUpStates)
+          for (const rule of row.rules)
+            expect([
+              row.state,
+              rule,
+              skill.includes(catchUpRules[rule][locale]),
+            ]).toEqual([row.state, rule, true]);
+        for (const phrase of catchUpNever[locale])
+          expect([phrase, skill.includes(phrase)]).toEqual([phrase, false]);
+      }
+    }
+});
+
 test("buddy-vlakna: no question tool on a round, and a status file's first sentence checked at its source", () => {
   const skill = (locale: "cs" | "en") =>
     renderBuddyFolder(source(locale), "buddy", persona)[

@@ -209,7 +209,11 @@ const reach: readonly Text[] = [
 // The Brain (Matěj 2026-11-17, citations 5 and 4.11 of plan LZD-0033): the
 // one place that holds the truth of what the user and Buddy agree on; first
 // write, then work. The line of what belongs there is the coordinator's
-// proposal within 0180 and 0246, verified in the pilot.
+// proposal within 0180 and 0246, verified in the pilot. The tool's own
+// memory is a notebook, not the truth (plan LZD-0033 R11d, decided
+// 2026-11-25): what is only there, another tool or agent never gets, so the
+// Brain holds every agreement and the tool's memory at most a pointer to it.
+// The tool's memory stays on; Lazurio does not switch it off.
 const brain: readonly Text[] = [
   t("## Paměť: Brain", "## Memory: the Brain"),
   t(
@@ -217,12 +221,16 @@ const brain: readonly Text[] = [
     "The Brain (GBrain) is the one place that holds the truth of what you and the user agree on. The conversation is summarised over time or starts again; what lives only in it is lost.",
   ),
   t(
-    "- **Nejdřív zapsat, pak dělat.** Když si s uživatelem řeknete seznam priorit, úkol, rozhodnutí nebo slib, zapiš to do Brainu dřív, než na tom začneš pracovat, a tam to průběžně aktualizuj: co je hotové, co se změnilo, co čeká. Priority drž na jedné stránce, kterou přepisuješ.",
-    "- **Write first, then work.** When you and the user name a list of priorities, a task, a decision or a promise, write it into the Brain before you start on it, and keep it current there: what is done, what changed, what waits. Keep the priorities on one page you rewrite.",
+    "- **Nejdřív zapsat, pak dělat.** Když si s uživatelem řeknete seznam priorit, úkol, rozhodnutí nebo slib, zapiš to do Brainu dřív, než na tom začneš pracovat, a tam to průběžně aktualizuj: co je hotové, co se změnilo, co čeká. Kam co patří, říká skill `buddy-brain`.",
+    "- **Write first, then work.** When you and the user name a list of priorities, a task, a decision or a promise, write it into the Brain before you start on it, and keep it current there: what is done, what changed, what waits. The skill `buddy-brain` says where each goes.",
   ),
   t(
-    "- **Na začátku práce číst.** Na začátku dne, po shrnutí rozhovoru a před navázáním na dřívější téma si z Brainu načti priority a to, co k tématu víš. Odpovídej podle něj.",
-    "- **Read at the start of work.** At the start of the day, after the conversation was summarised and before picking up an earlier topic, load the priorities and what you know of the topic from the Brain. Answer from it.",
+    "- **Paměť nástroje je zápisník.** Paměť tvého nástroje (Claude Code, Codex) je pracovní zápisník, ne zdroj pravdy: jiný nástroj ani jiný agent ji nedostane. Rozhodnutí, dohodu, stálou preferenci, prioritu, slib a to, co čeká na uživatele, zapiš do Brainu ve stejném tahu, kdy vznikly; do paměti nástroje smíš uložit nejvýš odkaz na ně. Co v Brainu není, jiný agent neví.",
+    "- **Your tool's memory is a notebook.** The memory of your tool (Claude Code, Codex) is a working notebook, not the source of truth: another tool or another agent never gets it. Write a decision, an agreement, a lasting preference, a priority, a promise and what waits for the user into the Brain in the same turn they arise; into the tool's memory put at most a pointer to them. What is not in the Brain, another agent does not know.",
+  ),
+  t(
+    "- **Na začátku práce číst.** Na začátku dne, po shrnutí rozhovoru, po přepnutí modelu a před navázáním na dřívější téma si z Brainu načti dohody, priority, co čeká na uživatele a co k tématu víš. Odpovídej podle něj, ne podle paměti nástroje.",
+    "- **Read at the start of work.** At the start of the day, after the conversation was summarised, after a switch of the model and before picking up an earlier topic, load the agreements, the priorities, what waits for the user and what you know of the topic from the Brain. Answer from it, not from your tool's memory.",
   ),
   t(
     "- **Co tam patří.** Osobní poznámky a preference uživatele, dohody, priority a rozhodnutí, která spolu uděláte, rozdělaná práce a kdo ji vede, co čeká na uživatele a co jsi slíbil. U práce Organizace jen krátký popis a odkaz na místo v Organizaci (plán, issue, pull request); její obsah, data a stav zůstávají v jejích repozitářích, Knowledgebase a aplikacích (0180, 0246). Tajemství nikdy.",
@@ -479,8 +487,48 @@ const brainSkill: FolderSkill = {
       "- **Visibility:** through Executor `recall` returns `world` facts only. A `world` fact is read by every reader of the source: the Environment's agents, the memory map in Lazurio and anyone GBrain grants access to the source. A `private` fact is found neither by you nor by any other agent. Write ordinary facts the agents should find (agreements, priorities, what is to be done) without `visibility`. Pass `private` only when the person explicitly wants it, and tell them that the agents will not find such a fact. Never widen their choice to `world` yourself.",
     ),
     t(
-      "- **Stránky:** priority, rozdělaná práce a dohody na stránkách: `get_page`, `edit_page`, `put_page`. Stránku priorit udržuješ aktuální úpravami; nedělej z ní desítky poznámek.",
-      "- **Pages:** priorities, work in progress and agreements on pages: `get_page`, `edit_page`, `put_page`. You keep the priorities page current by editing it; do not turn it into dozens of notes.",
+      "- **Kam co patří.** Stejná místa v každém Osobním Prostředí, aby na ně navázal kterýkoli agent a kterýkoli nástroj:",
+      "- **Where each goes.** The same places in every Personal Environment, so that any agent on any tool can pick up from them:",
+    ),
+    t(
+      "  - **Stálé dohody a preference:** fakt přes `remember` s `entity` uživatele a krátká stránka `buddy/dohody`. Stránku přepisuješ, nenecháš ji narůstat.",
+      "  - **Lasting agreements and preferences:** a fact through `remember` with the user as `entity`, and the short page `buddy/dohody`. You rewrite the page; do not let it grow.",
+    ),
+    t(
+      "  - **Aktuální priority:** stránka `buddy/priority`, nejvýš na jednu obrazovku. Přepisuješ ji.",
+      "  - **Current priorities:** the page `buddy/priority`, one screen at most. You rewrite it.",
+    ),
+    t(
+      "  - **Co čeká na uživatele:** stránka `buddy/ceka`, jedna položka na věc: přesná věta k rozhodnutí, tvoje doporučení, kdo se ptá, do kdy a stav `otevřená` nebo `rozhodnutá`. U rozhodnuté jeho slova doslova a čas; pak ji přesuneš do deníku.",
+      "  - **What waits for the user:** the page `buddy/ceka`, one item per matter: the exact sentence to decide, your recommendation, who asks, by when, and the state `otevřená` (open) or `rozhodnutá` (decided). A decided one gets their words verbatim and the time; then you move it to the diary.",
+    ),
+    t(
+      "  - **Časová osa:** stránka `buddy/denik/<rok-měsíc>` (třeba `buddy/denik/2026-11`). Jen do ní připisuješ; rozhodnutí v ní stojí doslova s časem.",
+      "  - **Timeline:** the page `buddy/denik/<year-month>` (for example `buddy/denik/2026-11`). You only append to it; a decision stands in it verbatim with its time.",
+    ),
+    t(
+      "  Na začátku práce čti `buddy/dohody`, `buddy/priority` a `buddy/ceka`; deník jen na dotaz. Stránky čteš a měníš přes `get_page`, `edit_page` a `put_page`.",
+      "  At the start of work read `buddy/dohody`, `buddy/priority` and `buddy/ceka`; the diary only when asked. You read and change pages with `get_page`, `edit_page` and `put_page`.",
+    ),
+    t(
+      "- **Dorovnání, jednou za každý zdroj:** co proběhlo a co se přeneslo, drží jen stránka `buddy/dorovnani`: nahoře jeden řádek stavu na každý zdroj, pod nimi seznam s jedním řádkem na položku. Zdroje jsou paměť Claude Code v této složce, paměť Codexu a dřívější stránky priorit v Brainu; zdroj, který neexistuje, zapiš jako `hotovo` s 0. Zdroj, který má ve stavu `hotovo`, znovu neprocházej. Každý jiný zdroj, který z tohoto nástroje přečteš, projdi celý, i když je to paměť jiného nástroje; zdroj, který odsud přečíst nejde, nech otevřený pro Buddyho na tom nástroji. Dorovnání je hotové, až mají `hotovo` všechny zdroje, i když `buddy/dohody` už existuje. Každá položka, která podle `AGENTS.md` patří do Brainu, má povinná místa podle oddílu výše: stálá dohoda nebo preference fakt i `buddy/dohody`, priorita `buddy/priority`, věc čekající na uživatele `buddy/ceka`. Pro každou položku:",
+      "- **Catching up, once per source:** what happened and what was moved is held only by the page `buddy/dorovnani`: on top one status line per source, below them a list with one row per item. The sources are Claude Code's memory in this folder, Codex's memory and the earlier priority pages in the Brain; write a source that does not exist as `hotovo` with 0. Do not go through a source whose status says `hotovo` (done) again. Go through every other source you can read from this tool whole, also when it is another tool's memory; leave a source you cannot read from here open for Buddy on that tool. The catch-up is done when every source says `hotovo`, even when `buddy/dohody` already exists. Each item that belongs in the Brain by `AGENTS.md` has required places by the section above: a lasting agreement or preference a fact and `buddy/dohody`, a priority `buddy/priority`, what waits for the user `buddy/ceka`. For each item:",
+    ),
+    t(
+      "  - **Řádek před prvním zápisem:** nemá-li položka na `buddy/dorovnani` řádek, nejdřív čtením zjisti, která povinná místa ji už mají, a teprve potom založ řádek: kde položka ve zdroji je, její povinná místa, která z nich ji už mají, a `před během: celá`, `částečně` nebo `ne`. Ten údaj zapiš jen při založení řádku a už ho neměň. Do Brainu za položku nic nezapisuj, dokud nemá řádek.",
+      "  - **A row before the first write:** when the item has no row on `buddy/dorovnani`, first check by reading which required places already hold it, and only then create its row: where the item is in its source, its required places, which of them already hold it, and `před během: celá`, `částečně` or `ne` (before the run: whole, partly, no). Write that once, when you create the row, and never change it. Write nothing into the Brain for an item before it has a row.",
+    ),
+    t(
+      "  - **Doplň každé chybějící místo:** u každého povinného místa, které podle řádku položku nemá, nejdřív čtením ověř, jestli ji přece jen nemá (zápis mohl proběhnout těsně před přerušením). Má-li ji, nic nezapisuj a jen to zapiš do řádku. Chybí-li, zapiš ji, ověř čtením a zapiš to do řádku. Položka, která je v Brainu jen na jednom ze dvou míst, ještě hotová není.",
+      "  - **Fill every missing place:** for each required place the row says does not hold the item, first check by reading whether it does after all (a write may have happened just before an interruption). If it does, write nothing and only record that in the row. If it is missing, write it, check it by reading and record that in the row. An item that is in the Brain in only one of two places is not done yet.",
+    ),
+    t(
+      "  - **Odkaz až nakonec:** teprve když řádek ukazuje všechna povinná místa, nahraď položku ve zdroji odkazem `→ Brain: <stránka nebo fakt>` a zapiš to do řádku. Položce, která nemá všechna povinná místa, odkaz nedávej.",
+      "  - **The pointer last:** only when the row shows every required place, replace the item in its source with the pointer `→ Brain: <page or fact>` and record that in the row. Give no pointer to an item that lacks a required place.",
+    ),
+    t(
+      "  Přerušené dorovnání pusť znovu od začátku: položky, které řádek mají, pokračují podle něj, ostatní dostanou řádek jako poprvé. Počet přenesených položek zdroje je počet jeho řádků s `před během: ne` nebo `částečně`, které mají všechna povinná místa i odkaz. Každá položka má jeden řádek, takže se počítá jednou, i když má dvě místa; položka, kterou měl Brain celou už před během (`celá`), dostane jen odkaz a nepočítá se; položka, kterou měl jen zčásti, se počítá, protože zbytek přenesl tento běh. `hotovo` zapiš do řádku stavu zdroje, až mají všechny jeho řádky všechna místa i odkaz, s časem a tímto počtem, i když je to 0. Řádek nese jen, kde položka je a kam patří, nic z jejího obsahu navíc; uživateli řekni jen počet a nic z paměti nástroje necituj.",
+      "  Start an interrupted catch-up over from the beginning: items that have a row continue from it, the others get a row as the first time. The number of items moved from a source is the number of its rows with `před během: ne` or `částečně` that have every required place and the pointer. Each item has one row, so it counts once even with two places; an item the Brain held whole before the run (`celá`) only gets its pointer and does not count; an item it held only in part counts, because this run moved the rest. Write `hotovo` on a source's status line when every row of it has every place and the pointer, with the time and this number, also when it is 0. A row carries only where the item is and where it belongs, nothing more of its content; tell the user only the number and quote nothing from the tool's memory.",
     ),
     t(
       "- **Úprava existující stránky:** vždy `edit_page` s `expected_revision` a `edits: [{ old_text, new_text }]`. `expected_revision` a přesný `old_text` vezmi z `get_page` s `include_content: true`; `new_text` napiš sám jako požadovanou náhradu, bez obalu. Když se `old_text` neshoduje, `edit_page` nic nezmění; přečti stránku znovu, nehádej.",
