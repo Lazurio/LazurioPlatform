@@ -303,16 +303,36 @@ test("buddy-brain: what the pinned GBrain asks for, checked against its source",
 type Locale = "cs" | "en";
 const catchUpRules = {
   record: {
-    cs: "jestli proběhlo a co přeneslo, drží jen stránka `buddy/dorovnani`",
-    en: "whether it happened and what it moved is held only by the page `buddy/dorovnani`",
+    cs: "co proběhlo a co se přeneslo, drží jen stránka `buddy/dorovnani`: nahoře jeden řádek stavu na každý zdroj",
+    en: "what happened and what was moved is held only by the page `buddy/dorovnani`: on top one status line per source",
+  },
+  sources: {
+    cs: "Zdroje jsou paměť Claude Code v této složce, paměť Codexu a dřívější stránky priorit v Brainu",
+    en: "The sources are Claude Code's memory in this folder, Codex's memory and the earlier priority pages in the Brain",
+  },
+  missingSource: {
+    cs: "zdroj, který neexistuje, zapiš jako `hotovo` s 0",
+    en: "write a source that does not exist as `hotovo` with 0",
   },
   notByPage: {
-    cs: "i když `buddy/dohody` už existuje",
-    en: "even when `buddy/dohody` already exists",
+    cs: "Dorovnání je hotové, až mají `hotovo` všechny zdroje, i když `buddy/dohody` už existuje",
+    en: "The catch-up is done when every source says `hotovo`, even when `buddy/dohody` already exists",
   },
   afterDone: {
-    cs: "Když je ve stavu `hotovo`, dorovnání znovu nespouštěj",
-    en: "When the status says `hotovo` (done), do not run the catch-up again",
+    cs: "Zdroj, který má ve stavu `hotovo`, znovu neprocházej",
+    en: "Do not go through a source whose status says `hotovo` (done) again",
+  },
+  otherTool: {
+    cs: "Každý jiný zdroj, který z tohoto nástroje přečteš, projdi celý, i když je to paměť jiného nástroje",
+    en: "Go through every other source you can read from this tool whole, also when it is another tool's memory",
+  },
+  leaveOpen: {
+    cs: "zdroj, který odsud přečíst nejde, nech otevřený pro Buddyho na tom nástroji",
+    en: "leave a source you cannot read from here open for Buddy on that tool",
+  },
+  recordFound: {
+    cs: "Má-li ji, nic nezapisuj a jen to zapiš do řádku",
+    en: "If it does, write nothing and only record that in the row",
   },
   places: {
     cs: "stálá dohoda nebo preference fakt i `buddy/dohody`",
@@ -355,8 +375,8 @@ const catchUpRules = {
     en: "items that have a row continue from it, the others get a row as the first time",
   },
   count: {
-    cs: "počet řádků s `před během: ne` nebo `částečně`, které mají všechna povinná místa i odkaz",
-    en: "the number of rows with `před během: ne` or `částečně` that have every required place and the pointer",
+    cs: "Počet přenesených položek zdroje je počet jeho řádků s `před během: ne` nebo `částečně`, které mají všechna povinná místa i odkaz",
+    en: "The number of items moved from a source is the number of its rows with `před během: ne` or `částečně` that have every required place and the pointer",
   },
   once: {
     cs: "takže se počítá jednou, i když má dvě místa",
@@ -371,8 +391,8 @@ const catchUpRules = {
     en: "an item it held only in part counts, because this run moved the rest",
   },
   doneLast: {
-    cs: "`hotovo` zapiš do řádku stavu, až mají všechny řádky všechna místa i odkaz",
-    en: "Write `hotovo` on the status line when every row has every place and the pointer",
+    cs: "`hotovo` zapiš do řádku stavu zdroje, až mají všechny jeho řádky všechna místa i odkaz",
+    en: "Write `hotovo` on a source's status line when every row of it has every place and the pointer",
   },
   zero: {
     cs: "s časem a tímto počtem, i když je to 0",
@@ -474,9 +494,23 @@ const catchUpStates: readonly Readonly<{
   {
     state:
       "agreement · Brain: F written by this run · row: ne, F not recorded yet",
-    does: "read F there, record it (no second write); write P; pointer",
+    does: "re-read finds F: record it in the row, no second write; write P; pointer",
     counts: 1,
-    rules: ["restart", "recheck", "fillEach", "count", "once"],
+    rules: ["restart", "recheck", "recordFound", "fillEach", "count", "once"],
+  },
+  {
+    state:
+      "agreement · Brain: F and P written by this run · row: ne, neither recorded",
+    does: "re-read finds both: record both, no write; pointer",
+    counts: 1,
+    rules: [
+      "restart",
+      "recheck",
+      "recordFound",
+      "pointerLast",
+      "count",
+      "once",
+    ],
   },
   {
     state:
@@ -510,24 +544,49 @@ const catchUpStates: readonly Readonly<{
     counts: 1,
     rules: ["restart", "noWriteWithoutRow", "rowFirst"],
   },
-  // The whole catch-up.
+  // Sources and the whole catch-up.
   {
-    state: "tool's memory holds nothing to move",
-    does: "no rows; hotovo with 0",
+    state: "a source holds nothing to move",
+    does: "no rows for it; its status hotovo with 0",
     counts: 0,
     rules: ["doneLast", "zero"],
   },
   {
-    state: "status says hotovo",
-    does: "nothing, also when buddy/dohody exists",
+    state: "a source does not exist (that tool was never used)",
+    does: "its status hotovo with 0",
     counts: 0,
-    rules: ["record", "afterDone", "notByPage"],
+    rules: ["sources", "missingSource"],
   },
   {
-    state: "every row done",
-    does: "hotovo with the count; the user hears only the number",
+    state: "a source's status says hotovo",
+    does: "that source is not gone through again",
     counts: 0,
-    rules: ["doneLast", "zero", "privacy", "noQuote"],
+    rules: ["record", "afterDone"],
+  },
+  {
+    state: "two tools: Buddy on Claude Code, Codex's memory readable from here",
+    does: "both memories and the priority pages in this run; each its status",
+    counts: 0,
+    rules: ["sources", "otherTool", "doneLast"],
+  },
+  {
+    state:
+      "two tools: Buddy on Claude Code finished its sources, Codex's memory not readable from here",
+    does: "Codex's status stays open; Buddy on Codex goes through it later",
+    counts: 0,
+    rules: ["leaveOpen", "afterDone", "notByPage"],
+  },
+  {
+    state: "Buddy on Codex later, Claude Code's sources already hotovo",
+    does: "skips them, goes through Codex's memory, then its status hotovo",
+    counts: 0,
+    rules: ["afterDone", "otherTool", "doneLast"],
+  },
+  {
+    state: "every source hotovo",
+    does: "catch-up done, also when buddy/dohody exists; the user hears only the numbers",
+    counts: 0,
+    rules: ["notByPage", "zero", "privacy", "noQuote"],
   },
 ];
 const catchUpNever: Readonly<Record<Locale, readonly string[]>> = {
