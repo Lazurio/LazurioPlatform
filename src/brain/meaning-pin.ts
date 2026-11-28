@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import type { BrainState } from "./keys";
 
 // Search by meaning in the person's memory (plan LZD-0033 R11a): a local
 // embedding model, pinned per Platform release like GBrain itself, each file
@@ -55,6 +56,25 @@ export type MeaningPaths = Readonly<{
   /** The model file, named by its digest. */
   model: string;
 }>;
+
+/** Whether a filling given up earlier is tried again on the gbrain release
+ * `version`: only a filling (it ran windows: the model is on and the server
+ * runs with it, so nothing is stopped or copied), only once per release
+ * (`heldOn` names the one it gave up on; an attempt from before `heldOn`
+ * existed gave up on an earlier release). A brain brought back from its copy
+ * (`restored` before any window) stays held for the model. */
+export function retriesFilling(
+  attempt: BrainState["meaningAttempt"],
+  version: string | undefined,
+): boolean {
+  return (
+    attempt?.provider === meaningPin.provider &&
+    attempt.result === "restored" &&
+    attempt.windows !== undefined &&
+    version !== undefined &&
+    attempt.heldOn !== version
+  );
+}
 
 export function meaningPaths(home: string): MeaningPaths {
   const root = join(home, ".local", "share", "lazurio-gbrain-meaning");

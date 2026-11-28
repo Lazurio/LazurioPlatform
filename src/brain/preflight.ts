@@ -1,5 +1,5 @@
 import { type BrainState, readBrainState } from "./keys";
-import { meaningPin } from "./meaning-pin";
+import { meaningPin, retriesFilling } from "./meaning-pin";
 import { brainPin } from "./pin";
 import { type BrainRoom, brainRoom, type FreeBytes, roomShort } from "./room";
 import { interimPresent, interimRelease } from "./takeover";
@@ -122,7 +122,12 @@ function unfinished(state: BrainState): TakeoverBlocker[] {
   if (attempt?.provider === meaningPin.provider) {
     if (attempt.result === "stopping" || attempt.result === "started")
       found.push("meaning-unfinished");
-    if (attempt.result === "restored" || attempt.result === "stopped")
+    // A filling given up on another release is tried again on the pin.
+    if (
+      (attempt.result === "restored" &&
+        !retriesFilling(attempt, brainPin.version)) ||
+      attempt.result === "stopped"
+    )
       found.push("meaning-held");
   }
   return found;

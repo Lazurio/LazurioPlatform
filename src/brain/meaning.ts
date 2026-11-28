@@ -21,6 +21,7 @@ import {
   meaningPort,
   meaningUnit,
   meaningUrl,
+  retriesFilling,
 } from "./meaning-pin";
 import { answers, keepDown, type MoveHost, stoppedForSure } from "./move";
 import { brainRefreshTimer, brainUnit } from "./pin";
@@ -69,6 +70,8 @@ export type MeaningResult =
   | "held"
   | "waits-idle"
   | `waits:${string}`
+  /** The filling stopped for this model, nothing brought back (`fill`). */
+  | `held:${string}`
   | `restored:${string}`
   | `stopped:${string}`;
 
@@ -312,11 +315,19 @@ function columnWidth(refusal: Record<string, unknown> | null): string | null {
  * the column has another width, move it to the model's, keeping pages and
  * facts, then compute every vector while the server is stopped (the only
  * way on PGLite). */
-/** How long one window of the embedding keeps the server stopped: gbrain's
- * own budget (`GBRAIN_EMBED_TIME_BUDGET_MS`), after which it stops between
- * batches, keeps what it computed and says how many chunks are left. Then
- * the server runs again, with the model, until the next window. */
+/** How long one window of the embedding runs: gbrain's own budget
+ * (`GBRAIN_EMBED_TIME_BUDGET_MS`). At the budget gbrain stops at once, also
+ * in the middle of a page, and says how many chunks are left; it keeps only
+ * what it installed (`meaningInstallEvery`). */
 export const meaningWindowMs = 3 * 60_000;
+/** How many chunks of one page gbrain computes before it installs them
+ * (`GBRAIN_EMBED_STALE_INSTALL_EVERY`, from v0.60.733.0-lazurio.4). Without
+ * it gbrain installs a page once, at its end, and a budget that stops it in
+ * the middle drops the whole page: on 4 cores a page of more than about 18
+ * chunks (10 s each) never fit a window, and the filling stopped with 385
+ * chunks left after four windows (Lazurio/LazurioPlatform#1298). Four
+ * chunks take under a minute there, so every window keeps something. */
+export const meaningInstallEvery = 4;
 /** How long one batch to the local model may take. gbrain's default (60 s)
  * is for a provider across a network; a batch of 32 texts on a fully loaded
  * Environment of 4 vCPU needs longer, and an abandoned batch is computed
@@ -361,6 +372,7 @@ const gbrainEnv = (host: MeaningHost): Record<string, string> => ({
   GBRAIN_EMBED_CONCURRENCY: String(meaningConcurrency),
   GBRAIN_AI_EMBED_TIMEOUT_MS: String(meaningBatchLimitMs),
   GBRAIN_EMBED_TIME_BUDGET_MS: String(meaningWindowMs),
+  GBRAIN_EMBED_STALE_INSTALL_EVERY: String(meaningInstallEvery),
 });
 
 const gbrainOf =
@@ -386,8 +398,8 @@ const gbrainOf =
  * `partial` where gbrain stopped at its budget, chunked pages or computed
  * some and failed some, or exited 0 with work left (it keeps every vector it
  * wrote; the next window goes on), `failed` where it did nothing. Closed
- * labels and counts only. */
-export type EmbedWindow =
+ * labels and counts only; `trace` is what the window itself reported. */
+export type EmbedWindow = (
   | Readonly<{ result: "done"; embedded: number }>
   | Readonly<{
       result: "partial";
@@ -396,14 +408,84 @@ export type EmbedWindow =
       healed?: number;
       remaining?: number;
     }>
-  | Readonly<{ result: "failed"; reason: string }>;
+  | Readonly<{ result: "failed"; reason: string }>
+) &
+  Readonly<{ trace: WindowTrace }>;
+
+/** Why gbrain stopped a window, where it says: its own closed labels. */
+const windowStops = ["time_budget", "stall_timeout", "cost_cap"] as const;
+
+/** What one window reported, for a person reading the attempt: gbrain's
+ * exit code (null where Lazurio ended it at `meaningEmbedLimitMs`), why it
+ * stopped where gbrain says, and its counts. Never a page name. */
+export type WindowTrace = Readonly<{
+  exit: number | null;
+  stop?: (typeof windowStops)[number];
+  embedded: number;
+  healed?: number;
+  failures?: number;
+  remaining?: number;
+}>;
+
+/** A window's trace as one closed line: `exit 11, stop time_budget,
+ * embedded 0, remaining 385` (`exit limit` where Lazurio ended it). */
+export function windowLabel(
+  trace: Readonly<{
+    exit: number | null;
+    stop?: string;
+    embedded: number;
+    healed?: number;
+    failures?: number;
+    remaining?: number;
+  }>,
+): string {
+  return [
+    `exit ${trace.exit ?? "limit"}`,
+    ...(trace.stop === undefined ? [] : [`stop ${trace.stop}`]),
+    `embedded ${trace.embedded}`,
+    ...(trace.healed === undefined ? [] : [`healed ${trace.healed}`]),
+    ...(trace.failures === undefined ? [] : [`failures ${trace.failures}`]),
+    ...(trace.remaining === undefined ? [] : [`remaining ${trace.remaining}`]),
+  ].join(", ");
+}
+
+/** The window a setup run ran, as its label: where the attempt after the
+ * run has another `lastWindow` (its time) or count of windows than the
+ * attempt before it. Where the run's window finished the filling, the
+ * attempt is gone and the switch keeps that window (`meaning.lastWindow`):
+ * it counts where the state before had not kept it yet. A run that ran no
+ * window has none. */
+export function windowSince(
+  before: Pick<BrainState, "meaningAttempt" | "meaning">,
+  afterState: Pick<BrainState, "meaningAttempt" | "meaning">,
+): string | undefined {
+  const after = afterState.meaningAttempt;
+  if (after === undefined) {
+    const finished = afterState.meaning?.lastWindow;
+    return finished !== undefined &&
+      before.meaning?.lastWindow?.at !== finished.at
+      ? windowLabel(finished)
+      : undefined;
+  }
+  const last = after.lastWindow;
+  if (last === undefined) return undefined;
+  const earlier = before.meaningAttempt;
+  const same =
+    earlier?.lastWindow?.at === last.at && earlier?.windows === after.windows;
+  return same ? undefined : windowLabel(last);
+}
 
 export async function embedWindow(
   host: MeaningHost,
   command: string,
 ): Promise<EmbedWindow> {
   const ran = await gbrainOf(host, command)(["embed", "--stale", "--json"]);
-  if (ran.exit === null) return { result: "failed", reason: "embed-limit" };
+  if (ran.exit === null)
+    return {
+      result: "failed",
+      reason: "embed-limit",
+      trace: { exit: null, embedded: 0 },
+    };
   const count = (key: string) => {
     const value = ran.out?.[key];
     return typeof value === "number" && Number.isInteger(value) && value >= 0
@@ -415,6 +497,15 @@ export async function embedWindow(
   const failures = count("failures") ?? 0;
   // Pages the run chunked count as progress: their vectors come next.
   const healed = count("chunkless_pages_healed") ?? 0;
+  const stop = windowStops.find((label) => label === ran.out?.reason);
+  const trace: WindowTrace = {
+    exit: ran.exit,
+    ...(stop === undefined ? {} : { stop }),
+    embedded,
+    ...(healed > 0 ? { healed } : {}),
+    ...(failures > 0 ? { failures } : {}),
+    ...(remaining === undefined ? {} : { remaining }),
+  };
   if (ran.ok && failures === 0) {
     // Exit 0 is not "nothing left": gbrain's heal of pages stored without
     // chunks may stop at the budget with pages left, still exit 0 and set no
@@ -437,14 +528,21 @@ export async function embedWindow(
       preview !== "timeout" && preview.exitCode === 0
         ? printed(preview.stdout)?.would_embed
         : undefined;
-    if (left === 0) return { result: "done", embedded };
+    const leftCount =
+      typeof left === "number" && Number.isInteger(left) && left >= 0
+        ? left
+        : undefined;
+    const traced: WindowTrace =
+      leftCount === undefined ? trace : { ...trace, remaining: leftCount };
+    if (leftCount === 0) return { result: "done", embedded, trace: traced };
     return {
       result: "partial",
       embedded,
       ...(healed > 0 ? { healed } : {}),
-      ...(typeof left === "number" && Number.isInteger(left) && left > 0
-        ? { remaining: left }
+      ...(leftCount !== undefined && leftCount > 0
+        ? { remaining: leftCount }
         : {}),
+      trace: traced,
     };
   }
   if (ran.exit === budgetStopExit || embedded > 0 || healed > 0)
@@ -453,16 +551,17 @@ export async function embedWindow(
       embedded,
       ...(healed > 0 ? { healed } : {}),
       ...(remaining === undefined ? {} : { remaining }),
+      trace,
     };
-  const reason = ran.out?.reason;
   return {
     result: "failed",
     reason:
-      reason === "stall_timeout"
+      stop === "stall_timeout"
         ? "embed-stalled"
         : failures > 0
           ? "embed-failures"
           : "embed",
+    trace,
   };
 }
 
@@ -569,7 +668,13 @@ const recorder =
     extra: Partial<
       Pick<
         Attempt,
-        "phase" | "windowBackup" | "remaining" | "windows" | "stalled"
+        | "phase"
+        | "windowBackup"
+        | "remaining"
+        | "windows"
+        | "stalled"
+        | "lastWindow"
+        | "heldOn"
       >
     > = {},
   ) => {
@@ -582,6 +687,9 @@ const recorder =
       ...(before?.remaining === undefined
         ? {}
         : { remaining: before.remaining }),
+      ...(before?.lastWindow === undefined
+        ? {}
+        : { lastWindow: before.lastWindow }),
     };
     await writeBrainState(host.paths, {
       ...current,
@@ -817,6 +925,16 @@ export async function convergeMeaning(
   if (state.meaning?.provider === meaningPin.provider)
     return convergeFacts(host, state.release);
   const attempt = state.meaningAttempt;
+  if (retriesFilling(attempt, state.release?.version) && attempt) {
+    // From where it stopped, with a fresh count of windows: the filling
+    // never stopped the server, so there is nothing to copy or recover.
+    await recorder(host, new Date(attempt.at))("filling", undefined, {
+      windows: 0,
+      stalled: 0,
+    });
+    const again = (await readBrainState(host.paths)).meaningAttempt;
+    if (again !== undefined) return fill(host, state.release, again);
+  }
   if (
     attempt?.provider === meaningPin.provider &&
     (attempt.result === "restored" || attempt.result === "stopped")
@@ -916,7 +1034,11 @@ async function afterCommit(
 }
 
 /** Search by meaning on: every vector computed. */
-async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
+async function switchedOn(
+  host: MoveHost,
+  at: Date,
+  lastWindow?: NonNullable<Attempt["lastWindow"]>,
+): Promise<MeaningResult> {
   const { meaningAttempt: _done, ...current } = await readBrainState(
     host.paths,
   );
@@ -926,6 +1048,7 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
       provider: meaningPin.provider,
       dimensions: meaningPin.dimensions,
       at: at.toISOString(),
+      ...(lastWindow === undefined ? {} : { lastWindow }),
     }),
   });
   await service(host, "start", brainRefreshTimer);
@@ -1116,10 +1239,13 @@ export const failedWindowName = ".gbrain.failed-meaning-window";
  * release), which keeps answering meanwhile. Nothing is stopped, copied or
  * brought back: every vector it writes is kept, and a page written
  * meanwhile is the person's. After windows in a row without progress, or
- * too many in all, the filling stops (`restored`: not tried again for this
- * pin) with the vectors computed so far kept. `waits:filling` where vectors
- * are left or Buddy works: the Launchpad runs setup again after a pause
- * (`./at-start.ts`). */
+ * too many in all, the filling stops (`held:<why>`, then `held`) with the
+ * vectors computed so far kept. Nothing is brought back, so the label is
+ * not `restored`; the state keeps `restored` and the gbrain version it gave
+ * up on (`heldOn`): a later gbrain release tries it once more
+ * (`retriesFilling`). `waits:filling` where vectors are left or Buddy
+ * works: the Launchpad runs setup again after a pause (`./at-start.ts`).
+ * Each window leaves what it reported in the attempt (`lastWindow`). */
 async function fill(
   host: MeaningHost,
   release: Release | undefined,
@@ -1129,11 +1255,15 @@ async function fill(
   const at = new Date(attempt.at);
   const record = recorder(host, at);
   if ((attempt.windows ?? 0) >= meaningMaxWindows) {
-    await record("restored", "embed-windows");
-    return "restored:embed-windows";
+    await record("restored", "embed-windows", { heldOn: release.version });
+    return "held:embed-windows";
   }
   if (!(await host.idle())) return "waits:filling";
   const result = await embedWindow(host, release.command);
+  const lastWindow = {
+    at: (host.now ?? (() => new Date()))().toISOString(),
+    ...result.trace,
+  };
   const counted = (await readBrainState(host.paths)).meaningAttempt;
   const windows = (counted?.windows ?? 0) + 1;
   const progressed =
@@ -1142,18 +1272,28 @@ async function fill(
       (result.embedded > 0 || (result.healed ?? 0) > 0));
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
   if (result.result === "done") {
-    await switchedOn(host, at);
+    await switchedOn(host, at, lastWindow);
     return convergeFacts(host, release);
   }
   const reason = result.result === "failed" ? result.reason : undefined;
   if (stalled >= meaningMaxStalled) {
-    const why = reason ?? "embed-stalled";
-    await record("restored", why, { windows, stalled });
-    return `restored:${why}`;
+    // A window that reached its budget and installed nothing says so; the
+    // watchdog's own stop is `embed-stalled` (`embedWindow`).
+    const why =
+      reason ??
+      (result.trace.stop === "time_budget" ? "embed-budget" : "embed-stalled");
+    await record("restored", why, {
+      windows,
+      stalled,
+      lastWindow,
+      heldOn: release.version,
+    });
+    return `held:${why}`;
   }
   await record("filling", reason, {
     windows,
     stalled,
+    lastWindow,
     ...(result.result === "partial" && result.remaining !== undefined
       ? { remaining: result.remaining }
       : {}),
