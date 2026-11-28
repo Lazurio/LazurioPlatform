@@ -79,7 +79,16 @@ export type BrainState = Readonly<{
     created?: readonly string[];
   }>;
   /** Search by meaning, once switched on for this brain (`./meaning.ts`). */
-  meaning?: Readonly<{ provider: string; dimensions: number; at: string }>;
+  meaning?: Readonly<{
+    provider: string;
+    dimensions: number;
+    at: string;
+    /** The window that computed the last vectors, as the attempt kept it
+     * (`lastWindow` below), so setup can print the window that finished. */
+    lastWindow?: NonNullable<
+      NonNullable<BrainState["meaningAttempt"]>["lastWindow"]
+    >;
+  }>;
   /** The vectors of the brain's facts, after its pages' (`./meaning.ts`,
    * `convergeFacts`): when the model was recorded in the database's own
    * plane (`plane`, gbrain compares it before it embeds a fact), the windows

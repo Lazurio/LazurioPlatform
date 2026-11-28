@@ -1040,13 +1040,15 @@ describe("the vectors in short windows, computed by the running server", () => {
     const { host, paths, world } = await stand({
       windows: [budgetOnly],
     });
+    const start = await readBrainState(paths);
     expect(await convergeMeaning(host)).toBe("waits:filling");
-    const first = (await readBrainState(paths)).meaningAttempt;
+    const firstState = await readBrainState(paths);
+    const first = firstState.meaningAttempt;
     // What setup prints for the window this run ran, and for none.
-    expect(windowSince(undefined, first)).toBe(
+    expect(windowSince(start, firstState)).toBe(
       "exit 11, stop time_budget, embedded 0, remaining 385",
     );
-    expect(windowSince(first, first)).toBeUndefined();
+    expect(windowSince(firstState, firstState)).toBeUndefined();
     expect(first).toMatchObject({
       result: "filling",
       windows: 1,
@@ -1059,7 +1061,8 @@ describe("the vectors in short windows, computed by the running server", () => {
       },
     });
     expect(await convergeMeaning(host)).toBe("held:embed-budget");
-    const held = (await readBrainState(paths)).meaningAttempt;
+    const heldState = await readBrainState(paths);
+    const held = heldState.meaningAttempt;
     expect(held).toMatchObject({
       result: "restored",
       reason: "embed-budget",
@@ -1069,16 +1072,14 @@ describe("the vectors in short windows, computed by the running server", () => {
       lastWindow: { exit: 11, stop: "time_budget", embedded: 0 },
     });
     // The second window, though the clock may read the same.
-    expect(windowSince(first, held)).toBe(
+    expect(windowSince(firstState, heldState)).toBe(
       "exit 11, stop time_budget, embedded 0, remaining 385",
     );
     expect(windowLabel({ exit: null, embedded: 0 })).toBe(
       "exit limit, embedded 0",
     );
     expect(await convergeMeaning(host)).toBe("held");
-    expect(
-      windowSince(held, (await readBrainState(paths)).meaningAttempt),
-    ).toBeUndefined();
+    expect(windowSince(heldState, await readBrainState(paths))).toBeUndefined();
     // The brain as the server keeps it: no copy came back, the server runs.
     expect(
       JSON.parse(await readFile(join(paths.brain, "config.json"), "utf8")),
@@ -1106,12 +1107,17 @@ describe("the vectors in short windows, computed by the running server", () => {
     >;
     await writeBrainState(paths, { ...state, meaningAttempt: earlier });
     expect(retriesFilling(earlier, brainPin.version)).toBe(true);
+    const before = await readBrainState(paths);
     expect(await convergeMeaning(host)).toBe("on");
     expect(stops(calls)).toBe(stopsBefore);
     expect(world.server).toBe(true);
-    expect((await readBrainState(paths)).meaning?.provider).toBe(
-      meaningPin.provider,
-    );
+    const on = await readBrainState(paths);
+    expect(on.meaning?.provider).toBe(meaningPin.provider);
+    // The window that finished it is kept with the switch, so setup prints
+    // it once; a later run, with nothing computed, prints none.
+    expect(on.meaningAttempt).toBeUndefined();
+    expect(windowSince(before, on)).toBe("exit 0, embedded 385, remaining 0");
+    expect(windowSince(on, on)).toBeUndefined();
   });
 
   test("a filling is tried again only once per release, and a brain brought back from its copy stays held", () => {

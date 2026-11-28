@@ -545,7 +545,7 @@ async function finish(
       : undefined;
   // Search by meaning only on the pin: a brain held on an earlier release
   // moves first.
-  const attemptBefore = (await readBrainState(paths)).meaningAttempt;
+  const stateBefore = await readBrainState(paths);
   const meaning =
     host.fetch !== undefined && server !== "held" && server !== "waits-move"
       ? await convergeMeaning({ ...moveHost(host), fetch: host.fetch })
@@ -553,10 +553,7 @@ async function finish(
   const meaningWindow =
     meaning === undefined
       ? undefined
-      : windowSince(
-          attemptBefore,
-          (await readBrainState(paths)).meaningAttempt,
-        );
+      : windowSince(stateBefore, await readBrainState(paths));
   const timer = await ensureTimer(host);
   return Object.freeze({
     server,

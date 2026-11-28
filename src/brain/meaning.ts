@@ -451,16 +451,27 @@ export function windowLabel(
 
 /** The window a setup run ran, as its label: where the attempt after the
  * run has another `lastWindow` (its time) or count of windows than the
- * attempt before it. A run that ran no window, or switched search by
- * meaning on (the attempt is gone), has none. */
+ * attempt before it. Where the run's window finished the filling, the
+ * attempt is gone and the switch keeps that window (`meaning.lastWindow`):
+ * it counts where the state before had not kept it yet. A run that ran no
+ * window has none. */
 export function windowSince(
-  before: Attempt | undefined,
-  after: Attempt | undefined,
+  before: Pick<BrainState, "meaningAttempt" | "meaning">,
+  afterState: Pick<BrainState, "meaningAttempt" | "meaning">,
 ): string | undefined {
-  const last = after?.lastWindow;
+  const after = afterState.meaningAttempt;
+  if (after === undefined) {
+    const finished = afterState.meaning?.lastWindow;
+    return finished !== undefined &&
+      before.meaning?.lastWindow?.at !== finished.at
+      ? windowLabel(finished)
+      : undefined;
+  }
+  const last = after.lastWindow;
   if (last === undefined) return undefined;
+  const earlier = before.meaningAttempt;
   const same =
-    before?.lastWindow?.at === last.at && before?.windows === after?.windows;
+    earlier?.lastWindow?.at === last.at && earlier?.windows === after.windows;
   return same ? undefined : windowLabel(last);
 }
 
@@ -1023,7 +1034,11 @@ async function afterCommit(
 }
 
 /** Search by meaning on: every vector computed. */
-async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
+async function switchedOn(
+  host: MoveHost,
+  at: Date,
+  lastWindow?: NonNullable<Attempt["lastWindow"]>,
+): Promise<MeaningResult> {
   const { meaningAttempt: _done, ...current } = await readBrainState(
     host.paths,
   );
@@ -1033,6 +1048,7 @@ async function switchedOn(host: MoveHost, at: Date): Promise<MeaningResult> {
       provider: meaningPin.provider,
       dimensions: meaningPin.dimensions,
       at: at.toISOString(),
+      ...(lastWindow === undefined ? {} : { lastWindow }),
     }),
   });
   await service(host, "start", brainRefreshTimer);
@@ -1256,7 +1272,7 @@ async function fill(
       (result.embedded > 0 || (result.healed ?? 0) > 0));
   const stalled = progressed ? 0 : (counted?.stalled ?? 0) + 1;
   if (result.result === "done") {
-    await switchedOn(host, at);
+    await switchedOn(host, at, lastWindow);
     return convergeFacts(host, release);
   }
   const reason = result.result === "failed" ? result.reason : undefined;
