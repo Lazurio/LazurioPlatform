@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
+import { namesConfirmed, namesStep } from "../src/buddy/names-confirmed";
 import type { BuddyPersonaShown } from "../src/buddy/persona-save";
-import type { BuddyReading } from "../src/launchpad/buddy-view";
+import { type BuddyReading, buddyFact } from "../src/launchpad/buddy-view";
 import type { ContentItem, ContentList } from "../src/launchpad/content-client";
 import type { ContentFact } from "../src/launchpad/content-view";
 import {
@@ -458,4 +459,46 @@ test("his bubble's request opens his dialog where his step stands, only where he
   expect(
     asked({ buddy: fact("none", false), ai: "loading", github: "unknown" }),
   ).toBe("meet-buddy");
+});
+
+test("names confirmed but still owed to ~/Buddy: the tour neither leads to Buddy's step nor sends Nastavení → Buddy back to Začínáme (Matěj 2026-11-28)", () => {
+  // Buddy GEN4's names saved while he works: the page says „Projeví se, až
+  // Buddy dokončí, co právě dělá“ and the step's row shows them as told.
+  const reading: BuddyReading = {
+    state: "works",
+    signIn: "not-needed",
+    persona: { ...persona(true), pending: true },
+  };
+  const buddy = buddyFact(reading);
+  expect(buddy).toEqual({ signIn: "not-needed", confirmed: null });
+  const ready = tour({
+    buddy,
+    ai: "connected",
+    github: "connected",
+    content: { state: "ready" },
+  });
+  // Nothing is left for the person: no step leads back to Buddy's.
+  expect(nextBasic(ready)).toBeNull();
+  expect(basicState(ready, "buddy")).toBe("unknown");
+  expect(tourStep(ready, freshTourProgress, "start")).not.toBe("buddy");
+  // „Upravit“ opens Nastavení → Buddy: no stop sends the person back.
+  expect(tourStep(ready, freshTourProgress, "buddy")).not.toBe(
+    "settings-start",
+  );
+  expect(buddyNextOf(buddy)).toBeUndefined();
+  // Another basic still missing is led to as before, not Buddy's.
+  expect(tourStep(tour({ buddy }), freshTourProgress, "start")).toBe("ai");
+  // Once ~/Buddy holds the names the step is done; unconfirmed it is missing.
+  expect(
+    buddyFact({ ...reading, persona: { ...persona(true), pending: false } }),
+  ).toEqual({ signIn: "not-needed", confirmed: true });
+  expect(buddyFact({ ...reading, persona: persona(false) })).toEqual({
+    signIn: "not-needed",
+    confirmed: false,
+  });
+  // His meeting and gate keep the strict rule: still closed while pending.
+  expect(namesConfirmed({ ...persona(true), pending: true }, true)).toBe(false);
+  expect(namesStep({ ...persona(true), pending: true }, true)).toBeNull();
+  expect(namesStep({ ...persona(true), pending: true }, false)).toBe(true);
+  expect(namesStep(persona(false), true)).toBe(false);
 });

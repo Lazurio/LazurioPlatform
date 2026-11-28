@@ -471,7 +471,10 @@ test("Buddy GEN4's meeting and gate stay incomplete while his confirmed names ar
   expect(
     buddyOpenOf(shared(true), namesConfirmed(persona(true, true), true), true),
   ).toBe(false);
-  // The page's fact and Začínáme: the meeting is still asked for.
+  // The page's fact and Začínáme: while owed, the step is neither done nor
+  // missing (`namesStep`, Matěj 2026-11-28: the tour must not lead back to a
+  // step the person already did), and his bubble's request still opens the
+  // meeting, so the gate's rule above stays the strict one.
   const reading = (pending: boolean) =>
     parseBuddyReading({
       kind: "buddy",
@@ -489,7 +492,7 @@ test("Buddy GEN4's meeting and gate stay incomplete while his confirmed names ar
   });
   expect(buddyFact(reading(true))).toEqual({
     signIn: "not-needed",
-    confirmed: false,
+    confirmed: null,
   });
   expect(startDecision("meet-buddy", tour(true))).toBe("meet-buddy");
   expect(startDecision("meet-buddy", tour(false))).toBe("drop");
