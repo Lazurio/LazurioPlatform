@@ -1796,9 +1796,10 @@ const en = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Open the vault",
   vaultLoadFailed: "The vault's state could not be read.",
-  // Apps → Brain (plan LZD-0033 R11b; "Brain" is a working name, the code
-  // says memory): the map of what the agents remember about the person.
-  memoryTitle: "Brain",
+  // Apps → Long-term Memory (plan LZD-0033 R11b; the code says memory): the
+  // map of what the agents remember about the person. "Brain" is kept for the
+  // Organization's GitHub root in the future (Organization Admin, 2026-11-22).
+  memoryTitle: "Long-term Memory",
   memoryFind: "Find a memory",
   memoryFindNone: "Nothing found",
   memoryRefresh: "Reload",
@@ -4238,7 +4239,7 @@ const cs: Record<MessageKey, string> = {
   vaultActionNamed: "{action}: bitwarden",
   vaultOpen: "Otevřít trezor",
   vaultLoadFailed: "Stav trezoru se nepodařilo přečíst.",
-  memoryTitle: "Brain",
+  memoryTitle: "Dlouhodobá Paměť",
   memoryFind: "Najít vzpomínku",
   memoryFindNone: "Nic nenalezeno",
   memoryRefresh: "Načíst znovu",
